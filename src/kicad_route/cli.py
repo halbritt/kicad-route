@@ -17,6 +17,8 @@ input's unchanged constraints.
                                           grade a committed board change against its parent
     kicad-route floor [--dir D] [--since REV] [--write-declared]
                                           rule high-water mark of the history and the declared floor
+    kicad-route spokes RUN_DIR | --board B.kicad_pcb
+                                          thermal-spoke corridors: which new copper starved which pad
     kicad-route publish RUN_DIR [--to DIR]
                                           copy a run's structured evidence (not the board) for committing
     kicad-route update                    move both backends to their latest upstream release, then smoke
@@ -65,6 +67,7 @@ from . import common
 from . import floor
 from . import provenance
 from . import skills
+from . import spokes  # --reserve-spokes / `kicad-route spokes` (docs/spokes.md)
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot
 
 PASS, FAIL, NOT_RUN, UNSUPPORTED = common.PASS, common.FAIL, common.NOT_RUN, common.UNSUPPORTED
@@ -683,7 +686,7 @@ def run_attempt(args):
                 "max_iterations": args.max_iterations, "passes": args.passes,
                 "default_clearance_mm": args.default_clearance, "clearance_margin_mm": args.clearance_margin,
                 "backend_args": args.backend_arg or [], "backend_env": dict(e.split("=", 1) for e in args.backend_env or []),
-                **scope_info}
+                "reserve_spokes": args.reserve_spokes, **scope_info}
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
 
     floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
@@ -719,7 +722,10 @@ def run_attempt(args):
     copy_project(ref_dir, work / "input" / ref_dir.name)
     log(f"[route] routing with {args.backend} (budget {args.budget}s)")
     t0 = time.monotonic()
-    proc = backend["route"](work, work / "input" / ref_dir.name / board_name, scope, ref_facts, settings)
+    work_board = work / "input" / ref_dir.name / board_name
+    # --reserve-spokes: corridors reserved on the work input, stripped from the output (spokes.py)
+    proc = spokes.around_route(args.reserve_spokes, work, work_board,
+                               lambda: backend["route"](work, work_board, scope, ref_facts, settings))
     proc["runtime_s"] = round(time.monotonic() - t0, 3)
     unsupported += [f"backend reported: {u}" for u in proc.pop("unsupported_reported", [])]
     for u in (proc.get("bridge") or {}).get("export", {}).get("dru_untranslated", []):
@@ -1699,6 +1705,7 @@ def main(argv=None):
                     help="extra environment variable for the backend, e.g. a KRT KICAD_* knob (recorded)")
     rp.add_argument("--floor-history", action="store_true",
                     help="also compare the input's rules with their git high-water mark (notes only)")
+    spokes.add_run_option(rp)
     vp = sub.add_parser("validate", help="re-grade a run's candidate against its reference")
     vp.add_argument("run_dir")
     vp.add_argument("--against", metavar="ORIGIN_RUN",
@@ -1723,6 +1730,7 @@ def main(argv=None):
     pp.add_argument("run_dir")
     pp.add_argument("--to", default="reports/routing", help="destination root (default reports/routing); "
                                                             "evidence goes to <to>/<project>/<label>/")
+    spokes.add_parser(sub)
     sub.add_parser("update", help="update both backends through their upstream channels, then smoke")
     sm = sub.add_parser("smoke", help="routing integration tests on the bundled fixture")
     sm.add_argument("--publish", metavar="DIR", help="also copy the structured evidence to DIR")
@@ -1749,6 +1757,8 @@ def main(argv=None):
         return floor.floor_command(cfg, a.since, a.write_declared, a.netclass_sizes)
     if a.cmd == "blocked":
         return cmd_blocked(a)
+    if a.cmd == "spokes":
+        return spokes.cmd(a)
     if a.cmd == "publish":
         run_dir = Path(a.run_dir).resolve()
         r = load_json(run_dir / "result.json")
