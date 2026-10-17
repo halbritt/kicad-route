@@ -438,6 +438,7 @@ def test_json_runs_with_explicit_run_dirs_do_not_interfere():
     for name, rd, r in done:
         res = one_json(r.stdout)
         assert "[route]" in r.stderr and "[route]" not in r.stdout
+        # exit code not pinned: this checks the --json contract (record on stdout, codes agree), not the fixture outcome (pinned in test_routing.py)
         assert r.returncode == res["exit_code"] in (0, 2, 3), r.stderr[-2000:]
         assert (OUT / res["run_dir"]).resolve() == rd.resolve()
         assert json.loads((rd / "result.json").read_text()) == res
