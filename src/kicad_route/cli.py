@@ -425,6 +425,13 @@ def strip(rec, *keys):
     return {k: v for k, v in rec.items() if k not in keys}
 
 
+def zone_definitions(facts):
+    """Copper zone definitions without the fill state, in a canonical order. facts.py
+    sorts zones by their whole record, `filled` included, so an input zone that was
+    never filled sorts differently once validation has refilled it."""
+    return sorted((strip(z, "filled") for z in facts["zones"]), key=lambda z: json.dumps(z, sort_keys=True))
+
+
 def dict_diff(a, b, limit=20):
     out = []
     for k in sorted(set(a) | set(b)):
@@ -522,8 +529,7 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
              for r in sorted(set(fps_r) | set(fps_c)) if fps_r.get(r) != fps_c.get(r)]
     check("footprints", not moved, f"{len(fps_r)} footprints: library id, position, orientation, side, "
           "lock state and pad geometry" + (f"; {len(moved)} differ" if moved else ""), moved[:20])
-    zr = [strip(z, "filled") for z in ref["zones"]]
-    zc = [strip(z, "filled") for z in cand["zones"]]
+    zr, zc = zone_definitions(ref), zone_definitions(cand)
     check("zones", zr == zc, f"{len(zr)} copper zone definitions (outline, net, layers, priority, clearance, "
           "thermal and fill settings; fill polygons are regenerated)",
           [] if zr == zc else [{"reference": len(zr), "candidate": len(zc)}])

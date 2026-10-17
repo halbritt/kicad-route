@@ -4,6 +4,12 @@ They prove, on the route_demo fixture, that each backend completes the KiCad
 round trip, that the candidate is graded by KiCad against the unchanged input
 rules, and that routing and validation failures reach the caller. They are not
 a routing-quality benchmark. Shared harness: helpers.py and conftest.py.
+
+Every test is self-sufficient: a routing attempt that more than one test reads
+(the round trips, the /SIG_A* subset, the blocked runs) comes from the module
+fixture `attempt`, which runs it the first time any test asks and hands the same
+run to every later test. Running one test alone (-k) routes only what it needs;
+the whole module routes each attempt once, as before.
 """
 import json
 import os
@@ -12,9 +18,46 @@ import subprocess
 
 import pytest
 
-from helpers import CLI, FIXTURE, OUT, PROTECTED, ROOT, RUNS, cli, record, run, summary, tree_hash  # noqa: F401
+from helpers import CLI, FIXTURE, OUT, PROTECTED, ROOT, cli, record, run, summary, tree_hash  # noqa: F401
 from kicad_route import cli as route
 from kicad_route.kicad import specctra
+
+
+# Attempts read by more than one test: label -> run arguments. "{blocked}" is the
+# conftest blocked_dir fixture (the keepout wall around J2).
+FREEROUTING_CLEAN = ("--clearance-margin", "0.01", "--passes", "100", "--backend-arg=--router.fanout.enabled=true")
+ATTEMPTS = {
+    # the retry the custom-rule failure suggests: Default class at 0.4 mm (tighter, never looser)
+    "smoke-krt": ("--backend", "krt", "--budget", "180", "--default-clearance", "0.4"),
+    # fanout (off by default: it can neck traces down) is re-enabled as the retry
+    # playbook says; new_copper_netclass_geometry still grades every new conductor
+    "smoke-freerouting": ("--backend", "freerouting", "--budget", "180", *FREEROUTING_CLEAN),
+    "smoke-krt-nets": ("--backend", "krt", "--budget", "180", "--nets", "/SIG_A*", "--default-clearance", "0.4"),
+    # KRT's net rescue retries unroutable nets at length; switched off so the attempt
+    # returns a candidate. --default-clearance 0.4 as in smoke-krt: without it KRT's
+    # copper also fails the Power-to-signal rule it cannot read (exit 3, covered by
+    # test_krt_custom_rule_failure_is_reported), which would hide whether an
+    # incomplete-but-valid candidate reaches the caller as exit 2.
+    "smoke-blocked-krt": ("--backend", "krt", "--budget", "180", "--dir", "{blocked}",
+                          "--backend-env", "KICAD_NET_RESCUE=0", "--default-clearance", "0.4"),
+    "smoke-blocked-freerouting": ("--backend", "freerouting", "--budget", "180", "--dir", "{blocked}"),
+}
+
+
+@pytest.fixture(scope="module")
+def attempt(request):
+    """attempt(label) -> (process, run_dir, result) of ATTEMPTS[label], run once per module."""
+    done = {}
+
+    def get(label):
+        if label not in done:
+            args = ATTEMPTS[label]
+            if "{blocked}" in args:
+                blocked = str(request.getfixturevalue("blocked_dir"))
+                args = tuple(blocked if a == "{blocked}" else a for a in args)
+            done[label] = run("run", *args, "--label", label)
+        return done[label]
+    return get
 
 
 def assert_clean_candidate(result, run_dir):
@@ -56,10 +99,9 @@ def test_krt_custom_rule_failure_is_reported():
     assert any("power_to_signal_clearance" in u and "skipped" in u for u in result["unsupported"])
 
 
-def test_krt_round_trip():
+def test_krt_round_trip(attempt):
     """The retry the failure above suggests: Default class at 0.4 mm (tighter, never looser)."""
-    r, run_dir, result = run("run", "--backend", "krt", "--budget", "180", "--default-clearance", "0.4",
-                             "--label", "smoke-krt")
+    r, run_dir, result = attempt("smoke-krt")
     record("krt_round_trip", summary(result))
     assert_clean_candidate(result, run_dir)
     rel = result["process"]["backend_report"]["relaxations"]
@@ -68,12 +110,8 @@ def test_krt_round_trip():
     assert "--no-fix-drc-settings" in argv and "--escalation" in argv
 
 
-def test_freerouting_round_trip():
-    # fanout (off by default: it can neck traces down) is re-enabled as the retry
-    # playbook says; new_copper_netclass_geometry still grades every new conductor
-    r, run_dir, result = run("run", "--backend", "freerouting", "--budget", "180", "--clearance-margin", "0.01",
-                             "--passes", "100", "--backend-arg=--router.fanout.enabled=true",
-                             "--label", "smoke-freerouting")
+def test_freerouting_round_trip(attempt):
+    r, run_dir, result = attempt("smoke-freerouting")
     record("freerouting_round_trip", summary(result))
     assert_clean_candidate(result, run_dir)
     bridge = result["process"]["bridge"]
@@ -84,9 +122,8 @@ def test_freerouting_round_trip():
     assert "Power" in (run_dir / "work" / "board.dsn").read_text().split("(class_class", 1)[1][:80]
 
 
-def test_net_name_selection():
-    r, run_dir, result = run("run", "--backend", "krt", "--budget", "180", "--nets", "/SIG_A*",
-                             "--default-clearance", "0.4", "--label", "smoke-krt-nets")
+def test_net_name_selection(attempt):
+    r, run_dir, result = attempt("smoke-krt-nets")
     record("krt_net_selection", summary(result))
     assert result["scope"]["nets_list"] == ["/SIG_A", "/SIG_A_OUT"]
     assert result["routing"]["status"] == route.COMPLETE          # in scope
@@ -95,10 +132,10 @@ def test_net_name_selection():
     assert result["exit_code"] == 0
 
 
-def test_chained_attempts_graded_against_origin():
+def test_chained_attempts_graded_against_origin(attempt):
     """Continue from a partial candidate with --dir, then grade the chain's end
     against the first attempt's input with validate --against."""
-    first = RUNS / "smoke-krt-nets" / "latest"
+    first = attempt("smoke-krt-nets")[1]
     cand = first / json.loads((first / "attempt.json").read_text())["candidate_dir"]
     r, run_dir, result = run("run", "--backend", "krt", "--budget", "180", "--dir", str(cand),
                              "--board", "route_demo.kicad_pcb", "--nets", "!/SIG_A*",
@@ -139,17 +176,16 @@ def test_net_class_selection():
 
 
 @pytest.mark.parametrize("backend", ["krt", "freerouting"])
-def test_unroutable_board_fails(backend, blocked_dir):
-    """A keepout wall makes J2 unreachable: the candidate must come back incomplete.
-    (KRT's net rescue retries unroutable nets at length; switched off here so the
+def test_unroutable_board_fails(backend, blocked_dir, attempt):
+    """A keepout wall makes J2 unreachable: the candidate must come back incomplete
+    and otherwise valid -- exit 2, not 3. (KRT's net rescue is switched off so the
     attempt returns a candidate -- the budget test below covers the other path.)"""
     before = tree_hash(blocked_dir)
-    extra = ["--backend-env", "KICAD_NET_RESCUE=0"] if backend == "krt" else []
-    r, run_dir, result = run("run", "--backend", backend, "--budget", "180", "--dir", str(blocked_dir),
-                             *extra, "--label", f"smoke-blocked-{backend}")
+    r, run_dir, result = attempt(f"smoke-blocked-{backend}")
     record(f"blocked_{backend}", summary(result))
     assert tree_hash(blocked_dir) == before
-    assert r.returncode in (2, 3) and result["exit_code"] == r.returncode
+    assert result["validation"]["status"] == route.PASS, result["validation"]["reasons"]
+    assert r.returncode == 2 and result["exit_code"] == 2
     assert result["routing"]["status"] == route.INCOMPLETE
     assert result["routing"]["unconnected_in_scope"] > 0
     assert result["validation"]["preservation"]["keepouts"] == route.PASS
@@ -176,8 +212,12 @@ def test_unlocked_existing_copper_survives(backend, unlocked_dir):
 
 def test_budget_overrun_is_a_process_failure(blocked_dir):
     """With rescue on, KRT keeps searching the unroutable nets past the budget:
-    the wrapper stops it and reports a process failure, not a candidate."""
-    r, run_dir, result = run("run", "--backend", "krt", "--budget", "15", "--dir", str(blocked_dir),
+    the wrapper stops it and reports a process failure, not a candidate.
+    The budget must outlast KRT's start-up: on a loaded host a 15 s budget expired
+    before KRT's first net, KRT honoured the stop file at that checkpoint and
+    wrote the board unrouted (process PASS, exit 2). At 40 s the stop lands in a
+    search on the walled nets, which does not check the stop file."""
+    r, run_dir, result = run("run", "--backend", "krt", "--budget", "40", "--dir", str(blocked_dir),
                              "--label", "smoke-budget-krt")
     record("budget_krt", summary(result))
     assert r.returncode == 1 and result["process"]["status"] == route.FAIL
@@ -185,10 +225,10 @@ def test_budget_overrun_is_a_process_failure(blocked_dir):
     assert result["routing"]["status"] == route.NOT_RUN and result["candidate"] is None
 
 
-def test_validation_detects_tampering(tmp_path):
+def test_validation_detects_tampering(tmp_path, attempt):
     """Edit a passing candidate the ways a router must not, then re-validate it."""
     import pcbnew
-    src = RUNS / "smoke-krt" / "latest"
+    src = attempt("smoke-krt")[1]
     run_dir = tmp_path / "run"
     shutil.copytree(src.resolve(), run_dir, symlinks=True)
     shutil.rmtree(run_dir / "validate")
@@ -207,9 +247,9 @@ def test_validation_detects_tampering(tmp_path):
     data["net_settings"]["classes"][0]["clearance"] = 0.1   # a router lowering a rule
     pro.write_text(json.dumps(data, indent=2))
     # the baseline report path is relative to the original run directory
-    attempt = json.loads((run_dir / "attempt.json").read_text())
-    attempt["baseline"]["report"] = str((src.resolve() / attempt["baseline"]["report"]).resolve())
-    (run_dir / "attempt.json").write_text(json.dumps(attempt))
+    att = json.loads((run_dir / "attempt.json").read_text())
+    att["baseline"]["report"] = str((src.resolve() / att["baseline"]["report"]).resolve())
+    (run_dir / "attempt.json").write_text(json.dumps(att))
     r = cli("validate", str(run_dir), timeout=600)
     out = sorted((run_dir / "revalidate").iterdir())[-1]
     res = json.loads((out / "result.json").read_text())
@@ -220,10 +260,10 @@ def test_validation_detects_tampering(tmp_path):
         assert p[check] == route.FAIL, check
 
 
-def test_compare_same_and_different_inputs(blocked_dir):
-    same = [str(RUNS / "smoke-krt" / "latest"), str(RUNS / "smoke-freerouting" / "latest")]
+def test_compare_same_and_different_inputs(attempt):
+    same = [str(attempt("smoke-krt")[1]), str(attempt("smoke-freerouting")[1])]
     r1 = cli("compare", *same)
-    blocked = sorted((RUNS / "smoke-blocked-krt").glob("2*"))[-1]
+    blocked = attempt("smoke-blocked-krt")[1]
     r2 = cli("compare", same[0], str(blocked))
     record("compare", {"same_input": {"exit_code": r1.returncode, "table": r1.stdout},
                        "different_input": {"exit_code": r2.returncode, "table": r2.stdout}})
