@@ -45,6 +45,7 @@ first.
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
 | `kicad-route campaign --backend krt\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`) |
 | `kicad-route blocked <run_dir>` | (Re)compute the blocked-by receipts of an incomplete run or re-grade (`validate/blocked-by.json`) |
+| `kicad-route blocked --board B.kicad_pcb [--json]` | The same receipts for a placed, unrouted or partly routed board, with no routing run (placement evidence; the board is not written) |
 | `kicad-route compare <run_dir> …` | Side-by-side table; refuses to call different inputs comparable |
 | `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits, the rule floor |
 | `kicad-route floor [--write-declared]` | Rules looser than their git high-water mark or the declared floor `<board>.rules-floor.json` (`OUT/floor/<project>/floor.json`) |
@@ -135,8 +136,11 @@ Also read:
 - **What blocks the open connections:** `routing.blocked_by` (when INCOMPLETE). It
   lists the top blockers by how many open connections they block, by category:
   `keepout`, `input_copper`, `new_copper`, `footprint` and `board_edge`. It also gives
-  each net's least obstructed layer. Details are in `validate/blocked-by.json`. It is
-  a straight/L-corridor heuristic: use it as a pointer, not a proof (`docs/blocked.md`).
+  each net's least obstructed layer. Details are in `validate/blocked-by.json`
+  (schema `kicad-route/blocked/2`, `schemas/blocked-by.schema.json`: endpoints name
+  footprint and pad, `footprints` says which connections each footprint blocks or
+  terminates). It is a straight/L-corridor heuristic (`heuristic: true`): use it as a
+  pointer, not a proof (`docs/blocked.md`).
 - **`unsupported`:** constraints the backend could not see. KiCad still grades them.
 - **Backend reports:** `process.backend_report` holds KRT's relaxations ledger and
   Freerouting's incomplete count.

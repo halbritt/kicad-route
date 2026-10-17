@@ -49,6 +49,7 @@ kicad-route run --backend krt --dir <run>/candidate/<project> --protect human
                                                        # continue a chain; earlier agent copper may be rerouted
 kicad-route campaign --backend krt --rounds 2          # hard nets first, best chain graded vs the input
 kicad-route blocked <run_dir>                          # what lies across each open connection
+kicad-route blocked --board <B>.kicad_pcb --json      # the same for a placed board, before routing
 kicad-route spokes <run_dir>                           # which new copper starved which thermal pad
 kicad-route audit --old HEAD~1                         # grade the last commit's board change
 kicad-route floor                                      # rules looser than their high-water mark / declared floor

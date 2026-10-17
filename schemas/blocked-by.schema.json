@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kicad-route/blocked/2",
+  "title": "kicad-route blocked-by receipts",
+  "description": "validate/blocked-by.json (a routing run's open connections) and the report of `kicad-route blocked --board` (a placed board, no routing run). A heuristic: straight and L-shaped corridors between the endpoints of each KiCad unconnected item, per copper layer. It points at what lies in the way; it is not a routability verdict. Coordinates are KiCad board millimetres (y grows downwards). See docs/blocked.md. The $defs/summary form is result.json routing.blocked_by (version 1 summaries carry no schema or version key).",
+  "$ref": "#/$defs/report",
+  "$defs": {
+    "point": {
+      "type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2,
+      "description": "[x, y] in millimetres"
+    },
+    "layers": {"type": "array", "items": {"type": "string"}},
+    "nullable_string": {"type": ["string", "null"]},
+    "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "category": {"enum": ["keepout", "input_copper", "new_copper", "footprint", "board_edge", "zone"]},
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "version", "source", "heuristic", "method", "boards", "nets_considered",
+                   "copper_layers", "connections_analyzed", "unobstructed_connections", "category_notes",
+                   "ranking", "top", "nets", "footprints", "connections"],
+      "properties": {
+        "schema": {"const": "kicad-route/blocked/2"},
+        "version": {"const": 2},
+        "source": {"enum": ["run", "board"],
+                   "description": "run: a routing attempt's candidate after validation; board: kicad-route blocked --board"},
+        "heuristic": {"const": true},
+        "method": {"type": "string"},
+        "boards": {
+          "type": "object", "additionalProperties": false,
+          "required": ["input_sha256", "candidate_sha256", "graded_sha256"],
+          "properties": {
+            "input_sha256": {"$ref": "#/$defs/sha256", "description": "the attempt's input board (reference snapshot), or the --board file"},
+            "candidate_sha256": {"$ref": "#/$defs/sha256", "description": "the delivered candidate board; null for --board"},
+            "graded_sha256": {"$ref": "#/$defs/sha256", "description": "the board KiCad's DRC read (after zone refill)"}
+          }
+        },
+        "nets_considered": {"type": "array", "items": {"type": "string"},
+                            "description": "nets whose unconnected items were analysed (the run's open in-scope nets, or every net for --board)"},
+        "copper_layers": {"$ref": "#/$defs/layers"},
+        "connections_analyzed": {"type": "integer", "minimum": 0},
+        "unobstructed_connections": {"type": "integer", "minimum": 0},
+        "category_notes": {"type": "object", "additionalProperties": {"type": "string"}},
+        "ranking": {"$ref": "#/$defs/ranking"},
+        "top": {"type": "array", "items": {"$ref": "#/$defs/top_entry"}},
+        "nets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/net_summary"}},
+        "footprints": {"type": "object", "additionalProperties": {"$ref": "#/$defs/footprint"}},
+        "connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}},
+        "board": {"type": "string", "description": "--board only: the analysed file"},
+        "runtime_s": {"type": "number", "description": "--board only: DRC, facts and analysis wall time"}
+      }
+    },
+    "endpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["description", "uuid", "kind", "net", "footprint", "pad", "layers", "position_mm",
+                   "reported_position_mm"],
+      "properties": {
+        "description": {"type": "string", "description": "KiCad's DRC item text"},
+        "uuid": {"$ref": "#/$defs/nullable_string"},
+        "kind": {"enum": ["pad", "track", "arc", "via", "zone", "other"]},
+        "net": {"type": "string"},
+        "footprint": {"$ref": "#/$defs/nullable_string", "description": "reference designator when the endpoint is a pad"},
+        "pad": {"$ref": "#/$defs/nullable_string", "description": "pad number when the endpoint is a pad"},
+        "layers": {"$ref": "#/$defs/layers", "description": "copper layers of the endpoint item (empty when not found in the board facts)"},
+        "position_mm": {"$ref": "#/$defs/point", "description": "where the corridors end (the zone target for a zone endpoint)"},
+        "reported_position_mm": {"$ref": "#/$defs/point", "description": "the position KiCad's DRC reports"},
+        "target": {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "position_mm"],
+          "properties": {
+            "kind": {"enum": ["pad", "via"]},
+            "footprint": {"type": "string"}, "pad": {"type": "string"}, "uuid": {"$ref": "#/$defs/nullable_string"},
+            "position_mm": {"$ref": "#/$defs/point"}
+          },
+          "description": "zone endpoint: the same-net pad or via the corridors go to instead of the zone's anchor"
+        },
+        "note": {"type": "string"}
+      },
+      "allOf": [{
+        "if": {"properties": {"kind": {"const": "pad"}, "footprint": {"type": "null"}}},
+        "then": {"required": ["note"]}
+      }]
+    },
+    "brief": {
+      "type": "object",
+      "required": ["id", "kind", "category", "label"],
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["track", "via", "pad", "rule_area", "zone", "board_edge"]},
+        "category": {"$ref": "#/$defs/category"},
+        "label": {"type": "string"},
+        "net": {"$ref": "#/$defs/nullable_string"},
+        "layer": {"type": "string"},
+        "locked": {"type": ["boolean", "null"]},
+        "origin": {"enum": ["input", "new"]},
+        "footprint": {"type": "string"},
+        "pad": {"type": "string"},
+        "name": {"$ref": "#/$defs/nullable_string"},
+        "restrictions": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "corridor_counts": {
+      "type": "object", "additionalProperties": false, "required": ["hard", "soft"],
+      "properties": {"hard": {"type": "integer", "minimum": 0}, "soft": {"type": "integer", "minimum": 0}}
+    },
+    "layer_receipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["corridor", "hard_count", "soft_count", "hard", "soft", "corridors"],
+      "properties": {
+        "corridor": {"enum": ["straight", "L_horizontal_first", "L_vertical_first"]},
+        "hard_count": {"type": "integer", "minimum": 0},
+        "soft_count": {"type": "integer", "minimum": 0},
+        "hard": {"type": "array", "items": {"$ref": "#/$defs/brief"}, "maxItems": 25,
+                 "description": "the first 25 hard blockers; hard_count is exact"},
+        "soft": {"type": "array", "items": {"$ref": "#/$defs/brief"}, "maxItems": 25},
+        "corridors": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "straight": {"$ref": "#/$defs/corridor_counts"},
+            "L_horizontal_first": {"$ref": "#/$defs/corridor_counts"},
+            "L_vertical_first": {"$ref": "#/$defs/corridor_counts"}
+          },
+          "required": ["straight"]
+        }
+      }
+    },
+    "connection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["index", "net", "netclass", "corridor_width_mm", "endpoints", "layers"],
+      "properties": {
+        "index": {"type": "integer", "minimum": 0, "description": "position in connections; footprints[*].blocks/terminates refer to it"},
+        "net": {"type": "string"},
+        "netclass": {"$ref": "#/$defs/nullable_string"},
+        "corridor_width_mm": {"type": "number"},
+        "endpoints": {"type": "array", "items": {"$ref": "#/$defs/endpoint"}, "maxItems": 2},
+        "layers": {"type": "object", "additionalProperties": {"$ref": "#/$defs/layer_receipt"}},
+        "length_mm": {"type": "number"},
+        "best_layer": {"type": "string"},
+        "best_layer_hard_count": {"type": "integer", "minimum": 0},
+        "error": {"type": "string"}
+      },
+      "anyOf": [{"required": ["length_mm", "best_layer", "best_layer_hard_count"]}, {"required": ["error"]}]
+    },
+    "index_list": {"type": "array", "items": {"type": "integer", "minimum": 0}, "uniqueItems": true},
+    "footprint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reference", "value", "position_mm", "orientation_deg", "layer", "side", "locked", "blocks",
+                   "blocks_any_layer", "terminates", "pads_blocking", "nets_blocked", "nets_terminated"],
+      "properties": {
+        "reference": {"type": "string"},
+        "value": {"$ref": "#/$defs/nullable_string"},
+        "position_mm": {"oneOf": [{"$ref": "#/$defs/point"}, {"type": "null"}]},
+        "orientation_deg": {"type": ["number", "null"]},
+        "layer": {"$ref": "#/$defs/nullable_string"},
+        "side": {"enum": ["front", "back", null]},
+        "locked": {"type": ["boolean", "null"]},
+        "blocks": {"$ref": "#/$defs/index_list", "description": "connections its pads block on their best layer"},
+        "blocks_any_layer": {"$ref": "#/$defs/index_list", "description": "connections its pads block on any layer's best corridor"},
+        "terminates": {"$ref": "#/$defs/index_list", "description": "connections with an endpoint (or zone target) on one of its pads"},
+        "pads_blocking": {"type": "array", "items": {"type": "string"}},
+        "nets_blocked": {"type": "array", "items": {"type": "string"}},
+        "nets_terminated": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "ranking_entry": {
+      "type": "object",
+      "required": ["id", "kind", "category", "label", "blocks", "blocks_any_layer", "layers", "nets_blocked"],
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["track", "via", "footprint", "rule_area", "zone", "board_edge"]},
+        "category": {"$ref": "#/$defs/category"},
+        "label": {"type": "string"},
+        "net": {"$ref": "#/$defs/nullable_string"},
+        "blocks": {"type": "integer", "minimum": 0},
+        "blocks_any_layer": {"type": "integer", "minimum": 0},
+        "layers": {"$ref": "#/$defs/layers"},
+        "nets_blocked": {"type": "array", "items": {"type": "string"}},
+        "footprint": {"type": "string"},
+        "pads": {"type": "array", "items": {"type": "string"}},
+        "nets": {"type": "array", "items": {"type": "string"}},
+        "locked": {"type": ["boolean", "null"]},
+        "origin": {"enum": ["input", "new"]}
+      },
+      "if": {"properties": {"kind": {"const": "footprint"}}},
+      "then": {"required": ["footprint", "pads", "nets"]},
+      "else": {"required": ["net"]}
+    },
+    "by_net": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["net", "items", "locked", "blocks"],
+        "properties": {"net": {"type": "string"}, "items": {"type": "integer"}, "locked": {"type": "integer"},
+                       "blocks": {"type": "integer"}}
+      }
+    },
+    "ranking": {
+      "type": "object", "additionalProperties": false,
+      "required": ["keepout", "input_copper", "new_copper", "footprint", "board_edge", "input_copper_by_net",
+                   "new_copper_by_net", "truncated"],
+      "properties": {
+        "keepout": {"type": "array", "items": {"$ref": "#/$defs/ranking_entry"}, "maxItems": 50},
+        "input_copper": {"type": "array", "items": {"$ref": "#/$defs/ranking_entry"}, "maxItems": 50},
+        "new_copper": {"type": "array", "items": {"$ref": "#/$defs/ranking_entry"}, "maxItems": 50},
+        "footprint": {"type": "array", "items": {"$ref": "#/$defs/ranking_entry"}, "maxItems": 50},
+        "board_edge": {"type": "array", "items": {"$ref": "#/$defs/ranking_entry"}, "maxItems": 50},
+        "zone": {"type": "array", "items": {"$ref": "#/$defs/ranking_entry"}, "maxItems": 50},
+        "input_copper_by_net": {"$ref": "#/$defs/by_net"},
+        "new_copper_by_net": {"$ref": "#/$defs/by_net"},
+        "truncated": {"type": "object", "additionalProperties": {"type": "integer"},
+                      "description": "lists cut to 50 entries: their full length"}
+      }
+    },
+    "top_entry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "category", "kind", "label", "blocks", "blocks_any_layer", "nets_blocked"],
+      "properties": {
+        "id": {"type": "string"},
+        "category": {"$ref": "#/$defs/category"},
+        "kind": {"enum": ["track", "via", "footprint", "rule_area", "zone", "board_edge"]},
+        "label": {"type": "string"},
+        "net": {"$ref": "#/$defs/nullable_string"},
+        "locked": {"type": ["boolean", "null"]},
+        "origin": {"enum": ["input", "new"]},
+        "blocks": {"type": "integer", "minimum": 0},
+        "blocks_any_layer": {"type": "integer", "minimum": 0},
+        "nets_blocked": {"type": "array", "items": {"type": "string"}}
+      },
+      "if": {"properties": {"kind": {"const": "footprint"}}},
+      "then": {"properties": {"net": false}},
+      "else": {"required": ["net"]}
+    },
+    "net_summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["connections", "best_layer", "hard_blockers_on_best_layer", "blockers"],
+      "properties": {
+        "connections": {"type": "integer", "minimum": 1},
+        "best_layer": {"type": "string"},
+        "hard_blockers_on_best_layer": {"type": "integer", "minimum": 0},
+        "blockers": {"type": "array", "items": {"type": "string"}, "maxItems": 5}
+      }
+    },
+    "summary": {
+      "description": "result.json routing.blocked_by",
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["error"],
+          "properties": {"error": {"type": "string"}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["report", "connections_analyzed", "unobstructed_connections", "method", "top", "nets"],
+          "properties": {
+            "schema": {"const": "kicad-route/blocked/2"},
+            "version": {"const": 2},
+            "report": {"type": "string", "description": "path of the full blocked-by.json"},
+            "connections_analyzed": {"type": "integer", "minimum": 0},
+            "unobstructed_connections": {"type": "integer", "minimum": 0},
+            "method": {"type": "string"},
+            "top": {"type": "array", "items": {"$ref": "#/$defs/top_entry"}},
+            "nets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/net_summary"}},
+            "nets_truncated": {"type": "integer"},
+            "note": {"type": "string"}
+          },
+          "dependentRequired": {"schema": ["version"], "version": ["schema"]}
+        }
+      ]
+    }
+  }
+}

@@ -13,6 +13,8 @@ input's unchanged constraints.
                                           hard-nets-first campaign of runs; best chain graded vs the input
     kicad-route compare RUN_DIR ...       compare candidates routed from the same input
     kicad-route blocked RUN_DIR [--top N] which obstacles lie across the connections left open
+    kicad-route blocked --board B.kicad_pcb [--json]
+                                          the same receipts for a placed board, without routing it
     kicad-route audit --old REV --new REV [--dir D]
                                           grade a committed board change against its parent
     kicad-route floor [--dir D] [--since REV] [--write-declared]
@@ -658,7 +660,10 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
     v["status"] = FAIL if v["reasons"] else PASS
     routing["stats"] = stats
     if routing["status"] == INCOMPLETE:  # diagnosis only: what lies across the open connections
-        routing["blocked_by"] = blocked.write_report(out_dir, cand, cand_facts, ref_facts, scope, rel=common.rel)
+        boards = {"input_sha256": common.sha256(ref_dir / board_name), "candidate_sha256": v["delivered_board_sha256"],
+                  "graded_sha256": v["validated_board_sha256"]}
+        routing["blocked_by"] = blocked.write_report(out_dir, cand, cand_facts, ref_facts, scope, rel=common.rel,
+                                                     boards=boards)
     return v, routing
 
 
@@ -1503,7 +1508,7 @@ def compare(run_dirs):
 # --------------------------------------------------------------------- smoke
 
 PUBLISH_FROM_RUN = ["result.json", "RESULT.md", "attempt.json", "validate/preservation.json",
-                    "validate/new-findings.json", "validate/candidate-drc.json"]
+                    "validate/new-findings.json", "validate/candidate-drc.json", "validate/blocked-by.json"]
 
 
 def publish_run(run_dir, dest):
@@ -1731,7 +1736,60 @@ def cmd_validate(args):
     return rec["exit_code"]
 
 
+def blocked_board(board_path, top=10, as_json=False):
+    """`kicad-route blocked --board B`: receipts for a placed, unrouted or partly routed board,
+    with no backend run. The board and its same-stem .kicad_pro/.kicad_dru (and library
+    tables) are copied; the copy is refilled and graded by KiCad's DRC, and every unconnected
+    item is analysed. The source files are never written; a source that changes while it is
+    analysed fails the command."""
+    board = Path(board_path).expanduser().resolve()
+    if not board.is_file() or board.suffix != ".kicad_pcb":
+        sys.exit(f"{board}: not a .kicad_pcb file")
+    dest = out_path("blocked", board.stem, common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ"))
+    work = dest / "board"
+    work.mkdir(parents=True)
+    for f in board.parent.iterdir():
+        if f.is_file() and (f == board or f.name.endswith("-lib-table")
+                            or (f.stem == board.stem and f.suffix in (".kicad_pro", ".kicad_dru"))):
+            shutil.copy2(f, work / f.name)
+    say = (lambda m: print(m, file=sys.stderr, flush=True)) if as_json else log
+    input_sha = common.sha256(board)
+    t0 = time.monotonic()
+    drc, info = kicad_drc(work / board.name, dest, "board", refill_and_save=True)
+    if drc is None:
+        say(f"[blocked] DRC did not run: {'; '.join(info['reasons'])} (logs in {common.rel(dest)})")
+        return 1
+    facts, rec = board_facts(work / board.name, dest / "board-facts.json")
+    if facts is None:
+        say(f"[blocked] board facts could not be extracted ({rec.get('log')})")
+        return 1
+    if common.sha256(board) != input_sha:
+        say(f"[blocked] {board} changed while it was analysed: no receipts")
+        return 1
+    boards = {"input_sha256": input_sha, "candidate_sha256": None, "graded_sha256": info.get("board_sha256_checked")}
+    report = blocked.analyze(drc, facts, facts, None, top, boards=boards, source="board")
+    report["board"] = str(board)
+    report["runtime_s"] = round(time.monotonic() - t0, 2)
+    path = dest / "blocked-by.json"
+    path.write_text(json.dumps(report, indent=1) + "\n")
+    if as_json:
+        print(json.dumps(report, indent=1))
+        return 0
+    log(f"[blocked] {report['connections_analyzed']} unconnected items on {board.name}"
+        f" ({len(report['footprints'])} footprints involved, {report['runtime_s']} s)")
+    if report["connections_analyzed"]:
+        log("\n".join(blocked.render_md(blocked.summary(report, common.rel(path)))).rstrip())
+    log(f"[blocked] {common.rel(path)}")
+    return 0
+
+
 def cmd_blocked(args):
+    if args.board:
+        if args.run_dir:
+            sys.exit("blocked: pass a run directory or --board, not both")
+        return blocked_board(args.board, args.top, args.json)
+    if not args.run_dir:
+        sys.exit("blocked: pass a run directory or --board BOARD.kicad_pcb")
     s = blocked.recompute(args.run_dir, args.top, rel=common.rel, render=render_result)
     if s is None:
         log("[blocked] no unconnected items in scope: nothing is blocked")
@@ -1807,8 +1865,12 @@ def build_parser():
     vp.add_argument("run_dir")
     vp.add_argument("--against", metavar="ORIGIN_RUN",
                     help="grade against an earlier run's input (the start of a --dir chain) instead of this run's")
-    bp = sub.add_parser("blocked", help="(re)compute the blocked-by receipts of an incomplete run")
-    bp.add_argument("run_dir", help="a run directory, or one of its validate/ or revalidate*/<stamp>/ directories")
+    bp = sub.add_parser("blocked", help="(re)compute the blocked-by receipts of an incomplete run, or of a placed board")
+    bp.add_argument("run_dir", nargs="?",
+                    help="a run directory, or one of its validate/ or revalidate*/<stamp>/ directories")
+    bp.add_argument("--board", metavar="BOARD.kicad_pcb",
+                    help="receipts for a placed (unrouted or partly routed) board, without a routing run")
+    bp.add_argument("--json", action="store_true", help="with --board: print the full report as JSON on stdout")
     bp.add_argument("--top", type=int, default=10, help="blockers listed in the summary (default 10)")
     add_pour_args(vp)
     cp = sub.add_parser("compare", help="compare candidates routed from the same input")
