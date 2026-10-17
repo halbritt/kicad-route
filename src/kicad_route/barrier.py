@@ -28,10 +28,10 @@ backend must go around it. The barrier is removed before grading.
 See docs/barrier.md.
 """
 import json
-import sys
 from pathlib import Path
 
 from . import common
+from . import contract
 
 PASS, FAIL = common.PASS, common.FAIL
 SCRIPT = Path(__file__).resolve().parent / "kicad" / "barrier.py"
@@ -297,5 +297,5 @@ def add_parser(sub):
 
 def cmd(args):
     if not (Path(args.run_dir) / "attempt.json").exists():
-        sys.exit(f"{args.run_dir}: not a routing run (attempt.json missing)")
+        contract.refuse("input", f"{args.run_dir}: not a routing run (attempt.json missing)")
     return preview(args.run_dir, args.size)

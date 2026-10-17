@@ -20,9 +20,9 @@ exists, and an empty corridor does not prove that one does.
 import json
 import math
 import re
-import sys
 from pathlib import Path
 
+from . import contract
 from . import netnames
 from .common import sha256
 
@@ -841,7 +841,8 @@ def locate(path):
         if path.name == "validate":
             return path.parent, path, path.parent / "result.json"
         return path.parent.parent, path, path / "result.json"
-    sys.exit(f"{path}: not a routing run or validation directory (no attempt.json or candidate-drc.json)")
+    contract.refuse("input", f"{path}: not a routing run or validation directory (no attempt.json or "
+                             "candidate-drc.json)")
 
 
 def _sha(path):
@@ -864,10 +865,11 @@ def recompute(path, top=10, rel=str, render=None):
     run_dir, vdir, result_path = locate(path)
     attempt = _load(run_dir / "attempt.json")
     if attempt is None:
-        sys.exit(f"{run_dir}: attempt.json missing")
+        contract.refuse("input", f"{run_dir}: attempt.json missing")
     drc, facts = _load(vdir / "candidate-drc.json"), _load(vdir / "candidate-facts.json")
     if drc is None or facts is None:
-        sys.exit(f"{vdir}: candidate-drc.json or candidate-facts.json missing (validation did not finish)")
+        contract.refuse("input", f"{vdir}: candidate-drc.json or candidate-facts.json missing "
+                                 "(validation did not finish)")
     result = _load(result_path) or {}
     routing = result.get("routing") or {}
     scope = set(routing["unrouted_nets"]) if "unrouted_nets" in routing else set(attempt["scope"]["nets"])

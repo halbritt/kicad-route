@@ -15,7 +15,12 @@ one, and how to tell whether a backend update made real boards worse.
 Exit status 4 means **refused before routing**: the ledger shows this exact
 attempt already failed, the `--canary` pre-flight failed, or the board has no
 `.kicad_pro` of its own name (KiCad would load none of its rules; see
-[routing.md](routing.md#native-grading)). No run directory is left behind.
+[routing.md](routing.md#native-grading)); for any command, a usage or input error
+is a refusal too ([interface.md](interface.md)). No run directory is left behind;
+the reason is a refusal record, `OUT/refusals/<stamp>-<pid>.json` (`reason_class`
+`ledger`, `canary` or `input`, the input fingerprint, the discarded run
+directory), linked as `OUT/refusals/refusal-latest.json` and printed on stdout
+with `--json`.
 
 ## Stall detection
 
@@ -248,7 +253,10 @@ kicad-route corpus check [--name board-can]
 kicad-route corpus list
 ```
 
-`add` takes a snapshot of the project with `snapshot_input`: sheets, rules,
+`add` takes the same routing options as `run` (one definition,
+`cli.add_route_args`, so `--protect human`, `--reserve-spokes`, `--pour-*`,
+`--canary` and `--floor-history` are recorded and replayed by `check` too).
+It takes a snapshot of the project with `snapshot_input`: sheets, rules,
 library tables and local libraries. The snapshot goes into
 `STATE/corpus/<name>/reference/`. A directory mapped with `--library-dir NAME=PATH`
 stays a link to PATH there. The attempt in `entry.json` records the mappings with

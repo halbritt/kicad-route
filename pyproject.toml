@@ -10,6 +10,9 @@ requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = []
 
+[project.optional-dependencies]
+test = ["pytest", "jsonschema>=4.18"]   # jsonschema: tests/test_interface_contract.py only
+
 [project.scripts]
 kicad-route = "kicad_route.cli:main"
 

@@ -23,10 +23,15 @@ kicad-route campaign --backend krt --nets '/CAN*' '/USB*' --race 3 --default-cle
 
 ## Options
 
-- **Per-run options, passed to every step unchanged:** `--budget` (wall clock for
-  each run; cut to the time left under `--total-budget`), `--max-iterations`,
-  `--passes`, `--protect`, `--default-clearance`, `--clearance-margin`,
-  `--backend-arg`, `--backend-env`.
+- **Per-run options, passed to every step unchanged:** every routing option of `run`:
+  `--budget` (wall clock for each run; cut to the time left under `--total-budget`),
+  `--max-iterations`, `--passes`, `--protect`, `--default-clearance`,
+  `--clearance-margin`, `--stall`, `--force`, `--canary`, `--pour-area-loss`,
+  `--pour-min-spokes`, `--backend-arg`, `--backend-env`, `--floor-history`,
+  `--reserve-spokes`. `run`, `campaign` and `corpus add` share one definition of these
+  options (`cli.add_route_args`); the campaign rebuilds each step's command line from it
+  (`cli.route_argv`), so a new `run` option reaches every step. (`run --barrier-from`
+  is not a campaign option: a barrier is planned from one earlier run of one input.)
 - **Input options:** `--dir`, `--board`, `--schematic`, `--name` and `--rev` name the
   original input; a step on a candidate gets that candidate's `--dir`, `--board` and
   `--schematic` instead. `--library-dir` goes to **every** step. A candidate keeps a
@@ -126,7 +131,15 @@ own `result.json` (its input *is* the original), a longer chain by
 
 The campaign prints the best chain's last run directory and candidate. It exits with
 that chain's graded exit code: 0 complete and valid, 2 valid but incomplete, 3 fails
-validation. If no chain produced a gradable candidate, it exits 1.
+validation. If no chain produced a gradable candidate, it exits 1. A usage or input
+error, or a refused round-0 run (for example the ledger), is a refusal: exit 4 with a
+record under `OUT/refusals/`, and no campaign directory is left
+([interface.md](interface.md)).
+
+Every step runs in machine mode (`kicad-route run --json`, `validate --json`): the
+campaign reads the step's result record from its stdout and keeps the step's progress
+(stderr) in `logs/<step>.log`. `kicad-route campaign --json` prints the campaign record
+itself.
 
 ## Race (round 0 orderings)
 

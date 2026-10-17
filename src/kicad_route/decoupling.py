@@ -17,10 +17,10 @@ before and after (a change fails the command). Advisory only: the result is not
 part of a run's verdict. Exit 0 report written, 1 analysis failed. docs/decoupling.md.
 """
 import json
-import sys
 from pathlib import Path
 
 from . import common
+from . import contract
 
 SCRIPT = Path(__file__).resolve().parent / "kicad" / "decoupling.py"
 TOPOLOGIES = ("respects", "bypassed", "incomplete")
@@ -183,11 +183,11 @@ def add_parser(sub):
 
 def cmd(args):
     if args.radius <= 0:
-        sys.exit("kicad-route decoupling: --radius must be positive")
+        contract.refuse("usage", "kicad-route decoupling: --radius must be positive")
     if args.board and args.run_dir:
-        sys.exit("kicad-route decoupling: pass RUN_DIR or --board, not both")
+        contract.refuse("usage", "kicad-route decoupling: pass RUN_DIR or --board, not both")
     if args.board:
         return board_command(args.board, _options(args))
     if not args.run_dir:
-        sys.exit("kicad-route decoupling: pass RUN_DIR or --board")
+        contract.refuse("usage", "kicad-route decoupling: pass RUN_DIR or --board")
     return run_command(args.run_dir, _options(args))

@@ -7,9 +7,9 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
+from . import contract
 from .common import git, sha256, write_json
 
 
@@ -125,9 +125,9 @@ def export_revision(cfg, run_dir):
     prefix = src.relative_to(top)
     commit = git(top, "rev-parse", "--verify", f"{cfg['rev']}^{{commit}}")
     if not commit:
-        sys.exit(f"{cfg['rev']!r} is not a commit in {top}")
+        contract.refuse("input", f"--rev {cfg['rev']!r} is not a commit in {top}")
     if prefix.parts and git(top, "cat-file", "-t", f"{commit}:{prefix.as_posix()}") != "tree":
-        sys.exit(f"{prefix} is not a directory at {cfg['rev']} ({commit})")
+        contract.refuse("input", f"{prefix} is not a directory at {cfg['rev']} ({commit})")
     base = run_dir / "source"
     out = base / src.name
     tables = [git(top, "show", f"{commit}:{(prefix / t).as_posix()}") or "" for t in ("sym-lib-table", "fp-lib-table")]

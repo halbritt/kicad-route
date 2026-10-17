@@ -20,7 +20,9 @@ first.
 - **Never route the real project in place.**
   - Every attempt copies the project into `OUT/runs/<project>/<label>/<stamp>/` and
     routes the copy.
-  - `OUT` defaults to `./build/kicad-route`; set it with `--out` or `$KICAD_ROUTE_OUT`.
+  - `OUT` defaults to `./build/kicad-route`; set it with `--out` (before or after the
+    subcommand) or `$KICAD_ROUTE_OUT`.
+  - `--run-dir PATH` on `run` picks the run directory yourself (it must not exist).
   - Native KiCad files stay authoritative. A candidate becomes design work only when a
     person adopts it.
 - **The input's constraints are fixed.**
@@ -57,7 +59,8 @@ first.
 | `kicad-route canary [--backend B]` | Awkward net names (`Net-(BT1-+)`, `/a b/c`, `-VIN(1)`, ...) through each backend's round trip on the fixture |
 | `kicad-route corpus add\|check\|list` | Real-board regression gate: snapshots with baseline outcomes, re-run after backend updates (`update` runs `check`) |
 
-`run` options:
+`run` options (`campaign` passes every one of them to each step, and `corpus add`
+records them; one shared definition):
 
 - **Input:**
   - `--dir DIR` (default `.`), `--board B.kicad_pcb` (default: the only board),
@@ -112,7 +115,13 @@ first.
   - `--backend-arg ARG` (repeat) and `--backend-env KEY=VALUE` (for example KRT
     `KICAD_*` knobs).
   - Both are recorded in the result; grading is unaffected.
-- `--label NAME` names the run directory.
+- `--label NAME` names the run directory; `--run-dir PATH` uses exactly `PATH`
+  (must not exist; no `latest` link).
+- **Machine mode:** `--json` (on `run`, `validate`, `campaign`, `blocked`, `audit`,
+  `floor`, `doctor`) prints exactly one JSON record on stdout (the `result.json`
+  content, or a refusal) and sends progress to stderr. Read that instead of the
+  progress lines. Record kinds, schema ids and stable fields: `docs/interface.md`.
+- Spell options in full: abbreviations such as `--budg` are refused.
 - **Hygiene** (docs/hygiene.md):
   - `--stall SECONDS` stops the backend when its log shows no progress for that
     long. The reason then reads `stalled in <phase> at <metric> for N s`;
@@ -137,9 +146,14 @@ Exit codes:
 - 1: process failure (no candidate; `validate` of a run without a candidate board too).
 - 2: valid but incomplete.
 - 3: fails validation.
-- 4: refused before routing (ledger: identical attempt already failed;
-  `--canary` failed; or the board has no `.kicad_pro` of its own name, so KiCad would
-  load none of its rules. `audit` refuses the same way).
+- 4: refused before routing. No run directory is left; the reason is in
+  `OUT/refusals/refusal-latest.json` (`reason_class`: `usage` for a bad command line,
+  `input` for a missing directory, no or several boards, a bad `--rev`, an unreadable
+  board, a net selection matching nothing, or a board with no `.kicad_pro` of its own
+  name (KiCad would load none of its rules; `audit` refuses the same way), `ledger`
+  for an identical attempt that already failed, `canary` for a failed `--canary`,
+  `state` for an existing `--run-dir`). Fix the command or the input; a refusal is
+  never a routing verdict.
 
 Provenance, for recording a run as evidence:
 
@@ -209,6 +223,7 @@ Also read:
 | exit 4 "has no <board>.kicad_pro beside it" | KiCad reads a board's net classes, constraints, severities and `.kicad_dru` only from the project of the board's own name (`main.kicad_pcb` needs `main.kicad_pro`, `main.kicad_dru`). Ask the owner to rename or copy the project; never grade without it |
 | `project_files` FAIL, `restored_project_files` | the backend (or an edit) changed the rules files; grading used the input's. The delivered versions are in `<validate dir>/delivered-project-files/` (`validation.delivered_project_files`) |
 | exit 4 "identical attempt ... already finished" | the ledger: the same input, backend build and settings already failed. KRT: change the attempt; `--force` only to check for nondeterminism. Freerouting: its outcome may vary, so `--force` is a legitimate retry |
+| exit 4, `reason_class` `usage` or `input` | nothing ran: read `message` in the refusal record and fix the command line or the input (`--board`, `--rev`, `--nets`) |
 | same failure twice with no new evidence | change approach: the other backend, a different scope, or inspect the board (load `krt-diagnose-routing-failures`) |
 
 Compare attempts from the same input with `kicad-route compare`. For deeper diagnosis

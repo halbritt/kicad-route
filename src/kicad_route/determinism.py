@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 
 from . import common
+from . import contract
 from . import statemanifest
 
 SCHEMA = "kicad-route/determinism/1"
@@ -117,7 +118,7 @@ def check(cli, backend="krt", runs=2, budget=180, dir=None, board=None, backend_
 def cmd(args, cli):
     env = list(args.backend_env or [])
     if any("=" not in e for e in env):
-        raise SystemExit("--backend-env takes KEY=VALUE")
+        contract.refuse("usage", "--backend-env takes KEY=VALUE")
     rec, path = check(cli, args.backend, args.runs, args.budget, args.dir, args.board, env,
                       args.default_clearance, args.record)
     for r in rec["runs"]:
