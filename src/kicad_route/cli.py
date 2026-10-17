@@ -3,7 +3,9 @@
 of a KiCad project and grade the resulting native KiCad candidate against the
 input's unchanged constraints.
 
-    kicad-route [--out DIR] doctor        readiness and capabilities of each backend
+    kicad-route [--out DIR] doctor [--json] [--offline] [--no-canary]
+                                          readiness and capabilities of each backend; with
+                                          --json the record and sandbox needs on stdout
     kicad-route run --backend krt|freerouting [--dir D] [--board B.kicad_pcb] [--rev REV]
                  [--nets PAT ...] [--netclass NAME ...] [--budget SECONDS]
                  [--protect existing|locked|human] [--label L] [--backend-arg ARG ...]
@@ -51,7 +53,8 @@ grades exactly the delivered file. Violations already present in the input
 Exit status: 0 complete and valid, 1 backend/process failure (no candidate),
 2 candidate valid but routing incomplete, 3 candidate fails validation,
 4 refused before routing (the ledger shows this exact attempt already failed,
-or the --canary pre-flight failed). Run hygiene (stall, ledger, canary,
+the --canary pre-flight failed, or --require-readonly-state found the state
+directory writable or missing: docs/sandbox.md). Run hygiene (stall, ledger, canary,
 corpus): docs/hygiene.md.
 """
 import argparse
@@ -71,6 +74,7 @@ from . import blocked
 from . import common
 from . import floor
 from . import provenance
+from . import sandbox  # --require-readonly-state, doctor --json (docs/sandbox.md)
 from . import pour
 from . import skills
 from . import spokes  # --reserve-spokes / `kicad-route spokes` (docs/spokes.md)
@@ -690,7 +694,21 @@ def overall_exit(process, routing, validation):
 
 # ------------------------------------------------------------------- attempts
 
+def ledger_path(args):
+    """--ledger PATH (a ledger that outlives a per-stage OUT) or OUT/ledger.jsonl."""
+    given = getattr(args, "ledger", None)
+    return Path(given).expanduser().resolve() if given else out_path("ledger.jsonl")
+
+
 def run_attempt(args):
+    readonly = sandbox.require_readonly_state(getattr(args, "require_readonly_state", False))
+    if readonly:  # before anything is written: refuse unless STATE is present and read-only
+        refusal = sandbox.state_refusal("run")
+        if refusal:
+            log(f"[route] refused: {refusal}")
+            return {"exit_code": sandbox.REFUSED_EXIT, "refused": refusal, "reason_class": "state",
+                    "sandbox": sandbox.facts(flag=True)}
+    sandbox_facts = sandbox.facts(flag=readonly)
     common.ensure_kicad_config()
     backend = BACKENDS[args.backend]
     cfg = resolve_input(args)
@@ -729,7 +747,7 @@ def run_attempt(args):
     settings["rule_floor_sha256"] = (common.sha256_of(floor_rec["declared"])
                                      if floor_rec and floor_rec.get("declared") else None)
     backend_version = backend["version"]()
-    gate = ledger.check(out_path("ledger.jsonl"), fingerprint, args.backend, backend_version, settings,
+    gate = ledger.check(ledger_path(args), fingerprint, args.backend, backend_version, settings,
                         force=getattr(args, "force", False))
     if gate["refuse"] or getattr(args, "canary", False):
         refusal = gate.get("message")
@@ -811,8 +829,10 @@ def run_attempt(args):
     result["exit_code"] = overall_exit(proc, routing, validation)
     result["ledger"] = {k: gate.get(k) for k in ("fingerprint", "short", "forced", "forced_over",
                                                  "upstream_changed_since", "previous_runs", "notes")}
+    result["ledger"]["path"] = str(ledger_path(args))
+    result["sandbox"] = sandbox_facts
     common.write_json(run_dir / "result.json", result)
-    ledger.append(out_path("ledger.jsonl"), gate, result)
+    ledger.append(ledger_path(args), gate, result)
     (run_dir / "RESULT.md").write_text(render_result(result))
     print_result(result)
     return result
@@ -950,13 +970,13 @@ KRT_REQUIRED_FLAGS = KRT_FLAGS[::2] + KRT_PROTECT_EXISTING_FLAGS + ["--json-out"
 
 def krt_version():
     v = {"version": (KRT_DIR / "VERSION").read_text().strip() if (KRT_DIR / "VERSION").exists() else None,
-         "build": common.git(KRT_DIR, "describe", "--tags", "--always", "--dirty"),
+         "build": common.git_describe(KRT_DIR),
          "commit": common.git(KRT_DIR, "rev-parse", "HEAD"), "source": "https://github.com/drandyhaas/KiCadRoutingTools"}
     v["rust_router"] = None
     if route_python().exists():
         r = subprocess.run([str(route_python()), "-c", "import sys; sys.path.insert(0, 'rust_router'); "
                             "import grid_router; print(grid_router.__version__)"],
-                           cwd=KRT_DIR, capture_output=True, text=True)
+                           cwd=KRT_DIR, capture_output=True, text=True, env=common.tool_env())
         v["rust_router"] = r.stdout.strip() if r.returncode == 0 else None
     return v
 
@@ -1359,8 +1379,30 @@ def update():
 
 # ------------------------------------------------------------------- doctor
 
-def doctor():
+DOCTOR_SCHEMA = "kicad-route/doctor/1"
+
+
+def doctor(offline=False, canary_check=True, as_json=False, require_readonly=False):
+    """Readiness checks. --json: the record on stdout (logs go to stderr); --offline: no
+    latest-release lookups (NOT_RUN, not required) and no socket; --no-canary: skip it."""
+    if not as_json:
+        return _doctor(offline, canary_check, require_readonly)[0]
+    saved = os.dup(1)  # subprocesses inherit fd 1 too: point it at stderr while checks run
+    sys.stdout.flush()
+    os.dup2(2, 1)
+    try:
+        code, record = _doctor(offline, canary_check, require_readonly)
+    finally:
+        sys.stdout.flush()
+        os.dup2(saved, 1)
+        os.close(saved)
+    print(json.dumps(record, indent=2, default=str), flush=True)
+    return code
+
+
+def _doctor(offline, canary_check, require_readonly):
     checks = []
+    require_readonly = sandbox.require_readonly_state(require_readonly)
 
     def add(name, status, detail="", required=True):
         checks.append({"check": name, "status": status, "detail": detail, "required": required})
@@ -1388,18 +1430,21 @@ def doctor():
         f"grid_router {v.get('rust_router')} (checkout {v.get('version')})")
     if route_python().exists() and KRT_DIR.exists():
         r = subprocess.run([str(route_python()), "py_router/startup_checks.py"], cwd=KRT_DIR,
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, env=common.tool_env())
         add("KRT startup checks", PASS if r.returncode == 0 else FAIL, (r.stdout + r.stderr).strip().splitlines()[-1:])
         r = subprocess.run([str(route_python()), "py_router/route.py", "--help"], cwd=KRT_DIR,
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, env=common.tool_env())
         missing = [f for f in KRT_REQUIRED_FLAGS if f not in r.stdout]
         add("KRT controls used by the adapter", PASS if not missing else FAIL,
             "all present" if not missing else f"missing: {missing} (upstream changed; update the adapter)")
         latest = None
-        try:
-            latest = github_latest("drandyhaas/KiCadRoutingTools")["tag_name"]
-        except Exception as e:
-            add("KRT latest release", NOT_RUN, f"GitHub unreachable: {e}", required=False)
+        if offline:
+            add("KRT latest release", NOT_RUN, "--offline: not looked up", required=False)
+        else:
+            try:
+                latest = github_latest("drandyhaas/KiCadRoutingTools")["tag_name"]
+            except Exception as e:
+                add("KRT latest release", NOT_RUN, f"GitHub unreachable: {e}", required=False)
         if latest:
             add("KRT latest release", PASS if latest.lstrip("v") == v.get("version") else NOT_RUN,
                 f"latest {latest}, installed {v.get('version')}" +
@@ -1418,19 +1463,29 @@ def doctor():
         out = r.stdout + r.stderr
         add("Freerouting headless CLI", PASS if r.returncode == 0 and "-de" in out and "-do" in out else FAIL,
             re.search(r"Freerouting v\S+[^\n]*", out).group(0) if re.search(r"Freerouting v\S+", out) else out[-200:])
-        try:
-            latest = github_latest(FREEROUTING_REPO)["tag_name"]
-            add("Freerouting latest release", PASS if latest == fv["version"] else NOT_RUN,
-                f"latest {latest}, installed {fv['version']}" +
-                ("" if latest == fv["version"] else ": run `kicad-route update`"), required=False)
-        except Exception as e:
-            add("Freerouting latest release", NOT_RUN, f"GitHub unreachable: {e}", required=False)
+        if offline:
+            add("Freerouting latest release", NOT_RUN, "--offline: not looked up", required=False)
+        else:
+            try:
+                latest = github_latest(FREEROUTING_REPO)["tag_name"]
+                add("Freerouting latest release", PASS if latest == fv["version"] else NOT_RUN,
+                    f"latest {latest}, installed {fv['version']}" +
+                    ("" if latest == fv["version"] else ": run `kicad-route update`"), required=False)
+            except Exception as e:
+                add("Freerouting latest release", NOT_RUN, f"GitHub unreachable: {e}", required=False)
 
-    from . import canary
-    can = canary.run_canary(quick=True, dest=out_path("doctor", "canary"))
-    for c in can["checks"]:
-        add(f"canary {c['check']} (awkward net names)", c["status"],
-            "; ".join(c.get("problems", [])[:3]) or "Specctra class split and DSN export/parse round-trip")
+    if canary_check:
+        from . import canary
+        can = canary.run_canary(quick=True, dest=out_path("doctor", "canary"))
+        for c in can["checks"]:
+            add(f"canary {c['check']} (awkward net names)", c["status"],
+                "; ".join(c.get("problems", [])[:3]) or "Specctra class split and DSN export/parse round-trip")
+    else:
+        add("canary (awkward net names)", NOT_RUN, "--no-canary", required=False)
+
+    state_refusal = sandbox.state_refusal("doctor")
+    add("state read-only", PASS if not state_refusal else (FAIL if require_readonly else NOT_RUN),
+        state_refusal or f"{common.STATE} is read-only to this process", required=require_readonly)
 
     capabilities = {
         "krt": {"interface": "CLI (py_router/route.py), headless, no KiCad editor needed",
@@ -1454,12 +1509,26 @@ def doctor():
     status = FAIL if required_fail else PASS
     out = out_path("doctor", "doctor.json")
     out.parent.mkdir(parents=True, exist_ok=True)
-    common.write_json(out, {"status": status, "checks": checks, "capabilities": capabilities,
-                         "versions": {"krt": v, "freerouting": fv}})
+    pcbnew_module = None
+    if lines[:1]:
+        r = subprocess.run([str(pcbnew_python()), "-c", "import pcbnew; print(pcbnew.__file__)"],
+                           capture_output=True, text=True, env=common.tool_env())
+        pcbnew_module = r.stdout.strip().splitlines()[-1] if r.returncode == 0 and r.stdout.strip() else None
+    record = {"schema": DOCTOR_SCHEMA, "status": status, "offline": offline, "canary": canary_check,
+              "required_failed": [c["check"] for c in required_fail],
+              "checks": checks, "capabilities": capabilities,
+              "versions": {"krt": v, "freerouting": fv, **common.tool_versions()},
+              "state": sandbox.state_status(),
+              "sandbox": sandbox.requirements(venv_python=route_python(), pcbnew_python=pcbnew_python(),
+                                              pcbnew_module=pcbnew_module,
+                                              java=fv["java"].split(" (")[0] if fv.get("java") else None,
+                                              offline=offline, flag=require_readonly),
+              "doctor_json": str(out), "finished_utc": common.now_utc().isoformat()}
+    common.write_json(out, record)
     for c in checks:
         log(f"{c['status']:<12} {c['check']:<44} {c['detail'] if isinstance(c['detail'], str) else ' '.join(c['detail'])}")
     log(f"\nroute doctor: {status} ({len(checks)} checks) -> {common.rel(out)}")
-    return 0 if status == PASS else 1
+    return (0 if status == PASS else 1), record
 
 
 # ------------------------------------------------------------------- compare
@@ -1763,12 +1832,29 @@ def add_input_args(p, rev=True):
         p.add_argument("--rev", help="route a committed git revision of --dir instead of its working tree")
 
 
+def add_sandbox_args(p):
+    """--require-readonly-state and --ledger (docs/sandbox.md); `campaign` passes both to its runs."""
+    p.add_argument("--require-readonly-state", action="store_true",
+                   help=f"refuse (exit 4) unless the state directory is present and read-only "
+                        f"(also {sandbox.ENV_FLAG}=1)")
+    p.add_argument("--ledger", metavar="PATH",
+                   help="run ledger file (default OUT/ledger.jsonl); a persistent path keeps "
+                        "exit-4 repeat refusal across fresh OUT directories")
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="kicad-route", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", help="where runs, caches and reports go (default ./build/kicad-route or $KICAD_ROUTE_OUT)")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("doctor", help="routing readiness and capabilities")
+    dp = sub.add_parser("doctor", help="routing readiness and capabilities")
+    dp.add_argument("--json", action="store_true",
+                    help=f"print the record ({DOCTOR_SCHEMA}) on stdout, logs on stderr")
+    dp.add_argument("--offline", action="store_true",
+                    help="skip the latest-release lookups (NOT_RUN, not required); open no network socket")
+    dp.add_argument("--no-canary", dest="canary", action="store_false", help="skip the awkward-net-name canary")
+    dp.add_argument("--require-readonly-state", action="store_true",
+                    help=f"make the 'state read-only' check required (also {sandbox.ENV_FLAG}=1)")
     rp = sub.add_parser("run", help="route an isolated copy and grade the candidate")
     rp.add_argument("--backend", required=True, choices=sorted(BACKENDS))
     add_input_args(rp)
@@ -1800,6 +1886,7 @@ def build_parser():
                     help="extra argument passed to the backend verbatim (recorded; grading is unaffected)")
     rp.add_argument("--backend-env", action="append", metavar="KEY=VALUE",
                     help="extra environment variable for the backend, e.g. a KRT KICAD_* knob (recorded)")
+    add_sandbox_args(rp)
     rp.add_argument("--floor-history", action="store_true",
                     help="also compare the input's rules with their git high-water mark (notes only)")
     spokes.add_run_option(rp)
@@ -1860,6 +1947,16 @@ def main(argv=None):
         common.set_out(a.out)
     if a.cmd in ("run", "audit") and any("=" not in e for e in a.library_dir or []):
         ap.error("--library-dir takes NAME=PATH")
+    if a.cmd in ("update", "corpus") and (a.cmd == "update" or a.corpus_cmd == "add"):
+        refusal = sandbox.writer_refusal("update" if a.cmd == "update" else "corpus add")
+        if refusal:  # these two write the state directory
+            log(f"[{a.cmd}] refused: {refusal}")
+            return sandbox.REFUSED_EXIT
+    if a.cmd == "campaign" and sandbox.require_readonly_state(a.require_readonly_state):
+        refusal = sandbox.state_refusal("campaign")
+        if refusal:
+            log(f"[campaign] refused: {refusal}")
+            return sandbox.REFUSED_EXIT
     if a.cmd == "run":
         a.backend_arg = a.backend_arg or []
         if any("=" not in e for e in a.backend_env or []):
@@ -1893,7 +1990,7 @@ def main(argv=None):
         publish_run(run_dir, dest)
         log(f"[publish] {common.rel(dest)} (candidate stays in {r['run_dir']})")
         return 0
-    return {"doctor": lambda: doctor(), "compare": lambda: compare(a.run_dirs),
+    return {"doctor": lambda: doctor(a.offline, a.canary, a.json, a.require_readonly_state), "compare": lambda: compare(a.run_dirs),
             "update": lambda: update(), "smoke": lambda: smoke(a.publish)}[a.cmd]()
 
 

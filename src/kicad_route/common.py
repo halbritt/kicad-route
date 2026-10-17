@@ -84,8 +84,20 @@ def load_json(path):
 
 
 def git(repo, *args):
-    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+    # --no-optional-locks: `describe --dirty` must not rewrite the index of a read-only checkout
+    r = subprocess.run(["git", "--no-optional-locks", "-C", str(repo), *args], capture_output=True, text=True)
     return r.stdout.strip() if r.returncode == 0 else None
+
+
+def git_describe(repo):
+    """`git describe --tags --always` plus "-dirty" for tracked changes, without writing
+    to the repository: `describe --dirty` takes the index lock even with
+    --no-optional-locks, which touches a read-only state directory (docs/sandbox.md)."""
+    desc = git(repo, "describe", "--tags", "--always")
+    if desc is None:
+        return None
+    dirty = git(repo, "status", "--porcelain", "--untracked-files=no")
+    return desc + ("-dirty" if dirty else "")
 
 
 def count_by(items, key):
@@ -128,6 +140,9 @@ def tool_env():
     env[f"KICAD{major}_TEMPLATE_DIR"] = str(KICAD_SHARE / "template")
     env.pop("VIRTUAL_ENV", None)
     env.pop("PYTHONPATH", None)
+    # Backends and KiCad scripts run from STATE and the checkout: never write
+    # __pycache__ there (STATE stays untouched outside `update`; docs/sandbox.md).
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     return env
 
 
@@ -163,7 +178,7 @@ def public(record):
 
 def tool_versions():
     return {"kicad-cli": kicad_version(), "python": sys.version.split()[0],
-            "kicad-route": git(TOOL_ROOT, "describe", "--tags", "--always", "--dirty")}
+            "kicad-route": git_describe(TOOL_ROOT)}
 
 
 def new_run_dir(name):

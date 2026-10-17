@@ -75,6 +75,7 @@ def add_parser(sub, cli):
     p.add_argument("--stall", type=int, metavar="SECONDS", help="as for run (every run): stop a run that stops progressing")
     p.add_argument("--force", action="store_true",
                    help="as for run (every run): run even when the ledger has the identical failed attempt")
+    cli.add_sandbox_args(p)  # --require-readonly-state, --ledger: as for run (every run)
     p.add_argument("--label", help="campaign name (default campaign-<backend>); runs are labelled <label>-<step>")
     p.add_argument("--strategy", choices=STRATEGIES, default="hardfirst",
                    help="hardfirst (default): route the backlog first on the original input, then the rest")
@@ -215,6 +216,10 @@ class Campaign:
             argv += ["--stall", str(a.stall)]
         if a.force:
             argv.append("--force")
+        if a.require_readonly_state:
+            argv.append("--require-readonly-state")
+        if a.ledger:
+            argv += ["--ledger", str(Path(a.ledger).expanduser().resolve())]
         if a.reserve_spokes is not None:  # -1: the flag without N (the board's min_resolved_spokes)
             argv += ["--reserve-spokes"] + ([str(a.reserve_spokes)] if a.reserve_spokes >= 0 else [])
         for e in a.backend_env or []:

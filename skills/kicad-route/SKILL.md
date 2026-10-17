@@ -40,6 +40,7 @@ first.
 | Command | What it does |
 |---|---|
 | `kicad-route doctor` | Readiness, versions and capabilities of both backends (`OUT/doctor/doctor.json`) |
+| `kicad-route doctor --json --offline [--no-canary]` | The same record on stdout (schema `kicad-route/doctor/1`, logs on stderr), with no network; its `sandbox` block lists the read-only mounts, writable OUT, environment and network a sandbox must provide (`docs/sandbox.md`) |
 | `kicad-route run --backend krt\|freerouting [options]` | One attempt; prints the run directory and exits with its verdict |
 | `kicad-route validate <run_dir>` | Re-grade a candidate (e.g. after hand edits) into `<run_dir>/revalidate/<stamp>/` |
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
@@ -99,6 +100,15 @@ first.
     that already failed (exit 4, naming the earlier run). Change something, or
     pass `--force`.
   - `--canary` runs the awkward-net-name canary first.
+- **Sandbox** (docs/sandbox.md):
+  - `--require-readonly-state` (or `KICAD_ROUTE_REQUIRE_READONLY_STATE=1`) refuses
+    with exit 4 before routing when the state directory (`$KICAD_ROUTE_STATE`) is
+    missing, holds no backend, or is writable. `update` and `corpus add` refuse
+    under the variable.
+  - `--ledger PATH` keeps the run ledger outside OUT, so repeat refusal survives a
+    fresh OUT per stage.
+  - `result.json` `sandbox` records the network namespace (isolated or not), the
+    state directory's writability and the flag.
 
 ## Reading a result
 
@@ -115,8 +125,9 @@ Exit codes:
 - 1: process failure (no candidate).
 - 2: valid but incomplete.
 - 3: fails validation.
-- 4: refused before routing (ledger: identical attempt already failed; or
-  `--canary` failed).
+- 4: refused before routing (ledger: identical attempt already failed;
+  `--canary` failed; or `--require-readonly-state` and the state directory is
+  writable or missing).
 
 Also read:
 
