@@ -84,7 +84,7 @@ from . import ledger
 from . import netnames
 from . import procgroup
 from . import stall
-from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot
+from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot, sibling_names
 
 PASS, FAIL, NOT_RUN, UNSUPPORTED = common.PASS, common.FAIL, common.NOT_RUN, common.UNSUPPORTED
 COMPLETE, INCOMPLETE = "COMPLETE", "INCOMPLETE"
@@ -148,7 +148,7 @@ def snapshot_input(cfg, run_dir):
         (run_dir / "snapshot").rename(ref_root)
         return ref_root / dst.name, manifest
     # No schematic: copy the board directory's KiCad files only (parity becomes UNSUPPORTED).
-    src, commit = (export_revision(cfg, run_dir) if cfg.get("rev") else (cfg["path"], None))
+    src, commit, _ = (export_revision(cfg, run_dir) if cfg.get("rev") else (cfg["path"], None, None))
     dst = run_dir / "reference" / cfg["path"].name
     dst.mkdir(parents=True)
     for f in src.iterdir():
@@ -170,9 +170,17 @@ def input_fingerprint(manifest):
 
 
 def copy_project(src, dst):
+    """Copy a project directory, plus links beside it to the sibling directories its
+    library tables reach as ${KIPRJMOD}/../<dir> (the snapshot keeps those next to
+    reference/<proj>), so the copy resolves the same libraries."""
     shutil.copytree(src, dst, symlinks=True)
     for stale in list(dst.glob("*.kicad_prl")) + list(dst.glob("fp-info-cache")):
         stale.unlink()
+    tables = [(src / t).read_text(errors="replace") for t in ("sym-lib-table", "fp-lib-table") if (src / t).is_file()]
+    for name in sibling_names(tables, src.name):
+        here, there = src.parent / name, dst.parent / name
+        if here.exists() and not (there.exists() or there.is_symlink()):
+            there.symlink_to(here.resolve())
 
 
 # --------------------------------------------------------------- nets and scope
