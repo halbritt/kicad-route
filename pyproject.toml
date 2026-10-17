@@ -7,6 +7,7 @@ name = "kicad-route"
 version = "0.1.0"
 description = "Run KRT or Freerouting on an isolated copy of a KiCad project and grade the candidate with KiCad's own DRC"
 requires-python = ">=3.12"
+license = {text = "MIT"}
 dependencies = []
 
 [project.scripts]

@@ -98,5 +98,14 @@ make evidence     # smoke, then publish its structured evidence to reports/fixtu
 make fixture      # regenerate fixtures/route_demo
 ```
 
-KRT is MIT-licensed and Freerouting GPL-3.0; neither is redistributed here — `update`
-fetches them from their upstream releases.
+## License
+
+kicad-route itself is MIT-licensed ([`LICENSE`](LICENSE)).
+
+The two backends are separate upstream programs under their own licenses:
+[KRT](https://github.com/drandyhaas/KiCadRoutingTools) is MIT (copyright drandyhaas) and
+[Freerouting](https://github.com/freerouting/freerouting) is GPL-3.0. Neither is part of
+this repository or redistributed with it. `kicad-route update` installs them from their
+upstream releases into the git-ignored state directory (`vendor/krt`,
+`vendor/freerouting`, `.venv-krt` under the checkout or `$KICAD_ROUTE_STATE`), and
+kicad-route runs them only as separate processes; it does not import or link either one.

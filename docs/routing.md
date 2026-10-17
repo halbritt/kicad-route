@@ -243,6 +243,39 @@ git-ignored.
   release removes SWIG, the bridge and `kicad/facts.py` need an IPC-based replacement.
 - **Grading is KiCad's, always.** Backend reports disagree with KiCad in both
   directions (below); only KiCad's DRC against the original project decides.
+- **kicad-route is the routing stage of the agent-ee generator** (agent-ee decision 3,
+  2026-10-17). The generator runs requirements, parts, schematic, placement, routing,
+  verification and fab package as separately verified stages; routing is a
+  `kicad-route run` or `campaign` that agent-ee executes as a sandboxed writer. It
+  routes a copy, returns a candidate and a `result.json`, and agent-ee captures both
+  as evidence. What that needs from kicad-route (a versioned result contract,
+  hashes, read-only state, offline operation) is tracked in Plane KICADROUTE under
+  the `generator` label.
+- **KRT is the default backend; Freerouting runs are attempts, not measurements**
+  (agent-ee decision 3). KRT is chosen because it is deterministic: the same input,
+  settings and KRT build should give the same candidate, so a result can be
+  reproduced and a repeat of a failed attempt changes nothing. No repeat-run
+  comparison proves this yet; a Plane item tracks that check. A Freerouting run can
+  be graded and adopted like any candidate, but its outcome is not evidence of what
+  a board, a scope or a setting can achieve.
+- **Placement is not kicad-route's job** (agent-ee decision 4). kicad-route preserves
+  footprints, outline, zones, keepouts and rules and grades only the copper it adds;
+  moving a footprint fails the `footprints` preservation check. The placement stage
+  lives in agent-ee because (a) the agent-ee campaign loop is the generator's engine
+  and placement is the same "writer proposes, checks grade" step; (b) moving
+  footprints contradicts kicad-route's preservation invariants; (c) the placement
+  checks (courtyard DRC with `kicad-cli`, ratsnest length and keepouts with the
+  pcbnew probe, connector-on-edge geometry) are native-tool checks that agent-ee
+  already runs in its sandbox. kicad-route contributes routability evidence: the
+  placement stage consumes `kicad-route blocked` receipts ([blocked.md](blocked.md))
+  as a check input.
+- **Backends stay upstream; versions are recorded per run** (agent-ee decision 6). KRT
+  and Freerouting are installed from their upstream releases into the git-ignored
+  state directory (`vendor/`, `.venv-krt`), never committed or modified here, and
+  every `result.json` records the backend version and build. Freerouting (GPL-3.0) and
+  KRT run only as separate processes; kicad-route does not import or link either.
+- **MIT license for kicad-route** (2026-10-17, [`LICENSE`](../LICENSE)). It covers this
+  repository only; KRT (MIT) and Freerouting (GPL-3.0) keep their own licenses.
 
 ## Known limitations
 
