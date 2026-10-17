@@ -13,8 +13,9 @@ one, and how to tell whether a backend update made real boards worse.
 | Real-board gate | `kicad-route corpus add/check/list`; run by `update` | `src/kicad_route/corpus.py` |
 
 Exit status 4 means **refused before routing**: the ledger shows this exact
-attempt already failed, or the `--canary` pre-flight failed. No run directory
-is left behind.
+attempt already failed, the `--canary` pre-flight failed, or the board has no
+`.kicad_pro` of its own name (KiCad would load none of its rules; see
+[routing.md](routing.md#native-grading)). No run directory is left behind.
 
 ## Stall detection
 

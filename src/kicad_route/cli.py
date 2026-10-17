@@ -51,7 +51,8 @@ grades exactly the delivered file. Violations already present in the input
 Exit status: 0 complete and valid, 1 backend/process failure (no candidate),
 2 candidate valid but routing incomplete, 3 candidate fails validation,
 4 refused before routing (the ledger shows this exact attempt already failed,
-or the --canary pre-flight failed). Run hygiene (stall, ledger, canary,
+the --canary pre-flight failed, or the board has no .kicad_pro of its own name, so
+KiCad would load none of the input's rules). Run hygiene (stall, ledger, canary,
 corpus): docs/hygiene.md.
 """
 import argparse
@@ -89,7 +90,6 @@ FREEROUTING_DIR = common.STATE / "vendor" / "freerouting"
 FIXTURE = TOOL_ROOT / "fixtures" / "route_demo"
 KICAD_SCRIPTS = Path(__file__).resolve().parent / "kicad"  # run with KiCad's Python (pcbnew)
 NM = 1_000_000  # nanometres per millimetre
-NET_IN_ITEM = re.compile(r"\[([^\]]+)\]")
 
 
 def log(msg):
@@ -216,6 +216,7 @@ def kicad_drc(board, out_dir, label, refill_and_save):
             return None, info
         info["refill"] = {"board_sha256_before": before, "board_sha256_after": common.sha256(board)}
     out = out_dir / f"{label}-drc.json"
+    info["board_sha256_graded"] = common.sha256(board)  # the file the grading DRC reads
     rec = common.run_cmd(["kicad-cli", "pcb", "drc", "--format", "json", "--severity-all", "--schematic-parity",
                        "--units", "mm", "-o", out, board], board.parent, out_dir / f"{label}-drc.log")
     info["commands"].append(common.public(rec))
@@ -263,8 +264,10 @@ def drc_delta(base, cand, kind):
     return new, resolved
 
 
-def item_nets(v):
-    return {n for i in v.get("items", []) for n in NET_IN_ITEM.findall(i.get("description", ""))}
+def item_nets(v, known=None):
+    """Net names of a DRC finding's items (netnames.nets_in_description): `/BUS[0]` stays
+    whole; with `known` (the board's nets) a name is matched exactly, brackets and all."""
+    return {n for i in v.get("items", []) for n in netnames.nets_in_description(i.get("description", ""), known)}
 
 
 def summarize_findings(items):
@@ -465,7 +468,8 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
               f"{out['vias']['unprotected_existing']} {what} vias removed or changed (allowed: not protected)",
               status=PASS)
 
-    # New copper must meet the net class of its net and stay inside the routing scope.
+    # New copper must meet the net class of its net and stay inside the routing scope;
+    # copper with no net belongs to no in-scope net, so it always fails routing_scope.
     under, outside = [], []
     nets = cand["nets"]
     tol = GEOMETRY_TOLERANCE_NM  # Specctra/KiCad quantisation, e.g. a 0.29972 mm drill read back as 0.299
@@ -475,8 +479,9 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
             under.append({"item": "track", "net": t["net"], "netclass": nc["netclass"], "layer": t["layer"],
                           "width_mm": t["width"] / NM, "required_mm": nc["track_width"] / NM,
                           "start_mm": [c / NM for c in t["start"]]})
-        if t["net"] and t["net"] not in scope:
-            outside.append({"item": "track", "net": t["net"]})
+        if not t["net"] or t["net"] not in scope:  # net-less copper is never in scope
+            outside.append({"item": "track", "net": t["net"] or netnames.NO_NET, "layer": t["layer"],
+                            "start_mm": [c / NM for c in t["start"]]})
     for v in out["vias"]["new"]:
         nc = nets.get(v["net"], {})
         if (nc.get("via_diameter") and v["diameter"] < nc["via_diameter"] - tol) or \
@@ -485,8 +490,9 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
                           "diameter_mm": v["diameter"] / NM, "drill_mm": v["drill"] / NM,
                           "required_mm": [nc.get("via_diameter", 0) / NM, nc.get("via_drill", 0) / NM],
                           "position_mm": [c / NM for c in v["position"]]})
-        if v["net"] and v["net"] not in scope:
-            outside.append({"item": "via", "net": v["net"]})
+        if not v["net"] or v["net"] not in scope:
+            outside.append({"item": "via", "net": v["net"] or netnames.NO_NET,
+                            "position_mm": [c / NM for c in v["position"]]})
     check("new_copper_netclass_geometry", not under,
           f"{len(out['tracks']['new'])} new tracks and {len(out['vias']['new'])} new vias checked against "
           f"their net class width / via diameter / drill (1 um quantisation tolerance)"
@@ -545,6 +551,43 @@ def resolve_origin(run_dir, attempt, origin=None):
     return steps
 
 
+def rules_files(project_dir, board_name):
+    """The project and custom-rule files KiCad grades board_name with. KiCad finds a
+    board's project (net classes and their assignments, DRC constraints, severities,
+    exclusions) only as the .kicad_pro of the board's own name, and the custom rules
+    only as the .kicad_dru of that project's name; a project or rule file under any
+    other name is not loaded at all. `refusal` is set when the board has no project
+    of its name: KiCad would then grade (and the backends route) with its built-in
+    defaults instead of the input's rules."""
+    board = Path(project_dir) / board_name
+    pro, dru = board.with_suffix(".kicad_pro"), board.with_suffix(".kicad_dru")
+    rec = {"project": pro.name, "custom_rules": dru.name if dru.exists() else None,
+           "not_loaded": sorted(p.name for p in board.parent.iterdir()
+                                if p.suffix in (".kicad_pro", ".kicad_dru") and p.name not in (pro.name, dru.name)),
+           "refusal": None}
+    if not pro.exists():
+        rec["refusal"] = (f"{board_name} has no {pro.name} beside it: KiCad loads a board's rules (net classes, "
+                          f"DRC constraints and severities, {dru.name} custom rules) only from the project of "
+                          "the board's own name, so it would route and grade with its built-in defaults"
+                          + (f"; {', '.join(rec['not_loaded'])} would not be loaded (copy or rename the "
+                             f"project to {pro.name})" if rec["not_loaded"] else ""))
+    return rec
+
+
+def validate_dir(run_dir, origin=None):
+    """A fresh directory for one grading of run_dir: validate/ the first time (run_attempt),
+    then revalidate/<stamp>/ (revalidate-origin/<stamp>/ against an origin)."""
+    if origin is None and not (run_dir / "validate").exists():
+        return run_dir / "validate"
+    parent = run_dir / ("revalidate-origin" if origin is not None else "revalidate")
+    stamp = common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ")
+    out, n = parent / stamp, 1
+    while out.exists():
+        n += 1
+        out = parent / f"{stamp}-{n}"
+    return out
+
+
 def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
     """Grade run_dir/candidate against run_dir/reference. Re-runnable: an agent may
     edit the candidate and validate it again into a fresh directory. With origin (an
@@ -557,6 +600,7 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
         sys.exit(f"{run_dir}: not a routing run (attempt.json missing)")
     cand_dir = run_dir / attempt["candidate_dir"]
     scope = set(attempt["scope"]["nets"])
+    out_dir = out_dir or validate_dir(run_dir, origin)  # always under the run being graded
     chain = []
     if origin is not None:
         steps = resolve_origin(run_dir, attempt, origin)
@@ -564,7 +608,6 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
         for _, a in steps[1:]:
             scope |= set(a["scope"]["nets"])
         run_dir, attempt = steps[-1]
-    out_dir = out_dir or run_dir / "validate"
     out_dir.mkdir(parents=True, exist_ok=False)
     board_name = attempt["board"]
     ref_dir = run_dir / attempt["reference_dir"]
@@ -576,16 +619,31 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
     if not board.exists():
         v.update(status=NOT_RUN, reasons=["no candidate board"])
         return v, {"status": NOT_RUN, "reasons": ["no candidate board"]}
+    rules = rules_files(ref_dir, board_name)
+    v["rules_files"] = {k: rules[k] for k in ("project", "custom_rules", "not_loaded")}
+    if rules["refusal"]:  # fail closed: KiCad would grade with its defaults, not the input's rules
+        v.update(status=FAIL, reasons=v["reasons"] + [f"cannot grade against the input's rules: {rules['refusal']}"])
+        return v, {"status": NOT_RUN, "reasons": ["the input's rules cannot be loaded"]}
 
     base = load_json(run_dir / attempt["baseline"]["report"]) if attempt["baseline"].get("report") else None
     # Grade against the input's own rules: project files that differ from the
     # reference are restored first, and the difference itself fails validation.
-    restored = []
+    # The candidate's own versions are kept under delivered-project-files/ first.
+    restored, kept = [], out_dir / "delivered-project-files"
+    delivered_files = []
     ref_files, cand_files = project_file_hashes(ref_dir, board_name), project_file_hashes(cand_dir, board_name)
     for rel_path in sorted(set(ref_files) | set(cand_files)):
         if ref_files.get(rel_path) != cand_files.get(rel_path):
             restored.append(rel_path)
             target = cand_dir / rel_path
+            entry = {"path": rel_path, "reference_sha256": ref_files.get(rel_path),
+                     "delivered_sha256": cand_files.get(rel_path),
+                     "action": "restored" if rel_path in ref_files else "removed"}
+            if rel_path in cand_files:
+                (kept / rel_path).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(target, kept / rel_path)
+                entry["kept"] = common.rel(kept / rel_path)
+            delivered_files.append(entry)
             if rel_path in ref_files:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(ref_dir / rel_path, target)
@@ -593,27 +651,46 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
                 target.unlink()
     if restored:
         v["reasons"].append(f"candidate project files differed from the input and were restored before "
-                            f"grading: {', '.join(restored)}")
+                            f"grading (the delivered versions are kept in {common.rel(kept)}): "
+                            f"{', '.join(restored)}")
     v["restored_project_files"] = restored
+    v["delivered_project_files"] = delivered_files
+    # Board hashes: as delivered (before the refill), as graded (after the refill and
+    # save, what the grading DRC read) and as left in candidate/ after grading.
+    v["delivered_board_sha256"] = common.sha256(board)
     cand, info = kicad_drc(board, out_dir, "candidate", refill_and_save=True)
     v["drc_commands"] = info["commands"]
-    v["delivered_board_sha256"] = common.sha256(board)
-    v["validated_board_sha256"] = info.get("board_sha256_checked")
+    v["validated_board_sha256"] = info.get("board_sha256_graded")
+    v["candidate_board_sha256"] = common.sha256(board)
+    v["refill_modified_board"] = (v["validated_board_sha256"] != v["delivered_board_sha256"]
+                                  if v["validated_board_sha256"] else None)
     if cand is None:
-        v.update(status=FAIL, reasons=info["reasons"])
+        v.update(status=FAIL, reasons=v["reasons"] + info["reasons"])
         return v, {"status": NOT_RUN, "reasons": ["candidate DRC did not run"]}
-    if v["delivered_board_sha256"] != v["validated_board_sha256"]:
-        v["reasons"].append("delivered board differs from the board DRC graded")
+    if v["candidate_board_sha256"] != v["validated_board_sha256"]:
+        v["reasons"].append("the candidate board changed after DRC graded it")
     if not info["parity_performed"] and attempt.get("schematic"):
         v["reasons"].append(f"schematic parity was not performed: {info.get('parity_skip_message')}")
     v["parity_performed"] = info["parity_performed"] if attempt.get("schematic") else None
 
+    ref_facts = load_json(run_dir / attempt["reference_facts"])
+    known = set(ref_facts["nets"]) if ref_facts else None
+
+    def nets_of(u):
+        return item_nets(u, known)
+
     unconnected = cand["unconnected_items"]
-    in_scope = [u for u in unconnected if item_nets(u) & scope]
+    # Fail closed: an unconnected item none of whose bracketed names is a board net
+    # cannot be placed outside the scope, so it counts as in scope.
+    unidentified = [u for u in unconnected if known is not None and not nets_of(u) & known]
+    in_scope = [u for u in unconnected if nets_of(u) & scope or (known is not None and not nets_of(u) & known)]
     routing = {"status": COMPLETE if not in_scope else INCOMPLETE,
                "unconnected_in_scope": len(in_scope), "unconnected_total": len(unconnected),
                "baseline_unconnected_total": len(base["unconnected_items"]) if base else None,
-               "unrouted_nets": sorted({n for u in in_scope for n in item_nets(u) & scope})}
+               "unrouted_nets": sorted({n for u in in_scope for n in nets_of(u) & scope})}
+    if unidentified:
+        routing["unconnected_unidentified"] = [[i.get("description") for i in u.get("items", [])]
+                                               for u in unidentified][:20]
 
     drc = {"violations_total": len(cand["violations"]), "parity_total": len(cand["schematic_parity"])}
     if base is not None:
@@ -633,7 +710,6 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
         v["reasons"].append("no baseline DRC: cannot separate new from pre-existing findings")
     v["drc"] = drc
 
-    ref_facts = load_json(run_dir / attempt["reference_facts"])
     cand_facts, rec = board_facts(board, out_dir / "candidate-facts.json")
     if cand_facts is None or ref_facts is None:
         v["reasons"].append("board facts could not be extracted")
@@ -646,7 +722,7 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
     checks, stats = preservation(ref_facts, cand_facts, ref_dir, cand_dir, board_name, protect,
                                  (scope | human["agent_nets"]) if human else scope, restored,
                                  human=human["uuids"] if human else None)
-    ratchet = provenance.net_completion(base, cand, ref_facts, item_nets)  # every protect mode
+    ratchet = provenance.net_completion(base, cand, ref_facts, nets_of)  # every protect mode
     checks.append(ratchet)
     v["net_completion"] = {k: ratchet[k] for k in ("status", "nets_connected_in_input", "nets_lost")}
     checks.append(pour_check(run_dir, attempt, ref_dir, board, out_dir, pour_limits))
@@ -700,6 +776,15 @@ def run_attempt(args):
     log(f"[route] {args.backend} on {project} -> {common.rel(run_dir)}")
     ref_dir, manifest = snapshot_input(cfg, run_dir)
     board_name = cfg["pcb"]
+    rules = rules_files(ref_dir, board_name)
+    if rules["refusal"]:  # KiCad would route and grade with its defaults: never a faithful grade
+        ledger.discard_run_dir(run_dir)
+        log(f"[route] refused: {rules['refusal']}")
+        return {"exit_code": ledger.REFUSED_EXIT, "refused": rules["refusal"]}
+    if rules["not_loaded"]:
+        log(f"[route] NOTE: KiCad grades {board_name} with {rules['project']}"
+            + (f" and {rules['custom_rules']}" if rules["custom_rules"] else " (no custom rules file)")
+            + f"; not loaded: {', '.join(rules['not_loaded'])}")
     fingerprint = input_fingerprint(manifest)
     (run_dir / "validate").mkdir()
     ref_facts, rec = board_facts(ref_dir / board_name, run_dir / "validate" / "reference-facts.json")
@@ -753,6 +838,7 @@ def run_attempt(args):
         "reference_dir": str(ref_dir.relative_to(run_dir)),
         "candidate_dir": str((run_dir / "candidate" / ref_dir.name).relative_to(run_dir)),
         "reference_facts": "facts/reference-facts.json",
+        "rules_files": {k: rules[k] for k in ("project", "custom_rules", "not_loaded")},
         "baseline": {"report": os.path.relpath(base_info["report"], run_dir) if base else None,
                      "cached": base_info.get("cached"), "reasons": base_info["reasons"]},
         "scope": {"nets": scope, **scope_info},
@@ -794,7 +880,7 @@ def run_attempt(args):
         "kind": "route",
         "backend": {"name": args.backend, **backend_version},
         "input": {"project": project, "board": board_name, "fingerprint": fingerprint,
-                  **attempt["source"], "baseline": attempt["baseline"]},
+                  **attempt["source"], "baseline": attempt["baseline"], "rules_files": attempt["rules_files"]},
         "settings": settings,
         "scope": {"mode": scope_info["mode"], "nets": len(scope), "nets_list": scope if len(scope) <= 50 else None},
         "unsupported": unsupported,
@@ -1619,6 +1705,10 @@ def audit(args):
         d = root / label
         d.mkdir(parents=True)
         ref, manifest = snapshot_input(dict(base, rev=rev), d)
+        refusal = rules_files(ref, board)["refusal"]
+        if refusal:  # KiCad would grade this side with its defaults, hiding every rule change
+            log(f"[audit] refused: {label} = {rev}: {refusal}")
+            return ledger.REFUSED_EXIT
         work = d / "graded" / ref.name
         copy_project(ref, work)
         log(f"[audit] {label} = {rev} ({manifest.get('source_git_head')}): native DRC (refilled)")
@@ -1720,9 +1810,12 @@ def cmd_validate(args):
     validation, routing = validate(run_dir, out, origin, {"pour_area_loss_pct": args.pour_area_loss,
                                                           "pour_min_spokes": args.pour_min_spokes})
     result = load_json(run_dir / "result.json") or {}
-    proc = result.get("process", {"status": PASS})
+    proc = {k: result.get("process", {}).get(k) for k in ("status", "reasons")} if result.get("process") else \
+        {"status": PASS, "reasons": []}
+    if validation["status"] == NOT_RUN and proc["status"] == PASS:  # nothing to grade is a process failure
+        proc = {"status": FAIL, "reasons": validation["reasons"]}
     rec = {"kind": "route-validate", "run_dir": common.rel(run_dir), "against": common.rel(origin) if origin else None,
-           "routing": routing, "validation": validation,
+           "process": proc, "routing": routing, "validation": validation,
            "exit_code": overall_exit(proc, routing, validation)}
     common.write_json(out / "result.json", rec)
     log(f"[validate] routing: {routing['status']}  validation: {validation['status']}"
