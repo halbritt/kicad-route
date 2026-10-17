@@ -64,6 +64,8 @@ route:
 - [`docs/routing.md`](docs/routing.md) — backends and what the adapters switch off,
   run layout and result semantics, native grading, preservation checks, `audit`,
   installation and updates, decisions, known limitations, fixture evidence.
+- [`docs/blocked.md`](docs/blocked.md) — blocked-by receipts for incomplete runs: what
+  lies across each open connection, and a rip-up ranking (`kicad-route blocked`).
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`).
