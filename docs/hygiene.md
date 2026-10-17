@@ -234,8 +234,12 @@ kicad-route corpus list
 
 `add` takes a snapshot of the project with `snapshot_input`: sheets, rules,
 library tables and local libraries. The snapshot goes into
-`STATE/corpus/<name>/reference/`. `add` then runs the attempt once and records
-its baseline in `entry.json`:
+`STATE/corpus/<name>/reference/`. A directory mapped with `--library-dir NAME=PATH`
+stays a link to PATH there. The attempt in `entry.json` records the mappings with
+the other run options, and every `check` passes them again, so the check's snapshot
+links the same library (an entry added before `library_dir` was recorded has no
+mappings: re-add it). `add` then runs the attempt once and records its baseline in
+`entry.json`:
 
 - exit code, process / routing / validation status
 - unconnected items in scope, new DRC violations, new parity issues

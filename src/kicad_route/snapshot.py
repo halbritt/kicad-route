@@ -133,7 +133,10 @@ def make_snapshot(cfg, run_dir):
     for dirname, lib in cfg.get("library_dirs", {}).items():
         target = expand(lib)
         here = src / dirname
-        if here.is_dir() and any(here.iterdir()):
+        # A link to the mapped library is the mapping itself (a candidate of a run that
+        # had it): link it again rather than copy the library into the snapshot.
+        inherited = here.is_symlink() and here.resolve() == target.resolve()
+        if here.is_dir() and any(here.iterdir()) and not inherited:
             copy(dirname)
             continue
         link = dst / dirname

@@ -43,7 +43,7 @@ first.
 | `kicad-route run --backend krt\|freerouting [options]` | One attempt; prints the run directory and exits with its verdict |
 | `kicad-route validate <run_dir>` | Re-grade a candidate (e.g. after hand edits) into `<run_dir>/revalidate/<stamp>/` |
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
-| `kicad-route campaign --backend krt\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`) |
+| `kicad-route campaign --backend krt\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`). `--total-budget` cuts each run's `--budget` to the time left and stops a step still running past its grace (`timeouts` in campaign.json) |
 | `kicad-route blocked <run_dir>` | (Re)compute the blocked-by receipts of an incomplete run or re-grade (`validate/blocked-by.json`) |
 | `kicad-route compare <run_dir> …` | Side-by-side table; refuses to call different inputs comparable |
 | `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits, the rule floor |

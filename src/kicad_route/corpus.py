@@ -1,7 +1,7 @@
 """Real-board update gate: a corpus of project snapshots with recorded attempts
 and baseline outcomes, re-run against the currently installed backends.
 
-    kicad-route corpus add --dir D [--board B] [--rev REV] --name NAME
+    kicad-route corpus add --dir D [--board B] [--rev REV] [--library-dir NAME=PATH] --name NAME
                            [--backend krt|freerouting] [--nets ...] [--netclass ...] [--budget S] ...
     kicad-route corpus check [--name NAME ...]
     kicad-route corpus list
@@ -32,8 +32,10 @@ from . import common
 from . import cli as route
 
 PASS, FAIL = common.PASS, common.FAIL
+# library_dir: the reference snapshot keeps a mapped library as a link, and every
+# check maps it again (snapshot.make_snapshot), as the add-time run did.
 RUN_KEYS = ("backend", "nets", "netclass", "budget", "max_iterations", "passes", "default_clearance",
-            "clearance_margin", "protect", "backend_arg", "backend_env", "stall")
+            "clearance_margin", "protect", "backend_arg", "backend_env", "stall", "library_dir")
 
 
 def corpus_root(root=None):
@@ -82,7 +84,7 @@ def attempt_args(entry):
         budget=a.get("budget", 300), max_iterations=a.get("max_iterations"), passes=a.get("passes"),
         default_clearance=a.get("default_clearance"), clearance_margin=a.get("clearance_margin"),
         protect=a.get("protect", "existing"), backend_arg=a.get("backend_arg") or [],
-        backend_env=a.get("backend_env") or [], stall=a.get("stall"),
+        backend_env=a.get("backend_env") or [], stall=a.get("stall"), library_dir=a.get("library_dir"),
         force=True)   # a corpus check repeats an attempt on purpose; the ledger records it as forced
 
 
