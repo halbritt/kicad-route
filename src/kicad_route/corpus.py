@@ -1,7 +1,7 @@
 """Real-board update gate: a corpus of project snapshots with recorded attempts
 and baseline outcomes, re-run against the currently installed backends.
 
-    kicad-route corpus add --dir D [--board B] [--rev REV] --name NAME
+    kicad-route corpus add --dir D [--board B] [--rev REV] [--library-dir NAME=PATH] --name NAME
                            [--backend krt|freerouting] [any `run` routing option: --nets, --netclass,
                            --budget, --protect, --reserve-spokes, --pour-*, ...]
     kicad-route corpus check [--name NAME ...]
@@ -36,7 +36,10 @@ from . import cli as route
 PASS, FAIL = common.PASS, common.FAIL
 # Recorded in entry.json and replayed by `check`: the backend plus every routing
 # option of `run` (cli.add_route_args), so the corpus cannot drift from run.
-RUN_KEYS = ("backend", *route.route_option_dests())
+# library_dir: the reference snapshot keeps a mapped library as a link, and every
+# check maps it again (snapshot.make_snapshot), as the add-time run did.
+REPLAYED_INPUT_KEYS = ("library_dir",)
+RUN_KEYS = ("backend", *route.route_option_dests(), *REPLAYED_INPUT_KEYS)
 
 
 def corpus_root(root=None):
@@ -79,7 +82,8 @@ def attempt_args(entry):
     """A run Namespace (every run option at its default) for cli.run_attempt from a corpus entry."""
     a = entry["attempt"]
     proj = entry["_dir"] / entry["reference_dir"]
-    values = {k: a[k] for k in route.route_option_dests() if k in a}  # unset options keep run's defaults
+    values = {k: a[k] for k in (*route.route_option_dests(), *REPLAYED_INPUT_KEYS)
+              if k in a}  # unset options keep run's defaults
     values.update(dir=str(proj), board=entry["board"], schematic=entry.get("schematic"), name=entry["name"],
                   label=f"corpus-{entry['name']}",
                   force=True)   # a corpus check repeats an attempt on purpose; the ledger records it as forced

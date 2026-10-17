@@ -168,11 +168,31 @@ def tool_versions():
 
 def new_run_dir(name):
     """OUT/runs/<name>/<stamp>, fresh every time, with a `latest` link beside it."""
+    parent = out_dir() / "runs" / name
+    parent.mkdir(parents=True, exist_ok=True)
     stamp = now_utc().strftime("%Y%m%dT%H%M%S.%fZ")
-    run_dir = out_dir() / "runs" / name / stamp
-    run_dir.mkdir(parents=True)  # fresh: never reuse a previous run's outputs
-    latest = run_dir.parent / "latest"
-    tmp = latest.with_name(f".latest.{os.getpid()}.{stamp}")
-    tmp.symlink_to(run_dir.name)
-    os.replace(tmp, latest)  # atomic: concurrent runs never fail on, or see a missing, `latest`
+    for n in range(1000):
+        run_dir = parent / (stamp if n == 0 else f"{stamp}-{n}")
+        try:
+            run_dir.mkdir()  # fresh: never reuse a previous (or a concurrent) run's outputs
+            break
+        except FileExistsError:
+            continue
+    else:
+        raise FileExistsError(f"no fresh run directory under {parent} for stamp {stamp}")
+    point_latest(parent / "latest", run_dir.name)
     return run_dir
+
+
+def point_latest(link, target):
+    """Point the symlink `link` at `target`, atomically: a new link is created
+    beside it and renamed over it, so concurrent runs sharing a label never see
+    `latest` missing and never fail with FileExistsError (the last rename wins)."""
+    link = Path(link)
+    tmp = link.with_name(f".{link.name}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
+    tmp.symlink_to(target)
+    try:
+        os.replace(tmp, link)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise

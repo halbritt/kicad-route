@@ -630,6 +630,26 @@
         },
         "validation": {
           "$ref": "#/$defs/validation"
+        },
+        "process": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "PASS",
+                "FAIL"
+              ]
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       },
       "allOf": [
@@ -662,6 +682,13 @@
                 "required": [
                   "status"
                 ]
+              },
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                }
               }
             }
           }
@@ -696,6 +723,13 @@
                 "required": [
                   "status"
                 ]
+              },
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                }
               }
             }
           }
@@ -729,6 +763,13 @@
                 "required": [
                   "status"
                 ]
+              },
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "FAIL"
+                  }
+                }
               }
             }
           }
@@ -746,10 +787,14 @@
               "validation": {
                 "properties": {
                   "status": {
-                    "enum": [
-                      "FAIL",
-                      "NOT_RUN"
-                    ]
+                    "const": "FAIL"
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
                   }
                 }
               }

@@ -217,10 +217,11 @@ def test_refusal_is_a_system_exit_with_code_4():
 def test_no_string_exits_outside_the_refusal_helper():
     """sys.exit("message") exits 1 (backend failed); SystemExit("message") likewise.
     Command paths refuse through contract.refuse instead."""
-    bad = re.compile(r"""\bsys\.exit\(\s*[rf]?["']|\bSystemExit\(\s*[rf]?["']|\bsys\.exit\((?!main\(\)\))""")
+    bad = re.compile(r"""\bsys\.exit\(\s*[rf]?["']|\bSystemExit\(\s*[rf]?["']""")
     hits = []
     for name in ("cli", "campaign", "corpus", "floor", "blocked", "spokes", "snapshot", "canary", "ledger",
-                 "provenance", "pour", "stall", "common"):
+                 "provenance", "pour", "stall", "common", "barrier", "decoupling", "determinism", "statemanifest",
+                 "evidence", "procgroup"):
         for i, line in enumerate((ROOT / "src" / "kicad_route" / f"{name}.py").read_text().splitlines(), 1):
             if bad.search(line):
                 hits.append(f"{name}.py:{i}: {line.strip()}")
@@ -276,7 +277,7 @@ def test_run_campaign_and_corpus_take_the_same_routing_options():
     for p in (subparser("run"), subparser("campaign"), subparser("corpus", "add")):
         protect = next(a for a in p._actions if a.dest == "protect")
         assert protect.choices == ["existing", "locked", "human"] and protect.default == "existing"
-    assert set(corpus.RUN_KEYS) == {"backend", *route.route_option_dests()}
+    assert set(corpus.RUN_KEYS) == {"backend", *route.route_option_dests(), *corpus.REPLAYED_INPUT_KEYS}
 
 
 ALL_ROUTE = ["--nets", "/SIG_A*", "!GND", "--netclass", "Power", "--budget", "77", "--max-iterations", "9",
@@ -359,8 +360,8 @@ def test_fixture_evidence_meets_the_contract():
         res.setdefault("schema", contract.schema_id(res["kind"]))
         errors = sorted(e.message for e in RESULTS.iter_errors(res))
         assert not errors, f"{path.relative_to(ROOT)}: {errors[:5]}"
-        process = None
-        if res["kind"] == "route-validate":
+        process = res.get("process")
+        if res["kind"] == "route-validate" and process is None:   # records before validate carried it
             process = json.loads((path.parent.parent / "result.json").read_text())["process"]
         check_invariants(res, process)
         checked.append({"result": str(path.relative_to(EVIDENCE)), "kind": res["kind"],

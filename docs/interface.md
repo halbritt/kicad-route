@@ -40,6 +40,9 @@ jsonschema.Draft202012Validator(schema).validate(json.load(open(run_dir + "/resu
   runs with distinct `--run-dir` values do not interfere. Without it the run directory is
   `OUT/runs/<project>/<label>/<stamp>/` and `OUT/runs/<project>/<label>/latest` points
   at the newest one (replaced atomically, but shared by every run with that label).
+- **Campaign steps.** `campaign` runs each step as `kicad-route run --json` (and
+  `validate --json`): the step's record goes to `logs/<step>.json`, its progress to
+  `logs/<step>.log`, and a step past its timeout is stopped with its process group.
 - **Never interactive.** No command prompts or reads stdin, and none checks for a
   terminal. A future change that needs a confirmation adds a flag instead.
 - **Network.** Only `update` (backend downloads) and the `doctor` latest-release checks
@@ -59,7 +62,8 @@ Every top-level record carries `"schema": "kicad-route/<kind>/<major>"` and `"ki
 | `route-validate` | `kicad-route/route-validate/1` | `<run_dir>/revalidate*/<stamp>/result.json` | `validate` | result-1.json |
 | `route-campaign` | `kicad-route/route-campaign/1` | `OUT/campaigns/<project>/<label>/<stamp>/campaign.json` | `campaign` | result-1.json |
 | `refusal` | `kicad-route/refusal/1` | `OUT/refusals/<stamp>-<pid>.json` | any command | refusal-1.json |
-| `route-blocked` | `kicad-route/route-blocked/1` | (stdout only; the receipts are `blocked-by.json`) | `blocked` | none yet |
+| `route-blocked` | `kicad-route/route-blocked/1` | (stdout only; the receipts are `blocked-by.json`) | `blocked RUN_DIR` | none yet |
+| blocked-by report | `kicad-route/blocked/2` | `OUT/blocked/<board>/<stamp>/blocked-by.json`, `<validate dir>/blocked-by.json` | `blocked --board B` | `schemas/blocked-by.schema.json` (docs/blocked.md) |
 | `audit` | `kicad-route/audit/1` | `OUT/audit/<project>/<old>..<new>/audit.json` | `audit` | none yet |
 | `floor` | `kicad-route/floor/1` | `OUT/floor/<project>/floor.json` | `floor` | none yet |
 | `doctor` | `kicad-route/doctor/1` | `OUT/doctor/doctor.json` | `doctor` | none yet |
@@ -81,15 +85,18 @@ wins over incomplete routing (2).
 | 3 | fails validation | `process.status` PASS, `validation.status` FAIL (whatever the routing) with non-empty `validation.reasons` |
 | 4 | refused before any backend ran | no candidate and no run directory; a refusal record names the reason (below) |
 
-Exit 1 from `run` always comes with a `result.json` whose `process.status` is FAIL. An
+Exit 1 from `run` always comes with a `result.json` whose `process.status` is FAIL. That
+includes `run --barrier-from` a run with no copper collision to barrier
+(docs/barrier.md): the backend never starts, and the result says why. An
 input or usage problem is never exit 1 or 2: it is a refusal (exit 4). The one
 exception is a kicad-route bug: an uncaught Python exception exits 1 with a traceback
 on stderr and no record. Treat exit 1 without a parsable record as a tool failure, never
 as a routing verdict.
 
-`validate` follows the same table, with `process` read from the run's own result. A
-re-grade of a run whose candidate was removed exits 3 with `validation.status` NOT_RUN
-and the reason "no candidate board".
+`validate` follows the same table. Its record carries `process`: the run's own
+process result, or FAIL when there is no candidate board to grade (a re-grade of a
+run whose candidate was removed exits 1 with `validation.status` NOT_RUN and the
+reason "no candidate board").
 
 Other commands:
 
@@ -98,7 +105,8 @@ Other commands:
 | `campaign` | the best chain is complete and valid (2 when it is valid but incomplete) | no chain produced a gradable candidate | the best chain fails validation | refused: a usage or input error, or its round-0 run was refused |
 | `audit` | no findings | a revision could not be graded | findings (rule changes, hidden findings, floor) | refused |
 | `floor` | nothing below the declared floor | | below the declared floor, or a broken declared floor | refused (not a git repository, `--since` not a commit) |
-| `blocked` | receipts written, or nothing is blocked | the diagnosis failed | | refused (not a run) |
+| `blocked` | receipts written, or nothing is blocked | the diagnosis failed (`--board`: DRC or facts did not run, or the board changed while analysed) | | refused (not a run, not a board) |
+| `determinism` | the repeats are reproducible | `--record` could not store the verdict | not reproducible | refused |
 | `doctor` | every required check passes | a required check fails | | refused |
 | `compare` | the runs share one input | the inputs differ | | refused (a run without `result.json`) |
 
@@ -110,8 +118,8 @@ input errors, the ledger and the canary pre-flight.
 
 | `reason_class` | Raised when |
 |---|---|
-| `usage` | the command line is wrong: an unknown option, a bad value, a missing argument, `--backend-env` without `=`, `--library-dir` without `=`, `campaign --rounds` below 0, `corpus add` without a valid `--name`, `--json` on a command without machine mode |
-| `input` | the project, run or revision named is not usable: `--dir` is not a directory, not exactly one board, `--rev` outside a git repository or not a commit, the input board cannot be read, the net selection matches no nets, `validate`/`blocked`/`spokes`/`compare`/`publish` given something that is not a run, a `validate --against` chain that does not descend from the origin, `floor` outside a git repository |
+| `usage` | the command line is wrong: an unknown option, a bad value, a missing argument, `--backend-env` without `=`, `--library-dir` without `=`, `campaign --rounds` below 0, `corpus add` without a valid `--name`, `blocked` or `decoupling` without (or with both) a run and `--board`, `decoupling --radius` not positive, `--json` on a command without machine mode |
+| `input` | the project, run or revision named is not usable: `--dir` is not a directory, not exactly one board, `--rev` outside a git repository or not a commit, the board has no `.kicad_pro` of its own name (KiCad would grade with its defaults; `run` and `audit`), the input board cannot be read, the net selection matches no nets or would not mean what it says (`--nets '!RESET'` on a board with a net named `!RESET`), `validate`/`blocked`/`spokes`/`barrier`/`compare`/`publish` given something that is not a run, `blocked --board` given something that is not a board, a `validate --against` chain that does not descend from the origin, `floor` outside a git repository |
 | `ledger` | the run ledger has this exact attempt already failed (`--force` repeats it; docs/hygiene.md) |
 | `canary` | `run --canary` and the awkward-net-name canary failed |
 | `state` | kicad-route's own state is in the way: `--run-dir` exists, the corpus entry exists |

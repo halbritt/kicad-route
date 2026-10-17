@@ -23,7 +23,7 @@ def assert_clean_candidate(result, run_dir):
     assert result["validation"]["status"] == route.PASS, result["validation"]["reasons"]
     assert all(v == route.PASS for v in result["validation"]["preservation"].values())
     assert result["validation"]["parity_performed"] is True
-    assert result["validation"]["delivered_board_sha256"] == result["validation"]["validated_board_sha256"]
+    assert result["validation"]["candidate_board_sha256"] == result["validation"]["validated_board_sha256"]
     assert result["exit_code"] == 0
     board = OUT / result["candidate"]["board"]
     assert board.exists()

@@ -93,7 +93,7 @@ exist; no `latest` link):
 
 | Path | Contents |
 |---|---|
-| `reference/<project>/` | untouched copy of the input (board, `.kicad_pro`, `.kicad_dru`, every reachable schematic sheet, library tables, local libraries; shared libraries linked; `--rev` uses `git archive` of that revision) |
+| `reference/<project>/` | untouched copy of the input (board, `.kicad_pro`, `.kicad_dru`, every reachable schematic sheet, library tables, local libraries; `${KIPRJMOD}/../<dir>` libraries linked beside it as `reference/<dir>`, and the same links are made beside `work/input/` and `candidate/`; `--rev` takes the project, its in-repository `../<dir>` libraries and checked-out submodules (at their pinned commits) from that revision, never the working tree. A `../<dir>` outside the repository is not pinned by the commit: `snapshot.json` `library_links` records it as `pinned: false` with its own git HEAD and uncommitted files) |
 | `work/` | backend scratch: its own output files and project writes (recorded, never used), `krt.log` / `freerouting.log`, `board.dsn` / `board.ses`, result JSON |
 | `candidate/<project>/` | the reference project with the routed board; zones refilled and saved; open it in KiCad |
 | `facts/reference-facts.json` | engineering facts of the input board (`kicad/facts.py`) |
@@ -110,20 +110,83 @@ independent results:
   (missing install, crash, budget exceeded, bridge failure) otherwise.
 - **routing** — COMPLETE / INCOMPLETE from KiCad's unconnected items on in-scope nets in
   the refilled candidate, with `unrouted_nets` and route statistics (new tracks, vias,
-  length per layer, removed copper). When INCOMPLETE, `blocked_by` summarises what lies
-  across the open connections (`validate/blocked-by.json`, [blocked.md](blocked.md)).
+  length per layer, removed copper). The net of an item is read from the brackets KiCad
+  puts around it (`Pad 1 [/BUS[0]] of C1`), matched against the board's own net names so
+  names that carry brackets stay whole (`netnames.nets_in_description`). An unconnected
+  item whose bracketed name matches no board net counts as in scope
+  (`unconnected_unidentified`): it can make a run INCOMPLETE, never COMPLETE. When
+  INCOMPLETE, `blocked_by` summarises what lies across the open connections
+  (`validate/blocked-by.json`, [blocked.md](blocked.md)).
   Backend self-reports are kept under `process.backend_report`, not used for the verdict.
 - **validation** — PASS when native DRC has no new violations or parity issues relative
-  to the input, parity actually ran, the graded file is the delivered file, and every
-  preservation check passes.
+  to the input, parity actually ran, the board left in `candidate/` is the file DRC
+  graded, and every preservation check passes. Three board hashes are recorded:
+  `delivered_board_sha256` (as the backend or an editing agent left it, before the
+  refill), `validated_board_sha256` (after the refill and save: the file the grading DRC
+  read) and `candidate_board_sha256` (the file in `candidate/` after grading; it must
+  equal the validated one). `refill_modified_board` says whether the refill changed the
+  file.
 
-Exit status: 0 complete and valid; 1 process failure; 2 valid but incomplete; 3 fails
-validation (regardless of completion); 4 refused before routing (a usage or input
-error, the ledger or the canary), with a refusal record under `OUT/refusals/` and no
-run directory left. `result.json` carries `"schema": "kicad-route/route/1"`; what each
-exit code promises, the stable fields and the deprecation rule are in
-[interface.md](interface.md), checked against the fixture evidence by
-`tests/test_interface_contract.py`.
+Exit status: 0 complete and valid; 1 process failure (no candidate board: also from
+`validate`); 2 valid but incomplete; 3 fails validation (regardless of completion);
+4 refused before routing (ledger or canary, [hygiene.md](hygiene.md), a board
+without its own project file, below, or a usage or input error), with a refusal
+record under `OUT/refusals/` and no run directory left. `result.json` carries
+`"schema": "kicad-route/route/1"`; what each exit code promises, the stable fields
+and the deprecation rule are in [interface.md](interface.md), checked against the
+fixture evidence by `tests/test_interface_contract.py`.
+
+### Net scope
+
+`--nets` patterns are fnmatch patterns on net names; `!PAT` excludes. With
+exclusions alone (`--nets '!GND'`) the scope starts from every net. A net whose
+name starts with `!` (active-low `!RESET`) is written with an escaped `\!`:
+`--nets '\!RESET'` routes it, `--nets '!\!RESET'` excludes it (the same
+spelling `kicad/netnames.py` passes to KRT). An exclusion that excludes nothing
+while a net is literally named like it (`--nets '!RESET'` on a board whose net is
+`!RESET`) would route the whole board instead of that net, so it is refused
+(exit 4) with the escaped spellings in the message. `--netclass` adds nets by
+effective KiCad net class; exclusions are applied last.
+
+### Evidence, tool identity and reproducibility
+
+`result.json` also carries two blocks for recording a run as evidence without
+re-hashing the run directory (`kicad_route/evidence.py`). `validate` records carry
+both for what they graded (with the backend identity the routed run recorded), and a
+campaign's `best` carries those of its graded record.
+
+- **`evidence`**: `input_board_sha256`; `reference_files` (every reference file's
+  sha256, the map `snapshot.json` records; the no-schematic input path writes
+  `snapshot.json` too); `rules_files` (the `.kicad_pro` / `.kicad_dru` among them);
+  `rule_floor_sha256` (the declared floor); `backend_output_board_sha256` (the board
+  the backend handed back, before KiCad refilled and saved it);
+  `candidate_board_sha256` (the delivered candidate); `candidate_copper_signature`
+  (sha256 over the candidate's tracks, arcs and vias from `facts.py`, sorted, without
+  UUIDs, with the item counts); `records` (sha256 of `attempt.json` and the grading
+  records, keyed by path relative to the result's directory).
+- **`tool_identity`**: `kicad_route` (describe, commit, dirty), `kicad_cli` (path,
+  version, sha256), `pcbnew.build_version`, `python`, `backend` (KRT: tag, version,
+  commit, grid_router version, extension-module sha256, venv packages sha256;
+  Freerouting: tag, jar sha256, build revision, Java path and full version),
+  `state_manifest_sha256` and `state_manifest_drift`. It holds no timestamps: two
+  runs on the same tools report the same block.
+- **`backend.reproducible`, `measurement`**: Freerouting is `reproducible: false`
+  and every Freerouting result is `measurement: false`: an attempt, not evidence of
+  what a board or setting can achieve. KRT is `reproducible: true` (and the result a
+  measurement) only when the state manifest holds a passing repeat check for the
+  build on disk now (KRT commit, extension module, venv packages, kicad-cli);
+  otherwise `null` with the reason in `backend.reproducible_basis`.
+
+Byte hashes of candidates differ between identical KRT runs: KiCad assigns fresh
+UUIDs and KRT's item order varies. `kicad-route determinism` therefore judges a
+repeat by the copper signature and the outcome, and reports the byte layers
+(backend output, delivered candidate) for diagnosis. It routes the fixture (or
+`--dir`) `--runs` times with the ledger off; a run that stopped at its budget or
+stall limit cannot prove anything and makes the check fail. Exit 0 reproducible, 3
+not, 1 when `--record` could not store it. `--record` writes the verdict to
+`STATE/manifest.json` (`determinism.krt`, with the build it holds for); `--publish
+DIR` copies it to `DIR/<backend>-<version>.json` (`make determinism` publishes to
+`reports/determinism/`). `update` runs it with `--record` after smoke.
 
 ### Native grading
 
@@ -132,10 +195,30 @@ The candidate is graded with the installed `kicad-cli` (10.0.7):
 candidate), then `kicad-cli pcb drc --format json --severity-all --schematic-parity
 --units mm` on that saved file. Its project files are the input's, byte for byte, so
 KiCad applies the original net classes, custom rules and severities. If a candidate's
-project files differ (for example after hand edits), `validate` restores them before
-grading and fails the attempt, naming the files. The parity-skip message ("Failed to
+project files differ (for example after hand edits or a backend writeback), `validate`
+restores them before grading and fails the attempt, naming the files; the candidate's
+own versions are first copied to `<validate dir>/delivered-project-files/` and listed
+under `validation.delivered_project_files` (path, both hashes, `restored` or `removed`).
+The parity-skip message ("Failed to
 fetch schematic netlist…") fails validation. KiCad runs with a hermetic configuration
 (`OUT/.kicad-config`: stock global library tables, nothing from the GUI).
+
+Rules files: KiCad finds a board's project only as the `.kicad_pro` of the board's own
+name (`<board stem>.kicad_pro`), and the custom rules only as `<board stem>.kicad_dru`.
+For `main.kicad_pcb` beside `myproject.kicad_pro` it loads neither: net classes and
+their assignments, DRC constraints, severities and custom rules all fall back to
+KiCad's defaults (and a `main.kicad_dru` without `main.kicad_pro` is not read either).
+Grading such a board would relax every rule, so `run` refuses it before routing
+(exit 4, the run directory is discarded), `audit` refuses it (exit 4), and `validate`
+fails it without grading. Rename or copy the project to the board's name. Project and
+rule files under other names are copied into the snapshot but not used; `run` notes
+them and `attempt.json` / `result.json` record `rules_files` (`project`,
+`custom_rules`, `not_loaded`).
+
+Re-grading: `kicad-route validate RUN_DIR` writes into `RUN_DIR/revalidate/<stamp>/`
+(`revalidate-origin/<stamp>/` with `--against`), always under the run being graded,
+never into an origin run; called from Python without `out_dir`, `validate()` picks
+the same fresh directories, so repeated calls never collide.
 
 Pre-existing findings: the untouched input is graded the same way (refill, then DRC)
 and cached under `OUT/.cache/baseline/<input fingerprint>/`. A candidate finding
@@ -151,17 +234,17 @@ From `kicad/facts.py` (KiCad's own loader; serialisation differences do not coun
 | `project_files` | `.kicad_pro`, `.kicad_dru`, schematics, library tables, local libraries (bytes) |
 | `board_outline` | every Edge.Cuts shape, board and footprint owned |
 | `layers` | copper layer count and types, enabled layers |
-| `stackup` | the `(setup (stackup …))` tree |
-| `board_setup` | the rest of the board `(setup …)` tree (plot settings excluded) |
+| `stackup` | the `(setup (stackup …))` tree (absent on both sides passes: KiCad default) |
+| `board_setup` | the rest of the board `(setup …)` tree (plot settings excluded), found whatever the indentation; if either board's `(setup)` cannot be read, `board_setup` and `stackup` both FAIL |
 | `nets_and_netclasses` | net names and the effective net class KiCad resolves for each |
 | `pad_connectivity` | every pad's net |
-| `footprints` | library id, position, orientation, side, lock, pad geometry |
+| `footprints` | library id, position, orientation, side, lock, pad geometry; each difference names the changed attributes (`changed`) and, for pads, which pads and fields |
 | `zones` | outline, net, layers, priority, clearance, thermal and fill settings (fill polygons are regenerated) |
 | `keepouts` | rule-area outlines, layers and restrictions |
-| `copper_graphics` | non-track copper shapes and text |
-| `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation); designated = locked items, plus all input copper with `--protect existing`, or the chain's human copper with `--protect human` ([`provenance.md`](provenance.md)) |
-| `new_copper_netclass_geometry` | every new track at least its net class width, every new via at least its class diameter and drill |
-| `routing_scope` | new copper only on in-scope nets |
+| `copper_graphics` | non-track copper shapes; copper text, text boxes, tables and other items with their content, position, size and bounding box |
+| `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation; a track or arc may come back with start and end swapped), and every locked one still locked (a dropped lock flag FAILs); designated = locked items, plus all input copper with `--protect existing`, or the chain's human copper with `--protect human` ([`provenance.md`](provenance.md)) |
+| `new_copper_netclass_geometry` | every new track at least its net class width, every new via at least its class diameter and drill (microvias against the class microvia diameter and drill; through, blind and buried vias against the via sizes) |
+| `routing_scope` | new copper only on in-scope nets; new copper with no net (`<no net>`) is always outside the scope |
 | `net_completion` | every net fully connected in the input is still connected in the candidate (the completion ratchet; all protect modes) |
 | `existing_unlocked_copper` | with `--protect locked`/`human`: how much unlocked input copper was removed or changed (informational, always PASS) |
 | `pour_integrity` | the refilled candidate's pours against the refilled input's: no zone-connected pad loses fill contact, drops below `min_resolved_spokes` or lands on an island cut off from its net's main pour; area loss reported (fails only with `--pour-area-loss PCT`). See [`pour.md`](pour.md) |
@@ -190,27 +273,64 @@ make the candidate fail.
 ## Installation and updates
 
 Nothing here is pinned. The versions in use are recorded in every `result.json`,
-`OUT/doctor/doctor.json` and `OUT/update/update.json` for diagnosis; they are not
-install requirements. Installed state lives in this checkout (or `$KICAD_ROUTE_STATE`):
-`vendor/krt`, `vendor/freerouting`, `.venv-krt` and the generated `vendor/skills`, all
-git-ignored.
+`OUT/doctor/doctor.json`, `OUT/update/update.json` and the state manifest for
+diagnosis; they are not install requirements. Installed state lives in this checkout
+(or `$KICAD_ROUTE_STATE`): `vendor/krt`, `vendor/freerouting`, `.venv-krt`, the
+generated `vendor/skills` and `manifest.json`, all git-ignored.
+
+**State manifest** (`STATE/manifest.json`, schema `kicad-route/state/1`,
+`kicad_route/statemanifest.py`). `update` writes it atomically after installing;
+`kicad-route state-manifest` (`make state-manifest`) writes it for the install as it
+stands, downloading nothing. It records: the kicad-route checkout that wrote it;
+KRT tag, commit, clone URL, `VERSION`, grid_router version, the extension module's
+path and sha256, the prebuilt asset name and URL (from `build_router.py`'s log,
+`OUT/update/krt-build-router.log` or `--build-router-log`), `requirements.txt`'s
+sha256, the venv's Python version and package list (`name==version` from its
+dist-info, as `uv pip freeze` prints it) with its sha256; Freerouting tag, asset,
+URL, the jar's sha256 on disk and in `release.json`, build revision, `published_at`
+and the Java release it needs (`github_digest_match` is null: `release.json` does
+not say whether GitHub published a digest); the JVM `find_java` picks and its full
+version; kicad-cli path, version and sha256 and pcbnew's build version;
+`updated_utc`; `pinned: false`; and `determinism` records (kept across rewrites
+while the build they hold for is unchanged). Paths under STATE are relative to it.
+
+`doctor` reads it offline, without writing under STATE, recomputes the hashes on
+disk and reports drift (a replaced jar or extension module, a changed venv or
+requirements file, another KRT commit or kicad-cli) as a required FAIL; re-run
+`kicad-route state-manifest` after a deliberate change. A missing manifest is
+NOT_RUN (not required); "KRT determinism verified for this build" is informational.
+Every `result.json` carries the manifest's sha256 (`tool_identity`).
+
+Pinning is not offered (`update --krt-tag/--freerouting-tag` were proposed): the
+backends follow their latest release. A caller that needs one exact build captures
+the manifest (or `tool_identity`) and refuses runs whose identity differs.
 
 - `scripts/install.sh` links `~/.local/bin/kicad-route` and the `kicad-route` skill
-  (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`), then runs `update`.
+  (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`), then runs `update`
+  (`--no-update` skips it). A stale link (another checkout) is repointed; a real file
+  or directory at a link path is never replaced.
 - `kicad-route update`:
   - KRT: `git fetch --tags`, check out the latest GitHub release tag, create
-    `.venv-krt` if needed, `uv pip install --upgrade -r requirements.txt`,
+    `.venv-krt` if needed (on the Python running kicad-route, or
+    `$KICAD_ROUTE_KRT_PYTHON`; KRT does not use pcbnew), `uv pip install --upgrade -r requirements.txt`,
     `build_router.py --tag <tag>` (downloads the release's prebuilt Rust module; KRT
     builds from source with cargo only when no prebuilt matches), KRT's
     `startup_checks.py`.
-  - Freerouting: download the latest release's `freerouting-<v>.jar`, verify it against
-    GitHub's published asset digest, record `release.json`, repoint `current`, remove
-    the previous version.
+  - Freerouting: download the latest stable release's `freerouting-<v>.jar` (a
+    pre-release-suffixed jar such as `-rc1` only when the release has no plain one),
+    verify it against GitHub's per-asset `sha256:` digest (a mismatch aborts; a missing
+    digest installs it with `digest_verified: false`), record `release.json`, repoint
+    `current`, remove the previous version.
+  - GitHub API calls send `$GITHUB_TOKEN` (else `$GH_TOKEN`) when set, to avoid the
+    unauthenticated rate limit.
   - Regenerate the `krt-*` skills from the new KRT (`vendor/skills/`, linked into the same
     skill directories), then run `kicad-route smoke` (round trips, constraint
     preservation, native validation, failure reporting). Compatibility problems surface
     there and in `kicad-route doctor` ("KRT controls used by the adapter" fails if a
     flag the adapter relies on disappears).
+  - Write `STATE/manifest.json` (before the skills and smoke, so a failed smoke still
+    leaves the record of what was installed), and after smoke and the corpus gate run
+    `kicad-route determinism --record` for the new KRT build.
 - Java: the jar states the Java release it was built for; the wrapper picks the newest
   JVM under `/usr/lib/jvm` that satisfies it. Install new majors with apt
   (`sudo apt install openjdk-<N>-jre-headless`); security updates arrive with normal
@@ -223,6 +343,12 @@ git-ignored.
 - Fresh clone: `scripts/install.sh` installs everything except the JVM and KiCad.
 
 ### Observed at setup (2026-10-17)
+
+`STATE/manifest.json` is the machine-readable record of the current install; this
+table is the hand-written note from setup. A committed copy of the manifest for this
+install is `reports/state/manifest.json`, and its KRT repeat check
+`reports/determinism/krt-0.23.1.json` (two fixture runs: identical copper geometry and
+outcome, different candidate bytes).
 
 | Component | Observed |
 |---|---|
@@ -291,9 +417,12 @@ git-ignored.
 - KRT honours only part of `.kicad_dru` (it logs skipped rules; they appear under
   `unsupported`). On the fixture, its default attempt violates a Power-to-signal 0.4 mm
   rule; `--default-clearance 0.4` produces a valid candidate.
-- KRT's net rescue keeps searching unroutable nets and does not check the stop file
-  inside that loop; on a blocked board it exceeds the budget and is killed (process
-  FAIL, no candidate). `--backend-env KICAD_NET_RESCUE=0` returns a partial candidate.
+- KRT checks the stop file only between nets of its main pass. Its later passes (net
+  rescue, Phase 3, plane finalize, final reconciliation) ignore it. On a blocked board,
+  the rescue keeps searching after the budget until the grace period ends, and then
+  KRT is killed (process FAIL, no candidate). `--backend-env KICAD_NET_RESCUE=0`
+  (or `KICAD_PLANE_FINALIZE=0`) returns a partial candidate. See docs/hygiene.md,
+  "Budget overrun".
 - KRT exits 0 even when nets fail; the wrapper ignores its exit code for completion.
 - Freerouting approximates pad shapes and can land a few micrometres inside a clearance
   (fixture: 0.3928 mm against a 0.4 mm rule); `--clearance-margin 0.01` resolved it.
@@ -327,8 +456,12 @@ a keepout across the direct J1→J2 path, a GND zone on B.Cu, and a locked, pre-
 
 `kicad-route smoke` (`tests/test_routing.py`) runs under `OUT/smoke`; `make evidence`
 also publishes it to `reports/fixture/`: per-test records, junit, and for each attempt
-`result.json`, `RESULT.md`, `preservation.json`, `new-findings.json`,
-`candidate-drc.json`. It proves:
+its structured receipts (as `kicad-route publish`: `result.json`, `RESULT.md`,
+`attempt.json`, every `validate/*.json` such as `preservation.json`,
+`new-findings.json`, `candidate-drc.json`, `pour-integrity.json`, `blocked-by.json`,
+plus `spokes.json`, `provenance.json`, `facts/`, `spokes/`, and the latest
+`revalidate*/` as `against-origin/` and `revalidate/`; never a board, project file, log
+or `work/`). It proves:
 
 - KRT and Freerouting round trips that are complete and valid, with every preservation
   check passing and the candidate's rules byte-identical to the input's;
@@ -358,6 +491,7 @@ relaxes a rule.
 |---|---|---|
 | Hard-nets-first campaigns | `kicad-route campaign` | [`campaign.md`](campaign.md) |
 | Thermal-spoke corridor reservation and spoke-cut attribution | `run --reserve-spokes [N]`, `kicad-route spokes` | [`spokes.md`](spokes.md) |
+| Collision barriers (rewind with a keepout where new copper collided) | `run --barrier-from RUN_DIR`, `kicad-route barrier` | [`barrier.md`](barrier.md) |
 | Copper provenance and the completion ratchet | `run --protect human`, check `net_completion` | [`provenance.md`](provenance.md) |
 | Blocked-by receipts and rip-up ranking | `routing.blocked_by`, `kicad-route blocked` | [`blocked.md`](blocked.md) |
 | Pour integrity | check `pour_integrity`, `--pour-area-loss`, `--pour-min-spokes` | [`pour.md`](pour.md) |
@@ -377,7 +511,9 @@ under the parent's project files, so findings a rule change hides are reported
 (`hidden_by_rule_changes`). Design changes are reported, not failed; the exit status is
 3 when a rule value changed (keys KiCad merely writes out with their defaults are
 listed as `added`, not counted), a finding is hidden, or the new board has unconnected items, DRC
-errors or parity issues, else 0. Output: `OUT/audit/<project>/<old>..<new>/audit.json`.
+errors or parity issues, else 0. A revision whose board has no `.kicad_pro` of its own
+name is refused (exit 4; see Rules files above). Output:
+`OUT/audit/<project>/<old>..<new>/audit.json`.
 
 Audit also checks `--new` against the rule floor (`docs/floor.md`): the strictest value
 each rule ever had in the history up to `--new`, and the declared floor

@@ -17,6 +17,7 @@ kicad-route run --backend freerouting --reserve-spokes 1  # one corridor per pad
 kicad-route spokes <run_dir>                              # spoke-cut attribution -> <run_dir>/spokes.json
 kicad-route spokes <run_dir> --validation <run_dir>/revalidate/<stamp>   # after a hand edit + validate
 kicad-route spokes --board my.kicad_pcb [--per-pad N]     # preview: OUT/spokes/<board>/plan.json
+kicad-route spokes --board my.kicad_pcb --verify          # + check the corridors against KiCad's filler
 ```
 
 ## Corridors
@@ -121,6 +122,56 @@ Exit 0 when there is no new `starved_thermal`; 3 when there is (attributed or no
 Use `--validation DIR` to read a re-validation, for example after editing the
 candidate by hand.
 
+## Checking the model: `spokes --board B --verify`
+
+The corridor dimensions are a model. `--verify` tests the model on the board itself,
+with KiCad's own zone filler, without saving the board
+(`src/kicad_route/kicad/spokes.py verify`; the geometry is the pure function
+`corridor_geometry()`). For each selected corridor it puts foreign-net tracks against
+the corridor's edge from outside, refills the pad's zone in memory, and reads the fill:
+
+| mode | adversary |
+|---|---|
+| `end` | one track across the far end: the router passing beyond the spoke end |
+| `sides` | one track along each long side: the router passing beside the spoke |
+
+The clearance the filler applies depends on the net pair and on `.kicad_dru`
+conditions, so one net of every net class is tried rather than one guessed worst
+net. A check holds when all three of these are true:
+
+- **kept:** KiCad kept the spoke. The fill covers the spoke axis in the middle of the
+  relief gap, where only spoke copper can be.
+- **anchor:** the pour beyond the gap still covers a strip `min_thickness` long and
+  `spoke_width` wide, to 98 %.
+- **body:** the fill piece that holds the spoke end (with the pad cut out, so spokes
+  do not join through the pad) keeps at least half the area it had without the
+  adversary.
+
+A corridor holds when its spoke is kept without adversaries and every check holds.
+Results go to `OUT/spokes/<board>/verify.json`; exit 3 when a corridor does not hold.
+That means the reservation cannot be trusted on that board, for example because of a
+custom pad shape or a custom thermal rule. Each check is one zone refill, so on a
+large board the check takes a long time. The script takes `--limit N` (first N pads).
+
+Measured on the fixture with an F.Cu GND pour (`tests/test_adhd_spoke_keepout.py`;
+19 live corridors, `/SIG_A` under the 0.4 mm Power-to-signal rule, `/VIN` at 0.3 mm):
+
+- At the corridor edge, every corridor holds for both classes and both modes.
+  kicad-cli DRC with `--refill-zones` agrees: with tracks against the end of all
+  three live corridors of C1.2, there is no `starved_thermal` finding.
+- **The length is exact.** A `/SIG_A` track 10 µm inside the far end makes KiCad drop
+  the spoke. 50 µm inside two of C1.2's corridors gives DRC `starved_thermal`
+  (actual 1, minimum 2). A `/VIN` track at the same place does not drop the spoke,
+  which is why every class is tried.
+- **The half-width is conservative.** From the sides KiCad keeps the spoke even 50 µm
+  inside. Only the spoke-wide anchor gets narrower.
+- **A trench is not prevented.** Tracks that hug the end and both sides together
+  (`--modes u`; all outside the corridor) leave the spoke in place, but on a pocket
+  of about 0.25 mm² that is cut off from the pour. DRC counts the spoke, so there is
+  no `starved_thermal` finding. The result still fails grading: DRC reports the cut-off
+  pour piece as unconnected, and `pour_integrity` reports the island. A corridor
+  alone cannot stop a router from enclosing it.
+
 ## Limits
 
 - **Over-reservation.** Each corridor is about `spoke_width + 2·clearance` wide (1.3 mm
@@ -134,7 +185,7 @@ candidate by hand.
   still grades the result.
 - **A model, not KiCad's filler.** Corridors follow the layout described above, which
   is exact for rectangle, rounded-rectangle, oval and circle pads at the stock spoke
-  angles. The model does not evaluate:
+  angles. `--verify` checks the model on a given board with KiCad's filler. The model does not evaluate:
   - spoke templates of custom-shape pads (corridors use the pad's extent, and the
     plan notes it);
   - spoke angles that are not multiples of 45° on non-round pads (KiCad builds those

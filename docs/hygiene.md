@@ -13,12 +13,14 @@ one, and how to tell whether a backend update made real boards worse.
 | Real-board gate | `kicad-route corpus add/check/list`; run by `update` | `src/kicad_route/corpus.py` |
 
 Exit status 4 means **refused before routing**: the ledger shows this exact
-attempt already failed, or the `--canary` pre-flight failed (or, for any
-command, a usage or input error; [interface.md](interface.md)). No run
-directory is left behind; the reason is a refusal record,
-`OUT/refusals/<stamp>-<pid>.json` (`reason_class` `ledger` or `canary`, the
-input fingerprint, the discarded run directory), linked as
-`OUT/refusals/refusal-latest.json` and printed on stdout with `--json`.
+attempt already failed, the `--canary` pre-flight failed, or the board has no
+`.kicad_pro` of its own name (KiCad would load none of its rules; see
+[routing.md](routing.md#native-grading)); for any command, a usage or input error
+is a refusal too ([interface.md](interface.md)). No run directory is left behind;
+the reason is a refusal record, `OUT/refusals/<stamp>-<pid>.json` (`reason_class`
+`ledger`, `canary` or `input`, the input fingerprint, the discarded run
+directory), linked as `OUT/refusals/refusal-latest.json` and printed on stdout
+with `--json`.
 
 ## Stall detection
 
@@ -74,6 +76,57 @@ leg takes about 13 s; it grows with the board and its pours. `--stall` is a way
 to give up on a hopeless search sooner than `--budget`. It is not a substitute
 for the budget.
 
+### Process groups
+
+Each backend starts as the leader of its own session and process group
+(`src/kicad_route/procgroup.py`). The KRT interpreter, the Freerouting JVM and
+everything they start (kicad-cli refills, helpers, shell wrappers) are in that
+group:
+
+- A budget or stall kill sends SIGTERM to the whole group. After 10 s, if the
+  leader has not exited, it sends SIGKILL to the whole group.
+- When the leader exits, by itself, at the stop file or by the kill, processes
+  that are still in the group get SIGTERM, then SIGKILL after 5 s. Their pids
+  go in the command record as `leftover_children_killed`.
+- If `run_budgeted` is interrupted (Ctrl-C, an error while it waits), it kills
+  the group before it re-raises. A new session does not get the terminal's
+  SIGINT, so this step is necessary.
+
+A process that starts its own session (`setsid`) leaves the group, and this
+does not cover it. KRT and Freerouting do not do that.
+
+### Budget overrun
+
+KRT checks `KICAD_STOP_FILE` in one place only: between nets of its main
+single-ended pass (`py_router/single_ended_loop.py`). When it stops there, it
+skips every later pass and writes the board as it stood. The passes after the
+main loop do not look at the stop file. These are the reroute loop,
+multi-point Phase 3, net rescue, terminal escalation, the plane finalize and
+the final reconciliation. In CLI mode KRT passes no `cancel_check` to them. A
+stop requested during one of these passes therefore has no effect. The kill at
+the end of the grace period is what ends the run:
+
+| Stop reason | Grace before SIGTERM | Worst-case time after the stop |
+|---|---|---|
+| budget | `max(30, budget // 5)` s | grace + 10 s |
+| `--stall S` | `min(max(30, budget // 5), max(15, S))` s | grace + 10 s |
+
+A killed KRT writes no board, so the result is process FAIL with no
+candidate. Each command record has `stop_s` (when the stop was requested) and
+`stop_to_exit_s` (how long the backend ran after it). The kill reason names
+the pass that ignored the stop and its kill switch:
+
+- net rescue: `--backend-env KICAD_NET_RESCUE=0`
+- plane finalize, its oracle rechecks and the final reconciliation:
+  `--backend-env KICAD_PLANE_FINALIZE=0` (plan the planes separately)
+
+kicad-route does not set these switches itself, also not with `--stall` or a
+short `--budget`. Turning off a pass changes the attempt (and its ledger key).
+The rescue is also where `--stall` usually finds the hopeless searches. Neither
+switch relaxes a rule: with the switch set, KRT does less work, and KiCad still
+grades the result against the input's rules. Use the switches when the time
+limit matters more than what the pass could recover.
+
 ## Run ledger
 
 Every finished attempt appends one line to `OUT/ledger.jsonl`. Each line holds:
@@ -101,8 +154,10 @@ The two keys:
 
 - **Refused (exit 4):** an earlier attempt with the same fingerprint finished
   `process_fail`, `validation_fail` or `incomplete`. The message names that
-  run directory. Deterministic backends fail the same way twice, so change
-  the input, scope or settings.
+  run directory. KRT fails the same way twice (`kicad-route determinism`
+  checks this per build), so change the input, scope or settings. Freerouting's
+  outcome may vary between runs, so its message says a retry may differ; the
+  retry still needs `--force`.
 - **`--force`:** runs it anyway. `result.json` and the ledger record
   `forced: true` and `forced_over: <run dir>`.
 - **Allowed, with a note:** the same attempt key under a different backend
@@ -152,9 +207,9 @@ The canary works on the bundled fixture.
 Results go to `OUT/canary/<stamp>/canary.json` (`OUT/doctor/canary/` for
 doctor).
 
-The split check uses its own quote-aware parser rather than `find_open`. With
-`find_open` reverted to a plain `text.find("(")`, it fails
-(`tests/test_hygiene.py`).
+The split check uses its own quote-aware parser rather than the bridge's
+class reader (`specctra.read_class`). With the reader's name spellings reverted
+to a plain whitespace split, it fails (`tests/test_hygiene.py`).
 
 Bugs the canary found while it was written (fixed on this branch):
 
@@ -171,10 +226,23 @@ Bugs the canary found while it was written (fixed on this branch):
   `''q''` in its `(net ...)` definition. `split_classes` therefore left it in
   the routable class, and Freerouting routed it outside the scope. The
   `routing_scope` check failed the candidate.
-  - Fix: `split_classes` matches both spellings and writes a moved member in
-    the definition's spelling (`specctra.dsn_net_token`).
-  - Still an upstream KiCad defect: a name such as `x"y` makes KiCad write an
-    unbalanced class list. The bridge does not repair that.
+  - Fix: `split_classes` identifies members by exact KiCad name and writes a
+    moved member in the definition's spelling (`specctra.dsn_net_token`).
+- **Freerouting, `"` together with spaces or parentheses.** KiCad never escapes
+  class lists: the net `foo "(bar)"` is written `"foo "(bar)""` and `x y"z` is
+  `"x y"z"`, so counting quotes cuts the list in the wrong place (KICADROUTE-16),
+  and stripping quotes made `"foo"` and `foo` the same net (KICADROUTE-15).
+  - Fix: `specctra.read_class` lists every spelling KiCad's writer could have
+    produced (quoted iff the name is empty, starts with `#`, or holds
+    whitespace or one of `(){}%`; checked against KiCad 10 exports), prefers the
+    reading whose members are the network's `(net ...)` definitions, and
+    refuses (the export fails, so the attempt is a process FAIL) when the
+    reading is not unique. Kept members keep KiCad's token; members are never
+    compared unquoted.
+  - Still an upstream defect: KiCad also writes such names raw in `(plane ...)`
+    and in-scope class members, and Freerouting 2.5.0 cannot read that DSN
+    (`Shape.read_area_scope: could not read shape`, then a
+    NullPointerException). The bridge does not rewrite those.
 
 ## Real-board update gate (corpus)
 
@@ -190,8 +258,12 @@ kicad-route corpus list
 `--canary` and `--floor-history` are recorded and replayed by `check` too).
 It takes a snapshot of the project with `snapshot_input`: sheets, rules,
 library tables and local libraries. The snapshot goes into
-`STATE/corpus/<name>/reference/`. `add` then runs the attempt once and records
-its baseline in `entry.json`:
+`STATE/corpus/<name>/reference/`. A directory mapped with `--library-dir NAME=PATH`
+stays a link to PATH there. The attempt in `entry.json` records the mappings with
+the other run options, and every `check` passes them again, so the check's snapshot
+links the same library (an entry added before `library_dir` was recorded has no
+mappings: re-add it). `add` then runs the attempt once and records its baseline in
+`entry.json`:
 
 - exit code, process / routing / validation status
 - unconnected items in scope, new DRC violations, new parity issues
