@@ -3,109 +3,18 @@
 They prove, on the route_demo fixture, that each backend completes the KiCad
 round trip, that the candidate is graded by KiCad against the unchanged input
 rules, and that routing and validation failures reach the caller. They are not
-a routing-quality benchmark.
-
-Runs go under $KICAD_ROUTE_TEST_OUT (set by `kicad-route smoke`; default
-build/kicad-route/smoke in this checkout). Each test also writes a small JSON
-record there; `kicad-route smoke --publish DIR` copies them for committing.
+a routing-quality benchmark. Shared harness: helpers.py and conftest.py.
 """
-import hashlib
 import json
 import os
 import shutil
 import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-from kicad_route import cli as route  # noqa: E402
-from kicad_route.kicad import specctra  # noqa: E402
-
-FIXTURE = ROOT / "fixtures" / "route_demo"
-OUT = Path(os.environ.get("KICAD_ROUTE_TEST_OUT") or ROOT / "build" / "kicad-route" / "smoke").resolve()
-RUNS = OUT / "runs" / "route_demo"
-CLI = [sys.executable, str(ROOT / "bin" / "kicad-route"), "--out", str(OUT)]
-PROTECTED = {"tracks": 5, "vias": 2}  # the locked /SIG_B route in the fixture
-
-
-def record(name, data):
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / f"{name}.json").write_text(json.dumps(data, indent=2, default=str) + "\n")
-
-
-def tree_hash(path):
-    h = hashlib.sha256()
-    for p in sorted(Path(path).rglob("*")):
-        if p.is_file():
-            h.update(p.relative_to(path).as_posix().encode() + b"\0" + p.read_bytes())
-    return h.hexdigest()
-
-
-def cli(*args, timeout=900):
-    OUT.mkdir(parents=True, exist_ok=True)
-    return subprocess.run([*CLI, *args], capture_output=True, text=True, timeout=timeout, cwd=OUT)
-
-
-def run(*args, timeout=900):
-    """`kicad-route ARGS` for a run (on the fixture unless --dir is given) -> (process, run_dir, result)."""
-    if "--dir" not in args:
-        args = (*args, "--dir", str(FIXTURE))
-    r = cli(*args, timeout=timeout)
-    run_dir = None
-    for line in r.stdout.splitlines():
-        if line.startswith("[route] result: "):
-            run_dir = OUT / line.split()[2].rsplit("/result.json", 1)[0]
-    assert run_dir, f"kicad-route printed no result (exit {r.returncode}):\n{r.stdout[-2000:]}\n{r.stderr[-2000:]}"
-    result = json.loads((run_dir / "result.json").read_text())
-    return r, run_dir, result
-
-
-def summary(result):
-    return {k: result[k] for k in ("backend", "settings", "scope", "unsupported", "routing", "exit_code")} | {
-        "process": {k: result["process"].get(k) for k in ("status", "reasons", "exit_code", "runtime_s",
-                                                         "backend_report", "bridge", "project_writeback")},
-        "validation": result["validation"], "run_dir": result["run_dir"]}
-
-
-@pytest.fixture(scope="session", autouse=True)
-def source_untouched():
-    """The authoritative fixture project must be byte-identical after every attempt."""
-    before = tree_hash(FIXTURE)
-    yield
-    after = tree_hash(FIXTURE)
-    record("source_untouched", {"fixture": str(FIXTURE.relative_to(ROOT)), "before": before, "after": after})
-    assert before == after, "a routing run modified the source project"
-
-
-@pytest.fixture(scope="session")
-def blocked_dir(tmp_path_factory):
-    """The fixture with a keepout wall that cuts J2 off from every other part."""
-    import pcbnew
-    d = tmp_path_factory.mktemp("blocked") / "route_demo"
-    shutil.copytree(FIXTURE, d, ignore=shutil.ignore_patterns("generate.py", "__pycache__"))
-    board = pcbnew.LoadBoard(str(d / "route_demo.kicad_pcb"))
-    wall = pcbnew.ZONE(board)
-    wall.SetIsRuleArea(True)
-    layers = pcbnew.LSET()
-    layers.AddLayer(pcbnew.F_Cu)
-    layers.AddLayer(pcbnew.B_Cu)
-    wall.SetLayerSet(layers)
-    wall.SetDoNotAllowTracks(True)
-    wall.SetDoNotAllowVias(True)
-    wall.SetDoNotAllowZoneFills(True)
-    wall.SetDoNotAllowPads(False)
-    wall.SetDoNotAllowFootprints(False)
-    wall.SetZoneName("wall")
-    o = wall.Outline()
-    o.NewOutline()
-    for x, y in [(138, 99), (140, 99), (140, 131), (138, 131)]:
-        o.Append(pcbnew.FromMM(x), pcbnew.FromMM(y))
-    board.Add(wall)
-    board.Save(str(d / "route_demo.kicad_pcb"))
-    return d
+from helpers import CLI, FIXTURE, OUT, PROTECTED, ROOT, RUNS, cli, record, run, summary, tree_hash  # noqa: F401
+from kicad_route import cli as route
+from kicad_route.kicad import specctra
 
 
 def assert_clean_candidate(result, run_dir):
@@ -244,19 +153,6 @@ def test_unroutable_board_fails(backend, blocked_dir):
     assert result["routing"]["status"] == route.INCOMPLETE
     assert result["routing"]["unconnected_in_scope"] > 0
     assert result["validation"]["preservation"]["keepouts"] == route.PASS
-
-
-@pytest.fixture(scope="session")
-def unlocked_dir(tmp_path_factory):
-    """The fixture with the pre-routed /SIG_B left UNLOCKED: ordinary existing copper."""
-    import pcbnew
-    d = tmp_path_factory.mktemp("unlocked") / "route_demo"
-    shutil.copytree(FIXTURE, d, ignore=shutil.ignore_patterns("generate.py", "__pycache__"))
-    board = pcbnew.LoadBoard(str(d / "route_demo.kicad_pcb"))
-    for t in board.GetTracks():
-        t.SetLocked(False)
-    board.Save(str(d / "route_demo.kicad_pcb"))
-    return d
 
 
 @pytest.mark.parametrize("backend", ["krt", "freerouting"])

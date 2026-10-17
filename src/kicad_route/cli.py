@@ -1376,7 +1376,7 @@ def smoke(publish=None):
     junit = out / "junit.xml"
     env = dict(common.tool_env(), KICAD_ROUTE_TEST_OUT=str(out), KICAD_ROUTE_STATE=str(common.STATE))
     r = subprocess.run([str(pcbnew_python()), "-m", "pytest", "-v", "-p", "no:cacheprovider",
-                        f"--junitxml={junit}", str(TOOL_ROOT / "tests" / "test_routing.py")],
+                        f"--junitxml={junit}", str(TOOL_ROOT / "tests")],
                        cwd=out, env=env)
     status = PASS if r.returncode == 0 else FAIL
     records = {p.stem: load_json(p) for p in sorted(out.glob("*.json")) if p.name != "summary.json"}
