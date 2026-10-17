@@ -191,8 +191,13 @@ def test_reserved_corridors_hold_under_pressure(backend, fzone_dir):
     """On the F.Cu-pour variant new F.Cu routes pass close to the GND pads (unreserved
     attempts were seen crossing corridors). With reservation no new track or via may
     enter a reserved corridor, and the stripped candidate's rule areas equal the input's.
-    Completion and the other checks are not asserted: on this variant KRT ships an
-    undersized /VIN via and Freerouting leaves /VIN open, with or without reservation."""
+
+    The candidate is graded in full, but two outcomes are backend limits on this
+    variant (with or without reservation), so they are pinned, not asserted away:
+    KRT completes the routing but ships one /VIN via below the Power class size
+    (0.6/0.3 mm for 0.8/0.4 mm), so new_copper_netclass_geometry is its only
+    failing check (exit 3); Freerouting leaves /VIN open but its candidate passes
+    every check (exit 2). Every other check, and DRC, must pass for both."""
     extra = (["--default-clearance", "0.4"] if backend == "krt" else
              ["--clearance-margin", "0.01", "--passes", "100", "--backend-arg=--router.fanout.enabled=true"])
     r, run_dir, result = run("run", "--backend", backend, "--budget", "180", "--dir", str(fzone_dir),
@@ -208,6 +213,21 @@ def test_reserved_corridors_hold_under_pressure(backend, fzone_dir):
     assert result["validation"]["preservation"]["keepouts"] == route.PASS
     assert rep["reserved"]["corridors"] == 10 and rep["reserved"]["crossed_by_new_copper"] == [], rep["reserved"]
     assert rep["new_starved"] == 0 and s.returncode == 0
+    v = result["validation"]
+    assert v["parity_performed"] is True
+    assert v["drc"]["new_violations"]["count"] == 0 and v["drc"]["new_parity"]["count"] == 0, v["reasons"]
+    failing = {k for k, st in v["preservation"].items() if st != route.PASS}
+    if backend == "krt":
+        assert result["routing"]["status"] == route.COMPLETE, result["routing"]
+        assert failing == {"new_copper_netclass_geometry"}, v["reasons"]
+        below = next(c for c in json.loads((run_dir / "validate" / "preservation.json").read_text())
+                     if c["check"] == "new_copper_netclass_geometry")["differences"]
+        assert [(d["item"], d["net"], d["netclass"]) for d in below] == [("via", "/VIN", "Power")], below
+        assert result["exit_code"] == r.returncode == 3
+    else:
+        assert failing == set() and v["status"] == route.PASS, v["reasons"]
+        assert result["routing"]["status"] == route.INCOMPLETE and result["routing"]["unrouted_nets"] == ["/VIN"]
+        assert result["exit_code"] == r.returncode == 2
 
 
 def test_spoke_cut_attribution(fzone_dir):

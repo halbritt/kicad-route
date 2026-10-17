@@ -4,6 +4,8 @@
     spokes.py plan BOARD.kicad_pcb OUT.json [--per-pad N]   corridors as JSON (board untouched)
     spokes.py reserve BOARD.kicad_pcb PLAN.json              add the selected corridors as rule areas (in place)
     spokes.py strip BOARD.kicad_pcb                          remove every kicad-route:spoke: rule area (in place)
+    spokes.py verify BOARD.kicad_pcb PLAN.json OUT.json [--intrude NM] [--modes end,sides,u] [--limit N]
+              [--all-live 1]                                 check corridors against KiCad's filler (board untouched)
 
 A pad connected to a same-net pour by thermal relief reaches the pour only through
 its spokes. A new track of another net that passes close to the pad pushes the pour
@@ -40,7 +42,10 @@ reserve: each selected corridor becomes a single-layer rule area that forbids tr
 and vias (pads, footprints and zone fills allowed), named
 `kicad-route:spoke:<ref>:<pad>:<layer>:<k>`. Refuses a board that already has
 such areas. strip: removes exactly those areas (by name prefix) and saves only if it
-removed something. Both print `SPOKES_JSON: {...}`. Runs with KiCad's pcbnew module.
+removed something. verify: on the board in memory, puts foreign-net tracks against
+each selected corridor's edge (or `--intrude` nm inside it), refills the pad's zone
+with KiCad's own filler and checks that the spoke is kept with a min_thickness
+anchor; see verify(). Both print `SPOKES_JSON: {...}`. Runs with KiCad's pcbnew module.
 All lengths are integer nanometres; angles degrees.
 """
 import json
@@ -105,6 +110,32 @@ def ray_exit(outlines, center, d):
             if t > 0 and -1e-9 <= u <= 1 + 1e-9:
                 best = max(best, t)
     return best
+
+
+def corridor_geometry(center, outlines, orientation, spoke_angle, gap, spoke_w, min_thick, clearance, max_err):
+    """The four spoke corridors of one pad on one layer, as KiCad's zone filler lays the
+    spokes out (pure geometry, no pcbnew). center: the pad's shape position; outlines:
+    the pad's copper outline(s) on the layer. Per spoke k: direction = orientation +
+    spoke_angle + 90k degrees (KiCad's y axis points down, so +angle turns
+    counter-clockwise on screen); reach = the pad's extent along it (support function,
+    the rotated bounding box KiCad builds spokes in); start = where the axis leaves the
+    pad outline; end = reach + gap + min_thick + clearance + max_err; half_width =
+    spoke_w/2 + clearance; test_point = KiCad's spoke-end hit test (reach + gap +
+    max_err + min_thick/2 on the axis)."""
+    c = (center[0], center[1])
+    length = gap + min_thick + clearance + max_err
+    half = spoke_w / 2 + clearance
+    out = []
+    for k in range(4):
+        ang = orientation + spoke_angle + 90 * k
+        d = (math.cos(math.radians(ang)), -math.sin(math.radians(ang)))
+        reach = max(((x - c[0]) * d[0] + (y - c[1]) * d[1]) for o in outlines for x, y in o)
+        edge = ray_exit(outlines, c, d) or reach
+        end = reach + length
+        t = reach + gap + max_err + min_thick / 2
+        out.append({"k": k, "angle": ang, "d": d, "reach": reach, "start": edge, "end": end, "half_width": half,
+                    "polygon": rect(c, d, edge, end, half), "test_point": (c[0] + d[0] * t, c[1] + d[1] * t)})
+    return out
 
 
 def dru_scan(board_path):
@@ -195,6 +226,7 @@ def plan(pcbnew, board_path, per_pad=None):
                 seen.add(key)
                 rec = {"ref": fp.GetReference(), "pad": pad.GetNumber(), "uuid": pad.m_Uuid.AsString(),
                        "net": pad.GetNetname(), "layer": board.GetLayerName(layer), "zone": zone.GetZoneName(),
+                       "zone_uuid": zone.m_Uuid.AsString(),
                        "position": [int(center.x), int(center.y)]}
                 conn = pad.GetLocalZoneConnection()
                 source = "pad"
@@ -227,18 +259,11 @@ def plan(pcbnew, board_path, per_pad=None):
                 outlines = poly_points(ps)
                 c = (center.x, center.y)
                 length = gap + min_thick + clearance + max_err
-                half = spoke_w / 2 + clearance
                 corridors = []
-                for k in range(4):
-                    ang = rec["orientation"] + rec["spoke_angle"] + 90 * k
-                    # KiCad's y axis points down; positive angles turn counter-clockwise on screen
-                    d = (math.cos(math.radians(ang)), -math.sin(math.radians(ang)))
-                    reach = max(((x - c[0]) * d[0] + (y - c[1]) * d[1]) for o in outlines for x, y in o)
-                    edge = ray_exit(outlines, c, d) or reach
-                    end = reach + length
-                    poly = rect(c, d, edge, end, half)
-                    test = (c[0] + d[0] * (reach + gap + max_err + min_thick / 2),
-                            c[1] + d[1] * (reach + gap + max_err + min_thick / 2))
+                for g in corridor_geometry(c, outlines, rec["orientation"], rec["spoke_angle"], gap, spoke_w,
+                                           min_thick, clearance, max_err):
+                    k, ang, d, reach, half, poly, test = (g[n] for n in (
+                        "k", "angle", "d", "reach", "half_width", "polygon", "test_point"))
                     live = bool(fill.Contains(pcbnew.VECTOR2I(round(test[0]), round(test[1]))))
                     # pour beyond the gap: sample a band twice the corridor's reach
                     samples = [(reach + gap + (2 * length - gap) * (i + 0.5) / 8, half * j / 2)
@@ -247,8 +272,9 @@ def plan(pcbnew, board_path, per_pad=None):
                                                                      round(c[1] + d[1] * s + d[0] * h))))
                                  for s, h in samples)
                     hits = overlaps(layer, poly, rec["uuid"])
-                    corridors.append({"k": k, "direction_deg": round(ang % 360, 6), "start": round(edge),
-                                      "end": round(end), "half_width": round(half), "polygon": poly,
+                    corridors.append({"k": k, "direction_deg": round(ang % 360, 6), "start": round(g["start"]),
+                                      "end": round(g["end"]), "reach": round(reach), "half_width": round(half),
+                                      "polygon": poly,
                                       "live": live, "pour_fraction": round(inside / len(samples), 3),
                                       "overlaps_existing": [list(h) for h in hits[:5]],
                                       "eligible": live and not hits, "selected": False})
@@ -315,6 +341,154 @@ def strip(pcbnew, board_path):
             "rule_areas_left": sum(1 for z in board.Zones() if z.GetIsRuleArea())}
 
 
+ADVERSARY_WIDTH = 200_000      # nm; only the copper edge position matters, not the width
+ANCHOR_COVERAGE = 0.98         # share of the min-thickness anchor strip the pour must still cover
+MODES = ("end", "sides")
+
+
+def adversary_segments(center, corridor, mode, width, intrude=0):
+    """Centre lines [(a, b), ...] of the foreign track(s) that hug `corridor` from outside:
+    their copper edge lies on the corridor boundary, moved `intrude` nm into it.
+      end   one track across the far end (the router passing beyond the spoke end)
+      sides one track along each long side (the router passing beside the spoke)
+      u     end + sides at once (a trench around the spoke end)
+    corridor needs direction_deg, start, end, half_width (a plan corridor)."""
+    ang = math.radians(corridor["direction_deg"])
+    d = (math.cos(ang), -math.sin(ang))
+    n = (-d[1], d[0])
+    cx, cy = center
+    half, w = corridor["half_width"], width
+
+    def pt(s, h):
+        return (round(cx + d[0] * s + n[0] * h), round(cy + d[1] * s + n[1] * h))
+
+    s_end = corridor["end"] + w / 2 - intrude
+    h_side = half + w / 2 - intrude
+    across = [(pt(s_end, -half - w), pt(s_end, half + w))]
+    if mode == "end":
+        return across
+    if mode == "sides":
+        return [(pt(corridor["start"], g * h_side), pt(corridor["end"] + w, g * h_side)) for g in (1, -1)]
+    if mode == "u":
+        return [(pt(s_end, -h_side), pt(s_end, h_side))] + \
+            [(pt(corridor["start"], g * h_side), pt(s_end, g * h_side)) for g in (1, -1)]
+    raise ValueError(mode)
+
+
+def verify(pcbnew, board_path, plan_data, intrude=0, modes=MODES, limit=None, all_live=False):
+    """Check the corridor model against KiCad's own zone filler. For every selected
+    corridor (every live one with all_live), on an in-memory copy of the board: add
+    foreign-net tracks that hug the corridor from outside (adversary_segments), refill
+    the pad's zone, and read the fill. One representative net per net class is tried
+    (the clearance a filler applies depends on the net pair and on .kicad_dru rules, so
+    every class is probed rather than guessed). A check holds when
+      kept     KiCad kept the spoke: the fill covers the spoke axis in the middle of
+               the relief gap (the gap has no pour, only spoke copper);
+      anchor   the pour still covers the strip beyond the gap, min_thickness long and
+               the spoke wide, to ANCHOR_COVERAGE (the spoke does not land on a sliver);
+      body     the fill outline holding the spoke end keeps at least half the area it
+               had without the adversary (the spoke is not left on a cut-off pocket).
+    A corridor holds when its spoke is kept without adversaries and every check holds.
+    The board file is never saved."""
+    board = pcbnew.LoadBoard(str(board_path))
+    zones = {z.m_Uuid.AsString(): z for z in board.Zones()}
+    layers = {board.GetLayerName(l): l for l in board.GetEnabledLayers().CuStack()}
+    ns = board.GetDesignSettings().m_NetSettings
+    nets = {}
+    for name, net in sorted(board.GetNetsByName().items(), key=lambda kv: str(kv[0])):
+        if str(name) and net.GetNetCode() > 0:
+            nets.setdefault(str(ns.GetEffectiveNetClass(str(name)).GetName()), []).append(net)
+    pad_of = {pad.m_Uuid.AsString(): pad for fp in board.GetFootprints() for pad in fp.Pads()}
+    max_err = int(plan_data["max_error"])
+    pads = plan_data["pads"][:limit] if limit else plan_data["pads"]
+    out_pads, checked, held = [], 0, 0
+
+    def fill_state(zone, layer, center, cr, rec):
+        vec = pcbnew.ZONES()
+        vec.append(zone)
+        pcbnew.ZONE_FILLER(board).Fill(vec)
+        fill = zone.GetFilledPolysList(layer)
+        ang = math.radians(cr["direction_deg"])
+        d = (math.cos(ang), -math.sin(ang))
+        n = (-d[1], d[0])
+
+        def pt(s, h):
+            return pcbnew.VECTOR2I(round(center[0] + d[0] * s + n[0] * h), round(center[1] + d[1] * s + n[1] * h))
+
+        reach, gap, mt, sw = cr["reach"], rec["gap"], rec["min_thickness"], rec["spoke_width"]
+        kept = bool(fill.Contains(pt(reach + gap / 2, 0)))
+        strip = pcbnew.SHAPE_POLY_SET()
+        strip.NewOutline()
+        for a, h in ((reach + gap + max_err, -sw / 2 + max_err), (reach + gap + mt, -sw / 2 + max_err),
+                     (reach + gap + mt, sw / 2 - max_err), (reach + gap + max_err, sw / 2 - max_err)):
+            v = pt(a, h)
+            strip.Append(v.x, v.y)
+        area = strip.Area()
+        x = pcbnew.SHAPE_POLY_SET(strip)
+        x.BooleanIntersection(fill)
+        anchor = x.Area() / area if area > 0 else 0.0
+        # What the spoke end connects to, not counting the pad: the fill minus the pad
+        # grown by half the gap cuts every spoke mid-gap, so spokes no longer join
+        # through the pad (an SMD pad's spokes meet at its centre).
+        cut = pcbnew.SHAPE_POLY_SET()
+        pad_of[rec["uuid"]].TransformShapeToPolygon(cut, layer, gap // 2, max_err, pcbnew.ERROR_OUTSIDE)
+        rest = pcbnew.SHAPE_POLY_SET(fill)
+        rest.BooleanSubtract(cut)
+        tip = pt(reach + gap + max_err + mt / 2, 0)
+        body = next((int(rest.Outline(i).Area()) for i in range(rest.OutlineCount()) if rest.Contains(tip, i)), 0)
+        return {"kept": kept, "anchor_coverage": round(anchor, 4), "body_area": body}
+
+    for rec in pads:
+        zone = zones.get(rec.get("zone_uuid"))
+        layer = layers.get(rec["layer"])
+        if zone is None or layer is None or rec["uuid"] not in pad_of:
+            out_pads.append({k: rec[k] for k in ("ref", "pad", "layer")} | {"error": "pad, zone or layer not on the board"})
+            continue
+        center = rec["position"]
+        cors = []
+        for cr in rec["corridors"]:
+            if not (cr["selected"] or (all_live and cr["live"])):
+                continue
+            checked += 1
+            base = fill_state(zone, layer, center, cr, rec)
+            res = {"k": cr["k"], "direction_deg": cr["direction_deg"], "selected": cr["selected"],
+                   "baseline": base, "checks": []}
+            for mode in modes:
+                for cls, members in sorted(nets.items()):
+                    net = next((m for m in members if m.GetNetCode() != zone.GetNetCode()), None)
+                    if net is None:
+                        continue
+                    added = []
+                    for a, b in adversary_segments(center, cr, mode, ADVERSARY_WIDTH, intrude):
+                        t = pcbnew.PCB_TRACK(board)
+                        t.SetStart(pcbnew.VECTOR2I(*a))
+                        t.SetEnd(pcbnew.VECTOR2I(*b))
+                        t.SetWidth(ADVERSARY_WIDTH)
+                        t.SetLayer(layer)
+                        t.SetNet(net)
+                        board.Add(t)
+                        added.append(t)
+                    st = fill_state(zone, layer, center, cr, rec)
+                    for t in added:
+                        board.Delete(t)
+                    st["held"] = (st["kept"] and st["anchor_coverage"] >= ANCHOR_COVERAGE
+                                  and st["body_area"] * 2 >= base["body_area"])
+                    res["checks"].append({"mode": mode, "netclass": cls, "net": net.GetNetname()} | st)
+            res["held"] = base["kept"] and bool(res["checks"]) and all(c["held"] for c in res["checks"])
+            held += res["held"]
+            cors.append(res)
+        out_pads.append({k: rec[k] for k in ("ref", "pad", "uuid", "layer", "zone", "gap", "spoke_width",
+                                             "clearance", "min_thickness")} | {"corridors": cors})
+    failed = [f"{p['ref']}.{p['pad']} {p['layer']} k={c['k']}" for p in out_pads for c in p.get("corridors", [])
+              if not c["held"]]
+    return {"board": str(board_path), "intrude": intrude, "modes": list(modes), "adversary_width": ADVERSARY_WIDTH,
+            "anchor_coverage_min": ANCHOR_COVERAGE, "netclasses": dict(sorted(
+                {ch["netclass"]: ch["net"] for p in out_pads for c in p.get("corridors", [])
+                 for ch in c["checks"]}.items())),
+            "pads": out_pads, "corridors_checked": checked, "corridors_held": held, "failed": failed,
+            "errors": sum(1 for p in out_pads if "error" in p)}
+
+
 def main(argv):
     import pcbnew
     if len(argv) >= 3 and argv[0] == "plan":
@@ -327,6 +501,17 @@ def main(argv):
         return 0
     if len(argv) == 3 and argv[0] == "reserve":
         print("SPOKES_JSON: " + json.dumps(reserve(pcbnew, Path(argv[1]), Path(argv[2]))))
+        return 0
+    if len(argv) >= 4 and argv[0] == "verify":
+        opts = dict(zip(argv[4::2], argv[5::2]))
+        modes = tuple(opts.get("--modes", ",".join(MODES)).split(","))
+        data = verify(pcbnew, Path(argv[1]), json.loads(Path(argv[2]).read_text()),
+                      intrude=int(opts.get("--intrude", 0)), modes=modes,
+                      limit=int(opts["--limit"]) if "--limit" in opts else None,
+                      all_live=opts.get("--all-live") == "1")
+        Path(argv[3]).write_text(json.dumps(data, indent=1) + "\n")
+        print("SPOKES_JSON: " + json.dumps({k: data[k] for k in (
+            "corridors_checked", "corridors_held", "failed", "errors", "intrude", "modes", "netclasses")}))
         return 0
     if len(argv) == 2 and argv[0] == "strip":
         print("SPOKES_JSON: " + json.dumps(strip(pcbnew, Path(argv[1]))))

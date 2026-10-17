@@ -12,8 +12,9 @@ KICADROUTE-6. Code: `src/kicad_route/sandbox.py`. Tests: `tests/test_doctor_sand
 kicad-route --out OUT doctor --json --offline [--no-canary] [--require-readonly-state]
 ```
 
-- `--json` prints one JSON object on stdout (schema `kicad-route/doctor/1`). Logs go to
-  stderr. The same object is written to `OUT/doctor/doctor.json`.
+- `--json` (the global machine-mode flag, docs/interface.md) prints the one
+  `kicad-route/doctor/1` record on stdout. Logs and child-process output go to stderr.
+  The same record is written to `OUT/doctor/doctor.json`.
 - `--offline` skips the latest-release lookups. They are reported `NOT_RUN` with
   `required: false`. The doctor opens no network socket.
 - `--no-canary` skips the awkward-net-name canary (reported `NOT_RUN`, not required).
@@ -65,14 +66,20 @@ byte-identical (`tests/test_doctor_sandbox.py::test_sandboxed_round_trip_matches
 
 ## `--require-readonly-state`
 
-`run` and `campaign` accept `--require-readonly-state`; the environment variable
+`run` and `campaign` accept `--require-readonly-state` (it is one of the routing
+options, so `campaign` passes it to every step); the environment variable
 `KICAD_ROUTE_REQUIRE_READONLY_STATE=1` (also `true`, `yes`, `on`) sets it for every
-command. Before anything is written, a run refuses with exit 4 (`[route] refused:`,
-`reason_class: state`) when STATE:
+command. As the very first step, before anything is written, a run refuses with exit 4
+and a refusal record (`reason_class: state`, `OUT/refusals/`, docs/interface.md) when
+STATE:
 
 - does not exist;
 - holds no installed backend (`vendor/krt` or `vendor/freerouting`), so it is not a
   kicad-route state directory;
+- is not the directory its state manifest (`STATE/manifest.json`, written by `update`
+  or `kicad-route state-manifest`) describes: the manifest is missing or malformed,
+  its `state_dir` is another directory, or the files on disk have drifted from the
+  hashes it records (statemanifest.verify);
 - is writable by the process: STATE itself or one of its installed parts
   (`access(2)`, which reports a read-only mount as well as permissions).
 
@@ -108,7 +115,8 @@ Every run records `sandbox`:
 
 ## The ledger in a sandbox
 
-The run ledger refuses an exact repeat of a failed attempt (exit 4,
+The choice is stated in the contract ([interface.md](interface.md), "The ledger in a
+sandbox"). The run ledger refuses an exact repeat of a failed attempt (exit 4,
 [hygiene.md](hygiene.md)). It lives in `OUT/ledger.jsonl` by default, so with a fresh
 OUT per stage it never sees an earlier attempt. Two choices:
 
@@ -122,8 +130,6 @@ agent-ee's choice is recorded in its own documentation; kicad-route supports bot
 
 ## Open points
 
-- STATE is checked for presence, an installed backend and writability. Checking that it
-  is the exact directory a state manifest describes waits for the state manifest.
 - kicad-route's version still comes from `git describe` on the checkout, so the
   checkout's git metadata must be bound (a worktree's common dir is listed in
   `ro_paths`).

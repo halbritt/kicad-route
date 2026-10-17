@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from helpers import FIXTURE, OUT, RUNS, cli, record, run, summary
+from helpers import FIXTURE, OUT, RUNS, cli, record, run, summary, tree_hash
 from kicad_route import canary, common, corpus, ledger, netnames, stall
 from kicad_route import cli as route
 from kicad_route.kicad import specctra
@@ -207,9 +207,13 @@ def test_canary_split_unit():
     assert canary.check_split_unit()["status"] == common.PASS
 
 
-def test_canary_split_fails_without_quote_aware_find_open(monkeypatch):
-    """The parenthesised-name bug, reverted: the canary must catch it."""
-    monkeypatch.setattr(specctra, "find_open", lambda text, start: text.find("(", start))
+def test_canary_split_fails_without_quote_aware_spellings(monkeypatch):
+    """The parenthesised-name bug, reverted (a member list ends at the first `(`,
+    as with a plain text.find("(")): the canary must catch it."""
+    import re
+    monkeypatch.setattr(specctra, "spellings",
+                        lambda text, i, *_: [(m.end(), m.group())] if (m := re.compile(r"[^\s(]+").match(text, i))
+                        else [])
     res = canary.check_split_unit()
     assert res["status"] == common.FAIL
     assert any("Net-(BT1-+)" in p for p in res["problems"]), res["problems"]
@@ -252,7 +256,7 @@ def test_canary_backends():
 
 # ---------------------------------------------------------------- corpus
 
-def test_corpus_add_check_round_trip(monkeypatch, blocked_dir):
+def test_corpus_add_check_round_trip(monkeypatch):
     root = OUT / "corpus-test"
     shutil.rmtree(root, ignore_errors=True)
     add = ("corpus", "add", "--dir", str(FIXTURE), "--name", "fixture-sig-a", "--backend", "krt",
@@ -269,9 +273,18 @@ def test_corpus_add_check_round_trip(monkeypatch, blocked_dir):
     r = cli("corpus", "check", "--root", str(root))
     assert r.returncode == 0, r.stdout[-2000:]
     assert "PASS fixture-sig-a" in r.stdout
-    # A regression: the same attempt now leaves nets unconnected (the walled board
-    # stands in for a backend that got worse). update records it, never rolls back.
-    shutil.copyfile(blocked_dir / "route_demo.kicad_pcb", d / entry["reference_dir"] / "route_demo.kicad_pcb")
+    # A regression: the same attempt on the same untouched snapshot now leaves nets
+    # unconnected. The stand-in for a backend that got worse is KRT with its search
+    # capped at one iteration (probe and full), slipped in under the recorded attempt;
+    # the entry and its reference stay byte-identical. update records it, never rolls back.
+    pristine = tree_hash(d / entry["reference_dir"]), (d / "entry.json").read_bytes()
+    real_attempt = route.run_attempt
+
+    def worse_backend(args):
+        args.max_iterations = 1
+        args.backend_arg = [*args.backend_arg, "--max-probe-iterations=1"]
+        return real_attempt(args)
+    monkeypatch.setattr(route, "run_attempt", worse_backend)
     monkeypatch.setattr(common, "_out", OUT)
     update_json = OUT / "corpus-update" / "update.json"
     common.write_json(update_json, {"errors": []})
@@ -281,4 +294,5 @@ def test_corpus_add_check_round_trip(monkeypatch, blocked_dir):
     assert rc == 1 and rec["corpus"]["status"] == common.FAIL
     assert any("unconnected in scope 0 ->" in x for x in rec["corpus"]["regressions"]["fixture-sig-a"])
     assert len(list((d / "checks").glob("*.json"))) == 2
+    assert (tree_hash(d / entry["reference_dir"]), (d / "entry.json").read_bytes()) == pristine
     assert corpus.after_update(update_json, 0, root=OUT / "corpus-empty") == 0   # empty corpus: smoke's code

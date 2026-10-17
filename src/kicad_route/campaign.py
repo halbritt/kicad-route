@@ -16,17 +16,28 @@ re-orders the work instead (it never touches a rule):
 It stops when a round is complete, the backlog stops growing (the next round would
 repeat this one), --rounds hardfirst rounds are done, or --total-budget has run
 out. Every step is an ordinary `kicad-route run` subprocess with the campaign's own
-options passed through, so each step has its own run directory and result.
+options passed through (the input options, --library-dir included, on every step),
+so each step has its own run directory and result. With --total-budget a step's
+--budget is cut to the time left, and every subprocess has a timeout (see
+step_limits), so a hung step cannot hold the campaign.
+
+Each step runs in machine mode (`--json`): the campaign reads the step's result
+record from its stdout, never its progress lines (docs/interface.md).
 
 Output: OUT/campaigns/<project>/<label>/<stamp>/campaign.json and CAMPAIGN.md.
 Exit status: the best chain's (0 complete and valid, 2 valid but incomplete,
-3 fails validation), or 1 when no chain produced a gradable candidate.
+3 fails validation), 1 when no chain produced a gradable candidate, or 4 when
+the campaign was refused before any backend ran (its round-0 run was refused,
+or a usage or input error); a refusal leaves no campaign directory.
 """
 import collections
 import concurrent.futures
 import json
 import math
-import re
+import argparse
+import os
+import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -34,14 +45,19 @@ import time
 from pathlib import Path
 
 from . import common
+from . import contract
 
 STRATEGIES = ("hardfirst",)
 ORDERINGS = ("pads", "span", "netclass")  # --race lanes, in this order
 DEFAULT_CLASS = "Default"
-RESULT_LINE = re.compile(r"^\[route\] result: (.+)/result\.json  \(exit -?\d+\)$")
-START_LINE = re.compile(r"^\[route\] \S+ on .* -> (.+)$")
-VALIDATE_LINE = re.compile(r"^\[validate\] (.+)/result\.json  \(exit -?\d+\)$")
 CLI = [sys.executable, str(common.TOOL_ROOT / "bin" / "kicad-route")]
+# Subprocess timeouts (step_limits). After its --budget a run's backend gets
+# run_budgeted's stop grace; then the run grades its candidate (snapshot, refill,
+# DRC, parity, preservation). GRADE_ALLOWANCE_S bounds that with --total-budget;
+# without one only a hung step is stopped, after HANG_ALLOWANCE_S (the run's own
+# limit for one KiCad DRC).
+GRADE_ALLOWANCE_S = 600
+HANG_ALLOWANCE_S = 1800
 
 _print_lock = threading.Lock()
 
@@ -54,28 +70,13 @@ def log(msg):
 # ------------------------------------------------------------------ arguments
 
 def add_parser(sub, cli):
-    """The `campaign` subcommand: the per-run options of `run`, plus campaign controls."""
+    """The `campaign` subcommand: the routing options of `run` (cli.add_route_args, passed
+    to every step; --nets/--netclass are the campaign scope), plus campaign controls."""
     p = sub.add_parser("campaign", help="hard-nets-first routing campaign: several attempts, best chain graded "
                                         "against the original input")
     p.add_argument("--backend", required=True, choices=sorted(cli.BACKENDS))
     cli.add_input_args(p)
-    p.add_argument("--nets", nargs="+", metavar="PATTERN",
-                   help="campaign scope by net NAME: fnmatch patterns, !PATTERN excludes (default: all nets)")
-    p.add_argument("--netclass", nargs="+", metavar="CLASS", help="campaign scope by effective KiCad net class")
-    p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend, per run (default 300)")
-    p.add_argument("--max-iterations", type=int, help="KRT A* iteration cap per search (every run)")
-    p.add_argument("--passes", type=int, help="Freerouting maximum routing passes (every run)")
-    p.add_argument("--default-clearance", type=float, metavar="MM", help="as for run (tighten only; every run)")
-    p.add_argument("--clearance-margin", type=float, metavar="MM", help="as for run (Freerouting; every run)")
-    p.add_argument("--protect", choices=["existing", "locked", "human"], default="existing", help="as for run (every run)")
-    p.add_argument("--backend-arg", action="append", metavar="ARG", help="as for run (every run)")
-    p.add_argument("--backend-env", action="append", metavar="KEY=VALUE", help="as for run (every run)")
-    p.add_argument("--reserve-spokes", nargs="?", type=int, const=-1, default=None, metavar="N",
-                   help="as for run (every run): reserve thermal-spoke corridors")
-    p.add_argument("--stall", type=int, metavar="SECONDS", help="as for run (every run): stop a run that stops progressing")
-    p.add_argument("--force", action="store_true",
-                   help="as for run (every run): run even when the ledger has the identical failed attempt")
-    cli.add_sandbox_args(p)  # --require-readonly-state, --ledger: as for run (every run)
+    cli.add_route_args(p)
     p.add_argument("--label", help="campaign name (default campaign-<backend>); runs are labelled <label>-<step>")
     p.add_argument("--strategy", choices=STRATEGIES, default="hardfirst",
                    help="hardfirst (default): route the backlog first on the original input, then the rest")
@@ -85,7 +86,8 @@ def add_parser(sub, cli):
                    help=f"round 0 also tries K two-pass orderings in parallel ({', '.join(ORDERINGS)}; default 0). "
                         "Parallel lanes share the CPU, so each wall-clock budget buys less search")
     p.add_argument("--total-budget", type=int, metavar="SECONDS",
-                   help="wall clock for the whole campaign: no new run starts after it (running ones finish)")
+                   help="wall clock for the whole campaign: no new run starts after it, each run's --budget "
+                        "is cut to the time left, and a run still going a grace period after it is stopped")
     return p
 
 
@@ -175,6 +177,32 @@ def leaderboard(chains):
 
 # --------------------------------------------------------------------- steps
 
+def stop_grace(budget):
+    """The most run_budgeted lets a backend run past `budget`: the clean-stop grace
+    (max(30, budget/5) s), then terminate (10 s) and kill (5 s)."""
+    return max(30, budget // 5) + 15
+
+
+def kill_group(proc, wait=10):
+    """Stop a step and everything it started (its own process group): SIGTERM,
+    then SIGKILL; returns the exit code."""
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            break
+        try:
+            proc.wait(timeout=wait)
+            break
+        except subprocess.TimeoutExpired:
+            continue
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)   # stragglers the leader left behind
+    except ProcessLookupError:
+        pass
+    return proc.wait()
+
+
 class Campaign:
     def __init__(self, args, cli):
         self.args, self.cli = args, cli
@@ -184,10 +212,7 @@ class Campaign:
         self.dir = common.out_dir() / "campaigns" / self.project / self.label / \
             common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ")
         self.dir.mkdir(parents=True)
-        latest = self.dir.parent / "latest"
-        if latest.is_symlink() or latest.exists():
-            latest.unlink()
-        latest.symlink_to(self.dir.name)
+        common.point_latest(self.dir.parent / "latest", self.dir.name)
         self.started = time.monotonic()
         self.deadline = self.started + args.total_budget if args.total_budget else None
         self.cwd = Path.cwd()
@@ -195,6 +220,8 @@ class Campaign:
         self.scope = None         # the campaign scope on the original input (net names)
         self.chains, self.rounds, self.backlog_history = [], [], []
         self.stop_reason = None
+        self.timeouts = []            # every subprocess the campaign stopped at its timeout
+        self.procs, self.procs_lock = set(), threading.Lock()
 
     # paths in records are relative to the working directory, like run results
     def path(self, p):
@@ -204,75 +231,136 @@ class Campaign:
     def out_of_time(self):
         return self.deadline is not None and time.monotonic() >= self.deadline
 
-    def common_argv(self):
-        a = self.args
-        argv = ["--budget", str(a.budget), "--protect", a.protect]
-        for flag, val in (("--max-iterations", a.max_iterations), ("--passes", a.passes),
-                          ("--default-clearance", a.default_clearance), ("--clearance-margin", a.clearance_margin)):
-            if val is not None:
-                argv += [flag, str(val)]
-        argv += [f"--backend-arg={x}" for x in a.backend_arg or []]
-        if a.stall:
-            argv += ["--stall", str(a.stall)]
-        if a.force:
-            argv.append("--force")
-        if a.require_readonly_state:
-            argv.append("--require-readonly-state")
-        if a.ledger:
-            argv += ["--ledger", str(Path(a.ledger).expanduser().resolve())]
-        if a.reserve_spokes is not None:  # -1: the flag without N (the board's min_resolved_spokes)
-            argv += ["--reserve-spokes"] + ([str(a.reserve_spokes)] if a.reserve_spokes >= 0 else [])
-        for e in a.backend_env or []:
-            argv += ["--backend-env", e]
-        return argv
+    def time_left(self):
+        return None if self.deadline is None else self.deadline - time.monotonic()
+
+    def step_limits(self):
+        """(--budget, subprocess timeout) for a run starting now. Without --total-budget:
+        the campaign's --budget, and a timeout for a hung step only (budget + stop grace +
+        HANG_ALLOWANCE_S). With it: the budget is cut to the time left (at least 1 s),
+        and the run is stopped at the deadline plus its grace (stop grace +
+        GRADE_ALLOWANCE_S), so no step overruns the total budget by more than that."""
+        left = self.time_left()
+        if left is None:
+            budget = self.args.budget
+            return budget, budget + stop_grace(budget) + HANG_ALLOWANCE_S
+        budget = max(1, min(self.args.budget, int(left)))
+        return budget, round(max(left, budget) + stop_grace(budget) + GRADE_ALLOWANCE_S, 3)
+
+    def validate_timeout(self):
+        """`validate --against` of a finished chain: the time left plus GRADE_ALLOWANCE_S
+        (a chain whose last run ended at the deadline is still graded), or
+        HANG_ALLOWANCE_S without --total-budget."""
+        left = self.time_left()
+        return HANG_ALLOWANCE_S if left is None else round(max(0.0, left) + GRADE_ALLOWANCE_S, 3)
+
+    def common_argv(self, budget=None):
+        """Every routing option of the campaign except its scope (cli.route_argv), for
+        each step; `budget` replaces --budget (cut to the total budget left)."""
+        a = self.args if budget is None else argparse.Namespace(**{**vars(self.args), "budget": budget})
+        return self.cli.route_argv(a)
 
     def input_argv(self, prev=None):
-        """The original input (as given to the campaign), or a previous step's candidate."""
+        """The original input (as given to the campaign), or a previous step's candidate.
+        The --library-dir mappings go to every step: a candidate keeps the mapped
+        directory as a link to the library, and the step's snapshot re-links it
+        (snapshot.make_snapshot) instead of copying the library into the input."""
         a = self.args
+        libs = [x for e in a.library_dir or [] for x in ("--library-dir", e)]
         if prev is None:
             argv = ["--dir", str(self.cfg["path"]), "--board", self.cfg["pcb"], "--name", self.project]
             if a.schematic:
                 argv += ["--schematic", a.schematic]
-            for e in a.library_dir or []:
-                argv += ["--library-dir", e]
-            return argv + (["--rev", a.rev] if a.rev else [])
+            return argv + libs + (["--rev", a.rev] if a.rev else [])
         argv = ["--dir", str(self.path(prev["candidate_dir"])), "--board", prev["board"], "--name", self.project]
-        return argv + (["--schematic", prev["schematic"]] if prev.get("schematic") else [])
+        return argv + (["--schematic", prev["schematic"]] if prev.get("schematic") else []) + libs
 
-    def invoke(self, argv, log_name):
+    def invoke(self, argv, log_name, timeout=None):
+        """One kicad-route subcommand in machine mode, in its own process group, stopped
+        with everything it started (backend, kicad-cli) when `timeout` seconds pass. Its
+        progress (stderr) goes to logs/<name>.log, its one JSON record (stdout) to
+        logs/<name>.json. Returns (rec, log text); rec["_record"] holds that record parsed
+        (None if it printed none), for the caller to pop: it is not kept in campaign.json."""
         logf = self.dir / "logs" / f"{log_name}.log"
         logf.parent.mkdir(parents=True, exist_ok=True)
-        full = [*CLI, "--out", str(common.out_dir()), *argv]
+        full = [*CLI, "--out", str(common.out_dir()), argv[0], "--json", *argv[1:]]
         t0 = time.monotonic()
-        with open(logf, "w") as out:
-            rc = subprocess.run(full, cwd=self.cwd, stdout=out, stderr=subprocess.STDOUT).returncode
+        timed_out = False
+        recf = logf.with_suffix(".json")
+        with open(logf, "w") as err, open(recf, "w") as out:
+            proc = subprocess.Popen(full, cwd=self.cwd, stdout=out, stderr=err, start_new_session=True)
+            with self.procs_lock:
+                self.procs.add(proc)
+            try:
+                rc = proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                rc = kill_group(proc)
+            except BaseException:   # interrupted: its own session would not see the terminal's signal
+                kill_group(proc, wait=5)
+                raise
+            finally:
+                with self.procs_lock:
+                    self.procs.discard(proc)
+        try:
+            data = json.loads(recf.read_text())
+        except (OSError, ValueError):
+            data = None
+        if not isinstance(data, dict):
+            data = None
         text = logf.read_text(errors="replace")
-        return {"argv": full, "exit_code": rc, "log": common.rel(logf), "wall_s": round(time.monotonic() - t0, 3)}, text
+        if data is None:  # not a machine-mode record: keep whatever it printed with the log
+            text += recf.read_text(errors="replace") if recf.exists() else ""
+        rec = {"argv": full, "exit_code": rc, "log": common.rel(logf), "record": common.rel(recf),
+               "wall_s": round(time.monotonic() - t0, 3), "timeout_s": timeout, "timed_out": timed_out,
+               "_record": data}
+        if timed_out:
+            with self.procs_lock:
+                self.timeouts.append({"log": rec["log"], "timeout_s": timeout, "wall_s": rec["wall_s"],
+                                      "argv": full})
+            log(f"[campaign] {log_name}: stopped at its timeout ({timeout} s)")
+        return rec, text
+
+    @staticmethod
+    def failure(rec, data, text):
+        """Why a step returned no usable record: its timeout, its refusal, else the log tail."""
+        if rec.get("timed_out"):
+            return f"stopped at the campaign's timeout ({rec['timeout_s']} s) before a result"
+        if data and data.get("kind") == "refusal":
+            return f"refused ({data.get('reason_class')}): {data.get('message')}"
+        return "; ".join([l for l in text.splitlines() if l.strip()][-5:]) or f"exit {rec['exit_code']}"
+
+    def stop_all(self):
+        """Stop every running step (the campaign is being interrupted)."""
+        with self.procs_lock:
+            procs = list(self.procs)
+        for proc in procs:
+            kill_group(proc, wait=5)
 
     def step(self, chain_id, role, scope_mode, nets=(), prev=None, intended=None):
         """One `kicad-route run`; returns its record (never raises for a failed run)."""
         label = f"{self.label}-{chain_id}-{role}" if role != "full" else f"{self.label}-{chain_id}"
+        budget, timeout = self.step_limits()
         argv = ["run", "--backend", self.args.backend, *self.input_argv(prev), *scope_args(self.args, scope_mode, nets),
-                *self.common_argv(), "--label", label]
+                *self.common_argv(budget), "--label", label]
         log(f"[campaign] {chain_id}: {role} pass ({self.describe_scope(scope_mode, nets)}) on "
-            + ("the original input" if prev is None else f"the candidate of {prev['run_dir']}"))
-        rec, text = self.invoke(argv, label)
-        rec.update(role=role, label=label, on="input" if prev is None else "previous candidate")
+            + ("the original input" if prev is None else f"the candidate of {prev['run_dir']}")
+            + (f"; budget cut to {budget} s (total budget left)" if budget < self.args.budget else ""))
+        rec, text = self.invoke(argv, label, timeout)
+        data = rec.pop("_record", None)
+        rec.update(role=role, label=label, on="input" if prev is None else "previous candidate", budget_s=budget)
         if scope_mode == "only":
             rec["nets"] = sorted(nets)
         elif scope_mode == "rest" and nets:
             rec["excluded_nets"] = sorted(nets)
-        run_dir = None
-        for line in text.splitlines():
-            m = RESULT_LINE.match(line) or START_LINE.match(line)
-            if m:
-                run_dir = self.path(m.group(1))
+        result = data if data and data.get("kind") == "route" else None
+        run_dir = self.path(result["run_dir"]) if result else None
         attempt = common.load_json(run_dir / "attempt.json") if run_dir else None
-        result = common.load_json(run_dir / "result.json") if run_dir else None
         rec["run_dir"] = common.rel(run_dir) if run_dir else None
         if attempt is None or result is None:
-            tail = [l for l in text.splitlines() if l.strip()][-5:]
-            rec.update(status="error", error="; ".join(tail) or f"exit {rec['exit_code']}")
+            rec.update(status="error", error=self.failure(rec, data, text))
+            if data and data.get("kind") == "refusal":
+                rec["refusal"] = data
             log(f"[campaign] {chain_id}: {role} pass did not produce a result: {rec['error']}")
             return rec
         rt, v = result["routing"], result["validation"]
@@ -308,14 +396,17 @@ class Campaign:
             by = "run"
         else:
             rec, text = self.invoke(["validate", str(self.path(end["run_dir"])), "--against",
-                                     str(self.path(first["run_dir"]))], f"{self.label}-{chain['id']}-validate")
-            m = next((VALIDATE_LINE.match(l) for l in text.splitlines() if VALIDATE_LINE.match(l)), None)
+                                     str(self.path(first["run_dir"]))], f"{self.label}-{chain['id']}-validate",
+                                    self.validate_timeout())
+            data = rec.pop("_record", None)
             chain["validate"] = rec
-            if not m:
-                chain.update(status="error", error="validate --against produced no result: "
-                             + "; ".join([l for l in text.splitlines() if l.strip()][-3:]))
+            if not data or data.get("kind") != "route-validate":
+                chain.update(status="error", error=(
+                    f"validate --against stopped at the campaign's timeout ({rec['timeout_s']} s)"
+                    if rec["timed_out"] else "validate --against produced no result: "
+                    + self.failure(rec, data, text)))
                 return
-            res_path = self.path(m.group(1)) / "result.json"
+            res_path = self.path(data["dir"]) / "result.json"
             by = "validate --against"
         res = common.load_json(res_path)
         v, rt = res["validation"], res["routing"]
@@ -376,9 +467,13 @@ class Campaign:
         ref_dir, manifest = cli.snapshot_input(self.cfg, self.dir / "input")
         facts, rec = cli.board_facts(ref_dir / self.cfg["pcb"], self.dir / "input" / "facts.json")
         if facts is None:
-            sys.exit(f"could not read the input board: see {rec['log']}")
+            contract.refuse("input", f"could not read the input board {self.cfg['pcb']} (facts.py exit "
+                            f"{rec['exit_code']}): {self.cli.log_tail(self.dir / 'input' / 'facts.log')}")
         self.fingerprint = cli.input_fingerprint(manifest)
-        self.scope = cli.select_nets(facts, self.args.nets, self.args.netclass)[0]
+        try:
+            self.scope = cli.select_nets(facts, self.args.nets, self.args.netclass)[0]
+        except cli.NetSelectionError as e:
+            contract.refuse("input", str(e))
         cli.baseline_drc(ref_dir, self.cfg["pcb"], self.fingerprint)
         lanes = []
         for ordering in ORDERINGS:
@@ -401,8 +496,17 @@ class Campaign:
         else:
             log(f"[campaign] round 0: {len(plans)} chains in parallel")
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(plans)) as pool:
-                chains = list(pool.map(lambda p: self.run_chain(p[0], 0, p[1], p[2]), plans))
+                try:
+                    chains = list(pool.map(lambda p: self.run_chain(p[0], 0, p[1], p[2]), plans))
+                except BaseException:   # interrupted: stop the lanes, or shutdown would wait for them
+                    self.stop_all()
+                    raise
         r0 = chains[0]["steps"][0] if chains[0]["steps"] else None
+        refused = [s["refusal"] for c in chains for s in c["steps"] if s.get("refusal")]
+        if refused and not any(s.get("status") == "ok" for c in chains for s in c["steps"]):
+            # nothing was routed: the campaign is refused for the same reason as its round-0 run
+            contract.refuse(refused[0]["reason_class"], f"round-0 run refused: {refused[0]['message']}",
+                            input_fingerprint=refused[0].get("input_fingerprint"))
         if r0 and r0["status"] == "ok":
             self.fingerprint = self.fingerprint or r0["input_fingerprint"]
             if self.scope is None:
@@ -428,7 +532,8 @@ class Campaign:
         if any(c["status"] == "input_changed" for c in self.chains):
             self.stop_reason = "input changed during the campaign"
         elif not graded:
-            self.stop_reason = "round 0 produced no gradable candidate"
+            self.stop_reason = "round 0 produced no gradable candidate" + (
+                " (total budget reached)" if self.out_of_time() else "")
         elif any(c["grade"]["routing"]["status"] == "COMPLETE" for c in graded):
             self.stop_reason = "complete in round 0"
         rnd = 0
@@ -469,21 +574,26 @@ class Campaign:
         best = self.best()
         a = self.args
         return {
-            "kind": "route-campaign", "project": self.project, "label": self.label, "strategy": a.strategy,
+            "schema": contract.schema_id("route-campaign"), "kind": "route-campaign", "project": self.project, "label": self.label, "strategy": a.strategy,
             "backend": a.backend, "campaign_dir": common.rel(self.dir),
             "input": {"dir": str(self.cfg["path"]), "board": self.cfg["pcb"], "rev": a.rev,
                       "fingerprint": self.fingerprint},
             "scope": {"net_patterns": a.nets or [], "netclasses": a.netclass or [],
                       "nets": len(self.scope) if self.scope is not None else None},
             "settings": {"rounds": a.rounds, "race": a.race, "total_budget_s": a.total_budget,
-                         "per_run": self.common_argv()},
+                         "per_run": self.common_argv(),
+                         "timeouts": {"grade_allowance_s": GRADE_ALLOWANCE_S if a.total_budget else None,
+                                      "hang_allowance_s": None if a.total_budget else HANG_ALLOWANCE_S}},
             "rounds": self.rounds, "backlog_evolution": self.backlog_history, "chains": self.chains,
+            "timeouts": list(self.timeouts),
             "leaderboard": leaderboard(self.chains), "stop_reason": self.stop_reason,
             "best": None if best is None else {
                 "chain": best["id"], "round": best["round"], "strategy": best["strategy"],
                 "run_dir": best["steps"][-1]["run_dir"], "candidate": best["grade"]["candidate"],
                 "graded_against": best["grade"]["against"], "grade": best["grade"]["result"],
-                "exit_code": best["grade"]["exit_code"]},
+                "exit_code": best["grade"]["exit_code"],
+                # the graded record's hashes and tool identity (evidence.py), as run/validate carry them
+                **{k: (common.load_json(best["grade"]["result"]) or {}).get(k) for k in ("evidence", "tool_identity")}},
             "exit_code": best["grade"]["exit_code"] if best else 1,
             "runtime_s": round(time.monotonic() - self.started, 3),
             "finished_utc": common.now_utc().isoformat() if self.stop_reason else None,
@@ -519,6 +629,9 @@ def render(rec):
              f"- Scope: {rec['scope']['nets']} nets; rounds {rec['settings']['rounds']}, race {rec['settings']['race']}"
              f", total budget {rec['settings']['total_budget_s'] or 'none'}",
              f"- Stop: {rec['stop_reason'] or 'running'}"]
+    if rec.get("timeouts"):
+        stopped = ", ".join(f"`{t['log']}` ({t['timeout_s']} s)" for t in rec["timeouts"])
+        lines.append(f"- Stopped at a timeout: {stopped}")
     if rec["best"]:
         b = rec["best"]
         lines += [f"- Best: chain `{b['chain']}` (exit {b['exit_code']}), run `{b['run_dir']}`",
@@ -547,10 +660,24 @@ def render(rec):
 
 
 def main(args, cli):
-    if any("=" not in e for e in args.library_dir or []):
-        sys.exit("--library-dir takes NAME=PATH")
-    if any("=" not in e for e in args.backend_env or []):
-        sys.exit("--backend-env takes KEY=VALUE")
+    """The campaign record (campaign.json). A refusal before any backend ran removes
+    the campaign directory and propagates (exit 4, docs/interface.md)."""
     if args.rounds < 0:
-        sys.exit("--rounds must be 0 or more")
-    return Campaign(args, cli).execute()["exit_code"]
+        contract.refuse("usage", "--rounds must be 0 or more")
+    c = Campaign(args, cli)
+    previous = signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # steps run in their own sessions
+    try:
+        return c.execute()
+    except contract.Refusal as r:   # nothing was routed: no campaign directory is left
+        c.stop_all()
+        shutil.rmtree(c.dir, ignore_errors=True)
+        latest = c.dir.parent / "latest"
+        if latest.is_symlink() and not latest.exists():
+            latest.unlink()
+        r.detail["discarded_run_dir"] = common.rel(c.dir)
+        raise
+    except BaseException:
+        c.stop_all()
+        raise
+    finally:
+        signal.signal(signal.SIGTERM, previous)

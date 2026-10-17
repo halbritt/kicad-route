@@ -123,7 +123,10 @@ def test_human_chain_locks_only_the_origin_copper(chain):
     record("provenance_chain_against_origin", res)
     assert res["validation"]["preservation"]["protected_copper"] == route.PASS
     assert res["validation"]["preservation"]["net_completion"] == route.PASS
-    assert v.returncode in (0, 2), res["validation"]["reasons"]
+    # step 2's own ratchet (asserted above) kept /SIG_A* connected, so the origin's
+    # scope is complete; validation must pass too: exactly 0
+    assert res["routing"]["status"] == route.COMPLETE, res["routing"]
+    assert v.returncode == res["exit_code"] == 0, res["validation"]["reasons"]
 
 
 def test_freerouting_bridge_exports_agent_copper_unlocked(chain):

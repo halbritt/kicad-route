@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/halbritt/kicad-route/schemas/refusal-1.json",
+  "title": "kicad-route refusal record, major version 1",
+  "description": "Exit 4: refused before any backend ran. Written to OUT/refusals/<stamp>-<pid>.json (OUT/refusals/refusal-latest.json links the newest) and printed on stdout with --json. No run directory is left behind (docs/interface.md).",
+  "type": "object",
+  "required": [
+    "schema",
+    "kind",
+    "exit_code",
+    "command",
+    "reason_class",
+    "message",
+    "argv",
+    "input_fingerprint",
+    "refused_utc",
+    "record"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kicad-route/refusal/1"
+    },
+    "kind": {
+      "const": "refusal"
+    },
+    "exit_code": {
+      "const": 4
+    },
+    "deprecated": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "field"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "replaced_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "command": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason_class": {
+      "enum": [
+        "usage",
+        "input",
+        "ledger",
+        "canary",
+        "state"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "argv": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "input_fingerprint": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "discarded_run_dir": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "refused_utc": {
+      "type": "string"
+    },
+    "record": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

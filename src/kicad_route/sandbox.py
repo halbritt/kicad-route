@@ -4,9 +4,10 @@ Three things live here:
 
 - state_status(): is STATE (the installed backends) present, and can this process
   write to it? `run` and `campaign` with --require-readonly-state (or
-  KICAD_ROUTE_REQUIRE_READONLY_STATE=1) refuse with exit 4 before routing when STATE
-  is missing, holds no installed backend, or is writable; `update` and `corpus add`
-  write STATE, so they refuse under the flag unconditionally.
+  KICAD_ROUTE_REQUIRE_READONLY_STATE=1) refuse with exit 4 (reason_class state)
+  before routing when STATE is missing, holds no installed backend, is not the
+  directory its state manifest describes (or has drifted from it), or is writable;
+  `update` and `corpus add` write STATE, so they refuse under the flag unconditionally.
 - facts(): what this process sees (network namespace, STATE, the flag), recorded as
   result.json "sandbox" and in doctor's JSON.
 - requirements(): what a sandbox has to provide for kicad-route to work: the
@@ -27,7 +28,6 @@ from pathlib import Path
 from . import common
 
 ENV_FLAG = "KICAD_ROUTE_REQUIRE_READONLY_STATE"
-REFUSED_EXIT = 4
 # STATE's installed parts (only those present are reported).
 STATE_PARTS = ("vendor/krt", ".venv-krt", "vendor/freerouting", "vendor/skills", "corpus")
 BACKEND_PARTS = ("vendor/krt", "vendor/freerouting")
@@ -76,6 +76,9 @@ def state_refusal(command="run", state=None):
     if not any(part in st["installed"] for part in BACKEND_PARTS):
         return (f"--require-readonly-state: STATE {p} holds no installed backend "
                 f"({', '.join(BACKEND_PARTS)}); it is not a kicad-route state directory")
+    manifest = manifest_problem(st["path"])
+    if manifest:
+        return f"--require-readonly-state: {manifest}"
     if st["writable"] or st["writable_parts"]:
         where = ", ".join(["."] * bool(st["writable"]) + st["writable_parts"])
         return (f"--require-readonly-state: STATE {p} is writable by this process ({where}); "
@@ -83,11 +86,35 @@ def state_refusal(command="run", state=None):
     return None
 
 
-def writer_refusal(command):
+def manifest_problem(state):
+    """Why STATE is not the directory its state manifest (STATE/manifest.json,
+    statemanifest.py) describes, or None: no manifest, a malformed one, one written
+    for another directory, or drift between it and the files on disk."""
+    from . import statemanifest
+    state = Path(state)
+    path = statemanifest.manifest_path(state)
+    m = statemanifest.read(state)
+    if m is None:
+        return f"no state manifest at {path} (run `kicad-route state-manifest` where STATE is writable)"
+    problems = statemanifest.schema_problems(m)
+    if problems:
+        return f"state manifest {path} is malformed: {'; '.join(problems[:3])}"
+    described = Path(m.get("state_dir") or "").expanduser()
+    if described.resolve() != state.resolve():
+        return f"state manifest {path} describes {described}, not {state}"
+    drift = statemanifest.verify(m, state)
+    if drift:
+        return (f"STATE {state} differs from its manifest: "
+                + "; ".join(f"{d['item']} recorded {str(d['recorded'])[:16]} now {str(d['current'])[:16]}"
+                            for d in drift[:3]))
+    return None
+
+
+def writer_refusal(command, flag=False):
     """`update` and `corpus add` write STATE: under the flag they never run."""
-    if require_readonly_state():
-        return (f"{ENV_FLAG}=1: `{command}` writes the state directory {common.STATE}, "
-                "which this environment requires to stay read-only")
+    if require_readonly_state(flag):
+        return (f"--require-readonly-state / {ENV_FLAG}=1: `{command}` writes the state directory "
+                f"{common.STATE}, which this environment requires to stay read-only")
     return None
 
 

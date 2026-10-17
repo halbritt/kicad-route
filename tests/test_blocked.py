@@ -184,11 +184,16 @@ def test_blocked_receipts_name_the_wall(blocked_dir):
     """The keepout wall cuts J2 off: every open connection is blocked by it, on every
     layer, and it is the top-ranked blocker. Recomputing with `kicad-route blocked`
     and revalidating give the same answer; neither touches the candidate."""
+    # --default-clearance 0.4: without it KRT also breaks the Power-to-signal rule it
+    # cannot read (exit 3), and the exit code would not show that an incomplete but
+    # otherwise valid candidate is reported as exit 2
     r, run_dir, result = run("run", "--backend", "krt", "--budget", "180", "--dir", str(blocked_dir),
-                             "--backend-env", "KICAD_NET_RESCUE=0", "--label", "blocked-receipts-krt")
+                             "--backend-env", "KICAD_NET_RESCUE=0", "--default-clearance", "0.4",
+                             "--label", "blocked-receipts-krt")
     rt = result["routing"]
     record("blocked_receipts", {"routing": rt, "exit_code": result["exit_code"]})
-    assert rt["status"] == route.INCOMPLETE and r.returncode in (2, 3)
+    assert result["validation"]["status"] == route.PASS, result["validation"]["reasons"]
+    assert rt["status"] == route.INCOMPLETE and r.returncode == result["exit_code"] == 2
     bb = rt["blocked_by"]
     assert "error" not in bb, bb
     report = json.loads((run_dir / "validate" / "blocked-by.json").read_text())
@@ -212,7 +217,7 @@ def test_blocked_receipts_name_the_wall(blocked_dir):
     v = cli("validate", str(run_dir), timeout=600)
     reval = sorted((run_dir / "revalidate").iterdir())[-1]
     res = json.loads((reval / "result.json").read_text())
-    assert v.returncode in (2, 3) and res["routing"]["blocked_by"]["top"][0]["id"] == "rule_area:wall"
+    assert v.returncode == res["exit_code"] == 2 and res["routing"]["blocked_by"]["top"][0]["id"] == "rule_area:wall"
     assert (reval / "blocked-by.json").exists()
     assert cli("blocked", str(reval)).returncode == 0
 

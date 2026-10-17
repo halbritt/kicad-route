@@ -107,7 +107,9 @@ def test_campaign_routes_backlog_first_on_original_input(blocked_dir):
     assert best["run_dir"] == winner["steps"][-1]["run_dir"]
     assert rec["leaderboard"][0]["chain"] == best["chain"]
     assert r.returncode == rec["exit_code"] == best["exit_code"] == winner["grade"]["exit_code"]
-    assert r.returncode in (2, 3)
+    # no chain can reach J2 (incomplete), and at 0.4 mm KRT's copper meets every rule:
+    # the best chain is valid but incomplete. A 3 here is a validation regression.
+    assert r.returncode == 2
 
 
 def test_campaign_race_lane_is_a_two_pass_chain():

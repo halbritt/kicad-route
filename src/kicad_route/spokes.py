@@ -19,17 +19,19 @@ areas named `kicad-route:spoke:...`.
   reference facts) and with the candidate DRC's starved_thermal pads: which new
   track or via crossed which spoke corridor of which starved pad. Writes
   RUN_DIR/spokes.json; exit 0 without new starved_thermal findings, 3 with them.
-- plan_only(): `kicad-route spokes --board B.kicad_pcb`: preview the corridors.
+- plan_only(): `kicad-route spokes --board B.kicad_pcb [--verify]`: preview the
+  corridors; --verify checks each selected one against KiCad's own zone filler with
+  foreign tracks hugging its edge (kicad/spokes.py verify).
 
 Corridor geometry is a model of KiCad's zone filler, not the filler itself; see
 docs/spokes.md for its limits.
 """
 import json
 import math
-import sys
 from pathlib import Path
 
 from . import common
+from . import contract
 
 PASS, FAIL = common.PASS, common.FAIL
 SCRIPT = Path(__file__).resolve().parent / "kicad" / "spokes.py"
@@ -264,14 +266,14 @@ def evaluate(run_dir, validation_dir=None):
     run_dir = Path(run_dir).resolve()
     attempt = common.load_json(run_dir / "attempt.json")
     if attempt is None:
-        sys.exit(f"{run_dir}: not a routing run (attempt.json missing)")
+        contract.refuse("input", f"{run_dir}: not a routing run (attempt.json missing)")
     vdir = Path(validation_dir).resolve() if validation_dir else run_dir / "validate"
     ref_board = run_dir / attempt["reference_dir"] / attempt["board"]
     ref_facts = common.load_json(run_dir / attempt["reference_facts"])
     cand_facts = common.load_json(vdir / "candidate-facts.json")
     drc = common.load_json(vdir / "candidate-drc.json")
     if cand_facts is None or drc is None or ref_facts is None:
-        sys.exit(f"{common.rel(vdir)}: candidate facts or DRC missing (validate the run first)")
+        contract.refuse("input", f"{common.rel(vdir)}: candidate facts or DRC missing (validate the run first)")
     sdir = run_dir / "spokes"
     sdir.mkdir(exist_ok=True)
     rec, tag = _script(["plan", ref_board, sdir / "reference-plan.json"], run_dir, sdir / "plan.log")
@@ -307,7 +309,7 @@ def evaluate(run_dir, validation_dir=None):
     return report["exit_code"]
 
 
-def plan_only(board, per_pad=None):
+def plan_only(board, per_pad=None, verify=False):
     board = Path(board).resolve()
     out = common.out_dir() / "spokes" / board.stem
     out.mkdir(parents=True, exist_ok=True)
@@ -320,7 +322,19 @@ def plan_only(board, per_pad=None):
         f"{tag['corridors_selected']} corridors selected ({tag['per_pad']} per pad, clearance "
         f"{tag['clearance'] / NM:g} mm)" + (f"; warnings: {'; '.join(tag['warnings'])}" if tag["warnings"] else ""))
     log(f"[spokes] {common.rel(out / 'plan.json')}")
-    return 0
+    if not verify:
+        return 0
+    rec, vtag = _script(["verify", board, out / "plan.json", out / "verify.json"], board.parent, out / "verify.log")
+    if rec["exit_code"] != 0 or vtag is None:
+        log(f"[spokes] verify failed (see {rec['log']})")
+        return 1
+    log(f"[spokes] verify: {vtag['corridors_held']} of {vtag['corridors_checked']} selected corridors hold against "
+        f"foreign tracks at their edge (KiCad's zone filler; nets tried: "
+        f"{', '.join(f'{c} {n}' for c, n in vtag['netclasses'].items())})")
+    for f in vtag["failed"]:
+        log(f"[spokes]   does not hold: {f}")
+    log(f"[spokes] {common.rel(out / 'verify.json')}")
+    return 0 if vtag["corridors_held"] == vtag["corridors_checked"] and not vtag["errors"] else 3
 
 
 # ------------------------------------------------------------- CLI
@@ -346,12 +360,15 @@ def add_parser(sub):
                                                         "e.g. RUN_DIR/revalidate/<stamp>)")
     sp.add_argument("--board", help="instead of a run: plan corridors for this board (OUT/spokes/<board>/plan.json)")
     sp.add_argument("--per-pad", type=int, help="with --board: corridors selected per pad")
+    sp.add_argument("--verify", action="store_true",
+                    help="with --board: check each selected corridor against KiCad's zone filler with foreign "
+                         "tracks hugging its edge (OUT/spokes/<board>/verify.json; exit 3 if one does not hold)")
     return sp
 
 
 def cmd(args):
     if args.board:
-        return plan_only(args.board, args.per_pad)
+        return plan_only(args.board, args.per_pad, args.verify)
     if not args.run_dir:
-        sys.exit("kicad-route spokes: pass RUN_DIR or --board")
+        contract.refuse("usage", "kicad-route spokes: pass RUN_DIR or --board")
     return evaluate(args.run_dir, args.validation)

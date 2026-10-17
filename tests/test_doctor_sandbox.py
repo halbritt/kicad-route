@@ -219,28 +219,54 @@ def test_doctor_json_offline_without_network(doctor_record, tmp_path):
 
 # ----------------------------------------------------------- state refusal
 
-@pytest.mark.parametrize("case", ["writable", "missing", "no_backend", "env_var"])
+def refusal(out):
+    """The newest refusal record (contract.write_refusal: OUT/refusals/refusal-latest.json)."""
+    return json.loads((out / "refusals" / "refusal-latest.json").read_text())
+
+
+REFUSAL_TEXT = {"writable": "is writable", "env_var": "is writable", "missing": "does not exist",
+                "no_backend": "holds no installed backend", "no_manifest": "no state manifest",
+                "other_manifest": "describes"}
+
+
+@pytest.mark.parametrize("case", sorted(REFUSAL_TEXT))
 def test_require_readonly_state_refuses(case, tmp_path):
     out = tmp_path / "out"
     flag = ["--require-readonly-state"]
     env = plain_env()
-    if case == "writable" or case == "env_var":
+    if case in ("writable", "env_var"):
         if not os.access(STATE, os.W_OK):
             pytest.skip("STATE is read-only here")
+        if sandbox_manifest_problem():
+            pytest.skip(f"STATE fails the manifest check first: {sandbox_manifest_problem()}")
+    fake = tmp_path / "state"
     if case == "missing":
         env["KICAD_ROUTE_STATE"] = str(tmp_path / "absent")
     if case == "no_backend":
-        (tmp_path / "empty").mkdir()
-        env["KICAD_ROUTE_STATE"] = str(tmp_path / "empty")
+        fake.mkdir()
+        env["KICAD_ROUTE_STATE"] = str(fake)
+    if case in ("no_manifest", "other_manifest"):
+        (fake / "vendor" / "krt").mkdir(parents=True)  # looks installed, but no manifest of its own
+        if case == "other_manifest":
+            if not (STATE / "manifest.json").exists():
+                pytest.skip("STATE has no manifest to copy")
+            shutil.copyfile(STATE / "manifest.json", fake / "manifest.json")  # it describes STATE, not fake
+        env["KICAD_ROUTE_STATE"] = str(fake)
     if case == "env_var":
         flag = []
         env["KICAD_ROUTE_REQUIRE_READONLY_STATE"] = "1"
     r = kr(out, "run", "--backend", "krt", "--dir", str(FIXTURE), *flag, env=env, timeout=120)
     assert r.returncode == 4, r.stdout[-2000:] + r.stderr[-2000:]
-    assert "[route] refused: --require-readonly-state: STATE" in r.stdout
-    assert {"writable": "is writable", "env_var": "is writable", "missing": "does not exist",
-            "no_backend": "holds no installed backend"}[case] in r.stdout
+    assert "[kicad-route] refused (state): --require-readonly-state: " in r.stdout
+    rec = refusal(out)
+    assert rec["reason_class"] == "state" and rec["command"] == "run" and rec["exit_code"] == 4
+    assert REFUSAL_TEXT[case] in rec["message"], rec["message"]
     assert not (out / "runs").exists(), "a refused run must not leave a run directory"
+
+
+def sandbox_manifest_problem():
+    from kicad_route import sandbox
+    return sandbox.manifest_problem(STATE)
 
 
 def test_campaign_refuses_writable_state(tmp_path):
@@ -248,19 +274,23 @@ def test_campaign_refuses_writable_state(tmp_path):
         pytest.skip("STATE is read-only here")
     r = kr(tmp_path / "out", "campaign", "--backend", "krt", "--dir", str(FIXTURE), "--require-readonly-state",
            timeout=120)
-    assert r.returncode == 4 and "[campaign] refused: --require-readonly-state" in r.stdout
+    assert r.returncode == 4, r.stdout[-2000:]
+    assert refusal(tmp_path / "out")["reason_class"] == "state"
+    assert "--require-readonly-state" in refusal(tmp_path / "out")["message"]
     assert not (tmp_path / "out" / "campaigns").exists()
 
 
-def test_campaign_passes_sandbox_flags_to_runs(tmp_path):
-    from kicad_route import campaign, cli
-    c = campaign.Campaign.__new__(campaign.Campaign)
-    c.args = cli.build_parser().parse_args(["campaign", "--backend", "krt", "--require-readonly-state",
-                                           "--ledger", str(tmp_path / "l.jsonl")])
-    argv = c.common_argv()
+def test_campaign_passes_sandbox_flags_to_runs(tmp_path, monkeypatch):
+    """Both are routing options (cli.add_route_args), so route_argv forwards them to every
+    step; a relative --ledger is made absolute, since steps may run from another directory."""
+    from kicad_route import cli
+    monkeypatch.chdir(tmp_path)
+    a = cli.build_parser().parse_args(["campaign", "--backend", "krt", "--require-readonly-state",
+                                       "--ledger", "l.jsonl"])
+    argv = cli.route_argv(a)
     assert "--require-readonly-state" in argv and argv[argv.index("--ledger") + 1] == str(tmp_path / "l.jsonl")
-    c.args = cli.build_parser().parse_args(["campaign", "--backend", "krt"])
-    assert "--require-readonly-state" not in c.common_argv() and "--ledger" not in c.common_argv()
+    a = cli.build_parser().parse_args(["campaign", "--backend", "krt"])
+    assert "--require-readonly-state" not in cli.route_argv(a) and "--ledger" not in cli.route_argv(a)
 
 
 def test_without_flag_state_is_not_checked(tmp_path):
@@ -284,7 +314,10 @@ def test_update_and_corpus_add_refuse_under_flag(monkeypatch, tmp_path):
     monkeypatch.setenv("KICAD_ROUTE_REQUIRE_READONLY_STATE", "1")
     out = str(tmp_path / "out")
     assert cli.main(["--out", out, "update"]) == 4
-    assert cli.main(["--out", out, "corpus", "add", "--dir", str(FIXTURE), "--backend", "krt"]) == 4
+    assert refusal(tmp_path / "out")["reason_class"] == "state" and refusal(tmp_path / "out")["command"] == "update"
+    assert cli.main(["--out", out, "corpus", "add", "--dir", str(FIXTURE), "--backend", "krt",
+                     "--name", "sandbox-probe"]) == 4
+    assert refusal(tmp_path / "out")["reason_class"] == "state", refusal(tmp_path / "out")
     assert called == []
     assert cli.main(["--out", out, "corpus", "list"]) == 0 and called == ["corpus list"]  # reading is fine
     monkeypatch.delenv("KICAD_ROUTE_REQUIRE_READONLY_STATE")
@@ -333,7 +366,8 @@ def test_persistent_ledger(tmp_path_factory, tmp_path):
     r = kr(tmp_path / "fresh-out", "run", "--backend", "krt", "--dir", str(FIXTURE), *ROUTE_ARGS["krt"],
            "--ledger", str(shared), timeout=600)
     assert r.returncode == 4, r.stdout[-2000:]
-    assert "[route] refused: identical attempt" in r.stdout
+    assert refusal(tmp_path / "fresh-out")["reason_class"] == "ledger"
+    assert "identical attempt" in refusal(tmp_path / "fresh-out")["message"]
     assert not (tmp_path / "fresh-out" / "ledger.jsonl").exists()
 
 
@@ -351,7 +385,7 @@ def test_sandboxed_round_trip_matches_unsandboxed(backend, doctor_record, tmp_pa
     before = state_snapshot()
     r = subprocess.run(argv, capture_output=True, text=True, timeout=900)
     diff = snapshot_diff(before, state_snapshot())
-    assert "[route] refused" not in r.stdout, r.stdout[-2000:]
+    assert "refused" not in r.stdout, r.stdout[-2000:]
     sbx = result_of(r.stdout, work)
     ref = plain["result"]
     assert r.returncode == plain["proc"].returncode == sbx["exit_code"], r.stdout[-2000:] + r.stderr[-2000:]
