@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
 # Link the kicad-route CLI and its skill where agents and shells find them, then
-# install the routing backends. Re-running is safe; existing non-link paths are
-# never replaced.
+# install the routing backends. Re-running is safe: a link that already points
+# here is left alone, a stale link (another checkout, or dangling) is repointed,
+# and an existing regular file or directory is never replaced.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 install_link() {
     local source=$1 destination=$2
     mkdir -p -- "$(dirname -- "$destination")"
-    if [[ -L "$destination" && $(readlink -f -- "$destination") == "$source" ]]; then
+    if [[ -L "$destination" && $(readlink -f -- "$destination") == "$(readlink -f -- "$source")" ]]; then
         return
     fi
-    if [[ -e "$destination" || -L "$destination" ]]; then
+    if [[ -L "$destination" ]]; then
+        # -n: replace the link itself, never descend into the directory it points to
+        printf 'Repointing %s -> %s (was %s)\n' "$destination" "$source" "$(readlink -- "$destination")"
+        ln -sfn -- "$source" "$destination"
+        return
+    fi
+    if [[ -e "$destination" ]]; then
         printf 'Refusing to replace existing path: %s\n' "$destination" >&2
         exit 1
     fi

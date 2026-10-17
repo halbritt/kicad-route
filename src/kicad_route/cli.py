@@ -978,6 +978,25 @@ def krt_unsupported(facts, ref_dir, settings):
     return notes
 
 
+# KRT announces each custom rule it does not apply on its own log line. The wording
+# drifts between releases (v0.23: ".kicad_dru: rule 'X': ... -- skipped, KiCad will
+# still enforce it", ".kicad_dru rule 'X': NOT honoured (...)", ".kicad_dru rule 'X':
+# parsed, but ... has no consumer in this tool yet", "rule 'X': unknown constraint ...
+# not evaluated"), so match a rule subject plus any not-applied verdict rather than
+# one exact phrase. Over-reporting is harmless (informational; KiCad DRC grades every
+# rule); under-reporting hides an unapplied rule.
+KRT_RULE_SUBJECT = re.compile(r"\.kicad_dru\b|\brule\s+['\"`]", re.I)
+KRT_RULE_NOT_APPLIED = re.compile(
+    r"\bskip(?:ped|ping|s)?\b|\bnot\s+(?:honou?red|evaluated|enforced|applied|supported|modell?ed|translated)\b"
+    r"|\bunsupported\b|\bno\s+consumer\b|\bignored\b|\bunknown\s+constraint\b", re.I)
+
+
+def krt_unsupported_rules(text):
+    """The KRT log lines that say a design rule was not applied, deduplicated and sorted."""
+    return sorted({line.strip() for line in text.splitlines()
+                   if KRT_RULE_SUBJECT.search(line) and KRT_RULE_NOT_APPLIED.search(line)})
+
+
 def krt_route(work, board, scope, facts, settings):
     out_dir = work / "krt-out"
     out_dir.mkdir(parents=True)
@@ -1023,7 +1042,7 @@ def krt_route(work, board, scope, facts, settings):
     proc = {"status": PASS, "reasons": [], "exit_code": rec.get("exit_code"), "commands": [rec],
             "backend_report": None, "output_board": output,
             # rules KRT says it did not apply; KiCad DRC still grades them
-            "unsupported_reported": sorted(set(re.findall(r"\.kicad_dru: rule [^\n]*skipped[^\n]*", text)))}
+            "unsupported_reported": krt_unsupported_rules(text)}
     if report:
         dr = report.get("design_rules", {})
         proc["backend_report"] = {k: report.get(k) for k in (
@@ -1255,12 +1274,33 @@ def freerouting_route(work, board, scope, facts, settings):
 
 # --------------------------------------------------------- install / update
 
+def github_headers(env=None):
+    """Request headers for the GitHub API: a token from GITHUB_TOKEN (else GH_TOKEN),
+    when set, lifts the unauthenticated 60 requests/hour limit shared CI hits."""
+    env = os.environ if env is None else env
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "kicad-route"}
+    token = (env.get("GITHUB_TOKEN") or env.get("GH_TOKEN") or "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def github_latest(repo):
+    """The repo's latest release: GitHub's /releases/latest, which is the newest
+    non-draft, non-prerelease release, so a stable release always wins."""
     import urllib.request
-    req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases/latest",
-                                 headers={"Accept": "application/vnd.github+json", "User-Agent": "kicad-route"})
+    req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases/latest", headers=github_headers())
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read())
+
+
+def krt_venv_python(env=None):
+    """The interpreter the KRT venv is built on. KRT is plain CPython (its Rust module
+    is abi3, Python >= 3.9) and never imports pcbnew: the venv does not see system
+    site-packages. So the Python running kicad-route (>= 3.12) is the default, not a
+    Debian path; KICAD_ROUTE_KRT_PYTHON overrides it."""
+    env = os.environ if env is None else env
+    return env.get("KICAD_ROUTE_KRT_PYTHON") or sys.executable
 
 
 def update_krt(steps):
@@ -1274,7 +1314,7 @@ def update_krt(steps):
                              out_path("update") / "krt-fetch.log"))
     steps.append(common.run_cmd(["git", "checkout", "--detach", tag], KRT_DIR, out_path("update") / "krt-checkout.log"))
     if not route_python().exists():
-        steps.append(common.run_cmd(["uv", "venv", KRT_VENV, "--python", "/usr/bin/python3"], common.STATE,
+        steps.append(common.run_cmd(["uv", "venv", KRT_VENV, "--python", krt_venv_python()], common.STATE,
                                  out_path("update") / "venv.log"))
     env_cmd = ["env", f"VIRTUAL_ENV={KRT_VENV}", "uv", "pip", "install", "--upgrade", "-r", KRT_DIR / "requirements.txt"]
     steps.append(common.run_cmd(env_cmd, common.STATE, out_path("update") / "krt-deps.log"))
@@ -1285,36 +1325,74 @@ def update_krt(steps):
     return tag
 
 
+# The executable jar of a Freerouting release: freerouting-<version>.jar, optionally
+# with a pre-release suffix (freerouting-2.5.0-alpha.jar, -rc1, -beta.2, -SNAPSHOT).
+# Classifier jars (-sources, -javadoc, ...) are not executable and do not match.
+FREEROUTING_JAR = re.compile(
+    r"freerouting-(?P<version>\d+(?:\.\d+)*)"
+    r"(?:-(?P<pre>(?:alpha|beta|rc|pre|preview|snapshot|ea|dev)(?:[.-]?[0-9A-Za-z]+)*|m\d+))?\.jar", re.I)
+
+
+def freerouting_jar_asset(assets):
+    """The release asset to install: the stable jar when the release has one, else
+    its first pre-release jar; None when it has neither."""
+    jars = [a for a in assets if FREEROUTING_JAR.fullmatch(a["name"])]
+    jars.sort(key=lambda a: FREEROUTING_JAR.fullmatch(a["name"])["pre"] is not None)  # stable first, stable sort
+    return jars[0] if jars else None
+
+
+def check_asset_digest(asset, sha256_hex):
+    """Verify a downloaded asset against the "sha256:<hex>" digest GitHub publishes
+    for each release asset. True when it matches; False when GitHub gave no digest
+    (assets uploaded before GitHub computed them); raises on a mismatch or on a
+    digest in an algorithm this cannot check."""
+    want = asset.get("digest")
+    if not want:
+        return False
+    algo, _, value = want.partition(":")
+    if algo.lower() != "sha256" or not value:
+        raise RuntimeError(f"{asset['name']}: unrecognised GitHub digest {want!r}")
+    if value.lower() != sha256_hex.lower():
+        raise RuntimeError(f"{asset['name']}: sha256 {sha256_hex} does not match GitHub's digest {value}")
+    return True
+
+
 def update_freerouting(steps):
-    """Freerouting: the latest release's executable jar, verified against GitHub's asset digest."""
+    """Freerouting: the latest stable release's executable jar, verified against
+    GitHub's per-asset sha256 digest (recorded as digest_verified in release.json)."""
     import hashlib
     import urllib.request
     rel = github_latest(FREEROUTING_REPO)
     tag = rel["tag_name"]
-    assets = [a for a in rel["assets"] if re.fullmatch(r"freerouting-[\d.]+\.jar", a["name"])]
-    if not assets:
+    asset = freerouting_jar_asset(rel["assets"])
+    if asset is None:
         raise RuntimeError(f"release {tag} has no executable jar asset")
-    asset = assets[0]
     dest_dir = FREEROUTING_DIR / tag
     jar = dest_dir / asset["name"]
+    verified = None  # an already-installed jar is not re-downloaded; see its release.json
     if not jar.exists():
         dest_dir.mkdir(parents=True, exist_ok=True)
         tmp = jar.with_suffix(".part")
         with urllib.request.urlopen(asset["browser_download_url"], timeout=300) as r, open(tmp, "wb") as f:
             shutil.copyfileobj(r, f)
-        digest = hashlib.sha256(tmp.read_bytes()).hexdigest()
-        want = (asset.get("digest") or "").removeprefix("sha256:")
-        if want and want != digest:
+        try:
+            verified = check_asset_digest(asset, hashlib.sha256(tmp.read_bytes()).hexdigest())
+        except RuntimeError:
             tmp.unlink()
-            raise RuntimeError(f"{asset['name']}: sha256 {digest} does not match GitHub's digest {want}")
+            raise
+        if not verified:
+            log(f"[update] WARNING: GitHub published no digest for {asset['name']}; it is installed unverified")
         tmp.rename(jar)
+    else:
+        verified = (load_json(dest_dir / "release.json") or {}).get("digest_verified")
     import zipfile
     with zipfile.ZipFile(jar) as z:
         mf = z.read("META-INF/MANIFEST.MF").decode(errors="replace")
     build = re.search(r"Build-Revision:\s*(\S+)", mf)
     common.write_json(dest_dir / "release.json", {
         "tag": tag, "asset": asset["name"], "sha256": common.sha256(jar), "published_at": rel.get("published_at"),
-        "build_revision": build.group(1) if build else None, "url": asset["browser_download_url"]})
+        "build_revision": build.group(1) if build else None, "url": asset["browser_download_url"],
+        "digest": asset.get("digest"), "digest_verified": verified})
     cur = FREEROUTING_DIR / "current"
     if cur.is_symlink() or cur.exists():
         cur.unlink()
@@ -1502,23 +1580,45 @@ def compare(run_dirs):
 
 # --------------------------------------------------------------------- smoke
 
-PUBLISH_FROM_RUN = ["result.json", "RESULT.md", "attempt.json", "validate/preservation.json",
-                    "validate/new-findings.json", "validate/candidate-drc.json"]
+# What `publish` copies: kicad-route's structured receipts (JSON, plus the RESULT.md
+# summary) and never a board, project file, log or the backend's work/ tree.
+# The run root and validate/ are published flat (the long-standing layout:
+# DEST/result.json, DEST/preservation.json, ...); facts/ and spokes/ keep their
+# directory; the latest revalidate*/<stamp> is published as a subdirectory.
+PUBLISH_FLAT = ("", "validate")
+PUBLISH_NESTED = ("facts", "spokes")
+PUBLISH_LATEST = {"revalidate-origin": "against-origin", "revalidate": "revalidate"}
+
+
+def receipts(d):
+    """The structured receipts directly in d: JSON files and RESULT.md, nothing else."""
+    if not d.is_dir():
+        return []
+    return sorted(p for p in d.iterdir()
+                  if p.is_file() and not p.is_symlink() and (p.suffix == ".json" or p.name == "RESULT.md"))
 
 
 def publish_run(run_dir, dest):
     dest.mkdir(parents=True, exist_ok=True)
-    for name in PUBLISH_FROM_RUN:
-        src = run_dir / name
-        if src.exists():
-            (dest / Path(name).name).write_bytes(src.read_bytes())
-    # the latest grading of a --dir chain against its origin (validate --against)
-    origin = sorted((run_dir / "revalidate-origin").glob("2*"))
-    if origin:
-        (dest / "against-origin").mkdir(exist_ok=True)
-        for name in ("result.json", "new-findings.json", "preservation.json"):
-            if (origin[-1] / name).exists():
-                (dest / "against-origin" / name).write_bytes((origin[-1] / name).read_bytes())
+    for sub in PUBLISH_FLAT:
+        for src in receipts(run_dir / sub):
+            target = dest / src.name
+            if target.exists():  # never let a validate/ receipt overwrite a run-root one
+                target = dest / sub / src.name
+                target.parent.mkdir(exist_ok=True)
+            target.write_bytes(src.read_bytes())
+    for sub in PUBLISH_NESTED:
+        for src in receipts(run_dir / sub):
+            (dest / sub).mkdir(exist_ok=True)
+            (dest / sub / src.name).write_bytes(src.read_bytes())
+    # the latest re-grading: of a --dir chain against its origin (validate --against),
+    # and of the candidate itself (validate)
+    for sub, name in PUBLISH_LATEST.items():
+        stamps = sorted(p for p in (run_dir / sub).glob("2*") if p.is_dir())
+        if stamps:
+            (dest / name).mkdir(exist_ok=True)
+            for src in receipts(stamps[-1]):
+                (dest / name / src.name).write_bytes(src.read_bytes())
 
 
 def smoke(publish=None):

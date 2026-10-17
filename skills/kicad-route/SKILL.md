@@ -48,7 +48,7 @@ first.
 | `kicad-route compare <run_dir> …` | Side-by-side table; refuses to call different inputs comparable |
 | `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits, the rule floor |
 | `kicad-route floor [--write-declared]` | Rules looser than their git high-water mark or the declared floor `<board>.rules-floor.json` (`OUT/floor/<project>/floor.json`) |
-| `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured evidence (not the board) to `<DIR>/<project>/<label>/` for committing |
+| `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured receipts (every JSON receipt plus `RESULT.md`: validation, spokes, blocked-by, pour integrity, provenance, facts, latest re-validation; never a board, log or `work/`) to `<DIR>/<project>/<label>/` for committing |
 | `kicad-route update` | Move both backends to their latest upstream release, regenerate the `krt-*` skills, run `smoke` |
 | `kicad-route smoke` | Integration tests on the bundled fixture board |
 | `kicad-route canary [--backend B]` | Awkward net names (`Net-(BT1-+)`, `/a b/c`, `-VIN(1)`, ...) through each backend's round trip on the fixture |
@@ -114,9 +114,9 @@ Exit codes:
 - 0: complete and valid.
 - 1: process failure (no candidate).
 - 2: valid but incomplete.
-- 3: fails validation.
+- 3: fails validation (regardless of completion).
 - 4: refused before routing (ledger: identical attempt already failed; or
-  `--canary` failed).
+  `--canary` failed). No candidate is made.
 
 Also read:
 

@@ -12,8 +12,9 @@ widths and pour integrity. Backend relaxations are switched off, and anything th
 slip through is caught by the grading rather than trusted.
 
 The result is structured for an agent to read and act on: process, routing and
-validation are reported separately, with exit codes 0 (complete and valid), 1 (backend
-failed), 2 (valid but incomplete), 3 (fails validation) and 4 (refused before routing).
+validation are reported separately, with exit codes 0 (complete and valid), 1 (process
+failure, no candidate), 2 (valid but incomplete), 3 (fails validation) and 4 (refused
+before routing: the ledger or the `--canary` pre-flight).
 
 ## Install
 
