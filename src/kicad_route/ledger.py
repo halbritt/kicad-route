@@ -9,7 +9,8 @@ An attempt's fingerprint covers what decides its outcome:
 
 Before routing, an attempt whose fingerprint already finished with a failing
 outcome class (process FAIL, validation FAIL, routing INCOMPLETE) is refused
-(exit 4) with the earlier run named: repeating it changes nothing. `--force`
+(exit 4) with the earlier run named: for KRT repeating it changes nothing; for
+Freerouting, whose outcome may vary, the message says a retry may differ. `--force`
 runs it anyway and records the forced rerun. The same attempt key under a
 different backend version is allowed, noted "upstream changed since <run>".
 
@@ -110,6 +111,9 @@ def check(path, input_fp, backend, version, settings, force=False):
         if force:
             gate.update(forced=True, forced_over=last["run_dir"])
             gate["notes"].append(f"forced rerun: {msg}")
+        elif backend == "freerouting":  # its outcome may vary run to run (KICADROUTE-7)
+            gate.update(refuse=True, message=msg + ": Freerouting's outcome can vary between runs, so a retry "
+                        "may differ; pass --force to retry it, or change the input, scope or settings")
         else:
             gate.update(refuse=True, message=msg + ": rerunning it changes nothing; change the input, scope or "
                         "settings, or pass --force to repeat it anyway")

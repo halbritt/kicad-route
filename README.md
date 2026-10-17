@@ -98,6 +98,8 @@ route:
 
 ```sh
 make doctor | update | smoke
+make state-manifest   # record the installed backends in STATE/manifest.json (no downloads)
+make determinism      # route the fixture twice with KRT, compare, record the verdict
 make evidence     # smoke, then publish its structured evidence to reports/fixture/
 make fixture      # regenerate fixtures/route_demo
 ```

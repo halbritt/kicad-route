@@ -1,6 +1,7 @@
 # Installed backends and generated skills (kicad-route update)
 /vendor/
 /.venv-krt/
+/manifest.json
 # Runs, caches, smoke output
 /build/
 __pycache__/
