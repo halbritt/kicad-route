@@ -23,19 +23,26 @@ kicad-route campaign --backend krt --nets '/CAN*' '/USB*' --race 3 --default-cle
 
 ## Options
 
-- **Per-run options, passed to every step unchanged:** the input options (`--dir`,
-  `--board`, `--schematic`, `--name`, `--library-dir`, `--rev`), `--budget` (wall clock
-  for each run), `--max-iterations`, `--passes`, `--protect`, `--default-clearance`,
-  `--clearance-margin`, `--backend-arg`, `--backend-env`.
+- **Per-run options, passed to every step unchanged:** `--budget` (wall clock for
+  each run; cut to the time left under `--total-budget`), `--max-iterations`,
+  `--passes`, `--protect`, `--default-clearance`, `--clearance-margin`,
+  `--backend-arg`, `--backend-env`.
+- **Input options:** `--dir`, `--board`, `--schematic`, `--name` and `--rev` name the
+  original input; a step on a candidate gets that candidate's `--dir`, `--board` and
+  `--schematic` instead. `--library-dir` goes to **every** step. A candidate keeps a
+  mapped directory as a link to the library, and the step's snapshot links it again,
+  so the library is never copied into a chained input or its fingerprint.
 - **Scope:** `--nets` / `--netclass` select the campaign scope, as for `run`.
 - `--rounds N` (default 2): the number of hard-first rounds after round 0. With
   `--rounds 0`, the campaign runs round 0 only (useful with `--race`).
 - `--strategy hardfirst` (default and only strategy).
 - `--race K` (0–3, default 0): round 0 also tries K two-pass orderings in parallel
   (see below).
-- `--total-budget SECONDS`: no new run starts after this wall-clock time. Runs that
-  are in progress finish. A chain whose second pass could not start is recorded as
-  `stopped` and is ranked last.
+- `--total-budget SECONDS`: the wall clock for the whole campaign (see
+  [Time limits](#time-limits)). No new run starts after it, a run that starts with
+  less than `--budget` left gets the time left as its `--budget`, and a run that is
+  still going a grace period after the deadline is stopped. A chain whose second pass
+  could not start is recorded as `stopped` and is ranked last.
 - `--label NAME` (default `campaign-<backend>`): the campaign's name. Its runs are
   labelled `<label>-r0`, `<label>-r1-backlog`, `<label>-r1-rest`, `<label>-r0-pads-first`
   and so on.
@@ -68,6 +75,35 @@ unrouted. The campaign stops when one of these is true:
 - `--total-budget` is used up;
 - round 0 produced no gradable candidate (for example, a backend budget overrun);
 - the input changed during the campaign.
+
+## Time limits
+
+Every step and every `validate --against` runs in its own process group with a
+timeout. At the timeout the campaign stops the group (SIGTERM, then SIGKILL), so the
+backend and any `kicad-cli` it started stop too. The step is recorded with
+`timed_out: true` and its `timeout_s`, its chain becomes an `error`, and the step is
+listed under `timeouts` in `campaign.json` (and in `CAMPAIGN.md`). Interrupting the
+campaign (Ctrl-C or SIGTERM) stops the running steps the same way.
+
+| | `--budget` of a run | Run timeout | `validate --against` timeout |
+|---|---|---|---|
+| no `--total-budget` | `--budget` | budget + stop grace + 1800 s | 1800 s |
+| `--total-budget` | min(`--budget`, time left), at least 1 s | time left + stop grace + 600 s | time left (at least 0) + 600 s |
+
+The stop grace is what a run itself allows its backend after the budget (the clean
+stop request, then terminate and kill): max(30, budget/5) + 15 s. The 600 s
+allowance (`GRADE_ALLOWANCE_S`) covers the run's own grading after the backend
+stops: snapshot, refill, DRC, parity and preservation. Without `--total-budget`,
+the timeout only catches a hung step; 1800 s (`HANG_ALLOWANCE_S`) is the run's own
+limit for one KiCad DRC.
+
+So a run never ends later than the deadline plus its grace. A chain whose last run
+finished near the deadline is still graded within the 600 s allowance. A campaign
+can therefore overrun `--total-budget` by at most one run's grace plus one grading.
+A short budget is a real cut: a run that gets 20 s routes less than one that gets
+`--budget`.
+
+## Checks between steps
 
 Each step checks its run's `attempt.json`. The scope that ran must equal the scope
 that was intended. The input fingerprint of every chain's first step must equal
@@ -120,7 +156,7 @@ is what limits routing, keep `--race 0`.
 
 | Path | Contents |
 |---|---|
-| `campaign.json` | settings, every round (backlog routed first, chains, unrouted after, next backlog), `backlog_evolution`, every chain with its steps (argv, log, run directory, source, fingerprint, scope, statuses) and its grade, the `leaderboard`, `best` (chain, run directory, candidate, `graded_against`, the grading result file, exit code), `stop_reason`, `exit_code` |
+| `campaign.json` | settings (with the timeout allowances), every round (backlog routed first, chains, unrouted after, next backlog), `backlog_evolution`, every chain with its steps (argv, `budget_s`, `timeout_s`, `timed_out`, log, run directory, source, fingerprint, scope, statuses) and its grade, `timeouts` (every subprocess stopped at its timeout), the `leaderboard`, `best` (chain, run directory, candidate, `graded_against`, the grading result file, exit code), `stop_reason`, `exit_code` |
 | `CAMPAIGN.md` | the same, for people |
 | `logs/<run label>.log` | each step's `kicad-route` output |
 | `input/` | with `--race`: the input snapshot and facts used for the orderings |

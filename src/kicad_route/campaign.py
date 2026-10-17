@@ -16,7 +16,10 @@ re-orders the work instead (it never touches a rule):
 It stops when a round is complete, the backlog stops growing (the next round would
 repeat this one), --rounds hardfirst rounds are done, or --total-budget has run
 out. Every step is an ordinary `kicad-route run` subprocess with the campaign's own
-options passed through, so each step has its own run directory and result.
+options passed through (the input options, --library-dir included, on every step),
+so each step has its own run directory and result. With --total-budget a step's
+--budget is cut to the time left, and every subprocess has a timeout (see
+step_limits), so a hung step cannot hold the campaign.
 
 Output: OUT/campaigns/<project>/<label>/<stamp>/campaign.json and CAMPAIGN.md.
 Exit status: the best chain's (0 complete and valid, 2 valid but incomplete,
@@ -26,7 +29,9 @@ import collections
 import concurrent.futures
 import json
 import math
+import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -42,6 +47,13 @@ RESULT_LINE = re.compile(r"^\[route\] result: (.+)/result\.json  \(exit -?\d+\)$
 START_LINE = re.compile(r"^\[route\] \S+ on .* -> (.+)$")
 VALIDATE_LINE = re.compile(r"^\[validate\] (.+)/result\.json  \(exit -?\d+\)$")
 CLI = [sys.executable, str(common.TOOL_ROOT / "bin" / "kicad-route")]
+# Subprocess timeouts (step_limits). After its --budget a run's backend gets
+# run_budgeted's stop grace; then the run grades its candidate (snapshot, refill,
+# DRC, parity, preservation). GRADE_ALLOWANCE_S bounds that with --total-budget;
+# without one only a hung step is stopped, after HANG_ALLOWANCE_S (the run's own
+# limit for one KiCad DRC).
+GRADE_ALLOWANCE_S = 600
+HANG_ALLOWANCE_S = 1800
 
 _print_lock = threading.Lock()
 
@@ -84,7 +96,8 @@ def add_parser(sub, cli):
                    help=f"round 0 also tries K two-pass orderings in parallel ({', '.join(ORDERINGS)}; default 0). "
                         "Parallel lanes share the CPU, so each wall-clock budget buys less search")
     p.add_argument("--total-budget", type=int, metavar="SECONDS",
-                   help="wall clock for the whole campaign: no new run starts after it (running ones finish)")
+                   help="wall clock for the whole campaign: no new run starts after it, each run's --budget "
+                        "is cut to the time left, and a run still going a grace period after it is stopped")
     return p
 
 
@@ -174,6 +187,32 @@ def leaderboard(chains):
 
 # --------------------------------------------------------------------- steps
 
+def stop_grace(budget):
+    """The most run_budgeted lets a backend run past `budget`: the clean-stop grace
+    (max(30, budget/5) s), then terminate (10 s) and kill (5 s)."""
+    return max(30, budget // 5) + 15
+
+
+def kill_group(proc, wait=10):
+    """Stop a step and everything it started (its own process group): SIGTERM,
+    then SIGKILL; returns the exit code."""
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            break
+        try:
+            proc.wait(timeout=wait)
+            break
+        except subprocess.TimeoutExpired:
+            continue
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)   # stragglers the leader left behind
+    except ProcessLookupError:
+        pass
+    return proc.wait()
+
+
 class Campaign:
     def __init__(self, args, cli):
         self.args, self.cli = args, cli
@@ -194,6 +233,8 @@ class Campaign:
         self.scope = None         # the campaign scope on the original input (net names)
         self.chains, self.rounds, self.backlog_history = [], [], []
         self.stop_reason = None
+        self.timeouts = []            # every subprocess the campaign stopped at its timeout
+        self.procs, self.procs_lock = set(), threading.Lock()
 
     # paths in records are relative to the working directory, like run results
     def path(self, p):
@@ -203,9 +244,32 @@ class Campaign:
     def out_of_time(self):
         return self.deadline is not None and time.monotonic() >= self.deadline
 
-    def common_argv(self):
+    def time_left(self):
+        return None if self.deadline is None else self.deadline - time.monotonic()
+
+    def step_limits(self):
+        """(--budget, subprocess timeout) for a run starting now. Without --total-budget:
+        the campaign's --budget, and a timeout for a hung step only (budget + stop grace +
+        HANG_ALLOWANCE_S). With it: the budget is cut to the time left (at least 1 s),
+        and the run is stopped at the deadline plus its grace (stop grace +
+        GRADE_ALLOWANCE_S), so no step overruns the total budget by more than that."""
+        left = self.time_left()
+        if left is None:
+            budget = self.args.budget
+            return budget, budget + stop_grace(budget) + HANG_ALLOWANCE_S
+        budget = max(1, min(self.args.budget, int(left)))
+        return budget, round(max(left, budget) + stop_grace(budget) + GRADE_ALLOWANCE_S, 3)
+
+    def validate_timeout(self):
+        """`validate --against` of a finished chain: the time left plus GRADE_ALLOWANCE_S
+        (a chain whose last run ended at the deadline is still graded), or
+        HANG_ALLOWANCE_S without --total-budget."""
+        left = self.time_left()
+        return HANG_ALLOWANCE_S if left is None else round(max(0.0, left) + GRADE_ALLOWANCE_S, 3)
+
+    def common_argv(self, budget=None):
         a = self.args
-        argv = ["--budget", str(a.budget), "--protect", a.protect]
+        argv = ["--budget", str(a.budget if budget is None else budget), "--protect", a.protect]
         for flag, val in (("--max-iterations", a.max_iterations), ("--passes", a.passes),
                           ("--default-clearance", a.default_clearance), ("--clearance-margin", a.clearance_margin)):
             if val is not None:
@@ -222,37 +286,71 @@ class Campaign:
         return argv
 
     def input_argv(self, prev=None):
-        """The original input (as given to the campaign), or a previous step's candidate."""
+        """The original input (as given to the campaign), or a previous step's candidate.
+        The --library-dir mappings go to every step: a candidate keeps the mapped
+        directory as a link to the library, and the step's snapshot re-links it
+        (snapshot.make_snapshot) instead of copying the library into the input."""
         a = self.args
+        libs = [x for e in a.library_dir or [] for x in ("--library-dir", e)]
         if prev is None:
             argv = ["--dir", str(self.cfg["path"]), "--board", self.cfg["pcb"], "--name", self.project]
             if a.schematic:
                 argv += ["--schematic", a.schematic]
-            for e in a.library_dir or []:
-                argv += ["--library-dir", e]
-            return argv + (["--rev", a.rev] if a.rev else [])
+            return argv + libs + (["--rev", a.rev] if a.rev else [])
         argv = ["--dir", str(self.path(prev["candidate_dir"])), "--board", prev["board"], "--name", self.project]
-        return argv + (["--schematic", prev["schematic"]] if prev.get("schematic") else [])
+        return argv + (["--schematic", prev["schematic"]] if prev.get("schematic") else []) + libs
 
-    def invoke(self, argv, log_name):
+    def invoke(self, argv, log_name, timeout=None):
+        """One kicad-route subprocess in its own process group, stopped with everything
+        it started (backend, kicad-cli) when `timeout` seconds pass."""
         logf = self.dir / "logs" / f"{log_name}.log"
         logf.parent.mkdir(parents=True, exist_ok=True)
         full = [*CLI, "--out", str(common.out_dir()), *argv]
         t0 = time.monotonic()
+        timed_out = False
         with open(logf, "w") as out:
-            rc = subprocess.run(full, cwd=self.cwd, stdout=out, stderr=subprocess.STDOUT).returncode
+            proc = subprocess.Popen(full, cwd=self.cwd, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
+            with self.procs_lock:
+                self.procs.add(proc)
+            try:
+                rc = proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                rc = kill_group(proc)
+            except BaseException:   # interrupted: its own session would not see the terminal's signal
+                kill_group(proc, wait=5)
+                raise
+            finally:
+                with self.procs_lock:
+                    self.procs.discard(proc)
         text = logf.read_text(errors="replace")
-        return {"argv": full, "exit_code": rc, "log": common.rel(logf), "wall_s": round(time.monotonic() - t0, 3)}, text
+        rec = {"argv": full, "exit_code": rc, "log": common.rel(logf), "wall_s": round(time.monotonic() - t0, 3),
+               "timeout_s": timeout, "timed_out": timed_out}
+        if timed_out:
+            with self.procs_lock:
+                self.timeouts.append({"log": rec["log"], "timeout_s": timeout, "wall_s": rec["wall_s"],
+                                      "argv": full})
+            log(f"[campaign] {log_name}: stopped at its timeout ({timeout} s)")
+        return rec, text
+
+    def stop_all(self):
+        """Stop every running step (the campaign is being interrupted)."""
+        with self.procs_lock:
+            procs = list(self.procs)
+        for proc in procs:
+            kill_group(proc, wait=5)
 
     def step(self, chain_id, role, scope_mode, nets=(), prev=None, intended=None):
         """One `kicad-route run`; returns its record (never raises for a failed run)."""
         label = f"{self.label}-{chain_id}-{role}" if role != "full" else f"{self.label}-{chain_id}"
+        budget, timeout = self.step_limits()
         argv = ["run", "--backend", self.args.backend, *self.input_argv(prev), *scope_args(self.args, scope_mode, nets),
-                *self.common_argv(), "--label", label]
+                *self.common_argv(budget), "--label", label]
         log(f"[campaign] {chain_id}: {role} pass ({self.describe_scope(scope_mode, nets)}) on "
-            + ("the original input" if prev is None else f"the candidate of {prev['run_dir']}"))
-        rec, text = self.invoke(argv, label)
-        rec.update(role=role, label=label, on="input" if prev is None else "previous candidate")
+            + ("the original input" if prev is None else f"the candidate of {prev['run_dir']}")
+            + (f"; budget cut to {budget} s (total budget left)" if budget < self.args.budget else ""))
+        rec, text = self.invoke(argv, label, timeout)
+        rec.update(role=role, label=label, on="input" if prev is None else "previous candidate", budget_s=budget)
         if scope_mode == "only":
             rec["nets"] = sorted(nets)
         elif scope_mode == "rest" and nets:
@@ -268,6 +366,8 @@ class Campaign:
         if attempt is None or result is None:
             tail = [l for l in text.splitlines() if l.strip()][-5:]
             rec.update(status="error", error="; ".join(tail) or f"exit {rec['exit_code']}")
+            if rec["timed_out"]:
+                rec["error"] = f"stopped at the campaign's timeout ({rec['timeout_s']} s) before a result"
             log(f"[campaign] {chain_id}: {role} pass did not produce a result: {rec['error']}")
             return rec
         rt, v = result["routing"], result["validation"]
@@ -303,12 +403,15 @@ class Campaign:
             by = "run"
         else:
             rec, text = self.invoke(["validate", str(self.path(end["run_dir"])), "--against",
-                                     str(self.path(first["run_dir"]))], f"{self.label}-{chain['id']}-validate")
+                                     str(self.path(first["run_dir"]))], f"{self.label}-{chain['id']}-validate",
+                                    self.validate_timeout())
             m = next((VALIDATE_LINE.match(l) for l in text.splitlines() if VALIDATE_LINE.match(l)), None)
             chain["validate"] = rec
             if not m:
-                chain.update(status="error", error="validate --against produced no result: "
-                             + "; ".join([l for l in text.splitlines() if l.strip()][-3:]))
+                chain.update(status="error", error=(
+                    f"validate --against stopped at the campaign's timeout ({rec['timeout_s']} s)"
+                    if rec["timed_out"] else "validate --against produced no result: "
+                    + "; ".join([l for l in text.splitlines() if l.strip()][-3:])))
                 return
             res_path = self.path(m.group(1)) / "result.json"
             by = "validate --against"
@@ -396,7 +499,11 @@ class Campaign:
         else:
             log(f"[campaign] round 0: {len(plans)} chains in parallel")
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(plans)) as pool:
-                chains = list(pool.map(lambda p: self.run_chain(p[0], 0, p[1], p[2]), plans))
+                try:
+                    chains = list(pool.map(lambda p: self.run_chain(p[0], 0, p[1], p[2]), plans))
+                except BaseException:   # interrupted: stop the lanes, or shutdown would wait for them
+                    self.stop_all()
+                    raise
         r0 = chains[0]["steps"][0] if chains[0]["steps"] else None
         if r0 and r0["status"] == "ok":
             self.fingerprint = self.fingerprint or r0["input_fingerprint"]
@@ -423,7 +530,8 @@ class Campaign:
         if any(c["status"] == "input_changed" for c in self.chains):
             self.stop_reason = "input changed during the campaign"
         elif not graded:
-            self.stop_reason = "round 0 produced no gradable candidate"
+            self.stop_reason = "round 0 produced no gradable candidate" + (
+                " (total budget reached)" if self.out_of_time() else "")
         elif any(c["grade"]["routing"]["status"] == "COMPLETE" for c in graded):
             self.stop_reason = "complete in round 0"
         rnd = 0
@@ -471,8 +579,11 @@ class Campaign:
             "scope": {"net_patterns": a.nets or [], "netclasses": a.netclass or [],
                       "nets": len(self.scope) if self.scope is not None else None},
             "settings": {"rounds": a.rounds, "race": a.race, "total_budget_s": a.total_budget,
-                         "per_run": self.common_argv()},
+                         "per_run": self.common_argv(),
+                         "timeouts": {"grade_allowance_s": GRADE_ALLOWANCE_S if a.total_budget else None,
+                                      "hang_allowance_s": None if a.total_budget else HANG_ALLOWANCE_S}},
             "rounds": self.rounds, "backlog_evolution": self.backlog_history, "chains": self.chains,
+            "timeouts": list(self.timeouts),
             "leaderboard": leaderboard(self.chains), "stop_reason": self.stop_reason,
             "best": None if best is None else {
                 "chain": best["id"], "round": best["round"], "strategy": best["strategy"],
@@ -514,6 +625,9 @@ def render(rec):
              f"- Scope: {rec['scope']['nets']} nets; rounds {rec['settings']['rounds']}, race {rec['settings']['race']}"
              f", total budget {rec['settings']['total_budget_s'] or 'none'}",
              f"- Stop: {rec['stop_reason'] or 'running'}"]
+    if rec.get("timeouts"):
+        stopped = ", ".join(f"`{t['log']}` ({t['timeout_s']} s)" for t in rec["timeouts"])
+        lines.append(f"- Stopped at a timeout: {stopped}")
     if rec["best"]:
         b = rec["best"]
         lines += [f"- Best: chain `{b['chain']}` (exit {b['exit_code']}), run `{b['run_dir']}`",
@@ -548,4 +662,12 @@ def main(args, cli):
         sys.exit("--backend-env takes KEY=VALUE")
     if args.rounds < 0:
         sys.exit("--rounds must be 0 or more")
-    return Campaign(args, cli).execute()["exit_code"]
+    c = Campaign(args, cli)
+    previous = signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # steps run in their own sessions
+    try:
+        return c.execute()["exit_code"]
+    except BaseException:
+        c.stop_all()
+        raise
+    finally:
+        signal.signal(signal.SIGTERM, previous)
