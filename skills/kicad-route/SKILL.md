@@ -74,6 +74,13 @@ first.
   - `--protect existing` (default): all input copper must survive.
   - `--protect locked`: only locked copper must survive, and KRT may rip up unlocked
     copper.
+  - `--protect human`: in a `--dir` chain, only the designer's copper (the first run's
+    input) is protected; copper earlier kicad-route steps placed may be ripped up and
+    rerouted by KRT. On a non-candidate input it equals `existing` (docs/provenance.md).
+- **Thermal spokes:** `--reserve-spokes [N]` keeps new tracks and vias out of N
+  spoke corridors per zone-connected pad while routing; the corridors are removed
+  before grading (docs/spokes.md). `kicad-route spokes <run>` names the new copper
+  that starved each pad.
 - **Tightening:**
   - `--default-clearance MM` (Default net class, both backends).
   - `--clearance-margin MM` (Freerouting only).
@@ -119,7 +126,8 @@ Also read:
 - **Preservation:** `validation.preservation` covers `project_files`,
   `board_outline`, `layers`, `stackup`, `board_setup`, `nets_and_netclasses`,
   `pad_connectivity`, `footprints`, `zones`, `keepouts`, `copper_graphics`,
-  `protected_copper`, `new_copper_netclass_geometry`, `routing_scope` and
+  `protected_copper`, `new_copper_netclass_geometry`, `routing_scope`,
+  `net_completion` (no net that was connected in the input may be disconnected) and
   `pour_integrity` (pad fill contact, thermal spokes, islands; `validate/pour-integrity.json`). Details are
   in `validate/preservation.json`.
 - **Routing details:** `routing.unrouted_nets` and `routing.stats` (new tracks,
@@ -147,7 +155,9 @@ Also read:
 | `process FAIL` "exceeded the … budget" (KRT) | larger `--budget`, or `--backend-env KICAD_NET_RESCUE=0` to skip the long rescue search. If plane nets are what runs long, use `--backend-env KICAD_PLANE_FINALIZE=0` and plan the planes separately |
 | Freerouting INCOMPLETE at SMD pads or plane connections | `--backend-arg=--router.fanout.enabled=true`. Fanout is off by default because it can neck traces to 3/4–1/2 width; `new_copper_netclass_geometry` catches that if it happens |
 | `via_dangling` / `track_dangling` new | Freerouting left fanout stubs on a net it could not finish. Treat it as incomplete routing, and retry as above or with the other backend |
-| `starved_thermal` new | new tracks crowd the thermal spokes of a zone-connected pad. It's a design call (stitching via beside the pad, or a different layer); never lower `min_resolved_spokes` |
+| `starved_thermal` new | new tracks crowd the thermal spokes of a zone-connected pad. Retry with `--reserve-spokes`; `kicad-route spokes <run>` names the cutting tracks. A stitching via is a design call for a person; never lower `min_resolved_spokes` |
+| `net_completion` FAIL | the candidate disconnected a net that was connected in its input (with `--protect human`, KRT ripped agent copper and did not finish it). Do not adopt; route that net first or use `--protect existing` |
+| finishing leftovers on a candidate routes nothing (all copper locked) | `--protect human` lets KRT reroute copper earlier steps placed, or let `kicad-route campaign` reorder the work |
 | `pour_integrity` FAIL | new copper damaged a pour: `isolated_island` (a pad cut off from its net's main pour), `lost_fill_contact`, `spokes_below_minimum`, or `area_loss` (only with `--pour-area-loss`). Read `validate/pour-integrity.json` for the pads and islands. Retry with the cutting nets kept off that layer near the pads (another backend, or a `--nets` scope that routes them separately); a stitching via is a design call for a person. Never lower `min_resolved_spokes`. `--pour-min-spokes N` and `--pour-area-loss PCT` only tighten |
 | `protected_copper` / `footprints` / `zones` FAIL | backend or bridge defect. Report it with the run directory; do not adopt the candidate |
 | `new_copper_netclass_geometry` FAIL | the backend narrowed a conductor below its net class. Do not adopt; report the KRT/Freerouting version |

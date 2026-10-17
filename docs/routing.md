@@ -150,9 +150,11 @@ From `kicad/facts.py` (KiCad's own loader; serialisation differences do not coun
 | `zones` | outline, net, layers, priority, clearance, thermal and fill settings (fill polygons are regenerated) |
 | `keepouts` | rule-area outlines, layers and restrictions |
 | `copper_graphics` | non-track copper shapes and text |
-| `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation); designated = locked items, or all input copper with `--protect existing` |
+| `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation); designated = locked items, plus all input copper with `--protect existing`, or the chain's human copper with `--protect human` ([`provenance.md`](provenance.md)) |
 | `new_copper_netclass_geometry` | every new track at least its net class width, every new via at least its class diameter and drill |
 | `routing_scope` | new copper only on in-scope nets |
+| `net_completion` | every net fully connected in the input is still connected in the candidate (the completion ratchet; all protect modes) |
+| `existing_unlocked_copper` | with `--protect locked`/`human`: how much unlocked input copper was removed or changed (informational, always PASS) |
 | `pour_integrity` | the refilled candidate's pours against the refilled input's: no zone-connected pad loses fill contact, drops below `min_resolved_spokes` or lands on an island cut off from its net's main pour; area loss reported (fails only with `--pour-area-loss PCT`). See [`pour.md`](pour.md) |
 
 Protected copper across formats: KiCad exports locked tracks/vias as Specctra
@@ -304,6 +306,21 @@ also publishes it to `reports/fixture/`: per-test records, junit, and for each a
 - `audit` of a commit that lowers a rule and moves a part flags the rule change, grades
   the new board under the parent's rules and lists the footprint change;
 - the source fixture is byte-identical after the whole run.
+
+## Extensions
+
+Each has its own page; all are graded by the same native checks above and none
+relaxes a rule.
+
+| Feature | Entry point | Page |
+|---|---|---|
+| Hard-nets-first campaigns | `kicad-route campaign` | [`campaign.md`](campaign.md) |
+| Thermal-spoke corridor reservation and spoke-cut attribution | `run --reserve-spokes [N]`, `kicad-route spokes` | [`spokes.md`](spokes.md) |
+| Copper provenance and the completion ratchet | `run --protect human`, check `net_completion` | [`provenance.md`](provenance.md) |
+| Blocked-by receipts and rip-up ranking | `routing.blocked_by`, `kicad-route blocked` | [`blocked.md`](blocked.md) |
+| Pour integrity | check `pour_integrity`, `--pour-area-loss`, `--pour-min-spokes` | [`pour.md`](pour.md) |
+| Rule high-water mark and declared floor | `kicad-route floor`, `audit`, `run` pre-flight | [`floor.md`](floor.md) |
+| Stall watchdog, run ledger, net-name canary, real-board corpus | `--stall`, `--force`, `--canary`, `kicad-route canary`, `kicad-route corpus` | [`hygiene.md`](hygiene.md) |
 
 ## Auditing a committed board change
 

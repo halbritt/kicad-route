@@ -44,7 +44,12 @@ kicad-route run --backend freerouting --nets "/CAN*" --clearance-margin 0.01
 kicad-route run --backend krt --rev HEAD --budget 1500 # route the committed state
 kicad-route validate build/kicad-route/runs/<project>/<label>/latest
 kicad-route compare <run_dir> <run_dir>
+kicad-route run --backend krt --reserve-spokes         # keep new copper off thermal-spoke corridors
+kicad-route run --backend krt --dir <run>/candidate/<project> --protect human
+                                                       # continue a chain; earlier agent copper may be rerouted
 kicad-route campaign --backend krt --rounds 2          # hard nets first, best chain graded vs the input
+kicad-route blocked <run_dir>                          # what lies across each open connection
+kicad-route spokes <run_dir>                           # which new copper starved which thermal pad
 kicad-route audit --old HEAD~1                         # grade the last commit's board change
 kicad-route floor                                      # rules looser than their high-water mark / declared floor
 ```
@@ -75,6 +80,10 @@ route:
 - [`docs/hygiene.md`](docs/hygiene.md) — run hygiene: `--stall` progress watchdog,
   the run ledger (exit 4 on an exact repeat of a failed attempt), the awkward-net-name
   canary, and the real-board `corpus` gate that `update` runs.
+- [`docs/spokes.md`](docs/spokes.md) — `--reserve-spokes`: temporary keepouts on thermal-spoke
+  corridors while routing (removed before grading), and `kicad-route spokes` attribution.
+- [`docs/provenance.md`](docs/provenance.md) — `--protect human`: in a `--dir` chain only the
+  designer's copper is protected, and the `net_completion` ratchet.
 - [`docs/pour.md`](docs/pour.md) — the `pour_integrity` check: pad fill contact, thermal
   spokes and pour islands compared between the refilled input and candidate.
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
