@@ -207,9 +207,13 @@ def test_canary_split_unit():
     assert canary.check_split_unit()["status"] == common.PASS
 
 
-def test_canary_split_fails_without_quote_aware_find_open(monkeypatch):
-    """The parenthesised-name bug, reverted: the canary must catch it."""
-    monkeypatch.setattr(specctra, "find_open", lambda text, start: text.find("(", start))
+def test_canary_split_fails_without_quote_aware_spellings(monkeypatch):
+    """The parenthesised-name bug, reverted (a member list ends at the first `(`,
+    as with a plain text.find("(")): the canary must catch it."""
+    import re
+    monkeypatch.setattr(specctra, "spellings",
+                        lambda text, i, *_: [(m.end(), m.group())] if (m := re.compile(r"[^\s(]+").match(text, i))
+                        else [])
     res = canary.check_split_unit()
     assert res["status"] == common.FAIL
     assert any("Net-(BT1-+)" in p for p in res["problems"]), res["problems"]
