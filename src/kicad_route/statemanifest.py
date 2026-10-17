@@ -169,7 +169,7 @@ def pcbnew_build_version():
 def kicad_route_identity():
     root = common.TOOL_ROOT
     status = common.git(root, "status", "--porcelain", "--untracked-files=no")
-    return {"version": common.git(root, "describe", "--tags", "--always", "--dirty"),
+    return {"version": common.git_describe(root),  # describe --dirty would take the index lock
             "commit": common.git(root, "rev-parse", "HEAD"),
             "dirty": bool(status) if status is not None else None}
 

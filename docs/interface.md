@@ -46,8 +46,20 @@ jsonschema.Draft202012Validator(schema).validate(json.load(open(run_dir + "/resu
 - **Never interactive.** No command prompts or reads stdin, and none checks for a
   terminal. A future change that needs a confirmation adds a flag instead.
 - **Network.** Only `update` (backend downloads) and the `doctor` latest-release checks
-  use the network. Routing attempts run offline: Freerouting's update check goes to a
-  dead proxy (routing.md, "What the adapters switch off").
+  use the network; `doctor --offline` skips those checks and opens no socket. Routing
+  attempts run offline: Freerouting's update check goes to a dead proxy (routing.md,
+  "What the adapters switch off").
+- **Sandboxed callers.** `doctor --json --offline` lists in its `sandbox` block the
+  read-only mounts, the writable OUT, the environment and the network a sandbox must
+  provide; `--require-readonly-state` refuses (`state`) unless STATE is read-only and
+  matches its manifest; `result.json` `sandbox` records what the run saw. Details and
+  the agent-ee launch: [sandbox.md](sandbox.md).
+- **The ledger in a sandbox.** The run ledger (exit 4 on an identical failed attempt)
+  is `OUT/ledger.jsonl` unless `run`/`campaign` get `--ledger PATH`. A caller that
+  gives every stage a fresh OUT chooses one of: pass a persistent, writable
+  `--ledger PATH` (recorded as `ledger.path`; repeats stay refused across stages), or
+  accept that repeats are not refused inside the sandbox and keep that accounting
+  itself. kicad-route supports both; agent-ee records its choice.
 - **Paths in records** are relative to the caller's working directory when they lie
   inside it, else absolute (`common.rel`). Resolve them against the directory you ran
   kicad-route from.
@@ -122,7 +134,7 @@ input errors, the ledger and the canary pre-flight.
 | `input` | the project, run or revision named is not usable: `--dir` is not a directory, not exactly one board, `--rev` outside a git repository or not a commit, the board has no `.kicad_pro` of its own name (KiCad would grade with its defaults; `run` and `audit`), the input board cannot be read, the net selection matches no nets or would not mean what it says (`--nets '!RESET'` on a board with a net named `!RESET`), `validate`/`blocked`/`spokes`/`barrier`/`compare`/`publish` given something that is not a run, `blocked --board` given something that is not a board, a `validate --against` chain that does not descend from the origin, `floor` outside a git repository |
 | `ledger` | the run ledger has this exact attempt already failed (`--force` repeats it; docs/hygiene.md) |
 | `canary` | `run --canary` and the awkward-net-name canary failed |
-| `state` | kicad-route's own state is in the way: `--run-dir` exists, the corpus entry exists |
+| `state` | kicad-route's own state is in the way: `--run-dir` exists, the corpus entry exists; with `--require-readonly-state` (or `KICAD_ROUTE_REQUIRE_READONLY_STATE=1`) the state directory is missing, holds no backend, is not the directory its `manifest.json` describes or has drifted from it, or is writable, and `update` / `corpus add` (which write it) refuse ([sandbox.md](sandbox.md)) |
 
 The record (`schemas/refusal-1.json`):
 

@@ -15,6 +15,7 @@ and the hermetic KiCad configuration go. Programs use the machine interface in
 
 ```sh
 kicad-route doctor                                   # readiness, versions, capabilities
+kicad-route doctor --json --offline                  # the same as one JSON record, no network (docs/sandbox.md)
 kicad-route run --backend krt                        # route the project in . (a copy), 300 s budget
 kicad-route run --backend freerouting --clearance-margin 0.01
 kicad-route run --backend krt --rev HEAD --nets "/CAN*" --budget 600
@@ -383,7 +384,9 @@ outcome, different candidate bytes).
   verification and fab package as separately verified stages; routing is a
   `kicad-route run` or `campaign` that agent-ee executes as a sandboxed writer. It
   routes a copy, returns a candidate and a `result.json`, and agent-ee captures both
-  as evidence. What that needs from kicad-route (a versioned result contract,
+  as evidence. The sandbox (no network, read-only STATE and project, one writable
+  `--out`) and what kicad-route reports and checks for it are in
+  [sandbox.md](sandbox.md). What that needs from kicad-route (a versioned result contract,
   hashes, read-only state, offline operation) is tracked in Plane KICADROUTE under
   the `generator` label.
 - **KRT is the default backend; Freerouting runs are attempts, not measurements**
@@ -497,6 +500,7 @@ relaxes a rule.
 | Pour integrity | check `pour_integrity`, `--pour-area-loss`, `--pour-min-spokes` | [`pour.md`](pour.md) |
 | Rule high-water mark and declared floor | `kicad-route floor`, `audit`, `run` pre-flight | [`floor.md`](floor.md) |
 | Stall watchdog, run ledger, net-name canary, real-board corpus | `--stall`, `--force`, `--canary`, `kicad-route canary`, `kicad-route corpus` | [`hygiene.md`](hygiene.md) |
+| Sandboxed runs: required mounts, read-only state, persistent ledger | `doctor --json --offline`, `--require-readonly-state`, `--ledger PATH`, result `sandbox` | [`sandbox.md`](sandbox.md) |
 
 ## Auditing a committed board change
 

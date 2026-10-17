@@ -42,6 +42,7 @@ first.
 | Command | What it does |
 |---|---|
 | `kicad-route doctor` | Readiness, versions and capabilities of both backends (`OUT/doctor/doctor.json`) |
+| `kicad-route doctor --json --offline [--no-canary]` | The same record on stdout (schema `kicad-route/doctor/1`, logs on stderr), with no network; its `sandbox` block lists the read-only mounts, writable OUT, environment and network a sandbox must provide (`docs/sandbox.md`) |
 | `kicad-route run --backend krt\|freerouting [options]` | One attempt; prints the run directory and exits with its verdict |
 | `kicad-route validate <run_dir>` | Re-grade a candidate (e.g. after hand edits) into `<run_dir>/revalidate/<stamp>/` |
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
@@ -130,6 +131,16 @@ records them; one shared definition):
     that already failed (exit 4, naming the earlier run). Change something, or
     pass `--force`.
   - `--canary` runs the awkward-net-name canary first.
+- **Sandbox** (docs/sandbox.md):
+  - `--require-readonly-state` (or `KICAD_ROUTE_REQUIRE_READONLY_STATE=1`) refuses
+    with exit 4 (`reason_class: state`) before routing when the state directory
+    (`$KICAD_ROUTE_STATE`) is missing, holds no backend, is not the directory its
+    `manifest.json` describes (or has drifted from it), or is writable. `update` and
+    `corpus add` refuse under it.
+  - `--ledger PATH` keeps the run ledger outside OUT, so repeat refusal survives a
+    fresh OUT per stage.
+  - `result.json` `sandbox` records the network namespace (isolated or not), the
+    state directory's writability and the flag.
 
 ## Reading a result
 
@@ -152,7 +163,8 @@ Exit codes:
   board, a net selection matching nothing, or a board with no `.kicad_pro` of its own
   name (KiCad would load none of its rules; `audit` refuses the same way), `ledger`
   for an identical attempt that already failed, `canary` for a failed `--canary`,
-  `state` for an existing `--run-dir`). Fix the command or the input; a refusal is
+  `state` for an existing `--run-dir`, or under `--require-readonly-state` a state
+  directory that is writable, missing or not the one its manifest describes). Fix the command or the input; a refusal is
   never a routing verdict.
 
 Provenance, for recording a run as evidence:
