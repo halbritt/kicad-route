@@ -12,6 +12,7 @@ input's unchanged constraints.
     kicad-route campaign --backend krt|freerouting [run options] [--rounds N] [--race K] [--total-budget S]
                                           hard-nets-first campaign of runs; best chain graded vs the input
     kicad-route compare RUN_DIR ...       compare candidates routed from the same input
+    kicad-route blocked RUN_DIR [--top N] which obstacles lie across the connections left open
     kicad-route audit --old REV --new REV [--dir D]
                                           grade a committed board change against its parent
     kicad-route floor [--dir D] [--since REV] [--write-declared]
@@ -59,6 +60,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import blocked
 from . import common
 from . import floor
 from . import skills
@@ -606,6 +608,8 @@ def validate(run_dir, out_dir=None, origin=None):
             v["reasons"].append(f"preservation {c['check']}: {c['detail']}")
     v["status"] = FAIL if v["reasons"] else PASS
     routing["stats"] = stats
+    if routing["status"] == INCOMPLETE:  # diagnosis only: what lies across the open connections
+        routing["blocked_by"] = blocked.write_report(out_dir, cand, cand_facts, ref_facts, scope, rel=common.rel)
     return v, routing
 
 
@@ -752,6 +756,7 @@ def render_result(r):
                   "```json", json.dumps(r["validation"]["drc"], indent=1), "```", ""]
     if r["unsupported"]:
         lines += ["Unsupported or approximated by this backend:", ""] + [f"- {u}" for u in r["unsupported"]] + [""]
+    lines += blocked.render_md(r["routing"].get("blocked_by"))
     if r["routing"].get("stats"):
         lines += ["Route statistics:", "", "```json", json.dumps(r["routing"]["stats"], indent=1), "```"]
     return "\n".join(lines) + "\n"
@@ -1591,6 +1596,18 @@ def cmd_validate(args):
     return rec["exit_code"]
 
 
+def cmd_blocked(args):
+    s = blocked.recompute(args.run_dir, args.top, rel=common.rel, render=render_result)
+    if s is None:
+        log("[blocked] no unconnected items in scope: nothing is blocked")
+    elif s.get("error"):
+        log(f"[blocked] diagnosis failed: {s['error']}")
+        return 1
+    else:
+        log("\n".join(blocked.render_md(s)).rstrip())
+    return 0
+
+
 def add_input_args(p, rev=True):
     p.add_argument("--dir", default=".", help="KiCad project directory (default: the current directory)")
     p.add_argument("--board", help="board file name inside --dir (default: its only .kicad_pcb)")
@@ -1637,6 +1654,9 @@ def main(argv=None):
     vp.add_argument("run_dir")
     vp.add_argument("--against", metavar="ORIGIN_RUN",
                     help="grade against an earlier run's input (the start of a --dir chain) instead of this run's")
+    bp = sub.add_parser("blocked", help="(re)compute the blocked-by receipts of an incomplete run")
+    bp.add_argument("run_dir", help="a run directory, or one of its validate/ or revalidate*/<stamp>/ directories")
+    bp.add_argument("--top", type=int, default=10, help="blockers listed in the summary (default 10)")
     cp = sub.add_parser("compare", help="compare candidates routed from the same input")
     cp.add_argument("run_dirs", nargs="+")
     au = sub.add_parser("audit", help="grade a committed board change against its parent revision")
@@ -1678,6 +1698,8 @@ def main(argv=None):
     if a.cmd == "floor":
         cfg = resolve_input(argparse.Namespace(**{**vars(a), "rev": None}))
         return floor.floor_command(cfg, a.since, a.write_declared, a.netclass_sizes)
+    if a.cmd == "blocked":
+        return cmd_blocked(a)
     if a.cmd == "publish":
         run_dir = Path(a.run_dir).resolve()
         r = load_json(run_dir / "result.json")

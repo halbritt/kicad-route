@@ -18,6 +18,7 @@ kicad-route run --backend krt --rev HEAD --nets "/CAN*" --budget 600
 kicad-route validate <run_dir>                       # re-grade a candidate (e.g. after hand edits)
 kicad-route validate <last step> --against <first run>   # grade a --dir chain vs the original input
 kicad-route compare <run_dir> <run_dir>
+kicad-route blocked <run_dir>                        # what blocks the open connections (docs/blocked.md)
 kicad-route audit --old HEAD~1 --new HEAD            # grade a committed board change against its parent
 kicad-route floor                                    # rule high-water mark and declared floor (docs/floor.md)
 kicad-route publish <run_dir> --to reports/routing   # structured evidence for committing
@@ -105,8 +106,9 @@ independent results:
   (missing install, crash, budget exceeded, bridge failure) otherwise.
 - **routing** — COMPLETE / INCOMPLETE from KiCad's unconnected items on in-scope nets in
   the refilled candidate, with `unrouted_nets` and route statistics (new tracks, vias,
-  length per layer, removed copper). Backend self-reports are kept under
-  `process.backend_report`, not used for the verdict.
+  length per layer, removed copper). When INCOMPLETE, `blocked_by` summarises what lies
+  across the open connections (`validate/blocked-by.json`, [blocked.md](blocked.md)).
+  Backend self-reports are kept under `process.backend_report`, not used for the verdict.
 - **validation** — PASS when native DRC has no new violations or parity issues relative
   to the input, parity actually ran, the graded file is the delivered file, and every
   preservation check passes.

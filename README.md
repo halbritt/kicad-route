@@ -70,6 +70,8 @@ route:
   backlog rounds, ranking, race orderings.
 - [`docs/floor.md`](docs/floor.md) — rule high-water mark and the declared rule floor
   (`<board>.rules-floor.json`) used by `floor`, `audit` and the `run` pre-flight.
+- [`docs/blocked.md`](docs/blocked.md) — blocked-by receipts for incomplete runs: what
+  lies across each open connection, and a rip-up ranking (`kicad-route blocked`).
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`).

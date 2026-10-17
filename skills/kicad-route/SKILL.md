@@ -44,6 +44,7 @@ first.
 | `kicad-route validate <run_dir>` | Re-grade a candidate (e.g. after hand edits) into `<run_dir>/revalidate/<stamp>/` |
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
 | `kicad-route campaign --backend krt\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`) |
+| `kicad-route blocked <run_dir>` | (Re)compute the blocked-by receipts of an incomplete run or re-grade (`validate/blocked-by.json`) |
 | `kicad-route compare <run_dir> …` | Side-by-side table; refuses to call different inputs comparable |
 | `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits, the rule floor |
 | `kicad-route floor [--write-declared]` | Rules looser than their git high-water mark or the declared floor `<board>.rules-floor.json` (`OUT/floor/<project>/floor.json`) |
@@ -108,6 +109,11 @@ Also read:
   in `validate/preservation.json`.
 - **Routing details:** `routing.unrouted_nets` and `routing.stats` (new tracks,
   vias, length).
+- **What blocks the open connections:** `routing.blocked_by` (when INCOMPLETE). It
+  lists the top blockers by how many open connections they block, by category:
+  `keepout`, `input_copper`, `new_copper`, `footprint` and `board_edge`. It also gives
+  each net's least obstructed layer. Details are in `validate/blocked-by.json`. It is
+  a straight/L-corridor heuristic: use it as a pointer, not a proof (`docs/blocked.md`).
 - **`unsupported`:** constraints the backend could not see. KiCad still grades them.
 - **Backend reports:** `process.backend_report` holds KRT's relaxations ledger and
   Freerouting's incomplete count.
@@ -120,6 +126,9 @@ Also read:
 |---|---|
 | new `clearance` violations naming a `.kicad_dru` rule, rule listed in `unsupported` | `--default-clearance <rule value>`. For Freerouting, class-to-class rules are already translated; add `--clearance-margin 0.01` for micrometre misses |
 | `routing INCOMPLETE`, `unrouted_nets` few | larger `--budget`, or Freerouting `--passes 100`. Route the hard nets first with `--nets` **on the original input**, then continue from that candidate with `--dir <run>/candidate/<project>`. Finishing them *after* everything else rarely works because existing copper is locked. Grade the end with `validate <last> --against <first>`. `kicad-route campaign` does all of this |
+| `blocked_by` top blockers are `new_copper` | the backend's own copper is in the way: route the blocked nets first (`--nets`) on the original input, then the rest |
+| `blocked_by` top blockers are `input_copper` | existing copper is in the way. If it is unlocked, `--protect locked` lets KRT move it. If it is locked, ask the owner; never unlock it yourself |
+| `blocked_by` top blocker is a `keepout` on every layer | the keepout separates the endpoints. Report it as a design issue; never edit the keepout |
 | `process FAIL` "exceeded the … budget" (KRT) | larger `--budget`, or `--backend-env KICAD_NET_RESCUE=0` to skip the long rescue search. If plane nets are what runs long, use `--backend-env KICAD_PLANE_FINALIZE=0` and plan the planes separately |
 | Freerouting INCOMPLETE at SMD pads or plane connections | `--backend-arg=--router.fanout.enabled=true`. Fanout is off by default because it can neck traces to 3/4–1/2 width; `new_copper_netclass_geometry` catches that if it happens |
 | `via_dangling` / `track_dangling` new | Freerouting left fanout stubs on a net it could not finish. Treat it as incomplete routing, and retry as above or with the other backend |
