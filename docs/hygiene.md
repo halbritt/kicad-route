@@ -70,6 +70,57 @@ leg takes about 13 s; it grows with the board and its pours. `--stall` is a way
 to give up on a hopeless search sooner than `--budget`. It is not a substitute
 for the budget.
 
+### Process groups
+
+Each backend starts as the leader of its own session and process group
+(`src/kicad_route/procgroup.py`). The KRT interpreter, the Freerouting JVM and
+everything they start (kicad-cli refills, helpers, shell wrappers) are in that
+group:
+
+- A budget or stall kill sends SIGTERM to the whole group. After 10 s, if the
+  leader has not exited, it sends SIGKILL to the whole group.
+- When the leader exits, by itself, at the stop file or by the kill, processes
+  that are still in the group get SIGTERM, then SIGKILL after 5 s. Their pids
+  go in the command record as `leftover_children_killed`.
+- If `run_budgeted` is interrupted (Ctrl-C, an error while it waits), it kills
+  the group before it re-raises. A new session does not get the terminal's
+  SIGINT, so this step is necessary.
+
+A process that starts its own session (`setsid`) leaves the group, and this
+does not cover it. KRT and Freerouting do not do that.
+
+### Budget overrun
+
+KRT checks `KICAD_STOP_FILE` in one place only: between nets of its main
+single-ended pass (`py_router/single_ended_loop.py`). When it stops there, it
+skips every later pass and writes the board as it stood. The passes after the
+main loop do not look at the stop file. These are the reroute loop,
+multi-point Phase 3, net rescue, terminal escalation, the plane finalize and
+the final reconciliation. In CLI mode KRT passes no `cancel_check` to them. A
+stop requested during one of these passes therefore has no effect. The kill at
+the end of the grace period is what ends the run:
+
+| Stop reason | Grace before SIGTERM | Worst-case time after the stop |
+|---|---|---|
+| budget | `max(30, budget // 5)` s | grace + 10 s |
+| `--stall S` | `min(max(30, budget // 5), max(15, S))` s | grace + 10 s |
+
+A killed KRT writes no board, so the result is process FAIL with no
+candidate. Each command record has `stop_s` (when the stop was requested) and
+`stop_to_exit_s` (how long the backend ran after it). The kill reason names
+the pass that ignored the stop and its kill switch:
+
+- net rescue: `--backend-env KICAD_NET_RESCUE=0`
+- plane finalize, its oracle rechecks and the final reconciliation:
+  `--backend-env KICAD_PLANE_FINALIZE=0` (plan the planes separately)
+
+kicad-route does not set these switches itself, also not with `--stall` or a
+short `--budget`. Turning off a pass changes the attempt (and its ledger key).
+The rescue is also where `--stall` usually finds the hopeless searches. Neither
+switch relaxes a rule: with the switch set, KRT does less work, and KiCad still
+grades the result against the input's rules. Use the switches when the time
+limit matters more than what the pass could recover.
+
 ## Run ledger
 
 Every finished attempt appends one line to `OUT/ledger.jsonl`. Each line holds:
