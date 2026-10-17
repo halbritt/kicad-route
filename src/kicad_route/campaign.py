@@ -183,10 +183,7 @@ class Campaign:
         self.dir = common.out_dir() / "campaigns" / self.project / self.label / \
             common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ")
         self.dir.mkdir(parents=True)
-        latest = self.dir.parent / "latest"
-        if latest.is_symlink() or latest.exists():
-            latest.unlink()
-        latest.symlink_to(self.dir.name)
+        common.point_latest(self.dir.parent / "latest", self.dir.name)
         self.started = time.monotonic()
         self.deadline = self.started + args.total_budget if args.total_budget else None
         self.cwd = Path.cwd()
