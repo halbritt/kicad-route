@@ -321,6 +321,9 @@ def geometry_points(t):
 
 
 def same_copper(a, b, tol):
+    """Same conductor within tol: kind, layer(s), net, via type, size and geometry.
+    A track's start and end may come back swapped (an arc keeps its mid point), so
+    both orientations are accepted; facts.py also writes them in canonical order."""
     keys = ("kind", "layer", "net") if "layer" in a else ("net", "layers", "via_type")
     if any(a.get(k) != b.get(k) for k in keys):
         return False
@@ -330,27 +333,29 @@ def same_copper(a, b, tol):
     pa, pb = geometry_points(a), geometry_points(b)
     if len(pa) != len(pb):
         return False
-    return all(abs(p[0] - q[0]) <= tol and abs(p[1] - q[1]) <= tol for p, q in zip(pa, pb))
+
+    def close(pts):
+        return all(abs(p[0] - q[0]) <= tol and abs(p[1] - q[1]) <= tol for p, q in zip(pa, pts))
+    return close(pb) or ("start" in b and "end" in b and close(pb[::-1]))
 
 
 def match_copper(ref_items, cand_items, tol=GEOMETRY_TOLERANCE_NM):
     """Pair reference copper with candidate copper by geometry (UUIDs do not survive
-    every backend). Returns (matched pairs, unmatched reference, unmatched candidate)."""
+    every backend). Returns (matched pairs, unmatched reference, unmatched candidate).
+    Items may carry `locked`: among equal geometric matches one with the same lock
+    state is preferred, so identical copper does not pair a locked item with an unlocked one."""
     pool = collections.defaultdict(list)
     for i, c in enumerate(cand_items):
         pool[(c.get("net"), c.get("layer") or tuple(c.get("layers", [])))].append(i)
     used, pairs, missing = set(), [], []
     for r in ref_items:
         hit = None
-        for i in pool[(r.get("net"), r.get("layer") or tuple(r.get("layers", [])))]:
-            if i not in used and same_copper(r, cand_items[i], 0):
-                hit = i
+        order = sorted(pool[(r.get("net"), r.get("layer") or tuple(r.get("layers", [])))],
+                       key=lambda i: cand_items[i].get("locked") != r.get("locked"))
+        for t in (0, tol):
+            hit = next((i for i in order if i not in used and same_copper(r, cand_items[i], t)), None)
+            if hit is not None:
                 break
-        if hit is None:
-            for i in pool[(r.get("net"), r.get("layer") or tuple(r.get("layers", [])))]:
-                if i not in used and same_copper(r, cand_items[i], tol):
-                    hit = i
-                    break
         if hit is None:
             missing.append(r)
         else:
@@ -363,8 +368,10 @@ def match_copper(ref_items, cand_items, tol=GEOMETRY_TOLERANCE_NM):
 def max_deviation(pairs):
     dev = 0
     for a, b in pairs:
-        for p, q in zip(geometry_points(a), geometry_points(b)):
-            dev = max(dev, abs(p[0] - q[0]), abs(p[1] - q[1]))
+        pa, pb = geometry_points(a), geometry_points(b)
+        # in the orientation same_copper matched them (a track may come back reversed)
+        dev = max(dev, min(max((max(abs(p[0] - q[0]), abs(p[1] - q[1])) for p, q in zip(pa, pts)), default=0)
+                           for pts in (pb, pb[::-1])))
     return dev
 
 
@@ -394,6 +401,38 @@ def project_file_hashes(project_dir, board_name):
     return out
 
 
+PLACEMENT_KEYS = ("position", "orientation", "layer")
+
+
+def footprint_change(ref_name, a, b):
+    """One footprints-check difference: which attributes changed (by name), the
+    placement on both sides plus every changed attribute's values, and per pad
+    what changed. A footprint missing on one side has None there."""
+    rec = {"footprint": ref_name}
+    if a is None or b is None:
+        rec.update(changed=["present"], reference=None if a is None else {k: a.get(k) for k in PLACEMENT_KEYS},
+                   candidate=None if b is None else {k: b.get(k) for k in PLACEMENT_KEYS})
+        return rec
+    changed = [k for k in sorted(set(a) | set(b)) if a.get(k) != b.get(k)]
+    shown = [k for k in dict.fromkeys((*PLACEMENT_KEYS, *changed)) if k != "pads"]
+    rec.update(changed=changed, reference={k: a.get(k) for k in shown}, candidate={k: b.get(k) for k in shown})
+    if "pads" in changed:
+        pa, pb = a.get("pads") or {}, b.get("pads") or {}
+        pads = []
+        for p in sorted(set(pa) | set(pb)):
+            x, y = pa.get(p), pb.get(p)
+            if x == y:
+                continue
+            keys = ["present"] if x is None or y is None else [k for k in sorted(set(x) | set(y))
+                                                               if x.get(k) != y.get(k)]
+            whole = keys == ["present"]
+            pads.append({"pad": p, "changed": keys, "reference": x if whole else {k: x.get(k) for k in keys},
+                         "candidate": y if whole else {k: y.get(k) for k in keys}})
+        rec["pads"] = pads[:10]
+        rec["pads_changed"] = len(pads)
+    return rec
+
+
 def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, restored=(), human=None):
     checks = []
 
@@ -412,9 +451,17 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
     layer_keys = ("copper_layer_count", "enabled_layers", "copper_layers")
     lr, lc = {k: ref[k] for k in layer_keys}, {k: cand[k] for k in layer_keys}
     check("layers", lr == lc, f"{ref['copper_layer_count']} copper layers", dict_diff(lr, lc))
-    check("stackup", ref["stackup"] == cand["stackup"],
-          "explicit stackup" if ref["stackup"] else "no explicit stackup in the input (KiCad default)")
-    check("board_setup", ref["setup"] == cand["setup"], "board-file (setup) settings other than the stackup")
+    # facts.py sets "setup" to None when it cannot read the (setup) block; the stackup lives
+    # in that block, so neither can be graded then (fail closed, never None == None).
+    unread = [side for side, f in (("reference", ref), ("candidate", cand)) if f.get("setup") is None]
+    if unread:
+        why = f"the (setup) block of the {' and '.join(unread)} board could not be read: cannot be graded"
+        check("stackup", False, why)
+        check("board_setup", False, why)
+    else:
+        check("stackup", ref["stackup"] == cand["stackup"],
+              "explicit stackup" if ref["stackup"] else "no explicit stackup in the input (KiCad default)")
+        check("board_setup", ref["setup"] == cand["setup"], "board-file (setup) settings other than the stackup")
     nets_r = {n: v["netclass"] for n, v in ref["nets"].items()}
     nets_c = {n: v["netclass"] for n, v in cand["nets"].items()}
     check("nets_and_netclasses", nets_r == nets_c, f"{len(nets_r)} nets with their effective net classes",
@@ -425,10 +472,7 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
     fps_r = {r: strip(v, "value") for r, v in ref["footprints"].items()}
     fps_c = {r: strip(v, "value") for r, v in cand["footprints"].items()}
 
-    def placement(fp):  # None when the footprint is absent on that side
-        return {k: fp.get(k) for k in ("position", "orientation", "layer")} if fp is not None else None
-
-    moved = [{"footprint": r, "reference": placement(fps_r.get(r)), "candidate": placement(fps_c.get(r))}
+    moved = [footprint_change(r, fps_r.get(r), fps_c.get(r))
              for r in sorted(set(fps_r) | set(fps_c)) if fps_r.get(r) != fps_c.get(r)]
     check("footprints", not moved, f"{len(fps_r)} footprints: library id, position, orientation, side, "
           "lock state and pad geometry" + (f"; {len(moved)} differ" if moved else ""), moved[:20])
@@ -441,37 +485,44 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
           + (f" (candidate: {len(cand['rule_areas'])})" if len(cand["rule_areas"]) != len(ref["rule_areas"]) else ""),
           [] if ref["rule_areas"] == cand["rule_areas"] else
           [r for r in cand["rule_areas"] if r not in ref["rule_areas"]][:10])
-    check("copper_graphics", ref["copper_graphics"] == cand["copper_graphics"],
-          f"{len(ref['copper_graphics'])} non-track copper graphics")
+    cg_r, cg_c = ref["copper_graphics"], cand["copper_graphics"]
+    check("copper_graphics", cg_r == cg_c,
+          f"{len(cg_r)} non-track copper graphics (shapes; text and other items with content and position)"
+          + (f" (candidate: {len(cg_c)})" if len(cg_c) != len(cg_r) else ""),
+          [] if cg_r == cg_c else
+          [{"only_in": "reference", **g} for g in cg_r if g not in cg_c][:10]
+          + [{"only_in": "candidate", **g} for g in cg_c if g not in cg_r][:10])
 
     # Protected copper: locked items always; every pre-existing item with --protect existing;
     # with --protect human the items provenance.designation() names (uuids in `human`).
     def designated(item):
         return item["locked"] or protect == "existing" or (human is not None and item["uuid"] in human)
 
+    # A locked reference item must come back present AND locked: a dropped lock flag is
+    # a FAIL (the next pass, or the designer's next push-and-shove, could move it).
     out = {}
     for kind in ("tracks", "vias"):
-        rp = [strip(t, "uuid", "locked") for t in ref[kind] if designated(t)]
-        ru = [strip(t, "uuid", "locked") for t in ref[kind] if not designated(t)]
-        cand_items = [strip(t, "uuid", "locked") for t in cand[kind]]
-        pairs, missing, rest = match_copper(rp, cand_items)
+        rp = [t for t in ref[kind] if designated(t)]
+        ru = [t for t in ref[kind] if not designated(t)]
+        pairs, missing, rest = match_copper(rp, cand[kind])
         pairs_u, missing_u, extra = match_copper(ru, rest)
-        unlocked_after = sum(1 for t in ref[kind] if t["locked"]) - sum(
-            1 for t in cand[kind] if t["locked"])
-        out[kind] = {"protected": len(rp), "protected_missing": missing, "protected_max_deviation_nm":
-                     max_deviation(pairs), "unprotected_existing": len(ru),
-                     "unprotected_removed_or_changed": len(missing_u), "new": extra,
-                     "lock_flags_lost": max(unlocked_after, 0)}
+        unlocked = [strip(c, "locked") | {"reference_uuid": r.get("uuid"), "lock_flag": "dropped"}
+                    for r, c in pairs if r["locked"] and not c["locked"]]
+        out[kind] = {"protected": len(rp), "protected_missing": [strip(t, "locked") for t in missing],
+                     "protected_max_deviation_nm": max_deviation(pairs), "unprotected_existing": len(ru),
+                     "unprotected_removed_or_changed": len(missing_u),
+                     "new": [strip(t, "uuid", "locked") for t in extra],
+                     "lock_flags_lost": unlocked}
     missing = out["tracks"]["protected_missing"] + out["vias"]["protected_missing"]
     lost_locks = out["tracks"]["lock_flags_lost"] + out["vias"]["lock_flags_lost"]
     designated_what = {"locked": "locked items", "human": "locked items and human copper, see provenance.json"
                        }.get(protect, "all pre-existing copper")
-    check("protected_copper", not missing,
+    check("protected_copper", not missing and not lost_locks,
           f"{out['tracks']['protected']} tracks and {out['vias']['protected']} vias designated "
           f"({designated_what}); max deviation "
           f"{max(out['tracks']['protected_max_deviation_nm'], out['vias']['protected_max_deviation_nm'])} nm"
-          + (f"; {lost_locks} lock flags dropped" if lost_locks else "")
-          + (f"; {len(missing)} missing or altered" if missing else ""), missing[:20])
+          + (f"; {len(lost_locks)} lock flags dropped" if lost_locks else "")
+          + (f"; {len(missing)} missing or altered" if missing else ""), (missing + lost_locks)[:20])
     if protect in ("locked", "human"):
         what = "unlocked" if protect == "locked" else "agent (earlier-step)"
         check("existing_unlocked_copper", True,
@@ -494,17 +545,22 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
             outside.append({"item": "track", "net": t["net"]})
     for v in out["vias"]["new"]:
         nc = nets.get(v["net"], {})
-        if (nc.get("via_diameter") and v["diameter"] < nc["via_diameter"] - tol) or \
-                (nc.get("via_drill") and v["drill"] < nc["via_drill"] - tol):
-            under.append({"item": "via", "net": v["net"], "netclass": nc["netclass"],
+        # a microvia is sized by the class's microvia values; through, blind and buried
+        # vias by its via values (KiCad's own net class semantics)
+        dia_key, drill_key = ("uvia_diameter", "uvia_drill") if v.get("via_type") == "micro" else \
+            ("via_diameter", "via_drill")
+        need_dia, need_drill = nc.get(dia_key), nc.get(drill_key)
+        if (need_dia and v["diameter"] < need_dia - tol) or (need_drill and v["drill"] < need_drill - tol):
+            under.append({"item": "via", "via_type": v.get("via_type"), "net": v["net"],
+                          "netclass": nc.get("netclass"),
                           "diameter_mm": v["diameter"] / NM, "drill_mm": v["drill"] / NM,
-                          "required_mm": [nc.get("via_diameter", 0) / NM, nc.get("via_drill", 0) / NM],
+                          "required_mm": [(need_dia or 0) / NM, (need_drill or 0) / NM],
                           "position_mm": [c / NM for c in v["position"]]})
         if v["net"] and v["net"] not in scope:
             outside.append({"item": "via", "net": v["net"]})
     check("new_copper_netclass_geometry", not under,
           f"{len(out['tracks']['new'])} new tracks and {len(out['vias']['new'])} new vias checked against "
-          f"their net class width / via diameter / drill (1 um quantisation tolerance)"
+          f"their net class width / via (microvia) diameter / drill (1 um quantisation tolerance)"
           + (f"; {len(under)} below" if under else ""), under[:20])
     outside_nets = sorted({o["net"] for o in outside})
     check("routing_scope", not outside, f"new copper only on the {len(scope)} in-scope nets"

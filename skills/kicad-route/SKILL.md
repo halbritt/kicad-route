@@ -145,7 +145,10 @@ Also read:
   `protected_copper`, `new_copper_netclass_geometry`, `routing_scope`,
   `net_completion` (no net that was connected in the input may be disconnected) and
   `pour_integrity` (pad fill contact, thermal spokes, islands; `validate/pour-integrity.json`). Details are
-  in `validate/preservation.json`.
+  in `validate/preservation.json`. `protected_copper` also fails when a locked track
+  or via comes back unlocked; `board_setup` and `stackup` fail when a board's
+  `(setup)` block cannot be read (fail closed); a `footprints` difference lists the
+  changed attributes under `changed`.
 - **Routing details:** `routing.unrouted_nets` and `routing.stats` (new tracks,
   vias, length).
 - **What blocks the open connections:** `routing.blocked_by` (when INCOMPLETE). It
