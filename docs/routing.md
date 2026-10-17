@@ -116,6 +116,46 @@ independent results:
 Exit status: 0 complete and valid; 1 process failure; 2 valid but incomplete; 3 fails
 validation (regardless of completion).
 
+### Evidence, tool identity and reproducibility
+
+`result.json` also carries two blocks for recording a run as evidence without
+re-hashing the run directory (`kicad_route/evidence.py`). `validate` records carry
+both for what they graded (with the backend identity the routed run recorded), and a
+campaign's `best` carries those of its graded record.
+
+- **`evidence`**: `input_board_sha256`; `reference_files` (every reference file's
+  sha256, the map `snapshot.json` records; the no-schematic input path writes
+  `snapshot.json` too); `rules_files` (the `.kicad_pro` / `.kicad_dru` among them);
+  `rule_floor_sha256` (the declared floor); `backend_output_board_sha256` (the board
+  the backend handed back, before KiCad refilled and saved it);
+  `candidate_board_sha256` (the delivered candidate); `candidate_copper_signature`
+  (sha256 over the candidate's tracks, arcs and vias from `facts.py`, sorted, without
+  UUIDs, with the item counts); `records` (sha256 of `attempt.json` and the grading
+  records, keyed by path relative to the result's directory).
+- **`tool_identity`**: `kicad_route` (describe, commit, dirty), `kicad_cli` (path,
+  version, sha256), `pcbnew.build_version`, `python`, `backend` (KRT: tag, version,
+  commit, grid_router version, extension-module sha256, venv packages sha256;
+  Freerouting: tag, jar sha256, build revision, Java path and full version),
+  `state_manifest_sha256` and `state_manifest_drift`. It holds no timestamps: two
+  runs on the same tools report the same block.
+- **`backend.reproducible`, `measurement`**: Freerouting is `reproducible: false`
+  and every Freerouting result is `measurement: false`: an attempt, not evidence of
+  what a board or setting can achieve. KRT is `reproducible: true` (and the result a
+  measurement) only when the state manifest holds a passing repeat check for the
+  build on disk now (KRT commit, extension module, venv packages, kicad-cli);
+  otherwise `null` with the reason in `backend.reproducible_basis`.
+
+Byte hashes of candidates differ between identical KRT runs: KiCad assigns fresh
+UUIDs and KRT's item order varies. `kicad-route determinism` therefore judges a
+repeat by the copper signature and the outcome, and reports the byte layers
+(backend output, delivered candidate) for diagnosis. It routes the fixture (or
+`--dir`) `--runs` times with the ledger off; a run that stopped at its budget or
+stall limit cannot prove anything and makes the check fail. Exit 0 reproducible, 3
+not, 1 when `--record` could not store it. `--record` writes the verdict to
+`STATE/manifest.json` (`determinism.krt`, with the build it holds for); `--publish
+DIR` copies it to `DIR/<backend>-<version>.json` (`make determinism` publishes to
+`reports/determinism/`). `update` runs it with `--record` after smoke.
+
 ### Native grading
 
 The candidate is graded with the installed `kicad-cli` (10.0.7):
@@ -181,10 +221,37 @@ make the candidate fail.
 ## Installation and updates
 
 Nothing here is pinned. The versions in use are recorded in every `result.json`,
-`OUT/doctor/doctor.json` and `OUT/update/update.json` for diagnosis; they are not
-install requirements. Installed state lives in this checkout (or `$KICAD_ROUTE_STATE`):
-`vendor/krt`, `vendor/freerouting`, `.venv-krt` and the generated `vendor/skills`, all
-git-ignored.
+`OUT/doctor/doctor.json`, `OUT/update/update.json` and the state manifest for
+diagnosis; they are not install requirements. Installed state lives in this checkout
+(or `$KICAD_ROUTE_STATE`): `vendor/krt`, `vendor/freerouting`, `.venv-krt`, the
+generated `vendor/skills` and `manifest.json`, all git-ignored.
+
+**State manifest** (`STATE/manifest.json`, schema `kicad-route/state/1`,
+`kicad_route/statemanifest.py`). `update` writes it atomically after installing;
+`kicad-route state-manifest` (`make state-manifest`) writes it for the install as it
+stands, downloading nothing. It records: the kicad-route checkout that wrote it;
+KRT tag, commit, clone URL, `VERSION`, grid_router version, the extension module's
+path and sha256, the prebuilt asset name and URL (from `build_router.py`'s log,
+`OUT/update/krt-build-router.log` or `--build-router-log`), `requirements.txt`'s
+sha256, the venv's Python version and package list (`name==version` from its
+dist-info, as `uv pip freeze` prints it) with its sha256; Freerouting tag, asset,
+URL, the jar's sha256 on disk and in `release.json`, build revision, `published_at`
+and the Java release it needs (`github_digest_match` is null: `release.json` does
+not say whether GitHub published a digest); the JVM `find_java` picks and its full
+version; kicad-cli path, version and sha256 and pcbnew's build version;
+`updated_utc`; `pinned: false`; and `determinism` records (kept across rewrites
+while the build they hold for is unchanged). Paths under STATE are relative to it.
+
+`doctor` reads it offline, without writing under STATE, recomputes the hashes on
+disk and reports drift (a replaced jar or extension module, a changed venv or
+requirements file, another KRT commit or kicad-cli) as a required FAIL; re-run
+`kicad-route state-manifest` after a deliberate change. A missing manifest is
+NOT_RUN (not required); "KRT determinism verified for this build" is informational.
+Every `result.json` carries the manifest's sha256 (`tool_identity`).
+
+Pinning is not offered (`update --krt-tag/--freerouting-tag` were proposed): the
+backends follow their latest release. A caller that needs one exact build captures
+the manifest (or `tool_identity`) and refuses runs whose identity differs.
 
 - `scripts/install.sh` links `~/.local/bin/kicad-route` and the `kicad-route` skill
   (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`), then runs `update`.
@@ -202,6 +269,9 @@ git-ignored.
     preservation, native validation, failure reporting). Compatibility problems surface
     there and in `kicad-route doctor` ("KRT controls used by the adapter" fails if a
     flag the adapter relies on disappears).
+  - Write `STATE/manifest.json` (before the skills and smoke, so a failed smoke still
+    leaves the record of what was installed), and after smoke and the corpus gate run
+    `kicad-route determinism --record` for the new KRT build.
 - Java: the jar states the Java release it was built for; the wrapper picks the newest
   JVM under `/usr/lib/jvm` that satisfies it. Install new majors with apt
   (`sudo apt install openjdk-<N>-jre-headless`); security updates arrive with normal
@@ -214,6 +284,9 @@ git-ignored.
 - Fresh clone: `scripts/install.sh` installs everything except the JVM and KiCad.
 
 ### Observed at setup (2026-10-17)
+
+`STATE/manifest.json` is the machine-readable record of the current install; this
+table is the hand-written note from setup.
 
 | Component | Observed |
 |---|---|

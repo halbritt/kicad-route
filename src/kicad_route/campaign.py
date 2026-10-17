@@ -478,7 +478,9 @@ class Campaign:
                 "chain": best["id"], "round": best["round"], "strategy": best["strategy"],
                 "run_dir": best["steps"][-1]["run_dir"], "candidate": best["grade"]["candidate"],
                 "graded_against": best["grade"]["against"], "grade": best["grade"]["result"],
-                "exit_code": best["grade"]["exit_code"]},
+                "exit_code": best["grade"]["exit_code"],
+                # the graded record's hashes and tool identity (evidence.py), as run/validate carry them
+                **{k: (common.load_json(best["grade"]["result"]) or {}).get(k) for k in ("evidence", "tool_identity")}},
             "exit_code": best["grade"]["exit_code"] if best else 1,
             "runtime_s": round(time.monotonic() - self.started, 3),
             "finished_utc": common.now_utc().isoformat() if self.stop_reason else None,

@@ -49,7 +49,9 @@ first.
 | `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits, the rule floor |
 | `kicad-route floor [--write-declared]` | Rules looser than their git high-water mark or the declared floor `<board>.rules-floor.json` (`OUT/floor/<project>/floor.json`) |
 | `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured evidence (not the board) to `<DIR>/<project>/<label>/` for committing |
-| `kicad-route update` | Move both backends to their latest upstream release, regenerate the `krt-*` skills, run `smoke` |
+| `kicad-route update` | Move both backends to their latest upstream release, write `STATE/manifest.json`, regenerate the `krt-*` skills, run `smoke`, the corpus gate and the KRT repeat check |
+| `kicad-route state-manifest` | Record what is installed under STATE (versions, URLs, sha256 of the jar, the KRT extension module, the venv packages, kicad-cli) in `STATE/manifest.json`; downloads nothing. `doctor` fails when the files drift from it |
+| `kicad-route determinism [--backend krt] [--runs N] [--record]` | Route the fixture (or `--dir`) N times, ledger off, and compare copper geometry, candidate bytes and outcome; `--record` stores the verdict in the state manifest (exit 0 reproducible, 3 not) |
 | `kicad-route smoke` | Integration tests on the bundled fixture board |
 | `kicad-route canary [--backend B]` | Awkward net names (`Net-(BT1-+)`, `/a b/c`, `-VIN(1)`, ...) through each backend's round trip on the fixture |
 | `kicad-route corpus add\|check\|list` | Real-board regression gate: snapshots with baseline outcomes, re-run after backend updates (`update` runs `check`) |
@@ -118,6 +120,20 @@ Exit codes:
 - 4: refused before routing (ledger: identical attempt already failed; or
   `--canary` failed).
 
+Provenance, for recording a run as evidence:
+
+- `evidence`: sha256 of the input board, every reference file, the rules files, the
+  declared rule floor, the backend's output board, the delivered candidate, and the
+  grading records; `candidate_copper_signature` is a UUID- and order-free digest of
+  the candidate's copper. Compare candidates by that signature, not by file hash:
+  KiCad writes fresh UUIDs on every save.
+- `tool_identity`: kicad-route, kicad-cli (version, sha256), pcbnew, Python, the
+  backend build (KRT commit and extension-module sha256; Freerouting jar sha256 and
+  Java), and the state manifest's sha256 with any drift from it.
+- `backend.reproducible` and `measurement`: Freerouting results are attempts
+  (`reproducible: false`, `measurement: false`); a KRT result is a measurement only
+  when the state manifest holds a passing repeat check for the build on disk.
+
 Also read:
 
 - **New findings:** `validation.reasons`, `validation.drc.new_violations.by_type`,
@@ -162,7 +178,7 @@ Also read:
 | `protected_copper` / `footprints` / `zones` FAIL | backend or bridge defect. Report it with the run directory; do not adopt the candidate |
 | `new_copper_netclass_geometry` FAIL | the backend narrowed a conductor below its net class. Do not adopt; report the KRT/Freerouting version |
 | `process FAIL` "stalled in <phase> at <metric>" | the backend stopped making progress there. A rescue search on walled-off nets: `--backend-env KICAD_NET_RESCUE=0` or a different scope. A silent KiCad leg (refill, oracle): a larger `--stall` |
-| exit 4 "identical attempt ... already finished" | the ledger: the same input, backend build and settings already failed. Change the attempt; `--force` only to check for nondeterminism |
+| exit 4 "identical attempt ... already finished" | the ledger: the same input, backend build and settings already failed. KRT: change the attempt; `--force` only to check for nondeterminism. Freerouting: its outcome may vary, so `--force` is a legitimate retry |
 | same failure twice with no new evidence | change approach: the other backend, a different scope, or inspect the board (load `krt-diagnose-routing-failures`) |
 
 Compare attempts from the same input with `kicad-route compare`. For deeper diagnosis

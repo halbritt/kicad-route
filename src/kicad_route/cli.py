@@ -22,6 +22,9 @@ input's unchanged constraints.
     kicad-route publish RUN_DIR [--to DIR]
                                           copy a run's structured evidence (not the board) for committing
     kicad-route update                    move both backends to their latest upstream release, then smoke
+    kicad-route state-manifest            record what is installed under STATE in STATE/manifest.json
+    kicad-route determinism [--backend krt] [--runs N] [--record]
+                                          route one input repeatedly and compare the candidates
     kicad-route smoke [--publish DIR]     integration tests on the bundled fixture board
     kicad-route canary [--backend B|all]  awkward net names through each backend's round trip
     kicad-route corpus add|check|list     real-board regression gate (`update` runs check)
@@ -69,6 +72,7 @@ from pathlib import Path
 
 from . import blocked
 from . import common
+from . import evidence
 from . import floor
 from . import provenance
 from . import pour
@@ -77,6 +81,7 @@ from . import spokes  # --reserve-spokes / `kicad-route spokes` (docs/spokes.md)
 from . import ledger
 from . import netnames
 from . import stall
+from . import statemanifest
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot
 
 PASS, FAIL, NOT_RUN, UNSUPPORTED = common.PASS, common.FAIL, common.NOT_RUN, common.UNSUPPORTED
@@ -147,10 +152,12 @@ def snapshot_input(cfg, run_dir):
     for f in src.iterdir():
         if f.is_file() and (f.suffix in KICAD_SUFFIXES or f.name.endswith("-lib-table")):
             shutil.copy2(f, dst / f.name)
-    return dst, {"project": cfg["name"], "source_dir": str(cfg["path"]),
-                 "source": f"git revision {cfg['rev']} ({commit})" if commit else "working tree",
-                 "source_git_head": commit or common.git(cfg["path"], "rev-parse", "HEAD"),
-                 "files": {p.name: common.sha256(p) for p in sorted(dst.iterdir()) if p.is_file()}}
+    manifest = {"project": cfg["name"], "source_dir": str(cfg["path"]),
+                "source": f"git revision {cfg['rev']} ({commit})" if commit else "working tree",
+                "source_git_head": commit or common.git(cfg["path"], "rev-parse", "HEAD"),
+                "files": {p.name: common.sha256(p) for p in sorted(dst.iterdir()) if p.is_file()}}
+    common.write_json(run_dir / "snapshot.json", manifest)  # the reference hashes, as make_snapshot records them
+    return dst, manifest
 
 
 def input_fingerprint(manifest):
@@ -782,6 +789,7 @@ def run_attempt(args):
     log(f"[route] process: {proc['status']}" + (f" ({'; '.join(proc['reasons'])})" if proc["reasons"] else ""))
 
     cand_dir = run_dir / attempt["candidate_dir"]
+    backend_output_sha = common.sha256(proc["output_board"]) if proc["status"] == PASS else None
     if proc["status"] == PASS:
         copy_project(ref_dir, cand_dir)
         shutil.copyfile(proc["output_board"], cand_dir / board_name)
@@ -790,9 +798,12 @@ def run_attempt(args):
     else:
         validation = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
         routing = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
+    repro = statemanifest.reproducibility(args.backend)  # KICADROUTE-7: attempt or measurement
     result = {
         "kind": "route",
-        "backend": {"name": args.backend, **backend_version},
+        "backend": {"name": args.backend, **backend_version, "reproducible": repro["reproducible"],
+                    "reproducible_basis": repro["basis"]},
+        "measurement": repro["measurement"],
         "input": {"project": project, "board": board_name, "fingerprint": fingerprint,
                   **attempt["source"], "baseline": attempt["baseline"]},
         "settings": settings,
@@ -806,6 +817,9 @@ def run_attempt(args):
         "run_dir": common.rel(run_dir),
         "runtime_s": round(time.monotonic() - started, 3),
         "tool_versions": {"kicad-cli": common.tool_versions()["kicad-cli"]},
+        # KICADROUTE-4: hashes of what was graded and of the tools that graded it
+        "evidence": evidence.block(run_dir, attempt, run_dir / "validate", validation, backend_output_sha),
+        "tool_identity": evidence.tool_identity(args.backend, backend_version, ref_facts.get("kicad_version")),
         "finished_utc": common.now_utc().isoformat(),
     }
     result["exit_code"] = overall_exit(proc, routing, validation)
@@ -1342,9 +1356,13 @@ def update():
     if after["freerouting"].get("version") and not after["freerouting"].get("java"):
         errors.append(f"Freerouting needs Java {after['freerouting']['java_required']}+: "
                       f"sudo apt install openjdk-{after['freerouting']['java_required']}-jre-headless")
+    # STATE/manifest.json: what is installed now, hashed (statemanifest.py, KICADROUTE-3)
+    manifest_path, manifest = statemanifest.refresh("update", out_path("update") / "krt-build-router.log")
     record = {"when": common.now_utc().isoformat(), "before": before, "after": after,
-              "commands": [common.public(s) for s in steps], "errors": errors}
+              "commands": [common.public(s) for s in steps], "errors": errors,
+              "state_manifest": {"path": str(manifest_path), "sha256": statemanifest.file_sha256()}}
     common.write_json(out_path("update") / "update.json", record)
+    log(f"[update] state manifest: {manifest_path}")
     for name in ("krt", "freerouting"):
         b, a = (before[name] or {}).get("version"), after[name].get("version")
         log(f"[update] {name}: {b} -> {a}")
@@ -1354,7 +1372,12 @@ def update():
     log(f"[update] {skills.sync(KRT_DIR, KRT_VENV)}")  # krt-* skills follow the installed KRT
     log("[update] re-running the routing integration checks")
     from . import corpus  # real-board gate after smoke; regressions reported in update.json, never rolled back
-    return corpus.after_update(out_path("update") / "update.json", smoke())
+    rc = corpus.after_update(out_path("update") / "update.json", smoke())
+    from . import determinism  # repeat check for the new KRT build, recorded in the state manifest
+    det, det_path = determinism.check(sys.modules[__name__], "krt", record=True)
+    log(f"[update] KRT determinism: {'reproducible' if det['reproducible'] else 'NOT reproducible'}"
+        + (f" ({'; '.join(det['reasons'])})" if det["reasons"] else "") + f" -> {common.rel(det_path)}")
+    return rc
 
 
 # ------------------------------------------------------------------- doctor
@@ -1426,6 +1449,10 @@ def doctor():
         except Exception as e:
             add("Freerouting latest release", NOT_RUN, f"GitHub unreachable: {e}", required=False)
 
+    # STATE/manifest.json: read offline, hashes recomputed on disk; drift is a required FAIL
+    for name, status, detail, required in statemanifest.doctor_checks():
+        add(name, status, detail, required=required)
+
     from . import canary
     can = canary.run_canary(quick=True, dest=out_path("doctor", "canary"))
     for c in can["checks"]:
@@ -1455,7 +1482,9 @@ def doctor():
     out = out_path("doctor", "doctor.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     common.write_json(out, {"status": status, "checks": checks, "capabilities": capabilities,
-                         "versions": {"krt": v, "freerouting": fv}})
+                         "versions": {"krt": v, "freerouting": fv},
+                         "state_manifest": {"path": str(statemanifest.manifest_path()),
+                                            "sha256": statemanifest.file_sha256()}})
     for c in checks:
         log(f"{c['status']:<12} {c['check']:<44} {c['detail'] if isinstance(c['detail'], str) else ' '.join(c['detail'])}")
     log(f"\nroute doctor: {status} ({len(checks)} checks) -> {common.rel(out)}")
@@ -1721,8 +1750,17 @@ def cmd_validate(args):
                                                           "pour_min_spokes": args.pour_min_spokes})
     result = load_json(run_dir / "result.json") or {}
     proc = result.get("process", {"status": PASS})
+    graded = origin or run_dir  # whose input the candidate was graded against
+    graded_attempt = load_json(graded / "attempt.json")
     rec = {"kind": "route-validate", "run_dir": common.rel(run_dir), "against": common.rel(origin) if origin else None,
            "routing": routing, "validation": validation,
+           "evidence": evidence.block(graded, graded_attempt, out, validation,
+                                      (result.get("evidence") or {}).get("backend_output_board_sha256"),
+                                      records_base=out),
+           # the grading tools now; the backend that produced the candidate as its run recorded it
+           "tool_identity": {**evidence.tool_identity(None, {}, (load_json(out / "candidate-facts.json") or {})
+                                                       .get("kicad_version")),
+                             "backend": (result.get("tool_identity") or {}).get("backend")},
            "exit_code": overall_exit(proc, routing, validation)}
     common.write_json(out / "result.json", rec)
     log(f"[validate] routing: {routing['status']}  validation: {validation['status']}"
@@ -1830,6 +1868,9 @@ def build_parser():
                                                             "evidence goes to <to>/<project>/<label>/")
     spokes.add_parser(sub)
     sub.add_parser("update", help="update both backends through their upstream channels, then smoke")
+    statemanifest.add_parser(sub)
+    from . import determinism
+    determinism.add_parser(sub)
     cn = sub.add_parser("canary", help="awkward-net-name round trip through each backend on the fixture")
     cn.add_argument("--backend", choices=["all", *sorted(BACKENDS)], default="all")
     from . import corpus
@@ -1883,6 +1924,11 @@ def main(argv=None):
         return canary.cmd_canary(a)
     if a.cmd == "corpus":
         return corpus.cmd_corpus(a)
+    if a.cmd == "state-manifest":
+        return statemanifest.cmd(a)
+    if a.cmd == "determinism":
+        from . import determinism
+        return determinism.cmd(a, sys.modules[__name__])
     if a.cmd == "publish":
         run_dir = Path(a.run_dir).resolve()
         r = load_json(run_dir / "result.json")

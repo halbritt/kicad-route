@@ -97,8 +97,10 @@ The two keys:
 
 - **Refused (exit 4):** an earlier attempt with the same fingerprint finished
   `process_fail`, `validation_fail` or `incomplete`. The message names that
-  run directory. Deterministic backends fail the same way twice, so change
-  the input, scope or settings.
+  run directory. KRT fails the same way twice (`kicad-route determinism`
+  checks this per build), so change the input, scope or settings. Freerouting's
+  outcome may vary between runs, so its message says a retry may differ; the
+  retry still needs `--force`.
 - **`--force`:** runs it anyway. `result.json` and the ledger record
   `forced: true` and `forced_over: <run dir>`.
 - **Allowed, with a note:** the same attempt key under a different backend
