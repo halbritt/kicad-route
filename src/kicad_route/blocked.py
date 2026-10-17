@@ -23,13 +23,14 @@ import re
 import sys
 from pathlib import Path
 
+from . import netnames
+
 NM = 1_000_000
 DEFAULT_TRACK_NM = 200_000       # KiCad's Default net class, used when a net has no class width
 DEFAULT_CLEARANCE_NM = 200_000
 RANKING_LIMIT = 50               # entries kept per ranking list in blocked-by.json
 TOUCH_NM = 1000                  # 1 um: copper this close counts as touching (Specctra quantisation)
 REPORT_VERSION = 1
-NET_IN_ITEM = re.compile(r"\[([^\]]+)\]")
 ZONE_ITEM = re.compile(r"^Zone(?: '([^']*)')? \[([^\]]*)\]")
 CATEGORIES = ("keepout", "input_copper", "new_copper", "footprint", "board_edge")
 CATEGORY_NOTE = {
@@ -440,7 +441,8 @@ def endpoints(facts, unconnected, net):
 # ------------------------------------------------------------------ analysis
 
 def connection_net(unconnected, scope=None):
-    nets = sorted({n for i in unconnected.get("items", []) for n in NET_IN_ITEM.findall(i.get("description", ""))})
+    nets = sorted({n for i in unconnected.get("items", [])
+                   for n in netnames.nets_in_description(i.get("description", ""), scope)})
     if scope is not None:
         nets = [n for n in nets if n in scope]
     return nets[0] if nets else None

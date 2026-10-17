@@ -133,11 +133,12 @@ first.
 
 Exit codes:
 - 0: complete and valid.
-- 1: process failure (no candidate).
+- 1: process failure (no candidate; `validate` of a run without a candidate board too).
 - 2: valid but incomplete.
-- 3: fails validation (regardless of completion).
-- 4: refused before routing (ledger: identical attempt already failed; or
-  `--canary` failed). No candidate is made.
+- 3: fails validation.
+- 4: refused before routing (ledger: identical attempt already failed;
+  `--canary` failed; or the board has no `.kicad_pro` of its own name, so KiCad would
+  load none of its rules. `audit` refuses the same way).
 
 Provenance, for recording a run as evidence:
 
@@ -201,6 +202,8 @@ Also read:
 | `protected_copper` / `footprints` / `zones` FAIL | backend or bridge defect. Report it with the run directory; do not adopt the candidate |
 | `new_copper_netclass_geometry` FAIL | the backend narrowed a conductor below its net class. Do not adopt; report the KRT/Freerouting version |
 | `process FAIL` "stalled in <phase> at <metric>" | the backend stopped making progress there. A rescue search on walled-off nets: `--backend-env KICAD_NET_RESCUE=0` or a different scope. A silent KiCad leg (refill, oracle): a larger `--stall`. KRT honours the stop file only in its main pass; the kill reason names the knob for the pass that ignored it (docs/hygiene.md, "Budget overrun") |
+| exit 4 "has no <board>.kicad_pro beside it" | KiCad reads a board's net classes, constraints, severities and `.kicad_dru` only from the project of the board's own name (`main.kicad_pcb` needs `main.kicad_pro`, `main.kicad_dru`). Ask the owner to rename or copy the project; never grade without it |
+| `project_files` FAIL, `restored_project_files` | the backend (or an edit) changed the rules files; grading used the input's. The delivered versions are in `<validate dir>/delivered-project-files/` (`validation.delivered_project_files`) |
 | exit 4 "identical attempt ... already finished" | the ledger: the same input, backend build and settings already failed. KRT: change the attempt; `--force` only to check for nondeterminism. Freerouting: its outcome may vary, so `--force` is a legitimate retry |
 | same failure twice with no new evidence | change approach: the other backend, a different scope, or inspect the board (load `krt-diagnose-routing-failures`) |
 
