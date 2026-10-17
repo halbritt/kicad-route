@@ -1,0 +1,267 @@
+{
+  "exit_code": 3,
+  "old": {
+    "rev": "HEAD~1",
+    "commit": "5885b5caf57f6cae9ab944f3ba7adad06f40752b",
+    "unconnected": 6,
+    "violations": 0,
+    "errors": 0,
+    "parity": 0,
+    "by_type": {}
+  },
+  "new": {
+    "rev": "HEAD",
+    "commit": "407d5c8c5d22369db69110b350e35b98ce698dd7",
+    "unconnected": 6,
+    "violations": 0,
+    "errors": 0,
+    "parity": 0,
+    "by_type": {}
+  },
+  "new_under_old_rules": {
+    "unconnected": 6,
+    "violations": 0,
+    "errors": 0,
+    "parity": 0,
+    "by_type": {}
+  },
+  "rule_changes": [
+    {
+      "setting": "rules.max_error",
+      "kind": "added",
+      "old": null,
+      "new": 0.005
+    },
+    {
+      "setting": "rules.min_connection",
+      "kind": "added",
+      "old": null,
+      "new": 0.0
+    },
+    {
+      "setting": "rules.min_groove_width",
+      "kind": "added",
+      "old": null,
+      "new": 0.0
+    },
+    {
+      "setting": "rules.min_hole_to_hole",
+      "kind": "added",
+      "old": null,
+      "new": 0.25
+    },
+    {
+      "setting": "rules.min_microvia_diameter",
+      "kind": "added",
+      "old": null,
+      "new": 0.2
+    },
+    {
+      "setting": "rules.min_microvia_drill",
+      "kind": "added",
+      "old": null,
+      "new": 0.1
+    },
+    {
+      "setting": "rules.min_resolved_spokes",
+      "kind": "added",
+      "old": null,
+      "new": 2
+    },
+    {
+      "setting": "rules.min_silk_clearance",
+      "kind": "added",
+      "old": null,
+      "new": 0.0
+    },
+    {
+      "setting": "rules.min_text_height",
+      "kind": "added",
+      "old": null,
+      "new": 0.8
+    },
+    {
+      "setting": "rules.min_text_thickness",
+      "kind": "added",
+      "old": null,
+      "new": 0.08
+    },
+    {
+      "setting": "rules.min_track_width",
+      "kind": "changed",
+      "old": 0.15,
+      "new": 0.1
+    },
+    {
+      "setting": "rules.solder_mask_to_copper_clearance",
+      "kind": "added",
+      "old": null,
+      "new": 0.0
+    },
+    {
+      "setting": "rules.use_height_for_length_calcs",
+      "kind": "added",
+      "old": null,
+      "new": true
+    },
+    {
+      "setting": "rule_severities",
+      "kind": "added",
+      "old": null,
+      "new": {
+        "annular_width": "error",
+        "clearance": "error",
+        "connection_width": "warning",
+        "copper_edge_clearance": "error",
+        "copper_sliver": "warning",
+        "courtyards_overlap": "error",
+        "creepage": "error",
+        "diff_pair_gap_out_of_range": "error",
+        "diff_pair_uncoupled_length_too_long": "error",
+        "drill_out_of_range": "error",
+        "duplicate_footprints": "warning",
+        "extra_footprint": "warning",
+        "footprint": "error",
+        "footprint_filters_mismatch": "ignore",
+        "footprint_symbol_field_mismatch": "warning",
+        "footprint_symbol_mismatch": "warning",
+        "footprint_type_mismatch": "ignore",
+        "hole_clearance": "error",
+        "hole_to_hole": "warning",
+        "holes_co_located": "warning",
+        "invalid_outline": "error",
+        "isolated_copper": "warning",
+        "item_on_disabled_layer": "error",
+        "items_not_allowed": "error",
+        "length_out_of_range": "error",
+        "lib_footprint_issues": "warning",
+        "lib_footprint_mismatch": "warning",
+        "malformed_courtyard": "error",
+        "microvia_drill_out_of_range": "error",
+        "mirrored_text_on_front_layer": "warning",
+        "missing_courtyard": "ignore",
+        "missing_footprint": "warning",
+        "missing_tuning_profile": "warning",
+        "net_conflict": "warning",
+        "nonmirrored_text_on_back_layer": "warning",
+        "npth_inside_courtyard": "error",
+        "padstack": "warning",
+        "pth_inside_courtyard": "error",
+        "shorting_items": "error",
+        "silk_edge_clearance": "warning",
+        "silk_over_copper": "warning",
+        "silk_overlap": "warning",
+        "skew_out_of_range": "error",
+        "solder_mask_bridge": "error",
+        "starved_thermal": "error",
+        "text_height": "warning",
+        "text_on_edge_cuts": "error",
+        "text_thickness": "warning",
+        "through_hole_pad_without_hole": "error",
+        "too_many_vias": "error",
+        "track_angle": "error",
+        "track_dangling": "warning",
+        "track_not_centered_on_via": "ignore",
+        "track_on_post_machined_layer": "error",
+        "track_segment_length": "error",
+        "track_width": "error",
+        "tracks_crossing": "error",
+        "tuning_profile_track_geometries": "ignore",
+        "unconnected_items": "error",
+        "unresolved_variable": "error",
+        "via_dangling": "warning",
+        "zones_intersect": "error"
+      }
+    },
+    {
+      "setting": "net_settings.classes.Default.priority",
+      "kind": "added",
+      "old": null,
+      "new": 2147483647
+    },
+    {
+      "setting": "net_settings.classes.Default.tuning_profile",
+      "kind": "added",
+      "old": null,
+      "new": ""
+    },
+    {
+      "setting": "net_settings.classes.Power.priority",
+      "kind": "added",
+      "old": null,
+      "new": 0
+    },
+    {
+      "setting": "net_settings.classes.Power.tuning_profile",
+      "kind": "added",
+      "old": null,
+      "new": ""
+    }
+  ],
+  "new_violations": {
+    "count": 0,
+    "by_type": {}
+  },
+  "findings": [
+    "1 rule setting(s) changed: rules.min_track_width 0.15 -> 0.1",
+    "new board: 6 unconnected, 0 DRC errors, 0 parity issues"
+  ],
+  "changes": [
+    {
+      "check": "project_files",
+      "status": "FAIL"
+    },
+    {
+      "check": "board_outline",
+      "status": "PASS"
+    },
+    {
+      "check": "layers",
+      "status": "PASS"
+    },
+    {
+      "check": "stackup",
+      "status": "PASS"
+    },
+    {
+      "check": "board_setup",
+      "status": "PASS"
+    },
+    {
+      "check": "nets_and_netclasses",
+      "status": "PASS"
+    },
+    {
+      "check": "pad_connectivity",
+      "status": "PASS"
+    },
+    {
+      "check": "footprints",
+      "status": "FAIL"
+    },
+    {
+      "check": "zones",
+      "status": "PASS"
+    },
+    {
+      "check": "keepouts",
+      "status": "PASS"
+    },
+    {
+      "check": "copper_graphics",
+      "status": "PASS"
+    },
+    {
+      "check": "protected_copper",
+      "status": "PASS"
+    },
+    {
+      "check": "new_copper_netclass_geometry",
+      "status": "PASS"
+    },
+    {
+      "check": "routing_scope",
+      "status": "PASS"
+    }
+  ]
+}

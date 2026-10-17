@@ -1,0 +1,10 @@
+{
+  "same_input": {
+    "exit_code": 0,
+    "table": "| backend | exit | routing | unconnected | validation | new_violations | new_vias | new_length_mm | backend_s | run |\n|---|---|---|---|---|---|---|---|---|---|\n| krt 0.23.1 | 0 | COMPLETE | 0 | PASS | 0 | 1 | 117.987 | 6.034 | runs/route_demo/smoke-krt/20261017T152149.635210Z |\n| freerouting v2.5.0 | 0 | COMPLETE | 0 | PASS | 0 | 2 | 123.4 | 5.146 | runs/route_demo/smoke-freerouting/20261017T152202.969517Z |\n[compare] compare/20261017T152505.022370Z/compare.json\n"
+  },
+  "different_input": {
+    "exit_code": 1,
+    "table": "| backend | exit | routing | unconnected | validation | new_violations | new_vias | new_length_mm | backend_s | run |\n|---|---|---|---|---|---|---|---|---|---|\n| krt 0.23.1 | 0 | COMPLETE | 0 | PASS | 0 | 1 | 117.987 | 6.034 | runs/route_demo/smoke-krt/20261017T152149.635210Z |\n| krt 0.23.1 | 3 | INCOMPLETE | 4 | FAIL | 1 | 1 | 29.412 | 17.769 | runs/route_demo/smoke-blocked-krt/20261017T152257.617024Z |\nWARNING: these candidates come from different inputs; the comparison is not like for like\n[compare] compare/20261017T152505.058131Z/compare.json\n"
+  }
+}
