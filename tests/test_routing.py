@@ -212,8 +212,12 @@ def test_unlocked_existing_copper_survives(backend, unlocked_dir):
 
 def test_budget_overrun_is_a_process_failure(blocked_dir):
     """With rescue on, KRT keeps searching the unroutable nets past the budget:
-    the wrapper stops it and reports a process failure, not a candidate."""
-    r, run_dir, result = run("run", "--backend", "krt", "--budget", "15", "--dir", str(blocked_dir),
+    the wrapper stops it and reports a process failure, not a candidate.
+    The budget must outlast KRT's start-up: on a loaded host a 15 s budget expired
+    before KRT's first net, KRT honoured the stop file at that checkpoint and
+    wrote the board unrouted (process PASS, exit 2). At 40 s the stop lands in a
+    search on the walled nets, which does not check the stop file."""
+    r, run_dir, result = run("run", "--backend", "krt", "--budget", "40", "--dir", str(blocked_dir),
                              "--label", "smoke-budget-krt")
     record("budget_krt", summary(result))
     assert r.returncode == 1 and result["process"]["status"] == route.FAIL
