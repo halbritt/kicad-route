@@ -67,7 +67,7 @@ def add_parser(sub, cli):
     p.add_argument("--passes", type=int, help="Freerouting maximum routing passes (every run)")
     p.add_argument("--default-clearance", type=float, metavar="MM", help="as for run (tighten only; every run)")
     p.add_argument("--clearance-margin", type=float, metavar="MM", help="as for run (Freerouting; every run)")
-    p.add_argument("--protect", choices=["existing", "locked"], default="existing", help="as for run (every run)")
+    p.add_argument("--protect", choices=["existing", "locked", "human"], default="existing", help="as for run (every run)")
     p.add_argument("--backend-arg", action="append", metavar="ARG", help="as for run (every run)")
     p.add_argument("--backend-env", action="append", metavar="KEY=VALUE", help="as for run (every run)")
     p.add_argument("--label", help="campaign name (default campaign-<backend>); runs are labelled <label>-<step>")
