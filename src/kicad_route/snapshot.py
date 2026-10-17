@@ -7,9 +7,9 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
+from . import contract
 from .common import git, sha256, write_json
 
 
@@ -74,7 +74,7 @@ def export_revision(cfg, run_dir):
     prefix = src.relative_to(top)
     commit = git(top, "rev-parse", "--verify", f"{cfg['rev']}^{{commit}}")
     if not commit:
-        sys.exit(f"{cfg['rev']!r} is not a commit in {top}")
+        contract.refuse("input", f"--rev {cfg['rev']!r} is not a commit in {top}")
     out = run_dir / "source" / src.name
     out.mkdir(parents=True)
     archive = subprocess.run(["git", "-C", str(top), "archive", "--format=tar", commit, "--", str(prefix) if str(prefix) != "." else "."],

@@ -26,10 +26,10 @@ docs/spokes.md for its limits.
 """
 import json
 import math
-import sys
 from pathlib import Path
 
 from . import common
+from . import contract
 
 PASS, FAIL = common.PASS, common.FAIL
 SCRIPT = Path(__file__).resolve().parent / "kicad" / "spokes.py"
@@ -264,14 +264,14 @@ def evaluate(run_dir, validation_dir=None):
     run_dir = Path(run_dir).resolve()
     attempt = common.load_json(run_dir / "attempt.json")
     if attempt is None:
-        sys.exit(f"{run_dir}: not a routing run (attempt.json missing)")
+        contract.refuse("input", f"{run_dir}: not a routing run (attempt.json missing)")
     vdir = Path(validation_dir).resolve() if validation_dir else run_dir / "validate"
     ref_board = run_dir / attempt["reference_dir"] / attempt["board"]
     ref_facts = common.load_json(run_dir / attempt["reference_facts"])
     cand_facts = common.load_json(vdir / "candidate-facts.json")
     drc = common.load_json(vdir / "candidate-drc.json")
     if cand_facts is None or drc is None or ref_facts is None:
-        sys.exit(f"{common.rel(vdir)}: candidate facts or DRC missing (validate the run first)")
+        contract.refuse("input", f"{common.rel(vdir)}: candidate facts or DRC missing (validate the run first)")
     sdir = run_dir / "spokes"
     sdir.mkdir(exist_ok=True)
     rec, tag = _script(["plan", ref_board, sdir / "reference-plan.json"], run_dir, sdir / "plan.log")
@@ -353,5 +353,5 @@ def cmd(args):
     if args.board:
         return plan_only(args.board, args.per_pad)
     if not args.run_dir:
-        sys.exit("kicad-route spokes: pass RUN_DIR or --board")
+        contract.refuse("usage", "kicad-route spokes: pass RUN_DIR or --board")
     return evaluate(args.run_dir, args.validation)

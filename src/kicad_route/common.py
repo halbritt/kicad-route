@@ -172,7 +172,7 @@ def new_run_dir(name):
     run_dir = out_dir() / "runs" / name / stamp
     run_dir.mkdir(parents=True)  # fresh: never reuse a previous run's outputs
     latest = run_dir.parent / "latest"
-    if latest.is_symlink() or latest.exists():
-        latest.unlink()
-    latest.symlink_to(run_dir.name)
+    tmp = latest.with_name(f".latest.{os.getpid()}.{stamp}")
+    tmp.symlink_to(run_dir.name)
+    os.replace(tmp, latest)  # atomic: concurrent runs never fail on, or see a missing, `latest`
     return run_dir

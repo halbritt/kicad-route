@@ -2,7 +2,8 @@
 and baseline outcomes, re-run against the currently installed backends.
 
     kicad-route corpus add --dir D [--board B] [--rev REV] --name NAME
-                           [--backend krt|freerouting] [--nets ...] [--netclass ...] [--budget S] ...
+                           [--backend krt|freerouting] [any `run` routing option: --nets, --netclass,
+                           --budget, --protect, --reserve-spokes, --pour-*, ...]
     kicad-route corpus check [--name NAME ...]
     kicad-route corpus list
 
@@ -29,11 +30,13 @@ import shutil
 from pathlib import Path
 
 from . import common
+from . import contract
 from . import cli as route
 
 PASS, FAIL = common.PASS, common.FAIL
-RUN_KEYS = ("backend", "nets", "netclass", "budget", "max_iterations", "passes", "default_clearance",
-            "clearance_margin", "protect", "backend_arg", "backend_env", "stall")
+# Recorded in entry.json and replayed by `check`: the backend plus every routing
+# option of `run` (cli.add_route_args), so the corpus cannot drift from run.
+RUN_KEYS = ("backend", *route.route_option_dests())
 
 
 def corpus_root(root=None):
@@ -76,25 +79,22 @@ def attempt_args(entry):
     """A run Namespace (every run option at its default) for cli.run_attempt from a corpus entry."""
     a = entry["attempt"]
     proj = entry["_dir"] / entry["reference_dir"]
-    return route.run_namespace(
-        a["backend"], dir=str(proj), board=entry["board"], schematic=entry.get("schematic"), name=entry["name"],
-        label=f"corpus-{entry['name']}", nets=a.get("nets"), netclass=a.get("netclass"),
-        budget=a.get("budget", 300), max_iterations=a.get("max_iterations"), passes=a.get("passes"),
-        default_clearance=a.get("default_clearance"), clearance_margin=a.get("clearance_margin"),
-        protect=a.get("protect", "existing"), backend_arg=a.get("backend_arg") or [],
-        backend_env=a.get("backend_env") or [], stall=a.get("stall"),
-        force=True)   # a corpus check repeats an attempt on purpose; the ledger records it as forced
+    values = {k: a[k] for k in route.route_option_dests() if k in a}  # unset options keep run's defaults
+    values.update(dir=str(proj), board=entry["board"], schematic=entry.get("schematic"), name=entry["name"],
+                  label=f"corpus-{entry['name']}",
+                  force=True)   # a corpus check repeats an attempt on purpose; the ledger records it as forced
+    return route.run_namespace(a["backend"], **values)
 
 
 def add(args):
     root = corpus_root(args.root)
     if not args.name:
-        raise SystemExit("corpus add needs --name NAME")
+        contract.refuse("usage", "corpus add needs --name NAME")
     if not re.fullmatch(r"[A-Za-z0-9._-]+", args.name):
-        raise SystemExit(f"corpus name {args.name!r}: use letters, digits, '.', '_' and '-'")
+        contract.refuse("usage", f"corpus name {args.name!r}: use letters, digits, '.', '_' and '-'")
     d = root / args.name
     if d.exists():
-        raise SystemExit(f"corpus entry {args.name} exists ({d}); remove that directory to re-add it")
+        contract.refuse("state", f"corpus entry {args.name} exists ({d}); remove that directory to re-add it")
     cfg = route.resolve_input(args)
     d.mkdir(parents=True)
     try:
@@ -104,7 +104,8 @@ def add(args):
                  "reference_dir": str(ref.relative_to(d)),
                  "input_fingerprint": route.input_fingerprint(manifest),
                  "source": {k: manifest.get(k) for k in ("source_dir", "source", "source_git_head")},
-                 "attempt": {k: getattr(args, k) for k in RUN_KEYS if getattr(args, k, None) not in (None, [])}}
+                 "attempt": {k: getattr(args, k) for k in RUN_KEYS
+                             if getattr(args, k, None) not in (None, [], False)}}
         entry["_dir"] = d
         route.log(f"[corpus] {args.name}: baseline attempt ({entry['attempt']['backend']})")
         result = route.run_attempt(attempt_args(entry))
@@ -208,8 +209,6 @@ def after_update(update_json, smoke_rc, root=None):
 
 def cmd_corpus(args):
     if args.corpus_cmd == "add":
-        if any("=" not in e for e in args.library_dir or []):
-            raise SystemExit("--library-dir takes NAME=PATH")
         return add(args)
     if args.corpus_cmd == "check":
         return 0 if check(args.names, args.root)["status"] == PASS else 1
@@ -218,23 +217,13 @@ def cmd_corpus(args):
     return 0
 
 
-def add_parser(sub, add_input_args):
+def add_parser(sub, cli):
     cp = sub.add_parser("corpus", help="real-board regression gate: snapshots with baseline outcomes")
     cs = cp.add_subparsers(dest="corpus_cmd", required=True)
     a = cs.add_parser("add", help="snapshot a project with one attempt and record its baseline outcome")
-    add_input_args(a)  # its --name is the entry's name (required)
-    a.add_argument("--backend", default="krt", choices=sorted(route.BACKENDS))
-    a.add_argument("--nets", nargs="+", metavar="PATTERN")
-    a.add_argument("--netclass", nargs="+", metavar="CLASS")
-    a.add_argument("--budget", type=int, default=300)
-    a.add_argument("--max-iterations", type=int)
-    a.add_argument("--passes", type=int)
-    a.add_argument("--default-clearance", type=float, metavar="MM")
-    a.add_argument("--clearance-margin", type=float, metavar="MM")
-    a.add_argument("--protect", choices=["existing", "locked"], default="existing")
-    a.add_argument("--backend-arg", action="append", metavar="ARG")
-    a.add_argument("--backend-env", action="append", metavar="KEY=VALUE")
-    a.add_argument("--stall", type=int, metavar="SECONDS")
+    cli.add_input_args(a)  # its --name is the entry's name (required)
+    a.add_argument("--backend", default="krt", choices=sorted(cli.BACKENDS))
+    cli.add_route_args(a)   # the same routing options as run, recorded in the entry
     c = cs.add_parser("check", help="re-run every entry with the installed backends and compare to its baseline")
     c.add_argument("--name", dest="names", action="append", metavar="NAME", help="only this entry (repeatable)")
     ls = cs.add_parser("list", help="list the corpus entries and their baselines")

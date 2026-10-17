@@ -18,15 +18,20 @@ repeat this one), --rounds hardfirst rounds are done, or --total-budget has run
 out. Every step is an ordinary `kicad-route run` subprocess with the campaign's own
 options passed through, so each step has its own run directory and result.
 
+Each step runs in machine mode (`--json`): the campaign reads the step's result
+record from its stdout, never its progress lines (docs/interface.md).
+
 Output: OUT/campaigns/<project>/<label>/<stamp>/campaign.json and CAMPAIGN.md.
 Exit status: the best chain's (0 complete and valid, 2 valid but incomplete,
-3 fails validation), or 1 when no chain produced a gradable candidate.
+3 fails validation), 1 when no chain produced a gradable candidate, or 4 when
+the campaign was refused before any backend ran (its round-0 run was refused,
+or a usage or input error); a refusal leaves no campaign directory.
 """
 import collections
 import concurrent.futures
 import json
 import math
-import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -34,13 +39,11 @@ import time
 from pathlib import Path
 
 from . import common
+from . import contract
 
 STRATEGIES = ("hardfirst",)
 ORDERINGS = ("pads", "span", "netclass")  # --race lanes, in this order
 DEFAULT_CLASS = "Default"
-RESULT_LINE = re.compile(r"^\[route\] result: (.+)/result\.json  \(exit -?\d+\)$")
-START_LINE = re.compile(r"^\[route\] \S+ on .* -> (.+)$")
-VALIDATE_LINE = re.compile(r"^\[validate\] (.+)/result\.json  \(exit -?\d+\)$")
 CLI = [sys.executable, str(common.TOOL_ROOT / "bin" / "kicad-route")]
 
 _print_lock = threading.Lock()
@@ -54,27 +57,13 @@ def log(msg):
 # ------------------------------------------------------------------ arguments
 
 def add_parser(sub, cli):
-    """The `campaign` subcommand: the per-run options of `run`, plus campaign controls."""
+    """The `campaign` subcommand: the routing options of `run` (cli.add_route_args, passed
+    to every step; --nets/--netclass are the campaign scope), plus campaign controls."""
     p = sub.add_parser("campaign", help="hard-nets-first routing campaign: several attempts, best chain graded "
                                         "against the original input")
     p.add_argument("--backend", required=True, choices=sorted(cli.BACKENDS))
     cli.add_input_args(p)
-    p.add_argument("--nets", nargs="+", metavar="PATTERN",
-                   help="campaign scope by net NAME: fnmatch patterns, !PATTERN excludes (default: all nets)")
-    p.add_argument("--netclass", nargs="+", metavar="CLASS", help="campaign scope by effective KiCad net class")
-    p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend, per run (default 300)")
-    p.add_argument("--max-iterations", type=int, help="KRT A* iteration cap per search (every run)")
-    p.add_argument("--passes", type=int, help="Freerouting maximum routing passes (every run)")
-    p.add_argument("--default-clearance", type=float, metavar="MM", help="as for run (tighten only; every run)")
-    p.add_argument("--clearance-margin", type=float, metavar="MM", help="as for run (Freerouting; every run)")
-    p.add_argument("--protect", choices=["existing", "locked", "human"], default="existing", help="as for run (every run)")
-    p.add_argument("--backend-arg", action="append", metavar="ARG", help="as for run (every run)")
-    p.add_argument("--backend-env", action="append", metavar="KEY=VALUE", help="as for run (every run)")
-    p.add_argument("--reserve-spokes", nargs="?", type=int, const=-1, default=None, metavar="N",
-                   help="as for run (every run): reserve thermal-spoke corridors")
-    p.add_argument("--stall", type=int, metavar="SECONDS", help="as for run (every run): stop a run that stops progressing")
-    p.add_argument("--force", action="store_true",
-                   help="as for run (every run): run even when the ledger has the identical failed attempt")
+    cli.add_route_args(p)
     p.add_argument("--label", help="campaign name (default campaign-<backend>); runs are labelled <label>-<step>")
     p.add_argument("--strategy", choices=STRATEGIES, default="hardfirst",
                    help="hardfirst (default): route the backlog first on the original input, then the rest")
@@ -204,22 +193,8 @@ class Campaign:
         return self.deadline is not None and time.monotonic() >= self.deadline
 
     def common_argv(self):
-        a = self.args
-        argv = ["--budget", str(a.budget), "--protect", a.protect]
-        for flag, val in (("--max-iterations", a.max_iterations), ("--passes", a.passes),
-                          ("--default-clearance", a.default_clearance), ("--clearance-margin", a.clearance_margin)):
-            if val is not None:
-                argv += [flag, str(val)]
-        argv += [f"--backend-arg={x}" for x in a.backend_arg or []]
-        if a.stall:
-            argv += ["--stall", str(a.stall)]
-        if a.force:
-            argv.append("--force")
-        if a.reserve_spokes is not None:  # -1: the flag without N (the board's min_resolved_spokes)
-            argv += ["--reserve-spokes"] + ([str(a.reserve_spokes)] if a.reserve_spokes >= 0 else [])
-        for e in a.backend_env or []:
-            argv += ["--backend-env", e]
-        return argv
+        """Every routing option of the campaign except its scope, for each step."""
+        return self.cli.route_argv(self.args)
 
     def input_argv(self, prev=None):
         """The original input (as given to the campaign), or a previous step's candidate."""
@@ -235,14 +210,30 @@ class Campaign:
         return argv + (["--schematic", prev["schematic"]] if prev.get("schematic") else [])
 
     def invoke(self, argv, log_name):
+        """One kicad-route subcommand in machine mode: its progress (stderr) goes to the
+        log, its one JSON record (stdout) is returned, parsed (None if it printed none)."""
         logf = self.dir / "logs" / f"{log_name}.log"
         logf.parent.mkdir(parents=True, exist_ok=True)
-        full = [*CLI, "--out", str(common.out_dir()), *argv]
+        full = [*CLI, "--out", str(common.out_dir()), argv[0], "--json", *argv[1:]]
         t0 = time.monotonic()
-        with open(logf, "w") as out:
-            rc = subprocess.run(full, cwd=self.cwd, stdout=out, stderr=subprocess.STDOUT).returncode
+        with open(logf, "w") as err:
+            p = subprocess.run(full, cwd=self.cwd, stdout=subprocess.PIPE, stderr=err, text=True)
+        try:
+            data = json.loads(p.stdout)
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            data = None
         text = logf.read_text(errors="replace")
-        return {"argv": full, "exit_code": rc, "log": common.rel(logf), "wall_s": round(time.monotonic() - t0, 3)}, text
+        return {"argv": full, "exit_code": p.returncode, "log": common.rel(logf),
+                "wall_s": round(time.monotonic() - t0, 3)}, data, text
+
+    @staticmethod
+    def failure(data, text, rc):
+        """Why a step returned no usable record: the refusal, else the log tail."""
+        if data and data.get("kind") == "refusal":
+            return f"refused ({data.get('reason_class')}): {data.get('message')}"
+        return "; ".join([l for l in text.splitlines() if l.strip()][-5:]) or f"exit {rc}"
 
     def step(self, chain_id, role, scope_mode, nets=(), prev=None, intended=None):
         """One `kicad-route run`; returns its record (never raises for a failed run)."""
@@ -251,23 +242,20 @@ class Campaign:
                 *self.common_argv(), "--label", label]
         log(f"[campaign] {chain_id}: {role} pass ({self.describe_scope(scope_mode, nets)}) on "
             + ("the original input" if prev is None else f"the candidate of {prev['run_dir']}"))
-        rec, text = self.invoke(argv, label)
+        rec, data, text = self.invoke(argv, label)
         rec.update(role=role, label=label, on="input" if prev is None else "previous candidate")
         if scope_mode == "only":
             rec["nets"] = sorted(nets)
         elif scope_mode == "rest" and nets:
             rec["excluded_nets"] = sorted(nets)
-        run_dir = None
-        for line in text.splitlines():
-            m = RESULT_LINE.match(line) or START_LINE.match(line)
-            if m:
-                run_dir = self.path(m.group(1))
+        result = data if data and data.get("kind") == "route" else None
+        run_dir = self.path(result["run_dir"]) if result else None
         attempt = common.load_json(run_dir / "attempt.json") if run_dir else None
-        result = common.load_json(run_dir / "result.json") if run_dir else None
         rec["run_dir"] = common.rel(run_dir) if run_dir else None
         if attempt is None or result is None:
-            tail = [l for l in text.splitlines() if l.strip()][-5:]
-            rec.update(status="error", error="; ".join(tail) or f"exit {rec['exit_code']}")
+            rec.update(status="error", error=self.failure(data, text, rec["exit_code"]))
+            if data and data.get("kind") == "refusal":
+                rec["refusal"] = data
             log(f"[campaign] {chain_id}: {role} pass did not produce a result: {rec['error']}")
             return rec
         rt, v = result["routing"], result["validation"]
@@ -302,15 +290,14 @@ class Campaign:
             res_path = self.path(end["run_dir"]) / "result.json"
             by = "run"
         else:
-            rec, text = self.invoke(["validate", str(self.path(end["run_dir"])), "--against",
-                                     str(self.path(first["run_dir"]))], f"{self.label}-{chain['id']}-validate")
-            m = next((VALIDATE_LINE.match(l) for l in text.splitlines() if VALIDATE_LINE.match(l)), None)
+            rec, data, text = self.invoke(["validate", str(self.path(end["run_dir"])), "--against",
+                                           str(self.path(first["run_dir"]))], f"{self.label}-{chain['id']}-validate")
             chain["validate"] = rec
-            if not m:
+            if not data or data.get("kind") != "route-validate":
                 chain.update(status="error", error="validate --against produced no result: "
-                             + "; ".join([l for l in text.splitlines() if l.strip()][-3:]))
+                             + self.failure(data, text, rec["exit_code"]))
                 return
-            res_path = self.path(m.group(1)) / "result.json"
+            res_path = self.path(data["dir"]) / "result.json"
             by = "validate --against"
         res = common.load_json(res_path)
         v, rt = res["validation"], res["routing"]
@@ -371,7 +358,8 @@ class Campaign:
         ref_dir, manifest = cli.snapshot_input(self.cfg, self.dir / "input")
         facts, rec = cli.board_facts(ref_dir / self.cfg["pcb"], self.dir / "input" / "facts.json")
         if facts is None:
-            sys.exit(f"could not read the input board: see {rec['log']}")
+            contract.refuse("input", f"could not read the input board {self.cfg['pcb']} (facts.py exit "
+                            f"{rec['exit_code']}): {self.cli.log_tail(self.dir / 'input' / 'facts.log')}")
         self.fingerprint = cli.input_fingerprint(manifest)
         self.scope = cli.select_nets(facts, self.args.nets, self.args.netclass)[0]
         cli.baseline_drc(ref_dir, self.cfg["pcb"], self.fingerprint)
@@ -398,6 +386,11 @@ class Campaign:
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(plans)) as pool:
                 chains = list(pool.map(lambda p: self.run_chain(p[0], 0, p[1], p[2]), plans))
         r0 = chains[0]["steps"][0] if chains[0]["steps"] else None
+        refused = [s["refusal"] for c in chains for s in c["steps"] if s.get("refusal")]
+        if refused and not any(s.get("status") == "ok" for c in chains for s in c["steps"]):
+            # nothing was routed: the campaign is refused for the same reason as its round-0 run
+            contract.refuse(refused[0]["reason_class"], f"round-0 run refused: {refused[0]['message']}",
+                            input_fingerprint=refused[0].get("input_fingerprint"))
         if r0 and r0["status"] == "ok":
             self.fingerprint = self.fingerprint or r0["input_fingerprint"]
             if self.scope is None:
@@ -464,7 +457,7 @@ class Campaign:
         best = self.best()
         a = self.args
         return {
-            "kind": "route-campaign", "project": self.project, "label": self.label, "strategy": a.strategy,
+            "schema": contract.schema_id("route-campaign"), "kind": "route-campaign", "project": self.project, "label": self.label, "strategy": a.strategy,
             "backend": a.backend, "campaign_dir": common.rel(self.dir),
             "input": {"dir": str(self.cfg["path"]), "board": self.cfg["pcb"], "rev": a.rev,
                       "fingerprint": self.fingerprint},
@@ -542,10 +535,17 @@ def render(rec):
 
 
 def main(args, cli):
-    if any("=" not in e for e in args.library_dir or []):
-        sys.exit("--library-dir takes NAME=PATH")
-    if any("=" not in e for e in args.backend_env or []):
-        sys.exit("--backend-env takes KEY=VALUE")
+    """The campaign record (campaign.json). A refusal before any backend ran removes
+    the campaign directory and propagates (exit 4, docs/interface.md)."""
     if args.rounds < 0:
-        sys.exit("--rounds must be 0 or more")
-    return Campaign(args, cli).execute()["exit_code"]
+        contract.refuse("usage", "--rounds must be 0 or more")
+    c = Campaign(args, cli)
+    try:
+        return c.execute()
+    except contract.Refusal as r:
+        shutil.rmtree(c.dir, ignore_errors=True)
+        latest = c.dir.parent / "latest"
+        if latest.is_symlink() and not latest.exists():
+            latest.unlink()
+        r.detail["discarded_run_dir"] = common.rel(c.dir)
+        raise

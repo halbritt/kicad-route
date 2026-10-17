@@ -3,10 +3,10 @@
 of a KiCad project and grade the resulting native KiCad candidate against the
 input's unchanged constraints.
 
-    kicad-route [--out DIR] doctor        readiness and capabilities of each backend
+    kicad-route [--out DIR] [--json] doctor   readiness and capabilities of each backend
     kicad-route run --backend krt|freerouting [--dir D] [--board B.kicad_pcb] [--rev REV]
                  [--nets PAT ...] [--netclass NAME ...] [--budget SECONDS]
-                 [--protect existing|locked|human] [--label L] [--backend-arg ARG ...]
+                 [--protect existing|locked|human] [--label L | --run-dir PATH] [--backend-arg ARG ...]
     kicad-route validate RUN_DIR [--against ORIGIN_RUN]
                                           re-grade a candidate (or a --dir chain) against its input
     kicad-route campaign --backend krt|freerouting [run options] [--rounds N] [--race K] [--total-budget S]
@@ -26,8 +26,12 @@ input's unchanged constraints.
     kicad-route canary [--backend B|all]  awkward net names through each backend's round trip
     kicad-route corpus add|check|list     real-board regression gate (`update` runs check)
 
+--out DIR and --json go before or after the subcommand. --json (run, validate,
+campaign, blocked, audit, floor, doctor) prints exactly one JSON record on stdout
+and sends progress to stderr (docs/interface.md, schemas/).
+
 Every attempt gets a fresh run directory OUT/runs/<project>/<label>/<stamp>/
-(OUT defaults to ./build/kicad-route):
+(OUT defaults to ./build/kicad-route), or exactly --run-dir PATH:
 
     reference/<proj>/   untouched copy of the input project (board, .kicad_pro,
                         .kicad_dru, schematics, library tables, local libraries)
@@ -50,9 +54,10 @@ grades exactly the delivered file. Violations already present in the input
 
 Exit status: 0 complete and valid, 1 backend/process failure (no candidate),
 2 candidate valid but routing incomplete, 3 candidate fails validation,
-4 refused before routing (the ledger shows this exact attempt already failed,
-or the --canary pre-flight failed). Run hygiene (stall, ledger, canary,
-corpus): docs/hygiene.md.
+4 refused before routing: a usage or input error, the ledger shows this exact
+attempt already failed, or the --canary pre-flight failed; the refusal record is
+OUT/refusals/refusal-latest.json and no run directory is left. Contract:
+docs/interface.md. Run hygiene (stall, ledger, canary, corpus): docs/hygiene.md.
 """
 import argparse
 import collections
@@ -69,6 +74,7 @@ from pathlib import Path
 
 from . import blocked
 from . import common
+from . import contract
 from . import floor
 from . import provenance
 from . import pour
@@ -117,18 +123,20 @@ def resolve_input(args):
     """The project to route, in the shape snapshot.make_snapshot expects."""
     d = Path(args.dir).expanduser().resolve()
     if not d.is_dir():
-        sys.exit(f"{d}: not a directory")
-    boards = [args.board] if args.board else [p.name for p in d.glob("*.kicad_pcb")]
+        contract.refuse("input", f"{d}: not a directory")
+    boards = [args.board] if args.board else sorted(p.name for p in d.glob("*.kicad_pcb"))
     if len(boards) != 1:
-        sys.exit(f"{d}: pass --board (found {boards or 'no boards'})")
+        contract.refuse("input", f"{d}: pass --board (found {boards or 'no boards'})")
     board = boards[0]
     sch = args.schematic or Path(board).with_suffix(".kicad_sch").name
+    if any("=" not in e for e in args.library_dir or []):
+        contract.refuse("usage", "--library-dir takes NAME=PATH")
     libs = dict(e.split("=", 1) for e in args.library_dir or [])
     cfg = {"name": args.name or d.name, "path": d, "pcb": board,
            "schematic": sch if (d / sch).exists() else None, "library_dirs": libs}
     if args.rev:
         if not common.git(d, "rev-parse", "--show-toplevel"):
-            sys.exit(f"--rev needs {d} to be inside a git repository")
+            contract.refuse("input", f"--rev needs {d} to be inside a git repository")
         cfg["rev"] = args.rev
     return cfg
 
@@ -536,10 +544,10 @@ def resolve_origin(run_dir, attempt, origin=None):
         if prev is None or prev[0].resolve() in seen:
             if origin is None:
                 break
-            sys.exit(f"{common.rel(steps[-1][0])}: input is not a routing candidate, so it does not descend "
-                     f"from {common.rel(origin)}")
+            contract.refuse("input", f"{common.rel(steps[-1][0])}: input is not a routing candidate, so it "
+                            f"does not descend from {common.rel(origin)}")
         if prev[1]["board"] != attempt["board"]:
-            sys.exit(f"{common.rel(prev[0])}: board {prev[1]['board']} is not {attempt['board']}")
+            contract.refuse("input", f"{common.rel(prev[0])}: board {prev[1]['board']} is not {attempt['board']}")
         seen.add(prev[0].resolve())
         steps.append(prev)
     return steps
@@ -554,7 +562,7 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
     judged against the original design."""
     attempt = load_json(run_dir / "attempt.json")
     if attempt is None:
-        sys.exit(f"{run_dir}: not a routing run (attempt.json missing)")
+        contract.refuse("input", f"{run_dir}: not a routing run (attempt.json missing)")
     cand_dir = run_dir / attempt["candidate_dir"]
     scope = set(attempt["scope"]["nets"])
     chain = []
@@ -690,25 +698,69 @@ def overall_exit(process, routing, validation):
 
 # ------------------------------------------------------------------- attempts
 
+def make_run_dir(args, project):
+    """--run-dir PATH (must not exist; no `latest` link), else a fresh
+    OUT/runs/<project>/<label>/<stamp>/."""
+    if getattr(args, "run_dir", None):
+        run_dir = Path(args.run_dir).expanduser().resolve()
+        if run_dir.exists() or run_dir.is_symlink():
+            contract.refuse("state", f"--run-dir {run_dir} already exists; pass a path that does not exist")
+        try:
+            run_dir.mkdir(parents=True)
+        except FileExistsError:  # a concurrent caller took it between the check and here
+            contract.refuse("state", f"--run-dir {run_dir} already exists; pass a path that does not exist")
+        return run_dir
+    return common.new_run_dir(f"{project}/{args.label or args.backend}")
+
+
+def discard_run_dir(args, run_dir):
+    """A run refused before routing leaves nothing behind: an explicit --run-dir is
+    removed (its parents stay), a default one goes through ledger.discard_run_dir."""
+    if getattr(args, "run_dir", None):
+        shutil.rmtree(run_dir, ignore_errors=True)
+    else:
+        ledger.discard_run_dir(run_dir)
+
+
+def log_tail(path, lines=3):
+    try:
+        text = [l.strip() for l in Path(path).read_text(errors="replace").splitlines() if l.strip()]
+    except OSError:
+        return ""
+    return " | ".join(text[-lines:])[:600]
+
+
 def run_attempt(args):
     common.ensure_kicad_config()
     backend = BACKENDS[args.backend]
     cfg = resolve_input(args)
     project = cfg["name"]
-    run_dir = common.new_run_dir(f"{project}/{args.label or args.backend}")
+    if any("=" not in e for e in args.backend_env or []):
+        contract.refuse("usage", "--backend-env takes KEY=VALUE")
+    run_dir = make_run_dir(args, project)
     started = time.monotonic()
+    fingerprint = None
+
+    def refuse(reason_class, message):  # before routing: the run directory is discarded
+        discard_run_dir(args, run_dir)
+        contract.refuse(reason_class, message, input_fingerprint=fingerprint, discarded_run_dir=common.rel(run_dir))
+
     log(f"[route] {args.backend} on {project} -> {common.rel(run_dir)}")
-    ref_dir, manifest = snapshot_input(cfg, run_dir)
+    try:
+        ref_dir, manifest = snapshot_input(cfg, run_dir)
+    except contract.Refusal as r:  # e.g. --rev is not a commit
+        refuse(r.reason_class, r.message)
     board_name = cfg["pcb"]
     fingerprint = input_fingerprint(manifest)
     (run_dir / "validate").mkdir()
     ref_facts, rec = board_facts(ref_dir / board_name, run_dir / "validate" / "reference-facts.json")
     (run_dir / "validate").rename(run_dir / "facts")
     if ref_facts is None:
-        sys.exit(f"could not read the input board: see {rec['log']}")
+        refuse("input", f"could not read the input board {board_name} (facts.py exit {rec['exit_code']}): "
+                        f"{log_tail(run_dir / 'facts' / 'reference-facts.log')}")
     scope, scope_info = select_nets(ref_facts, args.nets, args.netclass)
     if not scope:
-        sys.exit("the net selection matches no nets")
+        refuse("input", "the net selection matches no nets")
     settings = {"backend": args.backend, "budget_s": args.budget, "protect": args.protect,
                 "max_iterations": args.max_iterations, "passes": args.passes,
                 "default_clearance_mm": args.default_clearance, "clearance_margin_mm": args.clearance_margin,
@@ -731,16 +783,13 @@ def run_attempt(args):
     backend_version = backend["version"]()
     gate = ledger.check(out_path("ledger.jsonl"), fingerprint, args.backend, backend_version, settings,
                         force=getattr(args, "force", False))
-    if gate["refuse"] or getattr(args, "canary", False):
-        refusal = gate.get("message")
-        if not refusal and getattr(args, "canary", False):
-            from . import canary
-            c = canary.run_canary(args.backend)
-            refusal = None if c["status"] == PASS else f"canary pre-flight failed: {'; '.join(c['reasons'][:3])}"
-        if refusal:
-            ledger.discard_run_dir(run_dir)
-            log(f"[route] refused: {refusal}")
-            return {"exit_code": ledger.REFUSED_EXIT, "refused": refusal}
+    if gate["refuse"]:
+        refuse("ledger", gate["message"])
+    if getattr(args, "canary", False):
+        from . import canary
+        c = canary.run_canary(args.backend)
+        if c["status"] != PASS:
+            refuse("canary", f"canary pre-flight failed: {'; '.join(c['reasons'][:3])}")
     for note in gate["notes"]:
         log(f"[route] ledger: {note}")
 
@@ -791,6 +840,7 @@ def run_attempt(args):
         validation = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
         routing = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
     result = {
+        "schema": contract.schema_id("route"),
         "kind": "route",
         "backend": {"name": args.backend, **backend_version},
         "input": {"project": project, "board": board_name, "fingerprint": fingerprint,
@@ -1427,6 +1477,7 @@ def doctor():
             add("Freerouting latest release", NOT_RUN, f"GitHub unreachable: {e}", required=False)
 
     from . import canary
+    shutil.rmtree(out_path("doctor", "canary"), ignore_errors=True)  # a second doctor in one OUT starts fresh
     can = canary.run_canary(quick=True, dest=out_path("doctor", "canary"))
     for c in can["checks"]:
         add(f"canary {c['check']} (awkward net names)", c["status"],
@@ -1454,12 +1505,14 @@ def doctor():
     status = FAIL if required_fail else PASS
     out = out_path("doctor", "doctor.json")
     out.parent.mkdir(parents=True, exist_ok=True)
-    common.write_json(out, {"status": status, "checks": checks, "capabilities": capabilities,
-                         "versions": {"krt": v, "freerouting": fv}})
+    rec = {"schema": contract.schema_id("doctor"), "kind": "doctor", "status": status, "checks": checks,
+           "capabilities": capabilities, "versions": {"krt": v, "freerouting": fv},
+           "exit_code": 0 if status == PASS else 1, "record": common.rel(out)}
+    common.write_json(out, rec)
     for c in checks:
         log(f"{c['status']:<12} {c['check']:<44} {c['detail'] if isinstance(c['detail'], str) else ' '.join(c['detail'])}")
     log(f"\nroute doctor: {status} ({len(checks)} checks) -> {common.rel(out)}")
-    return 0 if status == PASS else 1
+    return rec
 
 
 # ------------------------------------------------------------------- compare
@@ -1469,7 +1522,7 @@ def compare(run_dirs):
     for d in run_dirs:
         r = load_json(Path(d) / "result.json")
         if r is None:
-            sys.exit(f"{d}: no result.json")
+            contract.refuse("input", f"{d}: no result.json")
         fps.add(r["input"]["fingerprint"])
         st = r["routing"].get("stats", {})
         rows.append({"run": r["run_dir"], "fp": ledger.from_result(r)[0][:12],
@@ -1625,8 +1678,10 @@ def audit(args):
         rep, info = kicad_drc(work / board, d / "drc", label, refill_and_save=True)
         facts, rec = board_facts(ref / board, d / "facts.json")
         if rep is None or facts is None:
-            log(f"[audit] {label}: could not grade ({'; '.join(info['reasons']) or rec['log']})")
-            return 1
+            why = '; '.join(info['reasons']) or rec['log']
+            log(f"[audit] {label}: could not grade ({why})")
+            return {"schema": contract.schema_id("audit"), "kind": "audit", "project": base["name"], "board": board,
+                    "error": f"{label} ({rev}) could not be graded: {why}", "dir": common.rel(root), "exit_code": 1}
         side[label] = {"rev": rev, "commit": manifest.get("source_git_head"), "ref": ref, "rep": rep,
                        "facts": facts, "parity_performed": info["parity_performed"]}
     old, new = side["old"], side["new"]
@@ -1657,7 +1712,7 @@ def audit(args):
     checks, stats = preservation(old["facts"], new["facts"], old["ref"], new["ref"], board, "existing",
                                  set(old["facts"]["nets"]))
     result = {
-        "kind": "audit", "project": base["name"], "board": board,
+        "schema": contract.schema_id("audit"), "kind": "audit", "project": base["name"], "board": board,
         "old": {"rev": old["rev"], "commit": old["commit"], **totals(old["rep"])},
         "new": {"rev": new["rev"], "commit": new["commit"], **totals(new["rep"])},
         "new_under_old_rules": totals(under) if under else None,
@@ -1701,7 +1756,7 @@ def audit(args):
     for f in findings:
         log(f"[audit] FINDING: {f}")
     log(f"[audit] {common.rel(root)}/audit.json  (exit {result['exit_code']})")
-    return result["exit_code"]
+    return result
 
 
 # ------------------------------------------------------------------------ CLI
@@ -1721,26 +1776,29 @@ def cmd_validate(args):
                                                           "pour_min_spokes": args.pour_min_spokes})
     result = load_json(run_dir / "result.json") or {}
     proc = result.get("process", {"status": PASS})
-    rec = {"kind": "route-validate", "run_dir": common.rel(run_dir), "against": common.rel(origin) if origin else None,
-           "routing": routing, "validation": validation,
+    rec = {"schema": contract.schema_id("route-validate"), "kind": "route-validate",
+           "run_dir": common.rel(run_dir), "against": common.rel(origin) if origin else None,
+           "dir": common.rel(out), "routing": routing, "validation": validation,
            "exit_code": overall_exit(proc, routing, validation)}
     common.write_json(out / "result.json", rec)
     log(f"[validate] routing: {routing['status']}  validation: {validation['status']}"
         + (f" ({'; '.join(validation['reasons'][:4])})" if validation.get("reasons") else ""))
     log(f"[validate] {common.rel(out)}/result.json  (exit {rec['exit_code']})")
-    return rec["exit_code"]
+    return rec
 
 
 def cmd_blocked(args):
     s = blocked.recompute(args.run_dir, args.top, rel=common.rel, render=render_result)
+    rc = 0
     if s is None:
         log("[blocked] no unconnected items in scope: nothing is blocked")
     elif s.get("error"):
         log(f"[blocked] diagnosis failed: {s['error']}")
-        return 1
+        rc = 1
     else:
         log("\n".join(blocked.render_md(s)).rstrip())
-    return 0
+    return {"schema": contract.schema_id("route-blocked"), "kind": "route-blocked",
+            "path": common.rel(Path(args.run_dir)), "blocked_by": s, "exit_code": rc}
 
 
 def add_pour_args(p):
@@ -1763,46 +1821,96 @@ def add_input_args(p, rev=True):
         p.add_argument("--rev", help="route a committed git revision of --dir instead of its working tree")
 
 
+SCOPE_DESTS = ("nets", "netclass")  # a campaign chooses each step's scope itself
+
+
+def add_route_args(p):
+    """The routing options of one attempt. `run`, `campaign` (passed to every step,
+    route_argv) and `corpus add` (recorded in the entry, replayed by `check`) all
+    take exactly this set, so a new option reaches all three by being added here."""
+    p.add_argument("--nets", nargs="+", metavar="PATTERN",
+                   help="net-NAME selection: fnmatch patterns, !PATTERN excludes (default: all nets)")
+    p.add_argument("--netclass", nargs="+", metavar="CLASS",
+                   help="net-CLASS selection: nets whose effective KiCad net class is CLASS")
+    p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
+    p.add_argument("--max-iterations", type=int, help="KRT A* iteration cap per search")
+    p.add_argument("--passes", type=int, help="Freerouting maximum routing passes")
+    p.add_argument("--default-clearance", type=float, metavar="MM",
+                   help="route the Default net class with at least MM clearance (tighten only; same meaning "
+                        "for both backends). Use when the input has custom rules a backend cannot read")
+    p.add_argument("--clearance-margin", type=float, metavar="MM",
+                   help="Freerouting only: add MM to every clearance it plans with (tighten only)")
+    p.add_argument("--protect", choices=["existing", "locked", "human"], default="existing",
+                   help="existing (default): all input copper must survive; locked: only locked copper, "
+                        "the backend may rip up unlocked copper; human: on a kicad-route candidate, only "
+                        "the origin run's copper (see docs/provenance.md), else like existing")
+    p.add_argument("--stall", type=int, metavar="SECONDS",
+                   help="stop the backend when its log shows no progress for SECONDS (default off)")
+    p.add_argument("--force", action="store_true",
+                   help="run even if the ledger shows this exact attempt already failed (recorded as forced)")
+    p.add_argument("--canary", action="store_true",
+                   help="first run the awkward-net-name canary for this backend; refuse (exit 4) if it fails")
+    add_pour_args(p)
+    p.add_argument("--backend-arg", action="append", metavar="ARG",
+                   help="extra argument passed to the backend verbatim (recorded; grading is unaffected)")
+    p.add_argument("--backend-env", action="append", metavar="KEY=VALUE",
+                   help="extra environment variable for the backend, e.g. a KRT KICAD_* knob (recorded)")
+    p.add_argument("--floor-history", action="store_true",
+                   help="also compare the input's rules with their git high-water mark (notes only)")
+    spokes.add_run_option(p)
+
+
+def _route_actions():
+    probe = argparse.ArgumentParser(add_help=False)
+    add_route_args(probe)
+    return [a for a in probe._actions if a.option_strings]
+
+
+def route_option_dests():
+    """Namespace names of every add_route_args option."""
+    return [a.dest for a in _route_actions()]
+
+
+def route_argv(args, skip=SCOPE_DESTS):
+    """The `run` command line that reproduces args' routing options (campaign steps).
+    Derived from add_route_args, so every routing option is forwarded."""
+    argv = []
+    for act in _route_actions():
+        if act.dest in skip:
+            continue
+        v = getattr(args, act.dest, None)
+        flag = act.option_strings[0]
+        if v is None or v is False or v == []:
+            continue
+        if isinstance(act, argparse._StoreTrueAction):
+            argv.append(flag)
+        elif isinstance(act, argparse._AppendAction):
+            argv += [f"{flag}={x}" for x in v]       # =: values may start with '-'
+        elif act.nargs == "?":
+            argv += [flag] if v == act.const else [flag, str(v)]
+        elif act.nargs in ("+", "*"):
+            argv += [flag, *map(str, v)]
+        else:
+            argv += [f"{flag}={v}"]
+    return argv
+
+
+JSON_COMMANDS = ("run", "validate", "campaign", "blocked", "audit", "floor", "doctor")
+
+
 def build_parser():
-    ap = argparse.ArgumentParser(prog="kicad-route", description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", help="where runs, caches and reports go (default ./build/kicad-route or $KICAD_ROUTE_OUT)")
-    sub = ap.add_subparsers(dest="cmd", required=True)
+    ap = contract.Parser(prog="kicad-route", description=__doc__, root=True,
+                         formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)  # subparsers are contract.Parser too
     sub.add_parser("doctor", help="routing readiness and capabilities")
     rp = sub.add_parser("run", help="route an isolated copy and grade the candidate")
     rp.add_argument("--backend", required=True, choices=sorted(BACKENDS))
     add_input_args(rp)
-    rp.add_argument("--nets", nargs="+", metavar="PATTERN",
-                    help="net-NAME selection: fnmatch patterns, !PATTERN excludes (default: all nets)")
-    rp.add_argument("--netclass", nargs="+", metavar="CLASS",
-                    help="net-CLASS selection: nets whose effective KiCad net class is CLASS")
-    rp.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
-    rp.add_argument("--max-iterations", type=int, help="KRT A* iteration cap per search")
-    rp.add_argument("--passes", type=int, help="Freerouting maximum routing passes")
-    rp.add_argument("--default-clearance", type=float, metavar="MM",
-                    help="route the Default net class with at least MM clearance (tighten only; same meaning "
-                         "for both backends). Use when the input has custom rules a backend cannot read")
-    rp.add_argument("--clearance-margin", type=float, metavar="MM",
-                    help="Freerouting only: add MM to every clearance it plans with (tighten only)")
-    rp.add_argument("--protect", choices=["existing", "locked", "human"], default="existing",
-                    help="existing (default): all input copper must survive; locked: only locked copper, "
-                         "the backend may rip up unlocked copper; human: on a kicad-route candidate, only "
-                         "the origin run's copper (see docs/provenance.md), else like existing")
+    add_route_args(rp)
     rp.add_argument("--label", help="run directory name under OUT/runs/<project>/")
-    rp.add_argument("--stall", type=int, metavar="SECONDS",
-                    help="stop the backend when its log shows no progress for SECONDS (default off)")
-    rp.add_argument("--force", action="store_true",
-                    help="run even if the ledger shows this exact attempt already failed (recorded as forced)")
-    rp.add_argument("--canary", action="store_true",
-                    help="first run the awkward-net-name canary for this backend; refuse (exit 4) if it fails")
-    add_pour_args(rp)
-    rp.add_argument("--backend-arg", action="append", metavar="ARG",
-                    help="extra argument passed to the backend verbatim (recorded; grading is unaffected)")
-    rp.add_argument("--backend-env", action="append", metavar="KEY=VALUE",
-                    help="extra environment variable for the backend, e.g. a KRT KICAD_* knob (recorded)")
-    rp.add_argument("--floor-history", action="store_true",
-                    help="also compare the input's rules with their git high-water mark (notes only)")
-    spokes.add_run_option(rp)
+    rp.add_argument("--run-dir", metavar="PATH",
+                    help="use PATH as the run directory instead of OUT/runs/<project>/<label>/<stamp>/ "
+                         "(must not exist; no `latest` link is made)")
     vp = sub.add_parser("validate", help="re-grade a run's candidate against its reference")
     vp.add_argument("run_dir")
     vp.add_argument("--against", metavar="ORIGIN_RUN",
@@ -1833,7 +1941,7 @@ def build_parser():
     cn = sub.add_parser("canary", help="awkward-net-name round trip through each backend on the fixture")
     cn.add_argument("--backend", choices=["all", *sorted(BACKENDS)], default="all")
     from . import corpus
-    corpus.add_parser(sub, add_input_args)
+    corpus.add_parser(sub, sys.modules[__name__])
     sm = sub.add_parser("smoke", help="routing integration tests on the bundled fixture")
     sm.add_argument("--publish", metavar="DIR", help="also copy the structured evidence to DIR")
     from . import campaign
@@ -1852,49 +1960,81 @@ def run_namespace(backend, **values):
     return a
 
 
-def main(argv=None):
+def dispatch(a):
+    """Run the parsed command: (exit code, its schema-carrying record or None)."""
     from . import campaign, corpus  # imported lazily, as build_parser does
-    ap = build_parser()
-    a = ap.parse_args(argv)
-    if a.out:
-        common.set_out(a.out)
-    if a.cmd in ("run", "audit") and any("=" not in e for e in a.library_dir or []):
-        ap.error("--library-dir takes NAME=PATH")
+    if getattr(a, "backend_env", None) and any("=" not in e for e in a.backend_env):
+        contract.refuse("usage", "--backend-env takes KEY=VALUE")
+    if getattr(a, "library_dir", None) and any("=" not in e for e in a.library_dir):
+        contract.refuse("usage", "--library-dir takes NAME=PATH")
+    if a.json and a.cmd not in JSON_COMMANDS:
+        contract.refuse("usage", f"--json is not supported by `{a.cmd}` (it is by: {', '.join(JSON_COMMANDS)})")
+    rec = None
     if a.cmd == "run":
         a.backend_arg = a.backend_arg or []
-        if any("=" not in e for e in a.backend_env or []):
-            ap.error("--backend-env takes KEY=VALUE")
-        return run_attempt(a)["exit_code"]
-    if a.cmd == "validate":
-        return cmd_validate(a)
-    if a.cmd == "campaign":
-        return campaign.main(a, sys.modules[__name__])
-    if a.cmd == "audit":
-        return audit(a)
-    if a.cmd == "floor":
+        rec = run_attempt(a)
+    elif a.cmd == "validate":
+        rec = cmd_validate(a)
+    elif a.cmd == "campaign":
+        rec = campaign.main(a, sys.modules[__name__])
+    elif a.cmd == "audit":
+        rec = audit(a)
+    elif a.cmd == "floor":
         cfg = resolve_input(argparse.Namespace(**{**vars(a), "rev": None}))
-        return floor.floor_command(cfg, a.since, a.write_declared, a.netclass_sizes)
-    if a.cmd == "blocked":
-        return cmd_blocked(a)
-    if a.cmd == "spokes":
-        return spokes.cmd(a)
-    if a.cmd == "canary":
+        rec = floor.floor_command(cfg, a.since, a.write_declared, a.netclass_sizes)
+    elif a.cmd == "blocked":
+        rec = cmd_blocked(a)
+    elif a.cmd == "doctor":
+        rec = doctor()
+    elif a.cmd == "spokes":
+        return spokes.cmd(a), None
+    elif a.cmd == "canary":
         from . import canary
-        return canary.cmd_canary(a)
-    if a.cmd == "corpus":
-        return corpus.cmd_corpus(a)
-    if a.cmd == "publish":
+        return canary.cmd_canary(a), None
+    elif a.cmd == "corpus":
+        return corpus.cmd_corpus(a), None
+    elif a.cmd == "publish":
         run_dir = Path(a.run_dir).resolve()
         r = load_json(run_dir / "result.json")
         if r is None:
-            sys.exit(f"{run_dir}: no result.json")
+            contract.refuse("input", f"{run_dir}: no result.json")
         dest = Path(a.to) / r["input"]["project"] / run_dir.parent.name
         shutil.rmtree(dest, ignore_errors=True)
         publish_run(run_dir, dest)
         log(f"[publish] {common.rel(dest)} (candidate stays in {r['run_dir']})")
-        return 0
-    return {"doctor": lambda: doctor(), "compare": lambda: compare(a.run_dirs),
-            "update": lambda: update(), "smoke": lambda: smoke(a.publish)}[a.cmd]()
+        return 0, None
+    else:
+        return {"compare": lambda: compare(a.run_dirs), "update": lambda: update(),
+                "smoke": lambda: smoke(a.publish)}[a.cmd](), None
+    return rec["exit_code"], rec
+
+
+def command_named(argv):
+    """The subcommand in a command line that did not parse (for the refusal record)."""
+    names = set(next(a for a in build_parser()._actions if isinstance(a, argparse._SubParsersAction)).choices)
+    return next((t for t in argv if t in names), None)
+
+
+def main(argv=None):
+    """Exit codes and records: docs/interface.md. Every failure before routing,
+    usage errors included, is a refusal: exit 4 and OUT/refusals/<stamp>.json."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    json_mode, out = contract.prescan(argv)
+    a = None
+    with contract.machine_output(json_mode) as emit:
+        try:
+            if out:
+                common.set_out(out)
+            a = build_parser().parse_args(argv)
+            if a.out:
+                common.set_out(a.out)
+            rc, rec = dispatch(a)
+        except contract.Refusal as r:
+            rec = contract.write_refusal(r, argv, getattr(a, "cmd", None) or command_named(argv))
+            contract.report_refusal(r, rec, json_mode)
+            rc = contract.REFUSED_EXIT
+        emit(rec)
+    return rc
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ import subprocess
 from pathlib import Path
 
 from . import common
+from . import contract
 
 FLOOR_SUFFIX = ".rules-floor.json"
 EPS = 1e-9  # mm values come from JSON and the rule file; equal within float noise
@@ -665,12 +666,10 @@ def floor_command(cfg, since=None, write_declared=False, netclass_sizes=False):
     board = cfg["pcb"]
     repo = Repo(cfg["path"])
     if not repo:
-        print(f"[floor] {cfg['path']} is not in a git repository: no history to read")
-        return 1
+        contract.refuse("input", f"{cfg['path']} is not in a git repository: no history to read")
     head = repo.commit("HEAD")
     if since and not repo.commit(since):
-        print(f"[floor] {since!r} is not a commit")
-        return 1
+        contract.refuse("input", f"--since {since!r} is not a commit")
     revs = history(repo, head, board, since) if head else []
     marks = high_water(revs, netclass_sizes)
     values, scopes = dir_settings(cfg["path"], board)
@@ -680,7 +679,7 @@ def floor_command(cfg, since=None, write_declared=False, netclass_sizes=False):
     below_mark = [r for r in below(values, marks, scopes) if r["setting"] not in flagged]
     out = common.out_dir() / "floor" / cfg["name"]
     out.mkdir(parents=True, exist_ok=True)
-    rec = {"kind": "floor", "project": cfg["name"], "board": board, "head": head, "since": since,
+    rec = {"schema": contract.schema_id("floor"), "kind": "floor", "project": cfg["name"], "board": board, "head": head, "since": since,
            "netclass_sizes": netclass_sizes,
            "commits": [{k: r[k] for k in ("commit", "date", "subject")} for r in revs],
            "high_water": marks, "current": values,
@@ -714,7 +713,7 @@ def floor_command(cfg, since=None, write_declared=False, netclass_sizes=False):
         print(f"[floor] draft declared floor: {rec['draft_declared']} -- review it, set reason and owner, then "
               f"copy it to {Path(cfg['path']) / board_files(board)[2]} and commit it")
     print(f"[floor] {common.rel(out / 'floor.json')}  (exit {rec['exit_code']})")
-    return rec["exit_code"]
+    return rec
 
 
 def draft_declared(declared, marks, board):
