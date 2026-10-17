@@ -6,7 +6,7 @@ input's unchanged constraints.
     kicad-route [--out DIR] doctor        readiness and capabilities of each backend
     kicad-route run --backend krt|freerouting [--dir D] [--board B.kicad_pcb] [--rev REV]
                  [--nets PAT ...] [--netclass NAME ...] [--budget SECONDS]
-                 [--protect locked|existing] [--label L] [--backend-arg ARG ...]
+                 [--protect existing|locked|human] [--label L] [--backend-arg ARG ...]
     kicad-route validate RUN_DIR [--against ORIGIN_RUN]
                                           re-grade a candidate (or a --dir chain) against its input
     kicad-route compare RUN_DIR ...       compare candidates routed from the same input
@@ -56,6 +56,7 @@ import time
 from pathlib import Path
 
 from . import common
+from . import provenance
 from . import skills
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot
 
@@ -358,7 +359,7 @@ def project_file_hashes(project_dir, board_name):
     return out
 
 
-def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, restored=()):
+def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, restored=(), human=None):
     checks = []
 
     def check(name, ok, detail="", differences=None, status=None):
@@ -408,9 +409,10 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
     check("copper_graphics", ref["copper_graphics"] == cand["copper_graphics"],
           f"{len(ref['copper_graphics'])} non-track copper graphics")
 
-    # Protected copper: locked items always; every pre-existing item with --protect existing.
+    # Protected copper: locked items always; every pre-existing item with --protect existing;
+    # with --protect human the items provenance.designation() names (uuids in `human`).
     def designated(item):
-        return item["locked"] or protect == "existing"
+        return item["locked"] or protect == "existing" or (human is not None and item["uuid"] in human)
 
     out = {}
     for kind in ("tracks", "vias"):
@@ -427,17 +429,20 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
                      "lock_flags_lost": max(unlocked_after, 0)}
     missing = out["tracks"]["protected_missing"] + out["vias"]["protected_missing"]
     lost_locks = out["tracks"]["lock_flags_lost"] + out["vias"]["lock_flags_lost"]
+    designated_what = {"locked": "locked items", "human": "locked items and human copper, see provenance.json"
+                       }.get(protect, "all pre-existing copper")
     check("protected_copper", not missing,
           f"{out['tracks']['protected']} tracks and {out['vias']['protected']} vias designated "
-          f"({'locked items' if protect == 'locked' else 'all pre-existing copper'}); max deviation "
+          f"({designated_what}); max deviation "
           f"{max(out['tracks']['protected_max_deviation_nm'], out['vias']['protected_max_deviation_nm'])} nm"
           + (f"; {lost_locks} lock flags dropped" if lost_locks else "")
           + (f"; {len(missing)} missing or altered" if missing else ""), missing[:20])
-    if protect == "locked":
+    if protect in ("locked", "human"):
+        what = "unlocked" if protect == "locked" else "agent (earlier-step)"
         check("existing_unlocked_copper", True,
               f"{out['tracks']['unprotected_removed_or_changed']} of {out['tracks']['unprotected_existing']} "
-              f"unlocked tracks and {out['vias']['unprotected_removed_or_changed']} of "
-              f"{out['vias']['unprotected_existing']} unlocked vias removed or changed (allowed: not protected)",
+              f"{what} tracks and {out['vias']['unprotected_removed_or_changed']} of "
+              f"{out['vias']['unprotected_existing']} {what} vias removed or changed (allowed: not protected)",
               status=PASS)
 
     # New copper must meet the net class of its net and stay inside the routing scope.
@@ -489,6 +494,37 @@ def route_stats(tracks, vias):
 
 # ------------------------------------------------------------------ validation
 
+def previous_step(attempt):
+    """(run_dir, attempt) of the run whose candidate is this attempt's input, or None."""
+    src = Path(attempt["source"].get("source_dir") or "/").resolve()
+    prev = src.parent.parent
+    prev_attempt = load_json(prev / "attempt.json")
+    if prev_attempt is None or (prev / prev_attempt["candidate_dir"]).resolve() != src:
+        return None
+    return prev, prev_attempt
+
+
+def resolve_origin(run_dir, attempt, origin=None):
+    """The --dir chain from run_dir back to its origin, following each step's recorded
+    input (attempt.json source.source_dir) to the run whose candidate it was:
+    [(run_dir, attempt), ..., (origin, origin_attempt)]. With origin, the chain must
+    reach that run; without, it ends at the first run whose input is not a candidate."""
+    steps = [(run_dir, attempt)]
+    seen = {run_dir.resolve()}
+    while origin is None or steps[-1][0].resolve() != origin.resolve():
+        prev = previous_step(steps[-1][1])
+        if prev is None or prev[0].resolve() in seen:
+            if origin is None:
+                break
+            sys.exit(f"{common.rel(steps[-1][0])}: input is not a routing candidate, so it does not descend "
+                     f"from {common.rel(origin)}")
+        if prev[1]["board"] != attempt["board"]:
+            sys.exit(f"{common.rel(prev[0])}: board {prev[1]['board']} is not {attempt['board']}")
+        seen.add(prev[0].resolve())
+        steps.append(prev)
+    return steps
+
+
 def validate(run_dir, out_dir=None, origin=None):
     """Grade run_dir/candidate against run_dir/reference. Re-runnable: an agent may
     edit the candidate and validate it again into a fresh directory. With origin (an
@@ -503,20 +539,11 @@ def validate(run_dir, out_dir=None, origin=None):
     scope = set(attempt["scope"]["nets"])
     chain = []
     if origin is not None:
-        chain, step = [common.rel(run_dir)], (run_dir, attempt)
-        while step[0].resolve() != origin.resolve():
-            src = Path(step[1]["source"].get("source_dir") or "/").resolve()
-            prev = src.parent.parent
-            prev_attempt = load_json(prev / "attempt.json")
-            if prev_attempt is None or (prev / prev_attempt["candidate_dir"]).resolve() != src:
-                sys.exit(f"{common.rel(step[0])}: input is not a routing candidate, so it does not descend "
-                         f"from {common.rel(origin)}")
-            if prev_attempt["board"] != attempt["board"]:
-                sys.exit(f"{common.rel(prev)}: board {prev_attempt['board']} is not {attempt['board']}")
-            step = (prev, prev_attempt)
-            chain.append(common.rel(prev))
-            scope |= set(prev_attempt["scope"]["nets"])
-        attempt, run_dir = step[1], step[0]
+        steps = resolve_origin(run_dir, attempt, origin)
+        chain = [common.rel(d) for d, _ in steps]
+        for _, a in steps[1:]:
+            scope |= set(a["scope"]["nets"])
+        run_dir, attempt = steps[-1]
     out_dir = out_dir or run_dir / "validate"
     out_dir.mkdir(parents=True, exist_ok=False)
     board_name = attempt["board"]
@@ -591,8 +618,16 @@ def validate(run_dir, out_dir=None, origin=None):
         v["reasons"].append("board facts could not be extracted")
         v["status"] = FAIL
         return v, routing
-    checks, stats = preservation(ref_facts, cand_facts, ref_dir, cand_dir, board_name,
-                                 attempt["settings"]["protect"], scope, restored)
+    # --protect human (provenance.py): only human copper is designated; nets that carried
+    # agent copper may be ripped and rerouted, so new copper on them is not out of scope.
+    protect = attempt["settings"]["protect"]
+    human = provenance.designation(run_dir, attempt, ref_facts) if protect == "human" else None
+    checks, stats = preservation(ref_facts, cand_facts, ref_dir, cand_dir, board_name, protect,
+                                 (scope | human["agent_nets"]) if human else scope, restored,
+                                 human=human["uuids"] if human else None)
+    ratchet = provenance.net_completion(base, cand, ref_facts, item_nets)  # every protect mode
+    checks.append(ratchet)
+    v["net_completion"] = {k: ratchet[k] for k in ("status", "nets_connected_in_input", "nets_lost")}
     common.write_json(out_dir / "preservation.json", checks)
     v["preservation"] = {c["check"]: c["status"] for c in checks}
     for c in checks:
@@ -656,6 +691,10 @@ def run_attempt(args):
         "settings": settings,
     }
     common.write_json(run_dir / "attempt.json", attempt)
+    if args.protect == "human":  # lock only the design's own copper (provenance.py, docs/provenance.md)
+        prov = provenance.prepare(run_dir, attempt, resolve_origin(run_dir, attempt))
+        log(f"[route] provenance: {prov.get('detail') or prov['reason']}")
+        common.write_json(run_dir / "attempt.json", attempt)
 
     unsupported = backend["unsupported"](ref_facts, ref_dir, settings)
     work = run_dir / "work"
@@ -876,10 +915,13 @@ def krt_route(work, board, scope, facts, settings):
     argv += settings["backend_args"]
     env.update(settings.get("backend_env") or {})
     locks = None
-    if settings["protect"] == "existing":
+    if settings["protect"] in ("existing", "human"):
         # KRT never touches locked copper, but its rescue path reworks unlocked input
         # copper despite --keep-input-copper: lock it for the run, restore flags after.
-        lr = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "locks.py", "lock", board, work / "locks.json"],
+        # --protect human locks only the human copper (provenance.py) and leaves KRT
+        # free to rip and reroute agent copper.
+        only = ["--only", work.parent / settings["protect_only"]] if settings.get("protect_only") else []
+        lr = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "locks.py", "lock", board, work / "locks.json", *only],
                          work, work / "lock-existing.log", timeout=600)
         locks = {"lock": tagged_json(lr["output"], "LOCKS_JSON"), "lock_exit": lr["exit_code"]}
         if lr["exit_code"] != 0:
@@ -1003,6 +1045,10 @@ def freerouting_unsupported(facts, ref_dir, settings):
              "Specctra carries per-class width/clearance/via only: custom .kicad_dru rules, diff pairs and "
              "length tuning are not exported; KiCad DRC grades them",
              "rule areas export only their no-tracks/no-vias restrictions; zones export as plane outlines"]
+    if settings.get("protect") == "human":
+        notes.append("--protect human: agent copper is exported unlocked ((type route)) and rebuilt from the "
+                     "session, but Freerouting returns it as (type protect) and never rips it up; use KRT to "
+                     "reroute agent copper")
     dru = ref_dir / Path(facts["board"]).with_suffix(".kicad_dru").name
     if dru.exists() and "(rule" in dru.read_text():
         notes.append(f"{dru.name}: net-class-to-net-class clearance rules are translated to Specctra "
@@ -1039,6 +1085,8 @@ def freerouting_route(work, board, scope, facts, settings):
         export += ["--clearance-margin", f"{settings['clearance_margin_mm'] * 1000:g}"]
     if settings.get("default_clearance_mm"):
         export += ["--default-clearance", f"{settings['default_clearance_mm'] * 1000:g}"]
+    only = ["--only", work.parent / settings["protect_only"]] if settings.get("protect_only") else []
+    export += only  # --protect human: agent copper is not locked for the round trip
     rec = common.run_cmd(export, work, work / "export-dsn.log", timeout=600)
     proc["commands"].append(common.public(rec))
     bridge = tagged_json(rec["output"], "BRIDGE_JSON") if rec["exit_code"] == 0 else None
@@ -1094,7 +1142,7 @@ def freerouting_route(work, board, scope, facts, settings):
         return proc
     out = work / "freerouting-out" / board.name
     out.parent.mkdir()
-    rec = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "specctra.py", "import", board, ses, out], work,
+    rec = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "specctra.py", "import", board, ses, out, *only], work,
                       work / "import-ses.log", timeout=600)
     proc["commands"].append(common.public(rec))
     if rec["exit_code"] != 0 or not out.exists():
@@ -1597,9 +1645,10 @@ def main(argv=None):
                          "for both backends). Use when the input has custom rules a backend cannot read")
     rp.add_argument("--clearance-margin", type=float, metavar="MM",
                     help="Freerouting only: add MM to every clearance it plans with (tighten only)")
-    rp.add_argument("--protect", choices=["existing", "locked"], default="existing",
+    rp.add_argument("--protect", choices=["existing", "locked", "human"], default="existing",
                     help="existing (default): all input copper must survive; locked: only locked copper, "
-                         "the backend may rip up unlocked copper")
+                         "the backend may rip up unlocked copper; human: on a kicad-route candidate, only "
+                         "the origin run's copper (see docs/provenance.md), else like existing")
     rp.add_argument("--label", help="run directory name under OUT/runs/<project>/")
     rp.add_argument("--backend-arg", action="append", metavar="ARG",
                     help="extra argument passed to the backend verbatim (recorded; grading is unaffected)")
