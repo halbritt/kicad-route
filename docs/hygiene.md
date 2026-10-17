@@ -199,9 +199,9 @@ The canary works on the bundled fixture.
 Results go to `OUT/canary/<stamp>/canary.json` (`OUT/doctor/canary/` for
 doctor).
 
-The split check uses its own quote-aware parser rather than `find_open`. With
-`find_open` reverted to a plain `text.find("(")`, it fails
-(`tests/test_hygiene.py`).
+The split check uses its own quote-aware parser rather than the bridge's
+class reader (`specctra.read_class`). With the reader's name spellings reverted
+to a plain whitespace split, it fails (`tests/test_hygiene.py`).
 
 Bugs the canary found while it was written (fixed on this branch):
 
@@ -218,10 +218,23 @@ Bugs the canary found while it was written (fixed on this branch):
   `''q''` in its `(net ...)` definition. `split_classes` therefore left it in
   the routable class, and Freerouting routed it outside the scope. The
   `routing_scope` check failed the candidate.
-  - Fix: `split_classes` matches both spellings and writes a moved member in
-    the definition's spelling (`specctra.dsn_net_token`).
-  - Still an upstream KiCad defect: a name such as `x"y` makes KiCad write an
-    unbalanced class list. The bridge does not repair that.
+  - Fix: `split_classes` identifies members by exact KiCad name and writes a
+    moved member in the definition's spelling (`specctra.dsn_net_token`).
+- **Freerouting, `"` together with spaces or parentheses.** KiCad never escapes
+  class lists: the net `foo "(bar)"` is written `"foo "(bar)""` and `x y"z` is
+  `"x y"z"`, so counting quotes cuts the list in the wrong place (KICADROUTE-16),
+  and stripping quotes made `"foo"` and `foo` the same net (KICADROUTE-15).
+  - Fix: `specctra.read_class` lists every spelling KiCad's writer could have
+    produced (quoted iff the name is empty, starts with `#`, or holds
+    whitespace or one of `(){}%`; checked against KiCad 10 exports), prefers the
+    reading whose members are the network's `(net ...)` definitions, and
+    refuses (the export fails, so the attempt is a process FAIL) when the
+    reading is not unique. Kept members keep KiCad's token; members are never
+    compared unquoted.
+  - Still an upstream defect: KiCad also writes such names raw in `(plane ...)`
+    and in-scope class members, and Freerouting 2.5.0 cannot read that DSN
+    (`Shape.read_area_scope: could not read shape`, then a
+    NullPointerException). The bridge does not rewrite those.
 
 ## Real-board update gate (corpus)
 

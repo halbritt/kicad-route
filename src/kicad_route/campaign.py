@@ -72,7 +72,8 @@ def add_parser(sub, cli):
     p.add_argument("--backend", required=True, choices=sorted(cli.BACKENDS))
     cli.add_input_args(p)
     p.add_argument("--nets", nargs="+", metavar="PATTERN",
-                   help="campaign scope by net NAME: fnmatch patterns, !PATTERN excludes (default: all nets)")
+                   help="campaign scope by net NAME: fnmatch patterns, !PATTERN excludes, a leading \\! is a "
+                        "literal '!' (default: all nets)")
     p.add_argument("--netclass", nargs="+", metavar="CLASS", help="campaign scope by effective KiCad net class")
     p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend, per run (default 300)")
     p.add_argument("--max-iterations", type=int, help="KRT A* iteration cap per search (every run)")
@@ -473,7 +474,10 @@ class Campaign:
         if facts is None:
             sys.exit(f"could not read the input board: see {rec['log']}")
         self.fingerprint = cli.input_fingerprint(manifest)
-        self.scope = cli.select_nets(facts, self.args.nets, self.args.netclass)[0]
+        try:
+            self.scope = cli.select_nets(facts, self.args.nets, self.args.netclass)[0]
+        except cli.NetSelectionError as e:
+            sys.exit(f"refused: {e}")
         cli.baseline_drc(ref_dir, self.cfg["pcb"], self.fingerprint)
         lanes = []
         for ordering in ORDERINGS:

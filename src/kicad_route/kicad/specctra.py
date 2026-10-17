@@ -14,7 +14,9 @@ forms need a running PCB editor).
 export --skip-nets: Freerouting selects work by net class only. Nets outside
 the routing scope are moved into a copy of their class (same width, clearance
 and via rules) named `<class>__skip`; the caller passes those names to
---router.autorouter.ignore_net_classes. Clearances are unchanged.
+--router.autorouter.ignore_net_classes. Clearances are unchanged. Nets are
+matched by exact KiCad name in class lists read as KiCad writes them (see
+read_class); a list that cannot be read unambiguously fails the export.
 
 export --default-clearance: raise the Default net class (`kicad_default`) and
 the board-level clearance rule to UM micrometres when they are lower. It only
@@ -50,6 +52,8 @@ import: the session's (placement ...) section is dropped before KiCad reads
 it, so a session can never move footprints. Zones are not refilled here; the
 caller grades with a refill.
 """
+import collections
+import heapq
 import json
 import re
 import sys
@@ -76,66 +80,238 @@ def block_span(text, start):
     raise ValueError("unbalanced s-expression")
 
 
-def find_open(text, start):
-    """Index of the first `(` at or after `start` outside a quoted string, or -1.
-    Net names such as "Net-(BT1-+)" carry parentheses inside their quotes."""
-    in_str = False
-    for i in range(start, len(text)):
-        c = text[i]
-        if c == '"':
-            in_str = not in_str
-        elif c == "(" and not in_str:
-            return i
-    return -1
+# ------------------------------------------------- KiCad's DSN net names
+#
+# KiCad's Specctra writer (OUTPUTFORMATTER::GetQuoteChar, checked against KiCad
+# 10 exports) wraps a name in `"` when it is empty, starts with `#`, or holds
+# whitespace or one of `(){}%`; it never escapes anything. A (net ...)
+# definition first replaces each `"` in the name by `''`, so definitions are
+# plain tokens. A class member list writes the name raw: the net `"foo"` is
+# `"foo"`, the net `x y"z` is `"x y"z"` and `foo "(bar)"` is `"foo "(bar)""`.
+# Those lists are therefore not tokenizable by quote counting; read_class()
+# enumerates the spellings KiCad could have produced, prefers readings whose
+# members are defined nets, and refuses (ValueError) when the reading is not
+# unique. Members are identified by their exact KiCad name, never unquoted.
+
+QUOTED = re.compile(r"[\s(){}%]")
+RAW = re.compile(r"[^\s()]+")
+DEF_TOKEN = re.compile(r'"[^"]*"|[^\s()"]+')
+WS = " \t\r\n"
 
 
-def atoms(text):
-    return re.findall(r'"(?:[^"])*"|[^\s()]+', text)
+def needs_quote(name):
+    """True when KiCad's DSN writer wraps `name` in quotes."""
+    return not name or name.startswith("#") or bool(QUOTED.search(name))
 
 
-def unquote(a):
-    return a[1:-1] if a.startswith('"') and a.endswith('"') else a
+def kicad_token(name):
+    """`name` as KiCad writes it in a class member list (raw, quoted when needed)."""
+    return f'"{name}"' if needs_quote(name) else name
 
 
 def dsn_net_token(name):
     """A KiCad net name as KiCad's DSN exporter writes it in (net ...) definitions:
-    `"` becomes `''`, quoted when it holds whitespace or parentheses."""
-    name = name.replace('"', "''")
-    return f'"{name}"' if re.search(r'[\s()]', name) or not name else name
+    `"` becomes `''`, then quoted as kicad_token() does."""
+    return kicad_token(name.replace('"', "''"))
+
+
+def unquote(a):
+    return a[1:-1] if len(a) >= 2 and a.startswith('"') and a.endswith('"') else a
+
+
+def skip_ws(text, i):
+    while i < len(text) and text[i] in WS:
+        i += 1
+    return i
+
+
+def spellings(text, i, strict=True, defined=None, longest=None):
+    """[(end, name)]: each way KiCad's class writer could have written a name that
+    starts at text[i] and ends at whitespace or `)`. strict: only spellings that
+    obey needs_quote() (raw iff the name needs no quotes). With `defined` (and
+    `longest`, its longest entry's length), a quoted spelling is offered only when
+    it is a defined net or the shortest one, which keeps long lines linear."""
+    out = []
+    m = RAW.match(text, i)
+    if m and (m.end() == len(text) or text[m.end()] in WS + ")") and not (strict and needs_quote(m.group())):
+        out.append((m.end(), m.group()))
+    if i < len(text) and text[i] == '"':
+        j, shortest = i + 1, True
+        while (j := text.find('"', j)) >= 0:
+            inner = text[i + 1:j]
+            if "\n" in inner or "\r" in inner:    # KiCad wraps lines only between names
+                break
+            if defined is not None and not shortest and len(inner) > longest:
+                break
+            if (j + 1 == len(text) or text[j + 1] in WS + ")") and (needs_quote(inner) or not strict):
+                if defined is None or shortest or inner.replace('"', "''") in defined:
+                    out.append((j + 1, inner))
+                    shortest = False
+            j += 1
+    return out
+
+
+def class_tail(text, i):
+    """End (exclusive) of a class block whose sub-expressions start at text[i]
+    (`(` ... then the closing `)`), or None when that is not what follows."""
+    try:
+        while i < len(text) and text[i] == "(":
+            i = skip_ws(text, block_span(text, i))
+    except ValueError:
+        return None
+    return i + 1 if i < len(text) and text[i] == ")" else None
+
+
+ClassBlock = collections.namedtuple("ClassBlock", "start end name name_token members subs")
+# members: [(kicad name, token start, token end)]; subs: index of the first sub-expression
+# (or of the closing paren when the class has none)
+
+
+def _readings(text, start, defined, whole, strict):
+    """Best readings of the (class ...) at text[start]: fewest members that are not
+    defined nets (and class names holding `"`), ties counted (capped at 2).
+    Returns (count, ClassBlock when count == 1 else None, {first sub-expression: end} of
+    the tied readings)."""
+    i = start + len("(class")
+    if not text.startswith("(class", start) or i >= len(text) or text[i] not in WS:
+        raise ValueError(f"no (class ...) at offset {start}")
+    i = skip_ws(text, i)
+    longest = max((len(d) for d in defined), default=0) if defined is not None else None
+    # node: position of the next member; state: (cost, count, back pointer)
+    best = {}                     # (pos, is_name) -> [cost, count, pred, token]
+    heap = []
+
+    def reach(node, cost, count, pred, tok):
+        cur = best.get(node)
+        if cur is None or cost < cur[0]:
+            if cur is None:
+                heapq.heappush(heap, node)
+            best[node] = [cost, count, pred, tok]
+        elif cost == cur[0]:
+            cur[1] = min(2, cur[1] + count)
+
+    reach((i, True), 0, 1, None, None)
+    finals = []                    # (cost, count, node, end)
+    while heap:
+        node = heapq.heappop(heap)
+        pos, is_name = node
+        cost, count = best[node][:2]
+        if not is_name and pos < len(text) and text[pos] in "()":
+            end = class_tail(text, pos)
+            if end is not None and (not whole or not text[end:].strip()):
+                finals.append((cost, count, node, end))
+            continue
+        for end, name in spellings(text, pos, strict and not is_name, None if is_name else defined, longest):
+            if is_name:  # this bridge writes `"<class>__skip"`; a name holding `"` is the unlikely reading
+                extra = int('"' in name)
+            else:
+                extra = 0 if defined is None or name.replace('"', "''") in defined else 1
+            reach((skip_ws(text, end), False), cost + extra, count, node, (name, pos, end))
+    if not finals:
+        return 0, None, {}
+    low = min(f[0] for f in finals)
+    finals = [f for f in finals if f[0] == low]
+    count = min(2, sum(f[1] for f in finals))
+    tails = {f[2][0]: f[3] for f in finals}
+    if count != 1:
+        return count, None, tails
+    _, _, node, end = finals[0]
+    toks = []
+    while best[node][2] is not None:
+        toks.append(best[node][3])
+        node = best[node][2]
+    toks.reverse()
+    (cname, cs, ce), members = toks[0], toks[1:]
+    subs = finals[0][2][0]
+    return 1, ClassBlock(start, end, cname, text[cs:ce], members, subs), tails
+
+
+def read_class(text, start, defined=None, whole=False):
+    """The (class ...) block at text[start] as KiCad writes it (see above).
+
+    defined: the network's net definitions, unquoted (`''` kept); readings with
+    more undefined members lose. whole: the block must end at the end of `text`.
+    Falls back to non-strict spellings when no strict reading exists. Raises
+    ValueError when no reading, or more than one equally good reading, exists."""
+    for strict in (True, False):
+        count, res, _ = _readings(text, start, defined, whole, strict)
+        if count == 1:
+            return res
+        if count > 1:
+            raise ValueError(f"ambiguous net class member list at offset {start}: {text[start:start + 200]!r}")
+    raise ValueError(f"unreadable net class member list at offset {start}: {text[start:start + 200]!r}")
+
+
+def find_open(text, start=1):
+    """Index of the first sub-expression of the (class ...) block `text` (the whole
+    block, as KiCad writes it), at or after `start`; -1 when it has none. Member
+    names are skipped as KiCad spells them: `"Net-(BT1-+)"` and `"foo "(bar)""`
+    carry parentheses that do not open anything."""
+    for strict in (True, False):
+        count, _, tails = _readings(text, 0, None, True, strict)
+        if len(tails) == 1:  # the names may split more than one way; the sub-expressions do not
+            subs = next(iter(tails))
+            return subs if text[subs] == "(" and subs >= start else -1
+        if count:
+            raise ValueError(f"net class member list ends in {len(tails)} places: {text[:200]!r}")
+    raise ValueError(f"unreadable net class member list: {text[:200]!r}")
+
+
+Network = collections.namedtuple("Network", "start end defined classes")
+
+
+def read_network(dsn):
+    """The (network ...) section: its span, net definitions ({unquoted: token}) and
+    classes (ClassBlock, in order). KiCad writes every (net ...) before the classes."""
+    m = re.search(r"\(network\b", dsn)
+    if not m:
+        raise ValueError("no (network ...) section")
+    i, defined, classes = m.end(), {}, []
+    while True:
+        i = skip_ws(dsn, i)
+        if i >= len(dsn):
+            raise ValueError("unbalanced (network ...) section")
+        if dsn[i] == ")":
+            return Network(m.start(), i + 1, defined, classes)
+        kw = re.compile(r"\(([^\s()\"]+)").match(dsn, i)
+        if not kw:
+            raise ValueError(f"unexpected text in (network ...) at offset {i}: {dsn[i:i + 80]!r}")
+        if kw.group(1) == "class":
+            c = read_class(dsn, i, set(defined) or None)
+            classes.append(c)
+            i = c.end
+            continue
+        if kw.group(1) == "net":
+            t = DEF_TOKEN.match(dsn, skip_ws(dsn, kw.end()))
+            if t:
+                defined[unquote(t.group())] = t.group()
+        i = block_span(dsn, i)
 
 
 def split_classes(dsn, skip):
-    """Move nets in `skip` into `<class>__skip` copies of their DSN class.
+    """Move nets in `skip` (exact KiCad net names) into `<class>__skip` copies of
+    their DSN class.
 
-    KiCad writes a name containing `"` raw in class lists (`"q"` for the net
-    `"q"`) but as `''q''` in its (net ...) definition; a moved member is written
-    in the definition's form so Freerouting can match it to its net."""
+    Members are identified by exact name, as read_class() reads KiCad's raw class
+    list: the nets `foo` and `"foo"` never collide. A kept member keeps its token
+    as KiCad wrote it; a moved member is written in its (net ...) definition's
+    form (`''q''` for the net `"q"`) so Freerouting can match it to its net."""
+    net = read_network(dsn)
     out, pos, ignored = [], 0, []
-    for m in re.finditer(r"\(class\s", dsn):
-        if m.start() < pos:
-            continue
-        end = block_span(dsn, m.start())
-        block = dsn[m.start():end]
-        first_sub = find_open(block, 1)
-        head = block[:first_sub] if first_sub > 0 else block[:-1]
-        body = block[first_sub:-1] if first_sub > 0 else ""
-        names = atoms(head[len("(class"):])
-        if not names:
-            continue
-        cls, nets = names[0], names[1:]
-        def skipped(n):
-            return unquote(n) in skip or ('"' in n and n in skip)
-        keep = [n for n in nets if not skipped(n)]
-        drop = [dsn_net_token(n if n in skip else unquote(n)) for n in nets if skipped(n)]
+    for c in net.classes:
+        drop = [n for n, _, _ in c.members if n in skip]
         if not drop:
             continue
-        skip_name = f'"{unquote(cls)}__skip"'
-        new = f"(class {cls} {' '.join(keep)}\n      {body.strip()})" if keep else ""
-        new += f"\n    (class {skip_name} {' '.join(drop)}\n      {body.strip()})"
-        out.append(dsn[pos:m.start()])
+        keep = [dsn[s:e] for n, s, e in c.members if n not in skip]
+        moved = [net.defined.get(n.replace('"', "''"), dsn_net_token(n)) for n in drop]
+        body = dsn[c.subs:c.end - 1].strip()
+        skip_name = f'"{c.name}__skip"'
+        new = f"(class {c.name_token} {' '.join(keep)}\n      {body})" if keep else ""
+        new += f"\n    (class {skip_name} {' '.join(moved)}\n      {body})"
+        out.append(dsn[pos:c.start])
         out.append(new.strip())
-        pos = end
-        ignored.append(unquote(skip_name))
+        pos = c.end
+        ignored.append(f"{c.name}__skip")
     out.append(dsn[pos:])
     return "".join(out), ignored
 
@@ -163,10 +339,9 @@ def raise_default_clearance(dsn, floor_um):
             re_ = block_span(struct, rs)
             struct = struct[:rs] + bump_rule(struct[rs:re_], "structure rule") + struct[re_:]
         dsn = dsn[:m.start()] + struct + dsn[end:]
-    m = re.search(r"\(class\s+kicad_default\b", dsn)
-    if m:
-        end = block_span(dsn, m.start())
-        dsn = dsn[:m.start()] + bump_rule(dsn[m.start():end], "class kicad_default") + dsn[end:]
+    c = next((c for c in read_network(dsn).classes if c.name == "kicad_default"), None)
+    if c:  # only its rules, never its member names
+        dsn = dsn[:c.subs] + bump_rule(dsn[c.subs:c.end], "class kicad_default") + dsn[c.end:]
     return dsn, changes
 
 
@@ -229,8 +404,10 @@ def dru_class_clearances(text):
 
 def add_class_clearances(dsn, rules):
     """Append (class_class ...) rules to (network ...) for translated .kicad_dru rules."""
-    classes = re.findall(r"\(class\s+(\"[^\"]*\"|\S+)", dsn)
-    classes = [unquote(c) for c in classes]
+    if not rules:
+        return dsn, []
+    net = read_network(dsn)
+    classes = [c.name for c in net.classes]
 
     def dsn_names(kicad_class):  # Default is exported as kicad_default; __skip copies share rules
         base = "kicad_default" if kicad_class == "Default" else kicad_class
@@ -254,8 +431,7 @@ def add_class_clearances(dsn, rules):
         applied.append({"rule": name, "classes": [a, b], "clearance_mm": mm, "pairs": len(first) * len(second)})
     if not blocks:
         return dsn, applied
-    m = re.search(r"\(network\b", dsn)
-    end = block_span(dsn, m.start())
+    end = net.end
     return dsn[:end - 1] + "\n".join(blocks) + "\n  " + dsn[end - 1:], applied
 
 
@@ -274,6 +450,22 @@ def drop_placement(ses):
         return ses, False
     end = block_span(ses, m.start())
     return ses[:m.start()] + ses[end:], True
+
+
+def rewrite_dsn(text, opts, info):
+    """The export options applied to KiCad's DSN text, in order; details go to `info`."""
+    if "--skip-nets" in opts:
+        text, info["ignored_classes"] = split_classes(text, set(json.loads(Path(opts["--skip-nets"]).read_text())))
+    if "--dru" in opts:
+        rules, skipped = dru_class_clearances(Path(opts["--dru"]).read_text())
+        text, info["dru_translated"] = add_class_clearances(text, rules)
+        info["dru_untranslated"] = [{"rule": n, "reason": r} for n, r in skipped]
+    if "--default-clearance" in opts:
+        text, info["clearance_raised"] = raise_default_clearance(text, float(opts["--default-clearance"]))
+    if "--clearance-margin" in opts:
+        text, n = add_margin(text, float(opts["--clearance-margin"]))
+        info["clearance_margin"] = {"um": float(opts["--clearance-margin"]), "rules": n}
+    return text
 
 
 def main(argv):
@@ -307,17 +499,10 @@ def main(argv):
         if "--only" in opts:
             info["existing_copper_left_unlocked"] = sum(1 for t in board.GetTracks() if not t.IsLocked())
         text = out.read_text()
-        if "--skip-nets" in opts:
-            text, info["ignored_classes"] = split_classes(text, set(json.loads(Path(opts["--skip-nets"]).read_text())))
-        if "--dru" in opts:
-            rules, skipped = dru_class_clearances(Path(opts["--dru"]).read_text())
-            text, info["dru_translated"] = add_class_clearances(text, rules)
-            info["dru_untranslated"] = [{"rule": n, "reason": r} for n, r in skipped]
-        if "--default-clearance" in opts:
-            text, info["clearance_raised"] = raise_default_clearance(text, float(opts["--default-clearance"]))
-        if "--clearance-margin" in opts:
-            text, n = add_margin(text, float(opts["--clearance-margin"]))
-            info["clearance_margin"] = {"um": float(opts["--clearance-margin"]), "rules": n}
+        try:
+            text = rewrite_dsn(text, opts, info)
+        except ValueError as e:  # fail closed: never hand a backend a DSN we could not read
+            sys.exit(f"DSN rewrite failed: {e}")
         out.write_text(text)
         print("BRIDGE_JSON: " + json.dumps(info))
         return 0

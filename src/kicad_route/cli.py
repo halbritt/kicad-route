@@ -193,24 +193,49 @@ def board_facts(board, out):
     return facts, common.public(rec)
 
 
+class NetSelectionError(ValueError):
+    """A --nets selection that would not mean what it says; refused before routing."""
+
+
+def parse_net_pattern(pat):
+    r"""(excludes, fnmatch pattern) of one --nets pattern. `!PAT` excludes PAT; a
+    leading `\!` is a literal '!' (`\!RESET` selects the net `!RESET`, `!\!RESET`
+    excludes it), as netnames.exact() writes such names for KRT."""
+    excludes = pat.startswith("!")
+    body = pat[1:] if excludes else pat
+    return excludes, body[1:] if body.startswith("\\!") else body
+
+
 def select_nets(facts, patterns, netclasses):
-    """Net names in scope. Patterns match net names (fnmatch, `!pat` excludes);
-    net classes match the effective class KiCad resolved for each net. Exclusions
-    alone (`--nets '!GND'`) start from every net."""
+    r"""Net names in scope. Patterns match net names (fnmatch, `!pat` excludes, `\!`
+    is a literal leading '!'); net classes match the effective class KiCad resolved
+    for each net. Exclusions alone (`--nets '!GND'`) start from every net.
+
+    Raises NetSelectionError for an exclusion that excludes nothing while a net is
+    literally named like it (`--nets '!RESET'` on a board with the net `!RESET`):
+    that reads as "route !RESET" but would route everything else."""
     names = sorted(facts["nets"])
     if not patterns and not netclasses:
         return names, {"mode": "all"}
-    only_excludes = not netclasses and all(p.startswith("!") for p in patterns)
+    parsed = [parse_net_pattern(p) for p in patterns or []]
+    for pat, (excludes, body) in zip(patterns or [], parsed):
+        if excludes and not any(fnmatch.fnmatchcase(n, body) for n in names):
+            literal = [n for n in names if fnmatch.fnmatchcase(n, pat)]
+            if literal:
+                raise NetSelectionError(
+                    f"--nets {pat!r} is an exclusion (of nets matching {body!r}, of which there are none), "
+                    f"but the board has a net named {literal[0]!r}: write '\\{pat}' to route that net, "
+                    f"or '!\\{pat}' to exclude it")
+    only_excludes = not netclasses and all(excludes for excludes, _ in parsed)
     chosen = set(names) if only_excludes else set()
-    for pat in patterns or []:
-        if pat.startswith("!"):
-            continue
-        chosen |= {n for n in names if fnmatch.fnmatchcase(n, pat)}
+    for excludes, body in parsed:
+        if not excludes:
+            chosen |= {n for n in names if fnmatch.fnmatchcase(n, body)}
     for cls in netclasses or []:
         chosen |= {n for n in names if facts["nets"][n]["netclass"] == cls}
-    for pat in patterns or []:
-        if pat.startswith("!"):
-            chosen -= {n for n in names if fnmatch.fnmatchcase(n, pat[1:])}
+    for excludes, body in parsed:
+        if excludes:
+            chosen -= {n for n in names if fnmatch.fnmatchcase(n, body)}
     return sorted(chosen), {"mode": "selected", "net_patterns": patterns or [], "netclasses": netclasses or []}
 
 
@@ -777,7 +802,12 @@ def run_attempt(args):
     (run_dir / "validate").rename(run_dir / "facts")
     if ref_facts is None:
         sys.exit(f"could not read the input board: see {rec['log']}")
-    scope, scope_info = select_nets(ref_facts, args.nets, args.netclass)
+    try:
+        scope, scope_info = select_nets(ref_facts, args.nets, args.netclass)
+    except NetSelectionError as e:
+        ledger.discard_run_dir(run_dir)
+        log(f"[route] refused: {e}")
+        return {"exit_code": ledger.REFUSED_EXIT, "refused": str(e)}
     if not scope:
         sys.exit("the net selection matches no nets")
     settings = {"backend": args.backend, "budget_s": args.budget, "protect": args.protect,
@@ -1988,7 +2018,8 @@ def build_parser():
     rp.add_argument("--backend", required=True, choices=sorted(BACKENDS))
     add_input_args(rp)
     rp.add_argument("--nets", nargs="+", metavar="PATTERN",
-                    help="net-NAME selection: fnmatch patterns, !PATTERN excludes (default: all nets)")
+                    help="net-NAME selection: fnmatch patterns, !PATTERN excludes, a leading \\! is a literal '!' "
+                         "(\\!RESET routes the net !RESET) (default: all nets)")
     rp.add_argument("--netclass", nargs="+", metavar="CLASS",
                     help="net-CLASS selection: nets whose effective KiCad net class is CLASS")
     rp.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")

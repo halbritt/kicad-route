@@ -68,7 +68,10 @@ first.
   - `--library-dir NAME=PATH` maps an empty library submodule to a path.
 - **Scope:**
   - `--nets PAT …` selects by **net name**: fnmatch patterns, `!PAT` excludes, and
-    exclusions alone start from all nets.
+    exclusions alone start from all nets. A name that starts with `!` takes an
+    escape: `--nets '\!RESET'` routes the net `!RESET`, `'!\!RESET'` excludes it.
+    A bare `--nets '!RESET'` on a board with the net `!RESET` (and no `RESET`) is
+    refused (exit 4) rather than routing every other net.
   - `--netclass CLASS …` selects by **effective KiCad net class**.
   - Default: all nets.
 - **Budget:**
