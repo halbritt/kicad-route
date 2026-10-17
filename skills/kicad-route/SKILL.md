@@ -45,7 +45,8 @@ first.
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
 | `kicad-route campaign --backend krt\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`) |
 | `kicad-route compare <run_dir> …` | Side-by-side table; refuses to call different inputs comparable |
-| `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits |
+| `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits, the rule floor |
+| `kicad-route floor [--write-declared]` | Rules looser than their git high-water mark or the declared floor `<board>.rules-floor.json` (`OUT/floor/<project>/floor.json`) |
 | `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured evidence (not the board) to `<DIR>/<project>/<label>/` for committing |
 | `kicad-route update` | Move both backends to their latest upstream release, regenerate the `krt-*` skills, run `smoke` |
 | `kicad-route smoke` | Integration tests on the bundled fixture board |
@@ -145,6 +146,13 @@ routing or another agent's routing, without routing anything:
   - `rule_changes`: `kind` is changed, added or removed.
   - `hidden_by_rule_changes`: what the new board shows under the parent's rules.
   - `new_violations`
+  - `floor`: `floor_lowered` (declared floor lowered: an owner decision, never
+    yours), `below_declared`, `hidden_by_floor` (findings), and
+    `below_high_water` notes naming the commit that set each mark. See
+    `docs/floor.md`.
+- **Rule floor in `run`:** an input below its declared floor still routes, but
+  validation FAILs (`validation.floor_violated`). Do not edit or lower
+  `<board>.rules-floor.json` to get past it; report it to the owner it names.
 
 ## Paths
 

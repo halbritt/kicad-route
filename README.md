@@ -46,6 +46,7 @@ kicad-route validate build/kicad-route/runs/<project>/<label>/latest
 kicad-route compare <run_dir> <run_dir>
 kicad-route campaign --backend krt --rounds 2          # hard nets first, best chain graded vs the input
 kicad-route audit --old HEAD~1                         # grade the last commit's board change
+kicad-route floor                                      # rules looser than their high-water mark / declared floor
 ```
 
 Runs go under `./build/kicad-route/runs/<project>/<label>/<stamp>/` (`--out` or
@@ -67,6 +68,8 @@ route:
   installation and updates, decisions, known limitations, fixture evidence.
 - [`docs/campaign.md`](docs/campaign.md) — `campaign`: automated hard-nets-first chains,
   backlog rounds, ranking, race orderings.
+- [`docs/floor.md`](docs/floor.md) — rule high-water mark and the declared rule floor
+  (`<board>.rules-floor.json`) used by `floor`, `audit` and the `run` pre-flight.
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`).
