@@ -8,7 +8,10 @@ and plan the next attempt. Agent-facing summary: the `kicad-route` skill
 (`skills/kicad-route/SKILL.md`).
 
 Run from the project directory (or pass `--dir`); `--out` (default
-`./build/kicad-route`) is where runs, caches and the hermetic KiCad configuration go.
+`./build/kicad-route`, accepted before or after the subcommand) is where runs, caches
+and the hermetic KiCad configuration go. Programs use the machine interface in
+[interface.md](interface.md): `--json` (one record on stdout, progress on stderr),
+`run --run-dir PATH`, refusal records for exit 4, and the JSON Schemas in `schemas/`.
 
 ```sh
 kicad-route doctor                                   # readiness, versions, capabilities
@@ -85,7 +88,8 @@ still checks every new conductor against its net class.
 ## Attempts, candidates and results
 
 `kicad-route run` creates `OUT/runs/<project>/<label>/<stamp>/` (`<project>` is the
-directory name unless `--name` is given):
+directory name unless `--name` is given), or exactly `--run-dir PATH` (which must not
+exist; no `latest` link):
 
 | Path | Contents |
 |---|---|
@@ -114,7 +118,12 @@ independent results:
   preservation check passes.
 
 Exit status: 0 complete and valid; 1 process failure; 2 valid but incomplete; 3 fails
-validation (regardless of completion).
+validation (regardless of completion); 4 refused before routing (a usage or input
+error, the ledger or the canary), with a refusal record under `OUT/refusals/` and no
+run directory left. `result.json` carries `"schema": "kicad-route/route/1"`; what each
+exit code promises, the stable fields and the deprecation rule are in
+[interface.md](interface.md), checked against the fixture evidence by
+`tests/test_interface_contract.py`.
 
 ### Native grading
 

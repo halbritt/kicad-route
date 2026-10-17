@@ -13,8 +13,12 @@ one, and how to tell whether a backend update made real boards worse.
 | Real-board gate | `kicad-route corpus add/check/list`; run by `update` | `src/kicad_route/corpus.py` |
 
 Exit status 4 means **refused before routing**: the ledger shows this exact
-attempt already failed, or the `--canary` pre-flight failed. No run directory
-is left behind.
+attempt already failed, or the `--canary` pre-flight failed (or, for any
+command, a usage or input error; [interface.md](interface.md)). No run
+directory is left behind; the reason is a refusal record,
+`OUT/refusals/<stamp>-<pid>.json` (`reason_class` `ledger` or `canary`, the
+input fingerprint, the discarded run directory), linked as
+`OUT/refusals/refusal-latest.json` and printed on stdout with `--json`.
 
 ## Stall detection
 
@@ -181,7 +185,10 @@ kicad-route corpus check [--name board-can]
 kicad-route corpus list
 ```
 
-`add` takes a snapshot of the project with `snapshot_input`: sheets, rules,
+`add` takes the same routing options as `run` (one definition,
+`cli.add_route_args`, so `--protect human`, `--reserve-spokes`, `--pour-*`,
+`--canary` and `--floor-history` are recorded and replayed by `check` too).
+It takes a snapshot of the project with `snapshot_input`: sheets, rules,
 library tables and local libraries. The snapshot goes into
 `STATE/corpus/<name>/reference/`. `add` then runs the attempt once and records
 its baseline in `entry.json`:

@@ -13,14 +13,17 @@ slip through is caught by the grading rather than trusted.
 
 The result is structured for an agent to read and act on: process, routing and
 validation are reported separately, with exit codes 0 (complete and valid), 1 (backend
-failed), 2 (valid but incomplete), 3 (fails validation) and 4 (refused before routing).
+failed), 2 (valid but incomplete), 3 (fails validation) and 4 (refused before routing,
+usage and input errors included). Programs calling it use the versioned machine
+interface: `--json` prints one schema-carrying record on stdout
+([`docs/interface.md`](docs/interface.md), [`schemas/`](schemas/)).
 
 ## Install
 
 Requirements: Linux, KiCad 10 with its Python bindings for `/usr/bin/python3`
 (`kicad-cli`, `pcbnew`), `git`, [`uv`](https://docs.astral.sh/uv/), and a Java runtime new
 enough for the current Freerouting jar (Java 25 for 2.5.x:
-`sudo apt install openjdk-25-jre-headless`). `pytest` for `smoke`.
+`sudo apt install openjdk-25-jre-headless`). `pytest` and `jsonschema` for `smoke` (test-only).
 
 ```sh
 git clone https://github.com/halbritt/kicad-route ~/git/kicad-route
@@ -52,10 +55,12 @@ kicad-route blocked <run_dir>                          # what lies across each o
 kicad-route spokes <run_dir>                           # which new copper starved which thermal pad
 kicad-route audit --old HEAD~1                         # grade the last commit's board change
 kicad-route floor                                      # rules looser than their high-water mark / declared floor
+kicad-route run --backend krt --json --run-dir /tmp/r1 # machine mode: one JSON record on stdout, logs on stderr
 ```
 
-Runs go under `./build/kicad-route/runs/<project>/<label>/<stamp>/` (`--out` or
-`$KICAD_ROUTE_OUT` to change); the candidate is `candidate/<project>/<board>.kicad_pcb`,
+Runs go under `./build/kicad-route/runs/<project>/<label>/<stamp>/` (`--out`, before or
+after the subcommand, or `$KICAD_ROUTE_OUT` to change; `run --run-dir PATH` to choose
+the directory); the candidate is `candidate/<project>/<board>.kicad_pcb`,
 the verdict `result.json` (and `RESULT.md`). The project itself is never modified.
 
 A project can wrap the commands in its own targets, for example:
@@ -68,6 +73,9 @@ route:
 
 ## Documentation
 
+- [`docs/interface.md`](docs/interface.md) — the machine contract: record kinds and
+  schema ids (`schemas/result-1.json`, `schemas/refusal-1.json`), what each exit code
+  promises, refusal records, `--json`, `--run-dir`, stable fields and versioning.
 - [`docs/routing.md`](docs/routing.md) — backends and what the adapters switch off,
   run layout and result semantics, native grading, preservation checks, `audit`,
   installation and updates, decisions, known limitations, fixture evidence.
