@@ -1,13 +1,13 @@
 # Routing attempt: freerouting on route_demo
 
 - Backend: freerouting v2.5.0 (freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76)
-- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint af58ebe42a2efa61)
+- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 58a7a678f1b3b03c)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo/smoke-blocked-freerouting/20261017T152327.117746Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 9.098 s |
+| process | PASS | exit 0, 11.203 s |
 | routing | INCOMPLETE | 4 unconnected in scope, 4 total (input: 7) |
 | validation | PASS | no new findings |
 
@@ -27,6 +27,8 @@
 | protected_copper | PASS |
 | new_copper_netclass_geometry | PASS |
 | routing_scope | PASS |
+| net_completion | PASS |
+| pour_integrity | PASS |
 
 Native DRC (original rules and severities):
 
@@ -56,6 +58,19 @@ Unsupported or approximated by this backend:
 - Specctra carries per-class width/clearance/via only: custom .kicad_dru rules, diff pairs and length tuning are not exported; KiCad DRC grades them
 - rule areas export only their no-tracks/no-vias restrictions; zones export as plane outlines
 - route_demo.kicad_dru: net-class-to-net-class clearance rules are translated to Specctra class_class rules; any other custom rule is listed as untranslated below
+
+Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/validate/blocked-by.json`):
+
+| Blocker | Category | Blocks (best layer) | Blocks (any layer) |
+|---|---|---|---|
+| keepout 'wall' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 4 | 4 |
+| keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 3 | 3 |
+| track /SIG_A F.Cu (new, unlocked) 5f847617 | new_copper | 0 | 2 |
+
+- `/SIG_A_OUT`: 1 open; best layer F.Cu with 2 hard blockers (keepout 'route_keepout', keepout 'wall')
+- `/SIG_B_OUT`: 1 open; best layer F.Cu with 1 hard blockers (keepout 'wall')
+- `/VIN`: 1 open; best layer B.Cu with 2 hard blockers (keepout 'route_keepout', keepout 'wall')
+- `GND`: 1 open; best layer B.Cu with 2 hard blockers (keepout 'route_keepout', keepout 'wall')
 
 Route statistics:
 

@@ -1,0 +1,252 @@
+{
+  "backend": {
+    "name": "krt",
+    "version": "0.23.1",
+    "build": "v0.23.1",
+    "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+    "source": "https://github.com/drandyhaas/KiCadRoutingTools",
+    "rust_router": "0.23.1"
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": 0.4,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": 0,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "scope": {
+    "mode": "all",
+    "nets": 6,
+    "nets_list": [
+      "/SIG_A",
+      "/SIG_A_OUT",
+      "/SIG_B",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND"
+    ]
+  },
+  "unsupported": [
+    "KRT reads only a subset of .kicad_dru custom rules; every rule is still graded by KiCad DRC",
+    "KRT moves copper gr_text and net-less copper graphics to silkscreen (not switchable on the CLI); the copper_graphics preservation check reports it",
+    "KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class",
+    "backend reported: .kicad_dru: rule 'power_to_signal_clearance': clearance 0.4mm has a non-layer scope (netclass/area/... condition) -- skipped, KiCad will still enforce it"
+  ],
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 0,
+    "baseline_unconnected_total": 6,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 16,
+      "new_vias": 1,
+      "new_track_length_mm": 117.987,
+      "new_track_length_mm_by_layer": {
+        "B.Cu": 0.028,
+        "F.Cu": 117.959
+      },
+      "new_copper_nets": 5,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    }
+  },
+  "exit_code": 0,
+  "process": {
+    "status": "PASS",
+    "reasons": [],
+    "exit_code": 0,
+    "runtime_s": 6.494,
+    "backend_report": {
+      "successful": 5,
+      "failed": 0,
+      "failed_single": [],
+      "open_single": [],
+      "failed_multipoint": [],
+      "multipoint_deficit": null,
+      "pad_pairs_connected": 7,
+      "pad_pairs_total": 7,
+      "total_vias": 1,
+      "total_iterations": 1639,
+      "total_time": 0.02,
+      "protected_skipped": null,
+      "scope": "merged",
+      "relaxations": {
+        "escalation_policy": "off",
+        "fab_tier": "standard",
+        "narrowed": [],
+        "fab_tier_escalations": 0,
+        "min_delivered": {},
+        "unsupported_rules": []
+      },
+      "improvement_gate": {
+        "lost": [],
+        "gained": [
+          "/SIG_A",
+          "/SIG_A_OUT",
+          "/SIG_B_OUT",
+          "/VIN",
+          "GND"
+        ],
+        "worsened": [],
+        "disconnected_pads_before": 6,
+        "disconnected_pads_after": 0,
+        "nets_compared": 6,
+        "verdict": "accept"
+      },
+      "project_writes": null
+    },
+    "bridge": null,
+    "project_writeback": [
+      {
+        "file": "route_demo.kicad_prl",
+        "identical_to_input": true
+      },
+      {
+        "file": "route_demo.kicad_pro",
+        "identical_to_input": true
+      }
+    ]
+  },
+  "validation": {
+    "status": "PASS",
+    "reasons": [],
+    "dir": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/validate",
+    "restored_project_files": [],
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/validate/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 2.025
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/validate/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 3.018
+      }
+    ],
+    "delivered_board_sha256": "a3ce780d865d1e40d57cf33f5e361ccae956bd6c3493330e0ea5703e9882831e",
+    "validated_board_sha256": "a3ce780d865d1e40d57cf33f5e361ccae956bd6c3493330e0ea5703e9882831e",
+    "parity_performed": true,
+    "drc": {
+      "violations_total": 0,
+      "parity_total": 0,
+      "new_violations": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "preexisting_violations": 0,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 1,
+      "nets_lost": []
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    }
+  },
+  "run_dir": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z",
+  "spoke_reservation": {
+    "per_pad_requested": "min_resolved_spokes",
+    "plan": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work/spokes-plan.json",
+    "commands": [
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
+          "plan",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work/input/route_demo/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work/spokes-plan.json"
+        ],
+        "cwd": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work",
+        "log": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work/spokes-plan.log",
+        "exit_code": 0,
+        "duration_s": 0.479
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
+          "reserve",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work/input/route_demo/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work/spokes-plan.json"
+        ],
+        "cwd": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work",
+        "log": "runs/route_demo/smoke-spokes-krt/20261017T164944.006596Z/work/spokes-reserve.log",
+        "exit_code": 0,
+        "duration_s": 0.451
+      }
+    ],
+    "reasons": [],
+    "per_pad": 2,
+    "min_resolved_spokes": 2,
+    "clearance_mm": 0.4,
+    "pads": 2,
+    "corridors_live": 8,
+    "warnings": [],
+    "reserved": 4,
+    "stripped": 4
+  }
+}

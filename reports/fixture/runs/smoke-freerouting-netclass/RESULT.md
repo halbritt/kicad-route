@@ -1,13 +1,13 @@
 # Routing attempt: freerouting on route_demo
 
 - Backend: freerouting v2.5.0 (freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76)
-- Input: `route_demo.kicad_pcb` from working tree @ c2310799924464a6f6bab64578d5fda6e749beff (fingerprint ba2f343c49e2f971)
+- Input: `route_demo.kicad_pcb` from working tree @ 2944c145e51effd192d2ee4a1d04f7f18c0ffc5e (fingerprint ba2f343c49e2f971)
 - Scope: selected, 2 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo/smoke-freerouting-netclass/20261017T152244.484180Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 5.663 s |
+| process | PASS | exit 0, 9.921 s |
 | routing | COMPLETE | 0 unconnected in scope, 3 total (input: 6) |
 | validation | PASS | no new findings |
 
@@ -27,6 +27,8 @@
 | protected_copper | PASS |
 | new_copper_netclass_geometry | PASS |
 | routing_scope | PASS |
+| net_completion | PASS |
+| pour_integrity | PASS |
 
 Native DRC (original rules and severities):
 

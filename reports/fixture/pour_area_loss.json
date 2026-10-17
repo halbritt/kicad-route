@@ -1,0 +1,25 @@
+{
+  "default": {
+    "check": "pour_integrity",
+    "status": "PASS",
+    "detail": "1 copper zones, 2 zone-connected pads compared on the refilled boards (min spokes 2); GND@B.Cu 1081.0 mm2 (-7.545 %), 1 polygons",
+    "differences": []
+  },
+  "with_limit": {
+    "check": "pour_integrity",
+    "status": "FAIL",
+    "detail": "1 copper zones, 2 zone-connected pads compared on the refilled boards (min spokes 2); area loss limit 1.0 %; GND@B.Cu 1081.0 mm2 (-7.545 %), 1 polygons; 1 area_loss",
+    "differences": [
+      {
+        "kind": "area_loss",
+        "net_layer": "GND@B.Cu",
+        "area_mm2": [
+          1169.2633,
+          1081.0388
+        ],
+        "delta_pct": -7.545,
+        "limit_pct": 1.0
+      }
+    ]
+  }
+}

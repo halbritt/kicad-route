@@ -1,0 +1,50 @@
+{
+  "backend": "krt",
+  "project": "route_demo",
+  "board": "route_demo.kicad_pcb",
+  "schematic": "route_demo.kicad_sch",
+  "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+  "source": {
+    "source_dir": "/home/halbritt/git/kicad-route/fixtures/route_demo",
+    "source": "working tree",
+    "source_git_head": "2944c145e51effd192d2ee4a1d04f7f18c0ffc5e",
+    "source_dirty_files": []
+  },
+  "reference_dir": "reference/route_demo",
+  "candidate_dir": "candidate/route_demo",
+  "reference_facts": "facts/reference-facts.json",
+  "baseline": {
+    "report": "../../../../.cache/baseline/ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732/baseline-drc.json",
+    "cached": true,
+    "reasons": []
+  },
+  "scope": {
+    "nets": [
+      "/SIG_A",
+      "/SIG_A_OUT",
+      "/SIG_B",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND"
+    ],
+    "mode": "all"
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": 0.4,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": 0,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "floor": null
+}

@@ -1,0 +1,60 @@
+{
+  "entry": {
+    "name": "fixture-sig-a",
+    "created_utc": "2026-10-17T16:41:21.318799+00:00",
+    "board": "route_demo.kicad_pcb",
+    "schematic": "route_demo.kicad_sch",
+    "reference_dir": "reference/route_demo",
+    "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+    "source": {
+      "source_dir": "/home/halbritt/git/kicad-route/fixtures/route_demo",
+      "source": "working tree",
+      "source_git_head": "2944c145e51effd192d2ee4a1d04f7f18c0ffc5e"
+    },
+    "attempt": {
+      "backend": "krt",
+      "nets": [
+        "/SIG_A*"
+      ],
+      "budget": 120,
+      "default_clearance": 0.4,
+      "protect": "existing",
+      "backend_env": [
+        "KICAD_NET_RESCUE=0"
+      ]
+    },
+    "baseline": {
+      "exit_code": 0,
+      "process": "PASS",
+      "process_reasons": [],
+      "routing": "COMPLETE",
+      "unconnected_in_scope": 0,
+      "unconnected_total": 4,
+      "validation": "PASS",
+      "new_violations": 0,
+      "new_parity": 0,
+      "preservation_fail": [],
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "commit": "295f9ee197517e8323726853361eb137cc08ba9e"
+      },
+      "fingerprint": "a148a78ed4ed",
+      "run_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/fixture-sig-a/corpus-fixture-sig-a/20261017T164121.475756Z"
+    }
+  },
+  "update": {
+    "errors": [],
+    "corpus": {
+      "status": "FAIL",
+      "entries": 1,
+      "regressions": {
+        "fixture-sig-a": [
+          "unconnected in scope 0 -> 1"
+        ]
+      },
+      "missing": [],
+      "report": "corpus/check-20261017T164140.026612Z.json"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "exit_code": 3,
+  "pour_integrity": {
+    "check": "pour_integrity",
+    "status": "FAIL",
+    "detail": "1 copper zones, 2 zone-connected pads compared on the refilled boards (min spokes 2); GND@B.Cu 1140.2 mm2 (-2.484 %), 2 polygons, 183.7 mm2 off the main pour; 1 isolated_island",
+    "differences": [
+      {
+        "kind": "isolated_island",
+        "pad": "J2.2@B.Cu",
+        "connection": "thermal",
+        "position_mm": [
+          146.0,
+          108.54
+        ],
+        "touches_fill": [
+          true,
+          true
+        ],
+        "spokes": [
+          4,
+          4
+        ],
+        "solid": [
+          false,
+          false
+        ],
+        "track_spokes": [
+          0,
+          0
+        ],
+        "in_main": [
+          true,
+          false
+        ],
+        "polygons": [
+          "GND@B.Cu/GND_B#1"
+        ],
+        "other_path": false,
+        "island": [
+          {
+            "id": "GND@B.Cu/GND_B#1",
+            "area_mm2": 183.6787,
+            "bbox_mm": [
+              142.5005,
+              100.5,
+              149.5,
+              129.5
+            ],
+            "pads": [
+              "J2.2"
+            ],
+            "vias": 0,
+            "tracks": 0
+          }
+        ]
+      }
+    ]
+  }
+}

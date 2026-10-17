@@ -1,0 +1,31 @@
+{
+  "exit_code": 3,
+  "findings": [
+    "1 rule setting(s) changed: rules.min_track_width 0.15 -> 0.1",
+    "new board: 6 unconnected, 0 DRC errors, 0 parity issues",
+    "declared rule floor lowered (1; needs an owner decision): rules.min_track_width 0.15 -> 0.1 (lowered, owner agent)",
+    "1 setting(s) below the declared floor: rules.min_track_width 0.1 is below the declared floor 0.15 (owner hw-lead)"
+  ],
+  "floor_lowered": [
+    {
+      "setting": "rules.min_track_width",
+      "kind": "lowered",
+      "old": 0.15,
+      "new": 0.1,
+      "old_owner": "hw-lead",
+      "new_owner": "agent",
+      "new_reason": "make it route"
+    }
+  ],
+  "below_declared": [
+    {
+      "setting": "rules.min_track_width",
+      "current": 0.1,
+      "floor": 0.15,
+      "status": "looser",
+      "reason": "fab minimum",
+      "owner": "hw-lead",
+      "source": "b527fb3e5daa:route_demo.rules-floor.json"
+    }
+  ]
+}

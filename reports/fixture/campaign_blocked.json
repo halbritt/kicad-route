@@ -1,0 +1,119 @@
+{
+  "rounds": [
+    {
+      "round": 0,
+      "backlog_routed_first": null,
+      "chains": [
+        "r0"
+      ],
+      "unrouted_after": [
+        "/SIG_A_OUT",
+        "/SIG_B_OUT",
+        "/VIN",
+        "GND"
+      ],
+      "backlog_next": [
+        "/SIG_A_OUT",
+        "/SIG_B_OUT",
+        "/VIN",
+        "GND"
+      ]
+    },
+    {
+      "round": 1,
+      "backlog_routed_first": [
+        "/SIG_A_OUT",
+        "/SIG_B_OUT",
+        "/VIN",
+        "GND"
+      ],
+      "chains": [
+        "r1"
+      ],
+      "unrouted_after": [
+        "/SIG_A_OUT",
+        "/SIG_B_OUT",
+        "/VIN",
+        "GND"
+      ],
+      "backlog_next": [
+        "/SIG_A_OUT",
+        "/SIG_B_OUT",
+        "/VIN",
+        "GND"
+      ]
+    }
+  ],
+  "backlog_evolution": [
+    {
+      "round": 0,
+      "size": 4,
+      "nets": [
+        "/SIG_A_OUT",
+        "/SIG_B_OUT",
+        "/VIN",
+        "GND"
+      ]
+    },
+    {
+      "round": 1,
+      "size": 4,
+      "nets": [
+        "/SIG_A_OUT",
+        "/SIG_B_OUT",
+        "/VIN",
+        "GND"
+      ]
+    }
+  ],
+  "leaderboard": [
+    {
+      "rank": 1,
+      "chain": "r0",
+      "round": 0,
+      "strategy": "full",
+      "status": "graded",
+      "exit_code": 2,
+      "routing": "INCOMPLETE",
+      "unconnected_in_scope": 4,
+      "unconnected_total": 4,
+      "validation": "PASS",
+      "new_violations": 0,
+      "new_parity": 0,
+      "preservation_failures": [],
+      "runtime_s": 42.78,
+      "end_run": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z",
+      "candidate": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z/candidate/route_demo/route_demo.kicad_pcb"
+    },
+    {
+      "rank": 2,
+      "chain": "r1",
+      "round": 1,
+      "strategy": "hardfirst",
+      "status": "graded",
+      "exit_code": 2,
+      "routing": "INCOMPLETE",
+      "unconnected_in_scope": 4,
+      "unconnected_total": 4,
+      "validation": "PASS",
+      "new_violations": 0,
+      "new_parity": 0,
+      "preservation_failures": [],
+      "runtime_s": 71.831,
+      "end_run": "runs/route_demo/campaign-blocked-r1-rest/20261017T163737.657192Z",
+      "candidate": "runs/route_demo/campaign-blocked-r1-rest/20261017T163737.657192Z/candidate/route_demo/route_demo.kicad_pcb"
+    }
+  ],
+  "stop_reason": "backlog did not grow (the next round would repeat this one)",
+  "best": {
+    "chain": "r0",
+    "round": 0,
+    "strategy": "full",
+    "run_dir": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z",
+    "candidate": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z/candidate/route_demo/route_demo.kicad_pcb",
+    "graded_against": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z",
+    "grade": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z/result.json",
+    "exit_code": 2
+  },
+  "exit_code": 2
+}

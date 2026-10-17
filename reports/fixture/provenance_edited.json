@@ -1,0 +1,48 @@
+{
+  "kind": "copper-provenance",
+  "requested_protect": "human",
+  "chain": [
+    "runs/route_demo/prov-edited/20261017T164326.140600Z",
+    "/tmp/pytest-of-halbritt/pytest-1230/test_copper_edited_between_ste0/step1"
+  ],
+  "origin_run": "/tmp/pytest-of-halbritt/pytest-1230/test_copper_edited_between_ste0/step1",
+  "input_is_candidate": true,
+  "effective_protect": "human",
+  "layer_ids": {
+    "F.Cu": 0,
+    "B.Cu": 2
+  },
+  "input": {
+    "tracks": 10,
+    "vias": 2
+  },
+  "origin_copper": {
+    "tracks": 5,
+    "vias": 2,
+    "nets": [
+      "/SIG_B"
+    ]
+  },
+  "origin_copper_missing_from_input": 0,
+  "steps_without_candidate_facts": [],
+  "detail": "8 human items locked (7 from the origin's input, 1 not traceable to any step), 4 agent items left unlocked",
+  "unattributed": {
+    "tracks": 1,
+    "vias": 0,
+    "nets": [
+      "/SIG_A"
+    ],
+    "keys": [
+      [
+        "track",
+        "/SIG_A",
+        0,
+        250000,
+        105800000,
+        111100000,
+        113900000,
+        103000000
+      ]
+    ]
+  }
+}

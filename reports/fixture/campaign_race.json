@@ -1,0 +1,64 @@
+{
+  "rounds": [
+    {
+      "round": 0,
+      "backlog_routed_first": null,
+      "chains": [
+        "r0",
+        "r0-pads"
+      ],
+      "unrouted_after": [],
+      "backlog_next": []
+    }
+  ],
+  "leaderboard": [
+    {
+      "rank": 1,
+      "chain": "r0",
+      "round": 0,
+      "strategy": "full",
+      "status": "graded",
+      "exit_code": 0,
+      "routing": "COMPLETE",
+      "unconnected_in_scope": 0,
+      "unconnected_total": 4,
+      "validation": "PASS",
+      "new_violations": 0,
+      "new_parity": 0,
+      "preservation_failures": [],
+      "runtime_s": 13.205,
+      "end_run": "runs/route_demo/campaign-race-r0/20261017T163805.348508Z",
+      "candidate": "runs/route_demo/campaign-race-r0/20261017T163805.348508Z/candidate/route_demo/route_demo.kicad_pcb"
+    },
+    {
+      "rank": 2,
+      "chain": "r0-pads",
+      "round": 0,
+      "strategy": "race:pads",
+      "status": "graded",
+      "exit_code": 0,
+      "routing": "COMPLETE",
+      "unconnected_in_scope": 0,
+      "unconnected_total": 4,
+      "validation": "PASS",
+      "new_violations": 0,
+      "new_parity": 0,
+      "preservation_failures": [],
+      "runtime_s": 40.682,
+      "end_run": "runs/route_demo/campaign-race-r0-pads-rest/20261017T163820.411954Z",
+      "candidate": "runs/route_demo/campaign-race-r0-pads-rest/20261017T163820.411954Z/candidate/route_demo/route_demo.kicad_pcb"
+    }
+  ],
+  "stop_reason": "complete in round 0",
+  "best": {
+    "chain": "r0",
+    "round": 0,
+    "strategy": "full",
+    "run_dir": "runs/route_demo/campaign-race-r0/20261017T163805.348508Z",
+    "candidate": "runs/route_demo/campaign-race-r0/20261017T163805.348508Z/candidate/route_demo/route_demo.kicad_pcb",
+    "graded_against": "runs/route_demo/campaign-race-r0/20261017T163805.348508Z",
+    "grade": "runs/route_demo/campaign-race-r0/20261017T163805.348508Z/result.json",
+    "exit_code": 0
+  },
+  "exit_code": 0
+}

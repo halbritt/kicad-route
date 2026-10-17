@@ -5,7 +5,7 @@
   "schematic": "route_demo.kicad_sch",
   "input_fingerprint": "43770af332b1f69da4373be456a2ec05f446153025efcad70ea0452d989202a0",
   "source": {
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1189/unlocked0/route_demo",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1230/unlocked0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": []
@@ -15,7 +15,7 @@
   "reference_facts": "facts/reference-facts.json",
   "baseline": {
     "report": "../../../../.cache/baseline/43770af332b1f69da4373be456a2ec05f446153025efcad70ea0452d989202a0/baseline-drc.json",
-    "cached": false,
+    "cached": true,
     "reasons": []
   },
   "scope": {
@@ -37,8 +37,14 @@
     "passes": null,
     "default_clearance_mm": 0.4,
     "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
     "backend_args": [],
     "backend_env": {},
-    "mode": "all"
-  }
+    "reserve_spokes": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "floor": null
 }

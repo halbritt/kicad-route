@@ -1,0 +1,39 @@
+{
+  "kind": "canary",
+  "status": "PASS",
+  "reasons": [],
+  "nets": {
+    "/SIG_A": "Net-(BT1-+)",
+    "/SIG_A_OUT": "\"q\"",
+    "/SIG_B": "/a b/c",
+    "/SIG_B_OUT": "+3V3/\u00fc \u00b5",
+    "/VIN": "-VIN(1)",
+    "GND": "GND 'x' (y)"
+  },
+  "scoped_out": [
+    "Net-(BT1-+)",
+    "\"q\""
+  ],
+  "checks": [
+    {
+      "check": "split",
+      "status": "PASS",
+      "problems": [],
+      "scoped_out": [
+        "Net-(BT1-+)",
+        "\"q\"",
+        "-VIN(1)"
+      ],
+      "ignored_classes": [
+        "kicad_default__skip",
+        "Power__skip"
+      ]
+    },
+    {
+      "check": "bridge",
+      "status": "PASS",
+      "problems": []
+    }
+  ],
+  "dir": "canary-quick"
+}

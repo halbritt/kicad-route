@@ -15,9 +15,14 @@
     "passes": null,
     "default_clearance_mm": 0.4,
     "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
     "backend_args": [],
     "backend_env": {},
-    "mode": "all"
+    "reserve_spokes": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
   },
   "scope": {
     "mode": "all",
@@ -61,7 +66,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 5.765,
+    "runtime_s": 8.404,
     "backend_report": {
       "successful": 5,
       "failed": 0,
@@ -73,7 +78,7 @@
       "pad_pairs_total": 7,
       "total_vias": 1,
       "total_iterations": 1639,
-      "total_time": 0.02,
+      "total_time": 0.03,
       "protected_skipped": null,
       "scope": "merged",
       "relaxations": {
@@ -116,7 +121,7 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/validate",
+    "dir": "runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/validate",
     "restored_project_files": [],
     "drc_commands": [
       {
@@ -129,13 +134,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 2.257
+        "duration_s": 3.326
       },
       {
         "argv": [
@@ -149,17 +154,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 2.033
+        "duration_s": 5.21
       }
     ],
-    "delivered_board_sha256": "70a802ff79e9c2b180320be30435b6c53ad6550bc8a285861e7a1036ecd47010",
-    "validated_board_sha256": "70a802ff79e9c2b180320be30435b6c53ad6550bc8a285861e7a1036ecd47010",
+    "delivered_board_sha256": "2ca4f4327149b8c8a1c9363369322d5f97d14f51d309a466d2b7c402417f18b1",
+    "validated_board_sha256": "2ca4f4327149b8c8a1c9363369322d5f97d14f51d309a466d2b7c402417f18b1",
     "parity_performed": true,
     "drc": {
       "violations_total": 0,
@@ -178,6 +183,11 @@
       },
       "resolved_parity": 0
     },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 1,
+      "nets_lost": []
+    },
     "preservation": {
       "project_files": "PASS",
       "board_outline": "PASS",
@@ -192,8 +202,10 @@
       "copper_graphics": "PASS",
       "protected_copper": "PASS",
       "new_copper_netclass_geometry": "PASS",
-      "routing_scope": "PASS"
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-unlocked-krt/20261017T152343.592006Z"
+  "run_dir": "runs/route_demo/smoke-unlocked-krt/20261017T164754.746322Z"
 }

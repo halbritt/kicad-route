@@ -8,9 +8,10 @@
       "preservation project_files: rules (.kicad_pro/.kicad_dru), schematics, library tables and local libraries are byte-identical to the input; restored before grading: route_demo.kicad_pro",
       "preservation footprints: 5 footprints: library id, position, orientation, side, lock state and pad geometry; 1 differ",
       "preservation protected_copper: 5 tracks and 2 vias designated (all pre-existing copper); max deviation 0 nm; 1 lock flags dropped; 1 missing or altered",
-      "preservation new_copper_netclass_geometry: 16 new tracks and 1 new vias checked against their net class width / via diameter / drill (1 um quantisation tolerance); 1 below"
+      "preservation new_copper_netclass_geometry: 16 new tracks and 1 new vias checked against their net class width / via diameter / drill (1 um quantisation tolerance); 1 below",
+      "preservation net_completion: 1 of the 1 nets fully connected in the input lost connection: /SIG_B"
     ],
-    "dir": "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/revalidate/20261017T152458.861260Z",
+    "dir": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z",
     "restored_project_files": [
       "route_demo.kicad_pro"
     ],
@@ -25,13 +26,13 @@
           "--format",
           "json",
           "-o",
-          "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/revalidate/20261017T152458.861260Z/candidate-refill.json",
-          "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
+          "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/candidate-refill.json",
+          "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/candidate/route_demo",
-        "log": "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/revalidate/20261017T152458.861260Z/candidate-refill.log",
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 3.184
+        "duration_s": 2.768
       },
       {
         "argv": [
@@ -45,17 +46,17 @@
           "--units",
           "mm",
           "-o",
-          "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/revalidate/20261017T152458.861260Z/candidate-drc.json",
-          "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
+          "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/candidate-drc.json",
+          "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/candidate/route_demo",
-        "log": "/tmp/pytest-of-halbritt/pytest-1189/test_validation_detects_tamper0/run/revalidate/20261017T152458.861260Z/candidate-drc.log",
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 2.577
+        "duration_s": 2.507
       }
     ],
-    "delivered_board_sha256": "b895da3dcec7e841a0f9a303944df3d6a2f7e8fd157d9c9eebb8faf505bfbfee",
-    "validated_board_sha256": "b895da3dcec7e841a0f9a303944df3d6a2f7e8fd157d9c9eebb8faf505bfbfee",
+    "delivered_board_sha256": "2686d1a666bee4215784cd3ed71a2a796588ed75505db915bf466160272ca799",
+    "validated_board_sha256": "2686d1a666bee4215784cd3ed71a2a796588ed75505db915bf466160272ca799",
     "parity_performed": true,
     "drc": {
       "violations_total": 2,
@@ -78,6 +79,13 @@
       },
       "resolved_parity": 0
     },
+    "net_completion": {
+      "status": "FAIL",
+      "nets_connected_in_input": 1,
+      "nets_lost": [
+        "/SIG_B"
+      ]
+    },
     "preservation": {
       "project_files": "FAIL",
       "board_outline": "PASS",
@@ -92,7 +100,9 @@
       "copper_graphics": "PASS",
       "protected_copper": "FAIL",
       "new_copper_netclass_geometry": "FAIL",
-      "routing_scope": "PASS"
+      "routing_scope": "PASS",
+      "net_completion": "FAIL",
+      "pour_integrity": "PASS"
     }
   },
   "routing": {
@@ -114,6 +124,21 @@
       "new_copper_nets": 5,
       "removed_existing_tracks": 0,
       "removed_existing_vias": 1
+    },
+    "blocked_by": {
+      "report": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/blocked-by.json",
+      "connections_analyzed": 1,
+      "unobstructed_connections": 1,
+      "method": "heuristic corridors; see docs/blocked.md",
+      "top": [],
+      "nets": {
+        "/SIG_B": {
+          "connections": 1,
+          "best_layer": "F.Cu",
+          "hard_blockers_on_best_layer": 0,
+          "blockers": []
+        }
+      }
     }
   }
 }

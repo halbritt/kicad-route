@@ -1,0 +1,57 @@
+{
+  "exit_code": 3,
+  "findings": [
+    "new board: 6 unconnected, 0 DRC errors, 0 parity issues",
+    "1 finding(s) appear only under the rule floor: track_width 1"
+  ],
+  "rule_changes": [],
+  "below_high_water": [
+    {
+      "setting": "rules.min_track_width",
+      "current": 0.1,
+      "floor": 0.15,
+      "status": "looser",
+      "commit": "183ebd6ead43b7466d969e8c9777c9e57dbdebd7",
+      "subject": "initial rules",
+      "date": "2026-10-17T09:39:11-07:00"
+    }
+  ],
+  "below_declared": [],
+  "notes": [
+    "rules.min_track_width 0.1 is looser than its high-water mark 0.15 set by 183ebd6ead43 (initial rules)"
+  ],
+  "floor_project": {
+    "dir": "audit/route_demo/HEAD~1..HEAD/new-under-floor/route_demo",
+    "applied": [
+      {
+        "setting": "rules.min_track_width",
+        "project": 0.1,
+        "floor": 0.15
+      }
+    ],
+    "unapplied": []
+  },
+  "hidden_by_floor": {
+    "count": 1,
+    "by_type": {
+      "track_width": 1
+    },
+    "items": [
+      {
+        "description": "Track width (board setup constraints min width 0.1500 mm; actual 0.1200 mm)",
+        "items": [
+          {
+            "description": "Track [/SIG_B] on F.Cu, length 11.3137 mm",
+            "pos": {
+              "x": 108.0,
+              "y": 113.62
+            },
+            "uuid": "8e94b591-9ef0-4b50-92ff-ec6f21fc1dfd"
+          }
+        ],
+        "severity": "error",
+        "type": "track_width"
+      }
+    ]
+  }
+}

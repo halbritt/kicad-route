@@ -1,0 +1,121 @@
+[
+  {
+    "check": "project_files",
+    "status": "PASS",
+    "detail": "rules (.kicad_pro/.kicad_dru), schematics, library tables and local libraries are byte-identical to the input",
+    "differences": []
+  },
+  {
+    "check": "board_outline",
+    "status": "PASS",
+    "detail": "4 Edge.Cuts shapes",
+    "differences": []
+  },
+  {
+    "check": "layers",
+    "status": "PASS",
+    "detail": "2 copper layers",
+    "differences": []
+  },
+  {
+    "check": "stackup",
+    "status": "PASS",
+    "detail": "explicit stackup",
+    "differences": []
+  },
+  {
+    "check": "board_setup",
+    "status": "PASS",
+    "detail": "board-file (setup) settings other than the stackup",
+    "differences": []
+  },
+  {
+    "check": "nets_and_netclasses",
+    "status": "PASS",
+    "detail": "6 nets with their effective net classes",
+    "differences": []
+  },
+  {
+    "check": "pad_connectivity",
+    "status": "PASS",
+    "detail": "14 pad-to-net assignments",
+    "differences": []
+  },
+  {
+    "check": "footprints",
+    "status": "PASS",
+    "detail": "5 footprints: library id, position, orientation, side, lock state and pad geometry",
+    "differences": []
+  },
+  {
+    "check": "zones",
+    "status": "FAIL",
+    "detail": "2 copper zone definitions (outline, net, layers, priority, clearance, thermal and fill settings; fill polygons are regenerated)",
+    "differences": [
+      {
+        "reference": 2,
+        "candidate": 2
+      }
+    ]
+  },
+  {
+    "check": "keepouts",
+    "status": "PASS",
+    "detail": "1 rule areas",
+    "differences": []
+  },
+  {
+    "check": "copper_graphics",
+    "status": "PASS",
+    "detail": "0 non-track copper graphics",
+    "differences": []
+  },
+  {
+    "check": "protected_copper",
+    "status": "PASS",
+    "detail": "5 tracks and 2 vias designated (all pre-existing copper); max deviation 0 nm",
+    "differences": []
+  },
+  {
+    "check": "new_copper_netclass_geometry",
+    "status": "FAIL",
+    "detail": "16 new tracks and 2 new vias checked against their net class width / via diameter / drill (1 um quantisation tolerance); 1 below",
+    "differences": [
+      {
+        "item": "via",
+        "net": "/VIN",
+        "netclass": "Power",
+        "diameter_mm": 0.6,
+        "drill_mm": 0.3,
+        "required_mm": [
+          0.8,
+          0.4
+        ],
+        "position_mm": [
+          109.6,
+          103.4
+        ]
+      }
+    ]
+  },
+  {
+    "check": "routing_scope",
+    "status": "PASS",
+    "detail": "new copper only on the 6 in-scope nets",
+    "differences": []
+  },
+  {
+    "check": "net_completion",
+    "differences": [],
+    "status": "PASS",
+    "detail": "all 2 nets fully connected in the input stay connected",
+    "nets_connected_in_input": 2,
+    "nets_lost": []
+  },
+  {
+    "check": "pour_integrity",
+    "status": "PASS",
+    "detail": "2 copper zones, 5 zone-connected pads compared on the refilled boards (min spokes 2); GND@B.Cu 1141.1 mm2 (-2.412 %), 1 polygons; GND@F.Cu 1055.4 mm2 (-7.428 %), 1 polygons",
+    "differences": []
+  }
+]

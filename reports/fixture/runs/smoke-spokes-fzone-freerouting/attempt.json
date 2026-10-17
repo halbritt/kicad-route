@@ -1,0 +1,52 @@
+{
+  "backend": "freerouting",
+  "project": "route_demo_fzone",
+  "board": "route_demo.kicad_pcb",
+  "schematic": "route_demo.kicad_sch",
+  "input_fingerprint": "69730685befab8202695f1e7a82e33cc3387104bba57907df641c004014e3ace",
+  "source": {
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1230/fzone0/route_demo",
+    "source": "working tree",
+    "source_git_head": null,
+    "source_dirty_files": []
+  },
+  "reference_dir": "reference/route_demo",
+  "candidate_dir": "candidate/route_demo",
+  "reference_facts": "facts/reference-facts.json",
+  "baseline": {
+    "report": "../../../../.cache/baseline/69730685befab8202695f1e7a82e33cc3387104bba57907df641c004014e3ace/baseline-drc.json",
+    "cached": true,
+    "reasons": []
+  },
+  "scope": {
+    "nets": [
+      "/SIG_A",
+      "/SIG_A_OUT",
+      "/SIG_B",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND"
+    ],
+    "mode": "all"
+  },
+  "settings": {
+    "backend": "freerouting",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": 100,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": 0.01,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [
+      "--router.fanout.enabled=true"
+    ],
+    "backend_env": {},
+    "reserve_spokes": 0,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "floor": null
+}

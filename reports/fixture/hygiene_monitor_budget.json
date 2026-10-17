@@ -1,0 +1,68 @@
+{
+  "stalled": false,
+  "budget_reached": true,
+  "stop_requested": true,
+  "killed": null,
+  "last_phase": "checkpoint stop",
+  "stall": null,
+  "duration_s": 4.069,
+  "heartbeats": [
+    {
+      "t_s": 0.25,
+      "utc": "2026-10-17T16:40:22.411671+00:00",
+      "phase": "loading board",
+      "metric": {},
+      "line": "Loading /x/board.kicad_pcb..."
+    },
+    {
+      "t_s": 0.251,
+      "utc": "2026-10-17T16:40:22.411874+00:00",
+      "phase": "routing single-ended net(s)",
+      "metric": {
+        "nets": 3
+      },
+      "line": "Routing 3 single-ended net(s)..."
+    },
+    {
+      "t_s": 0.251,
+      "utc": "2026-10-17T16:40:22.411958+00:00",
+      "phase": "routing single-ended net(s)",
+      "metric": {
+        "net": "1/3",
+        "failed": 0,
+        "current": "/A"
+      },
+      "line": "[1/3] Routing /A (id=1)"
+    },
+    {
+      "t_s": 0.251,
+      "utc": "2026-10-17T16:40:22.412030+00:00",
+      "phase": "routing single-ended net(s)",
+      "metric": {
+        "net": "1/3",
+        "failed": 0,
+        "current": "/A",
+        "routed": 1
+      },
+      "line": "SUCCESS: 2 segments"
+    },
+    {
+      "t_s": 0.251,
+      "utc": "2026-10-17T16:40:22.412092+00:00",
+      "phase": "routing single-ended net(s)",
+      "metric": {
+        "net": "2/3",
+        "failed": 0,
+        "current": "/B"
+      },
+      "line": "[2/3] Routing /B (id=2)"
+    },
+    {
+      "t_s": 4.068,
+      "utc": "2026-10-17T16:40:26.229661+00:00",
+      "phase": "checkpoint stop",
+      "metric": {},
+      "line": "CHECKPOINT STOP (KICAD_STOP_FILE): stopping before the next net"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "refusal": "[route] krt on route_demo -> runs/route_demo/hygiene-ledger/20261017T164103.555432Z\n[route] scope: all (6 of 6 nets)\n[route] refused: identical attempt (fingerprint fdb57eb9b0a6) already finished process_fail (exit 1) in /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-ledger/20261017T164101.646198Z: rerunning it changes nothing; change the input, scope or settings, or pass --force to repeat it anyway\n",
+  "compare": "| fp | backend | exit | routing | unconnected | validation | new_violations | new_vias | new_length_mm | backend_s | run |\n|---|---|---|---|---|---|---|---|---|---|---|\n| fdb57eb9b0a6 | krt 0.23.1 | 1 | NOT_RUN | None | NOT_RUN | None | None | None | 0.916 | runs/route_demo/hygiene-ledger/20261017T164101.646198Z |\n| fdb57eb9b0a6 | krt 0.23.1 | 1 | NOT_RUN | None | NOT_RUN | None | None | None | 0.845 | runs/route_demo/hygiene-ledger/20261017T164104.134875Z |\n[compare] compare/20261017T164105.528483Z/compare.json\n",
+  "ledger": [
+    {
+      "attempt_key": "b59445207111c8ec1aa31dcf50de26c74ada4203ec6fca4138792936b95f35b8",
+      "backend": "krt",
+      "backend_version": {
+        "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+        "rust_router": "0.23.1",
+        "version": "0.23.1"
+      },
+      "exit_code": 1,
+      "fingerprint": "fdb57eb9b0a6bcac953cf500762d5de406ea0a4556e1e35c48cfdd87dd54f68a",
+      "finished_utc": "2026-10-17T16:41:03.387485+00:00",
+      "forced": false,
+      "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+      "outcome": "process_fail",
+      "project": "route_demo",
+      "run_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-ledger/20261017T164101.646198Z",
+      "unconnected_in_scope": null
+    },
+    {
+      "attempt_key": "b59445207111c8ec1aa31dcf50de26c74ada4203ec6fca4138792936b95f35b8",
+      "backend": "krt",
+      "backend_version": {
+        "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+        "rust_router": "0.23.1",
+        "version": "0.23.1"
+      },
+      "exit_code": 1,
+      "fingerprint": "fdb57eb9b0a6bcac953cf500762d5de406ea0a4556e1e35c48cfdd87dd54f68a",
+      "finished_utc": "2026-10-17T16:41:05.474754+00:00",
+      "forced": true,
+      "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+      "outcome": "process_fail",
+      "project": "route_demo",
+      "run_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-ledger/20261017T164104.134875Z",
+      "unconnected_in_scope": null
+    }
+  ]
+}

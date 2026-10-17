@@ -1,0 +1,79 @@
+{
+  "backend": "krt",
+  "project": "route_demo",
+  "board": "route_demo.kicad_pcb",
+  "schematic": "route_demo.kicad_sch",
+  "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+  "source": {
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo",
+    "source": "working tree",
+    "source_git_head": null,
+    "source_dirty_files": []
+  },
+  "reference_dir": "reference/route_demo",
+  "candidate_dir": "candidate/route_demo",
+  "reference_facts": "facts/reference-facts.json",
+  "baseline": {
+    "report": "../../../../.cache/baseline/ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732/baseline-drc.json",
+    "cached": true,
+    "reasons": []
+  },
+  "scope": {
+    "nets": [
+      "/SIG_A",
+      "/SIG_A_OUT"
+    ],
+    "mode": "selected",
+    "net_patterns": [
+      "/SIG_A*"
+    ],
+    "netclasses": []
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": 0.4,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "stall_s": null,
+    "mode": "selected",
+    "net_patterns": [
+      "/SIG_A*"
+    ],
+    "netclasses": [],
+    "rule_floor_sha256": "0bc41e4f4148ea8c1b511840e007eeb99ba8e43e36ab59277d31c28247535d8b"
+  },
+  "floor": {
+    "declared_sources": [
+      "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+    ],
+    "declared": {
+      "rules.min_clearance": {
+        "value": 0.2,
+        "reason": "fab",
+        "owner": "hw",
+        "source": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+      }
+    },
+    "declared_problems": [],
+    "floor_violated": [
+      {
+        "setting": "rules.min_clearance",
+        "current": 0.15,
+        "floor": 0.2,
+        "status": "looser",
+        "reason": "fab",
+        "owner": "hw",
+        "source": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+      }
+    ],
+    "notes": []
+  }
+}

@@ -82,5 +82,19 @@
     "status": "PASS",
     "detail": "new copper only on the 2 in-scope nets",
     "differences": []
+  },
+  {
+    "check": "net_completion",
+    "differences": [],
+    "status": "PASS",
+    "detail": "all 1 nets fully connected in the input stay connected",
+    "nets_connected_in_input": 1,
+    "nets_lost": []
+  },
+  {
+    "check": "pour_integrity",
+    "status": "PASS",
+    "detail": "1 copper zones, 2 zone-connected pads compared on the refilled boards (min spokes 2); GND@B.Cu 1169.3 mm2 (0.0 %), 1 polygons",
+    "differences": []
   }
 ]

@@ -1,13 +1,13 @@
 # Routing attempt: krt on route_demo
 
 - Backend: krt 0.23.1 (v0.23.1)
-- Input: `route_demo.kicad_pcb` from working tree @ c2310799924464a6f6bab64578d5fda6e749beff (fingerprint ba2f343c49e2f971)
+- Input: `route_demo.kicad_pcb` from working tree @ 2944c145e51effd192d2ee4a1d04f7f18c0ffc5e (fingerprint ba2f343c49e2f971)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo/smoke-krt/20261017T152149.635210Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/smoke-krt/20261017T164409.291974Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 6.034 s |
+| process | PASS | exit 0, 6.6 s |
 | routing | COMPLETE | 0 unconnected in scope, 0 total (input: 6) |
 | validation | PASS | no new findings |
 
@@ -27,6 +27,8 @@
 | protected_copper | PASS |
 | new_copper_netclass_geometry | PASS |
 | routing_scope | PASS |
+| net_completion | PASS |
+| pour_integrity | PASS |
 
 Native DRC (original rules and severities):
 

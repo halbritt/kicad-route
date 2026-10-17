@@ -3,9 +3,9 @@
   "project": "route_demo",
   "board": "route_demo.kicad_pcb",
   "schematic": "route_demo.kicad_sch",
-  "input_fingerprint": "af58ebe42a2efa61afd099bd27ce2b26503cf09e03925d6cc15128c72c54c734",
+  "input_fingerprint": "58a7a678f1b3b03c297973c185d745ad58b231d00535c1f7b08725d0ecd09af8",
   "source": {
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1189/blocked0/route_demo",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1230/blocked0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": []
@@ -14,8 +14,8 @@
   "candidate_dir": "candidate/route_demo",
   "reference_facts": "facts/reference-facts.json",
   "baseline": {
-    "report": "../../../../.cache/baseline/af58ebe42a2efa61afd099bd27ce2b26503cf09e03925d6cc15128c72c54c734/baseline-drc.json",
-    "cached": false,
+    "report": "../../../../.cache/baseline/58a7a678f1b3b03c297973c185d745ad58b231d00535c1f7b08725d0ecd09af8/baseline-drc.json",
+    "cached": true,
     "reasons": []
   },
   "scope": {
@@ -37,10 +37,16 @@
     "passes": null,
     "default_clearance_mm": null,
     "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
     "backend_args": [],
     "backend_env": {
       "KICAD_NET_RESCUE": "0"
     },
-    "mode": "all"
-  }
+    "reserve_spokes": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "floor": null
 }

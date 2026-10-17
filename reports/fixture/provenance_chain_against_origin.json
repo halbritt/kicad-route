@@ -1,0 +1,118 @@
+{
+  "kind": "route-validate",
+  "run_dir": "runs/route_demo/prov-step2/20261017T164246.323213Z",
+  "against": "runs/route_demo/prov-step1/20261017T164233.338964Z",
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 0,
+    "baseline_unconnected_total": 6,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 16,
+      "new_vias": 1,
+      "new_track_length_mm": 117.987,
+      "new_track_length_mm_by_layer": {
+        "B.Cu": 0.028,
+        "F.Cu": 117.959
+      },
+      "new_copper_nets": 5,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    }
+  },
+  "validation": {
+    "status": "PASS",
+    "reasons": [],
+    "dir": "runs/route_demo/prov-step2/20261017T164246.323213Z/revalidate-origin/20261017T164309.791392Z",
+    "chain": [
+      "runs/route_demo/prov-step2/20261017T164246.323213Z",
+      "runs/route_demo/prov-step1/20261017T164233.338964Z"
+    ],
+    "restored_project_files": [],
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261017T164246.323213Z/revalidate-origin/20261017T164309.791392Z/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261017T164246.323213Z/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "runs/route_demo/prov-step2/20261017T164246.323213Z/candidate/route_demo",
+        "log": "runs/route_demo/prov-step2/20261017T164246.323213Z/revalidate-origin/20261017T164309.791392Z/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 2.048
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261017T164246.323213Z/revalidate-origin/20261017T164309.791392Z/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261017T164246.323213Z/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "runs/route_demo/prov-step2/20261017T164246.323213Z/candidate/route_demo",
+        "log": "runs/route_demo/prov-step2/20261017T164246.323213Z/revalidate-origin/20261017T164309.791392Z/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 1.999
+      }
+    ],
+    "delivered_board_sha256": "c60f84b4b938ca559cc2aedeeb4d4c6797a3c2d9c935a4026a10b155339ed931",
+    "validated_board_sha256": "c60f84b4b938ca559cc2aedeeb4d4c6797a3c2d9c935a4026a10b155339ed931",
+    "parity_performed": true,
+    "drc": {
+      "violations_total": 0,
+      "parity_total": 0,
+      "new_violations": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "preexisting_violations": 0,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 1,
+      "nets_lost": []
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    }
+  },
+  "exit_code": 0
+}

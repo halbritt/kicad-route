@@ -7,7 +7,7 @@
   "source": {
     "source_dir": "/home/halbritt/git/kicad-route/fixtures/route_demo",
     "source": "working tree",
-    "source_git_head": "c2310799924464a6f6bab64578d5fda6e749beff",
+    "source_git_head": "2944c145e51effd192d2ee4a1d04f7f18c0ffc5e",
     "source_dirty_files": []
   },
   "reference_dir": "reference/route_demo",
@@ -37,14 +37,20 @@
     "passes": null,
     "default_clearance_mm": null,
     "clearance_margin_mm": 0.01,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
     "backend_args": [
       "--router.fanout.enabled=true"
     ],
     "backend_env": {},
+    "reserve_spokes": null,
+    "stall_s": null,
     "mode": "selected",
     "net_patterns": [],
     "netclasses": [
       "Power"
-    ]
-  }
+    ],
+    "rule_floor_sha256": null
+  },
+  "floor": null
 }

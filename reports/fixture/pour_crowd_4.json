@@ -1,0 +1,41 @@
+{
+  "exit_code": 3,
+  "pour_integrity": {
+    "check": "pour_integrity",
+    "status": "FAIL",
+    "detail": "1 copper zones, 2 zone-connected pads compared on the refilled boards (min spokes 2); GND@B.Cu 1162.4 mm2 (-0.584 %), 1 polygons; 1 lost_fill_contact",
+    "differences": [
+      {
+        "kind": "lost_fill_contact",
+        "pad": "J1.2@B.Cu",
+        "connection": "thermal",
+        "position_mm": [
+          104.0,
+          108.54
+        ],
+        "touches_fill": [
+          true,
+          false
+        ],
+        "spokes": [
+          4,
+          0
+        ],
+        "solid": [
+          false,
+          false
+        ],
+        "track_spokes": [
+          0,
+          0
+        ],
+        "in_main": [
+          true,
+          false
+        ],
+        "polygons": [],
+        "other_path": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "kind": "canary",
+  "status": "PASS",
+  "reasons": [],
+  "nets": {
+    "/SIG_A": "Net-(BT1-+)",
+    "/SIG_A_OUT": "\"q\"",
+    "/SIG_B": "/a b/c",
+    "/SIG_B_OUT": "+3V3/\u00fc \u00b5",
+    "/VIN": "-VIN(1)",
+    "GND": "GND 'x' (y)"
+  },
+  "scoped_out": [
+    "Net-(BT1-+)",
+    "\"q\""
+  ],
+  "checks": [
+    {
+      "check": "split",
+      "status": "PASS",
+      "problems": [],
+      "scoped_out": [
+        "Net-(BT1-+)",
+        "\"q\"",
+        "-VIN(1)"
+      ],
+      "ignored_classes": [
+        "kicad_default__skip",
+        "Power__skip"
+      ]
+    },
+    {
+      "check": "bridge",
+      "status": "PASS",
+      "problems": []
+    },
+    {
+      "check": "freerouting",
+      "scope": [
+        "+3V3/\u00fc \u00b5",
+        "-VIN(1)",
+        "/a b/c",
+        "GND 'x' (y)"
+      ],
+      "scoped_out": [
+        "Net-(BT1-+)",
+        "\"q\""
+      ],
+      "process": {
+        "status": "PASS",
+        "reasons": [],
+        "exit_code": 0
+      },
+      "status": "PASS",
+      "problems": [],
+      "new_copper_nets": [
+        "+3V3/\u00fc \u00b5",
+        "-VIN(1)",
+        "GND 'x' (y)"
+      ],
+      "needed_copper": [
+        "+3V3/\u00fc \u00b5",
+        "-VIN(1)"
+      ]
+    },
+    {
+      "check": "krt",
+      "scope": [
+        "+3V3/\u00fc \u00b5",
+        "-VIN(1)",
+        "/a b/c",
+        "GND 'x' (y)"
+      ],
+      "scoped_out": [
+        "Net-(BT1-+)",
+        "\"q\""
+      ],
+      "process": {
+        "status": "PASS",
+        "reasons": [],
+        "exit_code": 0
+      },
+      "status": "PASS",
+      "problems": [],
+      "new_copper_nets": [
+        "+3V3/\u00fc \u00b5",
+        "-VIN(1)",
+        "GND 'x' (y)"
+      ],
+      "needed_copper": [
+        "+3V3/\u00fc \u00b5",
+        "-VIN(1)"
+      ]
+    }
+  ],
+  "dir": "canary/20261017T164108.255091Z"
+}

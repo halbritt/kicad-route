@@ -1,0 +1,10 @@
+{
+  "per_pad": 2,
+  "min_resolved_spokes": 2,
+  "clearance": 400000,
+  "refilled": true,
+  "pad_count": 5,
+  "corridors_live": 19,
+  "corridors_selected": 10,
+  "warnings": []
+}

@@ -1,0 +1,121 @@
+{
+  "exit_code": 3,
+  "validation": {
+    "status": "FAIL",
+    "reasons": [
+      "2 new DRC violations: track_dangling 2",
+      "preservation net_completion: 1 of the 3 nets fully connected in the input lost connection: /SIG_A"
+    ],
+    "dir": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z",
+    "restored_project_files": [],
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z/candidate-refill.json",
+          "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 3.128
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z/candidate-drc.json",
+          "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 2.96
+      }
+    ],
+    "delivered_board_sha256": "9b5f292980db1a37c1d5a83fef601be9da60a36c682c0ef0b7eadd1acca00847",
+    "validated_board_sha256": "9b5f292980db1a37c1d5a83fef601be9da60a36c682c0ef0b7eadd1acca00847",
+    "parity_performed": true,
+    "drc": {
+      "violations_total": 2,
+      "parity_total": 0,
+      "new_violations": {
+        "count": 2,
+        "by_type": {
+          "track_dangling": 2
+        },
+        "by_severity": {
+          "warning": 2
+        }
+      },
+      "preexisting_violations": 0,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "FAIL",
+      "nets_connected_in_input": 3,
+      "nets_lost": [
+        "/SIG_A"
+      ]
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "existing_unlocked_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "FAIL",
+      "pour_integrity": "PASS"
+    }
+  },
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 1,
+    "baseline_unconnected_total": 4,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 11,
+      "new_vias": 1,
+      "new_track_length_mm": 71.077,
+      "new_track_length_mm_by_layer": {
+        "B.Cu": 0.028,
+        "F.Cu": 71.048
+      },
+      "new_copper_nets": 3,
+      "removed_existing_tracks": 1,
+      "removed_existing_vias": 0
+    }
+  }
+}

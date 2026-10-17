@@ -1,0 +1,116 @@
+{
+  "routing": {
+    "status": "INCOMPLETE",
+    "unconnected_in_scope": 4,
+    "unconnected_total": 4,
+    "baseline_unconnected_total": 7,
+    "unrouted_nets": [
+      "/SIG_A_OUT",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND"
+    ],
+    "stats": {
+      "new_tracks": 7,
+      "new_vias": 1,
+      "new_track_length_mm": 29.412,
+      "new_track_length_mm_by_layer": {
+        "B.Cu": 0.028,
+        "F.Cu": 29.384
+      },
+      "new_copper_nets": 3,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    },
+    "blocked_by": {
+      "report": "runs/route_demo/blocked-receipts-krt/20261017T163405.846040Z/validate/blocked-by.json",
+      "connections_analyzed": 4,
+      "unobstructed_connections": 0,
+      "method": "heuristic corridors; see docs/blocked.md",
+      "top": [
+        {
+          "id": "rule_area:wall",
+          "category": "keepout",
+          "kind": "rule_area",
+          "label": "keepout 'wall' (no tracks, no vias, no zone fills) on B.Cu, F.Cu",
+          "net": null,
+          "blocks": 4,
+          "blocks_any_layer": 4,
+          "nets_blocked": [
+            "/SIG_A_OUT",
+            "/SIG_B_OUT",
+            "/VIN",
+            "GND"
+          ]
+        },
+        {
+          "id": "rule_area:route_keepout",
+          "category": "keepout",
+          "kind": "rule_area",
+          "label": "keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu",
+          "net": null,
+          "blocks": 3,
+          "blocks_any_layer": 3,
+          "nets_blocked": [
+            "/SIG_A_OUT",
+            "/VIN",
+            "GND"
+          ]
+        },
+        {
+          "id": "802c17cd-cad1-4a10-9194-0d8541d8d429",
+          "category": "new_copper",
+          "kind": "track",
+          "label": "track /SIG_A F.Cu (new, unlocked) 802c17cd",
+          "net": "/SIG_A",
+          "locked": false,
+          "origin": "new",
+          "blocks": 0,
+          "blocks_any_layer": 2,
+          "nets_blocked": [
+            "/VIN",
+            "GND"
+          ]
+        }
+      ],
+      "nets": {
+        "/SIG_A_OUT": {
+          "connections": 1,
+          "best_layer": "F.Cu",
+          "hard_blockers_on_best_layer": 2,
+          "blockers": [
+            "keepout 'route_keepout'",
+            "keepout 'wall'"
+          ]
+        },
+        "/SIG_B_OUT": {
+          "connections": 1,
+          "best_layer": "F.Cu",
+          "hard_blockers_on_best_layer": 1,
+          "blockers": [
+            "keepout 'wall'"
+          ]
+        },
+        "/VIN": {
+          "connections": 1,
+          "best_layer": "B.Cu",
+          "hard_blockers_on_best_layer": 2,
+          "blockers": [
+            "keepout 'route_keepout'",
+            "keepout 'wall'"
+          ]
+        },
+        "GND": {
+          "connections": 1,
+          "best_layer": "B.Cu",
+          "hard_blockers_on_best_layer": 2,
+          "blockers": [
+            "keepout 'route_keepout'",
+            "keepout 'wall'"
+          ]
+        }
+      }
+    }
+  },
+  "exit_code": 3
+}
