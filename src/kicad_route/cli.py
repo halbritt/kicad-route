@@ -19,6 +19,8 @@ input's unchanged constraints.
                                           rule high-water mark of the history and the declared floor
     kicad-route spokes RUN_DIR | --board B.kicad_pcb
                                           thermal-spoke corridors: which new copper starved which pad
+    kicad-route decoupling RUN_DIR | --board B.kicad_pcb [--radius MM]
+                                          read-only: bypass capacitors between IC pins and the plane?
     kicad-route publish RUN_DIR [--to DIR]
                                           copy a run's structured evidence (not the board) for committing
     kicad-route update                    move both backends to their latest upstream release, then smoke
@@ -74,6 +76,7 @@ from . import provenance
 from . import pour
 from . import skills
 from . import spokes  # --reserve-spokes / `kicad-route spokes` (docs/spokes.md)
+from . import decoupling  # `kicad-route decoupling` (docs/decoupling.md)
 from . import ledger
 from . import netnames
 from . import procgroup
@@ -1963,6 +1966,7 @@ def build_parser():
     pp.add_argument("--to", default="reports/routing", help="destination root (default reports/routing); "
                                                             "evidence goes to <to>/<project>/<label>/")
     spokes.add_parser(sub)
+    decoupling.add_parser(sub)
     sub.add_parser("update", help="update both backends through their upstream channels, then smoke")
     cn = sub.add_parser("canary", help="awkward-net-name round trip through each backend on the fixture")
     cn.add_argument("--backend", choices=["all", *sorted(BACKENDS)], default="all")
@@ -2012,6 +2016,8 @@ def main(argv=None):
         return cmd_blocked(a)
     if a.cmd == "spokes":
         return spokes.cmd(a)
+    if a.cmd == "decoupling":
+        return decoupling.cmd(a)
     if a.cmd == "canary":
         from . import canary
         return canary.cmd_canary(a)
