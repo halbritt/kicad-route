@@ -114,9 +114,9 @@ Exit codes:
 - 0: complete and valid.
 - 1: process failure (no candidate).
 - 2: valid but incomplete.
-- 3: fails validation.
+- 3: fails validation (regardless of completion).
 - 4: refused before routing (ledger: identical attempt already failed; or
-  `--canary` failed).
+  `--canary` failed). No candidate is made.
 
 Also read:
 

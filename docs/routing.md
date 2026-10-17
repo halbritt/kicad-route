@@ -113,8 +113,10 @@ independent results:
   to the input, parity actually ran, the graded file is the delivered file, and every
   preservation check passes.
 
-Exit status: 0 complete and valid; 1 process failure; 2 valid but incomplete; 3 fails
-validation (regardless of completion).
+Exit status: 0 complete and valid; 1 process failure (no candidate); 2 valid but
+incomplete; 3 fails validation (regardless of completion); 4 refused before routing (the
+ledger shows this exact attempt already failed, or the `--canary` pre-flight failed; no
+candidate is made; [hygiene.md](hygiene.md)).
 
 ### Native grading
 
