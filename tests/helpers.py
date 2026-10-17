@@ -16,6 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 FIXTURE = ROOT / "fixtures" / "route_demo"
+# Test modules share one OUT and repeat each other's attempts on the same fixture; the
+# ledger would refuse those repeats (exit 4). Tests that exercise the ledger re-enable it.
+os.environ.setdefault("KICAD_ROUTE_LEDGER", "off")
 OUT = Path(os.environ.get("KICAD_ROUTE_TEST_OUT") or ROOT / "build" / "kicad-route" / "smoke").resolve()
 RUNS = OUT / "runs" / "route_demo"
 CLI = [sys.executable, str(ROOT / "bin" / "kicad-route"), "--out", str(OUT)]

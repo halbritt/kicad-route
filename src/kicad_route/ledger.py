@@ -18,6 +18,7 @@ for runs that predate the ledger.
 """
 import hashlib
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -99,6 +100,9 @@ def check(path, input_fp, backend, version, settings, force=False):
     upstream = [e for e in entries(path) if e.get("attempt_key") == key and e.get("fingerprint") != fp]
     gate = {"fingerprint": fp, "short": fp[:12], "attempt_key": key, "refuse": False, "forced": False,
             "previous_runs": [e["run_dir"] for e in same][-5:], "notes": []}
+    if failed and os.environ.get("KICAD_ROUTE_LEDGER") == "off":
+        gate["notes"].append(f"ledger refusal disabled (KICAD_ROUTE_LEDGER=off); repeats {failed[-1]['run_dir']}")
+        failed = []
     if failed:
         last = failed[-1]
         msg = (f"identical attempt (fingerprint {fp[:12]}) already finished {last['outcome']} "

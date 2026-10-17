@@ -717,6 +717,17 @@ def run_attempt(args):
                 "reserve_spokes": args.reserve_spokes,
                 "stall_s": getattr(args, "stall", None), **scope_info}
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
+    floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
+    if floor_rec and floor_rec["floor_violated"]:
+        log(f"[route] rule floor: {len(floor_rec['floor_violated'])} setting(s) below the declared floor; "
+            "validation will fail")
+    for note in (floor_rec or {}).get("notes", []):
+        log(f"[route] rule floor NOTE: {note}")
+
+    # The declared floor is not a KiCad project file, so it is outside the input fingerprint;
+    # it changes the verdict, so the ledger must see it.
+    settings["rule_floor_sha256"] = (common.sha256_of(floor_rec["declared"])
+                                     if floor_rec and floor_rec.get("declared") else None)
     backend_version = backend["version"]()
     gate = ledger.check(out_path("ledger.jsonl"), fingerprint, args.backend, backend_version, settings,
                         force=getattr(args, "force", False))
@@ -732,13 +743,6 @@ def run_attempt(args):
             return {"exit_code": ledger.REFUSED_EXIT, "refused": refusal}
     for note in gate["notes"]:
         log(f"[route] ledger: {note}")
-
-    floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
-    if floor_rec and floor_rec["floor_violated"]:
-        log(f"[route] rule floor: {len(floor_rec['floor_violated'])} setting(s) below the declared floor; "
-            "validation will fail")
-    for note in (floor_rec or {}).get("notes", []):
-        log(f"[route] rule floor NOTE: {note}")
 
     log("[route] baseline: native DRC of the untouched input (refilled)")
     base, base_info = baseline_drc(ref_dir, board_name, fingerprint)
@@ -1759,7 +1763,7 @@ def add_input_args(p, rev=True):
         p.add_argument("--rev", help="route a committed git revision of --dir instead of its working tree")
 
 
-def main(argv=None):
+def build_parser():
     ap = argparse.ArgumentParser(prog="kicad-route", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", help="where runs, caches and reports go (default ./build/kicad-route or $KICAD_ROUTE_OUT)")
@@ -1834,6 +1838,23 @@ def main(argv=None):
     sm.add_argument("--publish", metavar="DIR", help="also copy the structured evidence to DIR")
     from . import campaign
     campaign.add_parser(sub, sys.modules[__name__])
+    return ap
+
+
+def run_namespace(backend, **values):
+    """A `run` Namespace with every option at its CLI default, then `values`: for
+    callers that drive run_attempt directly (corpus), so new run options never break them."""
+    a = build_parser().parse_args(["run", "--backend", backend])
+    for k, v in values.items():
+        if not hasattr(a, k):
+            raise TypeError(f"run has no option {k!r}")
+        setattr(a, k, v)
+    return a
+
+
+def main(argv=None):
+    from . import campaign, corpus  # imported lazily, as build_parser does
+    ap = build_parser()
     a = ap.parse_args(argv)
     if a.out:
         common.set_out(a.out)

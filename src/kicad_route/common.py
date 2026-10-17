@@ -53,6 +53,11 @@ def sha256(path):
     return h.hexdigest()
 
 
+def sha256_of(obj):
+    """Digest of a JSON-serialisable value (canonical key order)."""
+    return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()
+
+
 def now_utc():
     return dt.datetime.now(dt.timezone.utc)
 

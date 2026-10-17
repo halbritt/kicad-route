@@ -135,7 +135,8 @@ def _result(outcome_exit, version="1.0", settings=None, run_dir="r1"):
             "routing": {"status": st["routing"]}, "exit_code": outcome_exit, "run_dir": run_dir}
 
 
-def test_ledger_gate_unit(tmp_path):
+def test_ledger_gate_unit(tmp_path, monkeypatch):
+    monkeypatch.delenv("KICAD_ROUTE_LEDGER", raising=False)
     path = tmp_path / "ledger.jsonl"
     settings = {"backend": "krt", "budget_s": 60, "mode": "all", "max_iterations": None}
     v1 = {"version": "1.0", "commit": "c1.0"}
@@ -159,9 +160,10 @@ def test_ledger_gate_unit(tmp_path):
     assert a == ledger.attempt_key("f", "krt", {"mode": "selected", "net_patterns": ["/B", "/A"]})
 
 
-def test_ledger_refuses_repeat_of_failed_attempt():
+def test_ledger_refuses_repeat_of_failed_attempt(monkeypatch):
     """A process failure (an option KRT rejects) is recorded; the identical attempt
     is refused with exit 4 naming the earlier run; --force reruns it, recorded."""
+    monkeypatch.delenv("KICAD_ROUTE_LEDGER", raising=False)
     args = ("run", "--backend", "krt", "--budget", "60", "--backend-arg=--no-such-krt-option",
             "--label", "hygiene-ledger")
     r1, run1, res1 = run(*args)

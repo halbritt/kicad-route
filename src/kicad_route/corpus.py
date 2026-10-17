@@ -22,7 +22,6 @@ items in scope, more new DRC violations or parity issues, or a preservation
 check that now fails. `update` runs `check` after smoke when the corpus is not
 empty and records the outcome in update.json; it never rolls back.
 """
-import argparse
 import json
 import os
 import re
@@ -74,19 +73,17 @@ def outcome(result):
 
 
 def attempt_args(entry):
-    """argparse.Namespace for cli.run_attempt from a corpus entry."""
+    """A run Namespace (every run option at its default) for cli.run_attempt from a corpus entry."""
     a = entry["attempt"]
     proj = entry["_dir"] / entry["reference_dir"]
-    return argparse.Namespace(
-        dir=str(proj), board=entry["board"], schematic=entry.get("schematic"), name=entry["name"],
-        library_dir=None, rev=None, label=f"corpus-{entry['name']}",
-        backend=a["backend"], nets=a.get("nets"), netclass=a.get("netclass"), budget=a.get("budget", 300),
-        max_iterations=a.get("max_iterations"), passes=a.get("passes"),
+    return route.run_namespace(
+        a["backend"], dir=str(proj), board=entry["board"], schematic=entry.get("schematic"), name=entry["name"],
+        label=f"corpus-{entry['name']}", nets=a.get("nets"), netclass=a.get("netclass"),
+        budget=a.get("budget", 300), max_iterations=a.get("max_iterations"), passes=a.get("passes"),
         default_clearance=a.get("default_clearance"), clearance_margin=a.get("clearance_margin"),
         protect=a.get("protect", "existing"), backend_arg=a.get("backend_arg") or [],
         backend_env=a.get("backend_env") or [], stall=a.get("stall"),
-        force=True,   # a corpus check repeats an attempt on purpose; the ledger records it as forced
-        canary=False)
+        force=True)   # a corpus check repeats an attempt on purpose; the ledger records it as forced
 
 
 def add(args):

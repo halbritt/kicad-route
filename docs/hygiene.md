@@ -109,6 +109,13 @@ The fingerprint can be derived from `result.json` alone
 (`ledger.from_result`). `compare` uses this to print it as the first column
 (`fp`, 12 hex characters), also for runs older than the ledger.
 
+`KICAD_ROUTE_LEDGER=off` keeps recording every attempt but never refuses one (a note
+in the gate names the run it repeats). The test suite sets it, because test modules
+share one output directory and deliberately repeat each other's attempts; the ledger
+tests switch it back on. The declared rule floor (`<board>.rules-floor.json`) is part
+of the fingerprint (`settings.rule_floor_sha256`): it is not a KiCad project file, but
+it changes the verdict.
+
 ## Canary pre-flight
 
 The canary works on the bundled fixture.
