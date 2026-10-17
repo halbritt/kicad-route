@@ -10,8 +10,10 @@ lengths are integer nanometres (KiCad internal units); angles are degrees.
 
 The project rules (.kicad_pro, .kicad_dru) are compared as files by kicad_route.cli;
 this script covers what lives in the board: outline, layers, stackup, setup,
-footprints and pads, nets and their resolved net classes, zones and rule areas,
-tracks/arcs/vias (with lock state) and other copper graphics.
+footprints and pads, nets and their resolved net classes (track, via and microvia
+sizes), zones and rule areas, tracks/arcs/vias (with lock state; arc endpoints in
+canonical order) and other copper graphics (shapes, and text/other items with their
+content, position and bounding box).
 """
 import hashlib
 import json
@@ -43,21 +45,35 @@ def find(node, key):
     return None
 
 
+# A string, an opening parenthesis with the keyword after it, or a closing parenthesis.
+_TOKEN = re.compile(r'"(?:\\.|[^"\\])*"|\(\s*([^\s()"]*)|\)')
+
+
 def setup_block(text):
-    """The board's (setup ...) section as a tree, minus volatile/non-engineering keys."""
-    start = text.find("\n\t(setup")
-    if start < 0:
-        return None
-    depth, i = 0, start + 1
-    for j in range(i, len(text)):
-        if text[j] == "(":
+    """The board's (setup ...) section as a tree, minus volatile/non-engineering keys.
+
+    Found by a quote-aware parenthesis scan for the first `(setup` directly inside
+    the top-level `(kicad_pcb ...)`, so indentation (tabs, spaces, none) and parentheses
+    inside strings do not matter. None when there is no such block or the file does
+    not balance: kicad_route.cli then fails the setup and stackup checks (fail closed).
+    """
+    depth, start = 0, None
+    for m in _TOKEN.finditer(text):
+        tok = m.group(0)
+        if tok[0] == '"':
+            continue
+        if tok[0] == "(":
             depth += 1
-        elif text[j] == ")":
-            depth -= 1
-            if depth == 0:
-                tree = sexpr(text[i:j + 1])[0]
-                # plot parameters are output settings, not engineering constraints
-                return [c for c in tree if not (isinstance(c, list) and c and c[0] == "pcbplotparams")]
+            if depth == 2 and start is None and m.group(1) == "setup":
+                start = m.start()
+            continue
+        depth -= 1
+        if depth < 0:
+            return None
+        if depth == 1 and start is not None:
+            tree = sexpr(text[start:m.end()])[0]
+            # plot parameters are output settings, not engineering constraints
+            return [c for c in tree if not (isinstance(c, list) and c and c[0] == "pcbplotparams")]
     return None
 
 
@@ -108,17 +124,41 @@ def main(board_path, out_path):
             rec.update(start=ends[0], end=ends[1])
         return rec
 
+    def text_record(t):
+        """What an EDA_TEXT says and where: content, anchor, angle, size, stroke, style."""
+        size = t.GetTextSize()
+        return {"text": t.GetText(), "text_position": xy(t.GetTextPos()),
+                "text_angle": round(t.GetTextAngleDegrees(), 6), "text_size": [int(size.x), int(size.y)],
+                "text_thickness": int(t.GetTextThickness()), "mirrored": bool(t.IsMirrored()),
+                "knockout": bool(t.IsKnockout()) if hasattr(t, "IsKnockout") else None,
+                "bold": bool(t.IsBold()), "italic": bool(t.IsItalic()), "font": t.GetFontName(),
+                "justify": [int(t.GetHorizJustify()), int(t.GetVertJustify())]}
+
+    def item_record(d):
+        """A copper item that is not a plain shape (text, table, dimension, barcode, ...):
+        its class, layer, position and bounding box, plus the text it carries."""
+        box = d.GetBoundingBox()
+        rec = {"class": d.GetClass(), "layer": layer_name(d.GetLayer()), "position": xy(d.GetPosition()),
+               "bbox": [int(box.GetX()), int(box.GetY()), int(box.GetWidth()), int(box.GetHeight())]}
+        if isinstance(d, pcbnew.EDA_TEXT):
+            rec.update(text_record(d))
+        if hasattr(d, "GetCells"):  # PCB_TABLE: every cell's text
+            rec["cells"] = [text_record(c) for c in d.GetCells()]
+        return rec
+
     copper_graphics = []
     for d in board.GetDrawings():
         if not isinstance(d, pcbnew.PCB_SHAPE):
             if d.IsOnCopperLayer():
-                copper_graphics.append({"class": d.GetClass(), "layer": layer_name(d.GetLayer())})
+                copper_graphics.append(item_record(d))
             continue
         if d.GetLayer() == pcbnew.Edge_Cuts:
             outline.append(shape_record(d))
         elif d.IsOnCopperLayer():
             rec = shape_record(d)
             rec["net"] = d.GetNetname()
+            if isinstance(d, pcbnew.EDA_TEXT):  # PCB_TEXTBOX is a shape that carries text
+                rec.update(text_record(d), **{"class": d.GetClass()})
             copper_graphics.append(rec)
     footprints = {}
     for fp in board.GetFootprints():
@@ -160,7 +200,10 @@ def main(board_path, out_path):
                       "track_width": int(nc.GetTrackWidth()) if nc.HasTrackWidth() else None,
                       "clearance": int(nc.GetClearance()) if nc.HasClearance() else None,
                       "via_diameter": int(nc.GetViaDiameter()) if nc.HasViaDiameter() else None,
-                      "via_drill": int(nc.GetViaDrill()) if nc.HasViaDrill() else None}
+                      "via_drill": int(nc.GetViaDrill()) if nc.HasViaDrill() else None,
+                      # microvias are sized by the class's uVia values, not its through-via values
+                      "uvia_diameter": int(nc.GetuViaDiameter()) if nc.HasuViaDiameter() else None,
+                      "uvia_drill": int(nc.GetuViaDrill()) if nc.HasuViaDrill() else None}
     facts["nets"] = dict(sorted(nets.items()))
 
     zones, rule_areas = [], []
@@ -198,10 +241,12 @@ def main(board_path, out_path):
             rec = {"kind": "arc" if isinstance(t, pcbnew.PCB_ARC) else "segment",
                    "layer": layer_name(t.GetLayer()), "width": int(t.GetWidth()), "net": t.GetNetname(),
                    "locked": locked, "uuid": t.m_Uuid.AsString()}
+            # endpoints in canonical order (an arc reversed end for end is the same copper;
+            # the mid point does not change), as locks.py keys them
+            a, b = sorted([a, b])
             if rec["kind"] == "arc":
                 rec.update(start=a, mid=xy(t.GetMid()), end=b)
             else:
-                a, b = sorted([a, b])
                 rec.update(start=a, end=b)
             tracks.append(rec)
     facts["tracks"] = tracks

@@ -142,16 +142,16 @@ From `kicad/facts.py` (KiCad's own loader; serialisation differences do not coun
 | `project_files` | `.kicad_pro`, `.kicad_dru`, schematics, library tables, local libraries (bytes) |
 | `board_outline` | every Edge.Cuts shape, board and footprint owned |
 | `layers` | copper layer count and types, enabled layers |
-| `stackup` | the `(setup (stackup …))` tree |
-| `board_setup` | the rest of the board `(setup …)` tree (plot settings excluded) |
+| `stackup` | the `(setup (stackup …))` tree (absent on both sides passes: KiCad default) |
+| `board_setup` | the rest of the board `(setup …)` tree (plot settings excluded), found whatever the indentation; if either board's `(setup)` cannot be read, `board_setup` and `stackup` both FAIL |
 | `nets_and_netclasses` | net names and the effective net class KiCad resolves for each |
 | `pad_connectivity` | every pad's net |
-| `footprints` | library id, position, orientation, side, lock, pad geometry |
+| `footprints` | library id, position, orientation, side, lock, pad geometry; each difference names the changed attributes (`changed`) and, for pads, which pads and fields |
 | `zones` | outline, net, layers, priority, clearance, thermal and fill settings (fill polygons are regenerated) |
 | `keepouts` | rule-area outlines, layers and restrictions |
-| `copper_graphics` | non-track copper shapes and text |
-| `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation); designated = locked items, plus all input copper with `--protect existing`, or the chain's human copper with `--protect human` ([`provenance.md`](provenance.md)) |
-| `new_copper_netclass_geometry` | every new track at least its net class width, every new via at least its class diameter and drill |
+| `copper_graphics` | non-track copper shapes; copper text, text boxes, tables and other items with their content, position, size and bounding box |
+| `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation; a track or arc may come back with start and end swapped), and every locked one still locked (a dropped lock flag FAILs); designated = locked items, plus all input copper with `--protect existing`, or the chain's human copper with `--protect human` ([`provenance.md`](provenance.md)) |
+| `new_copper_netclass_geometry` | every new track at least its net class width, every new via at least its class diameter and drill (microvias against the class microvia diameter and drill; through, blind and buried vias against the via sizes) |
 | `routing_scope` | new copper only on in-scope nets |
 | `net_completion` | every net fully connected in the input is still connected in the candidate (the completion ratchet; all protect modes) |
 | `existing_unlocked_copper` | with `--protect locked`/`human`: how much unlocked input copper was removed or changed (informational, always PASS) |
