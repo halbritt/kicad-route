@@ -89,7 +89,7 @@ directory name unless `--name` is given):
 
 | Path | Contents |
 |---|---|
-| `reference/<project>/` | untouched copy of the input (board, `.kicad_pro`, `.kicad_dru`, every reachable schematic sheet, library tables, local libraries; shared libraries linked; `--rev` uses `git archive` of that revision) |
+| `reference/<project>/` | untouched copy of the input (board, `.kicad_pro`, `.kicad_dru`, every reachable schematic sheet, library tables, local libraries; `${KIPRJMOD}/../<dir>` libraries linked beside it as `reference/<dir>`, and the same links are made beside `work/input/` and `candidate/`; `--rev` takes the project, its in-repository `../<dir>` libraries and checked-out submodules (at their pinned commits) from that revision, never the working tree. A `../<dir>` outside the repository is not pinned by the commit: `snapshot.json` `library_links` records it as `pinned: false` with its own git HEAD and uncommitted files) |
 | `work/` | backend scratch: its own output files and project writes (recorded, never used), `krt.log` / `freerouting.log`, `board.dsn` / `board.ses`, result JSON |
 | `candidate/<project>/` | the reference project with the routed board; zones refilled and saved; open it in KiCad |
 | `facts/reference-facts.json` | engineering facts of the input board (`kicad/facts.py`) |

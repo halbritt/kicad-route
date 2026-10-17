@@ -60,7 +60,11 @@ first.
   - `--dir DIR` (default `.`), `--board B.kicad_pcb` (default: the only board),
     `--schematic`, `--name`.
   - `--rev REV` routes a committed revision through `git archive`. It's recommended
-    while others edit the tree.
+    while others edit the tree. It also takes the `${KIPRJMOD}/../<dir>` libraries
+    that live in the same repository, and checked-out submodules at their pinned
+    commits. A `../<dir>` outside the repository is read as it is now; check
+    `snapshot.json` `library_links` (`pinned: false`, `library_head`) and
+    `library_issues`.
   - `--library-dir NAME=PATH` maps an empty library submodule to a path.
 - **Scope:**
   - `--nets PAT …` selects by **net name**: fnmatch patterns, `!PAT` excludes, and
