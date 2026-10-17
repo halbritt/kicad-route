@@ -44,6 +44,7 @@ kicad-route run --backend freerouting --nets "/CAN*" --clearance-margin 0.01
 kicad-route run --backend krt --rev HEAD --budget 1500 # route the committed state
 kicad-route validate build/kicad-route/runs/<project>/<label>/latest
 kicad-route compare <run_dir> <run_dir>
+kicad-route campaign --backend krt --rounds 2          # hard nets first, best chain graded vs the input
 kicad-route audit --old HEAD~1                         # grade the last commit's board change
 ```
 
@@ -64,6 +65,8 @@ route:
 - [`docs/routing.md`](docs/routing.md) — backends and what the adapters switch off,
   run layout and result semantics, native grading, preservation checks, `audit`,
   installation and updates, decisions, known limitations, fixture evidence.
+- [`docs/campaign.md`](docs/campaign.md) — `campaign`: automated hard-nets-first chains,
+  backlog rounds, ranking, race orderings.
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`).

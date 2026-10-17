@@ -9,6 +9,8 @@ input's unchanged constraints.
                  [--protect locked|existing] [--label L] [--backend-arg ARG ...]
     kicad-route validate RUN_DIR [--against ORIGIN_RUN]
                                           re-grade a candidate (or a --dir chain) against its input
+    kicad-route campaign --backend krt|freerouting [run options] [--rounds N] [--race K] [--total-budget S]
+                                          hard-nets-first campaign of runs; best chain graded vs the input
     kicad-route compare RUN_DIR ...       compare candidates routed from the same input
     kicad-route audit --old REV --new REV [--dir D]
                                           grade a committed board change against its parent
@@ -1622,6 +1624,8 @@ def main(argv=None):
     sub.add_parser("update", help="update both backends through their upstream channels, then smoke")
     sm = sub.add_parser("smoke", help="routing integration tests on the bundled fixture")
     sm.add_argument("--publish", metavar="DIR", help="also copy the structured evidence to DIR")
+    from . import campaign
+    campaign.add_parser(sub, sys.modules[__name__])
     a = ap.parse_args(argv)
     if a.out:
         common.set_out(a.out)
@@ -1634,6 +1638,8 @@ def main(argv=None):
         return run_attempt(a)["exit_code"]
     if a.cmd == "validate":
         return cmd_validate(a)
+    if a.cmd == "campaign":
+        return campaign.main(a, sys.modules[__name__])
     if a.cmd == "audit":
         return audit(a)
     if a.cmd == "publish":
