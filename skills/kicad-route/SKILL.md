@@ -43,6 +43,7 @@ first.
 | `kicad-route run --backend krt\|freerouting [options]` | One attempt; prints the run directory and exits with its verdict |
 | `kicad-route validate <run_dir>` | Re-grade a candidate (e.g. after hand edits) into `<run_dir>/revalidate/<stamp>/` |
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
+| `kicad-route campaign --backend krt\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`) |
 | `kicad-route compare <run_dir> …` | Side-by-side table; refuses to call different inputs comparable |
 | `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits |
 | `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured evidence (not the board) to `<DIR>/<project>/<label>/` for committing |
@@ -117,7 +118,7 @@ Also read:
 | Evidence | Next attempt |
 |---|---|
 | new `clearance` violations naming a `.kicad_dru` rule, rule listed in `unsupported` | `--default-clearance <rule value>`. For Freerouting, class-to-class rules are already translated; add `--clearance-margin 0.01` for micrometre misses |
-| `routing INCOMPLETE`, `unrouted_nets` few | larger `--budget`, or Freerouting `--passes 100`. Route the hard nets first with `--nets` **on the original input**, then continue from that candidate with `--dir <run>/candidate/<project>`. Finishing them *after* everything else rarely works because existing copper is locked. Grade the end with `validate <last> --against <first>` |
+| `routing INCOMPLETE`, `unrouted_nets` few | larger `--budget`, or Freerouting `--passes 100`. Route the hard nets first with `--nets` **on the original input**, then continue from that candidate with `--dir <run>/candidate/<project>`. Finishing them *after* everything else rarely works because existing copper is locked. Grade the end with `validate <last> --against <first>`. `kicad-route campaign` does all of this |
 | `process FAIL` "exceeded the … budget" (KRT) | larger `--budget`, or `--backend-env KICAD_NET_RESCUE=0` to skip the long rescue search. If plane nets are what runs long, use `--backend-env KICAD_PLANE_FINALIZE=0` and plan the planes separately |
 | Freerouting INCOMPLETE at SMD pads or plane connections | `--backend-arg=--router.fanout.enabled=true`. Fanout is off by default because it can neck traces to 3/4–1/2 width; `new_copper_netclass_geometry` catches that if it happens |
 | `via_dangling` / `track_dangling` new | Freerouting left fanout stubs on a net it could not finish. Treat it as incomplete routing, and retry as above or with the other backend |
