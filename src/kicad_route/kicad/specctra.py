@@ -3,7 +3,8 @@
 
     specctra.py export BOARD.kicad_pcb OUT.dsn [--skip-nets NETS.json] [--default-clearance UM]
                                                      [--dru RULES.kicad_dru] [--clearance-margin UM]
-    specctra.py import BOARD.kicad_pcb SESSION.ses OUT.kicad_pcb
+                                                     [--only KEYS.json]
+    specctra.py import BOARD.kicad_pcb SESSION.ses OUT.kicad_pcb [--only KEYS.json]
 
 kicad-cli 10 has no DSN export or SES import, so this uses the two-argument
 SWIG functions pcbnew.ExportSpecctraDSN(board, path) and
@@ -39,6 +40,11 @@ import leaves locked items untouched. Unlocked items would instead be deleted
 and rebuilt from the session, where Freerouting may have collapsed short
 segments or re-normalised junctions (upstream #958, #960, #987). After import
 the original lock flags are restored, so input copper comes back bit-identical.
+
+--only KEYS.json (export and import alike; keys as `locks.py keys` writes them):
+lock only the unlocked items whose key is listed (multiset). `--protect human`
+uses it so copper an earlier kicad-route step placed exports as (type route)
+and is rebuilt from the session, while the design's own copper stays locked.
 
 import: the session's (placement ...) section is dropped before KiCad reads
 it, so a session can never move footprints. Zones are not refilled here; the
@@ -260,21 +266,33 @@ def drop_placement(ses):
 def main(argv):
     import pcbnew
 
-    def lock_existing(board):
+    from locks import key, multiset  # same directory; the same keys lock and restore use
+
+    def lock_existing(board, only=None):
         unlocked = [t for t in board.GetTracks() if not t.IsLocked()]
+        if only is not None:
+            wanted, chosen = multiset(json.loads(Path(only).read_text())), []
+            for t in unlocked:
+                k = json.dumps(key(t, pcbnew))
+                if wanted.get(k):
+                    wanted[k] -= 1
+                    chosen.append(t)
+            unlocked = chosen
         for t in unlocked:
             t.SetLocked(True)
         return unlocked
 
     if len(argv) >= 3 and argv[0] == "export":
         board = pcbnew.LoadBoard(argv[1])
-        temporarily_locked = len(lock_existing(board))
+        opts = dict(zip(argv[3::2], argv[4::2]))
+        temporarily_locked = len(lock_existing(board, opts.get("--only")))
         out = Path(argv[2])
         if not pcbnew.ExportSpecctraDSN(board, str(out)):
             sys.exit("ExportSpecctraDSN failed")
         info = {"dsn": str(out), "ignored_classes": [], "clearance_raised": [],
                 "existing_copper_locked_for_export": temporarily_locked}
-        opts = dict(zip(argv[3::2], argv[4::2]))
+        if "--only" in opts:
+            info["existing_copper_left_unlocked"] = sum(1 for t in board.GetTracks() if not t.IsLocked())
         text = out.read_text()
         if "--skip-nets" in opts:
             text, info["ignored_classes"] = split_classes(text, set(json.loads(Path(opts["--skip-nets"]).read_text())))
@@ -290,13 +308,13 @@ def main(argv):
         out.write_text(text)
         print("BRIDGE_JSON: " + json.dumps(info))
         return 0
-    if len(argv) == 4 and argv[0] == "import":
+    if len(argv) in (4, 6) and argv[0] == "import" and (len(argv) == 4 or argv[4] == "--only"):
         board = pcbnew.LoadBoard(argv[1])
         ses_path = Path(argv[2])
         text, dropped = drop_placement(ses_path.read_text())
         clean = ses_path.with_suffix(".noplacement.ses")
         clean.write_text(text)
-        unlocked = {t.m_Uuid.AsString() for t in lock_existing(board)}
+        unlocked = {t.m_Uuid.AsString() for t in lock_existing(board, argv[5] if len(argv) == 6 else None)}
         if not pcbnew.ImportSpecctraSES(board, str(clean)):
             sys.exit("ImportSpecctraSES failed")
         restored = 0
