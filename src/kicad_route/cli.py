@@ -978,6 +978,25 @@ def krt_unsupported(facts, ref_dir, settings):
     return notes
 
 
+# KRT announces each custom rule it does not apply on its own log line. The wording
+# drifts between releases (v0.23: ".kicad_dru: rule 'X': ... -- skipped, KiCad will
+# still enforce it", ".kicad_dru rule 'X': NOT honoured (...)", ".kicad_dru rule 'X':
+# parsed, but ... has no consumer in this tool yet", "rule 'X': unknown constraint ...
+# not evaluated"), so match a rule subject plus any not-applied verdict rather than
+# one exact phrase. Over-reporting is harmless (informational; KiCad DRC grades every
+# rule); under-reporting hides an unapplied rule.
+KRT_RULE_SUBJECT = re.compile(r"\.kicad_dru\b|\brule\s+['\"`]", re.I)
+KRT_RULE_NOT_APPLIED = re.compile(
+    r"\bskip(?:ped|ping|s)?\b|\bnot\s+(?:honou?red|evaluated|enforced|applied|supported|modell?ed|translated)\b"
+    r"|\bunsupported\b|\bno\s+consumer\b|\bignored\b|\bunknown\s+constraint\b", re.I)
+
+
+def krt_unsupported_rules(text):
+    """The KRT log lines that say a design rule was not applied, deduplicated and sorted."""
+    return sorted({line.strip() for line in text.splitlines()
+                   if KRT_RULE_SUBJECT.search(line) and KRT_RULE_NOT_APPLIED.search(line)})
+
+
 def krt_route(work, board, scope, facts, settings):
     out_dir = work / "krt-out"
     out_dir.mkdir(parents=True)
@@ -1023,7 +1042,7 @@ def krt_route(work, board, scope, facts, settings):
     proc = {"status": PASS, "reasons": [], "exit_code": rec.get("exit_code"), "commands": [rec],
             "backend_report": None, "output_board": output,
             # rules KRT says it did not apply; KiCad DRC still grades them
-            "unsupported_reported": sorted(set(re.findall(r"\.kicad_dru: rule [^\n]*skipped[^\n]*", text)))}
+            "unsupported_reported": krt_unsupported_rules(text)}
     if report:
         dr = report.get("design_rules", {})
         proc["backend_report"] = {k: report.get(k) for k in (
