@@ -116,6 +116,18 @@ independent results:
 Exit status: 0 complete and valid; 1 process failure; 2 valid but incomplete; 3 fails
 validation (regardless of completion).
 
+### Net scope
+
+`--nets` patterns are fnmatch patterns on net names; `!PAT` excludes. With
+exclusions alone (`--nets '!GND'`) the scope starts from every net. A net whose
+name starts with `!` (active-low `!RESET`) is written with an escaped `\!`:
+`--nets '\!RESET'` routes it, `--nets '!\!RESET'` excludes it (the same
+spelling `kicad/netnames.py` passes to KRT). An exclusion that excludes nothing
+while a net is literally named like it (`--nets '!RESET'` on a board whose net is
+`!RESET`) would route the whole board instead of that net, so it is refused
+(exit 4) with the escaped spellings in the message. `--netclass` adds nets by
+effective KiCad net class; exclusions are applied last.
+
 ### Native grading
 
 The candidate is graded with the installed `kicad-cli` (10.0.7):
