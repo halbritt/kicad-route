@@ -318,8 +318,12 @@ a keepout across the direct J1→J2 path, a GND zone on B.Cu, and a locked, pre-
 
 `kicad-route smoke` (`tests/test_routing.py`) runs under `OUT/smoke`; `make evidence`
 also publishes it to `reports/fixture/`: per-test records, junit, and for each attempt
-`result.json`, `RESULT.md`, `preservation.json`, `new-findings.json`,
-`candidate-drc.json`. It proves:
+its structured receipts (as `kicad-route publish`: `result.json`, `RESULT.md`,
+`attempt.json`, every `validate/*.json` such as `preservation.json`,
+`new-findings.json`, `candidate-drc.json`, `pour-integrity.json`, `blocked-by.json`,
+plus `spokes.json`, `provenance.json`, `facts/`, `spokes/`, and the latest
+`revalidate*/` as `against-origin/` and `revalidate/`; never a board, project file, log
+or `work/`). It proves:
 
 - KRT and Freerouting round trips that are complete and valid, with every preservation
   check passing and the candidate's rules byte-identical to the input's;

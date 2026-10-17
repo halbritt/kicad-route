@@ -1502,23 +1502,45 @@ def compare(run_dirs):
 
 # --------------------------------------------------------------------- smoke
 
-PUBLISH_FROM_RUN = ["result.json", "RESULT.md", "attempt.json", "validate/preservation.json",
-                    "validate/new-findings.json", "validate/candidate-drc.json"]
+# What `publish` copies: kicad-route's structured receipts (JSON, plus the RESULT.md
+# summary) and never a board, project file, log or the backend's work/ tree.
+# The run root and validate/ are published flat (the long-standing layout:
+# DEST/result.json, DEST/preservation.json, ...); facts/ and spokes/ keep their
+# directory; the latest revalidate*/<stamp> is published as a subdirectory.
+PUBLISH_FLAT = ("", "validate")
+PUBLISH_NESTED = ("facts", "spokes")
+PUBLISH_LATEST = {"revalidate-origin": "against-origin", "revalidate": "revalidate"}
+
+
+def receipts(d):
+    """The structured receipts directly in d: JSON files and RESULT.md, nothing else."""
+    if not d.is_dir():
+        return []
+    return sorted(p for p in d.iterdir()
+                  if p.is_file() and not p.is_symlink() and (p.suffix == ".json" or p.name == "RESULT.md"))
 
 
 def publish_run(run_dir, dest):
     dest.mkdir(parents=True, exist_ok=True)
-    for name in PUBLISH_FROM_RUN:
-        src = run_dir / name
-        if src.exists():
-            (dest / Path(name).name).write_bytes(src.read_bytes())
-    # the latest grading of a --dir chain against its origin (validate --against)
-    origin = sorted((run_dir / "revalidate-origin").glob("2*"))
-    if origin:
-        (dest / "against-origin").mkdir(exist_ok=True)
-        for name in ("result.json", "new-findings.json", "preservation.json"):
-            if (origin[-1] / name).exists():
-                (dest / "against-origin" / name).write_bytes((origin[-1] / name).read_bytes())
+    for sub in PUBLISH_FLAT:
+        for src in receipts(run_dir / sub):
+            target = dest / src.name
+            if target.exists():  # never let a validate/ receipt overwrite a run-root one
+                target = dest / sub / src.name
+                target.parent.mkdir(exist_ok=True)
+            target.write_bytes(src.read_bytes())
+    for sub in PUBLISH_NESTED:
+        for src in receipts(run_dir / sub):
+            (dest / sub).mkdir(exist_ok=True)
+            (dest / sub / src.name).write_bytes(src.read_bytes())
+    # the latest re-grading: of a --dir chain against its origin (validate --against),
+    # and of the candidate itself (validate)
+    for sub, name in PUBLISH_LATEST.items():
+        stamps = sorted(p for p in (run_dir / sub).glob("2*") if p.is_dir())
+        if stamps:
+            (dest / name).mkdir(exist_ok=True)
+            for src in receipts(stamps[-1]):
+                (dest / name / src.name).write_bytes(src.read_bytes())
 
 
 def smoke(publish=None):
