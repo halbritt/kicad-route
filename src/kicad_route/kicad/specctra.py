@@ -97,8 +97,19 @@ def unquote(a):
     return a[1:-1] if a.startswith('"') and a.endswith('"') else a
 
 
+def dsn_net_token(name):
+    """A KiCad net name as KiCad's DSN exporter writes it in (net ...) definitions:
+    `"` becomes `''`, quoted when it holds whitespace or parentheses."""
+    name = name.replace('"', "''")
+    return f'"{name}"' if re.search(r'[\s()]', name) or not name else name
+
+
 def split_classes(dsn, skip):
-    """Move nets in `skip` into `<class>__skip` copies of their DSN class."""
+    """Move nets in `skip` into `<class>__skip` copies of their DSN class.
+
+    KiCad writes a name containing `"` raw in class lists (`"q"` for the net
+    `"q"`) but as `''q''` in its (net ...) definition; a moved member is written
+    in the definition's form so Freerouting can match it to its net."""
     out, pos, ignored = [], 0, []
     for m in re.finditer(r"\(class\s", dsn):
         if m.start() < pos:
@@ -112,8 +123,10 @@ def split_classes(dsn, skip):
         if not names:
             continue
         cls, nets = names[0], names[1:]
-        keep = [n for n in nets if unquote(n) not in skip]
-        drop = [n for n in nets if unquote(n) in skip]
+        def skipped(n):
+            return unquote(n) in skip or ('"' in n and n in skip)
+        keep = [n for n in nets if not skipped(n)]
+        drop = [dsn_net_token(n if n in skip else unquote(n)) for n in nets if skipped(n)]
         if not drop:
             continue
         skip_name = f'"{unquote(cls)}__skip"'

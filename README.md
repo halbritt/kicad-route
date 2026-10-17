@@ -13,7 +13,7 @@ caught by the grading rather than trusted.
 
 The result is structured for an agent to read and act on: process, routing and
 validation are reported separately, with exit codes 0 (complete and valid), 1 (backend
-failed), 2 (valid but incomplete) and 3 (fails validation).
+failed), 2 (valid but incomplete), 3 (fails validation) and 4 (refused before routing).
 
 ## Install
 
@@ -72,6 +72,9 @@ route:
   (`<board>.rules-floor.json`) used by `floor`, `audit` and the `run` pre-flight.
 - [`docs/blocked.md`](docs/blocked.md) — blocked-by receipts for incomplete runs: what
   lies across each open connection, and a rip-up ranking (`kicad-route blocked`).
+- [`docs/hygiene.md`](docs/hygiene.md) — run hygiene: `--stall` progress watchdog,
+  the run ledger (exit 4 on an exact repeat of a failed attempt), the awkward-net-name
+  canary, and the real-board `corpus` gate that `update` runs.
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`).
