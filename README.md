@@ -82,6 +82,8 @@ route:
   canary, and the real-board `corpus` gate that `update` runs.
 - [`docs/spokes.md`](docs/spokes.md) — `--reserve-spokes`: temporary keepouts on thermal-spoke
   corridors while routing (removed before grading), and `kicad-route spokes` attribution.
+- [`docs/decoupling.md`](docs/decoupling.md) — `kicad-route decoupling`: read-only audit of bypass
+  capacitor cells (pin → capacitor → plane, or a direct pin via that bypasses the capacitor).
 - [`docs/provenance.md`](docs/provenance.md) — `--protect human`: in a `--dir` chain only the
   designer's copper is protected, and the `net_completion` ratchet.
 - [`docs/pour.md`](docs/pour.md) — the `pour_integrity` check: pad fill contact, thermal

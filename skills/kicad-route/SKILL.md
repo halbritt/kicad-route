@@ -81,6 +81,11 @@ first.
   spoke corridors per zone-connected pad while routing; the corridors are removed
   before grading (docs/spokes.md). `kicad-route spokes <run>` names the new copper
   that starved each pad.
+- **Decoupling cells (read-only):** `kicad-route decoupling --board B.kicad_pcb` or
+  `kicad-route decoupling <run>` reports per IC power/ground pin pair and bypass
+  capacitor whether the copper runs pin → capacitor → plane or the pin has its own
+  plane via (`bypassed`); for a run it lists cells the candidate changed
+  (docs/decoupling.md). Advisory: it never changes a verdict.
 - **Tightening:**
   - `--default-clearance MM` (Default net class, both backends).
   - `--clearance-margin MM` (Freerouting only).
