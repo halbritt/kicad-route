@@ -1,0 +1,75 @@
+{
+  "schema": "kicad-route/determinism/1",
+  "backend": "krt",
+  "verified_utc": "2026-10-17T22:19:04.746885+00:00",
+  "build_id": "88c41b2f06d1537764e6eb12af74ea79e6de4592dee73d3cc099096a21d62f9c",
+  "build": {
+    "name": "krt",
+    "tag": "v0.23.1",
+    "version": "0.23.1",
+    "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+    "grid_router_version": "0.23.1",
+    "extension_module_sha256": "d42aa6c682e6ab42f82d2241cf5b2a333effa4ad0b58549b1305b4503ce6bf79",
+    "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+  },
+  "kicad_cli": "10.0.7",
+  "input": {
+    "dir": "fixtures/route_demo",
+    "fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732"
+  },
+  "settings": {
+    "runs": 2,
+    "budget_s": 180,
+    "backend_env": [],
+    "default_clearance_mm": null
+  },
+  "reproducible": true,
+  "reasons": [],
+  "same": {
+    "outcome": true,
+    "copper_geometry": true,
+    "candidate_bytes": false,
+    "backend_output_bytes": false
+  },
+  "differs_at": "candidate_bytes",
+  "bytes_note": "candidate bytes differ while geometry is compared: KiCad UUIDs and item order",
+  "runs": [
+    {
+      "run_dir": "build/kicad-route/runs/route_demo/determinism-krt-1/20261017T221255.082976Z",
+      "exit_code": 3,
+      "outcome": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "FAIL",
+        "unconnected_in_scope": 0
+      },
+      "wall_clock_stop": false,
+      "backend_output_bytes": "c16e25cc58b7db9e8497ec4f71dbec4a179d7946cf1ea4077758cfbd30c4ffd2",
+      "candidate_bytes": "c16e25cc58b7db9e8497ec4f71dbec4a179d7946cf1ea4077758cfbd30c4ffd2",
+      "copper_geometry": "c1653d98c21eaa8b7fa56e3cde05a3ad117f7bed9df01f665e73dfbd6a6fdc72",
+      "copper_items": {
+        "tracks": 19,
+        "vias": 3
+      }
+    },
+    {
+      "run_dir": "build/kicad-route/runs/route_demo/determinism-krt-2/20261017T221617.780664Z",
+      "exit_code": 3,
+      "outcome": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "FAIL",
+        "unconnected_in_scope": 0
+      },
+      "wall_clock_stop": false,
+      "backend_output_bytes": "5d7ceb239d98a16573bf7b8169db0c4a5a0764620ede69f3651852f5d68eb952",
+      "candidate_bytes": "5d7ceb239d98a16573bf7b8169db0c4a5a0764620ede69f3651852f5d68eb952",
+      "copper_geometry": "c1653d98c21eaa8b7fa56e3cde05a3ad117f7bed9df01f665e73dfbd6a6fdc72",
+      "copper_items": {
+        "tracks": 19,
+        "vias": 3
+      }
+    }
+  ],
+  "recorded_in": "/home/halbritt/git/kicad-route/manifest.json"
+}

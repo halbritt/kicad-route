@@ -286,7 +286,10 @@ the manifest (or `tool_identity`) and refuses runs whose identity differs.
 ### Observed at setup (2026-10-17)
 
 `STATE/manifest.json` is the machine-readable record of the current install; this
-table is the hand-written note from setup.
+table is the hand-written note from setup. A committed copy of the manifest for this
+install is `reports/state/manifest.json`, and its KRT repeat check
+`reports/determinism/krt-0.23.1.json` (two fixture runs: identical copper geometry and
+outcome, different candidate bytes).
 
 | Component | Observed |
 |---|---|
