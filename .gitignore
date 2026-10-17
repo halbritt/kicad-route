@@ -1,0 +1,11 @@
+# Installed backends and generated skills (kicad-route update)
+/vendor/
+/.venv-krt/
+# Runs, caches, smoke output
+/build/
+__pycache__/
+*.egg-info/
+# KiCad editor state
+*.kicad_prl
+fp-info-cache
+*-backups/

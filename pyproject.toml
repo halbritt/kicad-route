@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kicad-route"
+version = "0.1.0"
+description = "Run KRT or Freerouting on an isolated copy of a KiCad project and grade the candidate with KiCad's own DRC"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+kicad-route = "kicad_route.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

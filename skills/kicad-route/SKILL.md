@@ -1,0 +1,157 @@
+---
+name: kicad-route
+description: "Use for KiCad PCB trace routing with kicad-route: run KRT or Freerouting on an isolated copy of a project, read the structured result (process / routing / validation), plan the next attempt without relaxing the design's constraints, or audit a committed board change against its parent."
+---
+
+# kicad-route
+
+`kicad-route` routes an isolated copy of a KiCad project with one of two backends
+and grades the result with KiCad's own checks:
+- **KRT** (KiCadRoutingTools) reads and writes the native KiCad files.
+- **Freerouting** goes through KiCad's Specctra DSN/SES bridge.
+
+The source checkout is `~/git/kicad-route`. Full reference, install and update notes,
+and the decision record are in `docs/routing.md` there. A project may wrap these
+commands in make targets and add its own project skill; when it does, use those
+first.
+
+## Ground rules
+
+- **Never route the real project in place.**
+  - Every attempt copies the project into `OUT/runs/<project>/<label>/<stamp>/` and
+    routes the copy.
+  - `OUT` defaults to `./build/kicad-route`; set it with `--out` or `$KICAD_ROUTE_OUT`.
+  - Native KiCad files stay authoritative. A candidate becomes design work only when a
+    person adopts it.
+- **The input's constraints are fixed.**
+  - Never lower clearances, narrow net-class widths or vias, add layers, change
+    connectivity, move footprints, edit zones or keepouts, or relax DRC severities to
+    make an attempt pass.
+  - Tightening is fine, for example `--default-clearance`.
+- **The verdict is the run's `result.json`.**
+  - It comes from KiCad's own DRC: zones refilled, schematic parity, the input's own
+    `.kicad_pro`/`.kicad_dru`.
+  - Preservation checks are added on top.
+  - Backend self-reports (KRT `JSON_SUMMARY`, Freerouting's result JSON) are
+    diagnostics only.
+
+## Commands (run from the project directory, or pass `--dir`)
+
+| Command | What it does |
+|---|---|
+| `kicad-route doctor` | Readiness, versions and capabilities of both backends (`OUT/doctor/doctor.json`) |
+| `kicad-route run --backend krt\|freerouting [options]` | One attempt; prints the run directory and exits with its verdict |
+| `kicad-route validate <run_dir>` | Re-grade a candidate (e.g. after hand edits) into `<run_dir>/revalidate/<stamp>/` |
+| `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
+| `kicad-route compare <run_dir> …` | Side-by-side table; refuses to call different inputs comparable |
+| `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits |
+| `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured evidence (not the board) to `<DIR>/<project>/<label>/` for committing |
+| `kicad-route update` | Move both backends to their latest upstream release, regenerate the `krt-*` skills, run `smoke` |
+| `kicad-route smoke` | Integration tests on the bundled fixture board |
+
+`run` options:
+
+- **Input:**
+  - `--dir DIR` (default `.`), `--board B.kicad_pcb` (default: the only board),
+    `--schematic`, `--name`.
+  - `--rev REV` routes a committed revision through `git archive`. It's recommended
+    while others edit the tree.
+  - `--library-dir NAME=PATH` maps an empty library submodule to a path.
+- **Scope:**
+  - `--nets PAT …` selects by **net name**: fnmatch patterns, `!PAT` excludes, and
+    exclusions alone start from all nets.
+  - `--netclass CLASS …` selects by **effective KiCad net class**.
+  - Default: all nets.
+- **Budget:**
+  - `--budget SECONDS` is wall clock (default 300).
+  - `--max-iterations N` (KRT); `--passes N` (Freerouting).
+- **Protection:**
+  - `--protect existing` (default): all input copper must survive.
+  - `--protect locked`: only locked copper must survive, and KRT may rip up unlocked
+    copper.
+- **Tightening:**
+  - `--default-clearance MM` (Default net class, both backends).
+  - `--clearance-margin MM` (Freerouting only).
+- **Pass-through:**
+  - `--backend-arg ARG` (repeat) and `--backend-env KEY=VALUE` (for example KRT
+    `KICAD_*` knobs).
+  - Both are recorded in the result; grading is unaffected.
+- `--label NAME` names the run directory.
+
+## Reading a result
+
+`result.json` reports three independent statuses:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `process.status` | PASS / FAIL | backend ran and handed back a board (`process.reasons` says why not) |
+| `routing.status` | COMPLETE / INCOMPLETE / NOT_RUN | KiCad's unconnected items on in-scope nets after refill |
+| `validation.status` | PASS / FAIL / NOT_RUN | no new DRC violations or parity issues vs the input, and every preservation check PASS |
+
+Exit codes:
+- 0: complete and valid.
+- 1: process failure (no candidate).
+- 2: valid but incomplete.
+- 3: fails validation.
+
+Also read:
+
+- **New findings:** `validation.reasons`, `validation.drc.new_violations.by_type`,
+  and `validate/new-findings.json` (each new violation with positions). Pre-existing
+  input violations are counted separately and never fail an attempt.
+- **Preservation:** `validation.preservation` covers `project_files`,
+  `board_outline`, `layers`, `stackup`, `board_setup`, `nets_and_netclasses`,
+  `pad_connectivity`, `footprints`, `zones`, `keepouts`, `copper_graphics`,
+  `protected_copper`, `new_copper_netclass_geometry` and `routing_scope`. Details are
+  in `validate/preservation.json`.
+- **Routing details:** `routing.unrouted_nets` and `routing.stats` (new tracks,
+  vias, length).
+- **`unsupported`:** constraints the backend could not see. KiCad still grades them.
+- **Backend reports:** `process.backend_report` holds KRT's relaxations ledger and
+  Freerouting's incomplete count.
+- **The candidate:** `candidate/<project>/<board>.kicad_pcb` opens in KiCad. Its zones
+  are refilled, and it is exactly the file that was graded.
+
+## Planning the next attempt
+
+| Evidence | Next attempt |
+|---|---|
+| new `clearance` violations naming a `.kicad_dru` rule, rule listed in `unsupported` | `--default-clearance <rule value>`. For Freerouting, class-to-class rules are already translated; add `--clearance-margin 0.01` for micrometre misses |
+| `routing INCOMPLETE`, `unrouted_nets` few | larger `--budget`, or Freerouting `--passes 100`. Route the hard nets first with `--nets` **on the original input**, then continue from that candidate with `--dir <run>/candidate/<project>`. Finishing them *after* everything else rarely works because existing copper is locked. Grade the end with `validate <last> --against <first>` |
+| `process FAIL` "exceeded the … budget" (KRT) | larger `--budget`, or `--backend-env KICAD_NET_RESCUE=0` to skip the long rescue search. If plane nets are what runs long, use `--backend-env KICAD_PLANE_FINALIZE=0` and plan the planes separately |
+| Freerouting INCOMPLETE at SMD pads or plane connections | `--backend-arg=--router.fanout.enabled=true`. Fanout is off by default because it can neck traces to 3/4–1/2 width; `new_copper_netclass_geometry` catches that if it happens |
+| `via_dangling` / `track_dangling` new | Freerouting left fanout stubs on a net it could not finish. Treat it as incomplete routing, and retry as above or with the other backend |
+| `starved_thermal` new | new tracks crowd the thermal spokes of a zone-connected pad. It's a design call (stitching via beside the pad, or a different layer); never lower `min_resolved_spokes` |
+| `protected_copper` / `footprints` / `zones` FAIL | backend or bridge defect. Report it with the run directory; do not adopt the candidate |
+| `new_copper_netclass_geometry` FAIL | the backend narrowed a conductor below its net class. Do not adopt; report the KRT/Freerouting version |
+| same failure twice with no new evidence | change approach: the other backend, a different scope, or inspect the board (load `krt-diagnose-routing-failures`) |
+
+Compare attempts from the same input with `kicad-route compare`. For deeper diagnosis
+use `krt-diagnose-routing-failures` and `krt-review-routed-board`. Those are KRT's
+own skills, adapted and generated by `kicad-route update`.
+
+## Auditing someone else's board change
+
+`kicad-route audit --old <parent> --new <commit>` checks a design commit, such as hand
+routing or another agent's routing, without routing anything:
+
+- **Exit code:** 3 when a rule value changed, a finding is hidden by a rule change,
+  or the new board has unconnected items, DRC errors or parity issues.
+- **Design edits:** moved parts, zones and removed copper are listed under
+  `changes`, not failed.
+- **Output:** read `OUT/audit/<project>/<old>..<new>/audit.json`:
+  - `findings`
+  - `rule_changes`: `kind` is changed, added or removed.
+  - `hidden_by_rule_changes`: what the new board shows under the parent's rules.
+  - `new_violations`
+
+## Paths
+
+- **CLI:** `~/git/kicad-route/bin/kicad-route`, linked as `~/.local/bin/kicad-route`.
+- **Code:** `src/kicad_route/`. That's `cli.py`, plus `kicad/facts.py`,
+  `kicad/specctra.py` and `kicad/locks.py`, which run under KiCad's Python.
+- **Backends:** `vendor/krt` (latest release checkout) with `.venv-krt`, and
+  `vendor/freerouting/current/freerouting-*.jar`. The jar runs with the newest
+  installed JVM that satisfies it (Java 25 for 2.5.x).
+- **Evidence:** the fixture is in `fixtures/route_demo/`, and its smoke evidence is
+  in `reports/fixture/`.
