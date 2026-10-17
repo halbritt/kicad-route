@@ -88,6 +88,11 @@ first.
   capacitor whether the copper runs pin → capacitor → plane or the pin has its own
   plane via (`bypassed`); for a run it lists cells the candidate changed
   (docs/decoupling.md). Advisory: it never changes a verdict.
+- **Collision barriers:** `--barrier-from <run>` routes the same input again with a
+  small no-track/no-via keepout where that run's new copper collided (its new
+  `clearance`, `tracks_crossing`, `shorting_items`, `hole_clearance` or
+  `copper_edge_clearance` findings); the keepouts are removed before grading
+  (docs/barrier.md). `kicad-route barrier <run>` previews them.
 - **Tightening:**
   - `--default-clearance MM` (Default net class, both backends).
   - `--clearance-margin MM` (Freerouting only).
@@ -162,6 +167,7 @@ Also read:
 | `process FAIL` "exceeded the … budget" (KRT) | larger `--budget`, or `--backend-env KICAD_NET_RESCUE=0` to skip the long rescue search. If plane nets are what runs long, use `--backend-env KICAD_PLANE_FINALIZE=0` and plan the planes separately |
 | Freerouting INCOMPLETE at SMD pads or plane connections | `--backend-arg=--router.fanout.enabled=true`. Fanout is off by default because it can neck traces to 3/4–1/2 width; `new_copper_netclass_geometry` catches that if it happens |
 | `via_dangling` / `track_dangling` new | Freerouting left fanout stubs on a net it could not finish. Treat it as incomplete routing, and retry as above or with the other backend |
+| a few new `clearance` / `tracks_crossing` / `shorting_items` findings at single spots | when tightening the whole net class (rows above) is too broad: rewind with `run ... --barrier-from <run>` (same input and scope), which puts a keepout where the new copper ran. Check `process.barrier.outcome`; a barrier can move the problem elsewhere |
 | `starved_thermal` new | new tracks crowd the thermal spokes of a zone-connected pad. Retry with `--reserve-spokes`; `kicad-route spokes <run>` names the cutting tracks. A stitching via is a design call for a person; never lower `min_resolved_spokes` |
 | `net_completion` FAIL | the candidate disconnected a net that was connected in its input (with `--protect human`, KRT ripped agent copper and did not finish it). Do not adopt; route that net first or use `--protect existing` |
 | finishing leftovers on a candidate routes nothing (all copper locked) | `--protect human` lets KRT reroute copper earlier steps placed, or let `kicad-route campaign` reorder the work |

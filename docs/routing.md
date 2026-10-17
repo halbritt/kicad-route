@@ -365,6 +365,7 @@ relaxes a rule.
 |---|---|---|
 | Hard-nets-first campaigns | `kicad-route campaign` | [`campaign.md`](campaign.md) |
 | Thermal-spoke corridor reservation and spoke-cut attribution | `run --reserve-spokes [N]`, `kicad-route spokes` | [`spokes.md`](spokes.md) |
+| Collision barriers (rewind with a keepout where new copper collided) | `run --barrier-from RUN_DIR`, `kicad-route barrier` | [`barrier.md`](barrier.md) |
 | Copper provenance and the completion ratchet | `run --protect human`, check `net_completion` | [`provenance.md`](provenance.md) |
 | Blocked-by receipts and rip-up ranking | `routing.blocked_by`, `kicad-route blocked` | [`blocked.md`](blocked.md) |
 | Pour integrity | check `pour_integrity`, `--pour-area-loss`, `--pour-min-spokes` | [`pour.md`](pour.md) |

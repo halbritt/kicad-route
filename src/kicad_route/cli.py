@@ -21,6 +21,8 @@ input's unchanged constraints.
                                           thermal-spoke corridors: which new copper starved which pad
     kicad-route decoupling RUN_DIR | --board B.kicad_pcb [--radius MM]
                                           read-only: bypass capacitors between IC pins and the plane?
+    kicad-route barrier RUN_DIR [--size MM]
+                                          preview the collision keepouts `run --barrier-from RUN_DIR` injects
     kicad-route publish RUN_DIR [--to DIR]
                                           copy a run's structured evidence (not the board) for committing
     kicad-route update                    move both backends to their latest upstream release, then smoke
@@ -69,6 +71,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import barrier  # run --barrier-from / `kicad-route barrier` (docs/barrier.md)
 from . import blocked
 from . import common
 from . import floor
@@ -719,6 +722,7 @@ def run_attempt(args):
                 "pour_area_loss_pct": args.pour_area_loss, "pour_min_spokes": args.pour_min_spokes,
                 "backend_args": args.backend_arg or [], "backend_env": dict(e.split("=", 1) for e in args.backend_env or []),
                 "reserve_spokes": args.reserve_spokes,
+                "barrier": None,
                 "stall_s": getattr(args, "stall", None), **scope_info}
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
     floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
@@ -732,6 +736,11 @@ def run_attempt(args):
     # it changes the verdict, so the ledger must see it.
     settings["rule_floor_sha256"] = (common.sha256_of(floor_rec["declared"])
                                      if floor_rec and floor_rec.get("declared") else None)
+    # --barrier-from: keepouts where an earlier run's new copper collided (barrier.py); planned
+    # before the ledger gate, because the barrier positions change the attempt
+    barrier_rec = barrier.prepare(getattr(args, "barrier_from", None), getattr(args, "barrier_size", None),
+                                  run_dir, fingerprint)
+    settings["barrier"] = barrier.settings_of(barrier_rec)
     backend_version = backend["version"]()
     gate = ledger.check(out_path("ledger.jsonl"), fingerprint, args.backend, backend_version, settings,
                         force=getattr(args, "force", False))
@@ -776,8 +785,10 @@ def run_attempt(args):
     t0 = time.monotonic()
     work_board = work / "input" / ref_dir.name / board_name
     # --reserve-spokes: corridors reserved on the work input, stripped from the output (spokes.py)
-    proc = spokes.around_route(args.reserve_spokes, work, work_board,
-                               lambda: backend["route"](work, work_board, scope, ref_facts, settings))
+    # --barrier-from: collision keepouts injected the same way, outside the spoke corridors
+    proc = barrier.around_route(barrier_rec, work, work_board, lambda: spokes.around_route(
+        args.reserve_spokes, work, work_board,
+        lambda: backend["route"](work, work_board, scope, ref_facts, settings)))
     proc["runtime_s"] = round(time.monotonic() - t0, 3)
     stall.annotate(proc)
     unsupported += [f"backend reported: {u}" for u in proc.pop("unsupported_reported", [])]
@@ -791,6 +802,9 @@ def run_attempt(args):
         shutil.copyfile(proc["output_board"], cand_dir / board_name)
         log("[route] validating the candidate (refill, DRC + parity, preservation)")
         validation, routing = validate(run_dir)
+        if barrier.outcome(barrier_rec, run_dir, attempt):
+            o = barrier_rec["outcome"]
+            log(f"[route] barrier: {o['entered']} entered by new copper, {o['recurred']} collision(s) recurred")
     else:
         validation = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
         routing = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
@@ -1940,6 +1954,7 @@ def build_parser():
     rp.add_argument("--floor-history", action="store_true",
                     help="also compare the input's rules with their git high-water mark (notes only)")
     spokes.add_run_option(rp)
+    barrier.add_run_option(rp)
     vp = sub.add_parser("validate", help="re-grade a run's candidate against its reference")
     vp.add_argument("run_dir")
     vp.add_argument("--against", metavar="ORIGIN_RUN",
@@ -1967,6 +1982,7 @@ def build_parser():
                                                             "evidence goes to <to>/<project>/<label>/")
     spokes.add_parser(sub)
     decoupling.add_parser(sub)
+    barrier.add_parser(sub)
     sub.add_parser("update", help="update both backends through their upstream channels, then smoke")
     cn = sub.add_parser("canary", help="awkward-net-name round trip through each backend on the fixture")
     cn.add_argument("--backend", choices=["all", *sorted(BACKENDS)], default="all")
@@ -2018,6 +2034,8 @@ def main(argv=None):
         return spokes.cmd(a)
     if a.cmd == "decoupling":
         return decoupling.cmd(a)
+    if a.cmd == "barrier":
+        return barrier.cmd(a)
     if a.cmd == "canary":
         from . import canary
         return canary.cmd_canary(a)
