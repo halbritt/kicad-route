@@ -12,6 +12,8 @@ input's unchanged constraints.
     kicad-route compare RUN_DIR ...       compare candidates routed from the same input
     kicad-route audit --old REV --new REV [--dir D]
                                           grade a committed board change against its parent
+    kicad-route floor [--dir D] [--since REV] [--write-declared]
+                                          rule high-water mark of the history and the declared floor
     kicad-route publish RUN_DIR [--to DIR]
                                           copy a run's structured evidence (not the board) for committing
     kicad-route update                    move both backends to their latest upstream release, then smoke
@@ -56,6 +58,7 @@ import time
 from pathlib import Path
 
 from . import common
+from . import floor
 from . import skills
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot
 
@@ -523,6 +526,7 @@ def validate(run_dir, out_dir=None, origin=None):
     ref_dir = run_dir / attempt["reference_dir"]
     board = cand_dir / board_name
     v = {"status": None, "reasons": [], "dir": common.rel(out_dir)}
+    floor.apply_preflight(attempt.get("floor"), v)  # input below its declared rule floor fails
     if chain:
         v["chain"] = chain  # this run back to the origin; scope is the union of the steps' scopes
     if not board.exists():
@@ -641,6 +645,13 @@ def run_attempt(args):
                 **scope_info}
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
 
+    floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
+    if floor_rec and floor_rec["floor_violated"]:
+        log(f"[route] rule floor: {len(floor_rec['floor_violated'])} setting(s) below the declared floor; "
+            "validation will fail")
+    for note in (floor_rec or {}).get("notes", []):
+        log(f"[route] rule floor NOTE: {note}")
+
     log("[route] baseline: native DRC of the untouched input (refilled)")
     base, base_info = baseline_drc(ref_dir, board_name, fingerprint)
     attempt = {
@@ -654,6 +665,7 @@ def run_attempt(args):
                      "cached": base_info.get("cached"), "reasons": base_info["reasons"]},
         "scope": {"nets": scope, **scope_info},
         "settings": settings,
+        "floor": floor_rec,
     }
     common.write_json(run_dir / "attempt.json", attempt)
 
@@ -686,6 +698,7 @@ def run_attempt(args):
         "settings": settings,
         "scope": {"mode": scope_info["mode"], "nets": len(scope), "nets_list": scope if len(scope) <= 50 else None},
         "unsupported": unsupported,
+        "floor": floor_rec,
         "process": {k: v for k, v in proc.items() if k not in ("output_board",)},
         "routing": routing,
         "validation": validation,
@@ -1486,6 +1499,12 @@ def audit(args):
                 shutil.copy2(f, d / f.name)
         log("[audit] rule settings changed: grading the new board under the parent's rules")
         under, _ = kicad_drc(d / board, root / "new-under-old-rules" / "drc", "new-old-rules", refill_and_save=True)
+    fl = floor.audit_floor(base["path"], board, old["commit"], new["commit"], new["ref"], root / "new-under-floor")
+    under_floor = None
+    if fl["project_dir"]:  # some floor value is stricter than the new revision's
+        log("[audit] rule floor stricter than the new revision: grading the new board under the floor")
+        under_floor, _ = kicad_drc(fl["project_dir"] / board, root / "new-under-floor" / "drc", "new-floor",
+                                   refill_and_save=True)
 
     def totals(rep):
         return {"unconnected": len(rep["unconnected_items"]), "violations": len(rep["violations"]),
@@ -1511,6 +1530,8 @@ def audit(args):
         "copper": stats,
         "dir": common.rel(root),
     }
+    result["floor"], floor_findings, floor_notes = floor.audit_report(
+        fl, drc_delta(new["rep"], under_floor, "violations")[0] if under_floor else [])
     findings = []
     edited = [r for r in rules if r["kind"] != "added" or r["setting"].endswith(".kicad_dru")]
     if edited:
@@ -1523,6 +1544,7 @@ def audit(args):
     if result["new"]["unconnected"] or result["new"]["errors"] or result["new"]["parity"]:
         findings.append(f"new board: {result['new']['unconnected']} unconnected, {result['new']['errors']} DRC "
                         f"errors, {result['new']['parity']} parity issues")
+    findings += floor_findings
     result["findings"] = findings
     result["exit_code"] = 3 if findings else 0
     common.write_json(root / "audit.json", result)
@@ -1533,6 +1555,8 @@ def audit(args):
     for c in checks:
         if c["status"] != PASS:
             log(f"[audit] changed: {c['check']}: {c['detail']}")
+    for n in floor_notes:
+        log(f"[audit] NOTE: {n}")
     for f in findings:
         log(f"[audit] FINDING: {f}")
     log(f"[audit] {common.rel(root)}/audit.json  (exit {result['exit_code']})")
@@ -1605,6 +1629,8 @@ def main(argv=None):
                     help="extra argument passed to the backend verbatim (recorded; grading is unaffected)")
     rp.add_argument("--backend-env", action="append", metavar="KEY=VALUE",
                     help="extra environment variable for the backend, e.g. a KRT KICAD_* knob (recorded)")
+    rp.add_argument("--floor-history", action="store_true",
+                    help="also compare the input's rules with their git high-water mark (notes only)")
     vp = sub.add_parser("validate", help="re-grade a run's candidate against its reference")
     vp.add_argument("run_dir")
     vp.add_argument("--against", metavar="ORIGIN_RUN",
@@ -1615,6 +1641,13 @@ def main(argv=None):
     add_input_args(au, rev=False)
     au.add_argument("--old", required=True, help="parent revision (e.g. HEAD~1)")
     au.add_argument("--new", default="HEAD", help="revision to audit (default HEAD)")
+    fp = sub.add_parser("floor", help="rule high-water mark of the board's history and its declared floor")
+    add_input_args(fp, rev=False)
+    fp.add_argument("--since", metavar="REV", help="start the history at REV (its state counts)")
+    fp.add_argument("--write-declared", action="store_true",
+                    help="write a draft <board>.rules-floor.json (the high-water mark) under OUT for review")
+    fp.add_argument("--netclass-sizes", action="store_true",
+                    help="also ratchet net-class track/via/diff-pair sizes (router defaults, not DRC minimums)")
     pp = sub.add_parser("publish", help="copy a run's structured evidence (not the board) for committing")
     pp.add_argument("run_dir")
     pp.add_argument("--to", default="reports/routing", help="destination root (default reports/routing); "
@@ -1636,6 +1669,9 @@ def main(argv=None):
         return cmd_validate(a)
     if a.cmd == "audit":
         return audit(a)
+    if a.cmd == "floor":
+        cfg = resolve_input(argparse.Namespace(**{**vars(a), "rev": None}))
+        return floor.floor_command(cfg, a.since, a.write_declared, a.netclass_sizes)
     if a.cmd == "publish":
         run_dir = Path(a.run_dir).resolve()
         r = load_json(run_dir / "result.json")

@@ -45,6 +45,7 @@ kicad-route run --backend krt --rev HEAD --budget 1500 # route the committed sta
 kicad-route validate build/kicad-route/runs/<project>/<label>/latest
 kicad-route compare <run_dir> <run_dir>
 kicad-route audit --old HEAD~1                         # grade the last commit's board change
+kicad-route floor                                      # rules looser than their high-water mark / declared floor
 ```
 
 Runs go under `./build/kicad-route/runs/<project>/<label>/<stamp>/` (`--out` or
@@ -64,6 +65,8 @@ route:
 - [`docs/routing.md`](docs/routing.md) — backends and what the adapters switch off,
   run layout and result semantics, native grading, preservation checks, `audit`,
   installation and updates, decisions, known limitations, fixture evidence.
+- [`docs/floor.md`](docs/floor.md) — rule high-water mark and the declared rule floor
+  (`<board>.rules-floor.json`) used by `floor`, `audit` and the `run` pre-flight.
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`).

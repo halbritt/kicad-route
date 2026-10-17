@@ -19,6 +19,7 @@ kicad-route validate <run_dir>                       # re-grade a candidate (e.g
 kicad-route validate <last step> --against <first run>   # grade a --dir chain vs the original input
 kicad-route compare <run_dir> <run_dir>
 kicad-route audit --old HEAD~1 --new HEAD            # grade a committed board change against its parent
+kicad-route floor                                    # rule high-water mark and declared floor (docs/floor.md)
 kicad-route publish <run_dir> --to reports/routing   # structured evidence for committing
 kicad-route update                                   # newest upstream releases, skills, smoke
 kicad-route smoke                                    # integration tests on the bundled fixture
@@ -315,3 +316,10 @@ under the parent's project files, so findings a rule change hides are reported
 3 when a rule value changed (keys KiCad merely writes out with their defaults are
 listed as `added`, not counted), a finding is hidden, or the new board has unconnected items, DRC
 errors or parity issues, else 0. Output: `OUT/audit/<project>/<old>..<new>/audit.json`.
+
+Audit also checks `--new` against the rule floor (`docs/floor.md`): the strictest value
+each rule ever had in the history up to `--new`, and the declared floor
+`<board>.rules-floor.json`. Lowering the declared floor (`floor_lowered`), a setting
+below it (`below_declared`) and findings that appear only when the new board is graded
+under the floor (`hidden_by_floor`) exit 3; a setting below only its high-water mark is
+a note naming the commit that set it.
