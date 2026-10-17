@@ -24,13 +24,19 @@ import sys
 from pathlib import Path
 
 from . import netnames
+from .common import sha256
 
 NM = 1_000_000
 DEFAULT_TRACK_NM = 200_000       # KiCad's Default net class, used when a net has no class width
 DEFAULT_CLEARANCE_NM = 200_000
 RANKING_LIMIT = 50               # entries kept per ranking list in blocked-by.json
 TOUCH_NM = 1000                  # 1 um: copper this close counts as touching (Specctra quantisation)
-REPORT_VERSION = 1
+REPORT_VERSION = 2              # 2: schema id, endpoints with footprint/pad/layers, footprints, boards
+SCHEMA_ID = f"kicad-route/blocked/{REPORT_VERSION}"   # schemas/blocked-by.schema.json
+SCHEMA_FILE = "schemas/blocked-by.schema.json"
+LAYER_LIST_LIMIT = 25            # blockers listed per connection and layer (the counts stay exact)
+METHOD = ("straight and L-shaped corridors (net-class track width + 2 x clearance) between the two "
+          "endpoints of each unconnected item, per copper layer; heuristic pointer, not a proof")
 ZONE_ITEM = re.compile(r"^Zone(?: '([^']*)')? \[([^\]]*)\]")
 CATEGORIES = ("keepout", "input_copper", "new_copper", "footprint", "board_edge")
 CATEGORY_NOTE = {
@@ -348,7 +354,8 @@ def _same_net_copper(facts, net, copper):
         for num, pad in fp.get("pads", {}).items():
             layers = [n for n in pad.get("layers", []) if n in copper]
             if pad.get("net") == net and layers:
-                out.append(({"kind": "pad", "item": pad, "position": pad["position"], "label": f"{ref}.{num}"},
+                out.append(({"kind": "pad", "item": pad, "position": pad["position"], "label": f"{ref}.{num}",
+                             "footprint": ref, "pad": num},
                             Obstacle({}, layers, polygon=_pad_polygon(fp, pad))))
     return out
 
@@ -396,7 +403,7 @@ def zone_target(facts, zone_item, other_pos, net):
     zone = next((z for z in facts.get("zones", []) if z.get("net") == net and (name is None or z.get("name") == name)),
                 None)
     if zone is None or len(zone.get("outline", [])) < 3:
-        return None, "zone not found in the board facts; its reported position is used"
+        return None, "zone not found in the board facts; its reported position is used", None
     copper = copper_layer_names(facts)
     items = _same_net_copper(facts, net, copper)
     roots = islands(items)
@@ -412,11 +419,54 @@ def zone_target(facts, zone_item, other_pos, net):
         if best is None or d < best[0]:
             best = (d, rec)
     if best is None:
-        return None, "no same-net pad or via inside the zone outside this island; the zone's reported position is used"
+        return (None, "no same-net pad or via inside the zone outside this island; the zone's reported position is used",
+                None)
     rec = best[1]
     label = f"pad {rec['label']}" if rec["kind"] == "pad" else f"via {rec['item'].get('uuid', '')[:8]}"
+    target = ({"kind": "pad", "footprint": rec["footprint"], "pad": rec["pad"]} if rec["kind"] == "pad"
+              else {"kind": "via", "uuid": rec["item"].get("uuid")})
+    target["position_mm"] = _pt_mm(rec["position"])
     return tuple(rec["position"]), (f"zone endpoint: nearest same-net {label} inside the zone outline and off the "
-                                    f"other endpoint's copper island (zone fill is not modelled)")
+                                    f"other endpoint's copper island (zone fill is not modelled)"), target
+
+
+def _names_footprint(description, ref):
+    """True when a DRC item description ends with `of REF` (optionally `on LAYER`)."""
+    return description.endswith(f" of {ref}") or f" of {ref} on " in description
+
+
+def find_item(facts, kind, description, uuid, point, net):
+    """What a DRC endpoint is on the board: (footprint, pad, copper layers), from the board
+    facts. A pad is the same-net pad at the reported position (within 1 um), the one whose
+    footprint the description names when pads are stacked; tracks and vias match by uuid;
+    a zone by name and net. (None, None, []) when nothing matches."""
+    copper = copper_layer_names(facts)
+    if kind == "pad":
+        hits = []
+        for ref, fp in facts.get("footprints", {}).items():
+            for num, pad in fp.get("pads", {}).items():
+                q = pad.get("position") or (0, 0)
+                if pad.get("net") == net and abs(q[0] - point[0]) <= TOUCH_NM and abs(q[1] - point[1]) <= TOUCH_NM:
+                    hits.append((not _names_footprint(description, ref), ref, num, pad))
+        if hits:
+            _, ref, num, pad = min(hits, key=lambda h: h[:3])
+            return ref, num, [n for n in pad.get("layers", []) if n in copper]
+    elif kind in ("track", "arc"):
+        t = next((t for t in facts.get("tracks", []) if t.get("uuid") == uuid), None)
+        if t is not None:
+            return None, None, [t["layer"]]
+    elif kind == "via":
+        v = next((v for v in facts.get("vias", []) if v.get("uuid") == uuid), None)
+        if v is not None:
+            return None, None, via_layers(v, copper)
+    elif kind == "zone":
+        m = ZONE_ITEM.match(description)
+        name = m.group(1) if m else None
+        z = next((z for z in facts.get("zones", []) if z.get("net") == net and (name is None or z.get("name") == name)),
+                 None)
+        if z is not None:
+            return None, None, [n for n in z.get("layers", []) if n in copper]
+    return None, None, []
 
 
 def endpoints(facts, unconnected, net):
@@ -424,18 +474,35 @@ def endpoints(facts, unconnected, net):
     out = []
     for it in items:
         pos = it.get("pos", {})
-        out.append({"description": it.get("description", ""), "uuid": it.get("uuid"),
-                    "kind": item_kind(it.get("description", "")),
-                    "point": (round(pos.get("x", 0) * NM), round(pos.get("y", 0) * NM))})
+        desc = it.get("description", "")
+        e = {"description": desc, "uuid": it.get("uuid"), "kind": item_kind(desc),
+             "point": (round(pos.get("x", 0) * NM), round(pos.get("y", 0) * NM))}
+        e["reported"] = e["point"]
+        e["footprint"], e["pad"], e["layers"] = find_item(facts, e["kind"], desc, e["uuid"], e["point"], net)
+        if e["kind"] == "pad" and e["footprint"] is None:
+            e["note"] = "pad not found at the reported position in the board facts"
+        out.append(e)
     if len(out) != 2:
         return out
     for i in (0, 1):
         if out[i]["kind"] == "zone" and out[1 - i]["kind"] != "zone":
-            target, note = zone_target(facts, items[i], out[1 - i]["point"], net)
+            point, note, target = zone_target(facts, items[i], out[1 - i]["point"], net)
             out[i]["note"] = note
-            if target is not None:
-                out[i]["point"] = target
+            if point is not None:
+                out[i]["point"], out[i]["target"] = point, target
     return out
+
+
+def endpoint_record(e, net):
+    """One endpoint as blocked-by.json carries it (schemas/blocked-by.schema.json)."""
+    rec = {"description": e["description"], "uuid": e["uuid"], "kind": e["kind"], "net": net,
+           "footprint": e["footprint"], "pad": e["pad"], "layers": e["layers"],
+           "position_mm": _pt_mm(e["point"]), "reported_position_mm": _pt_mm(e["reported"])}
+    if e.get("target"):
+        rec["target"] = e["target"]
+    if e.get("note"):
+        rec["note"] = e["note"]
+    return rec
 
 
 # ------------------------------------------------------------------ analysis
@@ -495,8 +562,11 @@ def label(info):
     return "board edge"
 
 
-def analyze(drc, facts, ref_facts=None, scope=None, top=10):
-    """The full blocked-by report for the in-scope unconnected items of a candidate DRC."""
+def analyze(drc, facts, ref_facts=None, scope=None, top=10, boards=None, source="run"):
+    """The full blocked-by report (schemas/blocked-by.schema.json) for the in-scope
+    unconnected items of a DRC report. source is "run" (a routing attempt's candidate)
+    or "board" (`kicad-route blocked --board`: a placed board, no backend run); boards
+    holds the sha256 of the input, the candidate and the board DRC graded."""
     copper = copper_layer_names(facts)
     nets = facts.get("nets", {})
     obstacles = build_obstacles(facts, ref_facts)
@@ -511,10 +581,8 @@ def analyze(drc, facts, ref_facts=None, scope=None, top=10):
         clearance = cls.get("clearance") or DEFAULT_CLEARANCE_NM
         half = width / 2 + clearance
         ends = endpoints(facts, u, net)
-        conn = {"net": net, "netclass": cls.get("netclass"), "corridor_width_mm": _mm(2 * half),
-                "endpoints": [{"description": e["description"], "uuid": e["uuid"], "kind": e["kind"],
-                               "position_mm": _pt_mm(e["point"]), **({"note": e["note"]} if e.get("note") else {})}
-                              for e in ends],
+        conn = {"index": len(connections), "net": net, "netclass": cls.get("netclass"),
+                "corridor_width_mm": _mm(2 * half), "endpoints": [endpoint_record(e, net) for e in ends],
                 "layers": {}}
         if len(ends) != 2:
             conn["error"] = "DRC item does not name two endpoints"
@@ -534,7 +602,8 @@ def analyze(drc, facts, ref_facts=None, scope=None, top=10):
             hard, soft = variants[best]
             conn["layers"][layer] = {
                 "corridor": best, "hard_count": len(hard), "soft_count": len(soft),
-                "hard": [_brief(i) for i in hard], "soft": [_brief(i) for i in soft],
+                "hard": [_brief(i) for i in hard[:LAYER_LIST_LIMIT]],
+                "soft": [_brief(i) for i in soft[:LAYER_LIST_LIMIT]],
                 "corridors": {k: {"hard": len(h), "soft": len(s)} for k, (h, s) in variants.items()},
                 "_hard_infos": hard}
         conn["best_layer"] = min(copper, key=lambda n: (conn["layers"][n]["hard_count"],
@@ -543,13 +612,19 @@ def analyze(drc, facts, ref_facts=None, scope=None, top=10):
         connections.append(conn)
 
     ranking = rank(connections)
+    fps = footprint_aggregates(connections, facts)
     for c in connections:
         for lay in c["layers"].values():
             lay.pop("_hard_infos", None)
+    boards = boards or {}
     return {
+        "schema": SCHEMA_ID,
         "version": REPORT_VERSION,
-        "method": "straight and L-shaped corridors (net-class track width + 2 x clearance) between the two "
-                  "endpoints of each unconnected item, per copper layer; heuristic pointer, not a proof",
+        "source": source,
+        "heuristic": True,
+        "method": METHOD,
+        "boards": {k: boards.get(k) for k in ("input_sha256", "candidate_sha256", "graded_sha256")},
+        "nets_considered": sorted(scope) if scope is not None else sorted(n for n in nets if n),
         "copper_layers": copper,
         "connections_analyzed": len(connections),
         "unobstructed_connections": sum(1 for c in connections if c.get("best_layer_hard_count") == 0),
@@ -557,8 +632,49 @@ def analyze(drc, facts, ref_facts=None, scope=None, top=10):
         "ranking": ranking,
         "top": overall_top(ranking, top),
         "nets": per_net(connections),
+        "footprints": fps,
         "connections": connections,
     }
+
+
+SIDES = {"F.Cu": "front", "B.Cu": "back"}
+
+
+def footprint_aggregates(connections, facts):
+    """Per footprint that blocks or terminates an open connection: where it is and which
+    connections (by `index`) its pads block on their best layer (`blocks`), on any layer
+    (`blocks_any_layer`), and end on (`terminates`, zone targets included)."""
+    out = {}
+
+    def entry(ref):
+        if ref not in out:
+            fp = facts.get("footprints", {}).get(ref, {})
+            out[ref] = {"reference": ref, "value": fp.get("value"),
+                        "position_mm": _pt_mm(fp["position"]) if fp.get("position") else None,
+                        "orientation_deg": fp.get("orientation"), "layer": fp.get("layer"),
+                        "side": SIDES.get(fp.get("layer")), "locked": fp.get("locked"),
+                        "blocks": set(), "blocks_any_layer": set(), "terminates": set(), "pads_blocking": set()}
+        return out[ref]
+
+    for c in connections:
+        for e in c["endpoints"]:
+            for ref in {e.get("footprint"), (e.get("target") or {}).get("footprint")} - {None}:
+                entry(ref)["terminates"].add(c["index"])
+        for layer, lay in c.get("layers", {}).items():
+            for info in lay.get("_hard_infos", []):
+                if info["kind"] != "pad":
+                    continue
+                f = entry(info["footprint"])
+                f["blocks_any_layer"].add(c["index"])
+                f["pads_blocking"].add(info["pad"])
+                if layer == c.get("best_layer"):
+                    f["blocks"].add(c["index"])
+    for f in out.values():
+        for k in ("blocks", "blocks_any_layer", "terminates", "pads_blocking"):
+            f[k] = sorted(f[k])
+        f["nets_blocked"] = sorted({connections[i]["net"] for i in f["blocks_any_layer"]})
+        f["nets_terminated"] = sorted({connections[i]["net"] for i in f["terminates"]})
+    return dict(sorted(out.items()))
 
 
 def _dedupe(infos):
@@ -662,7 +778,8 @@ def per_net(connections):
 def summary(report, path):
     """The compact form kept under result.json routing.blocked_by."""
     nets = report["nets"]
-    out = {"report": path, "connections_analyzed": report["connections_analyzed"],
+    out = {"schema": report["schema"], "version": report["version"],
+           "report": path, "connections_analyzed": report["connections_analyzed"],
            "unobstructed_connections": report["unobstructed_connections"],
            "method": "heuristic corridors; see docs/blocked.md",
            "top": report["top"], "nets": dict(list(nets.items())[:RANKING_LIMIT])}
@@ -695,11 +812,11 @@ def render_md(s):
     return lines + [""]
 
 
-def write_report(out_dir, drc, facts, ref_facts, scope, top=10, rel=str):
+def write_report(out_dir, drc, facts, ref_facts, scope, top=10, rel=str, boards=None):
     """Compute the report, write out_dir/blocked-by.json, return the result.json summary.
     A failure is returned as {"error": ...}: diagnosis never changes a verdict."""
     try:
-        report = analyze(drc, facts, ref_facts, scope, top)
+        report = analyze(drc, facts, ref_facts, scope, top, boards)
         path = Path(out_dir) / "blocked-by.json"
         path.write_text(json.dumps(report, indent=1) + "\n")
         return summary(report, rel(path))
@@ -727,6 +844,19 @@ def locate(path):
     sys.exit(f"{path}: not a routing run or validation directory (no attempt.json or candidate-drc.json)")
 
 
+def _sha(path):
+    return sha256(path) if Path(path).is_file() else None
+
+
+def run_boards(run_dir, attempt, result):
+    """sha256 of a run's input board (the reference snapshot), its candidate and the board
+    DRC graded (the candidate after refill, as validation recorded it)."""
+    cand = _sha(run_dir / attempt["candidate_dir"] / attempt["board"])
+    return {"input_sha256": _sha(run_dir / attempt["reference_dir"] / attempt["board"]),
+            "candidate_sha256": cand,
+            "graded_sha256": (result.get("validation") or {}).get("validated_board_sha256") or cand}
+
+
 def recompute(path, top=10, rel=str, render=None):
     """`kicad-route blocked PATH`: (re)compute blocked-by.json for an existing run or revalidation.
     Updates routing.blocked_by in that directory's result.json (and the run's RESULT.md
@@ -749,7 +879,7 @@ def recompute(path, top=10, rel=str, render=None):
             ref_facts_path = origin / _load(origin / "attempt.json")["reference_facts"]
         else:
             note = f"origin run {result['against']} not found: copper origin is relative to this run's input"
-    s = write_report(vdir, drc, facts, _load(ref_facts_path), scope, top, rel)
+    s = write_report(vdir, drc, facts, _load(ref_facts_path), scope, top, rel, run_boards(run_dir, attempt, result))
     if s.get("connections_analyzed") == 0:
         (vdir / "blocked-by.json").unlink(missing_ok=True)
         return None
