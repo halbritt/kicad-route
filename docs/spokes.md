@@ -1,0 +1,156 @@
+# Thermal-spoke corridors: `--reserve-spokes` and `kicad-route spokes`
+
+A pad joined to a same-net pour by thermal relief reaches the pour only through its
+spokes. A new track of another net routed close to the pad pushes the pour back by its
+clearance. A spoke can then end in nothing, and KiCad drops it. When fewer than the
+zone's `min_resolved_spokes` remain, DRC reports `starved_thermal`, but only after
+routing. On a real 4-layer board, new F.Cu signal tracks routed 0.1–0.35 mm from GND
+pads in an F.Cu GND pour left 24 pads with one spoke (the rule asks for 2). For 22 of
+them that spoke was the only ground path.
+
+kicad-route can keep new copper out of the spokes' way while it routes, and it can say
+afterwards which new track starved which pad.
+
+```sh
+kicad-route run --backend krt --reserve-spokes            # N = the board's min_resolved_spokes (normally 2)
+kicad-route run --backend freerouting --reserve-spokes 1  # one corridor per pad: less blocked area
+kicad-route spokes <run_dir>                              # spoke-cut attribution -> <run_dir>/spokes.json
+kicad-route spokes <run_dir> --validation <run_dir>/revalidate/<stamp>   # after a hand edit + validate
+kicad-route spokes --board my.kicad_pcb [--per-pad N]     # preview: OUT/spokes/<board>/plan.json
+```
+
+## Corridors
+
+`src/kicad_route/kicad/spokes.py plan` (pcbnew) refills the zones in memory and never
+saves the board. It considers every pad that meets all of these conditions:
+
+- it is on a copper layer of a same-net zone, and the zone outline contains the pad;
+- its zone connection resolves to thermal relief. The pad's setting comes first, then
+  the footprint's, then the zone's. THT-thermal means plated through-hole pads only.
+
+For each such pad and layer it builds the four spokes the way KiCad's zone filler lays
+them out:
+
+- **Direction:** pad orientation + the pad's spoke angle + k·90°. The stock spoke
+  angle is 45° for round pads and 90° for all other shapes.
+- **Spoke end:** the pad's extent along that direction, plus the relief gap. This is
+  the rotated bounding box KiCad builds the spokes in.
+- **Gap and spoke width:** the pad's overrides, else the zone's values. The spoke
+  width is clamped to the pad's smaller side. KiCad builds no spokes when the spoke
+  width is below the zone's min thickness.
+
+Each spoke gets one corridor, a rectangle that starts at the pad edge:
+
+| | |
+|---|---|
+| length (from the pad's extent) | `gap + min_thickness + clearance + max_error` |
+| half-width | `spoke_width / 2 + clearance` |
+
+This is the area that must stay free of other copper so that, after the pour is
+pushed back by `clearance`, it still covers the spoke end with `min_thickness` of
+copper. `clearance` is the largest value any other net can claim against the pour:
+the zone's own clearance, every net class clearance, the board minimum, and every
+`clearance` minimum in the project's `.kicad_dru`. A custom rule can only make the
+corridor larger, never smaller. On the fixture this is the 0.4 mm Power-to-signal
+rule.
+
+Each corridor is classified:
+
+- **live:** the refilled pour covers KiCad's own spoke test point, the spoke end.
+  Spokes facing a neighbouring pin usually have no pour there.
+- **eligible:** live, and it overlaps no existing track, via or other pad on its
+  layer. A rule area over existing copper would block that copper's own net, so these
+  corridors are never reserved.
+- **selected:** the best `N` eligible corridors per pad, ranked by the most pour
+  beyond the gap (sampled up to twice the corridor length), so corridors that point
+  into the pour come first. `N` defaults to the board's `min_resolved_spokes`. The
+  plan records pads that have fewer than `N` eligible corridors.
+
+## `run --reserve-spokes [N]`
+
+The option takes 0–4; with no value it uses the board's `min_resolved_spokes`. In
+`run_attempt`, `spokes.around_route` wraps the backend call:
+
+1. **Plan and reserve** on the work input board
+   (`work/input/<project>/<board>`; the reference copy is never touched). Each
+   selected corridor becomes a single-layer rule area named
+   `kicad-route:spoke:<ref>:<pad>:<layer>:<k>`. The area allows no tracks and no vias;
+   pads, footprints and zone fills are allowed. A board that already has such areas
+   is refused.
+2. **Route** with the backend as usual. KRT reads rule areas natively, per layer
+   (`add_rule_area_keepout_obstacles`). For Freerouting, KiCad's DSN export writes
+   each area as a single-layer Specctra `(keepout …)`; the tests check this.
+3. **Strip** every `kicad-route:spoke:` rule area from the backend's output board
+   before it is copied into the candidate. When nothing was removed, the strip leaves
+   the file untouched. Reserve followed by strip is byte-identical on the fixture.
+
+The candidate is then graded exactly as without the option. If a corridor is left
+over, the `keepouts` preservation check fails, because it compares the rule areas
+with the input's. Reserving only takes routing room away from the backend. It never
+changes a rule, a severity, a width or a clearance, and grading always uses the
+input's own project files.
+
+Recorded:
+
+- `settings.reserve_spokes`: `null` = off, `0` = the board's value, or N.
+- `process.spoke_reservation`: per pad, live corridors, reserved and stripped counts,
+  clearance, warnings and the commands that ran.
+- Work files: `work/spokes-plan.json`, `spokes-{plan,reserve,strip}.log`.
+
+A failed plan or reservation is a process failure (exit 1, no routing). A failed
+strip is added to `process.reasons` and fails `keepouts`.
+
+## `kicad-route spokes RUN_DIR`
+
+Plans corridors on the run's reference board (`RUN_DIR/spokes/reference-plan.json`).
+Every live corridor, selected or not, is then intersected with the candidate's new
+copper, meaning tracks, arcs and vias in `validate/candidate-facts.json` that match
+nothing in `facts/reference-facts.json`. The candidate DRC's `starved_thermal` pads
+are matched to the plan by pad UUID, or by position and layer when the UUID differs.
+`RUN_DIR/spokes.json` contains:
+
+- `corridors_live`, `corridors_crossed`, `pads_with_crossed_corridors`, `crossings`:
+  every corridor that new copper entered, with the item's UUID, net and layer.
+- `starved_pads`: each starved pad, with `new` (true when the finding is not in the
+  input's baseline), `crossed_corridors`, `cutting_items` (UUIDs) and `attributed`.
+- `reserved` (runs made with `--reserve-spokes`): the reserved corridors that new
+  copper still entered. This should be empty; an entry means the backend ignored a
+  keepout.
+
+Exit 0 when there is no new `starved_thermal`; 3 when there is (attributed or not).
+Use `--validation DIR` to read a re-validation, for example after editing the
+candidate by hand.
+
+## Limits
+
+- **Over-reservation.** Each corridor is about `spoke_width + 2·clearance` wide (1.3 mm
+  on the fixture). Both backends also hold their own clearance from a rule-area edge.
+  Measured on the F.Cu-pour test variant, the closest new copper was 0.41 mm (KRT) and
+  0.57 mm (Freerouting) from a reserved corridor. The effective blocked area is
+  therefore about one clearance larger again. On dense boards this can make nets
+  unroutable or push them to other layers. Use `--reserve-spokes 1`, or route the
+  crowded area first without reservation, and check with `kicad-route spokes`. If a
+  pad needs no protection, nothing is lost by leaving it unreserved: KiCad's DRC
+  still grades the result.
+- **A model, not KiCad's filler.** Corridors follow the layout described above, which
+  is exact for rectangle, rounded-rectangle, oval and circle pads at the stock spoke
+  angles. The model does not evaluate:
+  - spoke templates of custom-shape pads (corridors use the pad's extent, and the
+    plan notes it);
+  - spoke angles that are not multiples of 45° on non-round pads (KiCad builds those
+    from a rotated bounding box; the corridor follows the same support-function
+    reach, but it is not verified);
+  - via thermals.
+- **Custom thermal rules are not evaluated.** `thermal_relief_gap`,
+  `thermal_spoke_width`, `zone_connection` and `min_resolved_spokes` constraints in
+  `.kicad_dru` are reported under `warnings`; corridors use the pad and zone values.
+- **Zones and connections.** Only zones whose outline contains the pad centre are
+  considered. A pad in several overlapping same-net zones on one layer gets the
+  corridors of the highest-priority zone. Hatched fills are treated like solid fills.
+- **Spoke counts come from the input fill.** Liveness is judged on the input's
+  refilled pour. A pad that is already starved in the input stays starved. New copper
+  can also starve a pad far from its corridors by splitting the pour into an island;
+  attribution reports such pads as `attributed: false`.
+- **Same-net copper is blocked too.** A corridor blocks every net, including the pad's
+  own. A backend that wants to run a GND track out of a reserved side must use
+  another side. Pads stay reachable from their unreserved sides.
