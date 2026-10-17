@@ -1274,12 +1274,33 @@ def freerouting_route(work, board, scope, facts, settings):
 
 # --------------------------------------------------------- install / update
 
+def github_headers(env=None):
+    """Request headers for the GitHub API: a token from GITHUB_TOKEN (else GH_TOKEN),
+    when set, lifts the unauthenticated 60 requests/hour limit shared CI hits."""
+    env = os.environ if env is None else env
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "kicad-route"}
+    token = (env.get("GITHUB_TOKEN") or env.get("GH_TOKEN") or "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def github_latest(repo):
+    """The repo's latest release: GitHub's /releases/latest, which is the newest
+    non-draft, non-prerelease release, so a stable release always wins."""
     import urllib.request
-    req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases/latest",
-                                 headers={"Accept": "application/vnd.github+json", "User-Agent": "kicad-route"})
+    req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases/latest", headers=github_headers())
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read())
+
+
+def krt_venv_python(env=None):
+    """The interpreter the KRT venv is built on. KRT is plain CPython (its Rust module
+    is abi3, Python >= 3.9) and never imports pcbnew: the venv does not see system
+    site-packages. So the Python running kicad-route (>= 3.12) is the default, not a
+    Debian path; KICAD_ROUTE_KRT_PYTHON overrides it."""
+    env = os.environ if env is None else env
+    return env.get("KICAD_ROUTE_KRT_PYTHON") or sys.executable
 
 
 def update_krt(steps):
@@ -1293,7 +1314,7 @@ def update_krt(steps):
                              out_path("update") / "krt-fetch.log"))
     steps.append(common.run_cmd(["git", "checkout", "--detach", tag], KRT_DIR, out_path("update") / "krt-checkout.log"))
     if not route_python().exists():
-        steps.append(common.run_cmd(["uv", "venv", KRT_VENV, "--python", "/usr/bin/python3"], common.STATE,
+        steps.append(common.run_cmd(["uv", "venv", KRT_VENV, "--python", krt_venv_python()], common.STATE,
                                  out_path("update") / "venv.log"))
     env_cmd = ["env", f"VIRTUAL_ENV={KRT_VENV}", "uv", "pip", "install", "--upgrade", "-r", KRT_DIR / "requirements.txt"]
     steps.append(common.run_cmd(env_cmd, common.STATE, out_path("update") / "krt-deps.log"))
@@ -1304,36 +1325,74 @@ def update_krt(steps):
     return tag
 
 
+# The executable jar of a Freerouting release: freerouting-<version>.jar, optionally
+# with a pre-release suffix (freerouting-2.5.0-alpha.jar, -rc1, -beta.2, -SNAPSHOT).
+# Classifier jars (-sources, -javadoc, ...) are not executable and do not match.
+FREEROUTING_JAR = re.compile(
+    r"freerouting-(?P<version>\d+(?:\.\d+)*)"
+    r"(?:-(?P<pre>(?:alpha|beta|rc|pre|preview|snapshot|ea|dev)(?:[.-]?[0-9A-Za-z]+)*|m\d+))?\.jar", re.I)
+
+
+def freerouting_jar_asset(assets):
+    """The release asset to install: the stable jar when the release has one, else
+    its first pre-release jar; None when it has neither."""
+    jars = [a for a in assets if FREEROUTING_JAR.fullmatch(a["name"])]
+    jars.sort(key=lambda a: FREEROUTING_JAR.fullmatch(a["name"])["pre"] is not None)  # stable first, stable sort
+    return jars[0] if jars else None
+
+
+def check_asset_digest(asset, sha256_hex):
+    """Verify a downloaded asset against the "sha256:<hex>" digest GitHub publishes
+    for each release asset. True when it matches; False when GitHub gave no digest
+    (assets uploaded before GitHub computed them); raises on a mismatch or on a
+    digest in an algorithm this cannot check."""
+    want = asset.get("digest")
+    if not want:
+        return False
+    algo, _, value = want.partition(":")
+    if algo.lower() != "sha256" or not value:
+        raise RuntimeError(f"{asset['name']}: unrecognised GitHub digest {want!r}")
+    if value.lower() != sha256_hex.lower():
+        raise RuntimeError(f"{asset['name']}: sha256 {sha256_hex} does not match GitHub's digest {value}")
+    return True
+
+
 def update_freerouting(steps):
-    """Freerouting: the latest release's executable jar, verified against GitHub's asset digest."""
+    """Freerouting: the latest stable release's executable jar, verified against
+    GitHub's per-asset sha256 digest (recorded as digest_verified in release.json)."""
     import hashlib
     import urllib.request
     rel = github_latest(FREEROUTING_REPO)
     tag = rel["tag_name"]
-    assets = [a for a in rel["assets"] if re.fullmatch(r"freerouting-[\d.]+\.jar", a["name"])]
-    if not assets:
+    asset = freerouting_jar_asset(rel["assets"])
+    if asset is None:
         raise RuntimeError(f"release {tag} has no executable jar asset")
-    asset = assets[0]
     dest_dir = FREEROUTING_DIR / tag
     jar = dest_dir / asset["name"]
+    verified = None  # an already-installed jar is not re-downloaded; see its release.json
     if not jar.exists():
         dest_dir.mkdir(parents=True, exist_ok=True)
         tmp = jar.with_suffix(".part")
         with urllib.request.urlopen(asset["browser_download_url"], timeout=300) as r, open(tmp, "wb") as f:
             shutil.copyfileobj(r, f)
-        digest = hashlib.sha256(tmp.read_bytes()).hexdigest()
-        want = (asset.get("digest") or "").removeprefix("sha256:")
-        if want and want != digest:
+        try:
+            verified = check_asset_digest(asset, hashlib.sha256(tmp.read_bytes()).hexdigest())
+        except RuntimeError:
             tmp.unlink()
-            raise RuntimeError(f"{asset['name']}: sha256 {digest} does not match GitHub's digest {want}")
+            raise
+        if not verified:
+            log(f"[update] WARNING: GitHub published no digest for {asset['name']}; it is installed unverified")
         tmp.rename(jar)
+    else:
+        verified = (load_json(dest_dir / "release.json") or {}).get("digest_verified")
     import zipfile
     with zipfile.ZipFile(jar) as z:
         mf = z.read("META-INF/MANIFEST.MF").decode(errors="replace")
     build = re.search(r"Build-Revision:\s*(\S+)", mf)
     common.write_json(dest_dir / "release.json", {
         "tag": tag, "asset": asset["name"], "sha256": common.sha256(jar), "published_at": rel.get("published_at"),
-        "build_revision": build.group(1) if build else None, "url": asset["browser_download_url"]})
+        "build_revision": build.group(1) if build else None, "url": asset["browser_download_url"],
+        "digest": asset.get("digest"), "digest_verified": verified})
     cur = FREEROUTING_DIR / "current"
     if cur.is_symlink() or cur.exists():
         cur.unlink()

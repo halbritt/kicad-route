@@ -187,16 +187,23 @@ install requirements. Installed state lives in this checkout (or `$KICAD_ROUTE_S
 git-ignored.
 
 - `scripts/install.sh` links `~/.local/bin/kicad-route` and the `kicad-route` skill
-  (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`), then runs `update`.
+  (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`), then runs `update`
+  (`--no-update` skips it). A stale link (another checkout) is repointed; a real file
+  or directory at a link path is never replaced.
 - `kicad-route update`:
   - KRT: `git fetch --tags`, check out the latest GitHub release tag, create
-    `.venv-krt` if needed, `uv pip install --upgrade -r requirements.txt`,
+    `.venv-krt` if needed (on the Python running kicad-route, or
+    `$KICAD_ROUTE_KRT_PYTHON`; KRT does not use pcbnew), `uv pip install --upgrade -r requirements.txt`,
     `build_router.py --tag <tag>` (downloads the release's prebuilt Rust module; KRT
     builds from source with cargo only when no prebuilt matches), KRT's
     `startup_checks.py`.
-  - Freerouting: download the latest release's `freerouting-<v>.jar`, verify it against
-    GitHub's published asset digest, record `release.json`, repoint `current`, remove
-    the previous version.
+  - Freerouting: download the latest stable release's `freerouting-<v>.jar` (a
+    pre-release-suffixed jar such as `-rc1` only when the release has no plain one),
+    verify it against GitHub's per-asset `sha256:` digest (a mismatch aborts; a missing
+    digest installs it with `digest_verified: false`), record `release.json`, repoint
+    `current`, remove the previous version.
+  - GitHub API calls send `$GITHUB_TOKEN` (else `$GH_TOKEN`) when set, to avoid the
+    unauthenticated rate limit.
   - Regenerate the `krt-*` skills from the new KRT (`vendor/skills/`, linked into the same
     skill directories), then run `kicad-route smoke` (round trips, constraint
     preservation, native validation, failure reporting). Compatibility problems surface
