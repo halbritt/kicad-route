@@ -7,9 +7,9 @@ or [Freerouting](https://github.com/freerouting/freerouting) — on an isolated 
 KiCad project and hands back a native KiCad candidate board. The candidate is then graded
 with `kicad-cli` DRC (zones refilled, schematic parity) against the input's own,
 unchanged rules, plus checks that the backend preserved what it must not touch: outline,
-layers, stackup, net classes, footprints, zones, keepouts, existing copper and net-class
-widths. Backend relaxations are switched off, and anything they still slip through is
-caught by the grading rather than trusted.
+layers, stackup, net classes, footprints, zones, keepouts, existing copper, net-class
+widths and pour integrity. Backend relaxations are switched off, and anything they still
+slip through is caught by the grading rather than trusted.
 
 The result is structured for an agent to read and act on: process, routing and
 validation are reported separately, with exit codes 0 (complete and valid), 1 (backend
@@ -75,6 +75,8 @@ route:
 - [`docs/hygiene.md`](docs/hygiene.md) — run hygiene: `--stall` progress watchdog,
   the run ledger (exit 4 on an exact repeat of a failed attempt), the awkward-net-name
   canary, and the real-board `corpus` gate that `update` runs.
+- [`docs/pour.md`](docs/pour.md) — the `pour_integrity` check: pad fill contact, thermal
+  spokes and pour islands compared between the refilled input and candidate.
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`).

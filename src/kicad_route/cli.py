@@ -71,6 +71,7 @@ from . import blocked
 from . import common
 from . import floor
 from . import provenance
+from . import pour
 from . import skills
 from . import spokes  # --reserve-spokes / `kicad-route spokes` (docs/spokes.md)
 from . import ledger
@@ -289,6 +290,7 @@ def baseline_drc(reference, board_name, fingerprint):
         shutil.copyfile(work / "drc" / "baseline-drc.json", cache / "baseline-drc.json")
         info["report"] = str(cache / "baseline-drc.json")
         common.write_json(cache / "baseline-info.json", info)
+        pour.extract(work / reference.name / board_name, cache / pour.FACTS_NAME)  # same refill as graded
     shutil.rmtree(work, ignore_errors=True)
     info["cached"] = False
     return report, info
@@ -543,7 +545,7 @@ def resolve_origin(run_dir, attempt, origin=None):
     return steps
 
 
-def validate(run_dir, out_dir=None, origin=None):
+def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
     """Grade run_dir/candidate against run_dir/reference. Re-runnable: an agent may
     edit the candidate and validate it again into a fresh directory. With origin (an
     earlier run whose candidate this run's input descends from through --dir steps),
@@ -647,6 +649,7 @@ def validate(run_dir, out_dir=None, origin=None):
     ratchet = provenance.net_completion(base, cand, ref_facts, item_nets)  # every protect mode
     checks.append(ratchet)
     v["net_completion"] = {k: ratchet[k] for k in ("status", "nets_connected_in_input", "nets_lost")}
+    checks.append(pour_check(run_dir, attempt, ref_dir, board, out_dir, pour_limits))
     common.write_json(out_dir / "preservation.json", checks)
     v["preservation"] = {c["check"]: c["status"] for c in checks}
     for c in checks:
@@ -657,6 +660,22 @@ def validate(run_dir, out_dir=None, origin=None):
     if routing["status"] == INCOMPLETE:  # diagnosis only: what lies across the open connections
         routing["blocked_by"] = blocked.write_report(out_dir, cand, cand_facts, ref_facts, scope, rel=common.rel)
     return v, routing
+
+
+def pour_check(run_dir, attempt, ref_dir, board, out_dir, limits=None):
+    """pour_integrity (pour.py): the refilled input's pours against the refilled candidate's.
+    Limits (--pour-area-loss, --pour-min-spokes) come from the attempt, overridden by validate's."""
+    overrides = {k: v for k, v in (limits or {}).items() if v is not None}
+    limits = {k: attempt["settings"].get(k) for k in ("pour_area_loss_pct", "pour_min_spokes")} | overrides
+    base = attempt["baseline"].get("report")
+    ref, src = pour.reference_facts(run_dir / base if base else None, ref_dir, board.name,
+                                    out_dir / "baseline-pour", kicad_drc)
+    cand, rec = pour.extract(board, out_dir / "candidate-pour.json")
+    if ref is None or cand is None:
+        return pour.missing_check("reference" if ref is None else f"candidate ({rec['log']})")
+    check, delta = pour.compare(ref, cand, limits.get("pour_area_loss_pct"), limits.get("pour_min_spokes"))
+    common.write_json(out_dir / "pour-integrity.json", {**delta, "reference_source": src})
+    return check
 
 
 def overall_exit(process, routing, validation):
@@ -693,6 +712,7 @@ def run_attempt(args):
     settings = {"backend": args.backend, "budget_s": args.budget, "protect": args.protect,
                 "max_iterations": args.max_iterations, "passes": args.passes,
                 "default_clearance_mm": args.default_clearance, "clearance_margin_mm": args.clearance_margin,
+                "pour_area_loss_pct": args.pour_area_loss, "pour_min_spokes": args.pour_min_spokes,
                 "backend_args": args.backend_arg or [], "backend_env": dict(e.split("=", 1) for e in args.backend_env or []),
                 "reserve_spokes": args.reserve_spokes,
                 "stall_s": getattr(args, "stall", None), **scope_info}
@@ -1693,7 +1713,8 @@ def cmd_validate(args):
     run_dir = Path(args.run_dir).resolve()
     origin = Path(args.against).resolve() if args.against else None
     out = run_dir / ("revalidate-origin" if origin else "revalidate") / common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ")
-    validation, routing = validate(run_dir, out, origin)
+    validation, routing = validate(run_dir, out, origin, {"pour_area_loss_pct": args.pour_area_loss,
+                                                          "pour_min_spokes": args.pour_min_spokes})
     result = load_json(run_dir / "result.json") or {}
     proc = result.get("process", {"status": PASS})
     rec = {"kind": "route-validate", "run_dir": common.rel(run_dir), "against": common.rel(origin) if origin else None,
@@ -1716,6 +1737,15 @@ def cmd_blocked(args):
     else:
         log("\n".join(blocked.render_md(s)).rstrip())
     return 0
+
+
+def add_pour_args(p):
+    p.add_argument("--pour-area-loss", type=float, metavar="PCT",
+                   help="pour_integrity: fail when a zone net/layer loses more than PCT %% of its fill area "
+                        "(default: area loss is reported, not failed)")
+    p.add_argument("--pour-min-spokes", type=int, metavar="N",
+                   help="pour_integrity: raise (never lower) the project's min_resolved_spokes for pads whose "
+                        "spokes the candidate reduced")
 
 
 def add_input_args(p, rev=True):
@@ -1761,6 +1791,7 @@ def main(argv=None):
                     help="run even if the ledger shows this exact attempt already failed (recorded as forced)")
     rp.add_argument("--canary", action="store_true",
                     help="first run the awkward-net-name canary for this backend; refuse (exit 4) if it fails")
+    add_pour_args(rp)
     rp.add_argument("--backend-arg", action="append", metavar="ARG",
                     help="extra argument passed to the backend verbatim (recorded; grading is unaffected)")
     rp.add_argument("--backend-env", action="append", metavar="KEY=VALUE",
@@ -1775,6 +1806,7 @@ def main(argv=None):
     bp = sub.add_parser("blocked", help="(re)compute the blocked-by receipts of an incomplete run")
     bp.add_argument("run_dir", help="a run directory, or one of its validate/ or revalidate*/<stamp>/ directories")
     bp.add_argument("--top", type=int, default=10, help="blockers listed in the summary (default 10)")
+    add_pour_args(vp)
     cp = sub.add_parser("compare", help="compare candidates routed from the same input")
     cp.add_argument("run_dirs", nargs="+")
     au = sub.add_parser("audit", help="grade a committed board change against its parent revision")

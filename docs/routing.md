@@ -93,7 +93,7 @@ directory name unless `--name` is given):
 | `work/` | backend scratch: its own output files and project writes (recorded, never used), `krt.log` / `freerouting.log`, `board.dsn` / `board.ses`, result JSON |
 | `candidate/<project>/` | the reference project with the routed board; zones refilled and saved; open it in KiCad |
 | `facts/reference-facts.json` | engineering facts of the input board (`kicad/facts.py`) |
-| `validate/` | candidate DRC (`candidate-drc.json`), `new-findings.json`, `preservation.json`, `candidate-facts.json` |
+| `validate/` | candidate DRC (`candidate-drc.json`), `new-findings.json`, `preservation.json`, `candidate-facts.json`, `candidate-pour.json` and `pour-integrity.json` |
 | `attempt.json` | input identity, scope, settings, baseline location (used by `kicad-route validate`) |
 | `result.json`, `RESULT.md` | the outcome |
 
@@ -153,6 +153,7 @@ From `kicad/facts.py` (KiCad's own loader; serialisation differences do not coun
 | `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation); designated = locked items, or all input copper with `--protect existing` |
 | `new_copper_netclass_geometry` | every new track at least its net class width, every new via at least its class diameter and drill |
 | `routing_scope` | new copper only on in-scope nets |
+| `pour_integrity` | the refilled candidate's pours against the refilled input's: no zone-connected pad loses fill contact, drops below `min_resolved_spokes` or lands on an island cut off from its net's main pour; area loss reported (fails only with `--pour-area-loss PCT`). See [`pour.md`](pour.md) |
 
 Protected copper across formats: KiCad exports locked tracks/vias as Specctra
 `(type fix)` and unlocked ones as `(type route)`; Freerouting freezes both (it reads

@@ -77,6 +77,8 @@ first.
 - **Tightening:**
   - `--default-clearance MM` (Default net class, both backends).
   - `--clearance-margin MM` (Freerouting only).
+  - `--pour-area-loss PCT` and `--pour-min-spokes N` make `pour_integrity` stricter
+    (also on `validate`; see `docs/pour.md`).
 - **Pass-through:**
   - `--backend-arg ARG` (repeat) and `--backend-env KEY=VALUE` (for example KRT
     `KICAD_*` knobs).
@@ -117,7 +119,8 @@ Also read:
 - **Preservation:** `validation.preservation` covers `project_files`,
   `board_outline`, `layers`, `stackup`, `board_setup`, `nets_and_netclasses`,
   `pad_connectivity`, `footprints`, `zones`, `keepouts`, `copper_graphics`,
-  `protected_copper`, `new_copper_netclass_geometry` and `routing_scope`. Details are
+  `protected_copper`, `new_copper_netclass_geometry`, `routing_scope` and
+  `pour_integrity` (pad fill contact, thermal spokes, islands; `validate/pour-integrity.json`). Details are
   in `validate/preservation.json`.
 - **Routing details:** `routing.unrouted_nets` and `routing.stats` (new tracks,
   vias, length).
@@ -145,6 +148,7 @@ Also read:
 | Freerouting INCOMPLETE at SMD pads or plane connections | `--backend-arg=--router.fanout.enabled=true`. Fanout is off by default because it can neck traces to 3/4–1/2 width; `new_copper_netclass_geometry` catches that if it happens |
 | `via_dangling` / `track_dangling` new | Freerouting left fanout stubs on a net it could not finish. Treat it as incomplete routing, and retry as above or with the other backend |
 | `starved_thermal` new | new tracks crowd the thermal spokes of a zone-connected pad. It's a design call (stitching via beside the pad, or a different layer); never lower `min_resolved_spokes` |
+| `pour_integrity` FAIL | new copper damaged a pour: `isolated_island` (a pad cut off from its net's main pour), `lost_fill_contact`, `spokes_below_minimum`, or `area_loss` (only with `--pour-area-loss`). Read `validate/pour-integrity.json` for the pads and islands. Retry with the cutting nets kept off that layer near the pads (another backend, or a `--nets` scope that routes them separately); a stitching via is a design call for a person. Never lower `min_resolved_spokes`. `--pour-min-spokes N` and `--pour-area-loss PCT` only tighten |
 | `protected_copper` / `footprints` / `zones` FAIL | backend or bridge defect. Report it with the run directory; do not adopt the candidate |
 | `new_copper_netclass_geometry` FAIL | the backend narrowed a conductor below its net class. Do not adopt; report the KRT/Freerouting version |
 | `process FAIL` "stalled in <phase> at <metric>" | the backend stopped making progress there. A rescue search on walled-off nets: `--backend-env KICAD_NET_RESCUE=0` or a different scope. A silent KiCad leg (refill, oracle): a larger `--stall` |
