@@ -17,6 +17,15 @@ def source_untouched():
     assert before == after, "a routing run modified the source project"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def fresh_ledger():
+    """Each session starts with an empty run ledger, so an attempt a previous
+    session recorded as failed is not refused (exit 4) when its test repeats it."""
+    from helpers import OUT
+    (OUT / "ledger.jsonl").unlink(missing_ok=True)
+    yield
+
+
 @pytest.fixture(scope="session")
 def blocked_dir(tmp_path_factory):
     """The fixture with a keepout wall that cuts J2 off from every other part."""

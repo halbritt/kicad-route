@@ -16,6 +16,8 @@ input's unchanged constraints.
                                           copy a run's structured evidence (not the board) for committing
     kicad-route update                    move both backends to their latest upstream release, then smoke
     kicad-route smoke [--publish DIR]     integration tests on the bundled fixture board
+    kicad-route canary [--backend B|all]  awkward net names through each backend's round trip
+    kicad-route corpus add|check|list     real-board regression gate (`update` runs check)
 
 Every attempt gets a fresh run directory OUT/runs/<project>/<label>/<stamp>/
 (OUT defaults to ./build/kicad-route):
@@ -40,7 +42,10 @@ grades exactly the delivered file. Violations already present in the input
 (graded the same way) are reported as pre-existing; only new ones fail.
 
 Exit status: 0 complete and valid, 1 backend/process failure (no candidate),
-2 candidate valid but routing incomplete, 3 candidate fails validation.
+2 candidate valid but routing incomplete, 3 candidate fails validation,
+4 refused before routing (the ledger shows this exact attempt already failed,
+or the --canary pre-flight failed). Run hygiene (stall, ledger, canary,
+corpus): docs/hygiene.md.
 """
 import argparse
 import collections
@@ -57,6 +62,9 @@ from pathlib import Path
 
 from . import common
 from . import skills
+from . import ledger
+from . import netnames
+from . import stall
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot
 
 PASS, FAIL, NOT_RUN, UNSUPPORTED = common.PASS, common.FAIL, common.NOT_RUN, common.UNSUPPORTED
@@ -638,8 +646,23 @@ def run_attempt(args):
                 "max_iterations": args.max_iterations, "passes": args.passes,
                 "default_clearance_mm": args.default_clearance, "clearance_margin_mm": args.clearance_margin,
                 "backend_args": args.backend_arg or [], "backend_env": dict(e.split("=", 1) for e in args.backend_env or []),
-                **scope_info}
+                "stall_s": getattr(args, "stall", None), **scope_info}
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
+    backend_version = backend["version"]()
+    gate = ledger.check(out_path("ledger.jsonl"), fingerprint, args.backend, backend_version, settings,
+                        force=getattr(args, "force", False))
+    if gate["refuse"] or getattr(args, "canary", False):
+        refusal = gate.get("message")
+        if not refusal and getattr(args, "canary", False):
+            from . import canary
+            c = canary.run_canary(args.backend)
+            refusal = None if c["status"] == PASS else f"canary pre-flight failed: {'; '.join(c['reasons'][:3])}"
+        if refusal:
+            ledger.discard_run_dir(run_dir)
+            log(f"[route] refused: {refusal}")
+            return {"exit_code": ledger.REFUSED_EXIT, "refused": refusal}
+    for note in gate["notes"]:
+        log(f"[route] ledger: {note}")
 
     log("[route] baseline: native DRC of the untouched input (refilled)")
     base, base_info = baseline_drc(ref_dir, board_name, fingerprint)
@@ -664,6 +687,7 @@ def run_attempt(args):
     t0 = time.monotonic()
     proc = backend["route"](work, work / "input" / ref_dir.name / board_name, scope, ref_facts, settings)
     proc["runtime_s"] = round(time.monotonic() - t0, 3)
+    stall.annotate(proc)
     unsupported += [f"backend reported: {u}" for u in proc.pop("unsupported_reported", [])]
     for u in (proc.get("bridge") or {}).get("export", {}).get("dru_untranslated", []):
         unsupported.append(f"custom rule '{u['rule']}' not given to the backend: {u['reason']}")
@@ -680,7 +704,7 @@ def run_attempt(args):
         routing = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
     result = {
         "kind": "route",
-        "backend": {"name": args.backend, **backend["version"]()},
+        "backend": {"name": args.backend, **backend_version},
         "input": {"project": project, "board": board_name, "fingerprint": fingerprint,
                   **attempt["source"], "baseline": attempt["baseline"]},
         "settings": settings,
@@ -696,7 +720,10 @@ def run_attempt(args):
         "finished_utc": common.now_utc().isoformat(),
     }
     result["exit_code"] = overall_exit(proc, routing, validation)
+    result["ledger"] = {k: gate.get(k) for k in ("fingerprint", "short", "forced", "forced_over",
+                                                 "upstream_changed_since", "previous_runs", "notes")}
     common.write_json(run_dir / "result.json", result)
+    ledger.append(out_path("ledger.jsonl"), gate, result)
     (run_dir / "RESULT.md").write_text(render_result(result))
     print_result(result)
     return result
@@ -744,11 +771,15 @@ def render_result(r):
 
 # ------------------------------------------------------------------ processes
 
-def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, grace=None):
+def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, grace=None, monitor=None):
     """Run a backend with a wall-clock budget. At the budget the stop file (if the
-    backend supports one) asks for a clean stop; after a grace period it is killed."""
+    backend supports one) asks for a clean stop; after a grace period it is killed.
+    A stall.Monitor tails the log for heartbeats and, with a stall limit, treats
+    no progress for that long like the budget (with a grace of at most the limit)."""
     env = common.tool_env()
     env.update(env_extra or {})
+    if monitor is not None:
+        env.setdefault("PYTHONUNBUFFERED", "1")  # line-timely log for the heartbeat tail
     grace = grace if grace is not None else max(30, budget // 5)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     rec = {"argv": [str(a) for a in argv], "cwd": common.rel(cwd), "log": common.rel(log_path),
@@ -761,9 +792,13 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
             rec.update(exit_code=None, error="executable_not_found", detail=str(e), duration_s=0)
             return rec
         try:
-            proc.wait(timeout=budget)
+            (monitor.wait(proc, budget) if monitor is not None else proc.wait(timeout=budget))
         except subprocess.TimeoutExpired:
-            rec["budget_reached"] = True
+            if monitor is not None and monitor.stalled:
+                rec["stalled"] = True
+                grace = min(grace, max(15, monitor.stall_s))
+            else:
+                rec["budget_reached"] = True
             if stop_file:
                 Path(stop_file).touch()
                 rec["stop_requested"] = True
@@ -777,6 +812,9 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
                     proc.kill()
                     proc.wait()
                 rec["killed"] = True
+    if monitor is not None:
+        monitor.finish()
+        rec.update(monitor.summary())
     rec["exit_code"] = proc.returncode
     rec["duration_s"] = round(time.monotonic() - start, 3)
     rec["output_tail"] = log_path.read_text(errors="replace")[-4000:]
@@ -872,7 +910,7 @@ def krt_route(work, board, scope, facts, settings):
     if settings["mode"] == "all":
         argv += ["--nets", "*"]
     else:
-        argv += ["--nets", *scope]
+        argv += ["--nets", *netnames.krt_patterns(scope, facts["nets"])]  # exact, argparse-safe
     argv += settings["backend_args"]
     env.update(settings.get("backend_env") or {})
     locks = None
@@ -885,7 +923,8 @@ def krt_route(work, board, scope, facts, settings):
         if lr["exit_code"] != 0:
             return {"status": FAIL, "reasons": [f"could not lock existing copper (see {lr['log']})"],
                     "commands": [common.public(lr)], "exit_code": None, "output_board": None}
-    rec = run_budgeted(argv, work, work / "krt.log", settings["budget_s"], env, stop_file=stop)
+    rec = run_budgeted(argv, work, work / "krt.log", settings["budget_s"], env, stop_file=stop,
+                       monitor=stall.Monitor("krt", work / "krt.log", settings.get("stall_s")))
     text = Path(work / "krt.log").read_text(errors="replace")
     report = load_json(summary) or tagged_json(text, "JSON_SUMMARY")
     proc = {"status": PASS, "reasons": [], "exit_code": rec.get("exit_code"), "commands": [rec],
@@ -904,6 +943,9 @@ def krt_route(work, board, scope, facts, settings):
         proc["backend_report"]["project_writes"] = tagged_json(text, "PROJECT_WRITES_JSON")
     if rec.get("error"):
         proc.update(status=FAIL, reasons=[f"KRT could not start: {rec.get('detail')}"])
+    elif rec.get("killed") and rec.get("stalled"):
+        proc.update(status=FAIL, reasons=[f"KRT {stall.stall_reason(rec)} (--stall {settings['stall_s']}), did not "
+                                          "stop at the stop file, and was killed"])
     elif rec.get("killed"):
         last = [l for l in text.splitlines() if l.strip()][-1:] or [""]
         proc.update(status=FAIL, reasons=[f"KRT exceeded the {settings['budget_s']} s budget, did not stop at the "
@@ -915,7 +957,9 @@ def krt_route(work, board, scope, facts, settings):
     elif rec["exit_code"] != 0:
         proc.update(status=FAIL, reasons=[f"KRT exited {rec['exit_code']}"])
     if rec.get("stop_requested") and not rec.get("killed"):
-        proc["reasons"].append("budget reached: KRT stopped early and wrote the board as it stood")
+        proc["reasons"].append(f"KRT {stall.stall_reason(rec)}: stopped early and wrote the board as it stood"
+                               if rec.get("stalled") else
+                               "budget reached: KRT stopped early and wrote the board as it stood")
     if proc["status"] == PASS and not output.exists():
         proc.update(status=FAIL, reasons=proc["reasons"] + ["KRT wrote no output board"])
     if locks is not None and proc["status"] == PASS:
@@ -1060,7 +1104,8 @@ def freerouting_route(work, board, scope, facts, settings):
         argv.append("--router.autorouter.ignore_net_classes=" + ",".join(bridge["ignored_classes"]))
     argv += settings["backend_args"]
     rec = run_budgeted(argv, work, work / "freerouting.log", budget + 60,
-                       dict(OFFLINE_ENV, **(settings.get("backend_env") or {})), grace=30)
+                       dict(OFFLINE_ENV, **(settings.get("backend_env") or {})), grace=30,
+                       monitor=stall.Monitor("freerouting", work / "freerouting.log", settings.get("stall_s")))
     proc["commands"].append(rec)
     proc["exit_code"] = rec.get("exit_code")
     report = load_json(res)
@@ -1085,7 +1130,9 @@ def freerouting_route(work, board, scope, facts, settings):
         # running afterwards. A session it reported saved before the kill is complete
         # and is graded like any other; without one there is no candidate.
         if not saved:
-            proc.update(status=FAIL, reasons=["Freerouting exceeded the budget and was killed"])
+            proc.update(status=FAIL, reasons=[f"Freerouting {stall.stall_reason(rec)} and was killed"
+                                              if rec.get("stalled") else
+                                              "Freerouting exceeded the budget and was killed"])
             return proc
         proc["reasons"] = ["Freerouting saved its session at the job timeout but did not exit; "
                            "killed after the grace period (session graded)"]
@@ -1207,7 +1254,8 @@ def update():
         return 1
     log(f"[update] {skills.sync(KRT_DIR, KRT_VENV)}")  # krt-* skills follow the installed KRT
     log("[update] re-running the routing integration checks")
-    return smoke()
+    from . import corpus  # real-board gate after smoke; regressions reported in update.json, never rolled back
+    return corpus.after_update(out_path("update") / "update.json", smoke())
 
 
 # ------------------------------------------------------------------- doctor
@@ -1279,6 +1327,12 @@ def doctor():
         except Exception as e:
             add("Freerouting latest release", NOT_RUN, f"GitHub unreachable: {e}", required=False)
 
+    from . import canary
+    can = canary.run_canary(quick=True, dest=out_path("doctor", "canary"))
+    for c in can["checks"]:
+        add(f"canary {c['check']} (awkward net names)", c["status"],
+            "; ".join(c.get("problems", [])[:3]) or "Specctra class split and DSN export/parse round-trip")
+
     capabilities = {
         "krt": {"interface": "CLI (py_router/route.py), headless, no KiCad editor needed",
                 "net_selection": "names (fnmatch, !exclude); classes expanded by the wrapper",
@@ -1319,7 +1373,8 @@ def compare(run_dirs):
             sys.exit(f"{d}: no result.json")
         fps.add(r["input"]["fingerprint"])
         st = r["routing"].get("stats", {})
-        rows.append({"run": r["run_dir"], "backend": f"{r['backend']['name']} {r['backend'].get('version')}",
+        rows.append({"run": r["run_dir"], "fp": ledger.from_result(r)[0][:12],
+                     "backend": f"{r['backend']['name']} {r['backend'].get('version')}",
                      "exit": r["exit_code"], "process": r["process"]["status"], "routing": r["routing"]["status"],
                      "unconnected": r["routing"].get("unconnected_in_scope"),
                      "validation": r["validation"]["status"],
@@ -1334,7 +1389,7 @@ def compare(run_dirs):
     dest = out_path("compare", common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ"))
     dest.mkdir(parents=True)
     common.write_json(dest / "compare.json", out)
-    hdr = ["backend", "exit", "routing", "unconnected", "validation", "new_violations", "new_vias",
+    hdr = ["fp", "backend", "exit", "routing", "unconnected", "validation", "new_violations", "new_vias",
            "new_length_mm", "backend_s"]
     log("| " + " | ".join(hdr) + " | run |")
     log("|" + "---|" * (len(hdr) + 1))
@@ -1601,6 +1656,12 @@ def main(argv=None):
                     help="existing (default): all input copper must survive; locked: only locked copper, "
                          "the backend may rip up unlocked copper")
     rp.add_argument("--label", help="run directory name under OUT/runs/<project>/")
+    rp.add_argument("--stall", type=int, metavar="SECONDS",
+                    help="stop the backend when its log shows no progress for SECONDS (default off)")
+    rp.add_argument("--force", action="store_true",
+                    help="run even if the ledger shows this exact attempt already failed (recorded as forced)")
+    rp.add_argument("--canary", action="store_true",
+                    help="first run the awkward-net-name canary for this backend; refuse (exit 4) if it fails")
     rp.add_argument("--backend-arg", action="append", metavar="ARG",
                     help="extra argument passed to the backend verbatim (recorded; grading is unaffected)")
     rp.add_argument("--backend-env", action="append", metavar="KEY=VALUE",
@@ -1620,6 +1681,10 @@ def main(argv=None):
     pp.add_argument("--to", default="reports/routing", help="destination root (default reports/routing); "
                                                             "evidence goes to <to>/<project>/<label>/")
     sub.add_parser("update", help="update both backends through their upstream channels, then smoke")
+    cn = sub.add_parser("canary", help="awkward-net-name round trip through each backend on the fixture")
+    cn.add_argument("--backend", choices=["all", *sorted(BACKENDS)], default="all")
+    from . import corpus
+    corpus.add_parser(sub, add_input_args)
     sm = sub.add_parser("smoke", help="routing integration tests on the bundled fixture")
     sm.add_argument("--publish", metavar="DIR", help="also copy the structured evidence to DIR")
     a = ap.parse_args(argv)
@@ -1636,6 +1701,11 @@ def main(argv=None):
         return cmd_validate(a)
     if a.cmd == "audit":
         return audit(a)
+    if a.cmd == "canary":
+        from . import canary
+        return canary.cmd_canary(a)
+    if a.cmd == "corpus":
+        return corpus.cmd_corpus(a)
     if a.cmd == "publish":
         run_dir = Path(a.run_dir).resolve()
         r = load_json(run_dir / "result.json")

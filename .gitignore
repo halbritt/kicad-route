@@ -9,3 +9,5 @@ __pycache__/
 *.kicad_prl
 fp-info-cache
 *-backups/
+# Real-board corpus (kicad-route corpus add): local snapshots, never committed
+/corpus/

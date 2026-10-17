@@ -13,7 +13,7 @@ caught by the grading rather than trusted.
 
 The result is structured for an agent to read and act on: process, routing and
 validation are reported separately, with exit codes 0 (complete and valid), 1 (backend
-failed), 2 (valid but incomplete) and 3 (fails validation).
+failed), 2 (valid but incomplete), 3 (fails validation) and 4 (refused before routing).
 
 ## Install
 
@@ -64,6 +64,9 @@ route:
 - [`docs/routing.md`](docs/routing.md) — backends and what the adapters switch off,
   run layout and result semantics, native grading, preservation checks, `audit`,
   installation and updates, decisions, known limitations, fixture evidence.
+- [`docs/hygiene.md`](docs/hygiene.md) — run hygiene: `--stall` progress watchdog,
+  the run ledger (exit 4 on an exact repeat of a failed attempt), the awkward-net-name
+  canary, and the real-board `corpus` gate that `update` runs.
 - [`skills/kicad-route/SKILL.md`](skills/kicad-route/SKILL.md) — the agent-facing guide,
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`).

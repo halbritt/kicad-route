@@ -48,6 +48,8 @@ first.
 | `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured evidence (not the board) to `<DIR>/<project>/<label>/` for committing |
 | `kicad-route update` | Move both backends to their latest upstream release, regenerate the `krt-*` skills, run `smoke` |
 | `kicad-route smoke` | Integration tests on the bundled fixture board |
+| `kicad-route canary [--backend B]` | Awkward net names (`Net-(BT1-+)`, `/a b/c`, `-VIN(1)`, ...) through each backend's round trip on the fixture |
+| `kicad-route corpus add\|check\|list` | Real-board regression gate: snapshots with baseline outcomes, re-run after backend updates (`update` runs `check`) |
 
 `run` options:
 
@@ -77,6 +79,14 @@ first.
     `KICAD_*` knobs).
   - Both are recorded in the result; grading is unaffected.
 - `--label NAME` names the run directory.
+- **Hygiene** (docs/hygiene.md):
+  - `--stall SECONDS` stops the backend when its log shows no progress for that
+    long. The reason then reads `stalled in <phase> at <metric> for N s`;
+    `process.last_phase` and `work/heartbeat.jsonl` show where it was.
+  - The run ledger (`OUT/ledger.jsonl`) refuses an exact repeat of an attempt
+    that already failed (exit 4, naming the earlier run). Change something, or
+    pass `--force`.
+  - `--canary` runs the awkward-net-name canary first.
 
 ## Reading a result
 
@@ -93,6 +103,8 @@ Exit codes:
 - 1: process failure (no candidate).
 - 2: valid but incomplete.
 - 3: fails validation.
+- 4: refused before routing (ledger: identical attempt already failed; or
+  `--canary` failed).
 
 Also read:
 
@@ -124,6 +136,8 @@ Also read:
 | `starved_thermal` new | new tracks crowd the thermal spokes of a zone-connected pad. It's a design call (stitching via beside the pad, or a different layer); never lower `min_resolved_spokes` |
 | `protected_copper` / `footprints` / `zones` FAIL | backend or bridge defect. Report it with the run directory; do not adopt the candidate |
 | `new_copper_netclass_geometry` FAIL | the backend narrowed a conductor below its net class. Do not adopt; report the KRT/Freerouting version |
+| `process FAIL` "stalled in <phase> at <metric>" | the backend stopped making progress there. A rescue search on walled-off nets: `--backend-env KICAD_NET_RESCUE=0` or a different scope. A silent KiCad leg (refill, oracle): a larger `--stall` |
+| exit 4 "identical attempt ... already finished" | the ledger: the same input, backend build and settings already failed. Change the attempt; `--force` only to check for nondeterminism |
 | same failure twice with no new evidence | change approach: the other backend, a different scope, or inspect the board (load `krt-diagnose-routing-failures`) |
 
 Compare attempts from the same input with `kicad-route compare`. For deeper diagnosis
