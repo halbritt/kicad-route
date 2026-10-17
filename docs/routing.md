@@ -291,9 +291,12 @@ git-ignored.
 - KRT honours only part of `.kicad_dru` (it logs skipped rules; they appear under
   `unsupported`). On the fixture, its default attempt violates a Power-to-signal 0.4 mm
   rule; `--default-clearance 0.4` produces a valid candidate.
-- KRT's net rescue keeps searching unroutable nets and does not check the stop file
-  inside that loop; on a blocked board it exceeds the budget and is killed (process
-  FAIL, no candidate). `--backend-env KICAD_NET_RESCUE=0` returns a partial candidate.
+- KRT checks the stop file only between nets of its main pass. Its later passes (net
+  rescue, Phase 3, plane finalize, final reconciliation) ignore it. On a blocked board,
+  the rescue keeps searching after the budget until the grace period ends, and then
+  KRT is killed (process FAIL, no candidate). `--backend-env KICAD_NET_RESCUE=0`
+  (or `KICAD_PLANE_FINALIZE=0`) returns a partial candidate. See docs/hygiene.md,
+  "Budget overrun".
 - KRT exits 0 even when nets fail; the wrapper ignores its exit code for completion.
 - Freerouting approximates pad shapes and can land a few micrometres inside a clearance
   (fixture: 0.3928 mm against a 0.4 mm rule); `--clearance-margin 0.01` resolved it.

@@ -76,6 +76,7 @@ from . import skills
 from . import spokes  # --reserve-spokes / `kicad-route spokes` (docs/spokes.md)
 from . import ledger
 from . import netnames
+from . import procgroup
 from . import stall
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot
 
@@ -865,7 +866,10 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
     """Run a backend with a wall-clock budget. At the budget the stop file (if the
     backend supports one) asks for a clean stop; after a grace period it is killed.
     A stall.Monitor tails the log for heartbeats and, with a stall limit, treats
-    no progress for that long like the budget (with a grace of at most the limit)."""
+    no progress for that long like the budget (with a grace of at most the limit).
+    The backend leads its own process group: terminate/kill signal the whole group,
+    and whatever it leaves running in the group after it exits is killed too
+    (procgroup.py), so no backend child outlives the call."""
     env = common.tool_env()
     env.update(env_extra or {})
     if monitor is not None:
@@ -877,36 +881,45 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
     start = time.monotonic()
     with open(log_path, "wb") as out:
         try:
-            proc = subprocess.Popen([str(a) for a in argv], cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT)
+            proc = subprocess.Popen([str(a) for a in argv], cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT,
+                                    **procgroup.POPEN_KW)
         except FileNotFoundError as e:
             rec.update(exit_code=None, error="executable_not_found", detail=str(e), duration_s=0)
             return rec
         try:
-            (monitor.wait(proc, budget) if monitor is not None else proc.wait(timeout=budget))
-        except subprocess.TimeoutExpired:
-            if monitor is not None and monitor.stalled:
-                rec["stalled"] = True
-                grace = min(grace, max(15, monitor.stall_s))
-            else:
-                rec["budget_reached"] = True
-            if stop_file:
-                Path(stop_file).touch()
-                rec["stop_requested"] = True
             try:
-                proc.wait(timeout=grace if stop_file else 5)
+                (monitor.wait(proc, budget) if monitor is not None else proc.wait(timeout=budget))
             except subprocess.TimeoutExpired:
-                proc.terminate()
+                if monitor is not None and monitor.stalled:
+                    rec["stalled"] = True
+                    grace = min(grace, max(15, monitor.stall_s))
+                else:
+                    rec["budget_reached"] = True
+                if stop_file:
+                    Path(stop_file).touch()
+                    rec["stop_requested"] = True
+                rec["stop_s"] = round(time.monotonic() - start, 3)
                 try:
-                    proc.wait(timeout=10)
+                    proc.wait(timeout=grace if stop_file else 5)
                 except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait()
-                rec["killed"] = True
+                    procgroup.terminate(proc)
+                    rec["killed"] = True
+        except BaseException:
+            # Ctrl-C or any other error here: the new session no longer gets the
+            # terminal's SIGINT, so the group must not be left running.
+            procgroup.terminate(proc, term_timeout=5)
+            procgroup.reap_leftovers(proc, term_timeout=2)
+            raise
+        left = procgroup.reap_leftovers(proc)
+        if left:
+            rec["leftover_children_killed"] = left
     if monitor is not None:
         monitor.finish()
         rec.update(monitor.summary())
     rec["exit_code"] = proc.returncode
     rec["duration_s"] = round(time.monotonic() - start, 3)
+    if "stop_s" in rec:
+        rec["stop_to_exit_s"] = round(rec["duration_s"] - rec["stop_s"], 3)   # the overrun past the stop
     rec["output_tail"] = log_path.read_text(errors="replace")[-4000:]
     return rec
 
@@ -944,6 +957,26 @@ KRT_ENV = {
     "KICAD_CLI": "/usr/bin/kicad-cli",
 }
 KRT_PROTECT_EXISTING_ENV = {"KICAD_RIP_PREEXISTING": "0", "KICAD_FINALIZE_RIP": "0"}
+# KRT checks KICAD_STOP_FILE only between nets of its main single-ended pass. The
+# passes after it (reroute, Phase 3, net rescue, terminal escalation, plane
+# finalize, final reconciliation) never look at it, so a stop requested there is
+# honoured only by the kill after the grace period. Their kill switches are the
+# caller's choice (--backend-env), never forced: switching a pass off changes the
+# attempt, and neither knob touches a rule (docs/hygiene.md, "Budget overrun").
+KRT_OVERRUN_KNOBS = {"net rescue": "KICAD_NET_RESCUE=0", "plane finalize": "KICAD_PLANE_FINALIZE=0",
+                     "oracle recheck": "KICAD_PLANE_FINALIZE=0", "final reconciliation": "KICAD_PLANE_FINALIZE=0"}
+
+
+def krt_overrun_hint(phase, stalled=False):
+    """What to change when KRT ignored the stop file in `phase` and was killed."""
+    more = "a larger --stall" if stalled else "a larger --budget"
+    knob = KRT_OVERRUN_KNOBS.get(phase)
+    if knob:
+        return f"retry with {more}, or --backend-env {knob} (KRT's {phase} ignores the stop file)"
+    return (f"retry with {more}; KRT checks the stop file only between nets of its main pass, and "
+            "--backend-env KICAD_NET_RESCUE=0 / KICAD_PLANE_FINALIZE=0 switch off its longest later passes")
+
+
 KRT_REQUIRED_FLAGS = KRT_FLAGS[::2] + KRT_PROTECT_EXISTING_FLAGS + ["--json-out", "--nets", "--output",
                                                                      "--max-iterations"]
 
@@ -1057,12 +1090,13 @@ def krt_route(work, board, scope, facts, settings):
         proc.update(status=FAIL, reasons=[f"KRT could not start: {rec.get('detail')}"])
     elif rec.get("killed") and rec.get("stalled"):
         proc.update(status=FAIL, reasons=[f"KRT {stall.stall_reason(rec)} (--stall {settings['stall_s']}), did not "
-                                          "stop at the stop file, and was killed"])
+                                          "stop at the stop file, and was killed; "
+                                          + krt_overrun_hint(rec["stall"]["phase"], stalled=True)])
     elif rec.get("killed"):
         last = [l for l in text.splitlines() if l.strip()][-1:] or [""]
         proc.update(status=FAIL, reasons=[f"KRT exceeded the {settings['budget_s']} s budget, did not stop at the "
                                           f"stop file, and was killed (last output: {last[0].strip()[:120]!r}); "
-                                          "retry with a larger --budget or --backend-env KICAD_NET_RESCUE=0"])
+                                          + krt_overrun_hint(rec.get("last_phase"))])
     elif rec["exit_code"] == 3:
         proc["reasons"].append("KRT --strict-sizes: it reports delivering geometry below a requirement "
                                "(candidate kept for grading)")

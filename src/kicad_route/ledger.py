@@ -146,9 +146,10 @@ def discard_run_dir(run_dir):
     shutil.rmtree(run_dir, ignore_errors=True)
     latest = parent / "latest"
     if latest.is_symlink() and not latest.exists():
-        latest.unlink()
         remaining = sorted(p.name for p in parent.iterdir() if p.is_dir() and not p.is_symlink())
         if remaining:
-            latest.symlink_to(remaining[-1])
+            common.point_latest(latest, remaining[-1])
+        else:
+            latest.unlink(missing_ok=True)
     if parent.exists() and not any(parent.iterdir()):
         parent.rmdir()
