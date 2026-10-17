@@ -80,7 +80,9 @@ first.
 - **Thermal spokes:** `--reserve-spokes [N]` keeps new tracks and vias out of N
   spoke corridors per zone-connected pad while routing; the corridors are removed
   before grading (docs/spokes.md). `kicad-route spokes <run>` names the new copper
-  that starved each pad.
+  that starved each pad. `kicad-route spokes --board B --verify` checks, with KiCad's
+  own zone filler, that the board's corridors really protect their spokes (exit 3 if
+  one does not; then the reservation cannot be trusted on that board).
 - **Decoupling cells (read-only):** `kicad-route decoupling --board B.kicad_pcb` or
   `kicad-route decoupling <run>` reports per IC power/ground pin pair and bypass
   capacitor whether the copper runs pin → capacitor → plane or the pin has its own
