@@ -25,11 +25,11 @@ jsonschema.Draft202012Validator(schema).validate(json.load(open(run_dir + "/resu
 ## Calling kicad-route from a program
 
 - **Machine mode.** Pass `--json` to `run`, `validate`, `campaign`, `blocked`, `audit`,
-  `floor` or `doctor`. stdout then carries exactly one JSON object on one line: the
-  command's record (the same content as the file it wrote) or a refusal record. All
-  progress lines, and the output of every child process, go to stderr. Do not parse the
-  human lines; they can change in any release. `--json` on another command is a usage
-  refusal.
+  `floor`, `doctor`, `decoupling` or `barrier`. stdout then carries exactly one JSON
+  object on one line: the command's record (the same content as the file it wrote) or
+  a refusal record. All progress lines, and the output of every child process, go to
+  stderr. Do not parse the human lines; they can change in any release. `--json` on
+  another command is a usage refusal.
 - **Options anywhere.** `--out DIR` and `--json` are accepted before or after the
   subcommand (`kicad-route --out D run ...` and `kicad-route run ... --out D` are the
   same). When `--out` is given twice, the last one wins.
@@ -79,6 +79,9 @@ Every top-level record carries `"schema": "kicad-route/<kind>/<major>"` and `"ki
 | `audit` | `kicad-route/audit/1` | `OUT/audit/<project>/<old>..<new>/audit.json` | `audit` | none yet |
 | `floor` | `kicad-route/floor/1` | `OUT/floor/<project>/floor.json` | `floor` | none yet |
 | `doctor` | `kicad-route/doctor/1` | `OUT/doctor/doctor.json` | `doctor` | none yet |
+| `decoupling` | `kicad-route/decoupling/1` | `OUT/decoupling/<board>/decoupling.json` | `decoupling --board B` | none yet |
+| `decoupling-run` | `kicad-route/decoupling-run/1` | `<run_dir>/decoupling.json` | `decoupling RUN_DIR` | none yet |
+| `barrier-preview` | `kicad-route/barrier-preview/1` | `<run_dir>/barrier-preview/barrier-plan.json` | `barrier RUN_DIR` | none yet |
 
 For the kinds without a JSON Schema only `schema`, `kind` and `exit_code` are stable
 for now.
@@ -121,6 +124,12 @@ Other commands:
 | `determinism` | the repeats are reproducible | `--record` could not store the verdict | not reproducible | refused |
 | `doctor` | every required check passes | a required check fails | | refused |
 | `compare` | the runs share one input | the inputs differ | | refused (a run without `result.json`) |
+| `decoupling` | the report was written | the analysis ran and failed (the pcbnew script failed, or the board changed while analysed); the record carries `error` | | refused (not a run, a run without its reference or candidate board, no such board, a board KiCad cannot load) |
+| `barrier` | at least one barrier was injected into the preview copy | the analysis ran and failed (locating the collisions failed, or every barrier lies on existing copper); the record carries `reasons` | | refused (not a graded run, nothing to barrier, a candidate KiCad cannot load; `state` when the barriers cannot be injected into the preview copy) |
+
+For `decoupling` and `barrier`, exit 1 always comes with its record (the file in the
+table above, and the `--json` object); everything that stops them before the analysis
+is a refusal.
 
 ## Refusals (exit 4)
 
@@ -131,10 +140,10 @@ input errors, the ledger and the canary pre-flight.
 | `reason_class` | Raised when |
 |---|---|
 | `usage` | the command line is wrong: an unknown option, a bad value, a missing argument, `--backend-env` without `=`, `--library-dir` without `=`, `campaign --rounds` below 0, `corpus add` without a valid `--name`, `blocked` or `decoupling` without (or with both) a run and `--board`, `decoupling --radius` not positive, `--json` on a command without machine mode |
-| `input` | the project, run or revision named is not usable: `--dir` is not a directory, not exactly one board, `--rev` outside a git repository or not a commit, the board has no `.kicad_pro` of its own name (KiCad would grade with its defaults; `run` and `audit`), the input board cannot be read, the net selection matches no nets or would not mean what it says (`--nets '!RESET'` on a board with a net named `!RESET`), `validate`/`blocked`/`spokes`/`barrier`/`compare`/`publish` given something that is not a run, `blocked --board` given something that is not a board, a `validate --against` chain that does not descend from the origin, `floor` outside a git repository |
+| `input` | the project, run or revision named is not usable: `--dir` is not a directory, not exactly one board, `--rev` outside a git repository or not a commit, the board has no `.kicad_pro` of its own name (KiCad would grade with its defaults; `run` and `audit`), the input board cannot be read, the net selection matches no nets or would not mean what it says (`--nets '!RESET'` on a board with a net named `!RESET`), `validate`/`blocked`/`spokes`/`decoupling`/`barrier`/`compare`/`publish` given something that is not a run, `blocked --board` given something that is not a board, `decoupling` given a run without its reference or candidate board, `decoupling --board` given a missing board or one KiCad cannot load, `barrier` given a run with nothing to barrier (no graded candidate, no copper collision made by new copper, no locatable collision) or whose candidate KiCad cannot load, a `validate --against` chain that does not descend from the origin, `floor` outside a git repository |
 | `ledger` | the run ledger has this exact attempt already failed (`--force` repeats it; docs/hygiene.md) |
 | `canary` | `run --canary` and the awkward-net-name canary failed |
-| `state` | kicad-route's own state is in the way: `--run-dir` exists, the corpus entry exists; with `--require-readonly-state` (or `KICAD_ROUTE_REQUIRE_READONLY_STATE=1`) the state directory is missing, holds no backend, is not the directory its `manifest.json` describes or has drifted from it, or is writable, and `update` / `corpus add` (which write it) refuse ([sandbox.md](sandbox.md)) |
+| `state` | kicad-route's own state is in the way: `--run-dir` exists, the corpus entry exists; with `--require-readonly-state` (or `KICAD_ROUTE_REQUIRE_READONLY_STATE=1`) the state directory is missing, holds no backend, is not the directory its `manifest.json` describes or has drifted from it, or is writable, and `update` / `corpus add` (which write it) refuse ([sandbox.md](sandbox.md)); `barrier` could not inject its keepouts into the preview copy of the run's reference (`RUN_DIR/barrier-preview/`) |
 
 The record (`schemas/refusal-1.json`):
 

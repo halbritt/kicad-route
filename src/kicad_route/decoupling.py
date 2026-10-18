@@ -14,7 +14,11 @@ KiCad's own connectivity, on the board with its zones refilled in memory.
 
 Never modifies a board: the script never saves, and the board's SHA-256 is checked
 before and after (a change fails the command). Advisory only: the result is not
-part of a run's verdict. Exit 0 report written, 1 analysis failed. docs/decoupling.md.
+part of a run's verdict. Exit 0 report written; 1 the analysis ran and failed (the
+record, with `error`, is written where the report would be); 4 refused before any
+analysis (no such board, KiCad cannot load it, not a routing run, a run without a
+reference or candidate board: contract.refuse, reason_class input). --json prints the
+record. docs/decoupling.md.
 """
 import json
 from pathlib import Path
@@ -24,6 +28,7 @@ from . import contract
 
 SCRIPT = Path(__file__).resolve().parent / "kicad" / "decoupling.py"
 TOPOLOGIES = ("respects", "bypassed", "incomplete")
+LOAD_ERROR = "DECOUPLING_LOAD_ERROR:"  # kicad/decoupling.py: the board did not load (exit 3)
 
 
 def log(msg):
@@ -31,15 +36,19 @@ def log(msg):
 
 
 def analyze(board, out_json, opts, log_path):
-    """Run the pcbnew analysis of `board` -> (report or None, command record, reason)."""
+    """Run the pcbnew analysis of `board` -> (report or None, command record, reason).
+    A board that is missing or that KiCad cannot load is refused (input): no analysis ran."""
     board = Path(board).resolve()
     if not board.is_file():
-        return None, None, f"{common.rel(board)}: no such board"
+        contract.refuse("input", f"{common.rel(board)}: no such board")
     before = common.sha256(board)
+    Path(out_json).unlink(missing_ok=True)  # never read an earlier run's report as this one's
     rec = common.run_cmd([common.PCBNEW_PYTHON, SCRIPT, board, out_json, json.dumps(opts)],
                          board.parent, log_path, timeout=900)
     if common.sha256(board) != before:  # fail closed: the analyzer must never write the board
         return None, rec, f"{common.rel(board)} changed during analysis"
+    if rec["exit_code"] == 3 and LOAD_ERROR in rec["output"]:
+        contract.refuse("input", f"{common.rel(board)}: KiCad could not load the board (see {rec['log']})")
     report = common.load_json(out_json) if rec["exit_code"] == 0 else None
     if report is None:
         return None, rec, f"analysis failed (see {rec['log']})"
@@ -110,41 +119,66 @@ def _options(args):
     return opts
 
 
+def _record(kind, rc, **fields):
+    return {"schema": contract.schema_id(kind), "kind": kind, "exit_code": rc, **fields}
+
+
+def _failed(kind, json_path, md_path, why, **fields):
+    """The analysis ran and failed: exit 1 with a record where the report would be."""
+    log(f"[decoupling] {why}")
+    rec = _record(kind, 1, error=why, **fields)
+    common.write_json(json_path, rec)
+    md_path.unlink(missing_ok=True)  # an earlier report's .md would contradict the record
+    log(f"[decoupling] {common.rel(json_path)}")
+    return 1, rec
+
+
 def board_command(board, opts):
+    """-> (exit code, record)."""
     board = Path(board).resolve()
+    if not board.is_file():
+        contract.refuse("input", f"{common.rel(board)}: no such board")
     out = common.out_dir() / "decoupling" / board.stem
     out.mkdir(parents=True, exist_ok=True)
+    (out / "decoupling.md").unlink(missing_ok=True)  # rewritten below; never left beside a refusal
     report, rec, reason = analyze(board, out / "decoupling.json", opts, out / "decoupling.log")
     if report is None:
-        log(f"[decoupling] {reason}")
-        return 1
-    report["command"] = common.public(rec)
+        return _failed("decoupling", out / "decoupling.json", out / "decoupling.md", reason,
+                       board=common.rel(board), command=rec and common.public(rec))
+    report = {**_record("decoupling", 0), **report, "command": common.public(rec)}
     common.write_json(out / "decoupling.json", report)
     (out / "decoupling.md").write_text(markdown(report, f"Decoupling cells: {board.name}"))
     _summary(report)
     log(f"[decoupling] {common.rel(out / 'decoupling.json')}  {common.rel(out / 'decoupling.md')}")
-    return 0
+    return 0, report
 
 
 def run_command(run_dir, opts):
+    """-> (exit code, record)."""
     run_dir = Path(run_dir).resolve()
     attempt = common.load_json(run_dir / "attempt.json")
-    if attempt is None:
-        log(f"[decoupling] {run_dir}: not a routing run (attempt.json missing)")
-        return 1
+    if not isinstance(attempt, dict) or not all(attempt.get(k) for k in ("reference_dir", "candidate_dir", "board")):
+        contract.refuse("input", f"{common.rel(run_dir)}: not a routing run (attempt.json missing or incomplete)")
+    boards = {role: run_dir / attempt[f"{role}_dir"] / attempt["board"] for role in ("reference", "candidate")}
+    for role, board in boards.items():
+        if not board.is_file():
+            contract.refuse("input", f"{common.rel(run_dir)}: no {role} board ({common.rel(board)}); "
+                                     "a run whose backend failed has no candidate")
     ddir = run_dir / "decoupling"
     ddir.mkdir(exist_ok=True)
+    for f in ("decoupling.json", "decoupling.md"):  # rewritten below; never left beside a refusal
+        (run_dir / f).unlink(missing_ok=True)
     reports = {}
-    for role, sub in (("reference", attempt["reference_dir"]), ("candidate", attempt["candidate_dir"])):
-        board = run_dir / sub / attempt["board"]
+    for role, board in boards.items():
         report, rec, reason = analyze(board, ddir / f"{role}.json", opts, ddir / f"{role}.log")
         if report is None:
-            log(f"[decoupling] {role}: {reason}")
-            return 1
+            return _failed("decoupling-run", run_dir / "decoupling.json", run_dir / "decoupling.md",
+                           f"{role}: {reason}", run_dir=common.rel(run_dir), **reports,
+                           command=rec and common.public(rec))
         report["command"] = common.public(rec)
         reports[role] = report
     changed = changes(reports["reference"], reports["candidate"])
-    result = {"kind": "decoupling-run", "run_dir": common.rel(run_dir), **reports, "changed": changed}
+    result = _record("decoupling-run", 0, run_dir=common.rel(run_dir), **reports, changed=changed)
     common.write_json(run_dir / "decoupling.json", result)
     md = markdown(reports["candidate"], f"Decoupling cells: candidate of {run_dir.name}")
     md += "\n## Changed by the candidate\n\n" + ("\n".join(
@@ -155,7 +189,7 @@ def run_command(run_dir, opts):
     _summary(reports["candidate"], "candidate ")
     log(f"[decoupling] cells changed by the candidate: {len(changed)}")
     log(f"[decoupling] {common.rel(run_dir / 'decoupling.json')}  {common.rel(run_dir / 'decoupling.md')}")
-    return 0
+    return 0, result
 
 
 def _summary(report, prefix=""):
@@ -182,6 +216,7 @@ def add_parser(sub):
 
 
 def cmd(args):
+    """-> (exit code, record)."""
     if args.radius <= 0:
         contract.refuse("usage", "kicad-route decoupling: --radius must be positive")
     if args.board and args.run_dir:

@@ -101,12 +101,15 @@ records them; one shared definition):
   `kicad-route decoupling <run>` reports per IC power/ground pin pair and bypass
   capacitor whether the copper runs pin → capacitor → plane or the pin has its own
   plane via (`bypassed`); for a run it lists cells the candidate changed
-  (docs/decoupling.md). Advisory: it never changes a verdict.
+  (docs/decoupling.md). Advisory: it never changes a verdict. Exit 1 means the
+  analysis failed (`decoupling.json` holds `error`); a bad board or run is refused
+  (exit 4).
 - **Collision barriers:** `--barrier-from <run>` routes the same input again with a
   small no-track/no-via keepout where that run's new copper collided (its new
   `clearance`, `tracks_crossing`, `shorting_items`, `hole_clearance` or
   `copper_edge_clearance` findings); the keepouts are removed before grading
-  (docs/barrier.md). `kicad-route barrier <run>` previews them.
+  (docs/barrier.md). `kicad-route barrier <run>` previews them (exit 4 when the run
+  has nothing to barrier, 1 when no barrier could be placed).
 - **Tightening:**
   - `--default-clearance MM` (Default net class, both backends).
   - `--clearance-margin MM` (Freerouting only).
@@ -119,8 +122,8 @@ records them; one shared definition):
 - `--label NAME` names the run directory; `--run-dir PATH` uses exactly `PATH`
   (must not exist; no `latest` link).
 - **Machine mode:** `--json` (on `run`, `validate`, `campaign`, `blocked`, `audit`,
-  `floor`, `doctor`) prints exactly one JSON record on stdout (the `result.json`
-  content, or a refusal) and sends progress to stderr. Read that instead of the
+  `floor`, `doctor`, `decoupling`, `barrier`) prints exactly one JSON record on
+  stdout (the `result.json` content, or a refusal) and sends progress to stderr. Read that instead of the
   progress lines. Record kinds, schema ids and stable fields: `docs/interface.md`.
 - Spell options in full: abbreviations such as `--budg` are refused.
 - **Hygiene** (docs/hygiene.md):

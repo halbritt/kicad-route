@@ -38,8 +38,8 @@ input's unchanged constraints.
     kicad-route corpus add|check|list     real-board regression gate (`update` runs check)
 
 --out DIR and --json go before or after the subcommand. --json (run, validate,
-campaign, blocked, audit, floor, doctor) prints exactly one JSON record on stdout
-and sends progress to stderr (docs/interface.md, schemas/).
+campaign, blocked, audit, floor, doctor, decoupling, barrier) prints exactly one
+JSON record on stdout and sends progress to stderr (docs/interface.md, schemas/).
 
 Every attempt gets a fresh run directory OUT/runs/<project>/<label>/<stamp>/
 (OUT defaults to ./build/kicad-route), or exactly --run-dir PATH:
@@ -2397,7 +2397,7 @@ def route_argv(args, skip=SCOPE_DESTS):
     return argv
 
 
-JSON_COMMANDS = ("run", "validate", "campaign", "blocked", "audit", "floor", "doctor")
+JSON_COMMANDS = ("run", "validate", "campaign", "blocked", "audit", "floor", "doctor", "decoupling", "barrier")
 
 
 def build_parser():
@@ -2516,9 +2516,9 @@ def dispatch(a):
     elif a.cmd == "spokes":
         return spokes.cmd(a), None
     elif a.cmd == "decoupling":
-        return decoupling.cmd(a), None
+        return decoupling.cmd(a)
     elif a.cmd == "barrier":
-        return barrier.cmd(a), None
+        return barrier.cmd(a)
     elif a.cmd == "canary":
         from . import canary
         return canary.cmd_canary(a), None

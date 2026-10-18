@@ -18,7 +18,8 @@ allowed), named `kicad-route:barrier:<x>:<y>` (mm). A barrier whose square touch
 existing copper on its layer (a track, via or pad of any net, in the board being
 injected) is skipped: it would block that copper's own net. Refuses a board that
 already has barrier areas. strip: removes exactly those areas (by name prefix) and
-saves only if it removed something. Every command prints `BARRIER_JSON: {...}`.
+saves only if it removed something. Every command prints `BARRIER_JSON: {...}`; a
+board KiCad cannot load prints `BARRIER_LOAD_ERROR: "..."` and exits 3.
 Runs with KiCad's pcbnew module. All lengths are integer nanometres.
 """
 import json
@@ -27,6 +28,21 @@ import sys
 from pathlib import Path
 
 PREFIX = "kicad-route:barrier:"
+LOAD_ERROR = "BARRIER_LOAD_ERROR:"  # the board did not load (exit 3): the host refuses instead of failing
+
+
+class LoadError(Exception):
+    pass
+
+
+def load(pcbnew, board_path):
+    try:
+        board = pcbnew.LoadBoard(str(board_path))
+    except Exception as e:  # older pcbnew raises IO_ERROR, KiCad 10 returns None
+        raise LoadError(f"{board_path}: KiCad could not load the board ({e})") from e
+    if board is None:
+        raise LoadError(f"{board_path}: KiCad could not load the board")
+    return board
 
 
 # ------------------------------------------------------------- geometry (pure)
@@ -186,7 +202,7 @@ def _centreline(item):
 
 
 def locate(pcbnew, board_path, request_path):
-    board = pcbnew.LoadBoard(str(board_path))
+    board = load(pcbnew, board_path)
     req = json.loads(Path(request_path).read_text())
     items = _items(board)
     cu = list(board.GetEnabledLayers().CuStack())
@@ -231,7 +247,7 @@ def locate(pcbnew, board_path, request_path):
 
 
 def inject(pcbnew, board_path, plan_path):
-    board = pcbnew.LoadBoard(str(board_path))
+    board = load(pcbnew, board_path)
     existing = [z.GetZoneName() for z in board.Zones() if z.GetZoneName().startswith(PREFIX)]
     if existing:
         sys.exit(f"{board_path}: already has {len(existing)} {PREFIX} rule areas; strip them first")
@@ -280,7 +296,7 @@ def inject(pcbnew, board_path, plan_path):
 
 
 def strip(pcbnew, board_path):
-    board = pcbnew.LoadBoard(str(board_path))
+    board = load(pcbnew, board_path)
     ours = [z for z in board.Zones() if z.GetIsRuleArea() and z.GetZoneName().startswith(PREFIX)]
     for z in ours:
         board.Delete(z)
@@ -292,6 +308,14 @@ def strip(pcbnew, board_path):
 
 
 def main(argv):
+    try:
+        return _main(argv)
+    except LoadError as e:
+        print(LOAD_ERROR + " " + json.dumps(str(e)))
+        return 3
+
+
+def _main(argv):
     import pcbnew
     if len(argv) == 4 and argv[0] == "locate":
         data = locate(pcbnew, Path(argv[1]), Path(argv[2]))
