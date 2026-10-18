@@ -419,6 +419,15 @@ outcome, different candidate bytes).
 - **MIT license for kicad-route** (2026-10-17, [`LICENSE`](../LICENSE)). It covers this
   repository only; KRT (MIT) and Freerouting (GPL-3.0) keep their own licenses.
 
+**Determinism is geometric equivalence (owner decision, 2026-10-18).** Two KRT
+runs on the same board produce identical copper geometry with different bytes:
+segment order and UUIDs differ (KICADROUTE-7). A repeated run is deterministic
+when its normalized copper geometry set (segments, vias and arcs by layer, net,
+endpoints and width) is identical to the previous run's; file bytes are not the
+criterion. Byte differences are recorded in the result, not failed. This closes
+the "same board hash" criterion on KICADROUTE-7 and agent-ee's AGENTEE-96; the
+writer is not required to normalize segment order or derive UUIDs.
+
 ## Known limitations
 
 - KRT honours only part of `.kicad_dru` (it logs skipped rules; they appear under
