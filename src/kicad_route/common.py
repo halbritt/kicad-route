@@ -110,12 +110,45 @@ def count_by(items, key):
 # --------------------------------------------------------------------------- env
 
 def kicad_version():
-    r = subprocess.run(["kicad-cli", "version"], capture_output=True, text=True)
+    # even `kicad-cli version` writes its config, cache and data directories: contained too
+    r = subprocess.run(["kicad-cli", "version"], capture_output=True, text=True, env=dict(os.environ, **home_env()))
     return r.stdout.strip() if r.returncode == 0 else None
 
 
 def kicad_config_home():
     return out_dir() / ".kicad-config"
+
+
+def tool_home():
+    """OUT/.home: where the per-user files of the tools kicad-route runs land instead
+    of the user's home, so a run writes nothing outside OUT (and /tmp) whatever HOME
+    is (docs/sandbox.md, "HOME"; KICADROUTE-60)."""
+    return out_dir() / ".home"
+
+
+def home_env():
+    """KiCad's config (OUT/.kicad-config), cache and data (KiCad 10 creates
+    ~/.cache/kicad/10.0 and ~/.local/share/kicad/10.0/{symbols,footprints,...} on
+    every start), fontconfig's cache, and every other XDG writer, all under OUT."""
+    home = tool_home()
+    return {"KICAD_CONFIG_HOME": str(kicad_config_home()),
+            "KICAD_CACHE_HOME": str(home / "cache"), "KICAD_DOCUMENTS_HOME": str(home / "data"),
+            "XDG_CONFIG_HOME": str(home / "config"), "XDG_CACHE_HOME": str(home / "cache"),
+            "XDG_DATA_HOME": str(home / "data"), "XDG_STATE_HOME": str(home / "state")}
+
+
+def jvm_home_args():
+    """The JVM takes user.home from the password database, not $HOME, and Freerouting
+    keeps its settings (~/.config/freerouting) and log (~/.local/state/freerouting)
+    there; java.util.prefs defaults to ~/.java. Both go under OUT/.home/java."""
+    java_home = tool_home() / "java"
+    return [f"-Duser.home={java_home}", f"-Djava.util.prefs.userRoot={java_home / 'prefs'}"]
+
+
+def home_facts():
+    """result.json / doctor "sandbox.home": the caller's HOME and where the writes go instead."""
+    return {"HOME": os.environ.get("HOME"), "required": False, "tool_home": str(tool_home()),
+            "env": home_env(), "jvm": jvm_home_args()}
 
 
 def ensure_kicad_config():
@@ -134,7 +167,7 @@ def ensure_kicad_config():
 def tool_env():
     env = dict(os.environ)
     major = (kicad_version() or "10").split(".")[0]
-    env["KICAD_CONFIG_HOME"] = str(kicad_config_home())
+    env.update(home_env())  # nothing under HOME: config, cache and data stay in OUT
     env[f"KICAD{major}_SYMBOL_DIR"] = str(KICAD_SHARE / "symbols")
     env[f"KICAD{major}_FOOTPRINT_DIR"] = str(KICAD_SHARE / "footprints")
     env[f"KICAD{major}_TEMPLATE_DIR"] = str(KICAD_SHARE / "template")

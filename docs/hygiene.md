@@ -318,3 +318,33 @@ is any of:
 - On any regression, `update` exits non-zero.
 - It does not roll back: the previous backend is gone by then, and whether to
   pin, report upstream or adapt is a person's decision.
+
+## Nothing under HOME
+
+Apart from `update` and `corpus add` (which write STATE) and a `--ledger PATH`
+outside OUT, kicad-route writes only under `--out` and `/tmp`, whatever `HOME` is. Every KiCad, KRT and Freerouting subprocess gets
+`common.tool_env()`, which sends the per-user files of the tools under OUT:
+
+| What | Default location | Under OUT | How |
+|---|---|---|---|
+| KiCad configuration | `~/.config/kicad/10.0` | `OUT/.kicad-config/10.0` | `KICAD_CONFIG_HOME` |
+| KiCad cache | `~/.cache/kicad/10.0` | `OUT/.home/cache/kicad/10.0` | `KICAD_CACHE_HOME`, `XDG_CACHE_HOME` |
+| KiCad user data (`symbols`, `footprints`, `plugins`, `3rdparty`, ... created on every start) | `~/.local/share/kicad/10.0` | `OUT/.home/data/kicad/10.0` | `KICAD_DOCUMENTS_HOME`, `XDG_DATA_HOME` |
+| fontconfig cache and other XDG writers | `~/.cache`, `~/.config`, `~/.local/state` | `OUT/.home/{cache,config,state}` | `XDG_CACHE_HOME`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME` |
+| Freerouting settings and log (`freerouting.json`, `freerouting.log`) | `~/.config/freerouting`, `~/.local/state/freerouting/logs` | the run's `work/freerouting-userdata` (routing); `OUT/.home/java` (the doctor's `--help` check) | `--user_data_path`; `-Duser.home` |
+| `java.util.prefs` | `~/.java/.userPrefs` | `OUT/.home/java/prefs` | `-Djava.util.prefs.userRoot` |
+
+The JVM takes `user.home` from the password database, not from `$HOME`, so setting
+`HOME` alone would not move its files: every Freerouting launch gets
+`common.jvm_home_args()` (`-Duser.home=OUT/.home/java
+-Djava.util.prefs.userRoot=OUT/.home/java/prefs`). `kicad-cli version`, which
+kicad-route calls to learn KiCad's version, gets the same KiCad variables.
+
+`/tmp` still receives KiCad's instance lock (`/tmp/org.kicad.kicad`), the JVM's
+`hsperfdata_<user>` and KRT's temporary refill and oracle directories; a private
+tmpfs is fine (docs/sandbox.md). `result.json` and doctor's `sandbox.observed` record
+the redirection as `sandbox.home`. `tests/test_home_containment.py` runs the
+fixture's KRT and Freerouting round trips and `doctor --json --offline` with `HOME`
+set to an empty read-only directory, traced with `strace` when it is available. The
+runs must pass, the directory must not change, and no process may try to write under
+it, under the real home or anywhere else outside OUT and `/tmp` (KICADROUTE-60).
