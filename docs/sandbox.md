@@ -66,8 +66,10 @@ byte-identical (`tests/test_doctor_sandbox.py::test_sandboxed_round_trip_matches
 
 ## `--require-readonly-state`
 
-`run` and `campaign` accept `--require-readonly-state` (it is one of the routing
-options, so `campaign` passes it to every step); the environment variable
+`run` and `campaign` accept `--require-readonly-state`. It and `--ledger` are
+environment options (`cli.add_environment_args`), not routing options: `campaign`
+passes both to every step, and a corpus entry never records them (`corpus check`
+takes its own). The environment variable
 `KICAD_ROUTE_REQUIRE_READONLY_STATE=1` (also `true`, `yes`, `on`) sets it for every
 command. As the very first step, before anything is written, a run refuses with exit 4
 and a refusal record (`reason_class: state`, `OUT/refusals/`, docs/interface.md) when
@@ -84,9 +86,13 @@ STATE:
   (`access(2)`, which reports a read-only mount as well as permissions).
 
 A refused run leaves no run directory. `campaign` makes the same check before its first
-run and passes the flag to each run. `update` and `corpus add` write STATE, so under
-the variable they refuse with exit 4 whatever STATE's state. Without the flag nothing
-changes.
+run and passes the flag to each run. `corpus check` makes the same check before its
+first entry and passes the flag to each entry's run; it also refuses when the corpus
+root lies inside STATE (the default `STATE/corpus/`), because it writes each entry's
+`checks/` there, so a sandboxed check needs `--root` (or `KICAD_ROUTE_CORPUS`) on a
+writable copy of the corpus. `update` and `corpus add` write STATE, so they refuse
+with exit 4 whatever STATE's state: `update` under the variable, `corpus add` under the
+flag or the variable. Without the flag nothing changes.
 
 kicad-route never writes under STATE during `run`, `validate`, `campaign`, `blocked`
 or `doctor`. Python runs with bytecode writing off (`bin/kicad-route` and every backend
@@ -120,7 +126,7 @@ sandbox"). The run ledger refuses an exact repeat of a failed attempt (exit 4,
 [hygiene.md](hygiene.md)). It lives in `OUT/ledger.jsonl` by default, so with a fresh
 OUT per stage it never sees an earlier attempt. Two choices:
 
-- pass `--ledger PATH` (on `run` and `campaign`) with a path that persists across
+- pass `--ledger PATH` (on `run`, `campaign` or `corpus check`) with a path that persists across
   stages and is writable inside the sandbox. The result records the path in
   `ledger.path`. This keeps repeat refusal;
 - or accept that repeats are not refused inside the sandbox, and keep the accounting in

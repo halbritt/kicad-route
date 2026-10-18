@@ -70,13 +70,15 @@ def log(msg):
 # ------------------------------------------------------------------ arguments
 
 def add_parser(sub, cli):
-    """The `campaign` subcommand: the routing options of `run` (cli.add_route_args, passed
-    to every step; --nets/--netclass are the campaign scope), plus campaign controls."""
+    """The `campaign` subcommand: the routing and environment options of `run`
+    (cli.add_route_args, cli.add_environment_args, passed to every step; --nets/--netclass
+    are the campaign scope), plus campaign controls."""
     p = sub.add_parser("campaign", help="hard-nets-first routing campaign: several attempts, best chain graded "
                                         "against the original input")
     p.add_argument("--backend", required=True, choices=sorted(cli.BACKENDS))
     cli.add_input_args(p)
     cli.add_route_args(p)
+    cli.add_environment_args(p)   # forwarded to every step too (cli.route_argv)
     p.add_argument("--label", help="campaign name (default campaign-<backend>); runs are labelled <label>-<step>")
     p.add_argument("--strategy", choices=STRATEGIES, default="hardfirst",
                    help="hardfirst (default): route the backlog first on the original input, then the rest")

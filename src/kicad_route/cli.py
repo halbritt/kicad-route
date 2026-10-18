@@ -2353,7 +2353,15 @@ def add_route_args(p):
     p.add_argument("--floor-history", action="store_true",
                    help="also compare the input's rules with their git high-water mark (notes only)")
     spokes.add_run_option(p)
-    # sandboxed runs (docs/sandbox.md); campaign forwards both to every step
+
+
+ENVIRONMENT_DESTS = ("require_readonly_state", "ledger")
+
+
+def add_environment_args(p):
+    """The environment of a run, not its attempt (docs/sandbox.md). `run` and `campaign`
+    take them (campaign forwards both to every step, route_argv); `corpus add` and
+    `corpus check` take them for their own runs and never record them in an entry."""
     p.add_argument("--require-readonly-state", action="store_true",
                    help="refuse (exit 4) unless the state directory is present, read-only and the one its "
                         f"manifest describes (also {sandbox.ENV_FLAG}=1)")
@@ -2362,22 +2370,23 @@ def add_route_args(p):
                         "refusal across fresh OUT directories")
 
 
-def _route_actions():
+def _route_actions(adder=add_route_args):
     probe = argparse.ArgumentParser(add_help=False)
-    add_route_args(probe)
+    adder(probe)
     return [a for a in probe._actions if a.option_strings]
 
 
 def route_option_dests():
-    """Namespace names of every add_route_args option."""
+    """Namespace names of every add_route_args option (the attempt; not the environment)."""
     return [a.dest for a in _route_actions()]
 
 
 def route_argv(args, skip=SCOPE_DESTS):
-    """The `run` command line that reproduces args' routing options (campaign steps).
-    Derived from add_route_args, so every routing option is forwarded."""
+    """The `run` command line that reproduces args' routing and environment options
+    (campaign steps). Derived from add_route_args and add_environment_args, so every
+    one of them is forwarded."""
     argv = []
-    for act in _route_actions():
+    for act in [*_route_actions(), *_route_actions(add_environment_args)]:
         if act.dest in skip:
             continue
         v = getattr(args, act.dest, None)
@@ -2414,6 +2423,7 @@ def build_parser():
     rp.add_argument("--backend", required=True, choices=sorted(BACKENDS))
     add_input_args(rp)
     add_route_args(rp)
+    add_environment_args(rp)
     barrier.add_run_option(rp)   # run only: a barrier is planned from one earlier run of this input
     rp.add_argument("--label", help="run directory name under OUT/runs/<project>/")
     rp.add_argument("--run-dir", metavar="PATH",
