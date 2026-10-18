@@ -74,6 +74,10 @@ records them; one shared definition):
     `library_issues`.
   - `--library-dir NAME=PATH` maps an empty library submodule to a path.
 - **Scope:**
+  - `--backend krt --diff-pairs auto` detects native-class pairs, routes them first,
+    and excludes every pair member from the ordinary-net pass. Unpaired suffixes,
+    split selections and mismatched classes are refused. Read `docs/diff-pairs.md`
+    for naming, restrictions, and `result.json` pair lengths/skew/status.
   - `--nets PAT …` selects by **net name**: fnmatch patterns, `!PAT` excludes, and
     exclusions alone start from all nets. A name that starts with `!` takes an
     escape: `--nets '\!RESET'` routes the net `!RESET`, `'!\!RESET'` excludes it.

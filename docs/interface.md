@@ -12,6 +12,14 @@ JSON Schemas (draft 2020-12):
   `route-campaign` records.
 - [`schemas/refusal-1.json`](../schemas/refusal-1.json): the refusal record (exit 4).
 
+KRT's opt-in `run --diff-pairs auto` adds `pairs` to route and re-validation
+records. Names, native class width/gap settings, native planar lengths and skew,
+gap findings, and explicit failure statuses are documented in
+[`diff-pairs.md`](diff-pairs.md). Failed pairs keep routing INCOMPLETE even if a
+backend's internal single-ended fallback claimed connectivity; exit precedence
+remains process 1, validation 3, incomplete 2. Calls without the option omit the
+array and retain their existing routing path.
+
 `tests/test_interface_contract.py` validates every committed fixture result against
 them (`reports/fixture/runs/*/result.json` and `*/against-origin/result.json`) and
 checks the exit-code promises below. Validating a record yourself:
@@ -192,9 +200,13 @@ changing its meaning needs `/2`.
   `preservation` (check name to status)
 - `candidate.board` (`candidate` is null when there is none)
 - `ledger.fingerprint`
+- With `--diff-pairs auto`: `settings.diff_pairs`, the `settings.pairs` plan,
+  and `pairs` entries' `p`, `n`, `netclass`, `width_mm`, `gap_mm`, `routed`,
+  `length_p`, `length_n`, `skew`, `gap_violations`, `status`, `backend_status`.
+  `backend_report` is an informational upstream diagnostic.
 
 `route-validate`: `schema`, `kind`, `exit_code`, `run_dir`, `against`, `dir`, and the
-same `routing` and `validation` fields. `route-campaign`: `schema`, `kind`,
+same `routing`, `validation`, and opt-in `pairs` fields. `route-campaign`: `schema`, `kind`,
 `exit_code`, `campaign_dir`, `input.fingerprint`, `best` (`chain`, `run_dir`,
 `candidate`, `grade`, `exit_code`; null when no chain was graded). Refusal: every field
 of the record above.

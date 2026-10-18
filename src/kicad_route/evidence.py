@@ -29,7 +29,7 @@ from . import common
 from . import statemanifest
 
 RECORD_FILES = ("attempt.json", "preservation.json", "new-findings.json", "candidate-drc.json",
-                "candidate-facts.json", "pour-integrity.json")
+                "candidate-facts.json", "pour-integrity.json", "pair-facts.json", "pairs.json")
 
 
 def _canonical_item(kind, item):

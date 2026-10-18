@@ -506,6 +506,7 @@ relaxes a rule.
 
 | Feature | Entry point | Page |
 |---|---|---|
+| Differential pairs before ordinary nets, with native length/skew evidence | `run --backend krt --diff-pairs auto` | [`diff-pairs.md`](diff-pairs.md) |
 | Hard-nets-first campaigns | `kicad-route campaign` | [`campaign.md`](campaign.md) |
 | Thermal-spoke corridor reservation and spoke-cut attribution | `run --reserve-spokes [N]`, `kicad-route spokes` | [`spokes.md`](spokes.md) |
 | Collision barriers (rewind with a keepout where new copper collided) | `run --barrier-from RUN_DIR`, `kicad-route barrier` | [`barrier.md`](barrier.md) |
