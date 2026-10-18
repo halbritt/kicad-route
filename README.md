@@ -17,8 +17,7 @@ failure, no candidate), 2 (valid but incomplete), 3 (fails validation) and 4 (re
 before routing: a usage or input error, the ledger, the `--canary` pre-flight, a board
 without a `.kicad_pro` of its own name, or a writable state directory under
 `--require-readonly-state`, with a refusal record). Programs calling it use the versioned
-machine interface: `--json`
-prints one schema-carrying record on stdout ([`docs/interface.md`](docs/interface.md),
+machine interface: `--json` prints one schema-carrying record on stdout ([`docs/interface.md`](docs/interface.md),
 [`schemas/`](schemas/)).
 
 ## Install
