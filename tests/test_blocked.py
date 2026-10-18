@@ -188,7 +188,8 @@ def test_blocked_receipts_name_the_wall(blocked_dir):
     # cannot read (exit 3), and the exit code would not show that an incomplete but
     # otherwise valid candidate is reported as exit 2
     r, run_dir, result = run("run", "--backend", "krt", "--budget", "180", "--dir", str(blocked_dir),
-                             "--backend-env", "KICAD_NET_RESCUE=0", "--default-clearance", "0.4",
+                             "--backend-env", "KICAD_NET_RESCUE=0", "--backend-env", "KICAD_PLANE_FINALIZE=0",
+                             "--default-clearance", "0.4",
                              "--label", "blocked-receipts-krt")
     rt = result["routing"]
     record("blocked_receipts", {"routing": rt, "exit_code": result["exit_code"]})

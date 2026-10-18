@@ -13,6 +13,10 @@ from kicad_route import campaign
 from kicad_route import cli as route
 
 KRT = ["--backend", "krt", "--budget", "120", "--default-clearance", "0.4"]
+# The walled board: KRT's net rescue and plane-finalize passes ignore the stop file and can
+# run past the budget on a loaded host (docs/hygiene.md, "Budget overrun"); neither can
+# reach J2, so both are off and the attempt returns its candidate inside the budget.
+NO_LATE_PASSES = ["--backend-env", "KICAD_NET_RESCUE=0", "--backend-env", "KICAD_PLANE_FINALIZE=0"]
 
 
 def run_campaign(*args, timeout=1800):
@@ -66,7 +70,7 @@ def test_campaign_complete_in_round_0_stops():
 
 
 def test_campaign_routes_backlog_first_on_original_input(blocked_dir):
-    r, cdir, rec = run_campaign(*KRT, "--dir", str(blocked_dir), "--backend-env", "KICAD_NET_RESCUE=0",
+    r, cdir, rec = run_campaign(*KRT, "--dir", str(blocked_dir), *NO_LATE_PASSES,
                                 "--rounds", "2", "--label", "campaign-blocked")
     record("campaign_blocked", {k: rec[k] for k in ("rounds", "backlog_evolution", "leaderboard", "stop_reason",
                                                     "best", "exit_code")})
@@ -128,7 +132,7 @@ def test_campaign_race_lane_is_a_two_pass_chain():
 
 
 def test_campaign_total_budget_stops_new_runs(blocked_dir):
-    r, cdir, rec = run_campaign(*KRT, "--dir", str(blocked_dir), "--backend-env", "KICAD_NET_RESCUE=0",
+    r, cdir, rec = run_campaign(*KRT, "--dir", str(blocked_dir), *NO_LATE_PASSES,
                                 "--total-budget", "1", "--label", "campaign-total-budget")
     record("campaign_total_budget", {k: rec[k] for k in ("rounds", "leaderboard", "stop_reason", "exit_code")})
     assert rec["stop_reason"] == "total budget reached"

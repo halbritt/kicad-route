@@ -39,7 +39,8 @@ ATTEMPTS = {
     # test_krt_custom_rule_failure_is_reported), which would hide whether an
     # incomplete-but-valid candidate reaches the caller as exit 2.
     "smoke-blocked-krt": ("--backend", "krt", "--budget", "180", "--dir", "{blocked}",
-                          "--backend-env", "KICAD_NET_RESCUE=0", "--default-clearance", "0.4"),
+                          "--backend-env", "KICAD_NET_RESCUE=0", "--backend-env", "KICAD_PLANE_FINALIZE=0",
+                          "--default-clearance", "0.4"),
     "smoke-blocked-freerouting": ("--backend", "freerouting", "--budget", "180", "--dir", "{blocked}"),
 }
 

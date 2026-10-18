@@ -859,7 +859,7 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
     v["status"] = FAIL if v["reasons"] else PASS
     routing["stats"] = stats
     if routing["status"] == INCOMPLETE:  # diagnosis only: what lies across the open connections
-        boards = {"input_sha256": common.sha256(ref_dir / board_name), "candidate_sha256": v["delivered_board_sha256"],
+        boards = {"input_sha256": common.sha256(ref_dir / board_name), "candidate_sha256": v["candidate_board_sha256"],  # the file as it is now (refilled)
                   "graded_sha256": v["validated_board_sha256"]}
         routing["blocked_by"] = blocked.write_report(out_dir, cand, cand_facts, ref_facts, scope, rel=common.rel,
                                                      boards=boards)
@@ -2473,6 +2473,8 @@ def run_namespace(backend, **values):
         if not hasattr(a, k):
             raise TypeError(f"run has no option {k!r}")
         setattr(a, k, v)
+    a.backend_arg = a.backend_arg or []   # as dispatch() normalises them for a CLI run
+    a.backend_env = a.backend_env or []
     return a
 
 
