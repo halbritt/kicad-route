@@ -1,4 +1,4 @@
-# kicad-route machine interface (contract version 1)
+# kicad-route machine interface
 
 This page is the contract for programs that call kicad-route, such as the agent-ee
 generator's routing stage. It says which records kicad-route writes, what each exit
@@ -8,9 +8,21 @@ People reading a result can use [routing.md](routing.md) and the
 
 JSON Schemas (draft 2020-12):
 
-- [`schemas/result-1.json`](../schemas/result-1.json): the `route`, `route-validate` and
-  `route-campaign` records.
+- [`schemas/result-1.json`](../schemas/result-1.json): `route` and `route-validate`
+  records without pair evidence, and `route-campaign` records.
+- [`schemas/result-2.json`](../schemas/result-2.json): opt-in pair `route` and
+  `route-validate` records.
 - [`schemas/refusal-1.json`](../schemas/refusal-1.json): the refusal record (exit 4).
+
+KRT's opt-in `run --diff-pairs auto` adds `pairs` to route and re-validation
+records, using `kicad-route/route/2` and `kicad-route/route-validate/2` respectively.
+Names, native class width/gap settings, native planar lengths and skew,
+gap findings, and explicit failure statuses are documented in
+[`diff-pairs.md`](diff-pairs.md). Failed pairs keep routing INCOMPLETE even if a
+backend's internal single-ended fallback claimed connectivity; exit precedence
+remains process 1, validation 3, incomplete 2. Calls without the option omit the
+array and retain their existing routing path and `/1` result schema. Opt-in records
+use `/2` even when the detected pair list is empty or the backend fails.
 
 `tests/test_interface_contract.py` validates every committed fixture result against
 them (`reports/fixture/runs/*/result.json` and `*/against-origin/result.json`) and
@@ -18,8 +30,10 @@ checks the exit-code promises below. Validating a record yourself:
 
 ```python
 import json, jsonschema
-schema = json.load(open("schemas/result-1.json"))
-jsonschema.Draft202012Validator(schema).validate(json.load(open(run_dir + "/result.json")))
+record = json.load(open(run_dir + "/result.json"))
+major = record["schema"].rsplit("/", 1)[1]
+schema = json.load(open(f"schemas/result-{major}.json"))
+jsonschema.Draft202012Validator(schema).validate(record)
 ```
 
 ## Calling kicad-route from a program
@@ -67,12 +81,18 @@ jsonschema.Draft202012Validator(schema).validate(json.load(open(run_dir + "/resu
 
 ## Records and schema ids
 
-Every top-level record carries `"schema": "kicad-route/<kind>/<major>"` and `"kind"`.
+Command records carry `"schema": "kicad-route/<kind>/<major>"` and `"kind"`.
+`attempt.json` carries its own schema id and retains its existing shape without a
+`kind` field.
 
 | `kind` | `schema` | Written to | Printed by `--json` of | JSON Schema |
 |---|---|---|---|---|
 | `route` | `kicad-route/route/1` | `<run_dir>/result.json` | `run` | result-1.json |
+| `route` with pairs | `kicad-route/route/2` | `<run_dir>/result.json` | `run --diff-pairs auto` | result-2.json |
 | `route-validate` | `kicad-route/route-validate/1` | `<run_dir>/revalidate*/<stamp>/result.json` | `validate` | result-1.json |
+| `route-validate` with pairs | `kicad-route/route-validate/2` | `<run_dir>/revalidate*/<stamp>/result.json` | `validate` | result-2.json |
+| attempt without pairs | `kicad-route/attempt/1` | `<run_dir>/attempt.json` | (file only) | key sets below |
+| attempt with pairs | `kicad-route/attempt/2` | `<run_dir>/attempt.json` | (file only) | key sets below |
 | `route-campaign` | `kicad-route/route-campaign/1` | `OUT/campaigns/<project>/<label>/<stamp>/campaign.json` | `campaign` | result-1.json |
 | `refusal` | `kicad-route/refusal/1` | `OUT/refusals/<stamp>-<pid>.json` | any command | refusal-1.json |
 | `route-blocked` | `kicad-route/route-blocked/1` | (stdout only; the receipts are `blocked-by.json`) | `blocked RUN_DIR` | none yet |
@@ -84,8 +104,38 @@ Every top-level record carries `"schema": "kicad-route/<kind>/<major>"` and `"ki
 | `decoupling-run` | `kicad-route/decoupling-run/1` | `<run_dir>/decoupling.json` | `decoupling RUN_DIR` | none yet |
 | `barrier-preview` | `kicad-route/barrier-preview/1` | `<run_dir>/barrier-preview/barrier-plan.json` | `barrier RUN_DIR` | none yet |
 
-For the kinds without a JSON Schema only `schema`, `kind` and `exit_code` are stable
-for now.
+For command kinds without a JSON Schema only `schema`, `kind` and `exit_code` are
+stable for now. The attempt key sets are specified below.
+
+## Attempt and result key sets
+
+For ordinary completed attempts, `attempt/1` has exactly these top-level keys:
+`schema`, `backend`, `project`, `board`, `schematic`, `input_fingerprint`, `source`,
+`reference_dir`, `candidate_dir`, `reference_facts`, `rules_files`, `baseline`,
+`scope`, `settings`, `floor`. These are the previously unversioned keys plus
+`schema: "kicad-route/attempt/1"`; their meanings are unchanged.
+
+`attempt/2` has those same keys plus `pairs` and `pair_routing`, with
+`schema: "kicad-route/attempt/2"`. `pairs` is the native pair plan, optionally
+annotated with `initially_connected`; `pair_routing` maps positive net names to
+backend outcomes (`status` and optional `report`). The schema id is written with
+the initial plan; `pair_routing` is added when the backend returns, before the
+result is written. Both versions use the same existing settings fields; `/2`
+also requires `settings.diff_pairs: "auto"` and `settings.pairs` (the deterministic
+plan without the baseline annotation). `--protect human` may add its existing
+provenance fields inside `settings` in either version. `validate` still reads
+historical attempts without a schema id.
+
+The emitted `route/1` top-level key set is unchanged: `schema`, `kind`, `backend`,
+`measurement`, `input`, `settings`, `scope`, `unsupported`, `floor`, `process`,
+`routing`, `validation`, `candidate`, `run_dir`, `runtime_s`, `tool_versions`,
+`evidence`, `tool_identity`, `finished_utc`, `exit_code`, `ledger`, `sandbox`.
+`route/2` adds only `pairs` at the top level and `diff_pairs`/`pairs` in `settings`.
+`route-validate/1` has `schema`, `kind`, `run_dir`, `against`, `dir`, `process`,
+`routing`, `validation`, `evidence`, `tool_identity`, `exit_code`;
+`route-validate/2` adds only `pairs`. Re-validation chooses `/2` whenever it emits
+pair evidence, including evidence accumulated through `--against` chains.
+The pair field definitions are in [diff-pairs.md](diff-pairs.md).
 
 ## Exit codes
 
@@ -192,9 +242,13 @@ changing its meaning needs `/2`.
   `preservation` (check name to status)
 - `candidate.board` (`candidate` is null when there is none)
 - `ledger.fingerprint`
+- With `--diff-pairs auto`: `settings.diff_pairs`, the `settings.pairs` plan,
+  and `pairs` entries' `p`, `n`, `netclass`, `width_mm`, `gap_mm`, `routed`,
+  `length_p`, `length_n`, `skew`, `gap_violations`, `status`, `backend_status`.
+  `backend_report` is an informational upstream diagnostic.
 
 `route-validate`: `schema`, `kind`, `exit_code`, `run_dir`, `against`, `dir`, and the
-same `routing` and `validation` fields. `route-campaign`: `schema`, `kind`,
+same `routing`, `validation`, and opt-in `pairs` fields. `route-campaign`: `schema`, `kind`,
 `exit_code`, `campaign_dir`, `input.fingerprint`, `best` (`chain`, `run_dir`,
 `candidate`, `grade`, `exit_code`; null when no chain was graded). Refusal: every field
 of the record above.
@@ -224,7 +278,9 @@ and every other process detail, `routing.stats`, the `routing.blocked_by` summar
 
 ## Versioning and deprecation
 
-- Adding a field, a record kind or a reason class keeps the major version.
+- Informational additions, a record kind or a reason class keep the major version.
+  The opt-in pair shape has its own `/2` ids so callers can bind exact key sets;
+  calls without the option keep their `/1` result shape.
 - Removing or redefining a stable field bumps the major (`kicad-route/route/2`, a new
   `schemas/result-2.json`). For at least one tagged release the old field is still
   written beside the new one and listed in a top-level `deprecated` array
@@ -232,6 +288,13 @@ and every other process detail, `routing.stats`, the `routing.blocked_by` summar
 - This page keeps the history below.
 
 ### History
+
+- **2, opt-in pairs** (2026-10-18): `route/2` and `route-validate/2` announce pair
+  evidence; `schemas/result-2.json` requires the pair array and the route's pair
+  settings. `schemas/result-1.json` is unchanged from e497916. Attempts now carry
+  `attempt/1` or `attempt/2`: the default attempt gains only `schema`, an intentional
+  one-time byte/key-set change from previously unversioned attempts; pair attempts
+  additionally carry `pairs` and `pair_routing`. No routing or exit semantics change.
 
 - **1** (2026-10-17): first versioned contract: `schema` ids on every record; refusal
   records with exit 4 for every pre-routing failure, usage errors included; `--json`;

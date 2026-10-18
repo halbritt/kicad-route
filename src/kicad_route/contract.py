@@ -2,9 +2,9 @@
 refusal path (exit 4 with a record), the parser every command uses, and --json
 output (one JSON object on stdout, everything else on stderr).
 
-Schema ids are "kicad-route/<kind>/<major>". Adding a field keeps the major;
-removing or redefining a stable field bumps it (docs/interface.md lists the
-stable fields). The JSON Schemas live in schemas/ at the checkout root.
+Schema ids are "kicad-route/<kind>/<major>". Opt-in pair evidence uses major 2;
+unchanged records keep major 1 (docs/interface.md lists the stable fields).
+The JSON Schemas live in schemas/ at the checkout root.
 """
 import argparse
 import contextlib
@@ -25,8 +25,8 @@ REASON_CLASSES = ("usage", "input", "ledger", "canary", "state")
 SCHEMAS_DIR = common.TOOL_ROOT / "schemas"
 
 
-def schema_id(kind):
-    return f"kicad-route/{kind}/{SCHEMA_MAJOR}"
+def schema_id(kind, major=None):
+    return f"kicad-route/{kind}/{SCHEMA_MAJOR if major is None else major}"
 
 
 class Refusal(SystemExit):

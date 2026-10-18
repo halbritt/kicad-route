@@ -136,7 +136,8 @@ without its own project file, below, a net name the Specctra bridge cannot write
 way, a usage or input error, or a writable state directory under
 `--require-readonly-state`, [sandbox.md](sandbox.md)), with a refusal record under
 `OUT/refusals/` and no run directory left. `result.json` carries
-`"schema": "kicad-route/route/1"`; what each exit code promises, the stable fields
+`"schema": "kicad-route/route/1"` without pair evidence, or `kicad-route/route/2`
+with `--diff-pairs auto`; what each exit code promises, the stable fields
 and the deprecation rule are in [interface.md](interface.md), checked against the
 fixture evidence by `tests/test_interface_contract.py`.
 
@@ -510,6 +511,7 @@ relaxes a rule.
 
 | Feature | Entry point | Page |
 |---|---|---|
+| Differential pairs before ordinary nets, with native length/skew evidence | `run --backend krt --diff-pairs auto` | [`diff-pairs.md`](diff-pairs.md) |
 | Hard-nets-first campaigns | `kicad-route campaign` | [`campaign.md`](campaign.md) |
 | Thermal-spoke corridor reservation and spoke-cut attribution | `run --reserve-spokes [N]`, `kicad-route spokes` | [`spokes.md`](spokes.md) |
 | Collision barriers (rewind with a keepout where new copper collided) | `run --barrier-from RUN_DIR`, `kicad-route barrier` | [`barrier.md`](barrier.md) |

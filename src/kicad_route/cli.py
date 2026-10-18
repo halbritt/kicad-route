@@ -92,6 +92,7 @@ from . import blocked
 from . import common
 from . import contract
 from . import evidence
+from . import diff_pairs
 from . import floor
 from . import provenance
 from . import sandbox  # --require-readonly-state, doctor's sandbox block (docs/sandbox.md)
@@ -491,7 +492,7 @@ def footprint_change(ref_name, a, b):
     return rec
 
 
-def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, restored=(), human=None):
+def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, restored=(), human=None, pair_widths=None):
     checks = []
 
     def check(name, ok, detail="", differences=None, status=None):
@@ -595,9 +596,10 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
     tol = GEOMETRY_TOLERANCE_NM  # Specctra/KiCad quantisation, e.g. a 0.29972 mm drill read back as 0.299
     for t in out["tracks"]["new"]:
         nc = nets.get(t["net"], {})
-        if nc.get("track_width") and t["width"] < nc["track_width"] - tol:
+        required_width = (pair_widths or {}).get(t["net"], nc.get("track_width"))
+        if required_width and t["width"] < required_width - tol:
             under.append({"item": "track", "net": t["net"], "netclass": nc["netclass"], "layer": t["layer"],
-                          "width_mm": t["width"] / NM, "required_mm": nc["track_width"] / NM,
+                          "width_mm": t["width"] / NM, "required_mm": required_width / NM,
                           "start_mm": [c / NM for c in t["start"]]})
         if not t["net"] or t["net"] not in scope:  # net-less copper is never in scope
             outside.append({"item": "track", "net": t["net"] or netnames.NO_NET, "layer": t["layer"],
@@ -733,6 +735,13 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
         for _, a in steps[1:]:
             scope |= set(a["scope"]["nets"])
         run_dir, attempt = steps[-1]
+        pair_plans, pair_outcomes = {}, {}
+        for _, step in reversed(steps):
+            pair_plans.update({p["p"]: p for p in step.get("pairs", [])})
+            pair_outcomes.update(step.get("pair_routing", {}))
+        if any("pairs" in step for _, step in steps):
+            attempt = {**attempt, "pairs": [pair_plans[p] for p in sorted(pair_plans)],
+                       "pair_routing": pair_outcomes}
     out_dir.mkdir(parents=True, exist_ok=False)
     board_name = attempt["board"]
     ref_dir = run_dir / attempt["reference_dir"]
@@ -846,7 +855,16 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
     human = provenance.designation(run_dir, attempt, ref_facts) if protect == "human" else None
     checks, stats = preservation(ref_facts, cand_facts, ref_dir, cand_dir, board_name, protect,
                                  (scope | human["agent_nets"]) if human else scope, restored,
-                                 human=human["uuids"] if human else None)
+                                 human=human["uuids"] if human else None,
+                                 pair_widths={name: round(pair["width_mm"] * NM)
+                                              for pair in attempt.get("pairs", []) for name in (pair["p"], pair["n"])})
+    if "pairs" in attempt:
+        native, rec = diff_pairs.probe(board, out_dir / "pair-facts.json", sys.modules[__name__])
+        if native is None:
+            v["reasons"].append(f"native differential-pair measurements failed (see {rec['log']})")
+        pair_records = diff_pairs.grade(attempt["pairs"], attempt.get("pair_routing", {}), native, cand)
+        common.write_json(out_dir / "pairs.json", pair_records)
+        diff_pairs.apply_routing(routing, pair_records)
     ratchet = provenance.net_completion(base, cand, ref_facts, nets_of)  # every protect mode
     checks.append(ratchet)
     v["net_completion"] = {k: ratchet[k] for k in ("status", "nets_connected_in_input", "nets_lost")}
@@ -945,6 +963,8 @@ def run_attempt(args):
     project = cfg["name"]
     if any("=" not in e for e in args.backend_env or []):
         contract.refuse("usage", "--backend-env takes KEY=VALUE")
+    if getattr(args, "diff_pairs", None) and (args.backend != "krt" or args.backend_arg):
+        contract.refuse("usage", "--diff-pairs auto requires KRT and does not accept --backend-arg")
     run_dir = make_run_dir(args, project)
     started = time.monotonic()
     fingerprint = None
@@ -979,6 +999,20 @@ def run_attempt(args):
         refuse("input", str(e))
     if not scope:
         refuse("input", "the net selection matches no nets")
+    pairs = None
+    if getattr(args, "diff_pairs", None):
+        native, rec = diff_pairs.probe(ref_dir / board_name, run_dir / "facts" / "pair-facts.json",
+                                       sys.modules[__name__])
+        if native is None:
+            refuse("input", f"could not read native differential-pair settings (see {rec['log']})")
+        try:
+            pairs = diff_pairs.detect(native, set(scope))
+        except ValueError as e:
+            refuse("input", str(e))
+        if args.default_clearance and any(args.default_clearance > p["gap_mm"] for p in pairs):
+            refuse("input", "--default-clearance exceeds a native pair gap; KRT would silently raise that gap")
+        if not (KRT_DIR / "py_router" / "route_diff.py").is_file():
+            refuse("state", "KRT route_diff.py is not installed")
     if backend.get("preflight"):  # what the backend's bridge cannot carry, before it starts
         msg = backend["preflight"](ref_dir / board_name, ref_facts, run_dir)
         if msg:
@@ -991,6 +1025,8 @@ def run_attempt(args):
                 "reserve_spokes": args.reserve_spokes,
                 "barrier": None,
                 "stall_s": getattr(args, "stall", None), **scope_info}
+    if pairs is not None:
+        settings.update(diff_pairs="auto", pairs=[dict(p) for p in pairs])
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
     floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
     if floor_rec and floor_rec["floor_violated"]:
@@ -1023,7 +1059,12 @@ def run_attempt(args):
 
     log("[route] baseline: native DRC of the untouched input (refilled)")
     base, base_info = baseline_drc(ref_dir, board_name, fingerprint)
+    if pairs is not None and base is not None:
+        opened = diff_pairs.open_nets(base, ref_facts["nets"])
+        for pair in pairs:
+            pair["initially_connected"] = not {pair["p"], pair["n"]} & opened
     attempt = {
+        "schema": contract.schema_id("attempt", 2 if pairs is not None else 1),
         "backend": args.backend, "project": project, "board": board_name,
         "schematic": cfg.get("schematic"), "input_fingerprint": fingerprint,
         "source": {k: manifest.get(k) for k in ("source_dir", "source", "source_git_head", "source_dirty_files")},
@@ -1037,6 +1078,8 @@ def run_attempt(args):
         "settings": settings,
         "floor": floor_rec,
     }
+    if pairs is not None:
+        attempt["pairs"] = pairs
     common.write_json(run_dir / "attempt.json", attempt)
     if args.protect == "human":  # lock only the design's own copper (provenance.py, docs/provenance.md)
         prov = provenance.prepare(run_dir, attempt, resolve_origin(run_dir, attempt))
@@ -1049,12 +1092,16 @@ def run_attempt(args):
     log(f"[route] routing with {args.backend} (budget {args.budget}s)")
     t0 = time.monotonic()
     work_board = work / "input" / ref_dir.name / board_name
+    routing_settings = {**settings, "pairs": pairs} if pairs is not None else settings
     # --reserve-spokes: corridors reserved on the work input, stripped from the output (spokes.py)
     # --barrier-from: collision keepouts injected the same way, outside the spoke corridors
     proc = barrier.around_route(barrier_rec, work, work_board, lambda: spokes.around_route(
         args.reserve_spokes, work, work_board,
-        lambda: backend["route"](work, work_board, scope, ref_facts, settings)))
+        lambda: backend["route"](work, work_board, scope, ref_facts, routing_settings)))
     proc["runtime_s"] = round(time.monotonic() - t0, 3)
+    if pairs is not None:
+        attempt["pair_routing"] = proc.pop("pair_routing", {})
+        common.write_json(run_dir / "attempt.json", attempt)
     stall.annotate(proc)
     unsupported += [f"backend reported: {u}" for u in proc.pop("unsupported_reported", [])]
     for u in (proc.get("bridge") or {}).get("export", {}).get("dru_untranslated", []):
@@ -1076,7 +1123,7 @@ def run_attempt(args):
         routing = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
     repro = statemanifest.reproducibility(args.backend)  # KICADROUTE-7: attempt or measurement
     result = {
-        "schema": contract.schema_id("route"),
+        "schema": contract.schema_id("route", 2) if pairs is not None else contract.schema_id("route"),
         "kind": "route",
         "backend": {"name": args.backend, **backend_version, "reproducible": repro["reproducible"],
                     "reproducible_basis": repro["basis"]},
@@ -1099,6 +1146,10 @@ def run_attempt(args):
         "tool_identity": evidence.tool_identity(args.backend, backend_version, ref_facts.get("kicad_version")),
         "finished_utc": common.now_utc().isoformat(),
     }
+    if pairs is not None:
+        result["pairs"] = load_json(run_dir / "validate" / "pairs.json")
+        if result["pairs"] is None:
+            result["pairs"] = diff_pairs.grade(pairs, attempt.get("pair_routing", {}), None, None)
     result["exit_code"] = overall_exit(proc, routing, validation)
     result["ledger"] = {k: gate.get(k) for k in ("fingerprint", "short", "forced", "forced_over",
                                                  "upstream_changed_since", "previous_runs", "notes")}
@@ -1140,6 +1191,13 @@ def render_result(r):
     if r["validation"].get("preservation"):
         lines += ["| Preservation check | Status |", "|---|---|"]
         lines += [f"| {k} | {v} |" for k, v in r["validation"]["preservation"].items()]
+        lines.append("")
+    if "pairs" in r:
+        lines += ["Differential pairs (lengths and skew in mm; native planar copper):", "",
+                  "| P | N | Status | Width / gap | P length | N length | Skew | Gap violations |",
+                  "|---|---|---|---|---|---|---|---|"]
+        lines += [f"| {p['p']} | {p['n']} | {p['status']} | {p['width_mm']} / {p['gap_mm']} | "
+                  f"{p['length_p']} | {p['length_n']} | {p['skew']} | {p['gap_violations']} |" for p in r["pairs"]]
         lines.append("")
     if r["validation"].get("drc"):
         lines += ["Native DRC (original rules and severities):", "",
@@ -1323,6 +1381,8 @@ def krt_unsupported_rules(text):
 
 
 def krt_route(work, board, scope, facts, settings):
+    if settings.get("diff_pairs"):
+        return diff_pairs.route(work, board, scope, facts, settings, sys.modules[__name__])
     out_dir = work / "krt-out"
     out_dir.mkdir(parents=True)
     output = out_dir / board.name
@@ -2253,6 +2313,12 @@ def validate_record(args):
                                                        .get("kicad_version")),
                              "backend": (result.get("tool_identity") or {}).get("backend")},
            "exit_code": overall_exit(proc, routing, validation)}
+    pairs = load_json(out / "pairs.json")
+    if pairs is None and "pairs" in graded_attempt:
+        pairs = diff_pairs.grade(graded_attempt["pairs"], graded_attempt.get("pair_routing", {}), None, None)
+    if pairs is not None:
+        rec["schema"] = contract.schema_id("route-validate", 2)
+        rec["pairs"] = pairs
     common.write_json(out / "result.json", rec)
     log(f"[validate] routing: {routing['status']}  validation: {validation['status']}"
         + (f" ({'; '.join(validation['reasons'][:4])})" if validation.get("reasons") else ""))
@@ -2363,6 +2429,8 @@ def add_route_args(p):
     p.add_argument("--netclass", nargs="+", metavar="CLASS",
                    help="net-CLASS selection: nets whose effective KiCad net class is CLASS")
     p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
+    p.add_argument("--diff-pairs", choices=["auto"], help="KRT: detect native differential pairs, route pairs first, "
+                   "and exclude all pair members from single-ended routing (default off)")
     p.add_argument("--max-iterations", type=int, help="KRT A* iteration cap per search")
     p.add_argument("--passes", type=int, help="Freerouting maximum routing passes")
     p.add_argument("--default-clearance", type=float, metavar="MM",

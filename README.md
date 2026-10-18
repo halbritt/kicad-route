@@ -45,6 +45,7 @@ From a KiCad project directory:
 
 ```sh
 kicad-route run --backend krt                          # all nets, 300 s budget
+kicad-route run --backend krt --diff-pairs auto        # native-class pairs first, then other nets
 kicad-route run --backend freerouting --nets "/CAN*" --clearance-margin 0.01
 kicad-route run --backend krt --rev HEAD --budget 1500 # route the committed state
 kicad-route validate build/kicad-route/runs/<project>/<label>/latest
@@ -85,7 +86,7 @@ run works stage by stage, how to read results, real-board workflows, automation 
 sandboxes, and a glossary. The pages below are the reference.
 
 - [`docs/interface.md`](docs/interface.md) — the machine contract: record kinds and
-  schema ids (`schemas/result-1.json`, `schemas/refusal-1.json`), what each exit code
+  schema ids (`schemas/result-1.json`, `schemas/result-2.json`, `schemas/refusal-1.json`), what each exit code
   promises, refusal records, `--json`, `--run-dir`, stable fields and versioning.
 - [`docs/routing.md`](docs/routing.md) — backends and what the adapters switch off,
   run layout and result semantics, native grading, preservation checks, `audit`,

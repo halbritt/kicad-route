@@ -24,10 +24,25 @@ from kicad_route import cli as route
 
 CLI = [sys.executable, str(ROOT / "bin" / "kicad-route")]
 RESULT_SCHEMA = json.loads((ROOT / "schemas" / "result-1.json").read_text())
+PAIR_RESULT_SCHEMA = json.loads((ROOT / "schemas" / "result-2.json").read_text())
 REFUSAL_SCHEMA = json.loads((ROOT / "schemas" / "refusal-1.json").read_text())
 RESULTS = jsonschema.Draft202012Validator(RESULT_SCHEMA)
 REFUSALS = jsonschema.Draft202012Validator(REFUSAL_SCHEMA)
 EVIDENCE = ROOT / "reports" / "fixture"
+
+# Captured default-path key sets at e497916 (before differential-pair support).
+# attempt/1 adds only its schema identifier to that previously unversioned shape.
+BASE_ATTEMPT_KEYS = {
+    "backend", "baseline", "board", "candidate_dir", "floor", "input_fingerprint",
+    "project", "reference_dir", "reference_facts", "rules_files", "schematic",
+    "scope", "settings", "source",
+}
+BASE_RESULT_KEYS = {
+    "backend", "candidate", "evidence", "exit_code", "finished_utc", "floor", "input",
+    "kind", "ledger", "measurement", "process", "routing", "run_dir", "runtime_s",
+    "sandbox", "schema", "scope", "settings", "tool_identity", "tool_versions",
+    "unsupported", "validation",
+}
 
 
 def kr(*args, cwd, env=None, timeout=900):
@@ -346,7 +361,7 @@ def check_invariants(res, process=None):
 
 
 def test_schemas_are_valid_2020_12():
-    for s in (RESULT_SCHEMA, REFUSAL_SCHEMA):
+    for s in (RESULT_SCHEMA, PAIR_RESULT_SCHEMA, REFUSAL_SCHEMA):
         jsonschema.Draft202012Validator.check_schema(s)
         assert s["$schema"] == "https://json-schema.org/draft/2020-12/schema"
 
@@ -445,6 +460,11 @@ def test_json_runs_with_explicit_run_dirs_do_not_interfere():
         assert (OUT / res["run_dir"]).resolve() == rd.resolve()
         assert json.loads((rd / "result.json").read_text()) == res
         assert res["settings"]["backend"] == name and res["schema"] == "kicad-route/route/1"
+        attempt = json.loads((rd / "attempt.json").read_text())
+        assert attempt["schema"] == "kicad-route/attempt/1"
+        assert set(attempt) == BASE_ATTEMPT_KEYS | {"schema"}
+        assert set(res) == BASE_RESULT_KEYS
+        assert not {"diff_pairs", "pairs"} & res["settings"].keys()
         RESULTS.validate(res)
         check_invariants(res)
         assert not (rd.parent / "latest").exists()
@@ -453,7 +473,7 @@ def test_json_runs_with_explicit_run_dirs_do_not_interfere():
     krt_dir = done[0][1]
     v = kr("--out", OUT, "validate", krt_dir, "--json", cwd=OUT)
     vres = one_json(v.stdout)
-    assert v.returncode == vres["exit_code"] and vres["kind"] == "route-validate"
+    assert v.returncode == vres["exit_code"] and vres["schema"] == "kicad-route/route-validate/1"
     RESULTS.validate(vres)
     assert json.loads((OUT / vres["dir"] / "result.json").read_text()) == vres
     b = kr("--out", OUT, "blocked", krt_dir, "--json", cwd=OUT)

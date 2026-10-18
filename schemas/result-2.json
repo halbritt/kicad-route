@@ -1,0 +1,1243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/halbritt/kicad-route/schemas/result-2.json",
+  "title": "kicad-route pair result records, major version 2",
+  "description": "Opt-in differential-pair evidence for route and route-validate records. Unchanged records use result-1.json. Stable fields and exit-code promises retain their meaning (docs/interface.md).",
+  "type": "object",
+  "required": [
+    "schema",
+    "kind",
+    "exit_code"
+  ],
+  "properties": {
+    "schema": {
+      "enum": [
+        "kicad-route/route/2",
+        "kicad-route/route-validate/2"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/route"
+    },
+    {
+      "$ref": "#/$defs/route-validate"
+    }
+  ],
+  "$defs": {
+    "route": {
+      "type": "object",
+      "required": [
+        "schema",
+        "kind",
+        "exit_code",
+        "backend",
+        "input",
+        "settings",
+        "scope",
+        "unsupported",
+        "process",
+        "routing",
+        "validation",
+        "candidate",
+        "run_dir",
+        "ledger",
+        "pairs"
+      ],
+      "properties": {
+        "schema": {
+          "const": "kicad-route/route/2"
+        },
+        "kind": {
+          "const": "route"
+        },
+        "exit_code": {
+          "enum": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        "deprecated": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "field"
+            ],
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "replaced_by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "since": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "backend": {
+          "type": "object",
+          "required": [
+            "name",
+            "version",
+            "build"
+          ],
+          "properties": {
+            "name": {
+              "enum": [
+                "krt",
+                "freerouting"
+              ]
+            },
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "build": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "commit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rust_router": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "input": {
+          "type": "object",
+          "required": [
+            "project",
+            "board",
+            "fingerprint",
+            "source_git_head"
+          ],
+          "properties": {
+            "project": {
+              "type": "string"
+            },
+            "board": {
+              "type": "string"
+            },
+            "fingerprint": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "source_git_head": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "settings": {
+          "type": "object",
+          "required": [
+            "backend",
+            "budget_s",
+            "protect",
+            "mode",
+            "backend_args",
+            "backend_env",
+            "diff_pairs",
+            "pairs"
+          ],
+          "properties": {
+            "backend": {
+              "enum": [
+                "krt",
+                "freerouting"
+              ]
+            },
+            "budget_s": {
+              "type": "integer"
+            },
+            "protect": {
+              "enum": [
+                "existing",
+                "locked",
+                "human"
+              ]
+            },
+            "mode": {
+              "enum": [
+                "all",
+                "selected"
+              ]
+            },
+            "max_iterations": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "passes": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "default_clearance_mm": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "clearance_margin_mm": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "pour_area_loss_pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "pour_min_spokes": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "backend_args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "backend_env": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "reserve_spokes": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "stall_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "net_patterns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "netclasses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rule_floor_sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "diff_pairs": {
+              "const": "auto"
+            },
+            "pairs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/pair-plan"
+              }
+            }
+          }
+        },
+        "scope": {
+          "type": "object",
+          "required": [
+            "mode",
+            "nets"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "all",
+                "selected"
+              ]
+            },
+            "nets": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "nets_list": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "unsupported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "process": {
+          "type": "object",
+          "required": [
+            "status",
+            "reasons"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "PASS",
+                "FAIL"
+              ]
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "routing": {
+          "$ref": "#/$defs/routing"
+        },
+        "validation": {
+          "$ref": "#/$defs/validation"
+        },
+        "candidate": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "dir",
+                "board"
+              ],
+              "properties": {
+                "dir": {
+                  "type": "string"
+                },
+                "board": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "run_dir": {
+          "type": "string"
+        },
+        "ledger": {
+          "type": "object",
+          "required": [
+            "fingerprint"
+          ],
+          "properties": {
+            "fingerprint": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "pairs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/differential-pair"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "exit_code": {
+                "const": 0
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "routing": {
+                "properties": {
+                  "status": {
+                    "const": "COMPLETE"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "validation": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "candidate": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exit_code": {
+                "const": 2
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "routing": {
+                "properties": {
+                  "status": {
+                    "const": "INCOMPLETE"
+                  }
+                },
+                "required": [
+                  "status",
+                  "blocked_by"
+                ]
+              },
+              "validation": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "candidate": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exit_code": {
+                "const": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "FAIL"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "routing": {
+                "properties": {
+                  "status": {
+                    "const": "NOT_RUN"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "validation": {
+                "properties": {
+                  "status": {
+                    "const": "NOT_RUN"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "candidate": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exit_code": {
+                "const": 3
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "validation": {
+                "properties": {
+                  "status": {
+                    "const": "FAIL"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "candidate": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "route-validate": {
+      "type": "object",
+      "required": [
+        "schema",
+        "kind",
+        "exit_code",
+        "run_dir",
+        "against",
+        "routing",
+        "validation",
+        "pairs"
+      ],
+      "properties": {
+        "schema": {
+          "const": "kicad-route/route-validate/2"
+        },
+        "kind": {
+          "const": "route-validate"
+        },
+        "exit_code": {
+          "enum": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        "deprecated": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "field"
+            ],
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "replaced_by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "since": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "run_dir": {
+          "type": "string"
+        },
+        "against": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dir": {
+          "type": "string"
+        },
+        "routing": {
+          "$ref": "#/$defs/routing"
+        },
+        "validation": {
+          "$ref": "#/$defs/validation"
+        },
+        "process": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "PASS",
+                "FAIL"
+              ]
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "pairs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/differential-pair"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "exit_code": {
+                "const": 0
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "routing": {
+                "properties": {
+                  "status": {
+                    "const": "COMPLETE"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "validation": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exit_code": {
+                "const": 2
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "routing": {
+                "properties": {
+                  "status": {
+                    "const": "INCOMPLETE"
+                  }
+                },
+                "required": [
+                  "status",
+                  "blocked_by"
+                ]
+              },
+              "validation": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exit_code": {
+                "const": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "routing": {
+                "properties": {
+                  "status": {
+                    "const": "NOT_RUN"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "validation": {
+                "properties": {
+                  "status": {
+                    "const": "NOT_RUN"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "FAIL"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "exit_code": {
+                "const": 3
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "validation": {
+                "properties": {
+                  "status": {
+                    "const": "FAIL"
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "status": {
+                    "const": "PASS"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "routing": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "COMPLETE",
+            "INCOMPLETE",
+            "NOT_RUN"
+          ]
+        },
+        "unconnected_in_scope": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unconnected_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unrouted_nets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stats": {
+          "type": "object"
+        },
+        "blocked_by": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "COMPLETE",
+                  "INCOMPLETE"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "unconnected_in_scope",
+              "unrouted_nets"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "COMPLETE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "unconnected_in_scope": {
+                "const": 0
+              },
+              "unrouted_nets": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "INCOMPLETE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "unconnected_in_scope": {
+                "minimum": 1
+              },
+              "unrouted_nets": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "status",
+        "reasons"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_RUN"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parity_performed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "delivered_board_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "validated_board_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidate_board_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "refill_modified_board": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "preservation": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "NOT_RUN",
+              "UNSUPPORTED"
+            ]
+          }
+        },
+        "drc": {
+          "type": "object"
+        },
+        "chain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dir": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "PASS"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "delivered_board_sha256",
+              "validated_board_sha256",
+              "candidate_board_sha256",
+              "preservation"
+            ],
+            "properties": {
+              "reasons": {
+                "maxItems": 0
+              },
+              "delivered_board_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "validated_board_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "candidate_board_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "preservation": {
+                "additionalProperties": {
+                  "const": "PASS"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "FAIL",
+                  "NOT_RUN"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reasons": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "differential-pair": {
+      "type": "object",
+      "required": [
+        "p",
+        "n",
+        "netclass",
+        "width_mm",
+        "gap_mm",
+        "routed",
+        "length_p",
+        "length_n",
+        "skew",
+        "gap_violations",
+        "status",
+        "backend_status",
+        "backend_report"
+      ],
+      "properties": {
+        "p": {
+          "type": "string",
+          "minLength": 1
+        },
+        "n": {
+          "type": "string",
+          "minLength": 1
+        },
+        "netclass": {
+          "type": "string"
+        },
+        "width_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "gap_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "initially_connected": {
+          "type": "boolean"
+        },
+        "routed": {
+          "type": "boolean"
+        },
+        "length_p": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "length_n": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "skew": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "gap_violations": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "ROUTED",
+            "INCOMPLETE",
+            "NOT_RUN"
+          ]
+        },
+        "backend_status": {
+          "enum": [
+            "COUPLED",
+            "ALREADY_CONNECTED",
+            "REJECTED",
+            "PROCESS_FAILED",
+            "BUDGET_EXHAUSTED",
+            "NOT_RUN"
+          ]
+        },
+        "backend_report": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "routed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "ROUTED"
+              },
+              "gap_violations": {
+                "const": 0
+              },
+              "backend_status": {
+                "enum": [
+                  "COUPLED",
+                  "ALREADY_CONNECTED"
+                ]
+              },
+              "length_p": {
+                "type": "number"
+              },
+              "length_n": {
+                "type": "number"
+              },
+              "skew": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pair-plan": {
+      "type": "object",
+      "required": [
+        "p",
+        "n",
+        "netclass",
+        "width_mm",
+        "gap_mm"
+      ],
+      "properties": {
+        "p": {
+          "type": "string",
+          "minLength": 1
+        },
+        "n": {
+          "type": "string",
+          "minLength": 1
+        },
+        "netclass": {
+          "type": "string"
+        },
+        "width_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "gap_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    }
+  }
+}
