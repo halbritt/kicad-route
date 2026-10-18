@@ -5,7 +5,8 @@ command. An agent (or a person) asks for an attempt; kicad-route routes an isola
 copy of the project, hands back a native KiCad candidate, and grades it with KiCad's
 own checks against the input's unchanged rules. Agents read the structured result
 and plan the next attempt. Agent-facing summary: the `kicad-route` skill
-(`skills/kicad-route/SKILL.md`).
+(`skills/kicad-route/SKILL.md`). A gentler introduction with diagrams and figures is
+the [guide](guide/README.md); this page is the reference.
 
 Run from the project directory (or pass `--dir`); `--out` (default
 `./build/kicad-route`, accepted before or after the subcommand) is where runs, caches

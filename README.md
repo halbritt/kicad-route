@@ -75,6 +75,11 @@ route:
 
 ## Documentation
 
+New here? Start with the **[guide](docs/guide/README.md)**: an overview with
+diagrams, a walk-through on the bundled demo board (with before/after figures), how a
+run works stage by stage, how to read results, real-board workflows, automation and
+sandboxes, and a glossary. The pages below are the reference.
+
 - [`docs/interface.md`](docs/interface.md) — the machine contract: record kinds and
   schema ids (`schemas/result-1.json`, `schemas/refusal-1.json`), what each exit code
   promises, refusal records, `--json`, `--run-dir`, stable fields and versioning.
