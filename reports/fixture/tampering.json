@@ -3,18 +3,33 @@
   "validation": {
     "status": "FAIL",
     "reasons": [
-      "candidate project files differed from the input and were restored before grading: route_demo.kicad_pro",
+      "candidate project files differed from the input and were restored before grading (the delivered versions are kept in /tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/delivered-project-files): route_demo.kicad_pro",
       "2 new DRC violations: track_dangling 2",
       "preservation project_files: rules (.kicad_pro/.kicad_dru), schematics, library tables and local libraries are byte-identical to the input; restored before grading: route_demo.kicad_pro",
       "preservation footprints: 5 footprints: library id, position, orientation, side, lock state and pad geometry; 1 differ",
-      "preservation protected_copper: 5 tracks and 2 vias designated (all pre-existing copper); max deviation 0 nm; 1 lock flags dropped; 1 missing or altered",
-      "preservation new_copper_netclass_geometry: 16 new tracks and 1 new vias checked against their net class width / via diameter / drill (1 um quantisation tolerance); 1 below",
+      "preservation protected_copper: 5 tracks and 2 vias designated (all pre-existing copper); max deviation 0 nm; 1 missing or altered",
+      "preservation new_copper_netclass_geometry: 16 new tracks and 1 new vias checked against their net class width / via (microvia) diameter / drill (1 um quantisation tolerance); 1 below",
       "preservation net_completion: 1 of the 1 nets fully connected in the input lost connection: /SIG_B"
     ],
-    "dir": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z",
+    "dir": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
     "restored_project_files": [
       "route_demo.kicad_pro"
     ],
+    "delivered_project_files": [
+      {
+        "path": "route_demo.kicad_pro",
+        "reference_sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+        "delivered_sha256": "e1a3d549427899c5ad6bbb58bbc7b2523f57607908f846ca3238fc6dc32c5849",
+        "action": "restored",
+        "kept": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/delivered-project-files/route_demo.kicad_pro"
+      }
+    ],
+    "delivered_board_sha256": "d1bda1393ece6d4ce13cd13c4167ed335589eed2744f7cf1d67886fd28e2221e",
     "drc_commands": [
       {
         "argv": [
@@ -26,13 +41,13 @@
           "--format",
           "json",
           "-o",
-          "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/candidate-refill.json",
-          "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
+          "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/candidate-refill.json",
+          "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/candidate/route_demo",
-        "log": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/candidate-refill.log",
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 2.768
+        "duration_s": 60.843
       },
       {
         "argv": [
@@ -46,17 +61,18 @@
           "--units",
           "mm",
           "-o",
-          "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/candidate-drc.json",
-          "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
+          "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/candidate-drc.json",
+          "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/candidate/route_demo",
-        "log": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/candidate-drc.log",
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 2.507
+        "duration_s": 53.643
       }
     ],
-    "delivered_board_sha256": "2686d1a666bee4215784cd3ed71a2a796588ed75505db915bf466160272ca799",
-    "validated_board_sha256": "2686d1a666bee4215784cd3ed71a2a796588ed75505db915bf466160272ca799",
+    "validated_board_sha256": "6ea67ca134f4fdb33acf38ce42f145599498188cd28018b3872ddf5db2c05c70",
+    "candidate_board_sha256": "6ea67ca134f4fdb33acf38ce42f145599498188cd28018b3872ddf5db2c05c70",
+    "refill_modified_board": true,
     "parity_performed": true,
     "drc": {
       "violations_total": 2,
@@ -126,7 +142,9 @@
       "removed_existing_vias": 1
     },
     "blocked_by": {
-      "report": "/tmp/pytest-of-halbritt/pytest-1230/test_validation_detects_tamper0/run/revalidate/20261017T164913.194315Z/blocked-by.json",
+      "schema": "kicad-route/blocked/2",
+      "version": 2,
+      "report": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/blocked-by.json",
       "connections_analyzed": 1,
       "unobstructed_connections": 1,
       "method": "heuristic corridors; see docs/blocked.md",

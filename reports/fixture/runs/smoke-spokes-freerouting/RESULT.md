@@ -1,13 +1,13 @@
 # Routing attempt: freerouting on route_demo
 
 - Backend: freerouting v2.5.0 (freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76)
-- Input: `route_demo.kicad_pcb` from working tree @ 2944c145e51effd192d2ee4a1d04f7f18c0ffc5e (fingerprint ba2f343c49e2f971)
+- Input: `route_demo.kicad_pcb` from working tree @ a928b1562dfa48954c60e9cee4398bb3ed973e8e (fingerprint ba2f343c49e2f971)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo/smoke-spokes-freerouting/20261017T164957.450952Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 6.486 s |
+| process | PASS | exit 0, 46.625 s |
 | routing | COMPLETE | 0 unconnected in scope, 0 total (input: 6) |
 | validation | PASS | no new findings |
 

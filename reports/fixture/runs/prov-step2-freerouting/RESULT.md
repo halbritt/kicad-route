@@ -1,13 +1,13 @@
 # Routing attempt: freerouting on route_demo
 
 - Backend: freerouting v2.5.0 (freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76)
-- Input: `route_demo.kicad_pcb` from working tree @ 2944c145e51effd192d2ee4a1d04f7f18c0ffc5e (fingerprint 3d269628ff7c8997)
+- Input: `route_demo.kicad_pcb` from working tree @ a928b1562dfa48954c60e9cee4398bb3ed973e8e (fingerprint 05694d866aef4895)
 - Scope: selected, 4 nets; protect: human; budget 180 s
-- Candidate: `runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 4.724 s |
+| process | PASS | exit 0, 36.834 s |
 | routing | INCOMPLETE | 1 unconnected in scope, 1 total (input: 4) |
 | validation | PASS | no new findings |
 
@@ -61,13 +61,13 @@ Unsupported or approximated by this backend:
 - --protect human: agent copper is exported unlocked ((type route)) and rebuilt from the session, but Freerouting returns it as (type protect) and never rips it up; use KRT to reroute agent copper
 - route_demo.kicad_dru: net-class-to-net-class clearance rules are translated to Specctra class_class rules; any other custom rule is listed as untranslated below
 
-Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/validate/blocked-by.json`):
+Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/validate/blocked-by.json`):
 
 | Blocker | Category | Blocks (best layer) | Blocks (any layer) |
 |---|---|---|---|
 | keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 0 | 1 |
-| track /SIG_A F.Cu (input, unlocked) 4f9970c1 | input_copper | 0 | 1 |
-| track /SIG_A_OUT F.Cu (input, unlocked) cb41dfa1 | input_copper | 0 | 1 |
+| track /SIG_A F.Cu (input, unlocked) 27a3c0ce | input_copper | 0 | 1 |
+| track /SIG_A_OUT F.Cu (input, unlocked) 262accf9 | input_copper | 0 | 1 |
 
 - `/VIN`: 1 open; best layer B.Cu with 0 hard blockers
 - 1 connection(s) have an unobstructed corridor: the obstacle is elsewhere (congestion, detours, the backend's search or budget)

@@ -1,0 +1,37 @@
+{
+  "kind": "spokes",
+  "run_dir": "runs/route_demo/smoke-spokes-krt/20261018T050920.398987Z",
+  "validation_dir": "runs/route_demo/smoke-spokes-krt/20261018T050920.398987Z/validate",
+  "reference_board": "runs/route_demo/smoke-spokes-krt/20261018T050920.398987Z/reference/route_demo/route_demo.kicad_pcb",
+  "plan": "runs/route_demo/smoke-spokes-krt/20261018T050920.398987Z/spokes/reference-plan.json",
+  "plan_command": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
+      "plan",
+      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261018T050920.398987Z/reference/route_demo/route_demo.kicad_pcb",
+      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-krt/20261018T050920.398987Z/spokes/reference-plan.json"
+    ],
+    "cwd": "runs/route_demo/smoke-spokes-krt/20261018T050920.398987Z",
+    "log": "runs/route_demo/smoke-spokes-krt/20261018T050920.398987Z/spokes/plan.log",
+    "exit_code": 0,
+    "duration_s": 5.117
+  },
+  "clearance_mm": 0.4,
+  "min_resolved_spokes": 2,
+  "warnings": [],
+  "thermal_pads": 2,
+  "new_items": 17,
+  "corridors_live": 8,
+  "corridors_crossed": 0,
+  "pads_with_crossed_corridors": 0,
+  "crossings": [],
+  "starved_pads": [],
+  "reserved": {
+    "corridors": 4,
+    "crossed_by_new_copper": []
+  },
+  "new_starved": 0,
+  "new_starved_attributed": 0,
+  "exit_code": 0
+}

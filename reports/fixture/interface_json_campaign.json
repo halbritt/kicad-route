@@ -1,0 +1,78 @@
+{
+  "schema": "kicad-route/route-campaign/1",
+  "exit_code": 0,
+  "stop_reason": "complete in round 0",
+  "best": {
+    "chain": "r0",
+    "round": 0,
+    "strategy": "full",
+    "run_dir": "runs/route_demo/iface-campaign-r0/20261018T040412.584267Z",
+    "candidate": "runs/route_demo/iface-campaign-r0/20261018T040412.584267Z/candidate/route_demo/route_demo.kicad_pcb",
+    "graded_against": "runs/route_demo/iface-campaign-r0/20261018T040412.584267Z",
+    "grade": "runs/route_demo/iface-campaign-r0/20261018T040412.584267Z/result.json",
+    "exit_code": 0,
+    "evidence": {
+      "input_board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+      "reference_files": {
+        "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+        "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+        "route_demo.kicad_pcb": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+        "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+        "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+        "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
+      },
+      "rules_files": {
+        "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+        "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550"
+      },
+      "rule_floor_sha256": null,
+      "backend_output_board_sha256": "d3b740dcd730365ec5e5aa147a4e49a3d86f6844f78cfd57c5878bc5238e221a",
+      "candidate_board_sha256": "d3b740dcd730365ec5e5aa147a4e49a3d86f6844f78cfd57c5878bc5238e221a",
+      "candidate_copper_signature": {
+        "sha256": "be567862c42fa29ebfad0d7bed3680a1dd31830be1334d184301964e066d4126",
+        "tracks": 10,
+        "vias": 2
+      },
+      "records": {
+        "attempt.json": "eadf6acdc22a32d6cba571621226fbae618739c5b3f7e9956a9693ee1d368950",
+        "validate/preservation.json": "0475f2d53117ca81e1c36e195122157177503f28016785c854976a675d15ca3a",
+        "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+        "validate/candidate-drc.json": "03096d9469042881f455add1310f3286c863890087c8a14d54938ab53bb7213c",
+        "validate/candidate-facts.json": "751e8077794dc9c54f76401da16074a0a11da5e5aa6c729f6dbe27dd82446848",
+        "validate/pour-integrity.json": "98e007845b8a13149647bff999d9694449207be05391670affe205ce8912acd1"
+      }
+    },
+    "tool_identity": {
+      "kicad_route": {
+        "version": "a928b15",
+        "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
+        "dirty": false
+      },
+      "kicad_cli": {
+        "path": "/usr/bin/kicad-cli",
+        "version": "10.0.7",
+        "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+      },
+      "pcbnew": {
+        "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+        "python": "/usr/bin/python3"
+      },
+      "python": {
+        "version": "3.12.3",
+        "executable": "/usr/bin/python3"
+      },
+      "backend": {
+        "name": "krt",
+        "tag": "v0.23.1",
+        "version": "0.23.1",
+        "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+        "grid_router_version": "0.23.1",
+        "extension_module_sha256": "d42aa6c682e6ab42f82d2241cf5b2a333effa4ad0b58549b1305b4503ce6bf79",
+        "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+      },
+      "state_manifest_sha256": "d6e6179fd9cdc491d41e99b9abb110a66bde8d709b7f409eddaae648525e23c2",
+      "state_manifest_drift": []
+    }
+  }
+}

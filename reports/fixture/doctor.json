@@ -130,6 +130,24 @@
       "required": false
     },
     {
+      "check": "state manifest",
+      "status": "PASS",
+      "detail": "/home/halbritt/git/kicad-route/manifest.json (2026-10-17T22:12:42.249060+00:00, by state-manifest)",
+      "required": true
+    },
+    {
+      "check": "state manifest matches the files on disk",
+      "status": "PASS",
+      "detail": "jar, extension module, venv packages, requirements, KRT commit, kicad-cli",
+      "required": true
+    },
+    {
+      "check": "KRT determinism verified for this build",
+      "status": "PASS",
+      "detail": "determinism check 2026-10-17T22:19:04.746885+00:00: identical copper geometry on repeat",
+      "required": false
+    },
+    {
       "check": "canary split (awkward net names)",
       "status": "PASS",
       "detail": "Specctra class split and DSN export/parse round-trip",
@@ -140,6 +158,12 @@
       "status": "PASS",
       "detail": "Specctra class split and DSN export/parse round-trip",
       "required": true
+    },
+    {
+      "check": "state read-only",
+      "status": "NOT_RUN",
+      "detail": "--require-readonly-state: STATE /home/halbritt/git/kicad-route is writable by this process (., vendor/krt, .venv-krt, vendor/freerouting, vendor/skills); mount it read-only before `doctor`",
+      "required": false
     }
   ]
 }

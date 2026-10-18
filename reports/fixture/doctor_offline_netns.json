@@ -1,0 +1,36 @@
+{
+  "runner": "agent_ee.executor.sandbox_argv",
+  "wall_s": 24.1,
+  "status": "PASS",
+  "observed": {
+    "require_readonly_state": false,
+    "state": {
+      "path": "/home/halbritt/git/kicad-route",
+      "exists": true,
+      "installed": [
+        "vendor/krt",
+        ".venv-krt",
+        "vendor/freerouting",
+        "vendor/skills"
+      ],
+      "writable": false,
+      "writable_parts": [],
+      "readonly_mount": true
+    },
+    "tool_root": {
+      "path": "/home/halbritt/git/kicad-route",
+      "writable": false
+    },
+    "out": {
+      "path": "/work/out"
+    },
+    "network": {
+      "interfaces": 1,
+      "non_loopback_interfaces": 0,
+      "non_loopback_examples": [],
+      "non_loopback_routes": 0,
+      "namespace": "net:[4026534311]",
+      "isolated": true
+    }
+  }
+}

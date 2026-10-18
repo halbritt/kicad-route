@@ -6,7 +6,9 @@
     "sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
     "java": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java (25)",
     "java_required": 25,
-    "source": "https://github.com/freerouting/freerouting"
+    "source": "https://github.com/freerouting/freerouting",
+    "reproducible": false,
+    "reproducible_basis": "Freerouting's outcome may vary between runs: this result is an attempt, not a measurement"
   },
   "settings": {
     "backend": "freerouting",
@@ -21,6 +23,7 @@
     "backend_args": [],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "selected",
     "net_patterns": [
@@ -69,7 +72,9 @@
       "removed_existing_vias": 0
     },
     "blocked_by": {
-      "report": "runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/validate/blocked-by.json",
+      "schema": "kicad-route/blocked/2",
+      "version": 2,
+      "report": "runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/validate/blocked-by.json",
       "connections_analyzed": 1,
       "unobstructed_connections": 1,
       "method": "heuristic corridors; see docs/blocked.md",
@@ -87,10 +92,10 @@
           ]
         },
         {
-          "id": "4f9970c1-b465-4da2-8e21-b008ba53442a",
+          "id": "27a3c0ce-6f68-402d-8e5b-6dfb7c5a80db",
           "category": "input_copper",
           "kind": "track",
-          "label": "track /SIG_A F.Cu (input, unlocked) 4f9970c1",
+          "label": "track /SIG_A F.Cu (input, unlocked) 27a3c0ce",
           "net": "/SIG_A",
           "locked": false,
           "origin": "input",
@@ -101,10 +106,10 @@
           ]
         },
         {
-          "id": "cb41dfa1-1855-4a3e-a01a-c728389339a4",
+          "id": "262accf9-2bb2-4204-862c-c7df2d69b66f",
           "category": "input_copper",
           "kind": "track",
-          "label": "track /SIG_A_OUT F.Cu (input, unlocked) cb41dfa1",
+          "label": "track /SIG_A_OUT F.Cu (input, unlocked) 262accf9",
           "net": "/SIG_A_OUT",
           "locked": false,
           "origin": "input",
@@ -130,7 +135,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 4.724,
+    "runtime_s": 36.834,
     "backend_report": {
       "final_state": "COMPLETED",
       "exit_code": 0,
@@ -166,7 +171,7 @@
       },
       "import": {
         "placement_dropped": true,
-        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/work/board.noplacement.ses",
+        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/work/board.noplacement.ses",
         "existing_copper_locked": 7,
         "lock_flags_restored": 7
       }
@@ -176,8 +181,15 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/validate",
+    "dir": "runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/validate",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
     "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "b3a33f910ccc5465ada4fd8c9dba40a1ee45248b747738b244a2b7d099099f74",
     "drc_commands": [
       {
         "argv": [
@@ -189,13 +201,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/candidate/route_demo",
-        "log": "runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/candidate/route_demo",
+        "log": "runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 2.199
+        "duration_s": 26.354
       },
       {
         "argv": [
@@ -209,17 +221,18 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/candidate/route_demo",
-        "log": "runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/candidate/route_demo",
+        "log": "runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 2.035
+        "duration_s": 33.131
       }
     ],
-    "delivered_board_sha256": "6862089307623b1bd1201e4def6c394a5baa9b3e2a9439e0122e45bc37c8e113",
-    "validated_board_sha256": "6862089307623b1bd1201e4def6c394a5baa9b3e2a9439e0122e45bc37c8e113",
+    "validated_board_sha256": "b3a33f910ccc5465ada4fd8c9dba40a1ee45248b747738b244a2b7d099099f74",
+    "candidate_board_sha256": "b3a33f910ccc5465ada4fd8c9dba40a1ee45248b747738b244a2b7d099099f74",
+    "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
       "violations_total": 0,
@@ -263,5 +276,5 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/prov-step2-freerouting/20261017T164314.689019Z"
+  "run_dir": "runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z"
 }

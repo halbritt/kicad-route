@@ -1,0 +1,16 @@
+{
+  "runs": {
+    "krt": {
+      "exit_code": 0,
+      "stdout_record": "runs/route_demo/iface-json/krt/run",
+      "stderr_tail": "[route] krt on route_demo -> runs/route_demo/iface-json/krt/run\n[route] scope: selected (2 of 6 nets)\n[route] baseline: native DRC of the untouched input (refilled)\n[route] routing with krt (budget 180s)\n[route] process: PASS\n[route] validating the candidate (refill, DRC + parity, preservation)\n[route] routing: COMPLETE\n[route] validation: PASS\n[route] candidate: runs/route_demo/iface-json/krt/run/candidate/route_demo/route_demo.kicad_pcb\n[route] result: runs/route_demo/iface-json/krt/run/result.json  (exit 0)\n"
+    },
+    "freerouting": {
+      "exit_code": 0,
+      "stdout_record": "runs/route_demo/iface-json/freerouting/run",
+      "stderr_tail": "[route] freerouting on route_demo -> runs/route_demo/iface-json/freerouting/run\n[route] scope: selected (2 of 6 nets)\n[route] baseline: native DRC of the untouched input (refilled)\n[route] routing with freerouting (budget 180s)\n[route] process: PASS\n[route] validating the candidate (refill, DRC + parity, preservation)\n[route] routing: COMPLETE\n[route] validation: PASS\n[route] candidate: runs/route_demo/iface-json/freerouting/run/candidate/route_demo/route_demo.kicad_pcb\n[route] result: runs/route_demo/iface-json/freerouting/run/result.json  (exit 0)\n"
+    }
+  },
+  "validate": "kicad-route/route-validate/1",
+  "blocked": "kicad-route/route-blocked/1"
+}

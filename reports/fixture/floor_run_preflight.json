@@ -5,7 +5,9 @@
     "build": "v0.23.1",
     "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
     "source": "https://github.com/drandyhaas/KiCadRoutingTools",
-    "rust_router": "0.23.1"
+    "rust_router": "0.23.1",
+    "reproducible": true,
+    "reproducible_basis": "determinism check 2026-10-17T22:19:04.746885+00:00: identical copper geometry on repeat"
   },
   "settings": {
     "backend": "krt",
@@ -20,13 +22,14 @@
     "backend_args": [],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "selected",
     "net_patterns": [
       "/SIG_A*"
     ],
     "netclasses": [],
-    "rule_floor_sha256": "0bc41e4f4148ea8c1b511840e007eeb99ba8e43e36ab59277d31c28247535d8b"
+    "rule_floor_sha256": "f8890003dcc9a692caae0d740d671ee4f1ce0268dc592747d8b0268dff494824"
   },
   "scope": {
     "mode": "selected",
@@ -65,7 +68,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 3.781,
+    "runtime_s": 19.004,
     "backend_report": {
       "successful": 2,
       "failed": 0,
@@ -77,7 +80,7 @@
       "pad_pairs_total": 2,
       "total_vias": 0,
       "total_iterations": 408,
-      "total_time": 0.01,
+      "total_time": 0.05,
       "protected_skipped": null,
       "scope": "merged",
       "relaxations": {
@@ -119,7 +122,7 @@
     "reasons": [
       "input rules below the declared rule floor (1): rules.min_clearance 0.15 is below the declared floor 0.2 (owner hw)"
     ],
-    "dir": "runs/route_demo/floor-preflight/20261017T163959.072371Z/validate",
+    "dir": "runs/route_demo/floor-preflight/20261018T035000.054432Z/validate",
     "floor_violated": [
       {
         "setting": "rules.min_clearance",
@@ -128,10 +131,17 @@
         "status": "looser",
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     ],
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
     "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "4549e20f621ff3d66db611cc90a4e266c10a940dbd7b76f05c8121fbf856776d",
     "drc_commands": [
       {
         "argv": [
@@ -143,13 +153,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261017T163959.072371Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261017T163959.072371Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T035000.054432Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/floor-preflight/20261017T163959.072371Z/candidate/route_demo",
-        "log": "runs/route_demo/floor-preflight/20261017T163959.072371Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo",
+        "log": "runs/route_demo/floor-preflight/20261018T035000.054432Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 6.129
+        "duration_s": 43.562
       },
       {
         "argv": [
@@ -163,17 +173,18 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261017T163959.072371Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261017T163959.072371Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T035000.054432Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/floor-preflight/20261017T163959.072371Z/candidate/route_demo",
-        "log": "runs/route_demo/floor-preflight/20261017T163959.072371Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo",
+        "log": "runs/route_demo/floor-preflight/20261018T035000.054432Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 8.044
+        "duration_s": 54.422
       }
     ],
-    "delivered_board_sha256": "f7149419bcac5cad160602e8c016d48b605e90175d4a6925ed53b2427e84acc3",
-    "validated_board_sha256": "f7149419bcac5cad160602e8c016d48b605e90175d4a6925ed53b2427e84acc3",
+    "validated_board_sha256": "4549e20f621ff3d66db611cc90a4e266c10a940dbd7b76f05c8121fbf856776d",
+    "candidate_board_sha256": "4549e20f621ff3d66db611cc90a4e266c10a940dbd7b76f05c8121fbf856776d",
+    "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
       "violations_total": 0,
@@ -216,17 +227,17 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/floor-preflight/20261017T163959.072371Z",
+  "run_dir": "runs/route_demo/floor-preflight/20261018T035000.054432Z",
   "floor": {
     "declared_sources": [
-      "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+      "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
     ],
     "declared": {
       "rules.min_clearance": {
         "value": 0.2,
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     },
     "declared_problems": [],
@@ -238,7 +249,7 @@
         "status": "looser",
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     ],
     "notes": []

@@ -1,0 +1,334 @@
+{
+ "board": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/reference/route_demo/route_demo.kicad_pcb",
+ "per_pad": 2,
+ "min_resolved_spokes": 2,
+ "refilled": true,
+ "clearance": 400000,
+ "dru_clearance": 400000,
+ "max_error": 5000,
+ "warnings": [],
+ "pads": [
+  {
+   "ref": "J1",
+   "pad": "2",
+   "uuid": "7406bf1e-b249-4221-bfde-9d27e882b806",
+   "net": "GND",
+   "layer": "B.Cu",
+   "zone": "GND_B",
+   "zone_uuid": "0f51a515-5ebb-426a-91a1-1034db8ae453",
+   "position": [
+    104000000,
+    108540000
+   ],
+   "connection_from": "zone",
+   "gap": 500000,
+   "spoke_width": 500000,
+   "clearance": 400000,
+   "min_thickness": 250000,
+   "spoke_angle": 45.0,
+   "orientation": 0.0,
+   "live_spokes": 4,
+   "eligible": 2,
+   "selected": 2,
+   "corridors": [
+    {
+     "k": 0,
+     "direction_deg": 45.0,
+     "start": 845907,
+     "end": 2000907,
+     "reach": 845907,
+     "half_width": 650000,
+     "polygon": [
+      [
+       104138527,
+       107482234
+      ],
+      [
+       104955235,
+       106665526
+      ],
+      [
+       105874474,
+       107584765
+      ],
+      [
+       105057766,
+       108401473
+      ]
+     ],
+     "live": true,
+     "pour_fraction": 0.917,
+     "overlaps_existing": [
+      [
+       "pad",
+       "4c395766-69b0-4dd8-a567-332c0f182d19"
+      ]
+     ],
+     "eligible": false,
+     "selected": false
+    },
+    {
+     "k": 1,
+     "direction_deg": 135.0,
+     "start": 845907,
+     "end": 2000907,
+     "reach": 845907,
+     "half_width": 650000,
+     "polygon": [
+      [
+       102942234,
+       108401473
+      ],
+      [
+       102125526,
+       107584765
+      ],
+      [
+       103044765,
+       106665526
+      ],
+      [
+       103861473,
+       107482234
+      ]
+     ],
+     "live": true,
+     "pour_fraction": 0.917,
+     "overlaps_existing": [
+      [
+       "pad",
+       "4c395766-69b0-4dd8-a567-332c0f182d19"
+      ]
+     ],
+     "eligible": false,
+     "selected": false
+    },
+    {
+     "k": 2,
+     "direction_deg": 225.0,
+     "start": 845907,
+     "end": 2000907,
+     "reach": 845907,
+     "half_width": 650000,
+     "polygon": [
+      [
+       103861473,
+       109597766
+      ],
+      [
+       103044765,
+       110414474
+      ],
+      [
+       102125526,
+       109495235
+      ],
+      [
+       102942234,
+       108678527
+      ]
+     ],
+     "live": true,
+     "pour_fraction": 1.0,
+     "overlaps_existing": [],
+     "eligible": true,
+     "selected": true
+    },
+    {
+     "k": 3,
+     "direction_deg": 315.0,
+     "start": 845907,
+     "end": 2000907,
+     "reach": 845907,
+     "half_width": 650000,
+     "polygon": [
+      [
+       105057766,
+       108678527
+      ],
+      [
+       105874474,
+       109495235
+      ],
+      [
+       104955235,
+       110414474
+      ],
+      [
+       104138527,
+       109597766
+      ]
+     ],
+     "live": true,
+     "pour_fraction": 1.0,
+     "overlaps_existing": [],
+     "eligible": true,
+     "selected": true
+    }
+   ]
+  },
+  {
+   "ref": "J2",
+   "pad": "2",
+   "uuid": "064cb8bd-5418-483b-8a32-078800da63ae",
+   "net": "GND",
+   "layer": "B.Cu",
+   "zone": "GND_B",
+   "zone_uuid": "0f51a515-5ebb-426a-91a1-1034db8ae453",
+   "position": [
+    146000000,
+    108540000
+   ],
+   "connection_from": "zone",
+   "gap": 500000,
+   "spoke_width": 500000,
+   "clearance": 400000,
+   "min_thickness": 250000,
+   "spoke_angle": 45.0,
+   "orientation": 0.0,
+   "live_spokes": 4,
+   "eligible": 2,
+   "selected": 2,
+   "corridors": [
+    {
+     "k": 0,
+     "direction_deg": 45.0,
+     "start": 845907,
+     "end": 2000907,
+     "reach": 845907,
+     "half_width": 650000,
+     "polygon": [
+      [
+       146138527,
+       107482234
+      ],
+      [
+       146955235,
+       106665526
+      ],
+      [
+       147874474,
+       107584765
+      ],
+      [
+       147057766,
+       108401473
+      ]
+     ],
+     "live": true,
+     "pour_fraction": 0.917,
+     "overlaps_existing": [
+      [
+       "pad",
+       "993f7ea8-1128-4542-b649-178db9de8ce7"
+      ]
+     ],
+     "eligible": false,
+     "selected": false
+    },
+    {
+     "k": 1,
+     "direction_deg": 135.0,
+     "start": 845907,
+     "end": 2000907,
+     "reach": 845907,
+     "half_width": 650000,
+     "polygon": [
+      [
+       144942234,
+       108401473
+      ],
+      [
+       144125526,
+       107584765
+      ],
+      [
+       145044765,
+       106665526
+      ],
+      [
+       145861473,
+       107482234
+      ]
+     ],
+     "live": true,
+     "pour_fraction": 0.917,
+     "overlaps_existing": [
+      [
+       "pad",
+       "993f7ea8-1128-4542-b649-178db9de8ce7"
+      ]
+     ],
+     "eligible": false,
+     "selected": false
+    },
+    {
+     "k": 2,
+     "direction_deg": 225.0,
+     "start": 845907,
+     "end": 2000907,
+     "reach": 845907,
+     "half_width": 650000,
+     "polygon": [
+      [
+       145861473,
+       109597766
+      ],
+      [
+       145044765,
+       110414474
+      ],
+      [
+       144125526,
+       109495235
+      ],
+      [
+       144942234,
+       108678527
+      ]
+     ],
+     "live": true,
+     "pour_fraction": 1.0,
+     "overlaps_existing": [],
+     "eligible": true,
+     "selected": true
+    },
+    {
+     "k": 3,
+     "direction_deg": 315.0,
+     "start": 845907,
+     "end": 2000907,
+     "reach": 845907,
+     "half_width": 650000,
+     "polygon": [
+      [
+       147057766,
+       108678527
+      ],
+      [
+       147874474,
+       109495235
+      ],
+      [
+       146955235,
+       110414474
+      ],
+      [
+       146138527,
+       109597766
+      ]
+     ],
+     "live": true,
+     "pour_fraction": 1.0,
+     "overlaps_existing": [],
+     "eligible": true,
+     "selected": true
+    }
+   ]
+  }
+ ],
+ "skipped": [],
+ "pad_count": 2,
+ "corridors_live": 8,
+ "corridors_selected": 4
+}

@@ -1,0 +1,18 @@
+{
+  "raw_class_line": "(class kicad_default \"foo\" \"\"q r\"\" a\"b foo \"foo \"(bar)\"\" \"x y\"z\"",
+  "skip": [
+    "foo \"(bar)\"",
+    "\"foo\"",
+    "a\"b"
+  ],
+  "kept": [
+    "\"q r\"",
+    "foo",
+    "x y\"z"
+  ],
+  "moved": [
+    "''foo''",
+    "a''b",
+    "\"foo ''(bar)''\""
+  ]
+}

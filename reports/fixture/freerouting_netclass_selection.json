@@ -6,7 +6,9 @@
     "sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
     "java": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java (25)",
     "java_required": 25,
-    "source": "https://github.com/freerouting/freerouting"
+    "source": "https://github.com/freerouting/freerouting",
+    "reproducible": false,
+    "reproducible_basis": "Freerouting's outcome may vary between runs: this result is an attempt, not a measurement"
   },
   "settings": {
     "backend": "freerouting",
@@ -23,6 +25,7 @@
     ],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "selected",
     "net_patterns": [],
@@ -68,7 +71,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 9.921,
+    "runtime_s": 22.577,
     "backend_report": {
       "final_state": "COMPLETED",
       "exit_code": 0,
@@ -102,7 +105,7 @@
       },
       "import": {
         "placement_dropped": true,
-        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/work/board.noplacement.ses",
+        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/work/board.noplacement.ses",
         "existing_copper_locked": 0,
         "lock_flags_restored": 0
       }
@@ -112,8 +115,15 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/validate",
+    "dir": "runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/validate",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
     "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "a4dfaa32a889c3b9a8bee0aef07accb3c4cdd2f53e52a9529633447e2c44282b",
     "drc_commands": [
       {
         "argv": [
@@ -125,13 +135,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 7.499
+        "duration_s": 41.206
       },
       {
         "argv": [
@@ -145,17 +155,18 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 4.428
+        "duration_s": 27.625
       }
     ],
-    "delivered_board_sha256": "068941762d216f6197a3fc6e50fd76591d1aab0b993fd91445317e9240d61d8b",
-    "validated_board_sha256": "068941762d216f6197a3fc6e50fd76591d1aab0b993fd91445317e9240d61d8b",
+    "validated_board_sha256": "a4dfaa32a889c3b9a8bee0aef07accb3c4cdd2f53e52a9529633447e2c44282b",
+    "candidate_board_sha256": "a4dfaa32a889c3b9a8bee0aef07accb3c4cdd2f53e52a9529633447e2c44282b",
+    "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
       "violations_total": 0,
@@ -198,5 +209,5 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-freerouting-netclass/20261017T164548.463615Z"
+  "run_dir": "runs/route_demo/smoke-freerouting-netclass/20261018T044140.093718Z"
 }

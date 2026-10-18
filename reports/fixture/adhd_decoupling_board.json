@@ -1,0 +1,36 @@
+{
+  "counts": {
+    "respects": 1,
+    "bypassed": 2,
+    "incomplete": 1
+  },
+  "unpaired": [
+    "C5"
+  ],
+  "cells": {
+    "U1": [
+      "C1",
+      "respects",
+      "respects",
+      "respects"
+    ],
+    "U2": [
+      "C2",
+      "bypassed",
+      "bypassed",
+      "bypassed"
+    ],
+    "U3": [
+      "C3",
+      "bypassed",
+      "respects",
+      "bypassed"
+    ],
+    "U4": [
+      "C4",
+      "unrouted",
+      "cap_not_on_plane",
+      "incomplete"
+    ]
+  }
+}

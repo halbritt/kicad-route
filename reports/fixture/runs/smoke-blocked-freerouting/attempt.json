@@ -3,9 +3,9 @@
   "project": "route_demo",
   "board": "route_demo.kicad_pcb",
   "schematic": "route_demo.kicad_sch",
-  "input_fingerprint": "58a7a678f1b3b03c297973c185d745ad58b231d00535c1f7b08725d0ecd09af8",
+  "input_fingerprint": "ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472",
   "source": {
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1230/blocked0/route_demo",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/blocked0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": []
@@ -13,8 +13,13 @@
   "reference_dir": "reference/route_demo",
   "candidate_dir": "candidate/route_demo",
   "reference_facts": "facts/reference-facts.json",
+  "rules_files": {
+    "project": "route_demo.kicad_pro",
+    "custom_rules": "route_demo.kicad_dru",
+    "not_loaded": []
+  },
   "baseline": {
-    "report": "../../../../.cache/baseline/58a7a678f1b3b03c297973c185d745ad58b231d00535c1f7b08725d0ecd09af8/baseline-drc.json",
+    "report": "../../../../.cache/baseline/ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472/baseline-drc.json",
     "cached": true,
     "reasons": []
   },
@@ -42,6 +47,7 @@
     "backend_args": [],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "all",
     "rule_floor_sha256": null

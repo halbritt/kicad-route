@@ -1,0 +1,58 @@
+{
+  "backend": "krt",
+  "project": "route_demo",
+  "board": "route_demo.kicad_pcb",
+  "schematic": "route_demo.kicad_sch",
+  "input_fingerprint": "ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472",
+  "source": {
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/blocked0/route_demo",
+    "source": "working tree",
+    "source_git_head": null,
+    "source_dirty_files": []
+  },
+  "reference_dir": "reference/route_demo",
+  "candidate_dir": "candidate/route_demo",
+  "reference_facts": "facts/reference-facts.json",
+  "rules_files": {
+    "project": "route_demo.kicad_pro",
+    "custom_rules": "route_demo.kicad_dru",
+    "not_loaded": []
+  },
+  "baseline": {
+    "report": "../../../../.cache/baseline/ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472/baseline-drc.json",
+    "cached": true,
+    "reasons": []
+  },
+  "scope": {
+    "nets": [
+      "/SIG_A",
+      "/SIG_A_OUT",
+      "/SIG_B",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND"
+    ],
+    "mode": "all"
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 600,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {
+      "KICAD_NET_RESCUE": "0"
+    },
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "floor": null
+}

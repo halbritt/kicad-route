@@ -1,0 +1,189 @@
+{
+  "exit_code": 0,
+  "status": "PASS",
+  "sandbox": {
+    "ro_paths": [
+      {
+        "path": "/usr",
+        "purpose": "system: KiCad (kicad-cli, pcbnew, /usr/share/kicad), Python, Java, git",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/etc",
+        "purpose": "system configuration (ld.so cache, fonts, passwd)",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route",
+        "purpose": "kicad-route checkout: code, KiCad scripts, the canary fixture",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route",
+        "purpose": "STATE: vendor/krt, .venv-krt, vendor/freerouting; the venv stores absolute paths, so bind it at the same path",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/python3.12",
+        "purpose": "interpreter the KRT venv links to (.venv-krt/bin/python)",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/python3.12",
+        "purpose": "Python with KiCad's pcbnew bindings (KICAD_ROUTE_PCBNEW_PYTHON)",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/lib/python3/dist-packages",
+        "purpose": "the pcbnew module",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/share/kicad",
+        "purpose": "KiCad stock libraries and templates (hermetic config, DRC)",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/kicad-cli",
+        "purpose": "kicad-cli executable",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/git",
+        "purpose": "git executable",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/lib/jvm/java-25-openjdk-amd64",
+        "purpose": "JVM for Freerouting (newest under /usr/lib/jvm meeting the jar)",
+        "exists": true,
+        "same_path_required": true
+      }
+    ],
+    "ro_binds": [
+      "/etc",
+      "/home/halbritt/git/kicad-route",
+      "/usr"
+    ],
+    "rw_paths": [
+      {
+        "path": "/tmp/pytest-of-halbritt/pytest-1338/doctor0/out",
+        "purpose": "--out: runs, baseline cache, hermetic KiCad config, doctor output, the ledger (unless --ledger)"
+      }
+    ],
+    "tmp": "/tmp may be a private tmpfs",
+    "env": [
+      {
+        "name": "KICAD_ROUTE_STATE",
+        "value": "/home/halbritt/git/kicad-route",
+        "required": true,
+        "purpose": "the installed backends (default would be the checkout)"
+      },
+      {
+        "name": "HOME",
+        "value": "/tmp/pytest-of-halbritt/pytest-1338/doctor0/out/home",
+        "required": true,
+        "purpose": "any writable directory (Java and KiCad may write there); OUT/home is inside the writable OUT"
+      },
+      {
+        "name": "PATH",
+        "value": "/usr/bin:/usr/local/bin:/bin",
+        "required": true,
+        "purpose": "kicad-cli and git"
+      },
+      {
+        "name": "KICAD_ROUTE_PCBNEW_PYTHON",
+        "value": "/usr/bin/python3",
+        "required": false,
+        "purpose": "only when it is not /usr/bin/python3"
+      },
+      {
+        "name": "KICAD_ROUTE_OUT",
+        "value": "/tmp/pytest-of-halbritt/pytest-1338/doctor0/out",
+        "required": false,
+        "purpose": "or pass --out"
+      },
+      {
+        "name": "KICAD_ROUTE_REQUIRE_READONLY_STATE",
+        "value": "1",
+        "required": false,
+        "purpose": "refuse (exit 4) unless STATE is read-only; update and corpus add refuse"
+      }
+    ],
+    "network": {
+      "run": [],
+      "campaign": [],
+      "validate": [],
+      "blocked": [],
+      "doctor --offline": [],
+      "doctor": [
+        "api.github.com:443"
+      ],
+      "update": [
+        "api.github.com:443",
+        "github.com:443",
+        "objects.githubusercontent.com:443",
+        "release-assets.githubusercontent.com:443",
+        "pypi.org:443",
+        "files.pythonhosted.org:443"
+      ],
+      "note": "routing needs no network; Freerouting additionally gets a dead HTTPS proxy"
+    },
+    "writes_state": [
+      "update",
+      "corpus add"
+    ],
+    "observed": {
+      "require_readonly_state": false,
+      "state": {
+        "path": "/home/halbritt/git/kicad-route",
+        "exists": true,
+        "installed": [
+          "vendor/krt",
+          ".venv-krt",
+          "vendor/freerouting",
+          "vendor/skills"
+        ],
+        "writable": true,
+        "writable_parts": [
+          "vendor/krt",
+          ".venv-krt",
+          "vendor/freerouting",
+          "vendor/skills"
+        ],
+        "readonly_mount": false
+      },
+      "tool_root": {
+        "path": "/home/halbritt/git/kicad-route",
+        "writable": true
+      },
+      "out": {
+        "path": "/tmp/pytest-of-halbritt/pytest-1338/doctor0/out"
+      },
+      "network": {
+        "interfaces": 38,
+        "non_loopback_interfaces": 37,
+        "non_loopback_examples": [
+          "br-08ee9a52996a",
+          "br-1b6d28c3e778",
+          "br-24c8c1a867af",
+          "br-2fd0323456d7",
+          "br-8d6dd9da25b3"
+        ],
+        "non_loopback_routes": 109,
+        "namespace": "net:[4026531840]",
+        "isolated": false
+      }
+    }
+  }
+}

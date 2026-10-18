@@ -1,0 +1,58 @@
+{
+  "reproducible": true,
+  "reasons": [],
+  "same": {
+    "outcome": true,
+    "copper_geometry": true,
+    "candidate_bytes": false,
+    "backend_output_bytes": false
+  },
+  "differs_at": "candidate_bytes",
+  "runs": [
+    {
+      "run_dir": "runs/route_demo/determinism-krt-1/20261018T033936.047032Z",
+      "exit_code": 3,
+      "outcome": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "FAIL",
+        "unconnected_in_scope": 0
+      },
+      "wall_clock_stop": false,
+      "backend_output_bytes": "85369601b29feddd4a143b74fe0bf18a849e482a1e9ee5d4951326ca290fc1c9",
+      "candidate_bytes": "85369601b29feddd4a143b74fe0bf18a849e482a1e9ee5d4951326ca290fc1c9",
+      "copper_geometry": "c1653d98c21eaa8b7fa56e3cde05a3ad117f7bed9df01f665e73dfbd6a6fdc72",
+      "copper_items": {
+        "tracks": 19,
+        "vias": 3
+      }
+    },
+    {
+      "run_dir": "runs/route_demo/determinism-krt-2/20261018T034101.950779Z",
+      "exit_code": 3,
+      "outcome": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "FAIL",
+        "unconnected_in_scope": 0
+      },
+      "wall_clock_stop": false,
+      "backend_output_bytes": "69f28eecbc7cc495c6984d87c541ecf2187b49d8dc6a2536e7a24337b59caa98",
+      "candidate_bytes": "69f28eecbc7cc495c6984d87c541ecf2187b49d8dc6a2536e7a24337b59caa98",
+      "copper_geometry": "c1653d98c21eaa8b7fa56e3cde05a3ad117f7bed9df01f665e73dfbd6a6fdc72",
+      "copper_items": {
+        "tracks": 19,
+        "vias": 3
+      }
+    }
+  ],
+  "build": {
+    "name": "krt",
+    "tag": "v0.23.1",
+    "version": "0.23.1",
+    "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+    "grid_router_version": "0.23.1",
+    "extension_module_sha256": "d42aa6c682e6ab42f82d2241cf5b2a333effa4ad0b58549b1305b4503ce6bf79",
+    "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+  }
+}

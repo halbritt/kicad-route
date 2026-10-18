@@ -5,7 +5,7 @@
   "schematic": "route_demo.kicad_sch",
   "input_fingerprint": "43770af332b1f69da4373be456a2ec05f446153025efcad70ea0452d989202a0",
   "source": {
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1230/unlocked0/route_demo",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/unlocked0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": []
@@ -13,6 +13,11 @@
   "reference_dir": "reference/route_demo",
   "candidate_dir": "candidate/route_demo",
   "reference_facts": "facts/reference-facts.json",
+  "rules_files": {
+    "project": "route_demo.kicad_pro",
+    "custom_rules": "route_demo.kicad_dru",
+    "not_loaded": []
+  },
   "baseline": {
     "report": "../../../../.cache/baseline/43770af332b1f69da4373be456a2ec05f446153025efcad70ea0452d989202a0/baseline-drc.json",
     "cached": true,
@@ -44,6 +49,7 @@
     ],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "all",
     "rule_floor_sha256": null

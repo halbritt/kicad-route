@@ -6,7 +6,9 @@
     "sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
     "java": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java (25)",
     "java_required": 25,
-    "source": "https://github.com/freerouting/freerouting"
+    "source": "https://github.com/freerouting/freerouting",
+    "reproducible": false,
+    "reproducible_basis": "Freerouting's outcome may vary between runs: this result is an attempt, not a measurement"
   },
   "settings": {
     "backend": "freerouting",
@@ -21,6 +23,7 @@
     "backend_args": [],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "all",
     "rule_floor_sha256": null
@@ -66,7 +69,9 @@
       "removed_existing_vias": 0
     },
     "blocked_by": {
-      "report": "runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/validate/blocked-by.json",
+      "schema": "kicad-route/blocked/2",
+      "version": 2,
+      "report": "runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/validate/blocked-by.json",
       "connections_analyzed": 4,
       "unobstructed_connections": 0,
       "method": "heuristic corridors; see docs/blocked.md",
@@ -101,10 +106,10 @@
           ]
         },
         {
-          "id": "5f847617-94d0-4438-a2fc-298ea6eafff5",
+          "id": "c24d5365-1181-4804-806c-3faf07a44ee8",
           "category": "new_copper",
           "kind": "track",
-          "label": "track /SIG_A F.Cu (new, unlocked) 5f847617",
+          "label": "track /SIG_A F.Cu (new, unlocked) c24d5365",
           "net": "/SIG_A",
           "locked": false,
           "origin": "new",
@@ -160,14 +165,14 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 11.203,
+    "runtime_s": 45.271,
     "backend_report": {
       "final_state": "COMPLETED",
       "exit_code": 0,
       "output_written": true,
       "incomplete_connections": 4,
       "clearance_violations": 0,
-      "unrouted_log": "The following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net '/VIN' (1 unrouted connection):\n    - J2-1  ->  C1-1\n  Net '/SIG_A_OUT' (1 unrouted connection):\n    - J2-3  ->  R1-2\n  Net '/SIG_B_OUT' (1 unrouted connection):\n    - R2-2  ->  J2-4\n  Net '/SIG_B' (1 unrouted connection):\n    - via  ->  R2-1"
+      "unrouted_log": "The following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net '/VIN' (1 unrouted connection):\n    - C1-1  ->  J2-1\n  Net '/SIG_A_OUT' (1 unrouted connection):\n    - J2-3  ->  R1-2\n  Net '/SIG_B_OUT' (1 unrouted connection):\n    - J2-4  ->  R2-2\n  Net '/SIG_B' (1 unrouted connection):\n    - via  ->  R2-1"
     },
     "bridge": {
       "export": {
@@ -189,7 +194,7 @@
       },
       "import": {
         "placement_dropped": true,
-        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/work/board.noplacement.ses",
+        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/work/board.noplacement.ses",
         "existing_copper_locked": 0,
         "lock_flags_restored": 0
       }
@@ -199,8 +204,15 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/validate",
+    "dir": "runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/validate",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
     "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "65f7da1866dff3cfb70f4fd5c4b6fc1cbec1137008cc0a2ae6447254e6d752bc",
     "drc_commands": [
       {
         "argv": [
@@ -212,13 +224,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 3.113
+        "duration_s": 60.654
       },
       {
         "argv": [
@@ -232,17 +244,18 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 5.667
+        "duration_s": 47.208
       }
     ],
-    "delivered_board_sha256": "060feaaab197662ef81e392692e44f35a416ade139804cc9c09df4ac2efe56c1",
-    "validated_board_sha256": "060feaaab197662ef81e392692e44f35a416ade139804cc9c09df4ac2efe56c1",
+    "validated_board_sha256": "3f0c0d7ac77dfd61b5887eb099570d73bf884942072066f27db21cf756e44419",
+    "candidate_board_sha256": "3f0c0d7ac77dfd61b5887eb099570d73bf884942072066f27db21cf756e44419",
+    "refill_modified_board": true,
     "parity_performed": true,
     "drc": {
       "violations_total": 0,
@@ -285,5 +298,5 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-blocked-freerouting/20261017T164732.394885Z"
+  "run_dir": "runs/route_demo/smoke-blocked-freerouting/20261018T044626.140422Z"
 }

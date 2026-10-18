@@ -5,7 +5,9 @@
     "build": "v0.23.1",
     "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
     "source": "https://github.com/drandyhaas/KiCadRoutingTools",
-    "rust_router": "0.23.1"
+    "rust_router": "0.23.1",
+    "reproducible": true,
+    "reproducible_basis": "determinism check 2026-10-17T22:19:04.746885+00:00: identical copper geometry on repeat"
   },
   "settings": {
     "backend": "krt",
@@ -20,6 +22,7 @@
     "backend_args": [],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "selected",
     "net_patterns": [
@@ -68,7 +71,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 2.587,
+    "runtime_s": 11.48,
     "backend_report": {
       "successful": 4,
       "failed": 0,
@@ -80,7 +83,7 @@
       "pad_pairs_total": 5,
       "total_vias": 0,
       "total_iterations": 1637,
-      "total_time": 0.01,
+      "total_time": 0.06,
       "protected_skipped": null,
       "scope": "merged",
       "relaxations": {
@@ -122,8 +125,15 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/validate",
+    "dir": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
     "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "824f876cf72ad6a4ec024517a54fac12fd3a2540d9084f8b7c146ae26e98023c",
     "drc_commands": [
       {
         "argv": [
@@ -135,13 +145,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 2.205
+        "duration_s": 19.906
       },
       {
         "argv": [
@@ -155,17 +165,18 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-pour-krt/20261017T164156.526609Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 2.374
+        "duration_s": 19.676
       }
     ],
-    "delivered_board_sha256": "51073c756d34eef37ad6576114df547e835b38a15e1b952f2ec315b73475f31e",
-    "validated_board_sha256": "51073c756d34eef37ad6576114df547e835b38a15e1b952f2ec315b73475f31e",
+    "validated_board_sha256": "824f876cf72ad6a4ec024517a54fac12fd3a2540d9084f8b7c146ae26e98023c",
+    "candidate_board_sha256": "824f876cf72ad6a4ec024517a54fac12fd3a2540d9084f8b7c146ae26e98023c",
+    "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
       "violations_total": 0,
@@ -208,7 +219,7 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-pour-krt/20261017T164156.526609Z",
+  "run_dir": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z",
   "pour_integrity": {
     "check": "pour_integrity",
     "status": "PASS",

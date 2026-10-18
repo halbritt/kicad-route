@@ -81,9 +81,9 @@
       "new_violations": 0,
       "new_parity": 0,
       "preservation_failures": [],
-      "runtime_s": 42.78,
-      "end_run": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z",
-      "candidate": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z/candidate/route_demo/route_demo.kicad_pcb"
+      "runtime_s": 104.725,
+      "end_run": "runs/route_demo/campaign-blocked-r0/20261018T031321.235716Z",
+      "candidate": "runs/route_demo/campaign-blocked-r0/20261018T031321.235716Z/candidate/route_demo/route_demo.kicad_pcb"
     },
     {
       "rank": 2,
@@ -99,9 +99,9 @@
       "new_violations": 0,
       "new_parity": 0,
       "preservation_failures": [],
-      "runtime_s": 71.831,
-      "end_run": "runs/route_demo/campaign-blocked-r1-rest/20261017T163737.657192Z",
-      "candidate": "runs/route_demo/campaign-blocked-r1-rest/20261017T163737.657192Z/candidate/route_demo/route_demo.kicad_pcb"
+      "runtime_s": 316.715,
+      "end_run": "runs/route_demo/campaign-blocked-r1-rest/20261018T031652.118524Z",
+      "candidate": "runs/route_demo/campaign-blocked-r1-rest/20261018T031652.118524Z/candidate/route_demo/route_demo.kicad_pcb"
     }
   ],
   "stop_reason": "backlog did not grow (the next round would repeat this one)",
@@ -109,11 +109,74 @@
     "chain": "r0",
     "round": 0,
     "strategy": "full",
-    "run_dir": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z",
-    "candidate": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z/candidate/route_demo/route_demo.kicad_pcb",
-    "graded_against": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z",
-    "grade": "runs/route_demo/campaign-blocked-r0/20261017T163609.857839Z/result.json",
-    "exit_code": 2
+    "run_dir": "runs/route_demo/campaign-blocked-r0/20261018T031321.235716Z",
+    "candidate": "runs/route_demo/campaign-blocked-r0/20261018T031321.235716Z/candidate/route_demo/route_demo.kicad_pcb",
+    "graded_against": "runs/route_demo/campaign-blocked-r0/20261018T031321.235716Z",
+    "grade": "runs/route_demo/campaign-blocked-r0/20261018T031321.235716Z/result.json",
+    "exit_code": 2,
+    "evidence": {
+      "input_board_sha256": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
+      "input_fingerprint": "ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472",
+      "reference_files": {
+        "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+        "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+        "route_demo.kicad_pcb": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
+        "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
+        "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+        "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
+      },
+      "rules_files": {
+        "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+        "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070"
+      },
+      "rule_floor_sha256": null,
+      "backend_output_board_sha256": "5c9fbc03fb987c249bd9b48d79e7700a7d3dd6ed8d12f5873540da5748ea9eb0",
+      "candidate_board_sha256": "5c9fbc03fb987c249bd9b48d79e7700a7d3dd6ed8d12f5873540da5748ea9eb0",
+      "candidate_copper_signature": {
+        "sha256": "3815f28c871e045de8903d80f5dbe720df8e5d2b46f6aff5def6117a4902c3a8",
+        "tracks": 12,
+        "vias": 3
+      },
+      "records": {
+        "attempt.json": "c09bb0b43a83e61cb608839362597753c7a21b42e6ecccff2c31f856a9118178",
+        "validate/preservation.json": "c231280b432a95bcb933e108ffc105b5987efb292a948881283aee81ddfbd066",
+        "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+        "validate/candidate-drc.json": "87fe8ca54c8b435f403920f804a4ca9600e274a9b6c71a9f03d34258b807605c",
+        "validate/candidate-facts.json": "eedcbd099e75eb20d5b88556082ea7aab6a4e23a39aefa9eacf43bed5b29cd89",
+        "validate/pour-integrity.json": "5e80eebb506870a5037f57f4ec725cad94b1c4f3b2cd209997718e68139a1f88"
+      }
+    },
+    "tool_identity": {
+      "kicad_route": {
+        "version": "a928b15",
+        "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
+        "dirty": false
+      },
+      "kicad_cli": {
+        "path": "/usr/bin/kicad-cli",
+        "version": "10.0.7",
+        "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+      },
+      "pcbnew": {
+        "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+        "python": "/usr/bin/python3"
+      },
+      "python": {
+        "version": "3.12.3",
+        "executable": "/usr/bin/python3"
+      },
+      "backend": {
+        "name": "krt",
+        "tag": "v0.23.1",
+        "version": "0.23.1",
+        "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+        "grid_router_version": "0.23.1",
+        "extension_module_sha256": "d42aa6c682e6ab42f82d2241cf5b2a333effa4ad0b58549b1305b4503ce6bf79",
+        "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+      },
+      "state_manifest_sha256": "d6e6179fd9cdc491d41e99b9abb110a66bde8d709b7f409eddaae648525e23c2",
+      "state_manifest_drift": []
+    }
   },
   "exit_code": 2
 }

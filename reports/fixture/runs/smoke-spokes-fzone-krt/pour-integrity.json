@@ -1,0 +1,218 @@
+{
+  "check": "pour_integrity",
+  "status": "PASS",
+  "min_spokes": 2,
+  "project_min_resolved_spokes": 2,
+  "area_loss_limit_pct": null,
+  "reference_islands_off_main": 0,
+  "layers": [
+    {
+      "net_layer": "GND@B.Cu",
+      "area_mm2": [
+        1169.2633,
+        1141.0557
+      ],
+      "area_delta_pct": -2.412,
+      "polygons": [
+        1,
+        1
+      ],
+      "islands_off_main": [
+        0,
+        0
+      ],
+      "area_off_main_mm2": [
+        0,
+        0
+      ]
+    },
+    {
+      "net_layer": "GND@F.Cu",
+      "area_mm2": [
+        1140.0733,
+        1055.3859
+      ],
+      "area_delta_pct": -7.428,
+      "polygons": [
+        1,
+        1
+      ],
+      "islands_off_main": [
+        0,
+        0
+      ],
+      "area_off_main_mm2": [
+        0,
+        0
+      ]
+    }
+  ],
+  "failures": [],
+  "informational": [],
+  "pads": [
+    {
+      "pad": "C1.2@F.Cu",
+      "connection": "thermal",
+      "position_mm": [
+        110.95,
+        104.0
+      ],
+      "touches_fill": [
+        true,
+        true
+      ],
+      "spokes": [
+        3,
+        3
+      ],
+      "solid": [
+        false,
+        false
+      ],
+      "track_spokes": [
+        0,
+        0
+      ],
+      "in_main": [
+        true,
+        true
+      ],
+      "polygons": [
+        "GND@F.Cu/GND_F#0"
+      ],
+      "other_path": false
+    },
+    {
+      "pad": "J1.2@B.Cu",
+      "connection": "thermal",
+      "position_mm": [
+        104.0,
+        108.54
+      ],
+      "touches_fill": [
+        true,
+        true
+      ],
+      "spokes": [
+        4,
+        4
+      ],
+      "solid": [
+        false,
+        false
+      ],
+      "track_spokes": [
+        0,
+        0
+      ],
+      "in_main": [
+        true,
+        true
+      ],
+      "polygons": [
+        "GND@B.Cu/GND_B#0"
+      ],
+      "other_path": false
+    },
+    {
+      "pad": "J1.2@F.Cu",
+      "connection": "thermal",
+      "position_mm": [
+        104.0,
+        108.54
+      ],
+      "touches_fill": [
+        true,
+        true
+      ],
+      "spokes": [
+        4,
+        4
+      ],
+      "solid": [
+        false,
+        false
+      ],
+      "track_spokes": [
+        0,
+        0
+      ],
+      "in_main": [
+        true,
+        true
+      ],
+      "polygons": [
+        "GND@F.Cu/GND_F#0"
+      ],
+      "other_path": false
+    },
+    {
+      "pad": "J2.2@B.Cu",
+      "connection": "thermal",
+      "position_mm": [
+        146.0,
+        108.54
+      ],
+      "touches_fill": [
+        true,
+        true
+      ],
+      "spokes": [
+        4,
+        4
+      ],
+      "solid": [
+        false,
+        false
+      ],
+      "track_spokes": [
+        0,
+        0
+      ],
+      "in_main": [
+        true,
+        true
+      ],
+      "polygons": [
+        "GND@B.Cu/GND_B#0"
+      ],
+      "other_path": false
+    },
+    {
+      "pad": "J2.2@F.Cu",
+      "connection": "thermal",
+      "position_mm": [
+        146.0,
+        108.54
+      ],
+      "touches_fill": [
+        true,
+        true
+      ],
+      "spokes": [
+        4,
+        4
+      ],
+      "solid": [
+        false,
+        false
+      ],
+      "track_spokes": [
+        0,
+        0
+      ],
+      "in_main": [
+        true,
+        true
+      ],
+      "polygons": [
+        "GND@F.Cu/GND_F#0"
+      ],
+      "other_path": false
+    }
+  ],
+  "reference_source": {
+    "source": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/../../../../.cache/baseline/2ef2b80912cdee6dd87e8ea23bb0ca753578d91b460495f558a210a0348e2568/baseline-pour.json",
+    "cached": true
+  }
+}

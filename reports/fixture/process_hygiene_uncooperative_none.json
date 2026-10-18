@@ -1,0 +1,14 @@
+{
+  "budget_reached": true,
+  "stop_requested": true,
+  "killed": true,
+  "exit_code": -15,
+  "duration_s": 3.146,
+  "stop_to_exit_s": 1.142,
+  "leftover_children_killed": null,
+  "pids": {
+    "grandchild": 551979,
+    "backend": 551927,
+    "child": 551972
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "manifest": {
+    "schema": "kicad-route/state/1",
+    "state_dir": "/tmp/pytest-of-halbritt/pytest-1338/test_manifest_records_the_inst0/state",
+    "written_by": "test",
+    "updated_utc": "2026-10-18T03:39:09.044634+00:00",
+    "pinned": false,
+    "kicad_route": {
+      "version": "a928b15",
+      "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
+      "dirty": false
+    },
+    "python": {
+      "version": "3.12.3",
+      "executable": "/usr/bin/python3"
+    },
+    "krt": {
+      "tag": null,
+      "describe": null,
+      "commit": null,
+      "clone_url": "https://github.com/drandyhaas/KiCadRoutingTools.git",
+      "version": "9.9.9",
+      "grid_router_version": null,
+      "extension_module": {
+        "path": "vendor/krt/rust_router/grid_router.so",
+        "sha256": "9ce453907a300f0b7a8494ec38f06b8d8c8a42b6ca05ccddbfcc68c1736fd1b5"
+      },
+      "prebuilt": {
+        "asset": "grid_router-linux-x86_64.so",
+        "release": "v9.9.9",
+        "from_source": false,
+        "url": "https://github.com/drandyhaas/KiCadRoutingTools/releases/download/v9.9.9/grid_router-linux-x86_64.so"
+      },
+      "requirements": {
+        "path": "vendor/krt/requirements.txt",
+        "sha256": "61a016e6e50a3e5f8c1ee78f74d8f0d12c7c69428495def373c075bea21ebe5c"
+      },
+      "venv": {
+        "path": ".venv-krt",
+        "python": null,
+        "python_version": "3.12.3",
+        "packages": [
+          "numpy==2.5.4"
+        ],
+        "packages_sha256": "738071c1d9633f276433ad6738de256d2bf0d22f66dc4bd3179012bebb63bdd1"
+      }
+    },
+    "freerouting": {
+      "tag": "v9.9.9",
+      "asset": "freerouting-9.9.9.jar",
+      "url": "https://example.invalid/freerouting-9.9.9.jar",
+      "jar": {
+        "path": "vendor/freerouting/current/freerouting-9.9.9.jar",
+        "sha256": "91bb617f0787cd3351e020339d113381a2805898237d1d5eb17fc3fb3dcef53c"
+      },
+      "release_sha256": "91bb617f0787cd3351e020339d113381a2805898237d1d5eb17fc3fb3dcef53c",
+      "sha256_matches_release": true,
+      "github_digest_match": null,
+      "build_revision": "abc123",
+      "published_at": "2026-01-01T00:00:00Z",
+      "java_required": 21
+    },
+    "java": {
+      "path": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java",
+      "major": 25,
+      "version": "25.0.4.1 (build 25.0.4.1+1-1-24.04.4-Ubuntu)",
+      "required": 21
+    },
+    "kicad": {
+      "kicad_cli": {
+        "path": "/usr/bin/kicad-cli",
+        "version": "10.0.7",
+        "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+      },
+      "pcbnew_build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+      "pcbnew_python": "/usr/bin/python3"
+    },
+    "determinism": {}
+  },
+  "checks": [
+    [
+      "state manifest",
+      "PASS",
+      "/tmp/pytest-of-halbritt/pytest-1338/test_manifest_records_the_inst0/state/manifest.json (2026-10-18T03:39:09.044634+00:00, by test)",
+      true
+    ],
+    [
+      "state manifest matches the files on disk",
+      "PASS",
+      "jar, extension module, venv packages, requirements, KRT commit, kicad-cli",
+      true
+    ],
+    [
+      "KRT determinism verified for this build",
+      "NOT_RUN",
+      "no determinism record for this build in the state manifest (kicad-route determinism --record)",
+      false
+    ]
+  ]
+}

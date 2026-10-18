@@ -7,12 +7,14 @@
         "r0"
       ],
       "unrouted_after": [
+        "/SIG_A",
         "/SIG_A_OUT",
         "/SIG_B_OUT",
         "/VIN",
         "GND"
       ],
       "backlog_next": [
+        "/SIG_A",
         "/SIG_A_OUT",
         "/SIG_B_OUT",
         "/VIN",
@@ -29,15 +31,15 @@
       "status": "graded",
       "exit_code": 2,
       "routing": "INCOMPLETE",
-      "unconnected_in_scope": 4,
-      "unconnected_total": 4,
+      "unconnected_in_scope": 7,
+      "unconnected_total": 7,
       "validation": "PASS",
       "new_violations": 0,
       "new_parity": 0,
       "preservation_failures": [],
-      "runtime_s": 25.922,
-      "end_run": "runs/route_demo/campaign-total-budget-r0/20261017T163845.960267Z",
-      "candidate": "runs/route_demo/campaign-total-budget-r0/20261017T163845.960267Z/candidate/route_demo/route_demo.kicad_pcb"
+      "runtime_s": 89.711,
+      "end_run": "runs/route_demo/campaign-total-budget-r0/20261018T032533.586438Z",
+      "candidate": "runs/route_demo/campaign-total-budget-r0/20261018T032533.586438Z/candidate/route_demo/route_demo.kicad_pcb"
     }
   ],
   "stop_reason": "total budget reached",

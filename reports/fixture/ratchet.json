@@ -3,11 +3,18 @@
   "validation": {
     "status": "FAIL",
     "reasons": [
-      "2 new DRC violations: track_dangling 2",
+      "1 new DRC violations: track_dangling 1",
       "preservation net_completion: 1 of the 3 nets fully connected in the input lost connection: /SIG_A"
     ],
-    "dir": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z",
+    "dir": "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/revalidate/20261018T042349.204473Z",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
     "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "5ef2941966c40d12f3b5fcf7b155985c57f07d20680158b17b3402b15f794dde",
     "drc_commands": [
       {
         "argv": [
@@ -19,13 +26,13 @@
           "--format",
           "json",
           "-o",
-          "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z/candidate-refill.json",
-          "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo/route_demo.kicad_pcb"
+          "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/revalidate/20261018T042349.204473Z/candidate-refill.json",
+          "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo",
-        "log": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z/candidate-refill.log",
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/revalidate/20261018T042349.204473Z/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 3.128
+        "duration_s": 30.463
       },
       {
         "argv": [
@@ -39,28 +46,29 @@
           "--units",
           "mm",
           "-o",
-          "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z/candidate-drc.json",
-          "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo/route_demo.kicad_pcb"
+          "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/revalidate/20261018T042349.204473Z/candidate-drc.json",
+          "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo",
-        "log": "/tmp/pytest-of-halbritt/pytest-1230/test_ratchet_fails_a_cut_net0/step2/revalidate/20261017T164341.304912Z/candidate-drc.log",
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1338/test_ratchet_fails_a_cut_net0/step2/revalidate/20261018T042349.204473Z/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 2.96
+        "duration_s": 41.139
       }
     ],
-    "delivered_board_sha256": "9b5f292980db1a37c1d5a83fef601be9da60a36c682c0ef0b7eadd1acca00847",
-    "validated_board_sha256": "9b5f292980db1a37c1d5a83fef601be9da60a36c682c0ef0b7eadd1acca00847",
+    "validated_board_sha256": "5ef2941966c40d12f3b5fcf7b155985c57f07d20680158b17b3402b15f794dde",
+    "candidate_board_sha256": "5ef2941966c40d12f3b5fcf7b155985c57f07d20680158b17b3402b15f794dde",
+    "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
-      "violations_total": 2,
+      "violations_total": 1,
       "parity_total": 0,
       "new_violations": {
-        "count": 2,
+        "count": 1,
         "by_type": {
-          "track_dangling": 2
+          "track_dangling": 1
         },
         "by_severity": {
-          "warning": 2
+          "warning": 1
         }
       },
       "preexisting_violations": 0,

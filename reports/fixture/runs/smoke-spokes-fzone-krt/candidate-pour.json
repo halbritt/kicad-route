@@ -1,0 +1,216 @@
+{
+ "board": "route_demo.kicad_pcb",
+ "kicad_version": "10.0.7-10.0.7~ubuntu24.04.1",
+ "layers": {
+  "GND@B.Cu": {
+   "area_mm2": 1141.0557,
+   "islands_off_main": 0,
+   "layer": "B.Cu",
+   "net": "GND",
+   "polygons": 1
+  },
+  "GND@F.Cu": {
+   "area_mm2": 1055.3859,
+   "islands_off_main": 0,
+   "layer": "F.Cu",
+   "net": "GND",
+   "polygons": 1
+  }
+ },
+ "min_resolved_spokes": 2,
+ "pads": {
+  "C1.2@F.Cu": {
+   "connection": "thermal",
+   "in_main": true,
+   "layer": "F.Cu",
+   "net": "GND",
+   "pad": "C1.2",
+   "polygons": [
+    "GND@F.Cu/GND_F#0"
+   ],
+   "position_mm": [
+    110.95,
+    104.0
+   ],
+   "pth": false,
+   "ring_coverage": 0.35,
+   "solid": false,
+   "spokes": 3,
+   "thermal_gap_mm": 0.5,
+   "touches_fill": true,
+   "track_spokes": 0,
+   "tracks_attached": 0,
+   "tracks_on_layer": 0,
+   "via_spokes": 0,
+   "zone": "GND_F"
+  },
+  "J1.2@B.Cu": {
+   "connection": "thermal",
+   "in_main": true,
+   "layer": "B.Cu",
+   "net": "GND",
+   "pad": "J1.2",
+   "polygons": [
+    "GND@B.Cu/GND_B#0"
+   ],
+   "position_mm": [
+    104.0,
+    108.54
+   ],
+   "pth": true,
+   "ring_coverage": 0.379,
+   "solid": false,
+   "spokes": 4,
+   "thermal_gap_mm": 0.5,
+   "touches_fill": true,
+   "track_spokes": 0,
+   "tracks_attached": 0,
+   "tracks_on_layer": 0,
+   "via_spokes": 0,
+   "zone": "GND_B"
+  },
+  "J1.2@F.Cu": {
+   "connection": "thermal",
+   "in_main": true,
+   "layer": "F.Cu",
+   "net": "GND",
+   "pad": "J1.2",
+   "polygons": [
+    "GND@F.Cu/GND_F#0"
+   ],
+   "position_mm": [
+    104.0,
+    108.54
+   ],
+   "pth": true,
+   "ring_coverage": 0.379,
+   "solid": false,
+   "spokes": 4,
+   "thermal_gap_mm": 0.5,
+   "touches_fill": true,
+   "track_spokes": 0,
+   "tracks_attached": 0,
+   "tracks_on_layer": 0,
+   "via_spokes": 0,
+   "zone": "GND_F"
+  },
+  "J2.2@B.Cu": {
+   "connection": "thermal",
+   "in_main": true,
+   "layer": "B.Cu",
+   "net": "GND",
+   "pad": "J2.2",
+   "polygons": [
+    "GND@B.Cu/GND_B#0"
+   ],
+   "position_mm": [
+    146.0,
+    108.54
+   ],
+   "pth": true,
+   "ring_coverage": 0.379,
+   "solid": false,
+   "spokes": 4,
+   "thermal_gap_mm": 0.5,
+   "touches_fill": true,
+   "track_spokes": 0,
+   "tracks_attached": 0,
+   "tracks_on_layer": 0,
+   "via_spokes": 0,
+   "zone": "GND_B"
+  },
+  "J2.2@F.Cu": {
+   "connection": "thermal",
+   "in_main": true,
+   "layer": "F.Cu",
+   "net": "GND",
+   "pad": "J2.2",
+   "polygons": [
+    "GND@F.Cu/GND_F#0"
+   ],
+   "position_mm": [
+    146.0,
+    108.54
+   ],
+   "pth": true,
+   "ring_coverage": 0.379,
+   "solid": false,
+   "spokes": 4,
+   "thermal_gap_mm": 0.5,
+   "touches_fill": true,
+   "track_spokes": 0,
+   "tracks_attached": 0,
+   "tracks_on_layer": 0,
+   "via_spokes": 0,
+   "zone": "GND_F"
+  }
+ },
+ "polygons": {
+  "GND@B.Cu/GND_B#0": {
+   "area_mm2": 1141.0557,
+   "bbox_mm": [
+    100.5,
+    100.5,
+    149.5,
+    129.5
+   ],
+   "in_main": true,
+   "layer": "B.Cu",
+   "net": "GND",
+   "pads": [
+    "J1.2",
+    "J2.2"
+   ],
+   "tracks": 0,
+   "vias": 0,
+   "zone": "GND_B"
+  },
+  "GND@F.Cu/GND_F#0": {
+   "area_mm2": 1055.3859,
+   "bbox_mm": [
+    100.5,
+    100.5,
+    149.5,
+    129.5
+   ],
+   "in_main": true,
+   "layer": "F.Cu",
+   "net": "GND",
+   "pads": [
+    "C1.2",
+    "J1.2",
+    "J2.2"
+   ],
+   "tracks": 0,
+   "vias": 0,
+   "zone": "GND_F"
+  }
+ },
+ "schema": 1,
+ "zones": [
+  {
+   "connection": "thermal",
+   "filled": true,
+   "island_removal": 0,
+   "layers": [
+    "B.Cu"
+   ],
+   "name": "GND_B",
+   "net": "GND",
+   "spoke_width_mm": 0.5,
+   "thermal_gap_mm": 0.5
+  },
+  {
+   "connection": "thermal",
+   "filled": true,
+   "island_removal": 0,
+   "layers": [
+    "F.Cu"
+   ],
+   "name": "GND_F",
+   "net": "GND",
+   "spoke_width_mm": 0.5,
+   "thermal_gap_mm": 0.5
+  }
+ ]
+}

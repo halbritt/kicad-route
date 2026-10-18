@@ -1,0 +1,488 @@
+{
+  "backend": {
+    "name": "krt",
+    "version": "0.23.1",
+    "build": "v0.23.1",
+    "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+    "source": "https://github.com/drandyhaas/KiCadRoutingTools",
+    "rust_router": "0.23.1",
+    "reproducible": true,
+    "reproducible_basis": "determinism check 2026-10-17T22:19:04.746885+00:00: identical copper geometry on repeat"
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": {
+      "source_input": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+      "size_mm": 0.05,
+      "points": [
+        [
+          111712500,
+          104987500,
+          "F.Cu"
+        ]
+      ]
+    },
+    "stall_s": null,
+    "mode": "selected",
+    "net_patterns": [
+      "/SIG_A"
+    ],
+    "netclasses": [],
+    "rule_floor_sha256": null
+  },
+  "scope": {
+    "mode": "selected",
+    "nets": 1,
+    "nets_list": [
+      "/SIG_A"
+    ]
+  },
+  "unsupported": [
+    "KRT reads only a subset of .kicad_dru custom rules; every rule is still graded by KiCad DRC",
+    "KRT moves copper gr_text and net-less copper graphics to silkscreen (not switchable on the CLI); the copper_graphics preservation check reports it",
+    "KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class",
+    "backend reported: .kicad_dru: rule 'power_to_signal_clearance': clearance 0.4mm has a non-layer scope (netclass/area/... condition) -- skipped, KiCad will still enforce it"
+  ],
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 5,
+    "baseline_unconnected_total": 6,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 3,
+      "new_vias": 0,
+      "new_track_length_mm": 23.455,
+      "new_track_length_mm_by_layer": {
+        "F.Cu": 23.455
+      },
+      "new_copper_nets": 1,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    }
+  },
+  "exit_code": 0,
+  "process": {
+    "status": "PASS",
+    "reasons": [],
+    "exit_code": 0,
+    "runtime_s": 13.049,
+    "backend_report": {
+      "successful": 1,
+      "failed": 0,
+      "failed_single": [],
+      "open_single": [],
+      "failed_multipoint": [],
+      "multipoint_deficit": null,
+      "pad_pairs_connected": 1,
+      "pad_pairs_total": 1,
+      "total_vias": 0,
+      "total_iterations": 213,
+      "total_time": 0.02,
+      "protected_skipped": null,
+      "scope": "merged",
+      "relaxations": {
+        "escalation_policy": "off",
+        "fab_tier": "standard",
+        "narrowed": [],
+        "fab_tier_escalations": 0,
+        "min_delivered": {},
+        "unsupported_rules": []
+      },
+      "improvement_gate": {
+        "lost": [],
+        "gained": [
+          "/SIG_A"
+        ],
+        "worsened": [],
+        "disconnected_pads_before": 6,
+        "disconnected_pads_after": 5,
+        "nets_compared": 6,
+        "verdict": "accept"
+      },
+      "project_writes": null
+    },
+    "bridge": null,
+    "project_writeback": [
+      {
+        "file": "route_demo.kicad_prl",
+        "identical_to_input": true
+      },
+      {
+        "file": "route_demo.kicad_pro",
+        "identical_to_input": true
+      }
+    ]
+  },
+  "validation": {
+    "status": "PASS",
+    "reasons": [],
+    "dir": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
+    "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "3cf60fdb6e06036cc913fcff55d9a5fd3267d508cc8caadc36954bafa044dd4e",
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 20.504
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 15.878
+      }
+    ],
+    "validated_board_sha256": "3cf60fdb6e06036cc913fcff55d9a5fd3267d508cc8caadc36954bafa044dd4e",
+    "candidate_board_sha256": "3cf60fdb6e06036cc913fcff55d9a5fd3267d508cc8caadc36954bafa044dd4e",
+    "refill_modified_board": false,
+    "parity_performed": true,
+    "drc": {
+      "violations_total": 0,
+      "parity_total": 0,
+      "new_violations": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "preexisting_violations": 0,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 1,
+      "nets_lost": []
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    }
+  },
+  "run_dir": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z",
+  "collided": {
+    "backend": {
+      "name": "krt",
+      "version": "0.23.1",
+      "build": "v0.23.1",
+      "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+      "source": "https://github.com/drandyhaas/KiCadRoutingTools",
+      "rust_router": "0.23.1",
+      "reproducible": true,
+      "reproducible_basis": "determinism check 2026-10-17T22:19:04.746885+00:00: identical copper geometry on repeat"
+    },
+    "settings": {
+      "backend": "krt",
+      "budget_s": 180,
+      "protect": "existing",
+      "max_iterations": null,
+      "passes": null,
+      "default_clearance_mm": null,
+      "clearance_margin_mm": null,
+      "pour_area_loss_pct": null,
+      "pour_min_spokes": null,
+      "backend_args": [],
+      "backend_env": {},
+      "reserve_spokes": null,
+      "barrier": null,
+      "stall_s": null,
+      "mode": "selected",
+      "net_patterns": [
+        "/SIG_A"
+      ],
+      "netclasses": [],
+      "rule_floor_sha256": null
+    },
+    "scope": {
+      "mode": "selected",
+      "nets": 1,
+      "nets_list": [
+        "/SIG_A"
+      ]
+    },
+    "unsupported": [
+      "KRT reads only a subset of .kicad_dru custom rules; every rule is still graded by KiCad DRC",
+      "KRT moves copper gr_text and net-less copper graphics to silkscreen (not switchable on the CLI); the copper_graphics preservation check reports it",
+      "KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class",
+      "backend reported: .kicad_dru: rule 'power_to_signal_clearance': clearance 0.4mm has a non-layer scope (netclass/area/... condition) -- skipped, KiCad will still enforce it"
+    ],
+    "routing": {
+      "status": "COMPLETE",
+      "unconnected_in_scope": 0,
+      "unconnected_total": 5,
+      "baseline_unconnected_total": 6,
+      "unrouted_nets": [],
+      "stats": {
+        "new_tracks": 3,
+        "new_vias": 0,
+        "new_track_length_mm": 23.455,
+        "new_track_length_mm_by_layer": {
+          "F.Cu": 23.455
+        },
+        "new_copper_nets": 1,
+        "removed_existing_tracks": 0,
+        "removed_existing_vias": 0
+      }
+    },
+    "exit_code": 3,
+    "process": {
+      "status": "PASS",
+      "reasons": [],
+      "exit_code": 0,
+      "runtime_s": 8.314,
+      "backend_report": {
+        "successful": 1,
+        "failed": 0,
+        "failed_single": [],
+        "open_single": [],
+        "failed_multipoint": [],
+        "multipoint_deficit": null,
+        "pad_pairs_connected": 1,
+        "pad_pairs_total": 1,
+        "total_vias": 0,
+        "total_iterations": 203,
+        "total_time": 0.0,
+        "protected_skipped": null,
+        "scope": "merged",
+        "relaxations": {
+          "escalation_policy": "off",
+          "fab_tier": "standard",
+          "narrowed": [],
+          "fab_tier_escalations": 0,
+          "min_delivered": {},
+          "unsupported_rules": []
+        },
+        "improvement_gate": {
+          "lost": [],
+          "gained": [
+            "/SIG_A"
+          ],
+          "worsened": [],
+          "disconnected_pads_before": 6,
+          "disconnected_pads_after": 5,
+          "nets_compared": 6,
+          "verdict": "accept"
+        },
+        "project_writes": null
+      },
+      "bridge": null,
+      "project_writeback": [
+        {
+          "file": "route_demo.kicad_prl",
+          "identical_to_input": true
+        },
+        {
+          "file": "route_demo.kicad_pro",
+          "identical_to_input": true
+        }
+      ]
+    },
+    "validation": {
+      "status": "FAIL",
+      "reasons": [
+        "1 new DRC violations: clearance 1"
+      ],
+      "dir": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate",
+      "rules_files": {
+        "project": "route_demo.kicad_pro",
+        "custom_rules": "route_demo.kicad_dru",
+        "not_loaded": []
+      },
+      "restored_project_files": [],
+      "delivered_project_files": [],
+      "delivered_board_sha256": "066993244bb3771597a1163d4abfc713e226294bf734fdf859c07bf5101a347e",
+      "drc_commands": [
+        {
+          "argv": [
+            "kicad-cli",
+            "pcb",
+            "drc",
+            "--refill-zones",
+            "--save-board",
+            "--format",
+            "json",
+            "-o",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate/candidate-refill.json",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/candidate/route_demo/route_demo.kicad_pcb"
+          ],
+          "cwd": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/candidate/route_demo",
+          "log": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate/candidate-refill.log",
+          "exit_code": 0,
+          "duration_s": 21.721
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "pcb",
+            "drc",
+            "--format",
+            "json",
+            "--severity-all",
+            "--schematic-parity",
+            "--units",
+            "mm",
+            "-o",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate/candidate-drc.json",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/candidate/route_demo/route_demo.kicad_pcb"
+          ],
+          "cwd": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/candidate/route_demo",
+          "log": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate/candidate-drc.log",
+          "exit_code": 0,
+          "duration_s": 22.727
+        }
+      ],
+      "validated_board_sha256": "066993244bb3771597a1163d4abfc713e226294bf734fdf859c07bf5101a347e",
+      "candidate_board_sha256": "066993244bb3771597a1163d4abfc713e226294bf734fdf859c07bf5101a347e",
+      "refill_modified_board": false,
+      "parity_performed": true,
+      "drc": {
+        "violations_total": 1,
+        "parity_total": 0,
+        "new_violations": {
+          "count": 1,
+          "by_type": {
+            "clearance": 1
+          },
+          "by_severity": {
+            "error": 1
+          }
+        },
+        "preexisting_violations": 0,
+        "resolved_violations": 0,
+        "new_parity": {
+          "count": 0,
+          "by_type": {},
+          "by_severity": {}
+        },
+        "resolved_parity": 0
+      },
+      "net_completion": {
+        "status": "PASS",
+        "nets_connected_in_input": 1,
+        "nets_lost": []
+      },
+      "preservation": {
+        "project_files": "PASS",
+        "board_outline": "PASS",
+        "layers": "PASS",
+        "stackup": "PASS",
+        "board_setup": "PASS",
+        "nets_and_netclasses": "PASS",
+        "pad_connectivity": "PASS",
+        "footprints": "PASS",
+        "zones": "PASS",
+        "keepouts": "PASS",
+        "copper_graphics": "PASS",
+        "protected_copper": "PASS",
+        "new_copper_netclass_geometry": "PASS",
+        "routing_scope": "PASS",
+        "net_completion": "PASS",
+        "pour_integrity": "PASS"
+      }
+    },
+    "run_dir": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z"
+  },
+  "barrier": {
+    "barriers": [
+      {
+        "index": 0,
+        "type": "clearance",
+        "x": 111712500,
+        "y": 104987500,
+        "layer": "F.Cu",
+        "name": "kicad-route:barrier:111.7125:104.9875",
+        "distance_to_other_copper": 474784,
+        "new_item": {
+          "uuid": "abad1010-df48-419b-a129-bbe1bba16c37",
+          "kind": "PCB_TRACK",
+          "net": "/SIG_A"
+        },
+        "other_uuids": [
+          "ed710432-edbd-4efe-9cf2-6ec252719503"
+        ],
+        "description": "Clearance violation (rule 'power_to_signal_clearance' clearance 0.4000 mm; actual 0.3748 mm)"
+      }
+    ],
+    "injected": 1,
+    "stripped": 1,
+    "remaining": 0,
+    "outcome": {
+      "barriers": [
+        {
+          "name": "kicad-route:barrier:111.7125:104.9875",
+          "layer": "F.Cu",
+          "type": "clearance",
+          "entered_by_new_copper": [],
+          "collision_recurred": false,
+          "recurred_as": []
+        }
+      ],
+      "entered": 0,
+      "recurred": 0
+    },
+    "skipped": []
+  }
+}

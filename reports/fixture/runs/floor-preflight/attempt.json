@@ -5,7 +5,7 @@
   "schematic": "route_demo.kicad_sch",
   "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
   "source": {
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": []
@@ -13,6 +13,11 @@
   "reference_dir": "reference/route_demo",
   "candidate_dir": "candidate/route_demo",
   "reference_facts": "facts/reference-facts.json",
+  "rules_files": {
+    "project": "route_demo.kicad_pro",
+    "custom_rules": "route_demo.kicad_dru",
+    "not_loaded": []
+  },
   "baseline": {
     "report": "../../../../.cache/baseline/ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732/baseline-drc.json",
     "cached": true,
@@ -42,24 +47,25 @@
     "backend_args": [],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "selected",
     "net_patterns": [
       "/SIG_A*"
     ],
     "netclasses": [],
-    "rule_floor_sha256": "0bc41e4f4148ea8c1b511840e007eeb99ba8e43e36ab59277d31c28247535d8b"
+    "rule_floor_sha256": "f8890003dcc9a692caae0d740d671ee4f1ce0268dc592747d8b0268dff494824"
   },
   "floor": {
     "declared_sources": [
-      "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+      "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
     ],
     "declared": {
       "rules.min_clearance": {
         "value": 0.2,
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     },
     "declared_problems": [],
@@ -71,7 +77,7 @@
         "status": "looser",
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1230/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     ],
     "notes": []

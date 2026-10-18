@@ -1,0 +1,929 @@
+{
+ "schema": "kicad-route/blocked/2",
+ "version": 2,
+ "source": "run",
+ "heuristic": true,
+ "method": "straight and L-shaped corridors (net-class track width + 2 x clearance) between the two endpoints of each unconnected item, per copper layer; heuristic pointer, not a proof",
+ "boards": {
+  "input_sha256": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
+  "candidate_sha256": "3f0c0d7ac77dfd61b5887eb099570d73bf884942072066f27db21cf756e44419",
+  "graded_sha256": "3f0c0d7ac77dfd61b5887eb099570d73bf884942072066f27db21cf756e44419"
+ },
+ "nets_considered": [
+  "/SIG_A",
+  "/SIG_A_OUT",
+  "/SIG_B",
+  "/SIG_B_OUT",
+  "/VIN",
+  "GND"
+ ],
+ "copper_layers": [
+  "F.Cu",
+  "B.Cu"
+ ],
+ "connections_analyzed": 4,
+ "unobstructed_connections": 0,
+ "category_notes": {
+  "keepout": "rule area: part of the design's constraints; route around it, never edit it",
+  "input_copper": "copper from the attempt's input: moving it needs the owner's permission (--protect locked frees only unlocked input copper)",
+  "new_copper": "the backend's own output in this attempt: cheap to rip (re-route in another order or scope)",
+  "footprint": "pads of other nets: placement is fixed for routing; go around or change layer",
+  "board_edge": "the corridor leaves the board outline"
+ },
+ "ranking": {
+  "keepout": [
+   {
+    "id": "rule_area:wall",
+    "kind": "rule_area",
+    "name": "wall",
+    "net": null,
+    "restrictions": [
+     "tracks",
+     "vias",
+     "zone_fills"
+    ],
+    "rule_area_layers": [
+     "B.Cu",
+     "F.Cu"
+    ],
+    "bbox_mm": [
+     138.0,
+     99.0,
+     140.0,
+     131.0
+    ],
+    "category": "keepout",
+    "blocks": 4,
+    "blocks_any_layer": 4,
+    "layers": [
+     "B.Cu",
+     "F.Cu"
+    ],
+    "nets_blocked": [
+     "/SIG_A_OUT",
+     "/SIG_B_OUT",
+     "/VIN",
+     "GND"
+    ],
+    "label": "keepout 'wall' (no tracks, no vias, no zone fills) on B.Cu, F.Cu"
+   },
+   {
+    "id": "rule_area:route_keepout",
+    "kind": "rule_area",
+    "name": "route_keepout",
+    "net": null,
+    "restrictions": [
+     "tracks",
+     "vias",
+     "zone_fills"
+    ],
+    "rule_area_layers": [
+     "B.Cu",
+     "F.Cu"
+    ],
+    "bbox_mm": [
+     119.0,
+     105.0,
+     131.0,
+     122.0
+    ],
+    "category": "keepout",
+    "blocks": 3,
+    "blocks_any_layer": 3,
+    "layers": [
+     "B.Cu",
+     "F.Cu"
+    ],
+    "nets_blocked": [
+     "/SIG_A_OUT",
+     "/VIN",
+     "GND"
+    ],
+    "label": "keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu"
+   }
+  ],
+  "input_copper": [],
+  "new_copper": [
+   {
+    "id": "c24d5365-1181-4804-806c-3faf07a44ee8",
+    "kind": "track",
+    "net": "/SIG_A",
+    "layer": "F.Cu",
+    "locked": false,
+    "origin": "new",
+    "uuid": "c24d5365-1181-4804-806c-3faf07a44ee8",
+    "width_mm": 0.2,
+    "start_mm": [
+     106.7924,
+     111.08
+    ],
+    "end_mm": [
+     114.8724,
+     103.0
+    ],
+    "category": "new_copper",
+    "blocks": 0,
+    "blocks_any_layer": 2,
+    "layers": [],
+    "nets_blocked": [
+     "/VIN",
+     "GND"
+    ],
+    "label": "track /SIG_A F.Cu (new, unlocked) c24d5365"
+   }
+  ],
+  "footprint": [],
+  "board_edge": [],
+  "input_copper_by_net": [],
+  "new_copper_by_net": [
+   {
+    "net": "/SIG_A",
+    "items": 1,
+    "locked": 0,
+    "blocks": 0
+   }
+  ],
+  "truncated": {}
+ },
+ "top": [
+  {
+   "id": "rule_area:wall",
+   "category": "keepout",
+   "kind": "rule_area",
+   "label": "keepout 'wall' (no tracks, no vias, no zone fills) on B.Cu, F.Cu",
+   "net": null,
+   "blocks": 4,
+   "blocks_any_layer": 4,
+   "nets_blocked": [
+    "/SIG_A_OUT",
+    "/SIG_B_OUT",
+    "/VIN",
+    "GND"
+   ]
+  },
+  {
+   "id": "rule_area:route_keepout",
+   "category": "keepout",
+   "kind": "rule_area",
+   "label": "keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu",
+   "net": null,
+   "blocks": 3,
+   "blocks_any_layer": 3,
+   "nets_blocked": [
+    "/SIG_A_OUT",
+    "/VIN",
+    "GND"
+   ]
+  },
+  {
+   "id": "c24d5365-1181-4804-806c-3faf07a44ee8",
+   "category": "new_copper",
+   "kind": "track",
+   "label": "track /SIG_A F.Cu (new, unlocked) c24d5365",
+   "net": "/SIG_A",
+   "locked": false,
+   "origin": "new",
+   "blocks": 0,
+   "blocks_any_layer": 2,
+   "nets_blocked": [
+    "/VIN",
+    "GND"
+   ]
+  }
+ ],
+ "nets": {
+  "/SIG_A_OUT": {
+   "connections": 1,
+   "best_layer": "F.Cu",
+   "hard_blockers_on_best_layer": 2,
+   "blockers": [
+    "keepout 'route_keepout'",
+    "keepout 'wall'"
+   ]
+  },
+  "/SIG_B_OUT": {
+   "connections": 1,
+   "best_layer": "F.Cu",
+   "hard_blockers_on_best_layer": 1,
+   "blockers": [
+    "keepout 'wall'"
+   ]
+  },
+  "/VIN": {
+   "connections": 1,
+   "best_layer": "B.Cu",
+   "hard_blockers_on_best_layer": 2,
+   "blockers": [
+    "keepout 'route_keepout'",
+    "keepout 'wall'"
+   ]
+  },
+  "GND": {
+   "connections": 1,
+   "best_layer": "B.Cu",
+   "hard_blockers_on_best_layer": 2,
+   "blockers": [
+    "keepout 'route_keepout'",
+    "keepout 'wall'"
+   ]
+  }
+ },
+ "footprints": {
+  "J2": {
+   "reference": "J2",
+   "value": "Conn_01x04",
+   "position_mm": [
+    146.0,
+    106.0
+   ],
+   "orientation_deg": 0.0,
+   "layer": "F.Cu",
+   "side": "front",
+   "locked": false,
+   "blocks": [],
+   "blocks_any_layer": [],
+   "terminates": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "pads_blocking": [],
+   "nets_blocked": [],
+   "nets_terminated": [
+    "/SIG_A_OUT",
+    "/SIG_B_OUT",
+    "/VIN",
+    "GND"
+   ]
+  },
+  "R1": {
+   "reference": "R1",
+   "value": "33",
+   "position_mm": [
+    125.0,
+    103.0
+   ],
+   "orientation_deg": 0.0,
+   "layer": "F.Cu",
+   "side": "front",
+   "locked": false,
+   "blocks": [],
+   "blocks_any_layer": [],
+   "terminates": [
+    2
+   ],
+   "pads_blocking": [],
+   "nets_blocked": [],
+   "nets_terminated": [
+    "/SIG_A_OUT"
+   ]
+  },
+  "R2": {
+   "reference": "R2",
+   "value": "33",
+   "position_mm": [
+    125.0,
+    126.0
+   ],
+   "orientation_deg": 0.0,
+   "layer": "F.Cu",
+   "side": "front",
+   "locked": false,
+   "blocks": [],
+   "blocks_any_layer": [],
+   "terminates": [
+    3
+   ],
+   "pads_blocking": [],
+   "nets_blocked": [],
+   "nets_terminated": [
+    "/SIG_B_OUT"
+   ]
+  }
+ },
+ "connections": [
+  {
+   "index": 0,
+   "net": "/VIN",
+   "netclass": "Power",
+   "corridor_width_mm": 1.1,
+   "endpoints": [
+    {
+     "description": "PTH pad 1 [/VIN] of J2",
+     "uuid": "993f7ea8-1128-4542-b649-178db9de8ce7",
+     "kind": "pad",
+     "net": "/VIN",
+     "footprint": "J2",
+     "pad": "1",
+     "layers": [
+      "B.Cu",
+      "F.Cu"
+     ],
+     "position_mm": [
+      146.0,
+      106.0
+     ],
+     "reported_position_mm": [
+      146.0,
+      106.0
+     ]
+    },
+    {
+     "description": "Track [/VIN] on F.Cu, length 1.6483 mm",
+     "uuid": "aea5f9ed-0b76-41c9-b40e-4a7189381621",
+     "kind": "track",
+     "net": "/VIN",
+     "footprint": null,
+     "pad": null,
+     "layers": [
+      "F.Cu"
+     ],
+     "position_mm": [
+      109.05,
+      104.0
+     ],
+     "reported_position_mm": [
+      109.05,
+      104.0
+     ]
+    }
+   ],
+   "layers": {
+    "F.Cu": {
+     "corridor": "L_horizontal_first",
+     "hard_count": 3,
+     "soft_count": 0,
+     "hard": [
+      {
+       "id": "c24d5365-1181-4804-806c-3faf07a44ee8",
+       "kind": "track",
+       "category": "new_copper",
+       "net": "/SIG_A",
+       "layer": "F.Cu",
+       "locked": false,
+       "origin": "new",
+       "label": "track /SIG_A F.Cu c24d5365"
+      },
+      {
+       "id": "rule_area:route_keepout",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "route_keepout",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'route_keepout'"
+      },
+      {
+       "id": "rule_area:wall",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "wall",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'wall'"
+      }
+     ],
+     "soft": [],
+     "corridors": {
+      "straight": {
+       "hard": 6,
+       "soft": 0
+      },
+      "L_horizontal_first": {
+       "hard": 3,
+       "soft": 0
+      },
+      "L_vertical_first": {
+       "hard": 8,
+       "soft": 0
+      }
+     }
+    },
+    "B.Cu": {
+     "corridor": "L_horizontal_first",
+     "hard_count": 2,
+     "soft_count": 1,
+     "hard": [
+      {
+       "id": "rule_area:route_keepout",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "route_keepout",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'route_keepout'"
+      },
+      {
+       "id": "rule_area:wall",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "wall",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'wall'"
+      }
+     ],
+     "soft": [
+      {
+       "id": "zone:GND_B:GND",
+       "kind": "zone",
+       "category": "zone",
+       "name": "GND_B",
+       "net": "GND",
+       "label": "zone 'GND_B' GND"
+      }
+     ],
+     "corridors": {
+      "straight": {
+       "hard": 3,
+       "soft": 1
+      },
+      "L_horizontal_first": {
+       "hard": 2,
+       "soft": 1
+      },
+      "L_vertical_first": {
+       "hard": 2,
+       "soft": 1
+      }
+     }
+    }
+   },
+   "length_mm": 37.0041,
+   "best_layer": "B.Cu",
+   "best_layer_hard_count": 2
+  },
+  {
+   "index": 1,
+   "net": "GND",
+   "netclass": "Power",
+   "corridor_width_mm": 1.1,
+   "endpoints": [
+    {
+     "description": "PTH pad 2 [GND] of J2",
+     "uuid": "064cb8bd-5418-483b-8a32-078800da63ae",
+     "kind": "pad",
+     "net": "GND",
+     "footprint": "J2",
+     "pad": "2",
+     "layers": [
+      "B.Cu",
+      "F.Cu"
+     ],
+     "position_mm": [
+      146.0,
+      108.54
+     ],
+     "reported_position_mm": [
+      146.0,
+      108.54
+     ]
+    },
+    {
+     "description": "Zone 'GND_B' [GND] on B.Cu, priority 0",
+     "uuid": "0f51a515-5ebb-426a-91a1-1034db8ae453",
+     "kind": "zone",
+     "net": "GND",
+     "footprint": null,
+     "pad": null,
+     "layers": [
+      "B.Cu"
+     ],
+     "position_mm": [
+      112.2152,
+      103.2906
+     ],
+     "reported_position_mm": [
+      100.5,
+      100.5
+     ],
+     "target": {
+      "kind": "via",
+      "uuid": "91691c7a-e53c-4db3-9cd1-b45bc834688f",
+      "position_mm": [
+       112.2152,
+       103.2906
+      ]
+     },
+     "note": "zone endpoint: nearest same-net via 91691c7a inside the zone outline and off the other endpoint's copper island (zone fill is not modelled)"
+    }
+   ],
+   "layers": {
+    "F.Cu": {
+     "corridor": "straight",
+     "hard_count": 3,
+     "soft_count": 0,
+     "hard": [
+      {
+       "id": "c24d5365-1181-4804-806c-3faf07a44ee8",
+       "kind": "track",
+       "category": "new_copper",
+       "net": "/SIG_A",
+       "layer": "F.Cu",
+       "locked": false,
+       "origin": "new",
+       "label": "track /SIG_A F.Cu c24d5365"
+      },
+      {
+       "id": "rule_area:route_keepout",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "route_keepout",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'route_keepout'"
+      },
+      {
+       "id": "rule_area:wall",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "wall",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'wall'"
+      }
+     ],
+     "soft": [],
+     "corridors": {
+      "straight": {
+       "hard": 3,
+       "soft": 0
+      },
+      "L_horizontal_first": {
+       "hard": 3,
+       "soft": 0
+      },
+      "L_vertical_first": {
+       "hard": 6,
+       "soft": 0
+      }
+     }
+    },
+    "B.Cu": {
+     "corridor": "straight",
+     "hard_count": 2,
+     "soft_count": 0,
+     "hard": [
+      {
+       "id": "rule_area:route_keepout",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "route_keepout",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'route_keepout'"
+      },
+      {
+       "id": "rule_area:wall",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "wall",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'wall'"
+      }
+     ],
+     "soft": [],
+     "corridors": {
+      "straight": {
+       "hard": 2,
+       "soft": 0
+      },
+      "L_horizontal_first": {
+       "hard": 2,
+       "soft": 0
+      },
+      "L_vertical_first": {
+       "hard": 2,
+       "soft": 0
+      }
+     }
+    }
+   },
+   "length_mm": 34.1902,
+   "best_layer": "B.Cu",
+   "best_layer_hard_count": 2
+  },
+  {
+   "index": 2,
+   "net": "/SIG_A_OUT",
+   "netclass": "Default",
+   "corridor_width_mm": 0.6,
+   "endpoints": [
+    {
+     "description": "Pad 2 [/SIG_A_OUT] of R1 on F.Cu",
+     "uuid": "05a68caf-f8c6-4fe1-9600-fe2de1c25812",
+     "kind": "pad",
+     "net": "/SIG_A_OUT",
+     "footprint": "R1",
+     "pad": "2",
+     "layers": [
+      "F.Cu"
+     ],
+     "position_mm": [
+      125.9125,
+      103.0
+     ],
+     "reported_position_mm": [
+      125.9125,
+      103.0
+     ]
+    },
+    {
+     "description": "PTH pad 3 [/SIG_A_OUT] of J2",
+     "uuid": "13f60c36-0911-406d-bf9c-2e3efca470b3",
+     "kind": "pad",
+     "net": "/SIG_A_OUT",
+     "footprint": "J2",
+     "pad": "3",
+     "layers": [
+      "B.Cu",
+      "F.Cu"
+     ],
+     "position_mm": [
+      146.0,
+      111.08
+     ],
+     "reported_position_mm": [
+      146.0,
+      111.08
+     ]
+    }
+   ],
+   "layers": {
+    "F.Cu": {
+     "corridor": "straight",
+     "hard_count": 2,
+     "soft_count": 0,
+     "hard": [
+      {
+       "id": "rule_area:route_keepout",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "route_keepout",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'route_keepout'"
+      },
+      {
+       "id": "rule_area:wall",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "wall",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'wall'"
+      }
+     ],
+     "soft": [],
+     "corridors": {
+      "straight": {
+       "hard": 2,
+       "soft": 0
+      },
+      "L_horizontal_first": {
+       "hard": 3,
+       "soft": 0
+      },
+      "L_vertical_first": {
+       "hard": 2,
+       "soft": 0
+      }
+     }
+    },
+    "B.Cu": {
+     "corridor": "straight",
+     "hard_count": 2,
+     "soft_count": 1,
+     "hard": [
+      {
+       "id": "rule_area:route_keepout",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "route_keepout",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'route_keepout'"
+      },
+      {
+       "id": "rule_area:wall",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "wall",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'wall'"
+      }
+     ],
+     "soft": [
+      {
+       "id": "zone:GND_B:GND",
+       "kind": "zone",
+       "category": "zone",
+       "name": "GND_B",
+       "net": "GND",
+       "label": "zone 'GND_B' GND"
+      }
+     ],
+     "corridors": {
+      "straight": {
+       "hard": 2,
+       "soft": 1
+      },
+      "L_horizontal_first": {
+       "hard": 3,
+       "soft": 1
+      },
+      "L_vertical_first": {
+       "hard": 2,
+       "soft": 1
+      }
+     }
+    }
+   },
+   "length_mm": 21.6517,
+   "best_layer": "F.Cu",
+   "best_layer_hard_count": 2
+  },
+  {
+   "index": 3,
+   "net": "/SIG_B_OUT",
+   "netclass": "Default",
+   "corridor_width_mm": 0.6,
+   "endpoints": [
+    {
+     "description": "Pad 2 [/SIG_B_OUT] of R2 on F.Cu",
+     "uuid": "ddebc1f7-5464-46f5-afd5-d1e56fe7d3de",
+     "kind": "pad",
+     "net": "/SIG_B_OUT",
+     "footprint": "R2",
+     "pad": "2",
+     "layers": [
+      "F.Cu"
+     ],
+     "position_mm": [
+      125.9125,
+      126.0
+     ],
+     "reported_position_mm": [
+      125.9125,
+      126.0
+     ]
+    },
+    {
+     "description": "PTH pad 4 [/SIG_B_OUT] of J2",
+     "uuid": "449ac473-6378-44f4-b765-8721fa53ae6e",
+     "kind": "pad",
+     "net": "/SIG_B_OUT",
+     "footprint": "J2",
+     "pad": "4",
+     "layers": [
+      "B.Cu",
+      "F.Cu"
+     ],
+     "position_mm": [
+      146.0,
+      113.62
+     ],
+     "reported_position_mm": [
+      146.0,
+      113.62
+     ]
+    }
+   ],
+   "layers": {
+    "F.Cu": {
+     "corridor": "straight",
+     "hard_count": 1,
+     "soft_count": 0,
+     "hard": [
+      {
+       "id": "rule_area:wall",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "wall",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'wall'"
+      }
+     ],
+     "soft": [],
+     "corridors": {
+      "straight": {
+       "hard": 1,
+       "soft": 0
+      },
+      "L_horizontal_first": {
+       "hard": 1,
+       "soft": 0
+      },
+      "L_vertical_first": {
+       "hard": 2,
+       "soft": 0
+      }
+     }
+    },
+    "B.Cu": {
+     "corridor": "straight",
+     "hard_count": 1,
+     "soft_count": 1,
+     "hard": [
+      {
+       "id": "rule_area:wall",
+       "kind": "rule_area",
+       "category": "keepout",
+       "name": "wall",
+       "net": null,
+       "restrictions": [
+        "tracks",
+        "vias",
+        "zone_fills"
+       ],
+       "label": "keepout 'wall'"
+      }
+     ],
+     "soft": [
+      {
+       "id": "zone:GND_B:GND",
+       "kind": "zone",
+       "category": "zone",
+       "name": "GND_B",
+       "net": "GND",
+       "label": "zone 'GND_B' GND"
+      }
+     ],
+     "corridors": {
+      "straight": {
+       "hard": 1,
+       "soft": 1
+      },
+      "L_horizontal_first": {
+       "hard": 1,
+       "soft": 1
+      },
+      "L_vertical_first": {
+       "hard": 2,
+       "soft": 1
+      }
+     }
+    }
+   },
+   "length_mm": 23.596,
+   "best_layer": "F.Cu",
+   "best_layer_hard_count": 1
+  }
+ ]
+}

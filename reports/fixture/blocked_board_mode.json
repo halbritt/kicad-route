@@ -1,0 +1,16 @@
+{
+  "connections": 6,
+  "runtime_s": 48.49,
+  "footprints": [
+    "C1",
+    "J1",
+    "J2",
+    "R1",
+    "R2"
+  ],
+  "boards": {
+    "input_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+    "candidate_sha256": null,
+    "graded_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478"
+  }
+}

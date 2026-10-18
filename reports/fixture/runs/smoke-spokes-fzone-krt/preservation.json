@@ -49,14 +49,9 @@
   },
   {
     "check": "zones",
-    "status": "FAIL",
+    "status": "PASS",
     "detail": "2 copper zone definitions (outline, net, layers, priority, clearance, thermal and fill settings; fill polygons are regenerated)",
-    "differences": [
-      {
-        "reference": 2,
-        "candidate": 2
-      }
-    ]
+    "differences": []
   },
   {
     "check": "keepouts",
@@ -67,7 +62,7 @@
   {
     "check": "copper_graphics",
     "status": "PASS",
-    "detail": "0 non-track copper graphics",
+    "detail": "0 non-track copper graphics (shapes; text and other items with content and position)",
     "differences": []
   },
   {
@@ -79,10 +74,11 @@
   {
     "check": "new_copper_netclass_geometry",
     "status": "FAIL",
-    "detail": "16 new tracks and 2 new vias checked against their net class width / via diameter / drill (1 um quantisation tolerance); 1 below",
+    "detail": "16 new tracks and 2 new vias checked against their net class width / via (microvia) diameter / drill (1 um quantisation tolerance); 1 below",
     "differences": [
       {
         "item": "via",
+        "via_type": "through",
         "net": "/VIN",
         "netclass": "Power",
         "diameter_mm": 0.6,

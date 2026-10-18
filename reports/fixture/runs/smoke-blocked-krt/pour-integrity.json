@@ -1,0 +1,102 @@
+{
+  "check": "pour_integrity",
+  "status": "PASS",
+  "min_spokes": 2,
+  "project_min_resolved_spokes": 2,
+  "area_loss_limit_pct": null,
+  "reference_islands_off_main": 1,
+  "layers": [
+    {
+      "net_layer": "GND@B.Cu",
+      "area_mm2": [
+        1111.2478,
+        1111.2478
+      ],
+      "area_delta_pct": 0.0,
+      "polygons": [
+        2,
+        2
+      ],
+      "islands_off_main": [
+        1,
+        1
+      ],
+      "area_off_main_mm2": [
+        256.1932,
+        256.1932
+      ]
+    }
+  ],
+  "failures": [],
+  "informational": [],
+  "pads": [
+    {
+      "pad": "J1.2@B.Cu",
+      "connection": "thermal",
+      "position_mm": [
+        104.0,
+        108.54
+      ],
+      "touches_fill": [
+        true,
+        true
+      ],
+      "spokes": [
+        4,
+        4
+      ],
+      "solid": [
+        false,
+        false
+      ],
+      "track_spokes": [
+        0,
+        0
+      ],
+      "in_main": [
+        true,
+        true
+      ],
+      "polygons": [
+        "GND@B.Cu/GND_B#0"
+      ],
+      "other_path": false
+    },
+    {
+      "pad": "J2.2@B.Cu",
+      "connection": "thermal",
+      "position_mm": [
+        146.0,
+        108.54
+      ],
+      "touches_fill": [
+        true,
+        true
+      ],
+      "spokes": [
+        4,
+        4
+      ],
+      "solid": [
+        false,
+        false
+      ],
+      "track_spokes": [
+        0,
+        0
+      ],
+      "in_main": [
+        false,
+        false
+      ],
+      "polygons": [
+        "GND@B.Cu/GND_B#1"
+      ],
+      "other_path": false
+    }
+  ],
+  "reference_source": {
+    "source": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-krt/20261018T044326.034754Z/../../../../.cache/baseline/ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472/baseline-pour.json",
+    "cached": true
+  }
+}

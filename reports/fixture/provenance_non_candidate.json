@@ -3,7 +3,7 @@
     "kind": "copper-provenance",
     "requested_protect": "human",
     "chain": [
-      "runs/route_demo/prov-step1/20261017T164233.338964Z"
+      "runs/route_demo/prov-step1/20261018T041252.302460Z"
     ],
     "origin_run": null,
     "input_is_candidate": false,
@@ -17,7 +17,9 @@
       "build": "v0.23.1",
       "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
       "source": "https://github.com/drandyhaas/KiCadRoutingTools",
-      "rust_router": "0.23.1"
+      "rust_router": "0.23.1",
+      "reproducible": true,
+      "reproducible_basis": "determinism check 2026-10-17T22:19:04.746885+00:00: identical copper geometry on repeat"
     },
     "settings": {
       "backend": "krt",
@@ -32,6 +34,7 @@
       "backend_args": [],
       "backend_env": {},
       "reserve_spokes": null,
+      "barrier": null,
       "stall_s": null,
       "mode": "selected",
       "net_patterns": [
@@ -78,7 +81,7 @@
       "status": "PASS",
       "reasons": [],
       "exit_code": 0,
-      "runtime_s": 2.488,
+      "runtime_s": 10.325,
       "backend_report": {
         "successful": 2,
         "failed": 0,
@@ -90,7 +93,7 @@
         "pad_pairs_total": 2,
         "total_vias": 0,
         "total_iterations": 408,
-        "total_time": 0.01,
+        "total_time": 0.03,
         "protected_skipped": null,
         "scope": "merged",
         "relaxations": {
@@ -130,8 +133,15 @@
     "validation": {
       "status": "PASS",
       "reasons": [],
-      "dir": "runs/route_demo/prov-step1/20261017T164233.338964Z/validate",
+      "dir": "runs/route_demo/prov-step1/20261018T041252.302460Z/validate",
+      "rules_files": {
+        "project": "route_demo.kicad_pro",
+        "custom_rules": "route_demo.kicad_dru",
+        "not_loaded": []
+      },
       "restored_project_files": [],
+      "delivered_project_files": [],
+      "delivered_board_sha256": "9fcee1947bd9a6eb9995355078f569d43ef4351b9bb001b24778e90df0479b43",
       "drc_commands": [
         {
           "argv": [
@@ -143,13 +153,13 @@
             "--format",
             "json",
             "-o",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261017T164233.338964Z/validate/candidate-refill.json",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261017T164233.338964Z/candidate/route_demo/route_demo.kicad_pcb"
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261018T041252.302460Z/validate/candidate-refill.json",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261018T041252.302460Z/candidate/route_demo/route_demo.kicad_pcb"
           ],
-          "cwd": "runs/route_demo/prov-step1/20261017T164233.338964Z/candidate/route_demo",
-          "log": "runs/route_demo/prov-step1/20261017T164233.338964Z/validate/candidate-refill.log",
+          "cwd": "runs/route_demo/prov-step1/20261018T041252.302460Z/candidate/route_demo",
+          "log": "runs/route_demo/prov-step1/20261018T041252.302460Z/validate/candidate-refill.log",
           "exit_code": 0,
-          "duration_s": 2.045
+          "duration_s": 18.499
         },
         {
           "argv": [
@@ -163,17 +173,18 @@
             "--units",
             "mm",
             "-o",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261017T164233.338964Z/validate/candidate-drc.json",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261017T164233.338964Z/candidate/route_demo/route_demo.kicad_pcb"
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261018T041252.302460Z/validate/candidate-drc.json",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261018T041252.302460Z/candidate/route_demo/route_demo.kicad_pcb"
           ],
-          "cwd": "runs/route_demo/prov-step1/20261017T164233.338964Z/candidate/route_demo",
-          "log": "runs/route_demo/prov-step1/20261017T164233.338964Z/validate/candidate-drc.log",
+          "cwd": "runs/route_demo/prov-step1/20261018T041252.302460Z/candidate/route_demo",
+          "log": "runs/route_demo/prov-step1/20261018T041252.302460Z/validate/candidate-drc.log",
           "exit_code": 0,
-          "duration_s": 1.993
+          "duration_s": 15.773
         }
       ],
-      "delivered_board_sha256": "bfc7ee55912ac85f4074889f705811ad81cc487a76870064cb9d549a4416b287",
-      "validated_board_sha256": "bfc7ee55912ac85f4074889f705811ad81cc487a76870064cb9d549a4416b287",
+      "validated_board_sha256": "9fcee1947bd9a6eb9995355078f569d43ef4351b9bb001b24778e90df0479b43",
+      "candidate_board_sha256": "9fcee1947bd9a6eb9995355078f569d43ef4351b9bb001b24778e90df0479b43",
+      "refill_modified_board": false,
       "parity_performed": true,
       "drc": {
         "violations_total": 0,
@@ -216,7 +227,7 @@
         "pour_integrity": "PASS"
       }
     },
-    "run_dir": "runs/route_demo/prov-step1/20261017T164233.338964Z"
+    "run_dir": "runs/route_demo/prov-step1/20261018T041252.302460Z"
   },
   "existing": {
     "backend": {
@@ -225,7 +236,9 @@
       "build": "v0.23.1",
       "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
       "source": "https://github.com/drandyhaas/KiCadRoutingTools",
-      "rust_router": "0.23.1"
+      "rust_router": "0.23.1",
+      "reproducible": true,
+      "reproducible_basis": "determinism check 2026-10-17T22:19:04.746885+00:00: identical copper geometry on repeat"
     },
     "settings": {
       "backend": "krt",
@@ -240,6 +253,7 @@
       "backend_args": [],
       "backend_env": {},
       "reserve_spokes": null,
+      "barrier": null,
       "stall_s": null,
       "mode": "selected",
       "net_patterns": [
@@ -285,7 +299,7 @@
       "status": "PASS",
       "reasons": [],
       "exit_code": 0,
-      "runtime_s": 2.401,
+      "runtime_s": 13.624,
       "backend_report": {
         "successful": 2,
         "failed": 0,
@@ -297,7 +311,7 @@
         "pad_pairs_total": 2,
         "total_vias": 0,
         "total_iterations": 408,
-        "total_time": 0.0,
+        "total_time": 0.03,
         "protected_skipped": null,
         "scope": "merged",
         "relaxations": {
@@ -337,8 +351,15 @@
     "validation": {
       "status": "PASS",
       "reasons": [],
-      "dir": "runs/route_demo/prov-step1-existing/20261017T164301.951435Z/validate",
+      "dir": "runs/route_demo/prov-step1-existing/20261018T041701.786883Z/validate",
+      "rules_files": {
+        "project": "route_demo.kicad_pro",
+        "custom_rules": "route_demo.kicad_dru",
+        "not_loaded": []
+      },
       "restored_project_files": [],
+      "delivered_project_files": [],
+      "delivered_board_sha256": "f8eac6e81c61e16e342cbabf9e55ee8628e4528a410e74f770a1a2e3e9409f9c",
       "drc_commands": [
         {
           "argv": [
@@ -350,13 +371,13 @@
             "--format",
             "json",
             "-o",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1-existing/20261017T164301.951435Z/validate/candidate-refill.json",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1-existing/20261017T164301.951435Z/candidate/route_demo/route_demo.kicad_pcb"
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1-existing/20261018T041701.786883Z/validate/candidate-refill.json",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1-existing/20261018T041701.786883Z/candidate/route_demo/route_demo.kicad_pcb"
           ],
-          "cwd": "runs/route_demo/prov-step1-existing/20261017T164301.951435Z/candidate/route_demo",
-          "log": "runs/route_demo/prov-step1-existing/20261017T164301.951435Z/validate/candidate-refill.log",
+          "cwd": "runs/route_demo/prov-step1-existing/20261018T041701.786883Z/candidate/route_demo",
+          "log": "runs/route_demo/prov-step1-existing/20261018T041701.786883Z/validate/candidate-refill.log",
           "exit_code": 0,
-          "duration_s": 2.09
+          "duration_s": 17.244
         },
         {
           "argv": [
@@ -370,17 +391,18 @@
             "--units",
             "mm",
             "-o",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1-existing/20261017T164301.951435Z/validate/candidate-drc.json",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1-existing/20261017T164301.951435Z/candidate/route_demo/route_demo.kicad_pcb"
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1-existing/20261018T041701.786883Z/validate/candidate-drc.json",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1-existing/20261018T041701.786883Z/candidate/route_demo/route_demo.kicad_pcb"
           ],
-          "cwd": "runs/route_demo/prov-step1-existing/20261017T164301.951435Z/candidate/route_demo",
-          "log": "runs/route_demo/prov-step1-existing/20261017T164301.951435Z/validate/candidate-drc.log",
+          "cwd": "runs/route_demo/prov-step1-existing/20261018T041701.786883Z/candidate/route_demo",
+          "log": "runs/route_demo/prov-step1-existing/20261018T041701.786883Z/validate/candidate-drc.log",
           "exit_code": 0,
-          "duration_s": 2.134
+          "duration_s": 13.9
         }
       ],
-      "delivered_board_sha256": "8f416cc2e6e4ec6116cccf337785f36d8ac9d1ce5f43963e44cd5eb89c6a8a15",
-      "validated_board_sha256": "8f416cc2e6e4ec6116cccf337785f36d8ac9d1ce5f43963e44cd5eb89c6a8a15",
+      "validated_board_sha256": "f8eac6e81c61e16e342cbabf9e55ee8628e4528a410e74f770a1a2e3e9409f9c",
+      "candidate_board_sha256": "f8eac6e81c61e16e342cbabf9e55ee8628e4528a410e74f770a1a2e3e9409f9c",
+      "refill_modified_board": false,
       "parity_performed": true,
       "drc": {
         "violations_total": 0,
@@ -423,6 +445,6 @@
         "pour_integrity": "PASS"
       }
     },
-    "run_dir": "runs/route_demo/prov-step1-existing/20261017T164301.951435Z"
+    "run_dir": "runs/route_demo/prov-step1-existing/20261018T041701.786883Z"
   }
 }

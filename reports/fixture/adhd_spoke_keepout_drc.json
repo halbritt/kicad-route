@@ -1,0 +1,59 @@
+{
+  "edge": [],
+  "inside": [
+    {
+      "description": "Thermal relief connection to zone incomplete (layer F.Cu; zone min spoke count 2; actual 1)",
+      "items": [
+        {
+          "description": "Zone 'GND_F' [GND] on F.Cu, priority 0",
+          "pos": {
+            "x": 100.5,
+            "y": 100.5
+          },
+          "uuid": "6acf4ee2-499c-4269-aa56-df93eea75174"
+        },
+        {
+          "description": "Pad 2 [GND] of C1 on F.Cu",
+          "pos": {
+            "x": 110.95,
+            "y": 104.0
+          },
+          "uuid": "ed710432-edbd-4efe-9cf2-6ec252719503"
+        }
+      ],
+      "severity": "error",
+      "type": "starved_thermal"
+    }
+  ],
+  "trench": [],
+  "trench_unconnected": [
+    [
+      "Pad 1 [/VIN] of C1 on F.Cu",
+      "PTH pad 1 [/VIN] of J1"
+    ],
+    [
+      "PTH pad 1 [/VIN] of J2",
+      "Pad 1 [/VIN] of C1 on F.Cu"
+    ],
+    [
+      "Zone 'GND_F' [GND] on F.Cu, priority 0",
+      "PTH pad 2 [GND] of J1"
+    ],
+    [
+      "Pad 2 [/SIG_A_OUT] of R1 on F.Cu",
+      "PTH pad 3 [/SIG_A_OUT] of J2"
+    ],
+    [
+      "Pad 2 [/SIG_B_OUT] of R2 on F.Cu",
+      "PTH pad 4 [/SIG_B_OUT] of J2"
+    ],
+    [
+      "Track [/SIG_A] on F.Cu, length 1.5000 mm",
+      "PTH pad 3 [/SIG_A] of J1"
+    ],
+    [
+      "Track [/SIG_A] on F.Cu, length 1.5000 mm",
+      "Pad 1 [/SIG_A] of R1 on F.Cu"
+    ]
+  ]
+}

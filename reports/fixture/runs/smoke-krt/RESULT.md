@@ -1,13 +1,13 @@
 # Routing attempt: krt on route_demo
 
 - Backend: krt 0.23.1 (v0.23.1)
-- Input: `route_demo.kicad_pcb` from working tree @ 2944c145e51effd192d2ee4a1d04f7f18c0ffc5e (fingerprint ba2f343c49e2f971)
+- Input: `route_demo.kicad_pcb` from working tree @ a928b1562dfa48954c60e9cee4398bb3ed973e8e (fingerprint ba2f343c49e2f971)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo/smoke-krt/20261017T164409.291974Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/smoke-krt/20261018T042932.702294Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 6.6 s |
+| process | PASS | exit 0, 80.706 s |
 | routing | COMPLETE | 0 unconnected in scope, 0 total (input: 6) |
 | validation | PASS | no new findings |
 

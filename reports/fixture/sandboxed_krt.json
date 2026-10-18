@@ -1,0 +1,60 @@
+{
+  "sandbox_argv": "agent_ee.executor.sandbox_argv",
+  "binds": [
+    "/home/halbritt/git/kicad-route"
+  ],
+  "exit_code": 0,
+  "verdicts": {
+    "process": "PASS",
+    "routing": "COMPLETE",
+    "validation": "PASS"
+  },
+  "candidate_digest": {
+    "copper_items": 24,
+    "copper": "b4f8f1889c35622e0457f056a8e495cdbdf58aa42e658cfc61ea07cb7991d4ce",
+    "rest": "3ef53ad1130f01554be186151f541970da9b8d8522c60abe77e352ab1a72168f"
+  },
+  "candidate_sha256": "639eed92e384b2ae49b0a84b57ba12c6dedb08825239990415192f9ef9eecb76",
+  "unsandboxed_candidate_sha256": "564fc52799aaca69d2f16f1c0b1bb5b809f8683fffd190c51ff7c38d5208efd0",
+  "sandbox": {
+    "require_readonly_state": true,
+    "state": {
+      "path": "/home/halbritt/git/kicad-route",
+      "exists": true,
+      "installed": [
+        "vendor/krt",
+        ".venv-krt",
+        "vendor/freerouting",
+        "vendor/skills"
+      ],
+      "writable": false,
+      "writable_parts": [],
+      "readonly_mount": true
+    },
+    "tool_root": {
+      "path": "/home/halbritt/git/kicad-route",
+      "writable": false
+    },
+    "out": {
+      "path": "/work/out"
+    },
+    "network": {
+      "interfaces": 1,
+      "non_loopback_interfaces": 0,
+      "non_loopback_examples": [],
+      "non_loopback_routes": 0,
+      "namespace": "net:[4026534484]",
+      "connect_probe": {
+        "target": "192.0.2.1:9/udp",
+        "sends_packet": false,
+        "result": "ENETUNREACH"
+      },
+      "isolated": true
+    }
+  },
+  "state_diff": {
+    "created": [],
+    "removed": [],
+    "changed": []
+  }
+}

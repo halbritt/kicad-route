@@ -23,7 +23,9 @@
       "removed_existing_vias": 0
     },
     "blocked_by": {
-      "report": "runs/route_demo/blocked-receipts-krt/20261017T163405.846040Z/validate/blocked-by.json",
+      "schema": "kicad-route/blocked/2",
+      "version": 2,
+      "report": "runs/route_demo/blocked-receipts-krt/20261018T030209.644336Z/validate/blocked-by.json",
       "connections_analyzed": 4,
       "unobstructed_connections": 0,
       "method": "heuristic corridors; see docs/blocked.md",
@@ -58,10 +60,10 @@
           ]
         },
         {
-          "id": "802c17cd-cad1-4a10-9194-0d8541d8d429",
+          "id": "d573c5e6-759f-480d-8add-98c6d2493c16",
           "category": "new_copper",
           "kind": "track",
-          "label": "track /SIG_A F.Cu (new, unlocked) 802c17cd",
+          "label": "track /SIG_A F.Cu (new, unlocked) d573c5e6",
           "net": "/SIG_A",
           "locked": false,
           "origin": "new",
@@ -112,5 +114,5 @@
       }
     }
   },
-  "exit_code": 3
+  "exit_code": 2
 }

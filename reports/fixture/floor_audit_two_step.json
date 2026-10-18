@@ -11,14 +11,14 @@
       "current": 0.1,
       "floor": 0.15,
       "status": "looser",
-      "commit": "183ebd6ead43b7466d969e8c9777c9e57dbdebd7",
+      "commit": "5c7485ab57fcbc576c21b8007a7c99cc44bcb211",
       "subject": "initial rules",
-      "date": "2026-10-17T09:39:11-07:00"
+      "date": "2026-10-17T20:42:14-07:00"
     }
   ],
   "below_declared": [],
   "notes": [
-    "rules.min_track_width 0.1 is looser than its high-water mark 0.15 set by 183ebd6ead43 (initial rules)"
+    "rules.min_track_width 0.1 is looser than its high-water mark 0.15 set by 5c7485ab57fc (initial rules)"
   ],
   "floor_project": {
     "dir": "audit/route_demo/HEAD~1..HEAD/new-under-floor/route_demo",

@@ -29,7 +29,7 @@
           "by": [
             {
               "kind": "segment",
-              "uuid": "906d84dc-9341-4c9d-8b47-5899828b411a",
+              "uuid": "2a5dd33d-c5db-4888-917e-463825c46727",
               "net": "/SIG_A",
               "layer": "F.Cu",
               "width_mm": 0.2,
@@ -53,7 +53,7 @@
           "by": [
             {
               "kind": "segment",
-              "uuid": "901bb042-cdcf-4a9a-a23b-8a4b8c6a1aa6",
+              "uuid": "08ba91f6-014c-475c-bf41-2ac6a518d8e5",
               "net": "/SIG_A",
               "layer": "F.Cu",
               "width_mm": 0.2,
@@ -71,8 +71,8 @@
       ],
       "attributed": true,
       "cutting_items": [
-        "901bb042-cdcf-4a9a-a23b-8a4b8c6a1aa6",
-        "906d84dc-9341-4c9d-8b47-5899828b411a"
+        "08ba91f6-014c-475c-bf41-2ac6a518d8e5",
+        "2a5dd33d-c5db-4888-917e-463825c46727"
       ]
     }
   ],
@@ -86,7 +86,7 @@
       "by": [
         {
           "kind": "segment",
-          "uuid": "906d84dc-9341-4c9d-8b47-5899828b411a",
+          "uuid": "2a5dd33d-c5db-4888-917e-463825c46727",
           "net": "/SIG_A",
           "layer": "F.Cu",
           "width_mm": 0.2,
@@ -110,7 +110,7 @@
       "by": [
         {
           "kind": "segment",
-          "uuid": "901bb042-cdcf-4a9a-a23b-8a4b8c6a1aa6",
+          "uuid": "08ba91f6-014c-475c-bf41-2ac6a518d8e5",
           "net": "/SIG_A",
           "layer": "F.Cu",
           "width_mm": 0.2,

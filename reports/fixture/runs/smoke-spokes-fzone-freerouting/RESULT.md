@@ -1,15 +1,15 @@
 # Routing attempt: freerouting on route_demo_fzone
 
 - Backend: freerouting v2.5.0 (freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76)
-- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 69730685befab820)
+- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 2ef2b80912cdee6d)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261017T165035.629197Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 7.24 s |
+| process | PASS | exit 0, 44.278 s |
 | routing | INCOMPLETE | 1 unconnected in scope, 1 total (input: 5) |
-| validation | FAIL | preservation zones: 2 copper zone definitions (outline, net, layers, priority, clearance, thermal and fill settings; fill polygons are regenerated) |
+| validation | PASS | no new findings |
 
 | Preservation check | Status |
 |---|---|
@@ -21,7 +21,7 @@
 | nets_and_netclasses | PASS |
 | pad_connectivity | PASS |
 | footprints | PASS |
-| zones | FAIL |
+| zones | PASS |
 | keepouts | PASS |
 | copper_graphics | PASS |
 | protected_copper | PASS |
@@ -59,13 +59,13 @@ Unsupported or approximated by this backend:
 - rule areas export only their no-tracks/no-vias restrictions; zones export as plane outlines
 - route_demo.kicad_dru: net-class-to-net-class clearance rules are translated to Specctra class_class rules; any other custom rule is listed as untranslated below
 
-Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261017T165035.629197Z/validate/blocked-by.json`):
+Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/validate/blocked-by.json`):
 
 | Blocker | Category | Blocks (best layer) | Blocks (any layer) |
 |---|---|---|---|
 | keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 1 | 1 |
-| track /SIG_A B.Cu (new, unlocked) e3b4a3ce | new_copper | 0 | 1 |
-| track /SIG_A_OUT B.Cu (new, unlocked) ba2fd630 | new_copper | 0 | 1 |
+| track /SIG_A B.Cu (new, unlocked) 36b771eb | new_copper | 0 | 1 |
+| track /SIG_A_OUT B.Cu (new, unlocked) 6582b17c | new_copper | 0 | 1 |
 
 - `/VIN`: 1 open; best layer F.Cu with 1 hard blockers (keepout 'route_keepout')
 

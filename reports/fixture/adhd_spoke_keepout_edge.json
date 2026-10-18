@@ -1,0 +1,13 @@
+{
+  "corridors_checked": 19,
+  "corridors_held": 19,
+  "failed": [],
+  "netclasses": {
+    "Default": "/SIG_A",
+    "Power": "/VIN"
+  },
+  "modes": [
+    "end",
+    "sides"
+  ]
+}

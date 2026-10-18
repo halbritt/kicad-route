@@ -5,11 +5,13 @@
     "build": "v0.23.1",
     "commit": "295f9ee197517e8323726853361eb137cc08ba9e",
     "source": "https://github.com/drandyhaas/KiCadRoutingTools",
-    "rust_router": "0.23.1"
+    "rust_router": "0.23.1",
+    "reproducible": true,
+    "reproducible_basis": "determinism check 2026-10-17T22:19:04.746885+00:00: identical copper geometry on repeat"
   },
   "settings": {
     "backend": "krt",
-    "budget_s": 15,
+    "budget_s": 40,
     "protect": "existing",
     "max_iterations": null,
     "passes": null,
@@ -20,6 +22,7 @@
     "backend_args": [],
     "backend_env": {},
     "reserve_spokes": null,
+    "barrier": null,
     "stall_s": null,
     "mode": "all",
     "rule_floor_sha256": null
@@ -52,10 +55,10 @@
   "process": {
     "status": "FAIL",
     "reasons": [
-      "KRT exceeded the 15 s budget, did not stop at the stop file, and was killed (last output: 'Probe: forward=5000, backward=5000 iters, trying forward with full iterations...'); retry with a larger --budget or --backend-env KICAD_NET_RESCUE=0"
+      "KRT exceeded the 40 s budget, did not stop at the stop file, and was killed (last output: 'No route found after 1000000 iterations (forward), trying backward...'); retry with a larger --budget, or --backend-env KICAD_NET_RESCUE=0 (KRT's net rescue ignores the stop file)"
     ],
     "exit_code": -15,
-    "runtime_s": 45.541,
+    "runtime_s": 73.956,
     "backend_report": null,
     "bridge": null,
     "project_writeback": []
@@ -66,5 +69,5 @@
       "backend produced no candidate"
     ]
   },
-  "run_dir": "runs/route_demo/smoke-budget-krt/20261017T164827.021474Z"
+  "run_dir": "runs/route_demo/smoke-budget-krt/20261018T045443.420272Z"
 }

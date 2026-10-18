@@ -1,0 +1,1451 @@
+{
+ "board": "route_demo.kicad_pcb",
+ "copper_graphics": [],
+ "copper_layer_count": 2,
+ "copper_layers": [
+  {
+   "name": "F.Cu",
+   "type": 0
+  },
+  {
+   "name": "B.Cu",
+   "type": 0
+  }
+ ],
+ "enabled_layers": [
+  "B.Adhesive",
+  "B.Courtyard",
+  "B.Cu",
+  "B.Fab",
+  "B.Mask",
+  "B.Paste",
+  "B.Silkscreen",
+  "Edge.Cuts",
+  "F.Adhesive",
+  "F.Courtyard",
+  "F.Cu",
+  "F.Fab",
+  "F.Mask",
+  "F.Paste",
+  "F.Silkscreen",
+  "Margin",
+  "User.1",
+  "User.2",
+  "User.3",
+  "User.4",
+  "User.Comments",
+  "User.Drawings",
+  "User.Eco1",
+  "User.Eco2"
+ ],
+ "footprints": {
+  "C1": {
+   "fpid": "Capacitor_SMD:C_0805_2012Metric",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/VIN",
+     "position": [
+      109050000,
+      104000000
+     ],
+     "size": [
+      1000000,
+      1450000
+     ]
+    },
+    "2": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "GND",
+     "position": [
+      110950000,
+      104000000
+     ],
+     "size": [
+      1000000,
+      1450000
+     ]
+    }
+   },
+   "path": "/e39546a9-2169-56e1-8bdd-e493ad92ce8a",
+   "position": [
+    110000000,
+    104000000
+   ],
+   "value": "1u"
+  },
+  "J1": {
+   "fpid": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "/VIN",
+     "position": [
+      104000000,
+      106000000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    },
+    "2": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "GND",
+     "position": [
+      104000000,
+      108540000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    },
+    "3": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "/SIG_A",
+     "position": [
+      104000000,
+      111080000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    },
+    "4": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "/SIG_B",
+     "position": [
+      104000000,
+      113620000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    }
+   },
+   "path": "/e7fee736-2f4c-5672-93c0-2cf758b5f00c",
+   "position": [
+    104000000,
+    106000000
+   ],
+   "value": "Conn_01x04"
+  },
+  "J2": {
+   "fpid": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "/VIN",
+     "position": [
+      146000000,
+      106000000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    },
+    "2": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "GND",
+     "position": [
+      146000000,
+      108540000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    },
+    "3": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "/SIG_A_OUT",
+     "position": [
+      146000000,
+      111080000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    },
+    "4": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "/SIG_B_OUT",
+     "position": [
+      146000000,
+      113620000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    }
+   },
+   "path": "/5f08d5ad-1225-5357-88b6-81724e6be175",
+   "position": [
+    146000000,
+    106000000
+   ],
+   "value": "Conn_01x04"
+  },
+  "R1": {
+   "fpid": "Resistor_SMD:R_0805_2012Metric",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/SIG_A",
+     "position": [
+      124087500,
+      103000000
+     ],
+     "size": [
+      1025000,
+      1400000
+     ]
+    },
+    "2": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/SIG_A_OUT",
+     "position": [
+      125912500,
+      103000000
+     ],
+     "size": [
+      1025000,
+      1400000
+     ]
+    }
+   },
+   "path": "/21c524bf-449d-5939-87e5-7d7c9c646844",
+   "position": [
+    125000000,
+    103000000
+   ],
+   "value": "33"
+  },
+  "R2": {
+   "fpid": "Resistor_SMD:R_0805_2012Metric",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/SIG_B",
+     "position": [
+      124087500,
+      126000000
+     ],
+     "size": [
+      1025000,
+      1400000
+     ]
+    },
+    "2": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/SIG_B_OUT",
+     "position": [
+      125912500,
+      126000000
+     ],
+     "size": [
+      1025000,
+      1400000
+     ]
+    }
+   },
+   "path": "/6be3fd36-ed25-5ffb-b0cc-64066e20fbae",
+   "position": [
+    125000000,
+    126000000
+   ],
+   "value": "33"
+  }
+ },
+ "kicad_version": "10.0.7-10.0.7~ubuntu24.04.1",
+ "netclass_count": 2,
+ "nets": {
+  "/SIG_A": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  },
+  "/SIG_A_OUT": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  },
+  "/SIG_B": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  },
+  "/SIG_B_OUT": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  },
+  "/VIN": {
+   "clearance": 300000,
+   "netclass": "Power",
+   "track_width": 500000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 800000,
+   "via_drill": 400000
+  },
+  "GND": {
+   "clearance": 300000,
+   "netclass": "Power",
+   "track_width": 500000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 800000,
+   "via_drill": 400000
+  }
+ },
+ "outline": [
+  {
+   "end": [
+    100000000,
+    130000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    100000000,
+    100000000
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    150000000,
+    100000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    100000000,
+    100000000
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    150000000,
+    130000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    100000000,
+    130000000
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    150000000,
+    130000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    150000000,
+    100000000
+   ],
+   "width": 100000
+  }
+ ],
+ "rule_areas": [
+  {
+   "layers": [
+    "B.Cu",
+    "F.Cu"
+   ],
+   "name": "route_keepout",
+   "no_footprints": false,
+   "no_pads": false,
+   "no_tracks": true,
+   "no_vias": true,
+   "no_zone_fills": true,
+   "outline": [
+    [
+     119000000,
+     105000000
+    ],
+    [
+     131000000,
+     105000000
+    ],
+    [
+     131000000,
+     122000000
+    ],
+    [
+     119000000,
+     122000000
+    ]
+   ]
+  }
+ ],
+ "setup": [
+  "setup",
+  [
+   "pad_to_mask_clearance",
+   "0"
+  ],
+  [
+   "allow_soldermask_bridges_in_footprints",
+   "no"
+  ],
+  [
+   "tenting",
+   [
+    "front",
+    "yes"
+   ],
+   [
+    "back",
+    "yes"
+   ]
+  ],
+  [
+   "covering",
+   [
+    "front",
+    "no"
+   ],
+   [
+    "back",
+    "no"
+   ]
+  ],
+  [
+   "plugging",
+   [
+    "front",
+    "no"
+   ],
+   [
+    "back",
+    "no"
+   ]
+  ],
+  [
+   "capping",
+   "no"
+  ],
+  [
+   "filling",
+   "no"
+  ]
+ ],
+ "sha256": "73a5cca6915ba301370ce0437ca7514de12478725bb13514b5f728b5f183d3c9",
+ "stackup": [
+  "stackup",
+  [
+   "layer",
+   "F.SilkS",
+   [
+    "type",
+    "Top Silk Screen"
+   ]
+  ],
+  [
+   "layer",
+   "F.Paste",
+   [
+    "type",
+    "Top Solder Paste"
+   ]
+  ],
+  [
+   "layer",
+   "F.Mask",
+   [
+    "type",
+    "Top Solder Mask"
+   ],
+   [
+    "color",
+    "Green"
+   ],
+   [
+    "thickness",
+    "0.01"
+   ]
+  ],
+  [
+   "layer",
+   "F.Cu",
+   [
+    "type",
+    "copper"
+   ],
+   [
+    "thickness",
+    "0.035"
+   ]
+  ],
+  [
+   "layer",
+   "dielectric 1",
+   [
+    "type",
+    "core"
+   ],
+   [
+    "thickness",
+    "1.51"
+   ],
+   [
+    "material",
+    "FR4"
+   ],
+   [
+    "epsilon_r",
+    "4.5"
+   ],
+   [
+    "loss_tangent",
+    "0.02"
+   ]
+  ],
+  [
+   "layer",
+   "B.Cu",
+   [
+    "type",
+    "copper"
+   ],
+   [
+    "thickness",
+    "0.035"
+   ]
+  ],
+  [
+   "layer",
+   "B.Mask",
+   [
+    "type",
+    "Bottom Solder Mask"
+   ],
+   [
+    "color",
+    "Green"
+   ],
+   [
+    "thickness",
+    "0.01"
+   ]
+  ],
+  [
+   "layer",
+   "B.Paste",
+   [
+    "type",
+    "Bottom Solder Paste"
+   ]
+  ],
+  [
+   "layer",
+   "B.SilkS",
+   [
+    "type",
+    "Bottom Silk Screen"
+   ]
+  ],
+  [
+   "copper_finish",
+   "None"
+  ],
+  [
+   "dielectric_constraints",
+   "no"
+  ]
+ ],
+ "tracks": [
+  {
+   "end": [
+    136800000,
+    106000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    133700000,
+    102900000
+   ],
+   "uuid": "14fb1cad-14bc-4ff9-8f92-fc0fb5692400",
+   "width": 500000
+  },
+  {
+   "end": [
+    109600000,
+    103400000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    109000000,
+    104000000
+   ],
+   "uuid": "5a501b74-a455-4b5e-85b4-7996a278936b",
+   "width": 500000
+  },
+  {
+   "end": [
+    107100000,
+    105900000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    104000000,
+    105900000
+   ],
+   "uuid": "9a379cc1-777e-4538-b863-b3cca05bbd63",
+   "width": 500000
+  },
+  {
+   "end": [
+    109000000,
+    104000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    107100000,
+    105900000
+   ],
+   "uuid": "d50e133a-9798-4954-9622-873eddf61593",
+   "width": 500000
+  },
+  {
+   "end": [
+    145900000,
+    106000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    136800000,
+    106000000
+   ],
+   "uuid": "ec1cdf9b-9f7b-49fe-a43d-098098de9023",
+   "width": 500000
+  },
+  {
+   "end": [
+    110100000,
+    102900000
+   ],
+   "kind": "segment",
+   "layer": "B.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    109600000,
+    103400000
+   ],
+   "uuid": "4597a7e7-8999-4bb5-825c-b12eadeb9e44",
+   "width": 500000
+  },
+  {
+   "end": [
+    133700000,
+    102900000
+   ],
+   "kind": "segment",
+   "layer": "B.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    110100000,
+    102900000
+   ],
+   "uuid": "f2ad113a-a6f5-499b-99ae-ada5f9eb2bc9",
+   "width": 500000
+  },
+  {
+   "end": [
+    145100000,
+    111000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A_OUT",
+   "start": [
+    137800000,
+    111000000
+   ],
+   "uuid": "1824c278-9011-4565-9664-8744e5a39c86",
+   "width": 200000
+  },
+  {
+   "end": [
+    145200000,
+    110900000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A_OUT",
+   "start": [
+    145100000,
+    111000000
+   ],
+   "uuid": "2bfb9a54-fe8f-4160-a5fd-3e8978080438",
+   "width": 200000
+  },
+  {
+   "end": [
+    129700000,
+    102900000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A_OUT",
+   "start": [
+    125900000,
+    102900000
+   ],
+   "uuid": "33f28805-2555-4ba7-bb67-2177bcf4fec7",
+   "width": 200000
+  },
+  {
+   "end": [
+    137800000,
+    111000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A_OUT",
+   "start": [
+    129700000,
+    102900000
+   ],
+   "uuid": "3f124cb2-3d68-47b3-8e12-dee8f1385669",
+   "width": 200000
+  },
+  {
+   "end": [
+    133700000,
+    125900000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_B_OUT",
+   "start": [
+    125900000,
+    125900000
+   ],
+   "uuid": "8f844ea2-05c8-4017-81e0-4d80bb7fdcf5",
+   "width": 200000
+  },
+  {
+   "end": [
+    146000000,
+    113600000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_B_OUT",
+   "start": [
+    133700000,
+    125900000
+   ],
+   "uuid": "b7e0196a-048e-4705-a11e-f2b9b458c970",
+   "width": 200000
+  },
+  {
+   "end": [
+    107400000,
+    111100000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A",
+   "start": [
+    104000000,
+    111100000
+   ],
+   "uuid": "0dfb1446-2942-47a3-811a-c1786ecc923f",
+   "width": 200000
+  },
+  {
+   "end": [
+    124100000,
+    103000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A",
+   "start": [
+    115500000,
+    103000000
+   ],
+   "uuid": "2ed5f6d0-4ead-49a0-955d-4fab45df77d2",
+   "width": 200000
+  },
+  {
+   "end": [
+    115500000,
+    103000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A",
+   "start": [
+    107400000,
+    111100000
+   ],
+   "uuid": "c0531d19-f2f2-49b5-a7f4-c67ad2fee7f0",
+   "width": 200000
+  },
+  {
+   "end": [
+    116000000,
+    121620000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": true,
+   "net": "/SIG_B",
+   "start": [
+    108000000,
+    113620000
+   ],
+   "uuid": "8e94b591-9ef0-4b50-92ff-ec6f21fc1dfd",
+   "width": 200000
+  },
+  {
+   "end": [
+    108000000,
+    113620000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": true,
+   "net": "/SIG_B",
+   "start": [
+    104000000,
+    113620000
+   ],
+   "uuid": "b729cc79-f98f-446f-9a97-5cda8073ec4c",
+   "width": 200000
+  },
+  {
+   "end": [
+    124087500,
+    126000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": true,
+   "net": "/SIG_B",
+   "start": [
+    121500000,
+    126000000
+   ],
+   "uuid": "e51eb233-997f-4712-9783-3202613e6d35",
+   "width": 200000
+  },
+  {
+   "end": [
+    120380000,
+    126000000
+   ],
+   "kind": "segment",
+   "layer": "B.Cu",
+   "locked": true,
+   "net": "/SIG_B",
+   "start": [
+    116000000,
+    121620000
+   ],
+   "uuid": "39ba570a-ad03-44a3-86cd-cbb77ec13dbe",
+   "width": 200000
+  },
+  {
+   "end": [
+    121500000,
+    126000000
+   ],
+   "kind": "segment",
+   "layer": "B.Cu",
+   "locked": true,
+   "net": "/SIG_B",
+   "start": [
+    120380000,
+    126000000
+   ],
+   "uuid": "ffc01c37-3c12-4d44-9561-2924d9fa68da",
+   "width": 200000
+  }
+ ],
+ "vias": [
+  {
+   "diameter": 800000,
+   "drill": 400000,
+   "layers": [
+    "F.Cu",
+    "B.Cu"
+   ],
+   "locked": false,
+   "net": "/VIN",
+   "position": [
+    133700000,
+    102900000
+   ],
+   "uuid": "3c43ecf8-f44b-494a-a974-f273fb7b5858",
+   "via_type": "through"
+  },
+  {
+   "diameter": 600000,
+   "drill": 300000,
+   "layers": [
+    "F.Cu",
+    "B.Cu"
+   ],
+   "locked": false,
+   "net": "/VIN",
+   "position": [
+    109600000,
+    103400000
+   ],
+   "uuid": "4a959c17-0f22-440c-b543-5a4059ebd2ff",
+   "via_type": "through"
+  },
+  {
+   "diameter": 600000,
+   "drill": 300000,
+   "layers": [
+    "F.Cu",
+    "B.Cu"
+   ],
+   "locked": true,
+   "net": "/SIG_B",
+   "position": [
+    116000000,
+    121620000
+   ],
+   "uuid": "903570aa-2cf8-43db-b00e-9191e0ccbe7c",
+   "via_type": "through"
+  },
+  {
+   "diameter": 600000,
+   "drill": 300000,
+   "layers": [
+    "F.Cu",
+    "B.Cu"
+   ],
+   "locked": true,
+   "net": "/SIG_B",
+   "position": [
+    121500000,
+    126000000
+   ],
+   "uuid": "fea1afd0-d472-4355-919c-4fa55478dab1",
+   "via_type": "through"
+  }
+ ],
+ "zones": [
+  {
+   "clearance": 300000,
+   "fill_mode": 0,
+   "filled": true,
+   "island_removal": 0,
+   "layers": [
+    "B.Cu"
+   ],
+   "locked": false,
+   "min_thickness": 250000,
+   "name": "GND_B",
+   "net": "GND",
+   "outline": [
+    [
+     100500000,
+     100500000
+    ],
+    [
+     149500000,
+     100500000
+    ],
+    [
+     149500000,
+     129500000
+    ],
+    [
+     100500000,
+     129500000
+    ]
+   ],
+   "pad_connection": 1,
+   "priority": 0,
+   "thermal_gap": 500000,
+   "thermal_spoke": 500000
+  },
+  {
+   "clearance": 300000,
+   "fill_mode": 0,
+   "filled": true,
+   "island_removal": 0,
+   "layers": [
+    "F.Cu"
+   ],
+   "locked": false,
+   "min_thickness": 250000,
+   "name": "GND_F",
+   "net": "GND",
+   "outline": [
+    [
+     100500000,
+     100500000
+    ],
+    [
+     149500000,
+     100500000
+    ],
+    [
+     149500000,
+     129500000
+    ],
+    [
+     100500000,
+     129500000
+    ]
+   ],
+   "pad_connection": 1,
+   "priority": 0,
+   "thermal_gap": 500000,
+   "thermal_spoke": 500000
+  }
+ ]
+}

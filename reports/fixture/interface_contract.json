@@ -1,0 +1,145 @@
+{
+  "schema": "schemas/result-1.json",
+  "validated": [
+    {
+      "result": "runs/floor-preflight/result.json",
+      "kind": "route",
+      "exit_code": 3,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/hygiene-stall-krt/result.json",
+      "kind": "route",
+      "exit_code": 1,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/prov-step2/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/prov-step2-freerouting/result.json",
+      "kind": "route",
+      "exit_code": 2,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-blocked-freerouting/result.json",
+      "kind": "route",
+      "exit_code": 2,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-blocked-krt/result.json",
+      "kind": "route",
+      "exit_code": 3,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-budget-krt/result.json",
+      "kind": "route",
+      "exit_code": 1,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-freerouting/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-freerouting-netclass/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-krt/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-krt-default/result.json",
+      "kind": "route",
+      "exit_code": 3,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-krt-nets/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-pour-krt/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-spokes-freerouting/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-spokes-fzone-freerouting/result.json",
+      "kind": "route",
+      "exit_code": 3,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-spokes-fzone-krt/result.json",
+      "kind": "route",
+      "exit_code": 3,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-spokes-krt/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-unlocked-freerouting/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/smoke-unlocked-krt/result.json",
+      "kind": "route",
+      "exit_code": 0,
+      "schema": "kicad-route/route/1",
+      "pre_contract": true
+    },
+    {
+      "result": "runs/prov-step2/against-origin/result.json",
+      "kind": "route-validate",
+      "exit_code": 0,
+      "schema": "kicad-route/route-validate/1",
+      "pre_contract": true
+    }
+  ]
+}

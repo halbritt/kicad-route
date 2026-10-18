@@ -1,0 +1,15 @@
+{
+  "run_dir": "runs/route_demo/blocked-schema-krt/20261018T030549.815328Z",
+  "connections": 4,
+  "boards": {
+    "input_sha256": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
+    "candidate_sha256": "70ad2494f5e9bb15fe57812c1a8ba687165bdf332c33f321d5cd12a80c9bc952",
+    "graded_sha256": "70ad2494f5e9bb15fe57812c1a8ba687165bdf332c33f321d5cd12a80c9bc952"
+  },
+  "footprints": [
+    "J2",
+    "R1",
+    "R2"
+  ],
+  "bytes": 18293
+}

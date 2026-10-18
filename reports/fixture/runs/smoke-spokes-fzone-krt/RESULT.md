@@ -1,15 +1,15 @@
 # Routing attempt: krt on route_demo_fzone
 
 - Backend: krt 0.23.1 (v0.23.1)
-- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 69730685befab820)
+- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 2ef2b80912cdee6d)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo_fzone/smoke-spokes-fzone-krt/20261017T165012.215857Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 3, 10.32 s; KRT --strict-sizes: it reports delivering geometry below a requirement (candidate kept for grading) |
+| process | PASS | exit 3, 131.378 s; KRT --strict-sizes: it reports delivering geometry below a requirement (candidate kept for grading) |
 | routing | COMPLETE | 0 unconnected in scope, 0 total (input: 5) |
-| validation | FAIL | preservation zones: 2 copper zone definitions (outline, net, layers, priority, clearance, thermal and fill settings; fill polygons are regenerated); preservation new_copper_netclass_geometry: 16 new tracks and 2 new vias checked against their net class width / via diameter / drill (1 um quantisation tolerance); 1 below |
+| validation | FAIL | preservation new_copper_netclass_geometry: 16 new tracks and 2 new vias checked against their net class width / via (microvia) diameter / drill (1 um quantisation tolerance); 1 below |
 
 | Preservation check | Status |
 |---|---|
@@ -21,7 +21,7 @@
 | nets_and_netclasses | PASS |
 | pad_connectivity | PASS |
 | footprints | PASS |
-| zones | FAIL |
+| zones | PASS |
 | keepouts | PASS |
 | copper_graphics | PASS |
 | protected_copper | PASS |
