@@ -302,9 +302,13 @@ requirements file, another KRT commit or kicad-cli) as a required FAIL; re-run
 NOT_RUN (not required); "KRT determinism verified for this build" is informational.
 Every `result.json` carries the manifest's sha256 (`tool_identity`).
 
-Pinning is not offered (`update --krt-tag/--freerouting-tag` were proposed): the
-backends follow their latest release. A caller that needs one exact build captures
-the manifest (or `tool_identity`) and refuses runs whose identity differs.
+Pinning is not offered and is not planned (owner decision, 2026-10-18, closing
+KICADROUTE-57: versions are declared, never pinned). `update --krt-tag` and
+`--freerouting-tag` were proposed and rejected; the backends follow their latest
+release, and the manifest, `doctor` and every `result.json` declare exactly what
+ran. A caller that needs one exact build captures the manifest (or
+`tool_identity`) and refuses runs whose identity differs; it does not ask
+kicad-route to hold a version.
 
 - `scripts/install.sh` links `~/.local/bin/kicad-route` and the `kicad-route` skill
   (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`), then runs `update`
