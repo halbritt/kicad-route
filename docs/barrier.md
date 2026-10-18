@@ -6,8 +6,8 @@ can route the same input again with a small keepout, a *barrier*, at the spot wh
 the earlier route ran. The backend then has to go around that spot. The barrier is
 removed before grading.
 
-This is the first step of KICADROUTE-53, iterative rewind with barriers on DRC
-collisions. It rewinds by one run: the earlier run's input is the state before its
+This is the first step toward iterative rewind with barriers on DRC collisions
+(KICADROUTE-53). It rewinds by one run: the earlier run's input is the state before its
 routing decision. It places one barrier per collision. It does not stack barriers
 across several rounds, and it does not rewind per net.
 
@@ -16,6 +16,7 @@ kicad-route run --backend krt --nets /SIG_A                       # exit 3: new 
 kicad-route run --backend krt --nets /SIG_A --barrier-from <run>  # same input, barrier where it collided
 kicad-route run ... --barrier-from <run> --barrier-size 0.1       # larger square (default 0.05 mm)
 kicad-route barrier <run>                                         # preview: <run>/barrier-preview/
+kicad-route barrier <run> --size 0.1                              # preview with the square `--barrier-size` would use
 ```
 
 ## Where a barrier goes

@@ -9,8 +9,8 @@ that drops a power via next to every IC pin produces exactly that.
 `kicad-route decoupling` is a read-only audit. It finds the decoupling cells of a
 board and reports, per cell, whether the copper respects the pin → capacitor → plane
 order. It never modifies a board, and its result is not part of a run's verdict.
-This is the first step of KICADROUTE-54 (pre-routed, locked bypass cells); nothing
-routes or locks cells yet.
+This is the first step toward pre-routed, locked bypass cells (KICADROUTE-54);
+nothing routes or locks cells yet.
 
 ```sh
 kicad-route decoupling --board my.kicad_pcb          # OUT/decoupling/<board>/decoupling.json + .md

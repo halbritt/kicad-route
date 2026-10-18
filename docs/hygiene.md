@@ -16,9 +16,11 @@ Exit status 4 means **refused before routing**: the ledger shows this exact
 attempt already failed, the `--canary` pre-flight failed, or the board has no
 `.kicad_pro` of its own name (KiCad would load none of its rules; see
 [routing.md](routing.md#native-grading)); for any command, a usage or input error
-is a refusal too ([interface.md](interface.md)). No run directory is left behind;
-the reason is a refusal record, `OUT/refusals/<stamp>-<pid>.json` (`reason_class`
-`ledger`, `canary` or `input`, the input fingerprint, the discarded run
+is a refusal too, and so is a writable or drifted state directory under
+`--require-readonly-state` ([interface.md](interface.md), [sandbox.md](sandbox.md)).
+No run directory is left behind; the reason is a refusal record,
+`OUT/refusals/<stamp>-<pid>.json` (`reason_class` `ledger`, `canary`, `input`,
+`usage` or `state`, the input fingerprint, the discarded run
 directory), linked as `OUT/refusals/refusal-latest.json` and printed on stdout
 with `--json`.
 

@@ -108,7 +108,7 @@ records them; one shared definition):
   small no-track/no-via keepout where that run's new copper collided (its new
   `clearance`, `tracks_crossing`, `shorting_items`, `hole_clearance` or
   `copper_edge_clearance` findings); the keepouts are removed before grading
-  (docs/barrier.md). `kicad-route barrier <run>` previews them (exit 4 when the run
+  (docs/barrier.md). `kicad-route barrier <run> [--size MM]` previews them (exit 4 when the run
   has nothing to barrier, 1 when no barrier could be placed).
 - **Tightening:**
   - `--default-clearance MM` (Default net class, both backends).

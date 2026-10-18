@@ -132,8 +132,10 @@ independent results:
 Exit status: 0 complete and valid; 1 process failure (no candidate board: also from
 `validate`); 2 valid but incomplete; 3 fails validation (regardless of completion);
 4 refused before routing (ledger or canary, [hygiene.md](hygiene.md), a board
-without its own project file, below, or a usage or input error), with a refusal
-record under `OUT/refusals/` and no run directory left. `result.json` carries
+without its own project file, below, a net name the Specctra bridge cannot write one
+way, a usage or input error, or a writable state directory under
+`--require-readonly-state`, [sandbox.md](sandbox.md)), with a refusal record under
+`OUT/refusals/` and no run directory left. `result.json` carries
 `"schema": "kicad-route/route/1"`; what each exit code promises, the stable fields
 and the deprecation rule are in [interface.md](interface.md), checked against the
 fixture evidence by `tests/test_interface_contract.py`.
@@ -392,13 +394,15 @@ outcome, different candidate bytes).
   as evidence. The sandbox (no network, read-only STATE and project, one writable
   `--out`) and what kicad-route reports and checks for it are in
   [sandbox.md](sandbox.md). What that needs from kicad-route (a versioned result contract,
-  hashes, read-only state, offline operation) is tracked in Plane KICADROUTE under
-  the `generator` label.
+  hashes, read-only state, offline operation) was delivered under the Plane
+  KICADROUTE `generator` label (items closed 2026-10-18).
 - **KRT is the default backend; Freerouting runs are attempts, not measurements**
   (agent-ee decision 3). KRT is chosen because it is deterministic: the same input,
   settings and KRT build should give the same candidate, so a result can be
-  reproduced and a repeat of a failed attempt changes nothing. No repeat-run
-  comparison proves this yet; a Plane item tracks that check. A Freerouting run can
+  reproduced and a repeat of a failed attempt changes nothing. `kicad-route
+  determinism` checks this per KRT build (geometric equivalence, below) and records
+  the verdict in the state manifest; `reports/determinism/` holds the committed
+  check for the current build. A Freerouting run can
   be graded and adopted like any candidate, but its outcome is not evidence of what
   a board, a scope or a setting can achieve.
 - **Placement is not kicad-route's job** (agent-ee decision 4). kicad-route preserves
