@@ -13,7 +13,11 @@ class split runs on quoted names, and checks:
     bridge      KiCad's DSN export of the renamed board, then the class split in
                 process and through specctra.py --skip-nets: the DSN parses, every
                 net stays in exactly one class, scoped-out nets move to the
-                `__skip` copies with identical rules (seconds; no routing)
+                `__skip` copies with identical rules, and every plane, class
+                member and wire/via net in the bridge's DSN is spelled as its
+                (net ...) definition (KiCad writes `"` raw there but `''` in the
+                definition; Freerouting crashes on that, KICADROUTE-56)
+                (seconds; no routing)
     <backend>   a short run of the adapter itself (krt_route / freerouting_route)
                 on the renamed board: nets, net classes and pad-to-net
                 assignments of the output equal the input's, new copper lies only
@@ -34,10 +38,14 @@ from .kicad import specctra
 
 PASS, FAIL = common.PASS, common.FAIL
 
+# `"` in an in-scope net and in the zone's net (KICADROUTE-56): KiCad writes those raw
+# in (plane ...) and class lists. The names holding `"` carry no whitespace or parentheses,
+# because KiCad would wrap them in quotes without escaping and parse() below could not read
+# KiCad's own export (the bridge's reader can: tests/test_specctra_nets.py).
 AWKWARD = {"/SIG_A": "Net-(BT1-+)", "/SIG_A_OUT": '"q"', "/SIG_B": "/a b/c",
-           "/SIG_B_OUT": "+3V3/ü µ", "/VIN": "-VIN(1)", "GND": "GND 'x' (y)"}
+           "/SIG_B_OUT": '+3V3/ü"µ', "/VIN": "-VIN(1)", "GND": "GND'x'/\"y\""}
 SCOPED_OUT = ["Net-(BT1-+)", '"q"']      # moved to kicad_default__skip by the bridge
-POWER = ["-VIN(1)", "GND 'x' (y)"]       # the fixture's Power class, by pattern
+POWER = ["-VIN(1)", "GND'x'/\"y\""]       # the fixture's Power class, by pattern
 
 
 # ----------------------------------------------------------- DSN structure
@@ -129,6 +137,25 @@ def split_check(before, after, skip, ignored):
     return problems
 
 
+def reference_problems(dsn):
+    """Net references in `dsn` (planes, class members, wire/via nets) that are not
+    spelled as a (net ...) definition: Freerouting matches them by that spelling."""
+    try:
+        tree = parse(dsn)
+    except ValueError as e:
+        return [f"DSN does not parse: {e}"]
+    sec = {x[0]: x for x in tree if isinstance(x, list) and x}
+    defs = {x[1] for x in sec.get("network", []) if isinstance(x, list) and x[:1] == ["net"] and len(x) > 1}
+    refs = [(f"(plane {x[1]} ...)", x[1]) for x in sec.get("structure", [])
+            if isinstance(x, list) and x[:1] == ["plane"] and len(x) > 1 and not x[1].startswith("@:no_net")]
+    refs += [(f"class {c[1]}", a) for c in sec.get("network", []) if isinstance(c, list) and c[:1] == ["class"]
+             for a in c[2:] if not isinstance(a, list)]
+    refs += [(f"({w[0]} ... (net {n[1]}))", n[1]) for w in sec.get("wiring", []) if isinstance(w, list)
+             and w[:1] in (["wire"], ["via"]) for n in w if isinstance(n, list) and n[:1] == ["net"] and len(n) > 1]
+    return [f"{where} references {atom}, which is no (net ...) definition's spelling"
+            for where, atom in refs if atom not in defs]
+
+
 def kicad_class_token(name):
     """How KiCad writes a net in a class list: raw, quoted for whitespace/parentheses."""
     return f'"{name}"' if re.search(r"[\s()]", name) else name
@@ -191,10 +218,13 @@ def check_bridge(dest, board):
     """KiCad's DSN export of the canary board, split in process and by specctra.py."""
     out = {"check": "bridge", "status": PASS, "problems": []}
     raw = dest / "raw.dsn"
-    rec = common.run_cmd([route.pcbnew_python(), route.KICAD_SCRIPTS / "specctra.py", "export", board, raw],
+    # `check` leaves KiCad's own export in raw.dsn and only tests that the bridge can respell it
+    rec = common.run_cmd([route.pcbnew_python(), route.KICAD_SCRIPTS / "specctra.py", "check", board, raw],
                          dest, dest / "export-raw.log", timeout=300)
     if rec["exit_code"] != 0 or not raw.exists():
-        return dict(out, status=FAIL, problems=[f"DSN export failed (exit {rec['exit_code']}); see {rec['log']}"])
+        refusal = (route.tagged_json(rec["output"], "BRIDGE_REFUSAL") or {}).get("message")
+        return dict(out, status=FAIL, problems=[f"DSN export failed (exit {rec['exit_code']}"
+                                                + (f": {refusal}" if refusal else "") + f"); see {rec['log']}"])
     text = raw.read_text()
     try:
         parse(text)
@@ -215,7 +245,9 @@ def check_bridge(dest, board):
         out["problems"].append(f"scoped DSN export failed (exit {rec['exit_code']}); see {rec['log']}")
     else:
         out["problems"] += [f"specctra.py --skip-nets: {p}" for p in
-                            split_check(text, scoped.read_text(), SCOPED_OUT, bridge["ignored_classes"])]
+                            split_check(text, scoped.read_text(), SCOPED_OUT, bridge["ignored_classes"])
+                            + reference_problems(scoped.read_text())]
+        out["net_names_respelled"] = bridge.get("net_names_respelled")
     out["status"] = FAIL if out["problems"] else PASS
     return out
 

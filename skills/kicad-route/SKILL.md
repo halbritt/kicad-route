@@ -235,6 +235,7 @@ Also read:
 | exit 4 "has no <board>.kicad_pro beside it" | KiCad reads a board's net classes, constraints, severities and `.kicad_dru` only from the project of the board's own name (`main.kicad_pcb` needs `main.kicad_pro`, `main.kicad_dru`). Ask the owner to rename or copy the project; never grade without it |
 | `project_files` FAIL, `restored_project_files` | the backend (or an edit) changed the rules files; grading used the input's. The delivered versions are in `<validate dir>/delivered-project-files/` (`validation.delivered_project_files`) |
 | exit 4 "identical attempt ... already finished" | the ledger: the same input, backend build and settings already failed. KRT: change the attempt; `--force` only to check for nondeterminism. Freerouting: its outcome may vary, so `--force` is a legitimate retry |
+| exit 4 "Freerouting cannot tell these nets apart" or "the Specctra bridge cannot write a net name one way" | a net name holds `"`, which KiCad's DSN export writes as `''`. Two nets would get the same Specctra name, or a name reads more than one way. Nothing ran. Route with `--backend krt`, or ask the owner to rename the net; never rename it in the design yourself |
 | exit 4, `reason_class` `usage` or `input` | nothing ran: read `message` in the refusal record and fix the command line or the input (`--board`, `--rev`, `--nets`) |
 | same failure twice with no new evidence | change approach: the other backend, a different scope, or inspect the board (load `krt-diagnose-routing-failures`) |
 

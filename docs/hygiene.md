@@ -184,18 +184,21 @@ The canary works on the bundled fixture.
   - `/SIG_A` becomes `Net-(BT1-+)`
   - `/SIG_A_OUT` becomes `"q"`
   - `/SIG_B` becomes `/a b/c`
-  - `/SIG_B_OUT` becomes `+3V3/ü µ`
+  - `/SIG_B_OUT` becomes `+3V3/ü"µ` (an in-scope net with `"` that needs a track)
   - `/VIN` becomes `-VIN(1)`
-  - `GND` becomes `GND 'x' (y)`
+  - `GND` becomes `GND'x'/"y"` (the zone's net, so a `(plane ...)` carries `"`)
 - **Net classes kept.** `.kicad_pro` netclass patterns are rewritten so the
   two Power nets stay in Power.
 - **Scope.** `Net-(BT1-+)` and `"q"` are scoped out, so the Specctra class
   split runs on quoted, parenthesised names.
+- The names that hold `"` have no whitespace or parentheses. KiCad would quote
+  such a name without escaping it, and the canary's own DSN parser could not
+  read KiCad's export. `tests/test_dsn_quoted_nets.py` covers those names.
 
 | Check | What | Cost |
 |---|---|---|
 | `split` | `specctra.split_classes` on a synthetic KiCad-style network (Default and Power classes, three scoped-out names) | ms, no KiCad |
-| `bridge` | KiCad's DSN export of the renamed board must parse. Then the class split, in process and through `specctra.py --skip-nets`: every net stays in exactly one class, scoped-out nets are in the `__skip` copies with identical rules, the ignored-class list matches | ~2 s |
+| `bridge` | KiCad's DSN export of the renamed board (`specctra.py check`, which leaves it as KiCad wrote it) must parse. Then the class split, in process and through `specctra.py --skip-nets`: every net stays in exactly one class, scoped-out nets are in the `__skip` copies with identical rules, the ignored-class list matches. In the DSN that `--skip-nets` writes, every plane, class member and wire/via net is spelled as a `(net ...)` definition | ~2 s |
 | `krt`, `freerouting` | a short run of the adapter itself (`krt_route` / `freerouting_route`). Then a facts compare of output against input: nets, net classes and pad-to-net assignments are equal; new copper is only on in-scope nets; every in-scope net that needed a track got one | ~20 s each |
 
 - `doctor` runs `split` and `bridge`, so the parenthesis class of bug shows up
@@ -236,13 +239,29 @@ Bugs the canary found while it was written (fixed on this branch):
     produced (quoted iff the name is empty, starts with `#`, or holds
     whitespace or one of `(){}%`; checked against KiCad 10 exports), prefers the
     reading whose members are the network's `(net ...)` definitions, and
-    refuses (the export fails, so the attempt is a process FAIL) when the
-    reading is not unique. Kept members keep KiCad's token; members are never
-    compared unquoted.
-  - Still an upstream defect: KiCad also writes such names raw in `(plane ...)`
-    and in-scope class members, and Freerouting 2.5.0 cannot read that DSN
-    (`Shape.read_area_scope: could not read shape`, then a
-    NullPointerException). The bridge does not rewrite those.
+    refuses when the reading is not unique (see the next item). Members are
+    never compared unquoted.
+- **Freerouting, `"` outside the definitions (KICADROUTE-56).** KiCad also
+  writes such names raw in `(plane ...)` entries, in kept class members and in
+  the `(net ...)` of fixed wires and vias: `(plane GND"A ...` beside
+  `(net GND''A ...)`. Freerouting 2.5.0 cannot read that DSN
+  (`Shape.read_area_scope: could not read shape`, then a NullPointerException
+  on `planeInfo.area`), so the attempt was an exit 1. This is an upstream KiCad
+  exporter inconsistency.
+  - Fix: every export rewrites those references to the definition's spelling
+    (`specctra.definition_spelling`, after the class split) and leaves every
+    other byte as KiCad wrote it. The bridge reports each rewritten net in
+    `process.bridge.export.net_names_respelled`. Freerouting writes the session
+    in the same spelling, and KiCad's SES import maps it back to the board's
+    own names (also `x'"y`, which is written `x'''y`).
+  - Refusal: when a net name on the board holds `"`, `run --backend freerouting`
+    first runs `specctra.py check` on the input. It refuses (exit 4,
+    `reason_class: input`, before Freerouting starts) when the bridge cannot
+    write a name one way: two nets that KiCad writes the same (`a"b` and `a''b`
+    are both `a''b`, and Freerouting would merge them), or a plane, wire or
+    class list that reads more than one way. A direct export in that state
+    exits 4 with a `BRIDGE_REFUSAL` line. KRT reads the board directly and is
+    not affected.
 
 ## Real-board update gate (corpus)
 
