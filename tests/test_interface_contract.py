@@ -332,7 +332,9 @@ def check_invariants(res, process=None):
     assert res["exit_code"] == route.overall_exit(process, res["routing"], res["validation"])
     v, rt = res["validation"], res["routing"]
     if res["exit_code"] == 0:
-        assert v["delivered_board_sha256"] == v["validated_board_sha256"]
+        # the board in candidate/ is the one DRC graded; the delivered (pre-refill) file may differ
+        assert v["candidate_board_sha256"] == v["validated_board_sha256"]
+        assert v["refill_modified_board"] == (v["delivered_board_sha256"] != v["validated_board_sha256"])
         assert rt["unconnected_in_scope"] == 0 and rt["unrouted_nets"] == []
     if res["exit_code"] == 1:
         assert process["status"] == route.FAIL

@@ -95,7 +95,7 @@ wins over incomplete routing (2).
 
 | Exit | Meaning | What the record promises |
 |---|---|---|
-| 0 | complete and valid | `process.status` PASS, `validation.status` PASS, `routing.status` COMPLETE (0 unconnected in scope, no `unrouted_nets`), a `candidate`, and `validation.delivered_board_sha256` equals `validated_board_sha256` |
+| 0 | complete and valid | `process.status` PASS, `validation.status` PASS, `routing.status` COMPLETE (0 unconnected in scope, no `unrouted_nets`), a `candidate`, and `validation.candidate_board_sha256` equals `validated_board_sha256` (the board in `candidate/` is the file DRC graded; `delivered_board_sha256` is the file before the refill and differs when `refill_modified_board` is true, as it is for Freerouting candidates) |
 | 1 | the backend failed | `process.status` FAIL with `process.reasons`, `candidate` null, `routing.status` and `validation.status` NOT_RUN |
 | 2 | valid but incomplete | `process.status` PASS, `validation.status` PASS, `routing.status` INCOMPLETE with `unrouted_nets` and `routing.blocked_by` |
 | 3 | fails validation | `process.status` PASS, `validation.status` FAIL (whatever the routing) with non-empty `validation.reasons` |
@@ -188,7 +188,8 @@ changing its meaning needs `/2`.
 - `process.status`, `process.reasons`
 - `routing.status`, `unconnected_in_scope`, `unrouted_nets`
 - `validation.status`, `reasons`, `parity_performed`, `delivered_board_sha256`,
-  `validated_board_sha256`, `preservation` (check name to status)
+  `validated_board_sha256`, `candidate_board_sha256`, `refill_modified_board`,
+  `preservation` (check name to status)
 - `candidate.board` (`candidate` is null when there is none)
 - `ledger.fingerprint`
 
