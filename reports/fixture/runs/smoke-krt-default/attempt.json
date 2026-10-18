@@ -7,7 +7,7 @@
   "source": {
     "source_dir": "/home/halbritt/git/kicad-route/fixtures/route_demo",
     "source": "working tree",
-    "source_git_head": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
+    "source_git_head": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
     "source_dirty_files": []
   },
   "reference_dir": "reference/route_demo",

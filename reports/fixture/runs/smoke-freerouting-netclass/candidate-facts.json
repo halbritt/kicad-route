@@ -848,7 +848,7 @@
    "no"
   ]
  ],
- "sha256": "a4dfaa32a889c3b9a8bee0aef07accb3c4cdd2f53e52a9529633447e2c44282b",
+ "sha256": "ab745fe346c2a0e08ef51a849affc046db2904f2998c661ce82cb8f3bcf49acc",
  "stackup": [
   "stackup",
   [
@@ -975,7 +975,7 @@
  "tracks": [
   {
    "end": [
-    110337700,
+    115111900,
     105287700
    ],
    "kind": "segment",
@@ -983,10 +983,10 @@
    "locked": false,
    "net": "/VIN",
    "start": [
-    109050000,
-    104000000
+    110337700,
+    105287700
    ],
-   "uuid": "1d36f329-6710-4d84-b850-1d27a8ae7541",
+   "uuid": "0421d0a7-1178-4603-a690-b7be864a7b27",
    "width": 500000
   },
   {
@@ -1002,71 +1002,7 @@
     105411700,
     106000000
    ],
-   "uuid": "2ea9a3d1-c1ec-4d66-91e6-bb9d1402d3c1",
-   "width": 500000
-  },
-  {
-   "end": [
-    115111900,
-    105287700
-   ],
-   "kind": "segment",
-   "layer": "F.Cu",
-   "locked": false,
-   "net": "/VIN",
-   "start": [
-    110337700,
-    105287700
-   ],
-   "uuid": "3dc09b92-dcf2-4342-ad0f-788f876e8459",
-   "width": 500000
-  },
-  {
-   "end": [
-    143018300,
-    104430000
-   ],
-   "kind": "segment",
-   "layer": "F.Cu",
-   "locked": false,
-   "net": "/VIN",
-   "start": [
-    115969600,
-    104430000
-   ],
-   "uuid": "7fa3e234-e044-4735-a460-9d33892f6752",
-   "width": 500000
-  },
-  {
-   "end": [
-    146000000,
-    106000000
-   ],
-   "kind": "segment",
-   "layer": "F.Cu",
-   "locked": false,
-   "net": "/VIN",
-   "start": [
-    144588300,
-    106000000
-   ],
-   "uuid": "83b02360-69ea-4d61-bdae-d4f94188373f",
-   "width": 500000
-  },
-  {
-   "end": [
-    144588300,
-    106000000
-   ],
-   "kind": "segment",
-   "layer": "F.Cu",
-   "locked": false,
-   "net": "/VIN",
-   "start": [
-    143018300,
-    104430000
-   ],
-   "uuid": "95f052f0-bcb3-410b-900e-f0258bc53703",
+   "uuid": "13c1a1ba-b073-4575-bbdc-35775ddd37d6",
    "width": 500000
   },
   {
@@ -1082,7 +1018,55 @@
     104000000,
     106000000
    ],
-   "uuid": "b4e789f7-959e-4410-98fc-f4ebe6a1d4a5",
+   "uuid": "56dcf568-4363-4cef-b936-3d9c7f3cf8bc",
+   "width": 500000
+  },
+  {
+   "end": [
+    144588300,
+    106000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    143018300,
+    104430000
+   ],
+   "uuid": "69b1a22f-2502-4654-b041-bd449077072c",
+   "width": 500000
+  },
+  {
+   "end": [
+    110337700,
+    105287700
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    109050000,
+    104000000
+   ],
+   "uuid": "83dd322b-3102-4f51-b571-12884f9514bd",
+   "width": 500000
+  },
+  {
+   "end": [
+    143018300,
+    104430000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    115969600,
+    104430000
+   ],
+   "uuid": "8aa8a100-70f0-44f7-aba9-30418c979ec4",
    "width": 500000
   },
   {
@@ -1098,7 +1082,23 @@
     107411700,
     104000000
    ],
-   "uuid": "c11d3a19-845a-412c-aa9b-5c916b4ca77d",
+   "uuid": "e13ffa33-98c2-4537-ab5d-9e7bcdccbe0b",
+   "width": 500000
+  },
+  {
+   "end": [
+    146000000,
+    106000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    144588300,
+    106000000
+   ],
+   "uuid": "e2e941fc-f1f1-48b9-a8f4-426a14d16aa5",
    "width": 500000
   },
   {
@@ -1114,7 +1114,7 @@
     115111900,
     105287700
    ],
-   "uuid": "f47f28a7-7796-4b97-ac3f-01c794fe8cd5",
+   "uuid": "f5dc82f1-c93e-463b-997a-2f7ddaa2811c",
    "width": 500000
   },
   {
@@ -1130,7 +1130,7 @@
     110950000,
     104000000
    ],
-   "uuid": "25a8cabd-43ac-4d4f-bc22-cb18122ee886",
+   "uuid": "2f487c89-edae-47bc-a1c7-0ee46b2ee95e",
    "width": 500000
   },
   {
@@ -1146,7 +1146,7 @@
     111186200,
     103763800
    ],
-   "uuid": "722b2d96-6e04-4ac2-83ff-108d4949e3bc",
+   "uuid": "842141d9-1993-4fc2-929d-bde29875ca4f",
    "width": 500000
   },
   {
@@ -1244,7 +1244,7 @@
     112187400,
     103763800
    ],
-   "uuid": "c0cdf0d8-7b09-499d-8832-d892dc14fbbc",
+   "uuid": "416747b9-685e-4edd-b1bc-86f16d32e607",
    "via_type": "through"
   },
   {

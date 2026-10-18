@@ -1,7 +1,7 @@
 {
     "$schema": "https://schemas.kicad.org/drc.v1.json",
     "coordinate_units": "mm",
-    "date": "2026-10-17T21:20:38",
+    "date": "2026-10-18T03:39:39",
     "ignored_checks": [
         {
             "description": "Footprint has no courtyard defined",
@@ -45,12 +45,12 @@
                     "uuid": "993f7ea8-1128-4542-b649-178db9de8ce7"
                 },
                 {
-                    "description": "Pad 1 [/VIN] of C1 on F.Cu",
+                    "description": "Track [/VIN] on F.Cu, length 1.6383 mm",
                     "pos": {
                         "x": 109.05,
                         "y": 104.0
                     },
-                    "uuid": "f005d223-a886-44c6-b628-2f41c9b41e40"
+                    "uuid": "3a9467b0-f724-4944-a56f-a2fb4df7b112"
                 }
             ],
             "severity": "error",

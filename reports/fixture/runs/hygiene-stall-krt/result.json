@@ -15,13 +15,13 @@
   "input": {
     "project": "route_demo",
     "board": "route_demo.kicad_pcb",
-    "fingerprint": "ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472",
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/blocked0/route_demo",
+    "fingerprint": "79585bbdb967c8af7f6493c5ac7814faecf64297d1ece8f12d8db45a3e6ea6ef",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1368/blocked0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": [],
     "baseline": {
-      "report": "../../../../.cache/baseline/ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472/baseline-drc.json",
+      "report": "../../../../.cache/baseline/79585bbdb967c8af7f6493c5ac7814faecf64297d1ece8f12d8db45a3e6ea6ef/baseline-drc.json",
       "cached": true,
       "reasons": []
     },
@@ -69,19 +69,19 @@
   ],
   "floor": null,
   "process": {
-    "status": "PASS",
+    "status": "FAIL",
     "reasons": [
-      "KRT stalled in routing single-ended net(s) at nets 5 for 6 s: stopped early and wrote the board as it stood"
+      "KRT stalled in net rescue at rescuing /SIG_A_OUT, parts 2 for 6 s (--stall 6), did not stop at the stop file, and was killed; retry with a larger --stall, or --backend-env KICAD_NET_RESCUE=0 (KRT's net rescue ignores the stop file)"
     ],
-    "exit_code": 0,
+    "exit_code": -15,
     "commands": [
       {
         "argv": [
           "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
           "/home/halbritt/git/kicad-route/vendor/krt/py_router/route.py",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/input/route_demo/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z/work/input/route_demo/route_demo.kicad_pcb",
           "--output",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/krt-out/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z/work/krt-out/route_demo.kicad_pcb",
           "--escalation",
           "off",
           "--fab-tier",
@@ -90,14 +90,14 @@
           "--no-power-tap-neckdown",
           "--no-fix-drc-settings",
           "--json-out",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/krt-out/summary.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z/work/krt-out/summary.json",
           "--keep-input-copper",
           "--no-stub-layer-swap",
           "--nets",
           "*"
         ],
-        "cwd": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work",
-        "log": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/krt.log",
+        "cwd": "runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z/work",
+        "log": "runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z/work/krt.log",
         "env": {
           "KICAD_INRUN_FLOOR_SYNC": "0",
           "KICAD_TERMINAL_ESCALATION": "0",
@@ -105,406 +105,191 @@
           "KICAD_RESCUE_CAP_MOVE": "0",
           "KICAD_DYNAMIC_ITERATIONS": "0",
           "KICAD_CLI": "/usr/bin/kicad-cli",
-          "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/STOP",
+          "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z/work/STOP",
           "KICAD_RIP_PREEXISTING": "0",
           "KICAD_FINALIZE_RIP": "0"
         },
         "budget_s": 240,
         "stalled": true,
         "stop_requested": true,
-        "stop_s": 6.77,
-        "last_phase": "summary",
-        "last_metric": {},
+        "stop_s": 25.616,
+        "killed": true,
+        "last_phase": "net rescue",
+        "last_metric": {
+          "rescuing": "/VIN",
+          "parts": 2
+        },
         "heartbeats": {
-          "count": 9,
-          "log": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/heartbeat.jsonl",
+          "count": 25,
+          "log": "runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z/work/heartbeat.jsonl",
           "stall_s": 6,
           "since_last_progress_s": 0.0,
           "tail": [
             {
-              "t_s": 0.756,
-              "utc": "2026-10-18T03:53:19.638271+00:00",
-              "phase": "routing single-ended net(s)",
+              "t_s": 19.602,
+              "utc": "2026-10-18T10:16:05.934335+00:00",
+              "phase": "net rescue",
               "metric": {
-                "nets": 5
+                "rescuing": "/SIG_A_OUT",
+                "parts": 2
               },
-              "line": "Routing 5 single-ended net(s)..."
+              "line": "Rescuing /SIG_A_OUT (failed, 2 disconnected parts)"
             },
             {
-              "t_s": 8.745,
-              "utc": "2026-10-18T03:53:27.627486+00:00",
-              "phase": "checkpoint stop",
-              "metric": {},
-              "line": "CHECKPOINT STOP (KICAD_STOP_FILE): /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/STOP..."
+              "t_s": 40.832,
+              "utc": "2026-10-18T10:16:27.163776+00:00",
+              "phase": "net rescue",
+              "metric": {
+                "rescuing": "/SIG_A_OUT",
+                "parts": 2,
+                "outcome": "improved"
+              },
+              "line": "improved (2 -> 2 parts, 11.1s)"
             },
             {
-              "t_s": 8.745,
-              "utc": "2026-10-18T03:53:27.627662+00:00",
-              "phase": "Routing complete",
-              "metric": {},
-              "line": "============================================================"
+              "t_s": 40.832,
+              "utc": "2026-10-18T10:16:27.163885+00:00",
+              "phase": "net rescue",
+              "metric": {
+                "rescuing": "/SIG_B_OUT",
+                "parts": 2
+              },
+              "line": "Rescuing /SIG_B_OUT (failed, 2 disconnected parts)"
             },
             {
-              "t_s": 8.746,
-              "utc": "2026-10-18T03:53:27.627911+00:00",
-              "phase": "FAILED NET HISTORIES",
-              "metric": {},
-              "line": "============================================================"
+              "t_s": 40.834,
+              "utc": "2026-10-18T10:16:27.166293+00:00",
+              "phase": "net rescue",
+              "metric": {
+                "rescuing": "/SIG_B_OUT",
+                "parts": 2,
+                "outcome": "improved"
+              },
+              "line": "improved (2 -> 2 parts, 9.5s)"
             },
             {
-              "t_s": 8.746,
-              "utc": "2026-10-18T03:53:27.628169+00:00",
-              "phase": "summary",
-              "metric": {},
-              "line": "JSON_SUMMARY: {\"routed_single\": [], \"failed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"open_single\": [], \"failed_multipoint\": [], \"mult..."
+              "t_s": 40.834,
+              "utc": "2026-10-18T10:16:27.166440+00:00",
+              "phase": "net rescue",
+              "metric": {
+                "rescuing": "/VIN",
+                "parts": 2
+              },
+              "line": "Rescuing /VIN (partial, 2 disconnected parts)"
             }
           ]
         },
         "stall": {
-          "phase": "routing single-ended net(s)",
+          "phase": "net rescue",
           "metric": {
-            "nets": 5
+            "rescuing": "/SIG_A_OUT",
+            "parts": 2
           },
           "no_progress_s": 6.0
         },
-        "exit_code": 0,
-        "duration_s": 8.748,
-        "stop_to_exit_s": 1.978,
-        "output_tail": "eanup/reconciliation; writing the board as-is\n\n============================================================\nRouting complete\n============================================================\n  Single-ended:  0/5 routed (5 FAILED)\n  Total vias:    0\n  Total time:    0.00s\n  Iterations:    0\n\nFailed single-ended nets:\n  /SIG_A_OUT\n  /SIG_A\n  /SIG_B_OUT\n  GND\n  /VIN\n\n============================================================\nFAILED NET HISTORIES\n============================================================\n\n/SIG_A_OUT:\n  No history recorded\n\n/SIG_A:\n  No history recorded\n\n/SIG_B_OUT:\n  No history recorded\n\nGND:\n  No history recorded\n\n/VIN:\n  No history recorded\nJSON_SUMMARY: {\"routed_single\": [], \"failed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_nets\": 0, \"multipoint_pads_connected\": 0, \"multipoint_pads_total\": 0, \"multipoint_edges_routed\": 0, \"multipoint_edges_failed\": 0, \"ripup_success_pairs\": [], \"rerouted_pairs\": [], \"single_ended_target_swaps\": [], \"layer_swaps\": 0, \"successful\": 0, \"failed\": 5, \"total_time\": 0.0, \"total_iterations\": 0, \"total_vias\": 0, \"cleanup_disconnected\": [], \"min_clearance_used\": 0.2, \"design_rules\": {\"escalation_policy\": \"off\", \"fab_tier\": \"standard\", \"board_floors\": {\"clearance\": 0.15, \"track_width\": 0.15, \"via_diameter\": 0.5, \"via_drill\": 0.25, \"hole_to_hole\": 0.25, \"annular\": 0.1, \"board_edge\": 0.3}, \"count\": 0, \"nets\": [], \"narrowed\": [], \"min_delivered\": {}, \"fab_tier_escalations\": 0, \"fab_tier_contexts\": [], \"fab_tier_target\": \"advanced\", \"unsupported_rules\": []}, \"plane_fragility\": {\"source\": \"kicad_refill\", \"islands\": 2, \"refill_status\": \"ok\", \"why\": \"the KiCad refill succeeded\", \"machine_dependent\": false}, \"oracle_check\": \"disabled\", \"pad_pairs_connected\": 0, \"pad_pairs_total\": 7, \"pad_pairs_open\": [{\"net\": \"/SIG_A\", \"pairs_connected\": 0, \"pairs_total\": 1, \"outcome\": \"open\", \"open_subtype\": \"unrouted\"}, {\"net\": \"/SIG_A_OUT\", \"pairs_connected\": 0, \"pairs_total\": 1, \"outcome\": \"open\", \"open_subtype\": \"unrouted\"}, {\"net\": \"/SIG_B_OUT\", \"pairs_connected\": 0, \"pairs_total\": 1, \"outcome\": \"open\", \"open_subtype\": \"unrouted\"}, {\"net\": \"/VIN\", \"pairs_connected\": 0, \"pairs_total\": 2, \"outcome\": \"open\", \"open_subtype\": \"unrouted\"}, {\"net\": \"GND\", \"pairs_connected\": 0, \"pairs_total\": 2, \"outcome\": \"open\", \"open_subtype\": \"unrouted\"}], \"scope\": \"run\", \"env_knobs\": {\"KICAD_CLI\": \"/usr/bin/kicad-cli\", \"KICAD_DYNAMIC_ITERATIONS\": \"0\", \"KICAD_FINALIZE_RIP\": \"0\", \"KICAD_IMPEDANCE_NECKDOWN\": \"0\", \"KICAD_INRUN_FLOOR_SYNC\": \"0\", \"KICAD_RESCUE_CAP_MOVE\": \"0\", \"KICAD_RIP_PREEXISTING\": \"0\", \"KICAD_ROUTE_LEDGER\": \"off\", \"KICAD_ROUTE_STATE\": \"/home/halbritt/git/kicad-route\", \"KICAD_ROUTE_TEST_OUT\": \"/home/halbritt/git/kicad-route/build/kicad-route/smoke\", \"KICAD_STOP_FILE\": \"/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/STOP\", \"KICAD_TERMINAL_ESCALATION\": \"0\"}}\nWrote unchanged copy to /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/krt-out/route_demo.kicad_pcb (nothing to route)\nVIA_IN_PAD_JSON: {\"count\": 0, \"sites\": [], \"stamped\": 0, \"restored\": 0, \"protected\": 0, \"unstampable\": 0, \"site_created\": 0, \"unprotected\": [], \"note\": \"via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel\"}\n  route summary written to /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/krt-out/summary.json\nJSON_SUMMARY_MIN: {\"escalations\": 0, \"failed\": 5, \"failed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"main_loop_time_s\": 0.0, \"min_clearance_used\": 0.2, \"multipoint_deficit\": 0, \"open_single\": [], \"pad_pairs_open\": {\"count\": 5, \"nets\": [\"/SIG_A\", \"/SIG_A_OUT\", \"/SIG_B_OUT\", \"/VIN\", \"GND\"]}, \"routed\": 0, \"scope\": \"merged\", \"terminal_restores_broken\": [], \"vias\": 0}\nEXIT=0\n"
-      },
-      {
-        "argv": [
-          "/usr/bin/python3",
-          "/home/halbritt/git/kicad-route/src/kicad_route/kicad/locks.py",
-          "restore",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/krt-out/route_demo.kicad_pcb",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/locks.json"
-        ],
-        "cwd": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work",
-        "log": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/restore-locks.log",
-        "exit_code": 0,
-        "duration_s": 3.717
+        "exit_code": -15,
+        "duration_s": 40.839,
+        "stop_to_exit_s": 15.223,
+        "output_tail": "3 iterations - trying next MST edge\n  Multi-point net Phase 1: retrying with next MST edge (2/2) (pads 0 and 1, length=7.05mm)\n  Phase 1 routed in 293784 iterations, 3 segments\n  SUCCESS: 3 segments, 0 vias, 293784 iterations, length=5.88mm (stubs=0.00mm) (2.82s)\n\nSync pcb_data: 16 -> 5 (kept stubs) -> 16 (after adding 11)\n\n============================================================\nMulti-point Phase 3: Routing 2 tap connections\n============================================================\n\nGND (net 2):\n  POUR-LAUNCH v3: +10 region-laddered target(s) across 2 component(s) (phase 3)\n  Multi-point net Phase 3: routing 1 remaining MST edges (longest first)\n    [1/2] Routing MST edge: pad 1 -> pad 2 (length=39.59mm) target=(146.00, 108.54)\n      Probe: forward=5000, backward=5000 iters, trying forward with full iterations...\n      No route found after 200000 iterations (forward), trying backward...\n      Failed to route MST edge after 312436 iterations (2.97s)\n    Fallback: attempting orphaned pad 2 directly from connected copper\n    [2/2] (1 failed) Routing MST edge: pad 1 -> pad 2 (length=39.59mm) target=(146.00, 108.54)\n      Probe: forward=5000, backward=5000 iters, trying forward with full iterations...\n      No route found after 200000 iterations (forward), trying backward...\n      Failed to route MST edge after 312436 iterations (2.47s)\n  Warning: 1 pad(s) not connected (1 MST edge(s) failed)\n  Phase 3 routing complete: 0 edges, 2 total segments, 1 total vias\n  NOT CONNECTED (so far): GND - J2 pad 2 at (146.00, 108.54) - may still be recovered; final verdict in the end-of-run summary\n  Net total time: 5.52s, 909455 iterations\n\n/VIN (net 1):\n  Multi-point net Phase 3: routing 1 remaining MST edges (longest first)\n    [2/2] (1 failed) Routing MST edge: pad 1 -> pad 2 (length=38.95mm) target=(146.00, 106.00)\n      Probe: forward=5000, backward=5000 iters, trying forward with full iterations...\n      No route found after 200000 iterations (forward), trying backward...\n      Failed to route MST edge after 292734 iterations (1.33s)\n    Fallback: attempting orphaned pad 2 directly from connected copper\n    [3/2] (2 failed) Routing MST edge: pad 1 -> pad 2 (length=38.95mm) target=(146.00, 106.00)\n      Probe: forward=5000, backward=5000 iters, trying forward with full iterations...\n      No route found after 200000 iterations (forward), trying backward...\n      Failed to route MST edge after 292734 iterations (2.30s)\n  Warning: 1 pad(s) not connected (1 MST edge(s) failed)\n  Phase 3 routing complete: 0 edges, 3 total segments, 0 total vias\n  NOT CONNECTED (so far): /VIN - J2 pad 1 at (146.00, 106.00) - may still be recovered; final verdict in the end-of-run summary\n  Net total time: 3.63s, 879252 iterations\n\nPer-net fine-parameter rescue (#331/#371): 4 candidate net(s)\n  Rescuing /SIG_A_OUT (failed, 2 disconnected parts)\n    bare-ball escape: R1.2 dogbone (0 seg(s), 1 via(s)) (#666)\nProbe: forward=5000, backward=5000 iters, trying forward with full iterations...\nNo route found after 1000000 iterations (forward), trying backward...\nNo route found after 1968839 iterations (both directions)\nProbe: forward=5000, backward=5000 iters, trying forward with full iterations...\nNo route found after 1000000 iterations (forward), trying backward...\nNo route found after 1968839 iterations (both directions)\n    improved (2 -> 2 parts, 11.1s)\n  Rescuing /SIG_B_OUT (failed, 2 disconnected parts)\n    bare-ball escape: R2.2 dogbone (0 seg(s), 1 via(s)) (#666)\nProbe: forward=5000, backward=5000 iters, trying forward with full iterations...\nNo route found after 1000000 iterations (forward), trying backward...\nNo route found after 2010000 iterations (both directions)\nProbe: forward=5000, backward=5000 iters, trying forward with full iterations...\nNo route found after 1000000 iterations (forward), trying backward...\nNo route found after 2010000 iterations (both directions)\n    improved (2 -> 2 parts, 9.5s)\n  Rescuing /VIN (partial, 2 disconnected parts)\n"
       }
     ],
-    "backend_report": {
-      "successful": 0,
-      "failed": 5,
-      "failed_single": [
-        "/SIG_A_OUT",
-        "/SIG_A",
-        "/SIG_B_OUT",
-        "GND",
-        "/VIN"
-      ],
-      "open_single": [],
-      "failed_multipoint": [],
-      "multipoint_deficit": null,
-      "pad_pairs_connected": 0,
-      "pad_pairs_total": 7,
-      "total_vias": 0,
-      "total_iterations": 0,
-      "total_time": 0.0,
-      "protected_skipped": null,
-      "scope": "run",
-      "relaxations": {
-        "escalation_policy": "off",
-        "fab_tier": "standard",
-        "narrowed": [],
-        "fab_tier_escalations": 0,
-        "min_delivered": {},
-        "unsupported_rules": []
-      },
-      "improvement_gate": null,
-      "project_writes": null
-    },
+    "backend_report": null,
     "existing_copper_locks": {
       "lock": {
         "locked": 0
       },
-      "lock_exit": 0,
-      "restore": {
-        "restored": 0,
-        "not_found": 0
-      }
+      "lock_exit": 0
     },
-    "project_writeback": [
-      {
-        "file": "route_demo.kicad_prl",
-        "identical_to_input": true
-      },
-      {
-        "file": "route_demo.kicad_pro",
-        "identical_to_input": false
-      }
-    ],
-    "runtime_s": 15.586,
-    "last_phase": "summary",
+    "project_writeback": [],
+    "runtime_s": 42.794,
+    "last_phase": "net rescue",
     "heartbeats": {
-      "count": 9,
-      "log": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/heartbeat.jsonl",
+      "count": 25,
+      "log": "runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z/work/heartbeat.jsonl",
       "stall_s": 6,
       "since_last_progress_s": 0.0,
       "tail": [
         {
-          "t_s": 0.756,
-          "utc": "2026-10-18T03:53:19.638271+00:00",
-          "phase": "routing single-ended net(s)",
+          "t_s": 19.602,
+          "utc": "2026-10-18T10:16:05.934335+00:00",
+          "phase": "net rescue",
           "metric": {
-            "nets": 5
+            "rescuing": "/SIG_A_OUT",
+            "parts": 2
           },
-          "line": "Routing 5 single-ended net(s)..."
+          "line": "Rescuing /SIG_A_OUT (failed, 2 disconnected parts)"
         },
         {
-          "t_s": 8.745,
-          "utc": "2026-10-18T03:53:27.627486+00:00",
-          "phase": "checkpoint stop",
-          "metric": {},
-          "line": "CHECKPOINT STOP (KICAD_STOP_FILE): /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/work/STOP..."
+          "t_s": 40.832,
+          "utc": "2026-10-18T10:16:27.163776+00:00",
+          "phase": "net rescue",
+          "metric": {
+            "rescuing": "/SIG_A_OUT",
+            "parts": 2,
+            "outcome": "improved"
+          },
+          "line": "improved (2 -> 2 parts, 11.1s)"
         },
         {
-          "t_s": 8.745,
-          "utc": "2026-10-18T03:53:27.627662+00:00",
-          "phase": "Routing complete",
-          "metric": {},
-          "line": "============================================================"
+          "t_s": 40.832,
+          "utc": "2026-10-18T10:16:27.163885+00:00",
+          "phase": "net rescue",
+          "metric": {
+            "rescuing": "/SIG_B_OUT",
+            "parts": 2
+          },
+          "line": "Rescuing /SIG_B_OUT (failed, 2 disconnected parts)"
         },
         {
-          "t_s": 8.746,
-          "utc": "2026-10-18T03:53:27.627911+00:00",
-          "phase": "FAILED NET HISTORIES",
-          "metric": {},
-          "line": "============================================================"
+          "t_s": 40.834,
+          "utc": "2026-10-18T10:16:27.166293+00:00",
+          "phase": "net rescue",
+          "metric": {
+            "rescuing": "/SIG_B_OUT",
+            "parts": 2,
+            "outcome": "improved"
+          },
+          "line": "improved (2 -> 2 parts, 9.5s)"
         },
         {
-          "t_s": 8.746,
-          "utc": "2026-10-18T03:53:27.628169+00:00",
-          "phase": "summary",
-          "metric": {},
-          "line": "JSON_SUMMARY: {\"routed_single\": [], \"failed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"open_single\": [], \"failed_multipoint\": [], \"mult..."
+          "t_s": 40.834,
+          "utc": "2026-10-18T10:16:27.166440+00:00",
+          "phase": "net rescue",
+          "metric": {
+            "rescuing": "/VIN",
+            "parts": 2
+          },
+          "line": "Rescuing /VIN (partial, 2 disconnected parts)"
         }
       ]
     },
     "stalled": true
   },
   "routing": {
-    "status": "INCOMPLETE",
-    "unconnected_in_scope": 7,
-    "unconnected_total": 7,
-    "baseline_unconnected_total": 7,
-    "unrouted_nets": [
-      "/SIG_A",
-      "/SIG_A_OUT",
-      "/SIG_B_OUT",
-      "/VIN",
-      "GND"
-    ],
-    "stats": {
-      "new_tracks": 0,
-      "new_vias": 0,
-      "new_track_length_mm": 0,
-      "new_track_length_mm_by_layer": {},
-      "new_copper_nets": 0,
-      "removed_existing_tracks": 0,
-      "removed_existing_vias": 0
-    },
-    "blocked_by": {
-      "schema": "kicad-route/blocked/2",
-      "version": 2,
-      "report": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/validate/blocked-by.json",
-      "connections_analyzed": 7,
-      "unobstructed_connections": 2,
-      "method": "heuristic corridors; see docs/blocked.md",
-      "top": [
-        {
-          "id": "rule_area:wall",
-          "category": "keepout",
-          "kind": "rule_area",
-          "label": "keepout 'wall' (no tracks, no vias, no zone fills) on B.Cu, F.Cu",
-          "net": null,
-          "blocks": 4,
-          "blocks_any_layer": 4,
-          "nets_blocked": [
-            "/SIG_A_OUT",
-            "/SIG_B_OUT",
-            "/VIN",
-            "GND"
-          ]
-        },
-        {
-          "id": "rule_area:route_keepout",
-          "category": "keepout",
-          "kind": "rule_area",
-          "label": "keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu",
-          "net": null,
-          "blocks": 3,
-          "blocks_any_layer": 4,
-          "nets_blocked": [
-            "/SIG_A",
-            "/SIG_A_OUT",
-            "/VIN",
-            "GND"
-          ]
-        }
-      ],
-      "nets": {
-        "/SIG_A": {
-          "connections": 1,
-          "best_layer": "F.Cu",
-          "hard_blockers_on_best_layer": 1,
-          "blockers": [
-            "keepout 'route_keepout'"
-          ]
-        },
-        "/SIG_A_OUT": {
-          "connections": 1,
-          "best_layer": "F.Cu",
-          "hard_blockers_on_best_layer": 2,
-          "blockers": [
-            "keepout 'route_keepout'",
-            "keepout 'wall'"
-          ]
-        },
-        "/SIG_B_OUT": {
-          "connections": 1,
-          "best_layer": "F.Cu",
-          "hard_blockers_on_best_layer": 1,
-          "blockers": [
-            "keepout 'wall'"
-          ]
-        },
-        "/VIN": {
-          "connections": 2,
-          "best_layer": "B.Cu",
-          "hard_blockers_on_best_layer": 1,
-          "blockers": [
-            "keepout 'wall'"
-          ]
-        },
-        "GND": {
-          "connections": 2,
-          "best_layer": "F.Cu",
-          "hard_blockers_on_best_layer": 2,
-          "blockers": [
-            "keepout 'route_keepout'",
-            "keepout 'wall'"
-          ]
-        }
-      }
-    }
+    "status": "NOT_RUN",
+    "reasons": [
+      "backend produced no candidate"
+    ]
   },
   "validation": {
-    "status": "PASS",
-    "reasons": [],
-    "dir": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/validate",
-    "rules_files": {
-      "project": "route_demo.kicad_pro",
-      "custom_rules": "route_demo.kicad_dru",
-      "not_loaded": []
-    },
-    "restored_project_files": [],
-    "delivered_project_files": [],
-    "delivered_board_sha256": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
-    "drc_commands": [
-      {
-        "argv": [
-          "kicad-cli",
-          "pcb",
-          "drc",
-          "--refill-zones",
-          "--save-board",
-          "--format",
-          "json",
-          "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/candidate/route_demo/route_demo.kicad_pcb"
-        ],
-        "cwd": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/candidate/route_demo",
-        "log": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/validate/candidate-refill.log",
-        "exit_code": 0,
-        "duration_s": 51.424
-      },
-      {
-        "argv": [
-          "kicad-cli",
-          "pcb",
-          "drc",
-          "--format",
-          "json",
-          "--severity-all",
-          "--schematic-parity",
-          "--units",
-          "mm",
-          "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/candidate/route_demo/route_demo.kicad_pcb"
-        ],
-        "cwd": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/candidate/route_demo",
-        "log": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/validate/candidate-drc.log",
-        "exit_code": 0,
-        "duration_s": 41.193
-      }
-    ],
-    "validated_board_sha256": "73e3e425900b6c09ac7c499cd76673023510e581c40442e49365c353fd4fe295",
-    "candidate_board_sha256": "73e3e425900b6c09ac7c499cd76673023510e581c40442e49365c353fd4fe295",
-    "refill_modified_board": true,
-    "parity_performed": true,
-    "drc": {
-      "violations_total": 0,
-      "parity_total": 0,
-      "new_violations": {
-        "count": 0,
-        "by_type": {},
-        "by_severity": {}
-      },
-      "preexisting_violations": 0,
-      "resolved_violations": 0,
-      "new_parity": {
-        "count": 0,
-        "by_type": {},
-        "by_severity": {}
-      },
-      "resolved_parity": 0
-    },
-    "net_completion": {
-      "status": "PASS",
-      "nets_connected_in_input": 1,
-      "nets_lost": []
-    },
-    "preservation": {
-      "project_files": "PASS",
-      "board_outline": "PASS",
-      "layers": "PASS",
-      "stackup": "PASS",
-      "board_setup": "PASS",
-      "nets_and_netclasses": "PASS",
-      "pad_connectivity": "PASS",
-      "footprints": "PASS",
-      "zones": "PASS",
-      "keepouts": "PASS",
-      "copper_graphics": "PASS",
-      "protected_copper": "PASS",
-      "new_copper_netclass_geometry": "PASS",
-      "routing_scope": "PASS",
-      "net_completion": "PASS",
-      "pour_integrity": "PASS"
-    }
+    "status": "NOT_RUN",
+    "reasons": [
+      "backend produced no candidate"
+    ]
   },
-  "candidate": {
-    "dir": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/candidate/route_demo",
-    "board": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/candidate/route_demo/route_demo.kicad_pcb"
-  },
-  "run_dir": "runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z",
-  "runtime_s": 117.495,
+  "candidate": null,
+  "run_dir": "runs/route_demo/hygiene-stall-krt/20261018T101542.306982Z",
+  "runtime_s": 44.982,
   "tool_versions": {
     "kicad-cli": "10.0.7"
   },
   "evidence": {
-    "input_board_sha256": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
-    "input_fingerprint": "ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472",
+    "input_board_sha256": "00e7f80c33f5dbe4f7464204f882c338c752cdc19e4eb6ce1dd2c6987137b544",
+    "input_fingerprint": "79585bbdb967c8af7f6493c5ac7814faecf64297d1ece8f12d8db45a3e6ea6ef",
     "reference_files": {
       "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
       "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
-      "route_demo.kicad_pcb": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
+      "route_demo.kicad_pcb": "00e7f80c33f5dbe4f7464204f882c338c752cdc19e4eb6ce1dd2c6987137b544",
       "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
       "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
       "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
@@ -514,27 +299,18 @@
       "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070"
     },
     "rule_floor_sha256": null,
-    "backend_output_board_sha256": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
-    "candidate_board_sha256": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
-    "candidate_copper_signature": {
-      "sha256": "c74876640b400cd0d3392f680319fa735300aa1def9fe44ba349523568718d1d",
-      "tracks": 5,
-      "vias": 2
-    },
+    "backend_output_board_sha256": null,
+    "candidate_board_sha256": null,
+    "candidate_copper_signature": null,
     "records": {
-      "attempt.json": "3079c08ae84bcab950ad2d040045d950ca118365b42757b22160e96ea2c70e80",
-      "validate/preservation.json": "d0344bdcf0297a1a3c0c2d2f60411bbcf50f81c6b7820958e5295fb4dfff399e",
-      "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
-      "validate/candidate-drc.json": "15c7d70850e062278ed2d716f5a67070cdb312926e1df179e1bd64ef99b843b1",
-      "validate/candidate-facts.json": "d414600bfe20095e13f2b92d4b2fb186303b973658840e3d75ea0f800b9b04d4",
-      "validate/pour-integrity.json": "1566720e275b0f769ec3fc6ffd3398d9839fd54879c5252f85708bbf313f9793"
+      "attempt.json": "a7d68092e8fca206c4ecc03b948f2cf749b571e04b64b419915b030e2d722687"
     }
   },
   "tool_identity": {
     "kicad_route": {
-      "version": "a928b15",
-      "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
-      "dirty": false
+      "version": "c45a2db-dirty",
+      "commit": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
+      "dirty": true
     },
     "kicad_cli": {
       "path": "/usr/bin/kicad-cli",
@@ -561,11 +337,11 @@
     "state_manifest_sha256": "d6e6179fd9cdc491d41e99b9abb110a66bde8d709b7f409eddaae648525e23c2",
     "state_manifest_drift": []
   },
-  "finished_utc": "2026-10-18T03:55:10.786308+00:00",
-  "exit_code": 2,
+  "finished_utc": "2026-10-18T10:16:29.074927+00:00",
+  "exit_code": 1,
   "ledger": {
-    "fingerprint": "1c46dc0f4cc16c8f131e453eecbe4804bca9009945e9e12e4454874d7ab9bbb8",
-    "short": "1c46dc0f4cc1",
+    "fingerprint": "3724ce6c26df5f4f0cdb7fb6115398e910021755e67e9f0824e34e1a53d93629",
+    "short": "3724ce6c26df",
     "forced": false,
     "forced_over": null,
     "upstream_changed_since": null,
@@ -599,6 +375,24 @@
     },
     "out": {
       "path": "/home/halbritt/git/kicad-route/build/kicad-route/smoke"
+    },
+    "home": {
+      "HOME": "/home/halbritt",
+      "required": false,
+      "tool_home": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.kicad-config",
+        "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/data",
+        "XDG_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/config",
+        "XDG_CACHE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/cache",
+        "XDG_DATA_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/data",
+        "XDG_STATE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/java",
+        "-Djava.util.prefs.userRoot=/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/java/prefs"
+      ]
     },
     "network": {
       "interfaces": 38,

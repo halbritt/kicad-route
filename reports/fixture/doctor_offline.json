@@ -77,8 +77,8 @@
     ],
     "rw_paths": [
       {
-        "path": "/tmp/pytest-of-halbritt/pytest-1338/doctor0/out",
-        "purpose": "--out: runs, baseline cache, hermetic KiCad config, doctor output, the ledger (unless --ledger)"
+        "path": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out",
+        "purpose": "--out: runs, baseline cache, hermetic KiCad config, the tools' per-user files (OUT/.home), doctor output, the ledger (unless --ledger)"
       }
     ],
     "tmp": "/tmp may be a private tmpfs",
@@ -91,9 +91,9 @@
       },
       {
         "name": "HOME",
-        "value": "/tmp/pytest-of-halbritt/pytest-1338/doctor0/out/home",
-        "required": true,
-        "purpose": "any writable directory (Java and KiCad may write there); OUT/home is inside the writable OUT"
+        "value": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/home",
+        "required": false,
+        "purpose": "optional, need not be writable: KiCad's config, cache and data, fontconfig's cache and the Freerouting JVM's user.home are kept under OUT (OUT/.kicad-config, OUT/.home)"
       },
       {
         "name": "PATH",
@@ -109,7 +109,7 @@
       },
       {
         "name": "KICAD_ROUTE_OUT",
-        "value": "/tmp/pytest-of-halbritt/pytest-1338/doctor0/out",
+        "value": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out",
         "required": false,
         "purpose": "or pass --out"
       },
@@ -168,7 +168,25 @@
         "writable": true
       },
       "out": {
-        "path": "/tmp/pytest-of-halbritt/pytest-1338/doctor0/out"
+        "path": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out"
+      },
+      "home": {
+        "HOME": "/home/halbritt",
+        "required": false,
+        "tool_home": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home",
+        "env": {
+          "KICAD_CONFIG_HOME": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.kicad-config",
+          "KICAD_CACHE_HOME": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home/cache",
+          "KICAD_DOCUMENTS_HOME": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home/data",
+          "XDG_CONFIG_HOME": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home/config",
+          "XDG_CACHE_HOME": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home/cache",
+          "XDG_DATA_HOME": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home/data",
+          "XDG_STATE_HOME": "/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home/state"
+        },
+        "jvm": [
+          "-Duser.home=/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home/java",
+          "-Djava.util.prefs.userRoot=/tmp/pytest-of-halbritt/pytest-1368/doctor0/out/.home/java/prefs"
+        ]
       },
       "network": {
         "interfaces": 38,

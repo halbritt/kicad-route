@@ -5,9 +5,9 @@
  "heuristic": true,
  "method": "straight and L-shaped corridors (net-class track width + 2 x clearance) between the two endpoints of each unconnected item, per copper layer; heuristic pointer, not a proof",
  "boards": {
-  "input_sha256": "690e88f9281d4fe3843ec309b7593c98c1b46c707ded9761fd83bb284da79cde",
-  "candidate_sha256": "5e963107cf24931848ea950be0fc95912194b33a3042f78cfeaa16ce587959bc",
-  "graded_sha256": "5e963107cf24931848ea950be0fc95912194b33a3042f78cfeaa16ce587959bc"
+  "input_sha256": "00e7f80c33f5dbe4f7464204f882c338c752cdc19e4eb6ce1dd2c6987137b544",
+  "candidate_sha256": "80252c3f4e35bb4feb243b675faef97d39adb42e55da0e4b7fd164cfe48df63b",
+  "graded_sha256": "80252c3f4e35bb4feb243b675faef97d39adb42e55da0e4b7fd164cfe48df63b"
  },
  "nets_considered": [
   "/SIG_A",
@@ -105,13 +105,13 @@
   "input_copper": [],
   "new_copper": [
    {
-    "id": "ab49f926-f83c-48f1-a75e-cc1c220a9325",
+    "id": "1170f3c5-62a3-4fa0-b8c9-a0d8e340a9ce",
     "kind": "track",
     "net": "/SIG_A",
     "layer": "F.Cu",
     "locked": false,
     "origin": "new",
-    "uuid": "ab49f926-f83c-48f1-a75e-cc1c220a9325",
+    "uuid": "1170f3c5-62a3-4fa0-b8c9-a0d8e340a9ce",
     "width_mm": 0.2,
     "start_mm": [
      105.8,
@@ -129,7 +129,7 @@
      "/VIN",
      "GND"
     ],
-    "label": "track /SIG_A F.Cu (new, unlocked) ab49f926"
+    "label": "track /SIG_A F.Cu (new, unlocked) 1170f3c5"
    }
   ],
   "footprint": [],
@@ -176,10 +176,10 @@
    ]
   },
   {
-   "id": "ab49f926-f83c-48f1-a75e-cc1c220a9325",
+   "id": "1170f3c5-62a3-4fa0-b8c9-a0d8e340a9ce",
    "category": "new_copper",
    "kind": "track",
-   "label": "track /SIG_A F.Cu (new, unlocked) ab49f926",
+   "label": "track /SIG_A F.Cu (new, unlocked) 1170f3c5",
    "net": "/SIG_A",
    "locked": false,
    "origin": "new",
@@ -229,6 +229,28 @@
   }
  },
  "footprints": {
+  "C1": {
+   "reference": "C1",
+   "value": "1u",
+   "position_mm": [
+    110.0,
+    104.0
+   ],
+   "orientation_deg": 0.0,
+   "layer": "F.Cu",
+   "side": "front",
+   "locked": false,
+   "blocks": [],
+   "blocks_any_layer": [],
+   "terminates": [
+    0
+   ],
+   "pads_blocking": [],
+   "nets_blocked": [],
+   "nets_terminated": [
+    "/VIN"
+   ]
+  },
   "J2": {
    "reference": "J2",
    "value": "Conn_01x04",
@@ -330,21 +352,21 @@
      ]
     },
     {
-     "description": "Track [/VIN] on F.Cu, length 3.0500 mm",
-     "uuid": "34572bb1-f33e-4640-bbe4-5bf55195fbd5",
-     "kind": "track",
+     "description": "Pad 1 [/VIN] of C1 on F.Cu",
+     "uuid": "f005d223-a886-44c6-b628-2f41c9b41e40",
+     "kind": "pad",
      "net": "/VIN",
-     "footprint": null,
-     "pad": null,
+     "footprint": "C1",
+     "pad": "1",
      "layers": [
       "F.Cu"
      ],
      "position_mm": [
-      106.0,
+      109.05,
       104.0
      ],
      "reported_position_mm": [
-      106.0,
+      109.05,
       104.0
      ]
     }
@@ -356,14 +378,14 @@
      "soft_count": 0,
      "hard": [
       {
-       "id": "ab49f926-f83c-48f1-a75e-cc1c220a9325",
+       "id": "1170f3c5-62a3-4fa0-b8c9-a0d8e340a9ce",
        "kind": "track",
        "category": "new_copper",
        "net": "/SIG_A",
        "layer": "F.Cu",
        "locked": false,
        "origin": "new",
-       "label": "track /SIG_A F.Cu ab49f926"
+       "label": "track /SIG_A F.Cu 1170f3c5"
       },
       {
        "id": "rule_area:route_keepout",
@@ -466,7 +488,7 @@
      }
     }
    },
-   "length_mm": 40.05,
+   "length_mm": 37.0041,
    "best_layer": "B.Cu",
    "best_layer_hard_count": 2
   },
@@ -516,13 +538,13 @@
      ],
      "target": {
       "kind": "via",
-      "uuid": "1b8d020e-0caa-43d0-8b2e-2577461a18c4",
+      "uuid": "5503d952-ce5e-43ec-bcd5-76842f5d2790",
       "position_mm": [
        111.0,
        104.0
       ]
      },
-     "note": "zone endpoint: nearest same-net via 1b8d020e inside the zone outline and off the other endpoint's copper island (zone fill is not modelled)"
+     "note": "zone endpoint: nearest same-net via 5503d952 inside the zone outline and off the other endpoint's copper island (zone fill is not modelled)"
     }
    ],
    "layers": {
@@ -532,14 +554,14 @@
      "soft_count": 0,
      "hard": [
       {
-       "id": "ab49f926-f83c-48f1-a75e-cc1c220a9325",
+       "id": "1170f3c5-62a3-4fa0-b8c9-a0d8e340a9ce",
        "kind": "track",
        "category": "new_copper",
        "net": "/SIG_A",
        "layer": "F.Cu",
        "locked": false,
        "origin": "new",
-       "label": "track /SIG_A F.Cu ab49f926"
+       "label": "track /SIG_A F.Cu 1170f3c5"
       },
       {
        "id": "rule_area:route_keepout",

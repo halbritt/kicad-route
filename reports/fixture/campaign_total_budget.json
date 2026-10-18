@@ -37,9 +37,9 @@
       "new_violations": 0,
       "new_parity": 0,
       "preservation_failures": [],
-      "runtime_s": 89.711,
-      "end_run": "runs/route_demo/campaign-total-budget-r0/20261018T032533.586438Z",
-      "candidate": "runs/route_demo/campaign-total-budget-r0/20261018T032533.586438Z/candidate/route_demo/route_demo.kicad_pcb"
+      "runtime_s": 43.423,
+      "end_run": "runs/route_demo/campaign-total-budget-r0/20261018T095304.679969Z",
+      "candidate": "runs/route_demo/campaign-total-budget-r0/20261018T095304.679969Z/candidate/route_demo/route_demo.kicad_pcb"
     }
   ],
   "stop_reason": "total budget reached",

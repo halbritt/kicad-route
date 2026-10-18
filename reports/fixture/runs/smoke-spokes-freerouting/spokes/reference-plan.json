@@ -1,5 +1,5 @@
 {
- "board": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/reference/route_demo/route_demo.kicad_pcb",
+ "board": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/reference/route_demo/route_demo.kicad_pcb",
  "per_pad": 2,
  "min_resolved_spokes": 2,
  "refilled": true,

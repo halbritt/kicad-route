@@ -71,7 +71,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 11.48,
+    "runtime_s": 7.502,
     "backend_report": {
       "successful": 4,
       "failed": 0,
@@ -83,7 +83,7 @@
       "pad_pairs_total": 5,
       "total_vias": 0,
       "total_iterations": 1637,
-      "total_time": 0.06,
+      "total_time": 0.03,
       "protected_skipped": null,
       "scope": "merged",
       "relaxations": {
@@ -125,7 +125,7 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate",
+    "dir": "runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/validate",
     "rules_files": {
       "project": "route_demo.kicad_pro",
       "custom_rules": "route_demo.kicad_dru",
@@ -133,7 +133,7 @@
     },
     "restored_project_files": [],
     "delivered_project_files": [],
-    "delivered_board_sha256": "824f876cf72ad6a4ec024517a54fac12fd3a2540d9084f8b7c146ae26e98023c",
+    "delivered_board_sha256": "3af072a1fa06c2005a5a6a1f61b5473e5cb021e5d41dde89da7a7bfaaceeff3d",
     "drc_commands": [
       {
         "argv": [
@@ -145,13 +145,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 19.906
+        "duration_s": 19.879
       },
       {
         "argv": [
@@ -165,17 +165,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-pour-krt/20261018T102437.774487Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 19.676
+        "duration_s": 21.448
       }
     ],
-    "validated_board_sha256": "824f876cf72ad6a4ec024517a54fac12fd3a2540d9084f8b7c146ae26e98023c",
-    "candidate_board_sha256": "824f876cf72ad6a4ec024517a54fac12fd3a2540d9084f8b7c146ae26e98023c",
+    "validated_board_sha256": "3af072a1fa06c2005a5a6a1f61b5473e5cb021e5d41dde89da7a7bfaaceeff3d",
+    "candidate_board_sha256": "3af072a1fa06c2005a5a6a1f61b5473e5cb021e5d41dde89da7a7bfaaceeff3d",
     "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
@@ -219,7 +219,7 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-pour-krt/20261018T040654.077075Z",
+  "run_dir": "runs/route_demo/smoke-pour-krt/20261018T102437.774487Z",
   "pour_integrity": {
     "check": "pour_integrity",
     "status": "PASS",

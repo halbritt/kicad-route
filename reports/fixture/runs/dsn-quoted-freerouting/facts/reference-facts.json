@@ -77,7 +77,7 @@
       "F.Mask",
       "F.Paste"
      ],
-     "net": "GND",
+     "net": "GND\"A",
      "position": [
       110950000,
       104000000
@@ -195,7 +195,7 @@
       "In8.Cu",
       "In9.Cu"
      ],
-     "net": "GND",
+     "net": "GND\"A",
      "position": [
       104000000,
       108540000
@@ -247,7 +247,7 @@
       "In8.Cu",
       "In9.Cu"
      ],
-     "net": "/SIG_A",
+     "net": "SIG\"B",
      "position": [
       104000000,
       111080000
@@ -299,7 +299,7 @@
       "In8.Cu",
       "In9.Cu"
      ],
-     "net": "/SIG_B",
+     "net": "W \"C\"",
      "position": [
       104000000,
       113620000
@@ -417,7 +417,7 @@
       "In8.Cu",
       "In9.Cu"
      ],
-     "net": "GND",
+     "net": "GND\"A",
      "position": [
       146000000,
       108540000
@@ -556,7 +556,7 @@
       "F.Mask",
       "F.Paste"
      ],
-     "net": "/SIG_A",
+     "net": "SIG\"B",
      "position": [
       124087500,
       103000000
@@ -612,7 +612,7 @@
       "F.Mask",
       "F.Paste"
      ],
-     "net": "/SIG_B",
+     "net": "W \"C\"",
      "position": [
       124087500,
       126000000
@@ -655,25 +655,7 @@
  "kicad_version": "10.0.7-10.0.7~ubuntu24.04.1",
  "netclass_count": 2,
  "nets": {
-  "/SIG_A": {
-   "clearance": 200000,
-   "netclass": "Default",
-   "track_width": 200000,
-   "uvia_diameter": 300000,
-   "uvia_drill": 100000,
-   "via_diameter": 600000,
-   "via_drill": 300000
-  },
   "/SIG_A_OUT": {
-   "clearance": 200000,
-   "netclass": "Default",
-   "track_width": 200000,
-   "uvia_diameter": 300000,
-   "uvia_drill": 100000,
-   "via_diameter": 600000,
-   "via_drill": 300000
-  },
-  "/SIG_B": {
    "clearance": 200000,
    "netclass": "Default",
    "track_width": 200000,
@@ -700,7 +682,7 @@
    "via_diameter": 800000,
    "via_drill": 400000
   },
-  "GND": {
+  "GND\"A": {
    "clearance": 300000,
    "netclass": "Power",
    "track_width": 500000,
@@ -708,6 +690,24 @@
    "uvia_drill": 100000,
    "via_diameter": 800000,
    "via_drill": 400000
+  },
+  "SIG\"B": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  },
+  "W \"C\"": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
   }
  },
  "outline": [
@@ -794,36 +794,6 @@
      122000000
     ]
    ]
-  },
-  {
-   "layers": [
-    "B.Cu",
-    "F.Cu"
-   ],
-   "name": "wall",
-   "no_footprints": false,
-   "no_pads": false,
-   "no_tracks": true,
-   "no_vias": true,
-   "no_zone_fills": true,
-   "outline": [
-    [
-     138000000,
-     99000000
-    ],
-    [
-     140000000,
-     99000000
-    ],
-    [
-     140000000,
-     131000000
-    ],
-    [
-     138000000,
-     131000000
-    ]
-   ]
   }
  ],
  "setup": [
@@ -878,7 +848,7 @@
    "no"
   ]
  ],
- "sha256": "73e3e425900b6c09ac7c499cd76673023510e581c40442e49365c353fd4fe295",
+ "sha256": "a8e726eea52e017441a3f58f4e7a72d92ca56e405e692cb8edd3948ca8c599c5",
  "stackup": [
   "stackup",
   [
@@ -1011,7 +981,7 @@
    "kind": "segment",
    "layer": "F.Cu",
    "locked": true,
-   "net": "/SIG_B",
+   "net": "W \"C\"",
    "start": [
     108000000,
     113620000
@@ -1027,7 +997,7 @@
    "kind": "segment",
    "layer": "F.Cu",
    "locked": true,
-   "net": "/SIG_B",
+   "net": "W \"C\"",
    "start": [
     104000000,
     113620000
@@ -1043,7 +1013,7 @@
    "kind": "segment",
    "layer": "F.Cu",
    "locked": true,
-   "net": "/SIG_B",
+   "net": "W \"C\"",
    "start": [
     121500000,
     126000000
@@ -1059,7 +1029,7 @@
    "kind": "segment",
    "layer": "B.Cu",
    "locked": true,
-   "net": "/SIG_B",
+   "net": "W \"C\"",
    "start": [
     116000000,
     121620000
@@ -1075,7 +1045,7 @@
    "kind": "segment",
    "layer": "B.Cu",
    "locked": true,
-   "net": "/SIG_B",
+   "net": "W \"C\"",
    "start": [
     120380000,
     126000000
@@ -1093,7 +1063,7 @@
     "B.Cu"
    ],
    "locked": true,
-   "net": "/SIG_B",
+   "net": "W \"C\"",
    "position": [
     116000000,
     121620000
@@ -1109,7 +1079,7 @@
     "B.Cu"
    ],
    "locked": true,
-   "net": "/SIG_B",
+   "net": "W \"C\"",
    "position": [
     121500000,
     126000000
@@ -1130,7 +1100,7 @@
    "locked": false,
    "min_thickness": 250000,
    "name": "GND_B",
-   "net": "GND",
+   "net": "GND\"A",
    "outline": [
     [
      100500000,

@@ -25,7 +25,7 @@
     "blocked_by": {
       "schema": "kicad-route/blocked/2",
       "version": 2,
-      "report": "runs/route_demo/blocked-receipts-krt/20261018T030209.644336Z/validate/blocked-by.json",
+      "report": "runs/route_demo/blocked-receipts-krt/20261018T094110.053621Z/validate/blocked-by.json",
       "connections_analyzed": 4,
       "unobstructed_connections": 0,
       "method": "heuristic corridors; see docs/blocked.md",
@@ -60,10 +60,10 @@
           ]
         },
         {
-          "id": "d573c5e6-759f-480d-8add-98c6d2493c16",
+          "id": "1ed5ea70-0e65-4ecd-8383-8a80d7488ec2",
           "category": "new_copper",
           "kind": "track",
-          "label": "track /SIG_A F.Cu (new, unlocked) d573c5e6",
+          "label": "track /SIG_A F.Cu (new, unlocked) 1ed5ea70",
           "net": "/SIG_A",
           "locked": false,
           "origin": "new",

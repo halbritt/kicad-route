@@ -1,0 +1,27 @@
+{
+  "schema": "kicad-route/refusal/1",
+  "kind": "refusal",
+  "exit_code": 4,
+  "command": "run",
+  "reason_class": "input",
+  "message": "the Specctra bridge cannot write a net name one way for Freerouting: ambiguous net class member list at offset 5586: '(class kicad_default /SIG_B_OUT \"a b\" \"a b\" c\" c\"\\n      (circuit\\n        (use_via \"Via[0-1]_600:300_um\")\\n      )\\n      (rule\\n        (width 200)\\n        (clearance 200)\\n      )\\n    )\\n    (class Power '. Rename the net, or route with --backend krt",
+  "argv": [
+    "--out",
+    "/home/halbritt/git/kicad-route/build/kicad-route/smoke",
+    "run",
+    "--json",
+    "--backend",
+    "freerouting",
+    "--dir",
+    "/tmp/pytest-of-halbritt/pytest-1368/test_unreadable_names_are_refu0/route_demo",
+    "--budget",
+    "60",
+    "--label",
+    "dsn-quoted-ambiguous"
+  ],
+  "cwd": "/home/halbritt/git/kicad-route/build/kicad-route/smoke",
+  "input_fingerprint": "cadcf62b6ecb2c2347a0672c479c5b83d5429209fbaab2f0920b375255d2fcdb",
+  "discarded_run_dir": "runs/route_demo/dsn-quoted-ambiguous/20261018T100232.659188Z",
+  "refused_utc": "2026-10-18T10:02:34.907065+00:00",
+  "record": "refusals/20261018T100234.907091Z-264173.json"
+}

@@ -77,7 +77,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 13.049,
+    "runtime_s": 8.584,
     "backend_report": {
       "successful": 1,
       "failed": 0,
@@ -89,7 +89,7 @@
       "pad_pairs_total": 1,
       "total_vias": 0,
       "total_iterations": 213,
-      "total_time": 0.02,
+      "total_time": 0.0,
       "protected_skipped": null,
       "scope": "merged",
       "relaxations": {
@@ -128,7 +128,7 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate",
+    "dir": "runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/validate",
     "rules_files": {
       "project": "route_demo.kicad_pro",
       "custom_rules": "route_demo.kicad_dru",
@@ -136,7 +136,7 @@
     },
     "restored_project_files": [],
     "delivered_project_files": [],
-    "delivered_board_sha256": "3cf60fdb6e06036cc913fcff55d9a5fd3267d508cc8caadc36954bafa044dd4e",
+    "delivered_board_sha256": "51c779677d9dfc6e9e8e5f560778fae6b193af56f0fbdb9917e0003a7a6cbc7e",
     "drc_commands": [
       {
         "argv": [
@@ -148,13 +148,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 20.504
+        "duration_s": 8.282
       },
       {
         "argv": [
@@ -168,17 +168,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 15.878
+        "duration_s": 10.065
       }
     ],
-    "validated_board_sha256": "3cf60fdb6e06036cc913fcff55d9a5fd3267d508cc8caadc36954bafa044dd4e",
-    "candidate_board_sha256": "3cf60fdb6e06036cc913fcff55d9a5fd3267d508cc8caadc36954bafa044dd4e",
+    "validated_board_sha256": "51c779677d9dfc6e9e8e5f560778fae6b193af56f0fbdb9917e0003a7a6cbc7e",
+    "candidate_board_sha256": "51c779677d9dfc6e9e8e5f560778fae6b193af56f0fbdb9917e0003a7a6cbc7e",
     "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
@@ -222,7 +222,7 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-barrier-rewind/20261018T025903.589999Z",
+  "run_dir": "runs/route_demo/smoke-barrier-rewind/20261018T093937.042512Z",
   "collided": {
     "backend": {
       "name": "krt",
@@ -292,7 +292,7 @@
       "status": "PASS",
       "reasons": [],
       "exit_code": 0,
-      "runtime_s": 8.314,
+      "runtime_s": 7.44,
       "backend_report": {
         "successful": 1,
         "failed": 0,
@@ -304,7 +304,7 @@
         "pad_pairs_total": 1,
         "total_vias": 0,
         "total_iterations": 203,
-        "total_time": 0.0,
+        "total_time": 0.01,
         "protected_skipped": null,
         "scope": "merged",
         "relaxations": {
@@ -345,7 +345,7 @@
       "reasons": [
         "1 new DRC violations: clearance 1"
       ],
-      "dir": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate",
+      "dir": "runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/validate",
       "rules_files": {
         "project": "route_demo.kicad_pro",
         "custom_rules": "route_demo.kicad_dru",
@@ -353,7 +353,7 @@
       },
       "restored_project_files": [],
       "delivered_project_files": [],
-      "delivered_board_sha256": "066993244bb3771597a1163d4abfc713e226294bf734fdf859c07bf5101a347e",
+      "delivered_board_sha256": "01fc53674001220427ee68108f71adc0905d8c4a4ec6e0b6a0c78cdbec12a29d",
       "drc_commands": [
         {
           "argv": [
@@ -365,13 +365,13 @@
             "--format",
             "json",
             "-o",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate/candidate-refill.json",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/candidate/route_demo/route_demo.kicad_pcb"
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/validate/candidate-refill.json",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/candidate/route_demo/route_demo.kicad_pcb"
           ],
-          "cwd": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/candidate/route_demo",
-          "log": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate/candidate-refill.log",
+          "cwd": "runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/candidate/route_demo",
+          "log": "runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/validate/candidate-refill.log",
           "exit_code": 0,
-          "duration_s": 21.721
+          "duration_s": 10.674
         },
         {
           "argv": [
@@ -385,17 +385,17 @@
             "--units",
             "mm",
             "-o",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate/candidate-drc.json",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/candidate/route_demo/route_demo.kicad_pcb"
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/validate/candidate-drc.json",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/candidate/route_demo/route_demo.kicad_pcb"
           ],
-          "cwd": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/candidate/route_demo",
-          "log": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z/validate/candidate-drc.log",
+          "cwd": "runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/candidate/route_demo",
+          "log": "runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z/validate/candidate-drc.log",
           "exit_code": 0,
-          "duration_s": 22.727
+          "duration_s": 9.08
         }
       ],
-      "validated_board_sha256": "066993244bb3771597a1163d4abfc713e226294bf734fdf859c07bf5101a347e",
-      "candidate_board_sha256": "066993244bb3771597a1163d4abfc713e226294bf734fdf859c07bf5101a347e",
+      "validated_board_sha256": "01fc53674001220427ee68108f71adc0905d8c4a4ec6e0b6a0c78cdbec12a29d",
+      "candidate_board_sha256": "01fc53674001220427ee68108f71adc0905d8c4a4ec6e0b6a0c78cdbec12a29d",
       "refill_modified_board": false,
       "parity_performed": true,
       "drc": {
@@ -443,7 +443,7 @@
         "pour_integrity": "PASS"
       }
     },
-    "run_dir": "runs/route_demo/smoke-barrier-collide/20261018T025803.419868Z"
+    "run_dir": "runs/route_demo/smoke-barrier-collide/20261018T093904.747701Z"
   },
   "barrier": {
     "barriers": [
@@ -456,7 +456,7 @@
         "name": "kicad-route:barrier:111.7125:104.9875",
         "distance_to_other_copper": 474784,
         "new_item": {
-          "uuid": "abad1010-df48-419b-a129-bbe1bba16c37",
+          "uuid": "02a527b6-2308-4765-a7f7-751622f201eb",
           "kind": "PCB_TRACK",
           "net": "/SIG_A"
         },

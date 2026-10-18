@@ -1,6 +1,6 @@
 {
   "runner": "agent_ee.executor.sandbox_argv",
-  "wall_s": 24.1,
+  "wall_s": 18.2,
   "status": "PASS",
   "observed": {
     "require_readonly_state": false,
@@ -24,12 +24,30 @@
     "out": {
       "path": "/work/out"
     },
+    "home": {
+      "HOME": "/work/home",
+      "required": false,
+      "tool_home": "/work/out/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/work/out/.kicad-config",
+        "KICAD_CACHE_HOME": "/work/out/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/work/out/.home/data",
+        "XDG_CONFIG_HOME": "/work/out/.home/config",
+        "XDG_CACHE_HOME": "/work/out/.home/cache",
+        "XDG_DATA_HOME": "/work/out/.home/data",
+        "XDG_STATE_HOME": "/work/out/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/work/out/.home/java",
+        "-Djava.util.prefs.userRoot=/work/out/.home/java/prefs"
+      ]
+    },
     "network": {
       "interfaces": 1,
       "non_loopback_interfaces": 0,
       "non_loopback_examples": [],
       "non_loopback_routes": 0,
-      "namespace": "net:[4026534311]",
+      "namespace": "net:[4026534417]",
       "isolated": true
     }
   }

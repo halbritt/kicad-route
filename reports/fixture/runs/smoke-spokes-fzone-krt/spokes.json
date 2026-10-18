@@ -1,21 +1,21 @@
 {
   "kind": "spokes",
-  "run_dir": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z",
-  "validation_dir": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/validate",
-  "reference_board": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/reference/route_demo/route_demo.kicad_pcb",
-  "plan": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/spokes/reference-plan.json",
+  "run_dir": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z",
+  "validation_dir": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z/validate",
+  "reference_board": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z/reference/route_demo/route_demo.kicad_pcb",
+  "plan": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z/spokes/reference-plan.json",
   "plan_command": {
     "argv": [
       "/usr/bin/python3",
       "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
       "plan",
-      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/reference/route_demo/route_demo.kicad_pcb",
-      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/spokes/reference-plan.json"
+      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z/reference/route_demo/route_demo.kicad_pcb",
+      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z/spokes/reference-plan.json"
     ],
-    "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z",
-    "log": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/spokes/plan.log",
+    "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z",
+    "log": "runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z/spokes/plan.log",
     "exit_code": 0,
-    "duration_s": 5.528
+    "duration_s": 1.506
   },
   "clearance_mm": 0.4,
   "min_resolved_spokes": 2,

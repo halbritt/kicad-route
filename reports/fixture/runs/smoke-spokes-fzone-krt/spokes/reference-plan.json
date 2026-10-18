@@ -1,5 +1,5 @@
 {
- "board": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/reference/route_demo/route_demo.kicad_pcb",
+ "board": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z/reference/route_demo/route_demo.kicad_pcb",
  "per_pad": 2,
  "min_resolved_spokes": 2,
  "refilled": true,
@@ -15,7 +15,7 @@
    "net": "GND",
    "layer": "F.Cu",
    "zone": "GND_F",
-   "zone_uuid": "04daf286-a129-4d81-9f41-4c1f2d35fa0e",
+   "zone_uuid": "35a3493f-01f7-4344-9a4d-0867bd89c909",
    "position": [
     110950000,
     104000000
@@ -328,7 +328,7 @@
    "net": "GND",
    "layer": "F.Cu",
    "zone": "GND_F",
-   "zone_uuid": "04daf286-a129-4d81-9f41-4c1f2d35fa0e",
+   "zone_uuid": "35a3493f-01f7-4344-9a4d-0867bd89c909",
    "position": [
     104000000,
     108540000
@@ -646,7 +646,7 @@
    "net": "GND",
    "layer": "F.Cu",
    "zone": "GND_F",
-   "zone_uuid": "04daf286-a129-4d81-9f41-4c1f2d35fa0e",
+   "zone_uuid": "35a3493f-01f7-4344-9a4d-0867bd89c909",
    "position": [
     146000000,
     108540000

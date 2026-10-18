@@ -1,14 +1,14 @@
 {
   "manifest": {
     "schema": "kicad-route/state/1",
-    "state_dir": "/tmp/pytest-of-halbritt/pytest-1338/test_manifest_records_the_inst0/state",
+    "state_dir": "/tmp/pytest-of-halbritt/pytest-1368/test_manifest_records_the_inst0/state",
     "written_by": "test",
-    "updated_utc": "2026-10-18T03:39:09.044634+00:00",
+    "updated_utc": "2026-10-18T10:02:34.960759+00:00",
     "pinned": false,
     "kicad_route": {
-      "version": "a928b15",
-      "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
-      "dirty": false
+      "version": "c45a2db-dirty",
+      "commit": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
+      "dirty": true
     },
     "python": {
       "version": "3.12.3",
@@ -51,9 +51,9 @@
       "url": "https://example.invalid/freerouting-9.9.9.jar",
       "jar": {
         "path": "vendor/freerouting/current/freerouting-9.9.9.jar",
-        "sha256": "91bb617f0787cd3351e020339d113381a2805898237d1d5eb17fc3fb3dcef53c"
+        "sha256": "85f046ad5dd7d498e64cbb71947854131c0060e242365e17ec4120b481684799"
       },
-      "release_sha256": "91bb617f0787cd3351e020339d113381a2805898237d1d5eb17fc3fb3dcef53c",
+      "release_sha256": "85f046ad5dd7d498e64cbb71947854131c0060e242365e17ec4120b481684799",
       "sha256_matches_release": true,
       "github_digest_match": null,
       "build_revision": "abc123",
@@ -81,7 +81,7 @@
     [
       "state manifest",
       "PASS",
-      "/tmp/pytest-of-halbritt/pytest-1338/test_manifest_records_the_inst0/state/manifest.json (2026-10-18T03:39:09.044634+00:00, by test)",
+      "/tmp/pytest-of-halbritt/pytest-1368/test_manifest_records_the_inst0/state/manifest.json (2026-10-18T10:02:34.960759+00:00, by test)",
       true
     ],
     [

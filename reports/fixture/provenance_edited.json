@@ -2,10 +2,10 @@
   "kind": "copper-provenance",
   "requested_protect": "human",
   "chain": [
-    "runs/route_demo/prov-edited/20261018T042057.386885Z",
-    "/tmp/pytest-of-halbritt/pytest-1338/test_copper_edited_between_ste0/step1"
+    "runs/route_demo/prov-edited/20261018T103945.102825Z",
+    "/tmp/pytest-of-halbritt/pytest-1368/test_copper_edited_between_ste0/step1"
   ],
-  "origin_run": "/tmp/pytest-of-halbritt/pytest-1338/test_copper_edited_between_ste0/step1",
+  "origin_run": "/tmp/pytest-of-halbritt/pytest-1368/test_copper_edited_between_ste0/step1",
   "input_is_candidate": true,
   "effective_protect": "human",
   "layer_ids": {
@@ -38,10 +38,10 @@
         "/SIG_A",
         0,
         250000,
-        104000000,
-        111100000,
-        105800000,
-        111100000
+        113900000,
+        103000000,
+        124100000,
+        103000000
       ]
     ]
   }

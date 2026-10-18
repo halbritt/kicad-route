@@ -3,11 +3,11 @@
 - Backend: krt 0.23.1 (v0.23.1)
 - Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint ba2f343c49e2f971)
 - Scope: selected, 2 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/floor-preflight/20261018T100858.722333Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 19.004 s |
+| process | PASS | exit 0, 9.045 s |
 | routing | COMPLETE | 0 unconnected in scope, 4 total (input: 6) |
 | validation | FAIL | input rules below the declared rule floor (1): rules.min_clearance 0.15 is below the declared floor 0.2 (owner hw) |
 

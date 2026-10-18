@@ -3,9 +3,9 @@
   "project": "route_demo",
   "board": "route_demo.kicad_pcb",
   "schematic": "route_demo.kicad_sch",
-  "input_fingerprint": "ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472",
+  "input_fingerprint": "79585bbdb967c8af7f6493c5ac7814faecf64297d1ece8f12d8db45a3e6ea6ef",
   "source": {
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/blocked0/route_demo",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1368/blocked0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": []
@@ -19,7 +19,7 @@
     "not_loaded": []
   },
   "baseline": {
-    "report": "../../../../.cache/baseline/ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472/baseline-drc.json",
+    "report": "../../../../.cache/baseline/79585bbdb967c8af7f6493c5ac7814faecf64297d1ece8f12d8db45a3e6ea6ef/baseline-drc.json",
     "cached": true,
     "reasons": []
   },

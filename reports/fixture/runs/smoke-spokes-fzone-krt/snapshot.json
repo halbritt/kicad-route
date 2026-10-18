@@ -1,6 +1,6 @@
 {
   "project": "route_demo_fzone",
-  "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/fzone0/route_demo",
+  "source_dir": "/tmp/pytest-of-halbritt/pytest-1368/fzone0/route_demo",
   "source": "working tree",
   "source_git_head": null,
   "source_dirty_files": [],
@@ -18,7 +18,7 @@
   "files": {
     "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
     "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
-    "route_demo.kicad_pcb": "7a4eecc5169e36e3a4d6ace7556525fe877007649d31db28dddd78e47cf46e47",
+    "route_demo.kicad_pcb": "7d75745d493b3898917502be1dcae153c0d0056ec57c5da5fdd790c9574f0685",
     "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
     "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
     "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"

@@ -29,7 +29,7 @@
       "/SIG_A*"
     ],
     "netclasses": [],
-    "rule_floor_sha256": "f8890003dcc9a692caae0d740d671ee4f1ce0268dc592747d8b0268dff494824"
+    "rule_floor_sha256": "e9a7fa3c690e59174c3150ffe0caac5126c26d9f6dceb9cb505807c372d2b51a"
   },
   "scope": {
     "mode": "selected",
@@ -68,7 +68,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 19.004,
+    "runtime_s": 9.045,
     "backend_report": {
       "successful": 2,
       "failed": 0,
@@ -80,7 +80,7 @@
       "pad_pairs_total": 2,
       "total_vias": 0,
       "total_iterations": 408,
-      "total_time": 0.05,
+      "total_time": 0.02,
       "protected_skipped": null,
       "scope": "merged",
       "relaxations": {
@@ -122,7 +122,7 @@
     "reasons": [
       "input rules below the declared rule floor (1): rules.min_clearance 0.15 is below the declared floor 0.2 (owner hw)"
     ],
-    "dir": "runs/route_demo/floor-preflight/20261018T035000.054432Z/validate",
+    "dir": "runs/route_demo/floor-preflight/20261018T100858.722333Z/validate",
     "floor_violated": [
       {
         "setting": "rules.min_clearance",
@@ -131,7 +131,7 @@
         "status": "looser",
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1368/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     ],
     "rules_files": {
@@ -141,7 +141,7 @@
     },
     "restored_project_files": [],
     "delivered_project_files": [],
-    "delivered_board_sha256": "4549e20f621ff3d66db611cc90a4e266c10a940dbd7b76f05c8121fbf856776d",
+    "delivered_board_sha256": "e9a9d3f4f199886937692039390a3f5d049a8df339d6814589c5e3d398e1a772",
     "drc_commands": [
       {
         "argv": [
@@ -153,13 +153,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T035000.054432Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T100858.722333Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T100858.722333Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo",
-        "log": "runs/route_demo/floor-preflight/20261018T035000.054432Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/floor-preflight/20261018T100858.722333Z/candidate/route_demo",
+        "log": "runs/route_demo/floor-preflight/20261018T100858.722333Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 43.562
+        "duration_s": 17.044
       },
       {
         "argv": [
@@ -173,17 +173,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T035000.054432Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T100858.722333Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/floor-preflight/20261018T100858.722333Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/floor-preflight/20261018T035000.054432Z/candidate/route_demo",
-        "log": "runs/route_demo/floor-preflight/20261018T035000.054432Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/floor-preflight/20261018T100858.722333Z/candidate/route_demo",
+        "log": "runs/route_demo/floor-preflight/20261018T100858.722333Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 54.422
+        "duration_s": 19.528
       }
     ],
-    "validated_board_sha256": "4549e20f621ff3d66db611cc90a4e266c10a940dbd7b76f05c8121fbf856776d",
-    "candidate_board_sha256": "4549e20f621ff3d66db611cc90a4e266c10a940dbd7b76f05c8121fbf856776d",
+    "validated_board_sha256": "e9a9d3f4f199886937692039390a3f5d049a8df339d6814589c5e3d398e1a772",
+    "candidate_board_sha256": "e9a9d3f4f199886937692039390a3f5d049a8df339d6814589c5e3d398e1a772",
     "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
@@ -227,17 +227,17 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/floor-preflight/20261018T035000.054432Z",
+  "run_dir": "runs/route_demo/floor-preflight/20261018T100858.722333Z",
   "floor": {
     "declared_sources": [
-      "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+      "/tmp/pytest-of-halbritt/pytest-1368/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
     ],
     "declared": {
       "rules.min_clearance": {
         "value": 0.2,
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1368/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     },
     "declared_problems": [],
@@ -249,7 +249,7 @@
         "status": "looser",
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1368/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     ],
     "notes": []

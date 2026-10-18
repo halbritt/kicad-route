@@ -5,9 +5,9 @@
  "heuristic": true,
  "method": "straight and L-shaped corridors (net-class track width + 2 x clearance) between the two endpoints of each unconnected item, per copper layer; heuristic pointer, not a proof",
  "boards": {
-  "input_sha256": "9fcee1947bd9a6eb9995355078f569d43ef4351b9bb001b24778e90df0479b43",
-  "candidate_sha256": "b3a33f910ccc5465ada4fd8c9dba40a1ee45248b747738b244a2b7d099099f74",
-  "graded_sha256": "b3a33f910ccc5465ada4fd8c9dba40a1ee45248b747738b244a2b7d099099f74"
+  "input_sha256": "4f34a821c629281016364524f05785cff593221b92d9bcf0418478f24d27310d",
+  "candidate_sha256": "38b193ec66fc9248fee3385befc1915846ab4c34efe452bfe5494ac47b1583cc",
+  "graded_sha256": "38b193ec66fc9248fee3385befc1915846ab4c34efe452bfe5494ac47b1583cc"
  },
  "nets_considered": [
   "/SIG_B",
@@ -62,13 +62,13 @@
   ],
   "input_copper": [
    {
-    "id": "27a3c0ce-6f68-402d-8e5b-6dfb7c5a80db",
+    "id": "ba1f6156-dca4-4199-8009-5ef7d90f0334",
     "kind": "track",
     "net": "/SIG_A",
     "layer": "F.Cu",
     "locked": false,
     "origin": "input",
-    "uuid": "27a3c0ce-6f68-402d-8e5b-6dfb7c5a80db",
+    "uuid": "ba1f6156-dca4-4199-8009-5ef7d90f0334",
     "width_mm": 0.2,
     "start_mm": [
      105.8,
@@ -85,16 +85,16 @@
     "nets_blocked": [
      "/VIN"
     ],
-    "label": "track /SIG_A F.Cu (input, unlocked) 27a3c0ce"
+    "label": "track /SIG_A F.Cu (input, unlocked) ba1f6156"
    },
    {
-    "id": "262accf9-2bb2-4204-862c-c7df2d69b66f",
+    "id": "e5f15cca-56be-4d2e-8d8d-b3cc362460c1",
     "kind": "track",
     "net": "/SIG_A_OUT",
     "layer": "F.Cu",
     "locked": false,
     "origin": "input",
-    "uuid": "262accf9-2bb2-4204-862c-c7df2d69b66f",
+    "uuid": "e5f15cca-56be-4d2e-8d8d-b3cc362460c1",
     "width_mm": 0.2,
     "start_mm": [
      137.9,
@@ -111,7 +111,7 @@
     "nets_blocked": [
      "/VIN"
     ],
-    "label": "track /SIG_A_OUT F.Cu (input, unlocked) 262accf9"
+    "label": "track /SIG_A_OUT F.Cu (input, unlocked) e5f15cca"
    }
   ],
   "new_copper": [],
@@ -148,10 +148,10 @@
    ]
   },
   {
-   "id": "27a3c0ce-6f68-402d-8e5b-6dfb7c5a80db",
+   "id": "ba1f6156-dca4-4199-8009-5ef7d90f0334",
    "category": "input_copper",
    "kind": "track",
-   "label": "track /SIG_A F.Cu (input, unlocked) 27a3c0ce",
+   "label": "track /SIG_A F.Cu (input, unlocked) ba1f6156",
    "net": "/SIG_A",
    "locked": false,
    "origin": "input",
@@ -162,10 +162,10 @@
    ]
   },
   {
-   "id": "262accf9-2bb2-4204-862c-c7df2d69b66f",
+   "id": "e5f15cca-56be-4d2e-8d8d-b3cc362460c1",
    "category": "input_copper",
    "kind": "track",
-   "label": "track /SIG_A_OUT F.Cu (input, unlocked) 262accf9",
+   "label": "track /SIG_A_OUT F.Cu (input, unlocked) e5f15cca",
    "net": "/SIG_A_OUT",
    "locked": false,
    "origin": "input",
@@ -185,28 +185,6 @@
   }
  },
  "footprints": {
-  "C1": {
-   "reference": "C1",
-   "value": "1u",
-   "position_mm": [
-    110.0,
-    104.0
-   ],
-   "orientation_deg": 0.0,
-   "layer": "F.Cu",
-   "side": "front",
-   "locked": false,
-   "blocks": [],
-   "blocks_any_layer": [],
-   "terminates": [
-    0
-   ],
-   "pads_blocking": [],
-   "nets_blocked": [],
-   "nets_terminated": [
-    "/VIN"
-   ]
-  },
   "J2": {
    "reference": "J2",
    "value": "Conn_01x04",
@@ -258,12 +236,12 @@
      ]
     },
     {
-     "description": "Pad 1 [/VIN] of C1 on F.Cu",
-     "uuid": "f005d223-a886-44c6-b628-2f41c9b41e40",
-     "kind": "pad",
+     "description": "Track [/VIN] on F.Cu, length 1.6383 mm",
+     "uuid": "3a9467b0-f724-4944-a56f-a2fb4df7b112",
+     "kind": "track",
      "net": "/VIN",
-     "footprint": "C1",
-     "pad": "1",
+     "footprint": null,
+     "pad": null,
      "layers": [
       "F.Cu"
      ],
@@ -284,24 +262,24 @@
      "soft_count": 0,
      "hard": [
       {
-       "id": "262accf9-2bb2-4204-862c-c7df2d69b66f",
+       "id": "e5f15cca-56be-4d2e-8d8d-b3cc362460c1",
        "kind": "track",
        "category": "input_copper",
        "net": "/SIG_A_OUT",
        "layer": "F.Cu",
        "locked": false,
        "origin": "input",
-       "label": "track /SIG_A_OUT F.Cu 262accf9"
+       "label": "track /SIG_A_OUT F.Cu e5f15cca"
       },
       {
-       "id": "27a3c0ce-6f68-402d-8e5b-6dfb7c5a80db",
+       "id": "ba1f6156-dca4-4199-8009-5ef7d90f0334",
        "kind": "track",
        "category": "input_copper",
        "net": "/SIG_A",
        "layer": "F.Cu",
        "locked": false,
        "origin": "input",
-       "label": "track /SIG_A F.Cu 27a3c0ce"
+       "label": "track /SIG_A F.Cu ba1f6156"
       },
       {
        "id": "rule_area:route_keepout",

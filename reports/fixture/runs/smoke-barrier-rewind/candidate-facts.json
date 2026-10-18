@@ -848,7 +848,7 @@
    "no"
   ]
  ],
- "sha256": "3cf60fdb6e06036cc913fcff55d9a5fd3267d508cc8caadc36954bafa044dd4e",
+ "sha256": "51c779677d9dfc6e9e8e5f560778fae6b193af56f0fbdb9917e0003a7a6cbc7e",
  "stackup": [
   "stackup",
   [
@@ -975,22 +975,6 @@
  "tracks": [
   {
    "end": [
-    124100000,
-    103000000
-   ],
-   "kind": "segment",
-   "layer": "F.Cu",
-   "locked": false,
-   "net": "/SIG_A",
-   "start": [
-    114200000,
-    103000000
-   ],
-   "uuid": "0065c52e-fa4c-42ef-980a-e8481859387e",
-   "width": 200000
-  },
-  {
-   "end": [
     106100000,
     111100000
    ],
@@ -1002,7 +986,7 @@
     104000000,
     111100000
    ],
-   "uuid": "3c3ead08-d413-4443-8956-6793cb957f6d",
+   "uuid": "4fe507b5-c09f-4a63-824d-b1ba08e0c3ec",
    "width": 200000
   },
   {
@@ -1018,7 +1002,23 @@
     106100000,
     111100000
    ],
-   "uuid": "56fa8ede-535d-4596-a052-e35a545ee547",
+   "uuid": "60842fb1-878d-4ab8-bc5a-d4965e408ede",
+   "width": 200000
+  },
+  {
+   "end": [
+    124100000,
+    103000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A",
+   "start": [
+    114200000,
+    103000000
+   ],
+   "uuid": "d2104ba0-7144-4480-a138-0bbaecd3b382",
    "width": 200000
   },
   {

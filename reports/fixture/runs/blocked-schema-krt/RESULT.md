@@ -1,13 +1,13 @@
 # Routing attempt: krt on route_demo
 
 - Backend: krt 0.23.1 (v0.23.1)
-- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint ac02d10cd05dec4a)
+- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 79585bbdb967c8af)
 - Scope: all, 6 nets; protect: existing; budget 600 s
-- Candidate: `runs/route_demo/blocked-schema-krt/20261018T030549.815328Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/blocked-schema-krt/20261018T094248.111856Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 239.142 s |
+| process | PASS | exit 0, 111.349 s |
 | routing | INCOMPLETE | 4 unconnected in scope, 4 total (input: 7) |
 | validation | FAIL | 1 new DRC violations: clearance 1 |
 
@@ -63,13 +63,13 @@ Unsupported or approximated by this backend:
 - KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class
 - backend reported: .kicad_dru: rule 'power_to_signal_clearance': clearance 0.4mm has a non-layer scope (netclass/area/... condition) -- skipped, KiCad will still enforce it
 
-Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/blocked-schema-krt/20261018T030549.815328Z/validate/blocked-by.json`):
+Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/blocked-schema-krt/20261018T094248.111856Z/validate/blocked-by.json`):
 
 | Blocker | Category | Blocks (best layer) | Blocks (any layer) |
 |---|---|---|---|
 | keepout 'wall' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 4 | 4 |
 | keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 3 | 3 |
-| track /SIG_A F.Cu (new, unlocked) 4dd4c634 | new_copper | 0 | 2 |
+| track /SIG_A F.Cu (new, unlocked) c56df3e3 | new_copper | 0 | 2 |
 
 - `/SIG_A_OUT`: 1 open; best layer F.Cu with 2 hard blockers (keepout 'route_keepout', keepout 'wall')
 - `/SIG_B_OUT`: 1 open; best layer F.Cu with 1 hard blockers (keepout 'wall')

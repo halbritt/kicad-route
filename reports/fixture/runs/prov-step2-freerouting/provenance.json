@@ -2,10 +2,10 @@
   "kind": "copper-provenance",
   "requested_protect": "human",
   "chain": [
-    "runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z",
-    "runs/route_demo/prov-step1/20261018T041252.302460Z"
+    "runs/route_demo/prov-step2-freerouting/20261018T103820.596247Z",
+    "runs/route_demo/prov-step1/20261018T103052.304138Z"
   ],
-  "origin_run": "runs/route_demo/prov-step1/20261018T041252.302460Z",
+  "origin_run": "runs/route_demo/prov-step1/20261018T103052.304138Z",
   "input_is_candidate": true,
   "effective_protect": "human",
   "layer_ids": {
@@ -128,6 +128,16 @@
         "/SIG_A",
         0,
         200000,
+        113900000,
+        103000000,
+        124100000,
+        103000000
+      ],
+      [
+        "track",
+        "/SIG_A",
+        0,
+        200000,
         104000000,
         111100000,
         105800000,
@@ -141,16 +151,6 @@
         105800000,
         111100000,
         113900000,
-        103000000
-      ],
-      [
-        "track",
-        "/SIG_A",
-        0,
-        200000,
-        113900000,
-        103000000,
-        124100000,
         103000000
       ]
     ]

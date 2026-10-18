@@ -56,7 +56,7 @@
   {
     "check": "keepouts",
     "status": "PASS",
-    "detail": "2 rule areas",
+    "detail": "1 rule areas",
     "differences": []
   },
   {
@@ -74,7 +74,7 @@
   {
     "check": "new_copper_netclass_geometry",
     "status": "PASS",
-    "detail": "0 new tracks and 0 new vias checked against their net class width / via (microvia) diameter / drill (1 um quantisation tolerance)",
+    "detail": "17 new tracks and 2 new vias checked against their net class width / via (microvia) diameter / drill (1 um quantisation tolerance)",
     "differences": []
   },
   {
@@ -94,7 +94,7 @@
   {
     "check": "pour_integrity",
     "status": "PASS",
-    "detail": "1 copper zones, 2 zone-connected pads compared on the refilled boards (min spokes 2); GND@B.Cu 1111.2 mm2 (0.0 %), 2 polygons, 256.2 mm2 off the main pour",
+    "detail": "1 copper zones, 2 zone-connected pads compared on the refilled boards (min spokes 2); GND\"A@B.Cu 1106.5 mm2 (-5.365 %), 1 polygons",
     "differences": []
   }
 ]

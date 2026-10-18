@@ -2,7 +2,7 @@
   "kind": "route-smoke",
   "status": "PASS",
   "pytest_exit_code": 0,
-  "time_utc": "2026-10-18T05:31:52.449245+00:00",
+  "time_utc": "2026-10-18T11:09:42.601666+00:00",
   "versions": {
     "krt": {
       "version": "0.23.1",
@@ -21,7 +21,7 @@
     },
     "kicad-cli": "10.0.7",
     "python": "3.12.3",
-    "kicad-route": "a928b15"
+    "kicad-route": "c45a2db-dirty"
   },
   "junit": "junit.xml",
   "tests": [
@@ -45,6 +45,10 @@
     "doctor",
     "doctor_offline",
     "doctor_offline_netns",
+    "dsn_quoted_nets_ambiguous_refusal",
+    "dsn_quoted_nets_collision_refusal",
+    "dsn_quoted_nets_export",
+    "dsn_quoted_nets_freerouting",
     "evidence_manifest_determinism",
     "evidence_manifest_unit_manifest",
     "floor_audit_lowered",
@@ -52,6 +56,9 @@
     "floor_run_preflight",
     "freerouting_netclass_selection",
     "freerouting_round_trip",
+    "home_containment_doctor",
+    "home_containment_freerouting",
+    "home_containment_krt",
     "hygiene_canary",
     "hygiene_canary_quick",
     "hygiene_corpus",
@@ -68,6 +75,7 @@
     "pour_area_loss",
     "pour_crowd_3",
     "pour_crowd_4",
+    "pour_lost_reach",
     "pour_round_trip",
     "pour_slice",
     "process_hygiene_uncooperative_backend",

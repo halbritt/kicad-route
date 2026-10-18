@@ -10,7 +10,7 @@
   "differs_at": "candidate_bytes",
   "runs": [
     {
-      "run_dir": "runs/route_demo/determinism-krt-1/20261018T033936.047032Z",
+      "run_dir": "runs/route_demo/determinism-krt-1/20261018T100254.049783Z",
       "exit_code": 3,
       "outcome": {
         "process": "PASS",
@@ -19,8 +19,8 @@
         "unconnected_in_scope": 0
       },
       "wall_clock_stop": false,
-      "backend_output_bytes": "85369601b29feddd4a143b74fe0bf18a849e482a1e9ee5d4951326ca290fc1c9",
-      "candidate_bytes": "85369601b29feddd4a143b74fe0bf18a849e482a1e9ee5d4951326ca290fc1c9",
+      "backend_output_bytes": "ea11ef8093e3f7a81001918cc19691cb09965b6f820941c7f113f922464c10f0",
+      "candidate_bytes": "ea11ef8093e3f7a81001918cc19691cb09965b6f820941c7f113f922464c10f0",
       "copper_geometry": "c1653d98c21eaa8b7fa56e3cde05a3ad117f7bed9df01f665e73dfbd6a6fdc72",
       "copper_items": {
         "tracks": 19,
@@ -28,7 +28,7 @@
       }
     },
     {
-      "run_dir": "runs/route_demo/determinism-krt-2/20261018T034101.950779Z",
+      "run_dir": "runs/route_demo/determinism-krt-2/20261018T100353.277625Z",
       "exit_code": 3,
       "outcome": {
         "process": "PASS",
@@ -37,8 +37,8 @@
         "unconnected_in_scope": 0
       },
       "wall_clock_stop": false,
-      "backend_output_bytes": "69f28eecbc7cc495c6984d87c541ecf2187b49d8dc6a2536e7a24337b59caa98",
-      "candidate_bytes": "69f28eecbc7cc495c6984d87c541ecf2187b49d8dc6a2536e7a24337b59caa98",
+      "backend_output_bytes": "a65cc6b70f28d439deccbfd18e0e446c49dc509723c7554e7848b4ec91108091",
+      "candidate_bytes": "a65cc6b70f28d439deccbfd18e0e446c49dc509723c7554e7848b4ec91108091",
       "copper_geometry": "c1653d98c21eaa8b7fa56e3cde05a3ad117f7bed9df01f665e73dfbd6a6fdc72",
       "copper_items": {
         "tracks": 19,

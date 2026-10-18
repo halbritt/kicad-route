@@ -5,7 +5,7 @@
   "schematic": "route_demo.kicad_sch",
   "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
   "source": {
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1368/test_run_preflight_fails_valid0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": []
@@ -54,18 +54,18 @@
       "/SIG_A*"
     ],
     "netclasses": [],
-    "rule_floor_sha256": "f8890003dcc9a692caae0d740d671ee4f1ce0268dc592747d8b0268dff494824"
+    "rule_floor_sha256": "e9a7fa3c690e59174c3150ffe0caac5126c26d9f6dceb9cb505807c372d2b51a"
   },
   "floor": {
     "declared_sources": [
-      "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+      "/tmp/pytest-of-halbritt/pytest-1368/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
     ],
     "declared": {
       "rules.min_clearance": {
         "value": 0.2,
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1368/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     },
     "declared_problems": [],
@@ -77,7 +77,7 @@
         "status": "looser",
         "reason": "fab",
         "owner": "hw",
-        "source": "/tmp/pytest-of-halbritt/pytest-1338/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
+        "source": "/tmp/pytest-of-halbritt/pytest-1368/test_run_preflight_fails_valid0/route_demo/route_demo.rules-floor.json"
       }
     ],
     "notes": []

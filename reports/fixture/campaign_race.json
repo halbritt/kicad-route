@@ -26,9 +26,9 @@
       "new_violations": 0,
       "new_parity": 0,
       "preservation_failures": [],
-      "runtime_s": 94.858,
-      "end_run": "runs/route_demo/campaign-race-r0/20261018T032025.577439Z",
-      "candidate": "runs/route_demo/campaign-race-r0/20261018T032025.577439Z/candidate/route_demo/route_demo.kicad_pcb"
+      "runtime_s": 53.361,
+      "end_run": "runs/route_demo/campaign-race-r0/20261018T095039.555660Z",
+      "candidate": "runs/route_demo/campaign-race-r0/20261018T095039.555660Z/candidate/route_demo/route_demo.kicad_pcb"
     },
     {
       "rank": 2,
@@ -44,9 +44,9 @@
       "new_violations": 0,
       "new_parity": 0,
       "preservation_failures": [],
-      "runtime_s": 306.983,
-      "end_run": "runs/route_demo/campaign-race-r0-pads-rest/20261018T032206.011880Z",
-      "candidate": "runs/route_demo/campaign-race-r0-pads-rest/20261018T032206.011880Z/candidate/route_demo/route_demo.kicad_pcb"
+      "runtime_s": 145.07,
+      "end_run": "runs/route_demo/campaign-race-r0-pads-rest/20261018T095133.498141Z",
+      "candidate": "runs/route_demo/campaign-race-r0-pads-rest/20261018T095133.498141Z/candidate/route_demo/route_demo.kicad_pcb"
     }
   ],
   "stop_reason": "complete in round 0",
@@ -54,10 +54,10 @@
     "chain": "r0",
     "round": 0,
     "strategy": "full",
-    "run_dir": "runs/route_demo/campaign-race-r0/20261018T032025.577439Z",
-    "candidate": "runs/route_demo/campaign-race-r0/20261018T032025.577439Z/candidate/route_demo/route_demo.kicad_pcb",
-    "graded_against": "runs/route_demo/campaign-race-r0/20261018T032025.577439Z",
-    "grade": "runs/route_demo/campaign-race-r0/20261018T032025.577439Z/result.json",
+    "run_dir": "runs/route_demo/campaign-race-r0/20261018T095039.555660Z",
+    "candidate": "runs/route_demo/campaign-race-r0/20261018T095039.555660Z/candidate/route_demo/route_demo.kicad_pcb",
+    "graded_against": "runs/route_demo/campaign-race-r0/20261018T095039.555660Z",
+    "grade": "runs/route_demo/campaign-race-r0/20261018T095039.555660Z/result.json",
     "exit_code": 0,
     "evidence": {
       "input_board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
@@ -75,27 +75,27 @@
         "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550"
       },
       "rule_floor_sha256": null,
-      "backend_output_board_sha256": "8fbf4508e0cb52a6bb55ace63f3b0e8a6d397a838759f4524df7538a0db2b5aa",
-      "candidate_board_sha256": "8fbf4508e0cb52a6bb55ace63f3b0e8a6d397a838759f4524df7538a0db2b5aa",
+      "backend_output_board_sha256": "60f264457a3b0b847334d9325cd536e4f34b049f829f7d43e45bd10318be6442",
+      "candidate_board_sha256": "60f264457a3b0b847334d9325cd536e4f34b049f829f7d43e45bd10318be6442",
       "candidate_copper_signature": {
         "sha256": "be567862c42fa29ebfad0d7bed3680a1dd31830be1334d184301964e066d4126",
         "tracks": 10,
         "vias": 2
       },
       "records": {
-        "attempt.json": "eadf6acdc22a32d6cba571621226fbae618739c5b3f7e9956a9693ee1d368950",
+        "attempt.json": "9bc67b3fd8a1db6066d46ae3e8e743f7b3efa4b5d1031ef89b968275fa6ca3a8",
         "validate/preservation.json": "0475f2d53117ca81e1c36e195122157177503f28016785c854976a675d15ca3a",
         "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
-        "validate/candidate-drc.json": "d73010bb20993706ff2fee5fea92547c286f65179d6e8e2208c3deb6d16ed82e",
-        "validate/candidate-facts.json": "6dcebaab75c7d312ceda97c08007309b336e25b2575290983566a414ad8ff587",
-        "validate/pour-integrity.json": "5ed086b0534ae5d23c2ca5a8131958cbf98c07fe61a200400b2c5481aec7c171"
+        "validate/candidate-drc.json": "0945c6ffd5518b2f5026e023008ed7a4a5d05d1feb1883e48a033489dd7485c4",
+        "validate/candidate-facts.json": "1ca5477d5ca1d69f5ea2b4502bc34dcacc84e51229e8563fb37e9a993f0893d9",
+        "validate/pour-integrity.json": "ad2c0bb65b45357cf775247b8a0d63d8cec5e516a06da30d3cec25f29d5bd399"
       }
     },
     "tool_identity": {
       "kicad_route": {
-        "version": "a928b15",
-        "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
-        "dirty": false
+        "version": "c45a2db-dirty",
+        "commit": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
+        "dirty": true
       },
       "kicad_cli": {
         "path": "/usr/bin/kicad-cli",

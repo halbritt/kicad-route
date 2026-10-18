@@ -14,8 +14,8 @@
     "copper": "b4f8f1889c35622e0457f056a8e495cdbdf58aa42e658cfc61ea07cb7991d4ce",
     "rest": "3ef53ad1130f01554be186151f541970da9b8d8522c60abe77e352ab1a72168f"
   },
-  "candidate_sha256": "639eed92e384b2ae49b0a84b57ba12c6dedb08825239990415192f9ef9eecb76",
-  "unsandboxed_candidate_sha256": "564fc52799aaca69d2f16f1c0b1bb5b809f8683fffd190c51ff7c38d5208efd0",
+  "candidate_sha256": "50fd7498d8fe4e2ed1ef10696be2e67e419594c35835bc0b9b5dea23b773242e",
+  "unsandboxed_candidate_sha256": "fc409e0050de78a4003c2169bd72d3e3e2f30e7f84328aa92b01a5fcf20ab3c9",
   "sandbox": {
     "require_readonly_state": true,
     "state": {
@@ -38,12 +38,30 @@
     "out": {
       "path": "/work/out"
     },
+    "home": {
+      "HOME": "/work/home",
+      "required": false,
+      "tool_home": "/work/out/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/work/out/.kicad-config",
+        "KICAD_CACHE_HOME": "/work/out/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/work/out/.home/data",
+        "XDG_CONFIG_HOME": "/work/out/.home/config",
+        "XDG_CACHE_HOME": "/work/out/.home/cache",
+        "XDG_DATA_HOME": "/work/out/.home/data",
+        "XDG_STATE_HOME": "/work/out/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/work/out/.home/java",
+        "-Djava.util.prefs.userRoot=/work/out/.home/java/prefs"
+      ]
+    },
     "network": {
       "interfaces": 1,
       "non_loopback_interfaces": 0,
       "non_loopback_examples": [],
       "non_loopback_routes": 0,
-      "namespace": "net:[4026534484]",
+      "namespace": "net:[4026534418]",
       "connect_probe": {
         "target": "192.0.2.1:9/udp",
         "sends_packet": false,

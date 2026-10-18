@@ -15,13 +15,13 @@
   "input": {
     "project": "route_demo",
     "board": "route_demo.kicad_pcb",
-    "fingerprint": "05694d866aef4895a59a9c99e9110fa811a7b327abb74b974f94ab707f36bcfc",
-    "source_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261018T041252.302460Z/candidate/route_demo",
+    "fingerprint": "4f765361ce671bde2656e355eb3bdc236ac833bef80821cb3d9794fe0e75b68b",
+    "source_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261018T103052.304138Z/candidate/route_demo",
     "source": "working tree",
-    "source_git_head": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
+    "source_git_head": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
     "source_dirty_files": [],
     "baseline": {
-      "report": "../../../../.cache/baseline/05694d866aef4895a59a9c99e9110fa811a7b327abb74b974f94ab707f36bcfc/baseline-drc.json",
+      "report": "../../../../.cache/baseline/4f765361ce671bde2656e355eb3bdc236ac833bef80821cb3d9794fe0e75b68b/baseline-drc.json",
       "cached": false,
       "reasons": []
     },
@@ -82,9 +82,9 @@
         "argv": [
           "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
           "/home/halbritt/git/kicad-route/vendor/krt/py_router/route.py",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/input/route_demo/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/input/route_demo/route_demo.kicad_pcb",
           "--output",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/krt-out/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/krt-out/route_demo.kicad_pcb",
           "--escalation",
           "off",
           "--fab-tier",
@@ -93,7 +93,7 @@
           "--no-power-tap-neckdown",
           "--no-fix-drc-settings",
           "--json-out",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/krt-out/summary.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/krt-out/summary.json",
           "--clearance",
           "0.4",
           "--nets",
@@ -102,8 +102,8 @@
           "/VIN",
           "GND"
         ],
-        "cwd": "runs/route_demo/prov-step2/20261018T041421.061002Z/work",
-        "log": "runs/route_demo/prov-step2/20261018T041421.061002Z/work/krt.log",
+        "cwd": "runs/route_demo/prov-step2/20261018T103306.141038Z/work",
+        "log": "runs/route_demo/prov-step2/20261018T103306.141038Z/work/krt.log",
         "env": {
           "KICAD_INRUN_FLOOR_SYNC": "0",
           "KICAD_TERMINAL_ESCALATION": "0",
@@ -111,7 +111,7 @@
           "KICAD_RESCUE_CAP_MOVE": "0",
           "KICAD_DYNAMIC_ITERATIONS": "0",
           "KICAD_CLI": "/usr/bin/kicad-cli",
-          "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/STOP"
+          "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/STOP"
         },
         "budget_s": 180,
         "last_phase": "improvement gate",
@@ -120,41 +120,41 @@
         },
         "heartbeats": {
           "count": 19,
-          "log": "runs/route_demo/prov-step2/20261018T041421.061002Z/work/heartbeat.jsonl",
+          "log": "runs/route_demo/prov-step2/20261018T103306.141038Z/work/heartbeat.jsonl",
           "stall_s": null,
-          "since_last_progress_s": 0.7,
+          "since_last_progress_s": 0.4,
           "tail": [
             {
-              "t_s": 8.27,
-              "utc": "2026-10-18T04:15:16.417094+00:00",
+              "t_s": 9.029,
+              "utc": "2026-10-18T10:34:21.198977+00:00",
               "phase": "plane finalize",
               "metric": {},
               "line": "Plane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies"
             },
             {
-              "t_s": 10.275,
-              "utc": "2026-10-18T04:15:18.422088+00:00",
+              "t_s": 10.788,
+              "utc": "2026-10-18T10:34:22.957623+00:00",
               "phase": "oracle recheck",
               "metric": {},
               "line": "KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)"
             },
             {
-              "t_s": 44.771,
-              "utc": "2026-10-18T04:15:52.918261+00:00",
+              "t_s": 49.438,
+              "utc": "2026-10-18T10:35:01.607587+00:00",
               "phase": "regrade",
               "metric": {},
-              "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 3, \"seconds\": 0.05, \"routed_single\": [\"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [], \"open_single\": [], \"f..."
+              "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 3, \"seconds\": 0.12, \"routed_single\": [\"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [], \"open_single\": [], \"f..."
             },
             {
-              "t_s": 44.771,
-              "utc": "2026-10-18T04:15:52.918410+00:00",
+              "t_s": 49.438,
+              "utc": "2026-10-18T10:35:01.607812+00:00",
               "phase": "Run complete -- whole run, re-graded on the written board (3 net(s), 0.1s)",
               "metric": {},
               "line": "============================================================"
             },
             {
-              "t_s": 45.033,
-              "utc": "2026-10-18T04:15:53.180105+00:00",
+              "t_s": 49.689,
+              "utc": "2026-10-18T10:35:01.858120+00:00",
               "phase": "improvement gate",
               "metric": {
                 "disconnected_pads_before": 4
@@ -165,21 +165,21 @@
         },
         "stalled": false,
         "exit_code": 0,
-        "duration_s": 45.709,
-        "output_tail": "rules\": {\"escalation_policy\": \"off\", \"fab_tier\": \"standard\", \"board_floors\": {\"clearance\": 0.15, \"track_width\": 0.15, \"via_diameter\": 0.5, \"via_drill\": 0.25, \"hole_to_hole\": 0.25, \"annular\": 0.1, \"board_edge\": 0.3}, \"count\": 0, \"nets\": [], \"narrowed\": [], \"min_delivered\": {}, \"fab_tier_escalations\": 0, \"fab_tier_contexts\": [], \"fab_tier_target\": \"advanced\", \"unsupported_rules\": []}, \"plane_fragility\": {\"source\": \"kicad_refill\", \"islands\": 1, \"refill_status\": \"ok\", \"why\": \"the KiCad refill succeeded\", \"machine_dependent\": false}, \"oracle_check\": \"disabled\", \"protected_skipped\": {\"pre-existing rip candidacy\": {\"/SIG_B\": \"locked\"}}, \"pad_pairs_connected\": 5, \"pad_pairs_total\": 5, \"scope\": \"run\", \"env_knobs\": {\"KICAD_CLI\": \"/usr/bin/kicad-cli\", \"KICAD_DYNAMIC_ITERATIONS\": \"0\", \"KICAD_IMPEDANCE_NECKDOWN\": \"0\", \"KICAD_INRUN_FLOOR_SYNC\": \"0\", \"KICAD_RESCUE_CAP_MOVE\": \"0\", \"KICAD_ROUTE_LEDGER\": \"off\", \"KICAD_ROUTE_STATE\": \"/home/halbritt/git/kicad-route\", \"KICAD_ROUTE_TEST_OUT\": \"/home/halbritt/git/kicad-route/build/kicad-route/smoke\", \"KICAD_STOP_FILE\": \"/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/STOP\", \"KICAD_TERMINAL_ESCALATION\": \"0\"}}\n\nWriting output to /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/krt-out/route_demo.kicad_pcb...\nSuccessfully wrote /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/krt-out/route_demo.kicad_pcb\n\nPlane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies\n  KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)\n  KiCad-oracle recheck: KiCad reports all processed nets complete\n  [finalize timing] oracle leg: 36.3s\nJSON_ORACLE: {\"available\": true, \"reason\": \"ok\", \"why\": \"the oracle ran\", \"rounds\": 0, \"links_routed\": 0, \"links_failed\": 0, \"remaining\": 0, \"collapsed_duplicate_links\": 0, \"remaining_links\": [], \"cross_board\": 0, \"removed_segments\": [], \"removed_vias\": []}\n  Strict collapse (#1063, end of run): removed 1 redundant segment(s) on 1 net(s)\n\n  FAB NOTE (route): 1 via(s) in a pad or paste opening [C1.2 F.Paste (pad)] -- 1 stamped (capping yes) (filling yes), 0 already filled+capped. via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel.\nVIA_IN_PAD_JSON: {\"count\": 1, \"sites\": [\"C1.2 F.Paste (pad)\"], \"stamped\": 1, \"restored\": 0, \"protected\": 0, \"unstampable\": 0, \"site_created\": 0, \"unprotected\": [], \"note\": \"via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel\"}\nJSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 3, \"seconds\": 0.05, \"routed_single\": [\"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_pads_total\": 6, \"multipoint_pads_connected\": 6, \"successful\": 3, \"failed\": 0, \"unowned_broken\": [], \"recovered\": [], \"broken_by_run\": []}\n\n============================================================\nRun complete -- whole run, re-graded on the written board (3 net(s), 0.1s)\n============================================================\n  Single-ended:  3/3 routed\n  Multi-point:   6/6 pads connected\n  route summary written to /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/krt-out/summary.json\nJSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/SIG_B_OUT\", \"/VIN\", \"GND\"], \"worsened\": [], \"disconnected_pads_before\": 4, \"disconnected_pads_after\": 0, \"nets_compared\": 6, \"verdict\": \"accept\"}\nJSON_SUMMARY_MIN: {\"escalations\": 0, \"failed\": 0, \"failed_single\": [], \"main_loop_time_s\": 0.09, \"min_clearance_used\": 0.4, \"multipoint_deficit\": 0, \"open_single\": [], \"pad_pairs_open\": {\"count\": 0, \"nets\": []}, \"regraded_nets\": 3, \"routed\": 3, \"scope\": \"merged\", \"terminal_restores_broken\": [], \"vias\": 1}\nEXIT=0\n"
+        "duration_s": 50.101,
+        "output_tail": " 0.15, \"track_width\": 0.15, \"via_diameter\": 0.5, \"via_drill\": 0.25, \"hole_to_hole\": 0.25, \"annular\": 0.1, \"board_edge\": 0.3}, \"count\": 0, \"nets\": [], \"narrowed\": [], \"min_delivered\": {}, \"fab_tier_escalations\": 0, \"fab_tier_contexts\": [], \"fab_tier_target\": \"advanced\", \"unsupported_rules\": []}, \"plane_fragility\": {\"source\": \"kicad_refill\", \"islands\": 1, \"refill_status\": \"ok\", \"why\": \"the KiCad refill succeeded\", \"machine_dependent\": false}, \"oracle_check\": \"disabled\", \"protected_skipped\": {\"pre-existing rip candidacy\": {\"/SIG_B\": \"locked\"}}, \"pad_pairs_connected\": 5, \"pad_pairs_total\": 5, \"scope\": \"run\", \"env_knobs\": {\"KICAD_CACHE_HOME\": \"/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/cache\", \"KICAD_CLI\": \"/usr/bin/kicad-cli\", \"KICAD_DYNAMIC_ITERATIONS\": \"0\", \"KICAD_IMPEDANCE_NECKDOWN\": \"0\", \"KICAD_INRUN_FLOOR_SYNC\": \"0\", \"KICAD_RESCUE_CAP_MOVE\": \"0\", \"KICAD_ROUTE_LEDGER\": \"off\", \"KICAD_ROUTE_STATE\": \"/home/halbritt/git/kicad-route\", \"KICAD_ROUTE_TEST_OUT\": \"/home/halbritt/git/kicad-route/build/kicad-route/smoke\", \"KICAD_STOP_FILE\": \"/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/STOP\", \"KICAD_TERMINAL_ESCALATION\": \"0\"}}\n\nWriting output to /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/krt-out/route_demo.kicad_pcb...\nSuccessfully wrote /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/krt-out/route_demo.kicad_pcb\n\nPlane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies\n  KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)\n  KiCad-oracle recheck: KiCad reports all processed nets complete\n  [finalize timing] oracle leg: 40.0s\nJSON_ORACLE: {\"available\": true, \"reason\": \"ok\", \"why\": \"the oracle ran\", \"rounds\": 0, \"links_routed\": 0, \"links_failed\": 0, \"remaining\": 0, \"collapsed_duplicate_links\": 0, \"remaining_links\": [], \"cross_board\": 0, \"removed_segments\": [], \"removed_vias\": []}\n  Strict collapse (#1063, end of run): removed 1 redundant segment(s) on 1 net(s)\n\n  FAB NOTE (route): 1 via(s) in a pad or paste opening [C1.2 F.Paste (pad)] -- 1 stamped (capping yes) (filling yes), 0 already filled+capped. via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel.\nVIA_IN_PAD_JSON: {\"count\": 1, \"sites\": [\"C1.2 F.Paste (pad)\"], \"stamped\": 1, \"restored\": 0, \"protected\": 0, \"unstampable\": 0, \"site_created\": 0, \"unprotected\": [], \"note\": \"via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel\"}\nJSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 3, \"seconds\": 0.12, \"routed_single\": [\"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_pads_total\": 6, \"multipoint_pads_connected\": 6, \"successful\": 3, \"failed\": 0, \"unowned_broken\": [], \"recovered\": [], \"broken_by_run\": []}\n\n============================================================\nRun complete -- whole run, re-graded on the written board (3 net(s), 0.1s)\n============================================================\n  Single-ended:  3/3 routed\n  Multi-point:   6/6 pads connected\n  route summary written to /home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/krt-out/summary.json\nJSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/SIG_B_OUT\", \"/VIN\", \"GND\"], \"worsened\": [], \"disconnected_pads_before\": 4, \"disconnected_pads_after\": 0, \"nets_compared\": 6, \"verdict\": \"accept\"}\nJSON_SUMMARY_MIN: {\"escalations\": 0, \"failed\": 0, \"failed_single\": [], \"main_loop_time_s\": 0.14, \"min_clearance_used\": 0.4, \"multipoint_deficit\": 0, \"open_single\": [], \"pad_pairs_open\": {\"count\": 0, \"nets\": []}, \"regraded_nets\": 3, \"routed\": 3, \"scope\": \"merged\", \"terminal_restores_broken\": [], \"vias\": 1}\nEXIT=0\n"
       },
       {
         "argv": [
           "/usr/bin/python3",
           "/home/halbritt/git/kicad-route/src/kicad_route/kicad/locks.py",
           "restore",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/krt-out/route_demo.kicad_pcb",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/work/locks.json"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/krt-out/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/work/locks.json"
         ],
-        "cwd": "runs/route_demo/prov-step2/20261018T041421.061002Z/work",
-        "log": "runs/route_demo/prov-step2/20261018T041421.061002Z/work/restore-locks.log",
+        "cwd": "runs/route_demo/prov-step2/20261018T103306.141038Z/work",
+        "log": "runs/route_demo/prov-step2/20261018T103306.141038Z/work/restore-locks.log",
         "exit_code": 0,
-        "duration_s": 2.031
+        "duration_s": 1.236
       }
     ],
     "backend_report": {
@@ -193,7 +193,7 @@
       "pad_pairs_total": 5,
       "total_vias": 1,
       "total_iterations": 1146,
-      "total_time": 0.09,
+      "total_time": 0.14,
       "protected_skipped": {
         "pre-existing rip candidacy": {
           "/SIG_B": "locked"
@@ -245,45 +245,45 @@
         "identical_to_input": true
       }
     ],
-    "runtime_s": 51.089,
+    "runtime_s": 53.375,
     "last_phase": "improvement gate",
     "heartbeats": {
       "count": 19,
-      "log": "runs/route_demo/prov-step2/20261018T041421.061002Z/work/heartbeat.jsonl",
+      "log": "runs/route_demo/prov-step2/20261018T103306.141038Z/work/heartbeat.jsonl",
       "stall_s": null,
-      "since_last_progress_s": 0.7,
+      "since_last_progress_s": 0.4,
       "tail": [
         {
-          "t_s": 8.27,
-          "utc": "2026-10-18T04:15:16.417094+00:00",
+          "t_s": 9.029,
+          "utc": "2026-10-18T10:34:21.198977+00:00",
           "phase": "plane finalize",
           "metric": {},
           "line": "Plane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies"
         },
         {
-          "t_s": 10.275,
-          "utc": "2026-10-18T04:15:18.422088+00:00",
+          "t_s": 10.788,
+          "utc": "2026-10-18T10:34:22.957623+00:00",
           "phase": "oracle recheck",
           "metric": {},
           "line": "KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)"
         },
         {
-          "t_s": 44.771,
-          "utc": "2026-10-18T04:15:52.918261+00:00",
+          "t_s": 49.438,
+          "utc": "2026-10-18T10:35:01.607587+00:00",
           "phase": "regrade",
           "metric": {},
-          "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 3, \"seconds\": 0.05, \"routed_single\": [\"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [], \"open_single\": [], \"f..."
+          "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 3, \"seconds\": 0.12, \"routed_single\": [\"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [], \"open_single\": [], \"f..."
         },
         {
-          "t_s": 44.771,
-          "utc": "2026-10-18T04:15:52.918410+00:00",
+          "t_s": 49.438,
+          "utc": "2026-10-18T10:35:01.607812+00:00",
           "phase": "Run complete -- whole run, re-graded on the written board (3 net(s), 0.1s)",
           "metric": {},
           "line": "============================================================"
         },
         {
-          "t_s": 45.033,
-          "utc": "2026-10-18T04:15:53.180105+00:00",
+          "t_s": 49.689,
+          "utc": "2026-10-18T10:35:01.858120+00:00",
           "phase": "improvement gate",
           "metric": {
             "disconnected_pads_before": 4
@@ -316,7 +316,7 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/prov-step2/20261018T041421.061002Z/validate",
+    "dir": "runs/route_demo/prov-step2/20261018T103306.141038Z/validate",
     "rules_files": {
       "project": "route_demo.kicad_pro",
       "custom_rules": "route_demo.kicad_dru",
@@ -324,7 +324,7 @@
     },
     "restored_project_files": [],
     "delivered_project_files": [],
-    "delivered_board_sha256": "4a16c2a33d169fb7e65e5de3424d955fd100aae9e31658d4fb8a31fa93965eb0",
+    "delivered_board_sha256": "1fb7a84e95775bfee06d18feb0951c50cb67e7c846bd737faef016d90a6fcb49",
     "drc_commands": [
       {
         "argv": [
@@ -336,13 +336,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/prov-step2/20261018T041421.061002Z/candidate/route_demo",
-        "log": "runs/route_demo/prov-step2/20261018T041421.061002Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/prov-step2/20261018T103306.141038Z/candidate/route_demo",
+        "log": "runs/route_demo/prov-step2/20261018T103306.141038Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 40.714
+        "duration_s": 39.076
       },
       {
         "argv": [
@@ -356,17 +356,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T041421.061002Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2/20261018T103306.141038Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/prov-step2/20261018T041421.061002Z/candidate/route_demo",
-        "log": "runs/route_demo/prov-step2/20261018T041421.061002Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/prov-step2/20261018T103306.141038Z/candidate/route_demo",
+        "log": "runs/route_demo/prov-step2/20261018T103306.141038Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 16.797
+        "duration_s": 42.142
       }
     ],
-    "validated_board_sha256": "4a16c2a33d169fb7e65e5de3424d955fd100aae9e31658d4fb8a31fa93965eb0",
-    "candidate_board_sha256": "4a16c2a33d169fb7e65e5de3424d955fd100aae9e31658d4fb8a31fa93965eb0",
+    "validated_board_sha256": "1fb7a84e95775bfee06d18feb0951c50cb67e7c846bd737faef016d90a6fcb49",
+    "candidate_board_sha256": "1fb7a84e95775bfee06d18feb0951c50cb67e7c846bd737faef016d90a6fcb49",
     "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
@@ -412,21 +412,21 @@
     }
   },
   "candidate": {
-    "dir": "runs/route_demo/prov-step2/20261018T041421.061002Z/candidate/route_demo",
-    "board": "runs/route_demo/prov-step2/20261018T041421.061002Z/candidate/route_demo/route_demo.kicad_pcb"
+    "dir": "runs/route_demo/prov-step2/20261018T103306.141038Z/candidate/route_demo",
+    "board": "runs/route_demo/prov-step2/20261018T103306.141038Z/candidate/route_demo/route_demo.kicad_pcb"
   },
-  "run_dir": "runs/route_demo/prov-step2/20261018T041421.061002Z",
-  "runtime_s": 158.467,
+  "run_dir": "runs/route_demo/prov-step2/20261018T103306.141038Z",
+  "runtime_s": 202.685,
   "tool_versions": {
     "kicad-cli": "10.0.7"
   },
   "evidence": {
-    "input_board_sha256": "9fcee1947bd9a6eb9995355078f569d43ef4351b9bb001b24778e90df0479b43",
-    "input_fingerprint": "05694d866aef4895a59a9c99e9110fa811a7b327abb74b974f94ab707f36bcfc",
+    "input_board_sha256": "4f34a821c629281016364524f05785cff593221b92d9bcf0418478f24d27310d",
+    "input_fingerprint": "4f765361ce671bde2656e355eb3bdc236ac833bef80821cb3d9794fe0e75b68b",
     "reference_files": {
       "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
       "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
-      "route_demo.kicad_pcb": "9fcee1947bd9a6eb9995355078f569d43ef4351b9bb001b24778e90df0479b43",
+      "route_demo.kicad_pcb": "4f34a821c629281016364524f05785cff593221b92d9bcf0418478f24d27310d",
       "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
       "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
       "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
@@ -436,27 +436,27 @@
       "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070"
     },
     "rule_floor_sha256": null,
-    "backend_output_board_sha256": "4a16c2a33d169fb7e65e5de3424d955fd100aae9e31658d4fb8a31fa93965eb0",
-    "candidate_board_sha256": "4a16c2a33d169fb7e65e5de3424d955fd100aae9e31658d4fb8a31fa93965eb0",
+    "backend_output_board_sha256": "1fb7a84e95775bfee06d18feb0951c50cb67e7c846bd737faef016d90a6fcb49",
+    "candidate_board_sha256": "1fb7a84e95775bfee06d18feb0951c50cb67e7c846bd737faef016d90a6fcb49",
     "candidate_copper_signature": {
       "sha256": "238c0ad6c86cef7e23ebf7303e6ca9aa33dd3700a8857ca2676b2f4b8f6346d6",
       "tracks": 21,
       "vias": 3
     },
     "records": {
-      "attempt.json": "2fb5e5433fbc199b3210025567c0bae6f81faeab0981303c471dd0580ce6704c",
+      "attempt.json": "d0b60753905ea3888c2f299dbfa384ebc920688b998ff297fa12dd9a9ebc7848",
       "validate/preservation.json": "50ebe8f7e6e0d92b0341a4a4e7b37d752747bce2442df7846de02d57264ca4ea",
       "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
-      "validate/candidate-drc.json": "f976020ef838df5172c5cf571db693af70050fb7696743f3f195f4e5f69160d9",
-      "validate/candidate-facts.json": "61a3b09b517eab21ab05057460c64f34bf80ad231ff9fe4ef246b382cc9da5c4",
-      "validate/pour-integrity.json": "70bf8b5a833acd9c717571a79fe6f65087e182b274381823e23daebe4514d263"
+      "validate/candidate-drc.json": "af3c1c76b0bd28373b6ba4248ebb657575f87463f7badfa5b21fd88fdebc3899",
+      "validate/candidate-facts.json": "cdc713c0ab2f2a76df80eb04e7f487591ff8eeb2d1c6dc886bdfd28885343510",
+      "validate/pour-integrity.json": "01144bba53d2302e1b0838ad0dd1345f544499f6c74900dd4a751ff10df66bef"
     }
   },
   "tool_identity": {
     "kicad_route": {
-      "version": "a928b15",
-      "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
-      "dirty": false
+      "version": "c45a2db-dirty",
+      "commit": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
+      "dirty": true
     },
     "kicad_cli": {
       "path": "/usr/bin/kicad-cli",
@@ -483,11 +483,11 @@
     "state_manifest_sha256": "d6e6179fd9cdc491d41e99b9abb110a66bde8d709b7f409eddaae648525e23c2",
     "state_manifest_drift": []
   },
-  "finished_utc": "2026-10-18T04:17:01.146306+00:00",
+  "finished_utc": "2026-10-18T10:36:30.312498+00:00",
   "exit_code": 0,
   "ledger": {
-    "fingerprint": "970ee2e13707cd0ccf8b905eaae850adaf9e54c880082de4ba6fec8f7a08376b",
-    "short": "970ee2e13707",
+    "fingerprint": "b790805b4314fb09b3d4902a40e7e85fde58f891b7f64de9491bfe493373d4d7",
+    "short": "b790805b4314",
     "forced": false,
     "forced_over": null,
     "upstream_changed_since": null,
@@ -521,6 +521,24 @@
     },
     "out": {
       "path": "/home/halbritt/git/kicad-route/build/kicad-route/smoke"
+    },
+    "home": {
+      "HOME": "/home/halbritt",
+      "required": false,
+      "tool_home": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.kicad-config",
+        "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/data",
+        "XDG_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/config",
+        "XDG_CACHE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/cache",
+        "XDG_DATA_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/data",
+        "XDG_STATE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/java",
+        "-Djava.util.prefs.userRoot=/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/java/prefs"
+      ]
     },
     "network": {
       "interfaces": 38,

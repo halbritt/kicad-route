@@ -2,7 +2,7 @@
   "exit_code": 3,
   "old": {
     "rev": "HEAD~1",
-    "commit": "c51eacb646645bd06dada4aa54c53f5f9d8e92d4",
+    "commit": "1f53260f7aef4fc53970433624999429012eb43d",
     "unconnected": 6,
     "violations": 0,
     "errors": 0,
@@ -11,7 +11,7 @@
   },
   "new": {
     "rev": "HEAD",
-    "commit": "16aee80b267bd9dd46c8adeb7f90ec6e1c8f85a2",
+    "commit": "25b047275055b2a0aec1c2fbf4debff8f3f2853d",
     "unconnected": 6,
     "violations": 0,
     "errors": 0,

@@ -3,11 +3,11 @@
   "project": "route_demo",
   "board": "route_demo.kicad_pcb",
   "schematic": "route_demo.kicad_sch",
-  "input_fingerprint": "05694d866aef4895a59a9c99e9110fa811a7b327abb74b974f94ab707f36bcfc",
+  "input_fingerprint": "4f765361ce671bde2656e355eb3bdc236ac833bef80821cb3d9794fe0e75b68b",
   "source": {
-    "source_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261018T041252.302460Z/candidate/route_demo",
+    "source_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step1/20261018T103052.304138Z/candidate/route_demo",
     "source": "working tree",
-    "source_git_head": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
+    "source_git_head": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
     "source_dirty_files": []
   },
   "reference_dir": "reference/route_demo",
@@ -19,7 +19,7 @@
     "not_loaded": []
   },
   "baseline": {
-    "report": "../../../../.cache/baseline/05694d866aef4895a59a9c99e9110fa811a7b327abb74b974f94ab707f36bcfc/baseline-drc.json",
+    "report": "../../../../.cache/baseline/4f765361ce671bde2656e355eb3bdc236ac833bef80821cb3d9794fe0e75b68b/baseline-drc.json",
     "cached": false,
     "reasons": []
   },

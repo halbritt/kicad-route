@@ -1,0 +1,26 @@
+{
+  "raw_class_line": "(class kicad_default /SIG_A_OUT /SIG_B_OUT SIG\"B \"W \"C\"\"",
+  "respelled": [
+    {
+      "net": "GND\"A",
+      "to": "GND''A",
+      "planes": 1,
+      "classes": 1,
+      "wiring": 0
+    },
+    {
+      "net": "SIG\"B",
+      "to": "SIG''B",
+      "planes": 0,
+      "classes": 1,
+      "wiring": 0
+    },
+    {
+      "net": "W \"C\"",
+      "to": "\"W ''C''\"",
+      "planes": 0,
+      "classes": 1,
+      "wiring": 6
+    }
+  ]
+}

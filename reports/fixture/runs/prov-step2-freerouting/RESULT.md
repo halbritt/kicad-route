@@ -1,13 +1,13 @@
 # Routing attempt: freerouting on route_demo
 
 - Backend: freerouting v2.5.0 (freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76)
-- Input: `route_demo.kicad_pcb` from working tree @ a928b1562dfa48954c60e9cee4398bb3ed973e8e (fingerprint 05694d866aef4895)
+- Input: `route_demo.kicad_pcb` from working tree @ c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9 (fingerprint 4f765361ce671bde)
 - Scope: selected, 4 nets; protect: human; budget 180 s
-- Candidate: `runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/prov-step2-freerouting/20261018T103820.596247Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 36.834 s |
+| process | PASS | exit 0, 19.518 s |
 | routing | INCOMPLETE | 1 unconnected in scope, 1 total (input: 4) |
 | validation | PASS | no new findings |
 
@@ -61,13 +61,13 @@ Unsupported or approximated by this backend:
 - --protect human: agent copper is exported unlocked ((type route)) and rebuilt from the session, but Freerouting returns it as (type protect) and never rips it up; use KRT to reroute agent copper
 - route_demo.kicad_dru: net-class-to-net-class clearance rules are translated to Specctra class_class rules; any other custom rule is listed as untranslated below
 
-Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/validate/blocked-by.json`):
+Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/prov-step2-freerouting/20261018T103820.596247Z/validate/blocked-by.json`):
 
 | Blocker | Category | Blocks (best layer) | Blocks (any layer) |
 |---|---|---|---|
 | keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 0 | 1 |
-| track /SIG_A F.Cu (input, unlocked) 27a3c0ce | input_copper | 0 | 1 |
-| track /SIG_A_OUT F.Cu (input, unlocked) 262accf9 | input_copper | 0 | 1 |
+| track /SIG_A F.Cu (input, unlocked) ba1f6156 | input_copper | 0 | 1 |
+| track /SIG_A_OUT F.Cu (input, unlocked) e5f15cca | input_copper | 0 | 1 |
 
 - `/VIN`: 1 open; best layer B.Cu with 0 hard blockers
 - 1 connection(s) have an unobstructed corridor: the obstacle is elsewhere (congestion, detours, the backend's search or budget)
@@ -78,9 +78,9 @@ Route statistics:
 {
  "new_tracks": 6,
  "new_vias": 1,
- "new_track_length_mm": 32.655,
+ "new_track_length_mm": 32.549,
  "new_track_length_mm_by_layer": {
-  "F.Cu": 32.655
+  "F.Cu": 32.549
  },
  "new_copper_nets": 3,
  "removed_existing_tracks": 0,

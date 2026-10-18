@@ -96,7 +96,7 @@
     }
   ],
   "reference_source": {
-    "source": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261018T041856.109059Z/../../../../.cache/baseline/05694d866aef4895a59a9c99e9110fa811a7b327abb74b974f94ab707f36bcfc/baseline-pour.json",
+    "source": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/prov-step2-freerouting/20261018T103820.596247Z/../../../../.cache/baseline/4f765361ce671bde2656e355eb3bdc236ac833bef80821cb3d9794fe0e75b68b/baseline-pour.json",
     "cached": true
   }
 }

@@ -1,7 +1,7 @@
 {
     "$schema": "https://schemas.kicad.org/drc.v1.json",
     "coordinate_units": "mm",
-    "date": "2026-10-17T20:10:39",
+    "date": "2026-10-18T02:44:55",
     "ignored_checks": [
         {
             "description": "Footprint has no courtyard defined",
@@ -50,7 +50,7 @@
                         "x": 106.0,
                         "y": 104.0
                     },
-                    "uuid": "4fca0b1d-4d29-431a-bc8c-4b5d7ffe585b"
+                    "uuid": "2405dd5d-c7d7-46c7-aedd-774f35aad6a5"
                 }
             ],
             "severity": "error",
@@ -136,7 +136,7 @@
                         "x": 113.7,
                         "y": 103.0
                     },
-                    "uuid": "4dd4c634-65b0-4aa0-baeb-7fe796a08263"
+                    "uuid": "c56df3e3-cc04-43a6-b33d-7fd084ecea23"
                 },
                 {
                     "description": "Pad 2 [GND] of C1 on F.Cu",

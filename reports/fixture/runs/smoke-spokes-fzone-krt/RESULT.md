@@ -1,13 +1,13 @@
 # Routing attempt: krt on route_demo_fzone
 
 - Backend: krt 0.23.1 (v0.23.1)
-- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 2ef2b80912cdee6d)
+- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 28b1ac4ddf6f12a4)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T051727.837981Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo_fzone/smoke-spokes-fzone-krt/20261018T110621.848889Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 3, 131.378 s; KRT --strict-sizes: it reports delivering geometry below a requirement (candidate kept for grading) |
+| process | PASS | exit 3, 26.539 s; KRT --strict-sizes: it reports delivering geometry below a requirement (candidate kept for grading) |
 | routing | COMPLETE | 0 unconnected in scope, 0 total (input: 5) |
 | validation | FAIL | preservation new_copper_netclass_geometry: 16 new tracks and 2 new vias checked against their net class width / via (microvia) diameter / drill (1 um quantisation tolerance); 1 below |
 

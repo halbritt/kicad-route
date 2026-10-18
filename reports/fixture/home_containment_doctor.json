@@ -1,0 +1,10 @@
+{
+  "strace": true,
+  "home_env": {
+    "name": "HOME",
+    "value": "/tmp/pytest-of-halbritt/pytest-1368/test_doctor_offline_lists_home0/out/home",
+    "required": false,
+    "purpose": "optional, need not be writable: KiCad's config, cache and data, fontconfig's cache and the Freerouting JVM's user.home are kept under OUT (OUT/.kicad-config, OUT/.home)"
+  },
+  "write_attempts_outside_out": {}
+}

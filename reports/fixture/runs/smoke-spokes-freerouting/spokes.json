@@ -1,21 +1,21 @@
 {
   "kind": "spokes",
-  "run_dir": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z",
-  "validation_dir": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/validate",
-  "reference_board": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/reference/route_demo/route_demo.kicad_pcb",
-  "plan": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/spokes/reference-plan.json",
+  "run_dir": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z",
+  "validation_dir": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/validate",
+  "reference_board": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/reference/route_demo/route_demo.kicad_pcb",
+  "plan": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/spokes/reference-plan.json",
   "plan_command": {
     "argv": [
       "/usr/bin/python3",
       "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
       "plan",
-      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/reference/route_demo/route_demo.kicad_pcb",
-      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/spokes/reference-plan.json"
+      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/reference/route_demo/route_demo.kicad_pcb",
+      "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/spokes/reference-plan.json"
     ],
-    "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z",
-    "log": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/spokes/plan.log",
+    "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z",
+    "log": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/spokes/plan.log",
     "exit_code": 0,
-    "duration_s": 5.293
+    "duration_s": 1.222
   },
   "clearance_mm": 0.4,
   "min_resolved_spokes": 2,

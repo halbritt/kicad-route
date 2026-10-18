@@ -6,9 +6,9 @@
     "/SIG_A": "Net-(BT1-+)",
     "/SIG_A_OUT": "\"q\"",
     "/SIG_B": "/a b/c",
-    "/SIG_B_OUT": "+3V3/\u00fc \u00b5",
+    "/SIG_B_OUT": "+3V3/\u00fc\"\u00b5",
     "/VIN": "-VIN(1)",
-    "GND": "GND 'x' (y)"
+    "GND": "GND'x'/\"y\""
   },
   "scoped_out": [
     "Net-(BT1-+)",
@@ -32,7 +32,23 @@
     {
       "check": "bridge",
       "status": "PASS",
-      "problems": []
+      "problems": [],
+      "net_names_respelled": [
+        {
+          "net": "GND'x'/\"y\"",
+          "to": "GND'x'/''y''",
+          "planes": 1,
+          "classes": 1,
+          "wiring": 0
+        },
+        {
+          "net": "+3V3/\u00fc\"\u00b5",
+          "to": "+3V3/\u00fc''\u00b5",
+          "planes": 0,
+          "classes": 1,
+          "wiring": 0
+        }
+      ]
     }
   ],
   "dir": "canary-quick"

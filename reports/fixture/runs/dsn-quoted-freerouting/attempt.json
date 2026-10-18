@@ -1,0 +1,58 @@
+{
+  "backend": "freerouting",
+  "project": "route_demo",
+  "board": "route_demo.kicad_pcb",
+  "schematic": "route_demo.kicad_sch",
+  "input_fingerprint": "56f15c50e7d8d9e14d09fb26ed53c6b0f1a6cc4fd0ea6f3e256ae5774ff07905",
+  "source": {
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1368/quoted0/route_demo",
+    "source": "working tree",
+    "source_git_head": null,
+    "source_dirty_files": []
+  },
+  "reference_dir": "reference/route_demo",
+  "candidate_dir": "candidate/route_demo",
+  "reference_facts": "facts/reference-facts.json",
+  "rules_files": {
+    "project": "route_demo.kicad_pro",
+    "custom_rules": "route_demo.kicad_dru",
+    "not_loaded": []
+  },
+  "baseline": {
+    "report": "../../../../.cache/baseline/56f15c50e7d8d9e14d09fb26ed53c6b0f1a6cc4fd0ea6f3e256ae5774ff07905/baseline-drc.json",
+    "cached": false,
+    "reasons": []
+  },
+  "scope": {
+    "nets": [
+      "/SIG_A_OUT",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND\"A",
+      "SIG\"B",
+      "W \"C\""
+    ],
+    "mode": "all"
+  },
+  "settings": {
+    "backend": "freerouting",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": 100,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": 0.01,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [
+      "--router.fanout.enabled=true"
+    ],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "floor": null
+}

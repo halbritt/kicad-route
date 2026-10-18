@@ -55,10 +55,10 @@
   "process": {
     "status": "FAIL",
     "reasons": [
-      "KRT exceeded the 40 s budget, did not stop at the stop file, and was killed (last output: 'No route found after 1000000 iterations (forward), trying backward...'); retry with a larger --budget, or --backend-env KICAD_NET_RESCUE=0 (KRT's net rescue ignores the stop file)"
+      "KRT exceeded the 40 s budget, did not stop at the stop file, and was killed (last output: 'Probe: forward=5000, backward=5000 iters, trying forward with full iterations...'); retry with a larger --budget, or --backend-env KICAD_NET_RESCUE=0 (KRT's net rescue ignores the stop file)"
     ],
     "exit_code": -15,
-    "runtime_s": 73.956,
+    "runtime_s": 72.336,
     "backend_report": null,
     "bridge": null,
     "project_writeback": []
@@ -69,5 +69,5 @@
       "backend produced no candidate"
     ]
   },
-  "run_dir": "runs/route_demo/smoke-budget-krt/20261018T045443.420272Z"
+  "run_dir": "runs/route_demo/smoke-budget-krt/20261018T105741.841173Z"
 }

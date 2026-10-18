@@ -1,10 +1,10 @@
 {
   "same_input": {
     "exit_code": 0,
-    "table": "| fp | backend | exit | routing | unconnected | validation | new_violations | new_vias | new_length_mm | backend_s | run |\n|---|---|---|---|---|---|---|---|---|---|---|\n| aac3233bd521 | krt 0.23.1 | 0 | COMPLETE | 0 | PASS | 0 | 1 | 117.987 | 80.706 | runs/route_demo/smoke-krt/20261018T042932.702294Z |\n| 933fbe446eb4 | freerouting v2.5.0 | 0 | COMPLETE | 0 | PASS | 0 | 2 | 123.4 | 25.947 | runs/route_demo/smoke-freerouting/20261018T043244.196872Z |\n[compare] compare/20261018T045810.087228Z/compare.json\n"
+    "table": "| fp | backend | exit | routing | unconnected | validation | new_violations | new_vias | new_length_mm | backend_s | run |\n|---|---|---|---|---|---|---|---|---|---|---|\n| aac3233bd521 | krt 0.23.1 | 0 | COMPLETE | 0 | PASS | 0 | 1 | 117.987 | 30.834 | runs/route_demo/smoke-krt/20261018T104419.057780Z |\n| 933fbe446eb4 | freerouting v2.5.0 | 0 | COMPLETE | 0 | PASS | 0 | 2 | 123.4 | 21.084 | runs/route_demo/smoke-freerouting/20261018T104554.697519Z |\n[compare] compare/20261018T105926.755317Z/compare.json\n"
   },
   "different_input": {
     "exit_code": 1,
-    "table": "| fp | backend | exit | routing | unconnected | validation | new_violations | new_vias | new_length_mm | backend_s | run |\n|---|---|---|---|---|---|---|---|---|---|---|\n| aac3233bd521 | krt 0.23.1 | 0 | COMPLETE | 0 | PASS | 0 | 1 | 117.987 | 80.706 | runs/route_demo/smoke-krt/20261018T042932.702294Z |\n| 2a1446f8eb85 | krt 0.23.1 | 2 | INCOMPLETE | 4 | PASS | 0 | 1 | 29.412 | 82.284 | runs/route_demo/smoke-blocked-krt/20261018T044326.034754Z |\nWARNING: these candidates come from different inputs; the comparison is not like for like\n[compare] compare/20261018T045810.426209Z/compare.json\n"
+    "table": "| fp | backend | exit | routing | unconnected | validation | new_violations | new_vias | new_length_mm | backend_s | run |\n|---|---|---|---|---|---|---|---|---|---|---|\n| aac3233bd521 | krt 0.23.1 | 0 | COMPLETE | 0 | PASS | 0 | 1 | 117.987 | 30.834 | runs/route_demo/smoke-krt/20261018T104419.057780Z |\n| b81c95db510a | krt 0.23.1 | 2 | INCOMPLETE | 4 | PASS | 0 | 1 | 29.412 | 39.315 | runs/route_demo/smoke-blocked-krt/20261018T105315.407366Z |\nWARNING: these candidates come from different inputs; the comparison is not like for like\n[compare] compare/20261018T105926.870514Z/compare.json\n"
   }
 }

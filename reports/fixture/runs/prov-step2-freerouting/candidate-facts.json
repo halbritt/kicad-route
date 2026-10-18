@@ -848,7 +848,7 @@
    "no"
   ]
  ],
- "sha256": "b3a33f910ccc5465ada4fd8c9dba40a1ee45248b747738b244a2b7d099099f74",
+ "sha256": "38b193ec66fc9248fee3385befc1915846ab4c34efe452bfe5494ac47b1583cc",
  "stackup": [
   "stackup",
   [
@@ -975,22 +975,6 @@
  "tracks": [
   {
    "end": [
-    105411700,
-    106000000
-   ],
-   "kind": "segment",
-   "layer": "F.Cu",
-   "locked": false,
-   "net": "/VIN",
-   "start": [
-    104000000,
-    106000000
-   ],
-   "uuid": "26dc88ed-40c7-48ca-87e3-08a1c0a2c850",
-   "width": 500000
-  },
-  {
-   "end": [
     109050000,
     104000000
    ],
@@ -1002,7 +986,23 @@
     107411700,
     104000000
    ],
-   "uuid": "29b086b0-c562-441e-8a0d-5e8b1732d3d2",
+   "uuid": "3a9467b0-f724-4944-a56f-a2fb4df7b112",
+   "width": 500000
+  },
+  {
+   "end": [
+    105411700,
+    106000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/VIN",
+   "start": [
+    104000000,
+    106000000
+   ],
+   "uuid": "4c6e15ad-eb7a-42c7-9950-e73c48278352",
    "width": 500000
   },
   {
@@ -1018,13 +1018,13 @@
     105411700,
     106000000
    ],
-   "uuid": "5eaea74e-d4bf-4ba3-a910-5dc9244934e4",
+   "uuid": "b900d6f7-59b4-4213-a73d-1258dd718817",
    "width": 500000
   },
   {
    "end": [
-    112054000,
-    102896000
+    110950000,
+    104000000
    ],
    "kind": "segment",
    "layer": "F.Cu",
@@ -1032,26 +1032,10 @@
    "net": "GND",
    "start": [
     110950000,
-    104000000
+    102544700
    ],
-   "uuid": "d7a73052-8141-4549-a39a-731c78756380",
+   "uuid": "0c63be24-6f99-4c21-a853-5332e5822990",
    "width": 500000
-  },
-  {
-   "end": [
-    146000000,
-    111100000
-   ],
-   "kind": "segment",
-   "layer": "F.Cu",
-   "locked": false,
-   "net": "/SIG_A_OUT",
-   "start": [
-    137900000,
-    103000000
-   ],
-   "uuid": "262accf9-2bb2-4204-862c-c7df2d69b66f",
-   "width": 200000
   },
   {
    "end": [
@@ -1066,23 +1050,23 @@
     125900000,
     103000000
    ],
-   "uuid": "d062000a-7b1b-4a64-9cca-7c8c85f1daf2",
+   "uuid": "322becfc-bcf5-4f1e-a40f-21fcf90a303d",
    "width": 200000
   },
   {
    "end": [
     146000000,
-    113620000
+    111100000
    ],
    "kind": "segment",
    "layer": "F.Cu",
    "locked": false,
-   "net": "/SIG_B_OUT",
+   "net": "/SIG_A_OUT",
    "start": [
-    133620000,
-    126000000
+    137900000,
+    103000000
    ],
-   "uuid": "317b3877-1f77-436c-80e8-f0a283546ae9",
+   "uuid": "e5f15cca-56be-4d2e-8d8d-b3cc362460c1",
    "width": 200000
   },
   {
@@ -1098,39 +1082,23 @@
     125912500,
     126000000
    ],
-   "uuid": "470cb355-28da-451c-8765-2d1e2011ebf5",
+   "uuid": "28b7561a-6d12-46be-9d8b-041a2210af74",
    "width": 200000
   },
   {
    "end": [
-    113900000,
-    103000000
+    146000000,
+    113620000
    ],
    "kind": "segment",
    "layer": "F.Cu",
    "locked": false,
-   "net": "/SIG_A",
+   "net": "/SIG_B_OUT",
    "start": [
-    105800000,
-    111100000
+    133620000,
+    126000000
    ],
-   "uuid": "27a3c0ce-6f68-402d-8e5b-6dfb7c5a80db",
-   "width": 200000
-  },
-  {
-   "end": [
-    124100000,
-    103000000
-   ],
-   "kind": "segment",
-   "layer": "F.Cu",
-   "locked": false,
-   "net": "/SIG_A",
-   "start": [
-    113900000,
-    103000000
-   ],
-   "uuid": "8e49e3cf-21e7-4c4c-9362-844c89dfb546",
+   "uuid": "aa8800aa-4d79-44d7-95fb-32707337e2c2",
    "width": 200000
   },
   {
@@ -1146,7 +1114,39 @@
     104000000,
     111100000
    ],
-   "uuid": "e46bddbb-cb13-41ac-b28b-37bd9325104b",
+   "uuid": "730b1aea-a0fa-4f22-ad1d-1fe1c9b05e45",
+   "width": 200000
+  },
+  {
+   "end": [
+    113900000,
+    103000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A",
+   "start": [
+    105800000,
+    111100000
+   ],
+   "uuid": "ba1f6156-dca4-4199-8009-5ef7d90f0334",
+   "width": 200000
+  },
+  {
+   "end": [
+    124100000,
+    103000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/SIG_A",
+   "start": [
+    113900000,
+    103000000
+   ],
+   "uuid": "f3a44740-acce-43f5-abb2-4df29187466a",
    "width": 200000
   },
   {
@@ -1241,10 +1241,10 @@
    "locked": false,
    "net": "GND",
    "position": [
-    112054000,
-    102896000
+    110950000,
+    102544700
    ],
-   "uuid": "2c9435b0-74cd-4cbb-a8d7-cfa7dc58c3c9",
+   "uuid": "0488e5e2-3404-421c-a5ca-feb81a8d1474",
    "via_type": "through"
   },
   {

@@ -1,13 +1,13 @@
 # Routing attempt: freerouting on route_demo_fzone
 
 - Backend: freerouting v2.5.0 (freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76)
-- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 2ef2b80912cdee6d)
+- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 28b1ac4ddf6f12a4)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 44.278 s |
+| process | PASS | exit 0, 15.519 s |
 | routing | INCOMPLETE | 1 unconnected in scope, 1 total (input: 5) |
 | validation | PASS | no new findings |
 
@@ -59,13 +59,13 @@ Unsupported or approximated by this backend:
 - rule areas export only their no-tracks/no-vias restrictions; zones export as plane outlines
 - route_demo.kicad_dru: net-class-to-net-class clearance rules are translated to Specctra class_class rules; any other custom rule is listed as untranslated below
 
-Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/validate/blocked-by.json`):
+Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/validate/blocked-by.json`):
 
 | Blocker | Category | Blocks (best layer) | Blocks (any layer) |
 |---|---|---|---|
 | keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 1 | 1 |
-| track /SIG_A B.Cu (new, unlocked) 36b771eb | new_copper | 0 | 1 |
-| track /SIG_A_OUT B.Cu (new, unlocked) 6582b17c | new_copper | 0 | 1 |
+| track /SIG_A B.Cu (new, unlocked) 4f670db0 | new_copper | 0 | 1 |
+| track /SIG_A_OUT B.Cu (new, unlocked) c1d1425a | new_copper | 0 | 1 |
 
 - `/VIN`: 1 open; best layer F.Cu with 1 hard blockers (keepout 'route_keepout')
 

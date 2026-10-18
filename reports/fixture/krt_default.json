@@ -69,7 +69,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 89.569,
+    "runtime_s": 30.38,
     "backend_report": {
       "successful": 5,
       "failed": 0,
@@ -81,7 +81,7 @@
       "pad_pairs_total": 7,
       "total_vias": 1,
       "total_iterations": 1620,
-      "total_time": 0.33,
+      "total_time": 0.16,
       "protected_skipped": null,
       "scope": "merged",
       "relaxations": {
@@ -126,7 +126,7 @@
     "reasons": [
       "1 new DRC violations: clearance 1"
     ],
-    "dir": "runs/route_demo/smoke-krt-default/20261018T042600.245346Z/validate",
+    "dir": "runs/route_demo/smoke-krt-default/20261018T104257.391657Z/validate",
     "rules_files": {
       "project": "route_demo.kicad_pro",
       "custom_rules": "route_demo.kicad_dru",
@@ -134,7 +134,7 @@
     },
     "restored_project_files": [],
     "delivered_project_files": [],
-    "delivered_board_sha256": "27c00f5c7968998f858e85f5df291ae7b2bea3e4bfd13012fdc2ff447ca82dc9",
+    "delivered_board_sha256": "fa0f1d552359bc8ec83bf0c3faf673e53d740ca2b4ff7283e6777cf80c67e9df",
     "drc_commands": [
       {
         "argv": [
@@ -146,13 +146,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt-default/20261018T042600.245346Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt-default/20261018T042600.245346Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt-default/20261018T104257.391657Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt-default/20261018T104257.391657Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-krt-default/20261018T042600.245346Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-krt-default/20261018T042600.245346Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-krt-default/20261018T104257.391657Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-krt-default/20261018T104257.391657Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 71.238
+        "duration_s": 23.981
       },
       {
         "argv": [
@@ -166,17 +166,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt-default/20261018T042600.245346Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt-default/20261018T042600.245346Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt-default/20261018T104257.391657Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt-default/20261018T104257.391657Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-krt-default/20261018T042600.245346Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-krt-default/20261018T042600.245346Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-krt-default/20261018T104257.391657Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-krt-default/20261018T104257.391657Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 37.042
+        "duration_s": 19.687
       }
     ],
-    "validated_board_sha256": "27c00f5c7968998f858e85f5df291ae7b2bea3e4bfd13012fdc2ff447ca82dc9",
-    "candidate_board_sha256": "27c00f5c7968998f858e85f5df291ae7b2bea3e4bfd13012fdc2ff447ca82dc9",
+    "validated_board_sha256": "fa0f1d552359bc8ec83bf0c3faf673e53d740ca2b4ff7283e6777cf80c67e9df",
+    "candidate_board_sha256": "fa0f1d552359bc8ec83bf0c3faf673e53d740ca2b4ff7283e6777cf80c67e9df",
     "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
@@ -224,5 +224,5 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-krt-default/20261018T042600.245346Z"
+  "run_dir": "runs/route_demo/smoke-krt-default/20261018T104257.391657Z"
 }

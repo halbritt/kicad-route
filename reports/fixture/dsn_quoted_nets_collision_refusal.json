@@ -1,0 +1,27 @@
+{
+  "schema": "kicad-route/refusal/1",
+  "kind": "refusal",
+  "exit_code": 4,
+  "command": "run",
+  "reason_class": "input",
+  "message": "Freerouting cannot tell these nets apart: KiCad's DSN export writes `\"` as `''`, so 'a\"b' and \"a''b\" are each written a''b. Rename one of each, or route with --backend krt",
+  "argv": [
+    "--out",
+    "/home/halbritt/git/kicad-route/build/kicad-route/smoke",
+    "run",
+    "--json",
+    "--backend",
+    "freerouting",
+    "--dir",
+    "/tmp/pytest-of-halbritt/pytest-1368/test_colliding_names_are_refus0/route_demo",
+    "--budget",
+    "60",
+    "--label",
+    "dsn-quoted-collision"
+  ],
+  "cwd": "/home/halbritt/git/kicad-route/build/kicad-route/smoke",
+  "input_fingerprint": "6ae016731568e6f554468608c47fb4acb33788fd8303dae0955ebc0d673515cb",
+  "discarded_run_dir": "runs/route_demo/dsn-quoted-collision/20261018T100229.956677Z",
+  "refused_utc": "2026-10-18T10:02:31.064288+00:00",
+  "record": "refusals/20261018T100231.064308Z-263751.json"
+}

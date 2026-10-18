@@ -4,26 +4,26 @@
   "min_spokes": 2,
   "project_min_resolved_spokes": 2,
   "area_loss_limit_pct": null,
-  "reference_islands_off_main": 1,
+  "reference_islands_off_main": 0,
   "layers": [
     {
-      "net_layer": "GND@B.Cu",
+      "net_layer": "GND\"A@B.Cu",
       "area_mm2": [
-        1111.2478,
-        1111.2478
+        1169.2633,
+        1106.527
       ],
-      "area_delta_pct": 0.0,
+      "area_delta_pct": -5.365,
       "polygons": [
-        2,
-        2
-      ],
-      "islands_off_main": [
         1,
         1
       ],
+      "islands_off_main": [
+        0,
+        0
+      ],
       "area_off_main_mm2": [
-        256.1932,
-        256.1932
+        0,
+        0
       ]
     }
   ],
@@ -58,7 +58,7 @@
         true
       ],
       "polygons": [
-        "GND@B.Cu/GND_B#0"
+        "GND\"A@B.Cu/GND_B#0"
       ],
       "other_path": false
     },
@@ -86,17 +86,17 @@
         0
       ],
       "in_main": [
-        false,
-        false
+        true,
+        true
       ],
       "polygons": [
-        "GND@B.Cu/GND_B#1"
+        "GND\"A@B.Cu/GND_B#0"
       ],
       "other_path": false
     }
   ],
   "reference_source": {
-    "source": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/hygiene-stall-krt/20261018T035312.106302Z/../../../../.cache/baseline/ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472/baseline-pour.json",
+    "source": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/../../../../.cache/baseline/56f15c50e7d8d9e14d09fb26ed53c6b0f1a6cc4fd0ea6f3e256ae5774ff07905/baseline-pour.json",
     "cached": true
   }
 }

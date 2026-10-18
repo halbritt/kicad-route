@@ -16,13 +16,13 @@
   "input": {
     "project": "route_demo_fzone",
     "board": "route_demo.kicad_pcb",
-    "fingerprint": "2ef2b80912cdee6dd87e8ea23bb0ca753578d91b460495f558a210a0348e2568",
-    "source_dir": "/tmp/pytest-of-halbritt/pytest-1338/fzone0/route_demo",
+    "fingerprint": "28b1ac4ddf6f12a43abf718b348c566d8cea779492e77680402fbb6ce953dd01",
+    "source_dir": "/tmp/pytest-of-halbritt/pytest-1368/fzone0/route_demo",
     "source": "working tree",
     "source_git_head": null,
     "source_dirty_files": [],
     "baseline": {
-      "report": "../../../../.cache/baseline/2ef2b80912cdee6dd87e8ea23bb0ca753578d91b460495f558a210a0348e2568/baseline-drc.json",
+      "report": "../../../../.cache/baseline/28b1ac4ddf6f12a43abf718b348c566d8cea779492e77680402fbb6ce953dd01/baseline-drc.json",
       "cached": true,
       "reasons": []
     },
@@ -80,41 +80,43 @@
           "/usr/bin/python3",
           "/home/halbritt/git/kicad-route/src/kicad_route/kicad/specctra.py",
           "export",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/input/route_demo/route_demo.kicad_pcb",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/board.dsn",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/input/route_demo/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/board.dsn",
           "--dru",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/input/route_demo/route_demo.kicad_dru",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/input/route_demo/route_demo.kicad_dru",
           "--clearance-margin",
           "10"
         ],
-        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work",
-        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/export-dsn.log",
+        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work",
+        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/export-dsn.log",
         "exit_code": 0,
-        "duration_s": 2.886
+        "duration_s": 0.803
       },
       {
         "argv": [
           "/usr/lib/jvm/java-25-openjdk-amd64/bin/java",
           "-Djava.awt.headless=true",
+          "-Duser.home=/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/java",
+          "-Djava.util.prefs.userRoot=/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/java/prefs",
           "-jar",
           "/home/halbritt/git/kicad-route/vendor/freerouting/current/freerouting-2.5.0.jar",
           "-de",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/board.dsn",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/board.dsn",
           "-do",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/board.ses",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/board.ses",
           "--gui.enabled=false",
           "-da",
           "--api_server.enabled=false",
-          "--user_data_path=/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/freerouting-userdata",
-          "--router.result_json=/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/freerouting-result.json",
+          "--user_data_path=/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/freerouting-userdata",
+          "--router.result_json=/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/freerouting-result.json",
           "--router.automatic_neckdown=false",
           "--router.fanout.enabled=false",
           "--router.job_timeout=00:03:00",
           "--router.autorouter.max_passes=100",
           "--router.fanout.enabled=true"
         ],
-        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work",
-        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/freerouting.log",
+        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work",
+        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/freerouting.log",
         "env": {
           "HTTPS_PROXY": "http://127.0.0.1:9",
           "HTTP_PROXY": "http://127.0.0.1:9",
@@ -125,23 +127,23 @@
         "last_metric": {},
         "heartbeats": {
           "count": 8,
-          "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/heartbeat.jsonl",
+          "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/heartbeat.jsonl",
           "stall_s": null,
-          "since_last_progress_s": 1.1,
+          "since_last_progress_s": 0.5,
           "tail": [
             {
-              "t_s": 12.022,
-              "utc": "2026-10-18T05:24:10.019100+00:00",
+              "t_s": 5.758,
+              "utc": "2026-10-18T11:08:01.892038+00:00",
               "phase": "auto-routing started",
               "metric": {
                 "score": 333.33,
                 "unrouted": 5
               },
-              "line": "2026-10-17 22:24:09.835 INFO [2F43EA\\6FB8A1] Auto-routing stage started on board 'e76d6b19c79188be8fe12a12251d7298' with baseline score 333.33 for 5 unrouted..."
+              "line": "2026-10-18 04:08:01.826 INFO [29B131\\1B953C] Auto-routing stage started on board '0f0ded900225599ac03b618370cf73db' with baseline score 333.33 for 5 unrouted..."
             },
             {
-              "t_s": 14.027,
-              "utc": "2026-10-18T05:24:12.024436+00:00",
+              "t_s": 6.758,
+              "utc": "2026-10-18T11:08:02.892786+00:00",
               "phase": "auto-routing started",
               "metric": {
                 "pass": 1,
@@ -149,61 +151,61 @@
                 "unrouted": 2,
                 "violations": 0
               },
-              "line": "2026-10-17 22:24:11.854 INFO [2F43EA\\6FB8A1] Auto-routing pass #1 on board 'e76d6b19c79188be8fe12a12251d7298' was completed in 1.81 seconds with score 733.33..."
+              "line": "2026-10-18 04:08:02.739 INFO [29B131\\1B953C] Auto-routing pass #1 on board '0f0ded900225599ac03b618370cf73db' was completed in 0.79 seconds with score 733.33..."
             },
             {
-              "t_s": 22.397,
-              "utc": "2026-10-18T05:24:20.393703+00:00",
+              "t_s": 9.27,
+              "utc": "2026-10-18T11:08:05.404373+00:00",
               "phase": "auto-routing completed",
               "metric": {},
-              "line": "2026-10-17 22:24:20.177 INFO [2F43EA\\6FB8A1] Auto-routing stage completed: started with 6 unrouted nets, completed in 12.34 seconds, final score: 733.33 (2 u..."
+              "line": "2026-10-18 04:08:05.252 INFO [29B131\\1B953C] Auto-routing stage completed: started with 6 unrouted nets, completed in 4.69 seconds, final score: 733.33 (2 un..."
             },
             {
-              "t_s": 22.397,
-              "utc": "2026-10-18T05:24:20.393869+00:00",
+              "t_s": 9.27,
+              "utc": "2026-10-18T11:08:05.404546+00:00",
               "phase": "finished",
               "metric": {},
-              "line": "2026-10-17 22:24:20.276 INFO [2F43EA\\6FB8A1] Job '2F43EA\\6FB8A1' finished with state: COMPLETED (elapsed: 13.24 seconds, finished at UTC: 2026-10-18T05:24:20..."
+              "line": "2026-10-18 04:08:05.291 INFO [29B131\\1B953C] Job '29B131\\1B953C' finished with state: COMPLETED (elapsed: 5.00 seconds, finished at UTC: 2026-10-18T11:08:05...."
             },
             {
-              "t_s": 22.397,
-              "utc": "2026-10-18T05:24:20.393968+00:00",
+              "t_s": 9.27,
+              "utc": "2026-10-18T11:08:05.404650+00:00",
               "phase": "saving session",
               "metric": {},
-              "line": "2026-10-17 22:24:20.324 INFO Saving output file '/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/..."
+              "line": "2026-10-18 04:08:05.291 INFO Saving output file '/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/..."
             }
           ]
         },
         "stalled": false,
         "exit_code": 0,
-        "duration_s": 23.532,
-        "output_tail": "80fc96741e859d8a05963754' was completed in 0.30 seconds with score 733.33 (2 unrouted and 0 violations), using 1.32 CPU seconds and the job allocated 0.22 GB of memory so far.\n2026-10-17 22:24:17.142 INFO   [2F43EA\\6FB8A1] Auto-routing pass #12 on board '8e306f4ca0dd3bf7d12ef31e7468ef3a' was completed in 0.00 seconds with score 733.33 (2 unrouted and 0 violations), using 1.45 CPU seconds and the job allocated 0.26 GB of memory so far.\n2026-10-17 22:24:17.477 INFO   [2F43EA\\6FB8A1] Auto-routing pass #13 on board '8e306f4ca0dd3bf7d12ef31e7468ef3a' was completed in 0.33 seconds with score 733.33 (2 unrouted and 0 violations), using 1.45 CPU seconds and the job allocated 0.26 GB of memory so far.\n2026-10-17 22:24:17.813 INFO   [2F43EA\\6FB8A1] Auto-routing pass #14 on board '3762ef617549b54231f9daf0d371e2ed' was completed in 0.33 seconds with score 733.33 (2 unrouted and 0 violations), using 1.45 CPU seconds and the job allocated 0.26 GB of memory so far.\n2026-10-17 22:24:17.876 INFO   [2F43EA\\6FB8A1] Last-mile rip-up removed 7 blocking trace(s) or via(s) around 2 remaining connection(s).\n2026-10-17 22:24:18.708 INFO   [2F43EA\\6FB8A1] Auto-routing pass #15 on board 'bbfb1422ba713fc88ac9b9102010ec81' was completed in 0.77 seconds with score 733.33 (2 unrouted and 0 violations), using 1.57 CPU seconds and the job allocated 0.29 GB of memory so far.\n2026-10-17 22:24:19.073 INFO   [2F43EA\\6FB8A1] Auto-routing pass #16 on board '44356c2e4343c00640121ecd176f92a7' was completed in 0.32 seconds with score 733.33 (2 unrouted and 0 violations), using 1.57 CPU seconds and the job allocated 0.29 GB of memory so far.\n2026-10-17 22:24:19.498 INFO   [2F43EA\\6FB8A1] Auto-routing pass #17 on board '7ce1e638544d25980ac79f144bbac6a8' was completed in 0.38 seconds with score 600.00 (3 unrouted and 0 violations), using 1.68 CPU seconds and the job allocated 0.33 GB of memory so far.\n2026-10-17 22:24:19.971 INFO   [2F43EA\\6FB8A1] Auto-routing pass #18 on board '6b20785f006f4a6ca414b7344975900e' was completed in 0.38 seconds with score 733.33 (2 unrouted and 0 violations), using 1.68 CPU seconds and the job allocated 0.33 GB of memory so far.\n2026-10-17 22:24:19.981 INFO   [2F43EA\\6FB8A1] Last-mile rip-up removed 3 blocking trace(s) or via(s) around 2 remaining connection(s).\n2026-10-17 22:24:19.985 INFO   [2F43EA\\6FB8A1] The router's best score (733.33) has not improved by more than 0.5 points since pass #8. Stopping the auto-router after 18 passes (2 items still unconnected).\nThe following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net '/VIN' (1 unrouted connection):\n    - J2-1  ->  C1-1\n  Net '/SIG_A_OUT' (1 unrouted connection):\n    - J2-3  ->  R1-2\n  Net '/SIG_B_OUT' (1 unrouted connection):\n    - R2-2  ->  J2-4\n  Net '/SIG_A' (1 unrouted connection):\n    - J1-3  ->  R1-1\n  Net '/SIG_B' (1 unrouted connection):\n    - via  ->  R2-1\n2026-10-17 22:24:20.177 INFO   [2F43EA\\6FB8A1] Auto-routing stage completed: started with 6 unrouted nets, completed in 12.34 seconds, final score: 733.33 (2 unrouted and 0 violations), using 1.80 total CPU seconds, 0.37 GB total allocated, and 225.1 MB peak heap usage.\n2026-10-17 22:24:20.232 INFO   [2F43EA\\6FB8A1] Skipping optimization stage: the board has 2 unrouted connection(s) (optimizer only runs on completely routed boards).\n2026-10-17 22:24:20.276 INFO   [2F43EA\\6FB8A1] Job '2F43EA\\6FB8A1' finished with state: COMPLETED (elapsed: 13.24 seconds, finished at UTC: 2026-10-18T05:24:20.275063428Z).\n2026-10-17 22:24:20.324 INFO   Saving output file '/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/board.ses' (SES)...\n2026-10-17 22:24:20.332 INFO   Successfully saved output file '/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/board.ses' (2395 bytes).\n"
+        "duration_s": 9.762,
+        "output_tail": "ca80e9980a83f2a8676c02884ee' was completed in 0.05 seconds with score 733.33 (2 unrouted and 0 violations), using 1.20 CPU seconds and the job allocated 0.20 GB of memory so far.\n2026-10-18 04:08:04.703 INFO   [29B131\\1B953C] Auto-routing pass #12 on board 'fcb2e5ecdee39bdc2ee730bdd73b498f' was completed in 0.00 seconds with score 733.33 (2 unrouted and 0 violations), using 1.20 CPU seconds and the job allocated 0.20 GB of memory so far.\n2026-10-18 04:08:04.752 INFO   [29B131\\1B953C] Auto-routing pass #13 on board 'fcb2e5ecdee39bdc2ee730bdd73b498f' was completed in 0.05 seconds with score 733.33 (2 unrouted and 0 violations), using 1.20 CPU seconds and the job allocated 0.20 GB of memory so far.\n2026-10-18 04:08:04.809 INFO   [29B131\\1B953C] Auto-routing pass #14 on board 'dbc24e53930843076eb8e2c466e40668' was completed in 0.05 seconds with score 733.33 (2 unrouted and 0 violations), using 1.20 CPU seconds and the job allocated 0.20 GB of memory so far.\n2026-10-18 04:08:04.815 INFO   [29B131\\1B953C] Last-mile rip-up removed 7 blocking trace(s) or via(s) around 2 remaining connection(s).\n2026-10-18 04:08:04.950 INFO   [29B131\\1B953C] Auto-routing pass #15 on board '09a5b0767952e65f40044e210cd5c55f' was completed in 0.12 seconds with score 733.33 (2 unrouted and 0 violations), using 1.20 CPU seconds and the job allocated 0.20 GB of memory so far.\n2026-10-18 04:08:05.006 INFO   [29B131\\1B953C] Auto-routing pass #16 on board '74f698a2ab1dad2bc1faccc9079751d3' was completed in 0.05 seconds with score 733.33 (2 unrouted and 0 violations), using 1.20 CPU seconds and the job allocated 0.20 GB of memory so far.\n2026-10-18 04:08:05.078 INFO   [29B131\\1B953C] Auto-routing pass #17 on board '646c0c2775650841ba758c60cf3ce2d7' was completed in 0.06 seconds with score 600.00 (3 unrouted and 0 violations), using 1.20 CPU seconds and the job allocated 0.20 GB of memory so far.\n2026-10-18 04:08:05.157 INFO   [29B131\\1B953C] Auto-routing pass #18 on board '7dc8319203bc5910e8f25270afdab73b' was completed in 0.07 seconds with score 733.33 (2 unrouted and 0 violations), using 1.20 CPU seconds and the job allocated 0.20 GB of memory so far.\n2026-10-18 04:08:05.171 INFO   [29B131\\1B953C] Last-mile rip-up removed 3 blocking trace(s) or via(s) around 2 remaining connection(s).\n2026-10-18 04:08:05.182 INFO   [29B131\\1B953C] The router's best score (733.33) has not improved by more than 0.5 points since pass #8. Stopping the auto-router after 18 passes (2 items still unconnected).\nThe following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net '/VIN' (1 unrouted connection):\n    - J2-1  ->  C1-1\n  Net '/SIG_A_OUT' (1 unrouted connection):\n    - J2-3  ->  R1-2\n  Net '/SIG_B_OUT' (1 unrouted connection):\n    - J2-4  ->  R2-2\n  Net '/SIG_A' (1 unrouted connection):\n    - R1-1  ->  J1-3\n  Net '/SIG_B' (1 unrouted connection):\n    - via  ->  R2-1\n2026-10-18 04:08:05.252 INFO   [29B131\\1B953C] Auto-routing stage completed: started with 6 unrouted nets, completed in 4.69 seconds, final score: 733.33 (2 unrouted and 0 violations), using 1.20 total CPU seconds, 0.20 GB total allocated, and 45.1 MB peak heap usage.\n2026-10-18 04:08:05.279 INFO   [29B131\\1B953C] Skipping optimization stage: the board has 2 unrouted connection(s) (optimizer only runs on completely routed boards).\n2026-10-18 04:08:05.291 INFO   [29B131\\1B953C] Job '29B131\\1B953C' finished with state: COMPLETED (elapsed: 5.00 seconds, finished at UTC: 2026-10-18T11:08:05.286336454Z).\n2026-10-18 04:08:05.291 INFO   Saving output file '/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/board.ses' (SES)...\n2026-10-18 04:08:05.293 INFO   Successfully saved output file '/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/board.ses' (2395 bytes).\n"
       },
       {
         "argv": [
           "/usr/bin/python3",
           "/home/halbritt/git/kicad-route/src/kicad_route/kicad/specctra.py",
           "import",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/input/route_demo/route_demo.kicad_pcb",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/board.ses",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/freerouting-out/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/input/route_demo/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/board.ses",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/freerouting-out/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work",
-        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/import-ses.log",
+        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work",
+        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/import-ses.log",
         "exit_code": 0,
-        "duration_s": 2.049
+        "duration_s": 0.914
       },
       {
         "argv": [
           "/usr/bin/python3",
           "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
           "strip",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/freerouting-out/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/freerouting-out/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work",
-        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/spokes-strip.log",
+        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work",
+        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/spokes-strip.log",
         "exit_code": 0,
-        "duration_s": 3.91
+        "duration_s": 0.818
       }
     ],
     "exit_code": 0,
@@ -213,13 +215,14 @@
       "output_written": true,
       "incomplete_connections": 2,
       "clearance_violations": 0,
-      "unrouted_log": "The following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net '/VIN' (1 unrouted connection):\n    - J2-1  ->  C1-1\n  Net '/SIG_A_OUT' (1 unrouted connection):\n    - J2-3  ->  R1-2\n  Net '/SIG_B_OUT' (1 unrouted connection):\n    - R2-2  ->  J2-4\n  Net '/SIG_A' (1 unrouted connection):\n    - J1-3  ->  R1-1\n  Net '/SIG_B' (1 unrouted connection):\n    - via  ->  R2-1"
+      "unrouted_log": "The following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net '/VIN' (1 unrouted connection):\n    - J2-1  ->  C1-1\n  Net '/SIG_A_OUT' (1 unrouted connection):\n    - J2-3  ->  R1-2\n  Net '/SIG_B_OUT' (1 unrouted connection):\n    - J2-4  ->  R2-2\n  Net '/SIG_A' (1 unrouted connection):\n    - R1-1  ->  J1-3\n  Net '/SIG_B' (1 unrouted connection):\n    - via  ->  R2-1"
     },
     "bridge": {
       "export": {
         "ignored_classes": [],
         "clearance_raised": [],
         "existing_copper_locked_for_export": 0,
+        "net_names_respelled": [],
         "dru_translated": [
           {
             "rule": "power_to_signal_clearance",
@@ -239,7 +242,7 @@
       },
       "import": {
         "placement_dropped": true,
-        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/board.noplacement.ses",
+        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/board.noplacement.ses",
         "existing_copper_locked": 0,
         "lock_flags_restored": 0
       }
@@ -247,33 +250,33 @@
     "project_writeback": [],
     "spoke_reservation": {
       "per_pad_requested": "min_resolved_spokes",
-      "plan": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/spokes-plan.json",
+      "plan": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/spokes-plan.json",
       "commands": [
         {
           "argv": [
             "/usr/bin/python3",
             "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
             "plan",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/input/route_demo/route_demo.kicad_pcb",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/spokes-plan.json"
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/input/route_demo/route_demo.kicad_pcb",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/spokes-plan.json"
           ],
-          "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work",
-          "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/spokes-plan.log",
+          "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work",
+          "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/spokes-plan.log",
           "exit_code": 0,
-          "duration_s": 4.809
+          "duration_s": 1.223
         },
         {
           "argv": [
             "/usr/bin/python3",
             "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
             "reserve",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/input/route_demo/route_demo.kicad_pcb",
-            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/spokes-plan.json"
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/input/route_demo/route_demo.kicad_pcb",
+            "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/spokes-plan.json"
           ],
-          "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work",
-          "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/spokes-reserve.log",
+          "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work",
+          "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/spokes-reserve.log",
           "exit_code": 0,
-          "duration_s": 3.579
+          "duration_s": 1.074
         }
       ],
       "reasons": [],
@@ -286,27 +289,27 @@
       "reserved": 10,
       "stripped": 10
     },
-    "runtime_s": 44.278,
+    "runtime_s": 15.519,
     "last_phase": "saving session",
     "heartbeats": {
       "count": 8,
-      "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/work/heartbeat.jsonl",
+      "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/work/heartbeat.jsonl",
       "stall_s": null,
-      "since_last_progress_s": 1.1,
+      "since_last_progress_s": 0.5,
       "tail": [
         {
-          "t_s": 12.022,
-          "utc": "2026-10-18T05:24:10.019100+00:00",
+          "t_s": 5.758,
+          "utc": "2026-10-18T11:08:01.892038+00:00",
           "phase": "auto-routing started",
           "metric": {
             "score": 333.33,
             "unrouted": 5
           },
-          "line": "2026-10-17 22:24:09.835 INFO [2F43EA\\6FB8A1] Auto-routing stage started on board 'e76d6b19c79188be8fe12a12251d7298' with baseline score 333.33 for 5 unrouted..."
+          "line": "2026-10-18 04:08:01.826 INFO [29B131\\1B953C] Auto-routing stage started on board '0f0ded900225599ac03b618370cf73db' with baseline score 333.33 for 5 unrouted..."
         },
         {
-          "t_s": 14.027,
-          "utc": "2026-10-18T05:24:12.024436+00:00",
+          "t_s": 6.758,
+          "utc": "2026-10-18T11:08:02.892786+00:00",
           "phase": "auto-routing started",
           "metric": {
             "pass": 1,
@@ -314,28 +317,28 @@
             "unrouted": 2,
             "violations": 0
           },
-          "line": "2026-10-17 22:24:11.854 INFO [2F43EA\\6FB8A1] Auto-routing pass #1 on board 'e76d6b19c79188be8fe12a12251d7298' was completed in 1.81 seconds with score 733.33..."
+          "line": "2026-10-18 04:08:02.739 INFO [29B131\\1B953C] Auto-routing pass #1 on board '0f0ded900225599ac03b618370cf73db' was completed in 0.79 seconds with score 733.33..."
         },
         {
-          "t_s": 22.397,
-          "utc": "2026-10-18T05:24:20.393703+00:00",
+          "t_s": 9.27,
+          "utc": "2026-10-18T11:08:05.404373+00:00",
           "phase": "auto-routing completed",
           "metric": {},
-          "line": "2026-10-17 22:24:20.177 INFO [2F43EA\\6FB8A1] Auto-routing stage completed: started with 6 unrouted nets, completed in 12.34 seconds, final score: 733.33 (2 u..."
+          "line": "2026-10-18 04:08:05.252 INFO [29B131\\1B953C] Auto-routing stage completed: started with 6 unrouted nets, completed in 4.69 seconds, final score: 733.33 (2 un..."
         },
         {
-          "t_s": 22.397,
-          "utc": "2026-10-18T05:24:20.393869+00:00",
+          "t_s": 9.27,
+          "utc": "2026-10-18T11:08:05.404546+00:00",
           "phase": "finished",
           "metric": {},
-          "line": "2026-10-17 22:24:20.276 INFO [2F43EA\\6FB8A1] Job '2F43EA\\6FB8A1' finished with state: COMPLETED (elapsed: 13.24 seconds, finished at UTC: 2026-10-18T05:24:20..."
+          "line": "2026-10-18 04:08:05.291 INFO [29B131\\1B953C] Job '29B131\\1B953C' finished with state: COMPLETED (elapsed: 5.00 seconds, finished at UTC: 2026-10-18T11:08:05...."
         },
         {
-          "t_s": 22.397,
-          "utc": "2026-10-18T05:24:20.393968+00:00",
+          "t_s": 9.27,
+          "utc": "2026-10-18T11:08:05.404650+00:00",
           "phase": "saving session",
           "metric": {},
-          "line": "2026-10-17 22:24:20.324 INFO Saving output file '/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/..."
+          "line": "2026-10-18 04:08:05.291 INFO Saving output file '/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/..."
         }
       ]
     },
@@ -364,7 +367,7 @@
     "blocked_by": {
       "schema": "kicad-route/blocked/2",
       "version": 2,
-      "report": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/validate/blocked-by.json",
+      "report": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/validate/blocked-by.json",
       "connections_analyzed": 1,
       "unobstructed_connections": 0,
       "method": "heuristic corridors; see docs/blocked.md",
@@ -382,10 +385,10 @@
           ]
         },
         {
-          "id": "36b771eb-2bee-42d2-a199-c2d477d57b48",
+          "id": "4f670db0-ce78-4825-8762-636c4d8afddd",
           "category": "new_copper",
           "kind": "track",
-          "label": "track /SIG_A B.Cu (new, unlocked) 36b771eb",
+          "label": "track /SIG_A B.Cu (new, unlocked) 4f670db0",
           "net": "/SIG_A",
           "locked": false,
           "origin": "new",
@@ -396,10 +399,10 @@
           ]
         },
         {
-          "id": "6582b17c-462f-4fdc-afdb-a9db98640e61",
+          "id": "c1d1425a-b1a0-45de-bc97-26c8b31a241c",
           "category": "new_copper",
           "kind": "track",
-          "label": "track /SIG_A_OUT B.Cu (new, unlocked) 6582b17c",
+          "label": "track /SIG_A_OUT B.Cu (new, unlocked) c1d1425a",
           "net": "/SIG_A_OUT",
           "locked": false,
           "origin": "new",
@@ -425,7 +428,7 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/validate",
+    "dir": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/validate",
     "rules_files": {
       "project": "route_demo.kicad_pro",
       "custom_rules": "route_demo.kicad_dru",
@@ -433,7 +436,7 @@
     },
     "restored_project_files": [],
     "delivered_project_files": [],
-    "delivered_board_sha256": "585e0f1b745c5e055df3c83734c49a23f8c58274863ddb7da2404c5cb63d6413",
+    "delivered_board_sha256": "0b74e64869a597417ff8be8cc4cecc97bde3669c9222b368b9811a6ffd267a6c",
     "drc_commands": [
       {
         "argv": [
@@ -445,13 +448,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/candidate/route_demo",
-        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/candidate/route_demo",
+        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 45.067
+        "duration_s": 12.203
       },
       {
         "argv": [
@@ -465,17 +468,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/candidate/route_demo",
-        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/candidate/route_demo",
+        "log": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 56.584
+        "duration_s": 9.159
       }
     ],
-    "validated_board_sha256": "9be8db1d93a28599969478a2c1559a747ddeba94e54cb6093050a9ef25ea373f",
-    "candidate_board_sha256": "9be8db1d93a28599969478a2c1559a747ddeba94e54cb6093050a9ef25ea373f",
+    "validated_board_sha256": "e0185ac1dcf63c7c50817b59a366badf49c07a98faa41f248ce5e1d629186dc4",
+    "candidate_board_sha256": "e0185ac1dcf63c7c50817b59a366badf49c07a98faa41f248ce5e1d629186dc4",
     "refill_modified_board": true,
     "parity_performed": true,
     "drc": {
@@ -520,21 +523,21 @@
     }
   },
   "candidate": {
-    "dir": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/candidate/route_demo",
-    "board": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z/candidate/route_demo/route_demo.kicad_pcb"
+    "dir": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/candidate/route_demo",
+    "board": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z/candidate/route_demo/route_demo.kicad_pcb"
   },
-  "run_dir": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T052339.207333Z",
-  "runtime_s": 155.851,
+  "run_dir": "runs/route_demo_fzone/smoke-spokes-fzone-freerouting/20261018T110750.143301Z",
+  "runtime_s": 41.365,
   "tool_versions": {
     "kicad-cli": "10.0.7"
   },
   "evidence": {
-    "input_board_sha256": "7a4eecc5169e36e3a4d6ace7556525fe877007649d31db28dddd78e47cf46e47",
-    "input_fingerprint": "2ef2b80912cdee6dd87e8ea23bb0ca753578d91b460495f558a210a0348e2568",
+    "input_board_sha256": "7d75745d493b3898917502be1dcae153c0d0056ec57c5da5fdd790c9574f0685",
+    "input_fingerprint": "28b1ac4ddf6f12a43abf718b348c566d8cea779492e77680402fbb6ce953dd01",
     "reference_files": {
       "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
       "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
-      "route_demo.kicad_pcb": "7a4eecc5169e36e3a4d6ace7556525fe877007649d31db28dddd78e47cf46e47",
+      "route_demo.kicad_pcb": "7d75745d493b3898917502be1dcae153c0d0056ec57c5da5fdd790c9574f0685",
       "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
       "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
       "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
@@ -544,27 +547,27 @@
       "route_demo.kicad_pro": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070"
     },
     "rule_floor_sha256": null,
-    "backend_output_board_sha256": "585e0f1b745c5e055df3c83734c49a23f8c58274863ddb7da2404c5cb63d6413",
-    "candidate_board_sha256": "585e0f1b745c5e055df3c83734c49a23f8c58274863ddb7da2404c5cb63d6413",
+    "backend_output_board_sha256": "0b74e64869a597417ff8be8cc4cecc97bde3669c9222b368b9811a6ffd267a6c",
+    "candidate_board_sha256": "0b74e64869a597417ff8be8cc4cecc97bde3669c9222b368b9811a6ffd267a6c",
     "candidate_copper_signature": {
       "sha256": "85a64b0f8308af965a9641d062311c1a3e2365dfc2176075fa478f83da42541c",
       "tracks": 19,
       "vias": 5
     },
     "records": {
-      "attempt.json": "c664fd62bd783d8293b6abbd4b61530e0795a1f43ca96bf143242659a028be2d",
+      "attempt.json": "964d75c0052c600829fc416d6ed6517e99059802cabdc01bdc525b9868a02383",
       "validate/preservation.json": "9709f83c82e9d2fd93d15ddfc156716354cbcb0ac50ee091eb6ab330c3fbfbde",
       "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
-      "validate/candidate-drc.json": "5073e46192d6caba999bfc3373b5281b166ce82544d2b206ccf5f9566ca36918",
-      "validate/candidate-facts.json": "d3731e2d2dc73ecfe2019910ad70c865bfad47f0bac66bc01a6734db598b3bdb",
-      "validate/pour-integrity.json": "bf659b6da99471defd90dfc07b4c9f96e2a39324015296eca31f0ac351519af2"
+      "validate/candidate-drc.json": "95592475813b26d9639180deb55a5da4e9a95ea6ed840caaedf914376cac5952",
+      "validate/candidate-facts.json": "cacacb58c372706963ed2eace7ce80cd9043faeb336646e897f6c898f9a7b4da",
+      "validate/pour-integrity.json": "39a41c0e9d20a83b5027e9502911faa7e5aa7537e67625196a1c82317afd05eb"
     }
   },
   "tool_identity": {
     "kicad_route": {
-      "version": "a928b15",
-      "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
-      "dirty": false
+      "version": "c45a2db-dirty",
+      "commit": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
+      "dirty": true
     },
     "kicad_cli": {
       "path": "/usr/bin/kicad-cli",
@@ -590,11 +593,11 @@
     "state_manifest_sha256": "d6e6179fd9cdc491d41e99b9abb110a66bde8d709b7f409eddaae648525e23c2",
     "state_manifest_drift": []
   },
-  "finished_utc": "2026-10-18T05:26:19.040752+00:00",
+  "finished_utc": "2026-10-18T11:08:33.216710+00:00",
   "exit_code": 2,
   "ledger": {
-    "fingerprint": "aa3d1400eacc9e7a43132d2ba567161e25818d0ab0640cc9e0b9b915c1b2d9f2",
-    "short": "aa3d1400eacc",
+    "fingerprint": "37db78269905835cb0899f90bde9b437cc1582f88da80e111ba0afdd928f1454",
+    "short": "37db78269905",
     "forced": false,
     "forced_over": null,
     "upstream_changed_since": null,
@@ -628,6 +631,24 @@
     },
     "out": {
       "path": "/home/halbritt/git/kicad-route/build/kicad-route/smoke"
+    },
+    "home": {
+      "HOME": "/home/halbritt",
+      "required": false,
+      "tool_home": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.kicad-config",
+        "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/data",
+        "XDG_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/config",
+        "XDG_CACHE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/cache",
+        "XDG_DATA_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/data",
+        "XDG_STATE_HOME": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/java",
+        "-Djava.util.prefs.userRoot=/home/halbritt/git/kicad-route/build/kicad-route/smoke/.home/java/prefs"
+      ]
     },
     "network": {
       "interfaces": 38,

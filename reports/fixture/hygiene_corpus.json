@@ -1,7 +1,7 @@
 {
   "entry": {
     "name": "fixture-sig-a",
-    "created_utc": "2026-10-18T03:57:20.127940+00:00",
+    "created_utc": "2026-10-18T10:17:51.239679+00:00",
     "board": "route_demo.kicad_pcb",
     "schematic": "route_demo.kicad_sch",
     "reference_dir": "reference/route_demo",
@@ -9,7 +9,7 @@
     "source": {
       "source_dir": "/home/halbritt/git/kicad-route/fixtures/route_demo",
       "source": "working tree",
-      "source_git_head": "a928b1562dfa48954c60e9cee4398bb3ed973e8e"
+      "source_git_head": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9"
     },
     "attempt": {
       "backend": "krt",
@@ -40,7 +40,7 @@
         "commit": "295f9ee197517e8323726853361eb137cc08ba9e"
       },
       "fingerprint": "a148a78ed4ed",
-      "run_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/fixture-sig-a/corpus-fixture-sig-a/20261018T035721.118673Z"
+      "run_dir": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/fixture-sig-a/corpus-fixture-sig-a/20261018T101751.569533Z"
     }
   },
   "update": {
@@ -54,7 +54,7 @@
         ]
       },
       "missing": [],
-      "report": "corpus/check-20261018T040024.724015Z.json"
+      "report": "corpus/check-20261018T101932.098425Z.json"
     }
   }
 }

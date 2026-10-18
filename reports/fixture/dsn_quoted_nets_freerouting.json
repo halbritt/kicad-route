@@ -1,0 +1,236 @@
+{
+  "backend": {
+    "name": "freerouting",
+    "version": "v2.5.0",
+    "build": "freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76",
+    "sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
+    "java": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java (25)",
+    "java_required": 25,
+    "source": "https://github.com/freerouting/freerouting",
+    "reproducible": false,
+    "reproducible_basis": "Freerouting's outcome may vary between runs: this result is an attempt, not a measurement"
+  },
+  "settings": {
+    "backend": "freerouting",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": 100,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": 0.01,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [
+      "--router.fanout.enabled=true"
+    ],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "scope": {
+    "mode": "all",
+    "nets": 6,
+    "nets_list": [
+      "/SIG_A_OUT",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND\"A",
+      "SIG\"B",
+      "W \"C\""
+    ]
+  },
+  "unsupported": [
+    "Freerouting never rips up pre-existing copper (KiCad exports it as fixed/protected); --protect locked behaves like --protect existing",
+    "Specctra carries per-class width/clearance/via only: custom .kicad_dru rules, diff pairs and length tuning are not exported; KiCad DRC grades them",
+    "rule areas export only their no-tracks/no-vias restrictions; zones export as plane outlines",
+    "route_demo.kicad_dru: net-class-to-net-class clearance rules are translated to Specctra class_class rules; any other custom rule is listed as untranslated below"
+  ],
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 0,
+    "baseline_unconnected_total": 6,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 17,
+      "new_vias": 2,
+      "new_track_length_mm": 123.4,
+      "new_track_length_mm_by_layer": {
+        "B.Cu": 59.613,
+        "F.Cu": 63.787
+      },
+      "new_copper_nets": 5,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    }
+  },
+  "exit_code": 0,
+  "process": {
+    "status": "PASS",
+    "reasons": [],
+    "exit_code": 0,
+    "runtime_s": 13.887,
+    "backend_report": {
+      "final_state": "COMPLETED",
+      "exit_code": 0,
+      "output_written": true,
+      "incomplete_connections": 1,
+      "clearance_violations": 0,
+      "unrouted_log": "The following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net 'W ''C''' (1 unrouted connection):\n    - via  ->  R2-1"
+    },
+    "bridge": {
+      "export": {
+        "ignored_classes": [],
+        "clearance_raised": [],
+        "existing_copper_locked_for_export": 0,
+        "net_names_respelled": [
+          {
+            "net": "GND\"A",
+            "to": "GND''A",
+            "planes": 1,
+            "classes": 1,
+            "wiring": 0
+          },
+          {
+            "net": "SIG\"B",
+            "to": "SIG''B",
+            "planes": 0,
+            "classes": 1,
+            "wiring": 0
+          },
+          {
+            "net": "W \"C\"",
+            "to": "\"W ''C''\"",
+            "planes": 0,
+            "classes": 1,
+            "wiring": 6
+          }
+        ],
+        "dru_translated": [
+          {
+            "rule": "power_to_signal_clearance",
+            "classes": [
+              "Power",
+              "*other"
+            ],
+            "clearance_mm": 0.4,
+            "pairs": 1
+          }
+        ],
+        "dru_untranslated": [],
+        "clearance_margin": {
+          "um": 10.0,
+          "rules": 4
+        }
+      },
+      "import": {
+        "placement_dropped": true,
+        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/work/board.noplacement.ses",
+        "existing_copper_locked": 0,
+        "lock_flags_restored": 0
+      }
+    },
+    "project_writeback": []
+  },
+  "validation": {
+    "status": "PASS",
+    "reasons": [],
+    "dir": "runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/validate",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
+    "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "e049eab85f6e48e3f5170305326cd0f12200b305ddcccf130cb256b0746992c7",
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/candidate/route_demo",
+        "log": "runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/validate/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 13.987
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/candidate/route_demo",
+        "log": "runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z/validate/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 12.2
+      }
+    ],
+    "validated_board_sha256": "b95d8f5acf8d942bd979c7bf7d94194e412e928f127162c25b4b7b0641c8feda",
+    "candidate_board_sha256": "b95d8f5acf8d942bd979c7bf7d94194e412e928f127162c25b4b7b0641c8feda",
+    "refill_modified_board": true,
+    "parity_performed": true,
+    "drc": {
+      "violations_total": 0,
+      "parity_total": 7,
+      "new_violations": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "preexisting_violations": 0,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 1,
+      "nets_lost": []
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    }
+  },
+  "run_dir": "runs/route_demo/dsn-quoted-freerouting/20261018T100103.111365Z"
+}

@@ -96,7 +96,7 @@
     }
   ],
   "reference_source": {
-    "source": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-krt/20261018T044326.034754Z/../../../../.cache/baseline/ac02d10cd05dec4a3080df079537098243195c1461634dd6a357e5a0abef8472/baseline-pour.json",
+    "source": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-blocked-krt/20261018T105315.407366Z/../../../../.cache/baseline/79585bbdb967c8af7f6493c5ac7814faecf64297d1ece8f12d8db45a3e6ea6ef/baseline-pour.json",
     "cached": true
   }
 }

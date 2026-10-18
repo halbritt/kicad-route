@@ -69,7 +69,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 80.706,
+    "runtime_s": 30.834,
     "backend_report": {
       "successful": 5,
       "failed": 0,
@@ -81,7 +81,7 @@
       "pad_pairs_total": 7,
       "total_vias": 1,
       "total_iterations": 1639,
-      "total_time": 0.16,
+      "total_time": 0.18,
       "protected_skipped": null,
       "scope": "merged",
       "relaxations": {
@@ -124,7 +124,7 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/smoke-krt/20261018T042932.702294Z/validate",
+    "dir": "runs/route_demo/smoke-krt/20261018T104419.057780Z/validate",
     "rules_files": {
       "project": "route_demo.kicad_pro",
       "custom_rules": "route_demo.kicad_dru",
@@ -132,7 +132,7 @@
     },
     "restored_project_files": [],
     "delivered_project_files": [],
-    "delivered_board_sha256": "c023ee37e6afaa004aca8c2f6a13cd2ae5a1481658fa8077fc52306625d714de",
+    "delivered_board_sha256": "adb3150fd0e1882d738964142594ee1a998cc45cd64679342ea92bf3470f0a7e",
     "drc_commands": [
       {
         "argv": [
@@ -144,13 +144,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt/20261018T042932.702294Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt/20261018T042932.702294Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt/20261018T104419.057780Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt/20261018T104419.057780Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-krt/20261018T042932.702294Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-krt/20261018T042932.702294Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-krt/20261018T104419.057780Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-krt/20261018T104419.057780Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 48.615
+        "duration_s": 20.416
       },
       {
         "argv": [
@@ -164,17 +164,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt/20261018T042932.702294Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt/20261018T042932.702294Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt/20261018T104419.057780Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-krt/20261018T104419.057780Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-krt/20261018T042932.702294Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-krt/20261018T042932.702294Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-krt/20261018T104419.057780Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-krt/20261018T104419.057780Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 44.102
+        "duration_s": 35.155
       }
     ],
-    "validated_board_sha256": "c023ee37e6afaa004aca8c2f6a13cd2ae5a1481658fa8077fc52306625d714de",
-    "candidate_board_sha256": "c023ee37e6afaa004aca8c2f6a13cd2ae5a1481658fa8077fc52306625d714de",
+    "validated_board_sha256": "adb3150fd0e1882d738964142594ee1a998cc45cd64679342ea92bf3470f0a7e",
+    "candidate_board_sha256": "adb3150fd0e1882d738964142594ee1a998cc45cd64679342ea92bf3470f0a7e",
     "refill_modified_board": false,
     "parity_performed": true,
     "drc": {
@@ -218,5 +218,5 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-krt/20261018T042932.702294Z"
+  "run_dir": "runs/route_demo/smoke-krt/20261018T104419.057780Z"
 }

@@ -1,13 +1,13 @@
 # Routing attempt: krt on route_demo
 
 - Backend: krt 0.23.1 (v0.23.1)
-- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint ac02d10cd05dec4a)
+- Input: `route_demo.kicad_pcb` from working tree @ None (fingerprint 79585bbdb967c8af)
 - Scope: all, 6 nets; protect: existing; budget 180 s
-- Candidate: `runs/route_demo/smoke-blocked-krt/20261018T044326.034754Z/candidate/route_demo/route_demo.kicad_pcb`
+- Candidate: `runs/route_demo/smoke-blocked-krt/20261018T105315.407366Z/candidate/route_demo/route_demo.kicad_pcb`
 
 | Result | Status | Detail |
 |---|---|---|
-| process | PASS | exit 0, 82.284 s |
+| process | PASS | exit 0, 39.315 s |
 | routing | INCOMPLETE | 4 unconnected in scope, 4 total (input: 7) |
 | validation | PASS | no new findings |
 
@@ -59,13 +59,13 @@ Unsupported or approximated by this backend:
 - KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class
 - backend reported: .kicad_dru: rule 'power_to_signal_clearance': clearance 0.4mm has a non-layer scope (netclass/area/... condition) -- skipped, KiCad will still enforce it
 
-Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/smoke-blocked-krt/20261018T044326.034754Z/validate/blocked-by.json`):
+Blocked by (heuristic straight/L corridors, not a proof; details `runs/route_demo/smoke-blocked-krt/20261018T105315.407366Z/validate/blocked-by.json`):
 
 | Blocker | Category | Blocks (best layer) | Blocks (any layer) |
 |---|---|---|---|
 | keepout 'wall' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 4 | 4 |
 | keepout 'route_keepout' (no tracks, no vias, no zone fills) on B.Cu, F.Cu | keepout | 3 | 3 |
-| track /SIG_A F.Cu (new, unlocked) ab49f926 | new_copper | 0 | 2 |
+| track /SIG_A F.Cu (new, unlocked) 1170f3c5 | new_copper | 0 | 2 |
 
 - `/SIG_A_OUT`: 1 open; best layer F.Cu with 2 hard blockers (keepout 'route_keepout', keepout 'wall')
 - `/SIG_B_OUT`: 1 open; best layer F.Cu with 1 hard blockers (keepout 'wall')

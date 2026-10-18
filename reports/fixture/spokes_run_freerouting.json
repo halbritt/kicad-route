@@ -72,7 +72,7 @@
     "status": "PASS",
     "reasons": [],
     "exit_code": 0,
-    "runtime_s": 46.625,
+    "runtime_s": 24.661,
     "backend_report": {
       "final_state": "COMPLETED",
       "exit_code": 0,
@@ -86,6 +86,7 @@
         "ignored_classes": [],
         "clearance_raised": [],
         "existing_copper_locked_for_export": 0,
+        "net_names_respelled": [],
         "dru_translated": [
           {
             "rule": "power_to_signal_clearance",
@@ -105,7 +106,7 @@
       },
       "import": {
         "placement_dropped": true,
-        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work/board.noplacement.ses",
+        "session": "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work/board.noplacement.ses",
         "existing_copper_locked": 0,
         "lock_flags_restored": 0
       }
@@ -115,7 +116,7 @@
   "validation": {
     "status": "PASS",
     "reasons": [],
-    "dir": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/validate",
+    "dir": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/validate",
     "rules_files": {
       "project": "route_demo.kicad_pro",
       "custom_rules": "route_demo.kicad_dru",
@@ -123,7 +124,7 @@
     },
     "restored_project_files": [],
     "delivered_project_files": [],
-    "delivered_board_sha256": "0f8d267808ae75d5a7b410ea99f06234e58515445377d6c1ff422ee343f8ff95",
+    "delivered_board_sha256": "b63a9dafef1f2ddf82646f23bc6bf9663b59bdfab816e1fcb286ca118c17837e",
     "drc_commands": [
       {
         "argv": [
@@ -135,13 +136,13 @@
           "--format",
           "json",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/validate/candidate-refill.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/validate/candidate-refill.log",
+        "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/validate/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 67.283
+        "duration_s": 17.3
       },
       {
         "argv": [
@@ -155,17 +156,17 @@
           "--units",
           "mm",
           "-o",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/validate/candidate-drc.json",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/candidate/route_demo/route_demo.kicad_pcb"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/candidate/route_demo",
-        "log": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/validate/candidate-drc.log",
+        "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/candidate/route_demo",
+        "log": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/validate/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 62.683
+        "duration_s": 13.922
       }
     ],
-    "validated_board_sha256": "80a80f7f92731330190a1ccecbd53f041b4d13fb27e521d1037f1f66e8c32f69",
-    "candidate_board_sha256": "80a80f7f92731330190a1ccecbd53f041b4d13fb27e521d1037f1f66e8c32f69",
+    "validated_board_sha256": "58405975e5b15479f39499f5615cd04df9e2dc2b2008816ec3f77a7fc4cef9eb",
+    "candidate_board_sha256": "58405975e5b15479f39499f5615cd04df9e2dc2b2008816ec3f77a7fc4cef9eb",
     "refill_modified_board": true,
     "parity_performed": true,
     "drc": {
@@ -209,36 +210,36 @@
       "pour_integrity": "PASS"
     }
   },
-  "run_dir": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z",
+  "run_dir": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z",
   "spoke_reservation": {
     "per_pad_requested": "min_resolved_spokes",
-    "plan": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work/spokes-plan.json",
+    "plan": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work/spokes-plan.json",
     "commands": [
       {
         "argv": [
           "/usr/bin/python3",
           "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
           "plan",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work/input/route_demo/route_demo.kicad_pcb",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work/spokes-plan.json"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work/input/route_demo/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work/spokes-plan.json"
         ],
-        "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work",
-        "log": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work/spokes-plan.log",
+        "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work",
+        "log": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work/spokes-plan.log",
         "exit_code": 0,
-        "duration_s": 4.539
+        "duration_s": 2.616
       },
       {
         "argv": [
           "/usr/bin/python3",
           "/home/halbritt/git/kicad-route/src/kicad_route/kicad/spokes.py",
           "reserve",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work/input/route_demo/route_demo.kicad_pcb",
-          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work/spokes-plan.json"
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work/input/route_demo/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/kicad-route/smoke/runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work/spokes-plan.json"
         ],
-        "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work",
-        "log": "runs/route_demo/smoke-spokes-freerouting/20261018T051407.224923Z/work/spokes-reserve.log",
+        "cwd": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work",
+        "log": "runs/route_demo/smoke-spokes-freerouting/20261018T110518.082819Z/work/spokes-reserve.log",
         "exit_code": 0,
-        "duration_s": 4.053
+        "duration_s": 1.851
       }
     ],
     "reasons": [],

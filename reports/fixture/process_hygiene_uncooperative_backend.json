@@ -3,12 +3,12 @@
   "stop_requested": true,
   "killed": true,
   "exit_code": -9,
-  "duration_s": 4.217,
-  "stop_to_exit_s": 2.161,
+  "duration_s": 4.116,
+  "stop_to_exit_s": 2.112,
   "leftover_children_killed": null,
   "pids": {
-    "grandchild": 552774,
-    "backend": 552716,
-    "child": 552752
+    "grandchild": 597236,
+    "backend": 597184,
+    "child": 597203
   }
 }

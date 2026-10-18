@@ -1,0 +1,41 @@
+{
+  "strace": true,
+  "exit_code": 0,
+  "home": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/home",
+  "home_entries": 1,
+  "write_attempts_outside_out": {},
+  "sandbox_home": {
+    "HOME": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/home",
+    "required": false,
+    "tool_home": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home",
+    "env": {
+      "KICAD_CONFIG_HOME": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.kicad-config",
+      "KICAD_CACHE_HOME": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home/cache",
+      "KICAD_DOCUMENTS_HOME": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home/data",
+      "XDG_CONFIG_HOME": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home/config",
+      "XDG_CACHE_HOME": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home/cache",
+      "XDG_DATA_HOME": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home/data",
+      "XDG_STATE_HOME": "/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home/state"
+    },
+    "jvm": [
+      "-Duser.home=/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home/java",
+      "-Djava.util.prefs.userRoot=/tmp/pytest-of-halbritt/pytest-1368/test_round_trip_leaves_readonl0/out/.home/java/prefs"
+    ]
+  },
+  "tool_home": [
+    ".home/cache",
+    ".home/cache/kicad",
+    ".home/cache/kicad/10.0",
+    ".home/data",
+    ".home/data/kicad",
+    ".home/data/kicad/10.0",
+    ".home/data/kicad/10.0/3dmodels",
+    ".home/data/kicad/10.0/3rdparty",
+    ".home/data/kicad/10.0/footprints",
+    ".home/data/kicad/10.0/plugins",
+    ".home/data/kicad/10.0/projects",
+    ".home/data/kicad/10.0/scripting",
+    ".home/data/kicad/10.0/symbols",
+    ".home/data/kicad/10.0/template"
+  ]
+}

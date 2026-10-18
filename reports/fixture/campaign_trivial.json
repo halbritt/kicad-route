@@ -25,9 +25,9 @@
       "new_violations": 0,
       "new_parity": 0,
       "preservation_failures": [],
-      "runtime_s": 60.666,
-      "end_run": "runs/route_demo/campaign-trivial-r0/20261018T031220.757054Z",
-      "candidate": "runs/route_demo/campaign-trivial-r0/20261018T031220.757054Z/candidate/route_demo/route_demo.kicad_pcb"
+      "runtime_s": 36.513,
+      "end_run": "runs/route_demo/campaign-trivial-r0/20261018T094541.487227Z",
+      "candidate": "runs/route_demo/campaign-trivial-r0/20261018T094541.487227Z/candidate/route_demo/route_demo.kicad_pcb"
     }
   ],
   "stop_reason": "complete in round 0",
@@ -35,10 +35,10 @@
     "chain": "r0",
     "round": 0,
     "strategy": "full",
-    "run_dir": "runs/route_demo/campaign-trivial-r0/20261018T031220.757054Z",
-    "candidate": "runs/route_demo/campaign-trivial-r0/20261018T031220.757054Z/candidate/route_demo/route_demo.kicad_pcb",
-    "graded_against": "runs/route_demo/campaign-trivial-r0/20261018T031220.757054Z",
-    "grade": "runs/route_demo/campaign-trivial-r0/20261018T031220.757054Z/result.json",
+    "run_dir": "runs/route_demo/campaign-trivial-r0/20261018T094541.487227Z",
+    "candidate": "runs/route_demo/campaign-trivial-r0/20261018T094541.487227Z/candidate/route_demo/route_demo.kicad_pcb",
+    "graded_against": "runs/route_demo/campaign-trivial-r0/20261018T094541.487227Z",
+    "grade": "runs/route_demo/campaign-trivial-r0/20261018T094541.487227Z/result.json",
     "exit_code": 0,
     "evidence": {
       "input_board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
@@ -56,27 +56,27 @@
         "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550"
       },
       "rule_floor_sha256": null,
-      "backend_output_board_sha256": "c87360bee47ed03d2b08df7982c0776832cbf6ffdf1cf6222a5d68d27aa11ef5",
-      "candidate_board_sha256": "c87360bee47ed03d2b08df7982c0776832cbf6ffdf1cf6222a5d68d27aa11ef5",
+      "backend_output_board_sha256": "20878992daf32382d36d33dea82f1605fb053028480d5846498ee9b6c68962bd",
+      "candidate_board_sha256": "20878992daf32382d36d33dea82f1605fb053028480d5846498ee9b6c68962bd",
       "candidate_copper_signature": {
         "sha256": "be567862c42fa29ebfad0d7bed3680a1dd31830be1334d184301964e066d4126",
         "tracks": 10,
         "vias": 2
       },
       "records": {
-        "attempt.json": "eadf6acdc22a32d6cba571621226fbae618739c5b3f7e9956a9693ee1d368950",
+        "attempt.json": "9bc67b3fd8a1db6066d46ae3e8e743f7b3efa4b5d1031ef89b968275fa6ca3a8",
         "validate/preservation.json": "0475f2d53117ca81e1c36e195122157177503f28016785c854976a675d15ca3a",
         "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
-        "validate/candidate-drc.json": "9cc650e15f4fdb6f0a58f9d5dc6721c80dc38b5de554e4a82dbb55cf064ef915",
-        "validate/candidate-facts.json": "313e908b8cb95457ff768afc95dcae81fd7dceb2b201c27835b730a41cc72b8f",
-        "validate/pour-integrity.json": "5b4fa4b41cf4216caa6cbda79b5e16559d5b217510849697b6f4a6d070a3306e"
+        "validate/candidate-drc.json": "c05392c70d28ffe497a3356d92ce9956fe9c44a129e01b69ef0042cbe3e02f7b",
+        "validate/candidate-facts.json": "2af1c6292edf48108c45c33cd2b9b54474d93f894c2c8f42712a161c09e68ec9",
+        "validate/pour-integrity.json": "43fd6c9f074c627bc06bf1f0ef07f3a2681bf0bfb0a69b94bc04957ca347369b"
       }
     },
     "tool_identity": {
       "kicad_route": {
-        "version": "a928b15",
-        "commit": "a928b1562dfa48954c60e9cee4398bb3ed973e8e",
-        "dirty": false
+        "version": "c45a2db-dirty",
+        "commit": "c45a2db29e2dacfcdc64513fd4f79e5c5257f6d9",
+        "dirty": true
       },
       "kicad_cli": {
         "path": "/usr/bin/kicad-cli",

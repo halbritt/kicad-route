@@ -3,7 +3,7 @@
   "validation": {
     "status": "FAIL",
     "reasons": [
-      "candidate project files differed from the input and were restored before grading (the delivered versions are kept in /tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/delivered-project-files): route_demo.kicad_pro",
+      "candidate project files differed from the input and were restored before grading (the delivered versions are kept in /tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/revalidate/20261018T105857.849392Z/delivered-project-files): route_demo.kicad_pro",
       "2 new DRC violations: track_dangling 2",
       "preservation project_files: rules (.kicad_pro/.kicad_dru), schematics, library tables and local libraries are byte-identical to the input; restored before grading: route_demo.kicad_pro",
       "preservation footprints: 5 footprints: library id, position, orientation, side, lock state and pad geometry; 1 differ",
@@ -11,7 +11,7 @@
       "preservation new_copper_netclass_geometry: 16 new tracks and 1 new vias checked against their net class width / via (microvia) diameter / drill (1 um quantisation tolerance); 1 below",
       "preservation net_completion: 1 of the 1 nets fully connected in the input lost connection: /SIG_B"
     ],
-    "dir": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z",
+    "dir": "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/revalidate/20261018T105857.849392Z",
     "rules_files": {
       "project": "route_demo.kicad_pro",
       "custom_rules": "route_demo.kicad_dru",
@@ -26,10 +26,10 @@
         "reference_sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
         "delivered_sha256": "e1a3d549427899c5ad6bbb58bbc7b2523f57607908f846ca3238fc6dc32c5849",
         "action": "restored",
-        "kept": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/delivered-project-files/route_demo.kicad_pro"
+        "kept": "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/revalidate/20261018T105857.849392Z/delivered-project-files/route_demo.kicad_pro"
       }
     ],
-    "delivered_board_sha256": "d1bda1393ece6d4ce13cd13c4167ed335589eed2744f7cf1d67886fd28e2221e",
+    "delivered_board_sha256": "81e99c4aff5a1659d2178f8b2da812fcc3a371ca2936031da9b6d76bd90c2da9",
     "drc_commands": [
       {
         "argv": [
@@ -41,13 +41,13 @@
           "--format",
           "json",
           "-o",
-          "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/candidate-refill.json",
-          "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
+          "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/revalidate/20261018T105857.849392Z/candidate-refill.json",
+          "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/candidate/route_demo",
-        "log": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/candidate-refill.log",
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/revalidate/20261018T105857.849392Z/candidate-refill.log",
         "exit_code": 0,
-        "duration_s": 60.843
+        "duration_s": 14.123
       },
       {
         "argv": [
@@ -61,17 +61,17 @@
           "--units",
           "mm",
           "-o",
-          "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/candidate-drc.json",
-          "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
+          "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/revalidate/20261018T105857.849392Z/candidate-drc.json",
+          "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/candidate/route_demo/route_demo.kicad_pcb"
         ],
-        "cwd": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/candidate/route_demo",
-        "log": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/candidate-drc.log",
+        "cwd": "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/candidate/route_demo",
+        "log": "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/revalidate/20261018T105857.849392Z/candidate-drc.log",
         "exit_code": 0,
-        "duration_s": 53.643
+        "duration_s": 12.214
       }
     ],
-    "validated_board_sha256": "6ea67ca134f4fdb33acf38ce42f145599498188cd28018b3872ddf5db2c05c70",
-    "candidate_board_sha256": "6ea67ca134f4fdb33acf38ce42f145599498188cd28018b3872ddf5db2c05c70",
+    "validated_board_sha256": "a74da29593207da4cd2c57ba02d833c32adcda11b5cbaa19e5bd216db9dc2af4",
+    "candidate_board_sha256": "a74da29593207da4cd2c57ba02d833c32adcda11b5cbaa19e5bd216db9dc2af4",
     "refill_modified_board": true,
     "parity_performed": true,
     "drc": {
@@ -144,7 +144,7 @@
     "blocked_by": {
       "schema": "kicad-route/blocked/2",
       "version": 2,
-      "report": "/tmp/pytest-of-halbritt/pytest-1338/test_validation_detects_tamper0/run/revalidate/20261018T045607.509233Z/blocked-by.json",
+      "report": "/tmp/pytest-of-halbritt/pytest-1368/test_validation_detects_tamper0/run/revalidate/20261018T105857.849392Z/blocked-by.json",
       "connections_analyzed": 1,
       "unobstructed_connections": 1,
       "method": "heuristic corridors; see docs/blocked.md",
