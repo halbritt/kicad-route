@@ -187,8 +187,8 @@ def test_kicad_export_round_trip(tmp_path):
     r = subprocess.run([str(common.PCBNEW_PYTHON), str(scripts / "rename_nets.py"), str(board),
                         str(tmp_path / "map.json")], capture_output=True, text=True, timeout=300)
     assert r.returncode == 0, r.stderr[-2000:]
-    raw = tmp_path / "raw.dsn"
-    r = subprocess.run([str(common.PCBNEW_PYTHON), str(scripts / "specctra.py"), "export", str(board), str(raw)],
+    raw = tmp_path / "raw.dsn"  # `check` leaves KiCad's own export as it is
+    r = subprocess.run([str(common.PCBNEW_PYTHON), str(scripts / "specctra.py"), "check", str(board), str(raw)],
                        capture_output=True, text=True, timeout=300)
     assert r.returncode == 0, r.stderr[-2000:]
     text = raw.read_text()
@@ -207,11 +207,12 @@ def test_kicad_export_round_trip(tmp_path):
     bridge = route.tagged_json(r.stdout, "BRIDGE_JSON")
     assert bridge["ignored_classes"] == ["kicad_default__skip"]
     out = scoped.read_text()
-    kept = [n for n in expect_order if n not in skip]
+    kept = [specctra.dsn_net_token(n) for n in expect_order if n not in skip]
     moved = [specctra.dsn_net_token(n) for n in expect_order if n in skip]
-    assert "(class kicad_default " + " ".join(specctra.kicad_token(n) for n in kept) + "\n" in out
+    # kept members too are respelled as their definitions (KICADROUTE-56), in KiCad's order
+    assert "(class kicad_default " + " ".join(kept) + "\n" in out
     assert '(class "kicad_default__skip" ' + " ".join(moved) + "\n" in out
-    for tok in moved:  # each moved member is spelled exactly as its (net ...) definition
+    for tok in kept + moved:  # each member is spelled exactly as its (net ...) definition
         assert re.search(r"\(net " + re.escape(tok) + r"\n", out), tok
     record("specctra_nets_export", {"raw_class_line": line, "skip": skip, "kept": kept, "moved": moved})
 

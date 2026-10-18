@@ -5,6 +5,7 @@
                                                      [--dru RULES.kicad_dru] [--clearance-margin UM]
                                                      [--only KEYS.json]
     specctra.py import BOARD.kicad_pcb SESSION.ses OUT.kicad_pcb [--only KEYS.json]
+    specctra.py check BOARD.kicad_pcb OUT.dsn
 
 kicad-cli 10 has no DSN export or SES import, so this uses the two-argument
 SWIG functions pcbnew.ExportSpecctraDSN(board, path) and
@@ -16,7 +17,7 @@ the routing scope are moved into a copy of their class (same width, clearance
 and via rules) named `<class>__skip`; the caller passes those names to
 --router.autorouter.ignore_net_classes. Clearances are unchanged. Nets are
 matched by exact KiCad name in class lists read as KiCad writes them (see
-read_class); a list that cannot be read unambiguously fails the export.
+read_class); a list that cannot be read unambiguously fails the export (exit 4, below).
 
 export --default-clearance: raise the Default net class (`kicad_default`) and
 the board-level clearance rule to UM micrometres when they are lower. It only
@@ -48,9 +49,20 @@ lock only the unlocked items whose key is listed (multiset). `--protect human`
 uses it so copper an earlier kicad-route step placed exports as (type route)
 and is rebuilt from the session, while the design's own copper stays locked.
 
+Net names holding `"` (KICADROUTE-56): KiCad writes them as `''` only in the
+(net ...) definitions and raw everywhere else ((plane ...), class member lists,
+the (net ...) of fixed wires and vias), which Freerouting cannot read (an NPE in
+planeInfo.area). Every export rewrites those references to the definition's
+spelling and leaves every other byte as KiCad wrote it. A reference it cannot
+read one way, or two nets KiCad writes the same, exits 4 with a
+`BRIDGE_REFUSAL: {"message": ...}` line. `check` runs only that test (no
+routing options) and leaves KiCad's export in OUT.dsn as KiCad wrote it; `run`
+uses it to refuse before Freerouting starts.
+
 import: the session's (placement ...) section is dropped before KiCad reads
 it, so a session can never move footprints. Zones are not refilled here; the
-caller grades with a refill.
+caller grades with a refill. Freerouting writes the session in the definitions'
+spelling, which KiCad's SES import maps back to its own names.
 """
 import collections
 import heapq
@@ -97,6 +109,11 @@ QUOTED = re.compile(r"[\s(){}%]")
 RAW = re.compile(r"[^\s()]+")
 DEF_TOKEN = re.compile(r'"[^"]*"|[^\s()"]+')
 WS = " \t\r\n"
+
+
+class NetNameError(ValueError):
+    """A net name the bridge cannot write one way throughout the DSN: the input is
+    refused (exit 4) rather than handed to Freerouting."""
 
 
 def needs_quote(name):
@@ -238,8 +255,8 @@ def read_class(text, start, defined=None, whole=False):
         if count == 1:
             return res
         if count > 1:
-            raise ValueError(f"ambiguous net class member list at offset {start}: {text[start:start + 200]!r}")
-    raise ValueError(f"unreadable net class member list at offset {start}: {text[start:start + 200]!r}")
+            raise NetNameError(f"ambiguous net class member list at offset {start}: {text[start:start + 200]!r}")
+    raise NetNameError(f"unreadable net class member list at offset {start}: {text[start:start + 200]!r}")
 
 
 def find_open(text, start=1):
@@ -257,22 +274,23 @@ def find_open(text, start=1):
     raise ValueError(f"unreadable net class member list: {text[:200]!r}")
 
 
-Network = collections.namedtuple("Network", "start end defined classes")
+Network = collections.namedtuple("Network", "start end defined classes duplicates")
 
 
 def read_network(dsn):
-    """The (network ...) section: its span, net definitions ({unquoted: token}) and
-    classes (ClassBlock, in order). KiCad writes every (net ...) before the classes."""
+    """The (network ...) section: its span, net definitions ({unquoted: token}),
+    classes (ClassBlock, in order) and the definitions written more than once.
+    KiCad writes every (net ...) before the classes."""
     m = re.search(r"\(network\b", dsn)
     if not m:
         raise ValueError("no (network ...) section")
-    i, defined, classes = m.end(), {}, []
+    i, defined, classes, duplicates = m.end(), {}, [], []
     while True:
         i = skip_ws(dsn, i)
         if i >= len(dsn):
             raise ValueError("unbalanced (network ...) section")
         if dsn[i] == ")":
-            return Network(m.start(), i + 1, defined, classes)
+            return Network(m.start(), i + 1, defined, classes, duplicates)
         kw = re.compile(r"\(([^\s()\"]+)").match(dsn, i)
         if not kw:
             raise ValueError(f"unexpected text in (network ...) at offset {i}: {dsn[i:i + 80]!r}")
@@ -284,6 +302,8 @@ def read_network(dsn):
         if kw.group(1) == "net":
             t = DEF_TOKEN.match(dsn, skip_ws(dsn, kw.end()))
             if t:
+                if unquote(t.group()) in defined:
+                    duplicates.append(t.group())
                 defined[unquote(t.group())] = t.group()
         i = block_span(dsn, i)
 
@@ -314,6 +334,80 @@ def split_classes(dsn, skip):
         ignored.append(f"{c.name}__skip")
     out.append(dsn[pos:])
     return "".join(out), ignored
+
+
+PLANE = re.compile(r"(?m)^[ \t]*\(plane[ \t]+")
+WIRING_ITEM = re.compile(r"(?m)^[ \t]*\((?:wire|via)\b")
+NET_REF = re.compile(r"\(net[ \t]+")
+SHAPE_NEXT = re.compile(r"[ \t]+\([A-Za-z_]+\s")
+
+
+def read_ref(text, i, defined, follows, where):
+    """The net name KiCad wrote raw at text[i] in a (plane ...) or wiring (net ...):
+    (start, end, name) when it holds `"`, None when it holds none. `follows(text, end)`
+    accepts what KiCad writes after the name. Readings that are defined nets win;
+    NetNameError when no single reading is left."""
+    cands = []
+    for strict in (True, False):
+        cands = [(e, n) for e, n in spellings(text, i, strict) if follows(text, e)]
+        if cands:
+            break
+    if not cands:
+        raw = RAW.match(text, i)
+        if raw and '"' in raw.group():
+            raise NetNameError(f"{where}: unreadable net name {text[i:i + 80]!r}")
+        return None
+    if not any('"' in n for _, n in cands):
+        return None
+    known = [c for c in cands if c[1].replace('"', "''") in defined]
+    pick = known or cands
+    if len(pick) != 1:
+        raise NetNameError(f"{where}: the net name {text[i:pick[-1][0]]!r} reads as "
+                           + " or ".join(repr(n) for _, n in pick))
+    return i, pick[0][0], pick[0][1]
+
+
+def definition_spelling(dsn):
+    """Rewrite the net names KiCad wrote raw ((plane ...), class members, the (net ...)
+    of wires and vias) that hold `"` to their (net ...) definition's spelling. Every
+    other byte is unchanged. Returns (dsn, [{"net", "to", "planes", "classes", "wiring"}]).
+    Raises NetNameError when a name cannot be read one way or two nets share a
+    definition (Freerouting would merge them)."""
+    net = read_network(dsn)
+    if net.duplicates:
+        raise NetNameError("more than one net is written " + ", ".join(sorted(set(net.duplicates)))
+                           + " in the DSN (KiCad writes `\"` as `''`), so Freerouting would merge them")
+    defined = net.defined
+
+    def spelled(name):
+        return defined.get(name.replace('"', "''"), dsn_net_token(name))
+
+    edits = []                               # (start, end, name, kind)
+    for c in net.classes:
+        edits += [(s, e, n, "classes") for n, s, e in c.members if '"' in n]
+    struct = re.search(r"\(structure\b", dsn)
+    if struct and struct.start() < net.start:
+        for m in PLANE.finditer(dsn, struct.end(), net.start):
+            r = read_ref(dsn, m.end(), defined, lambda t, e: bool(SHAPE_NEXT.match(t, e)),
+                         f"(plane ...) at offset {m.start()}")
+            if r:
+                edits.append((*r, "planes"))
+    items = [m.end() for m in WIRING_ITEM.finditer(dsn, net.end)] + [len(dsn)]
+    for a, b in zip(items, items[1:]):
+        m = NET_REF.search(dsn, a, b)
+        if m:
+            r = read_ref(dsn, m.end(), defined, lambda t, e: e < len(t) and t[e] == ")",
+                         f"wiring (net ...) at offset {m.start()}")
+            if r:
+                edits.append((*r, "wiring"))
+    out, pos, report = [], 0, {}
+    for s, e, name, kind in sorted(edits):
+        out += [dsn[pos:s], spelled(name)]
+        pos = e
+        rec = report.setdefault(name, {"net": name, "to": spelled(name), "planes": 0, "classes": 0, "wiring": 0})
+        rec[kind] += 1
+    out.append(dsn[pos:])
+    return "".join(out), list(report.values())
 
 
 def raise_default_clearance(dsn, floor_um):
@@ -454,8 +548,9 @@ def drop_placement(ses):
 
 def rewrite_dsn(text, opts, info):
     """The export options applied to KiCad's DSN text, in order; details go to `info`."""
-    if "--skip-nets" in opts:
+    if "--skip-nets" in opts:  # before the respelling: kept members are read as KiCad wrote them
         text, info["ignored_classes"] = split_classes(text, set(json.loads(Path(opts["--skip-nets"]).read_text())))
+    text, info["net_names_respelled"] = definition_spelling(text)
     if "--dru" in opts:
         rules, skipped = dru_class_clearances(Path(opts["--dru"]).read_text())
         text, info["dru_translated"] = add_class_clearances(text, rules)
@@ -487,6 +582,17 @@ def main(argv):
             t.SetLocked(True)
         return unlocked
 
+    if len(argv) == 3 and argv[0] == "check":
+        board = pcbnew.LoadBoard(argv[1])
+        if not pcbnew.ExportSpecctraDSN(board, argv[2]):
+            sys.exit("ExportSpecctraDSN failed")
+        try:
+            _, respelled = definition_spelling(Path(argv[2]).read_text())
+        except NetNameError as e:
+            print("BRIDGE_REFUSAL: " + json.dumps({"message": str(e)}))
+            return 4
+        print("BRIDGE_JSON: " + json.dumps({"net_names_respelled": respelled}))
+        return 0
     if len(argv) >= 3 and argv[0] == "export":
         board = pcbnew.LoadBoard(argv[1])
         opts = dict(zip(argv[3::2], argv[4::2]))
@@ -501,7 +607,10 @@ def main(argv):
         text = out.read_text()
         try:
             text = rewrite_dsn(text, opts, info)
-        except ValueError as e:  # fail closed: never hand a backend a DSN we could not read
+        except NetNameError as e:  # fail closed: never hand a backend a DSN we could not read
+            print("BRIDGE_REFUSAL: " + json.dumps({"message": str(e)}))
+            return 4
+        except ValueError as e:
             sys.exit(f"DSN rewrite failed: {e}")
         out.write_text(text)
         print("BRIDGE_JSON: " + json.dumps(info))

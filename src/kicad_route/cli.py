@@ -979,6 +979,10 @@ def run_attempt(args):
         refuse("input", str(e))
     if not scope:
         refuse("input", "the net selection matches no nets")
+    if backend.get("preflight"):  # what the backend's bridge cannot carry, before it starts
+        msg = backend["preflight"](ref_dir / board_name, ref_facts, run_dir)
+        if msg:
+            refuse("input", msg)
     settings = {"backend": args.backend, "budget_s": args.budget, "protect": args.protect,
                 "max_iterations": args.max_iterations, "passes": args.passes,
                 "default_clearance_mm": args.default_clearance, "clearance_margin_mm": args.clearance_margin,
@@ -1496,6 +1500,34 @@ def freerouting_unsupported(facts, ref_dir, settings):
     return notes
 
 
+def freerouting_preflight(board, facts, run_dir):
+    """A refusal message (exit 4, before Freerouting starts) when the Specctra bridge
+    cannot write every net name one way (KICADROUTE-56), else None. Only boards with
+    a `"` in a net name pay for it: two names KiCad writes the same are refused from
+    the facts, then `specctra.py check` reads KiCad's own export of the board."""
+    from .kicad import specctra
+    names = [n for n in facts["nets"] if n]
+    if not any('"' in n for n in names):
+        return None
+    same = collections.defaultdict(list)
+    for n in names:
+        same[specctra.dsn_net_token(n)].append(n)
+    clash = sorted((sorted(ns), tok) for tok, ns in same.items() if len(ns) > 1)
+    if clash:
+        return ("Freerouting cannot tell these nets apart: KiCad's DSN export writes `\"` as `''`, so "
+                + "; ".join(" and ".join(map(repr, ns)) + f" are each written {tok}" for ns, tok in clash)
+                + ". Rename one of each, or route with --backend krt")
+    d = run_dir / "facts"
+    rec = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "specctra.py", "check", board, d / "names-check.dsn"],
+                         d, d / "names-check.log", timeout=600)
+    (d / "names-check.dsn").unlink(missing_ok=True)
+    refusal = tagged_json(rec["output"], "BRIDGE_REFUSAL")
+    if rec["exit_code"] == 4 and refusal:
+        return (f"the Specctra bridge cannot write a net name one way for Freerouting: {refusal['message']}. "
+                "Rename the net, or route with --backend krt")
+    return None  # anything else the export itself reports when the attempt runs
+
+
 def freerouting_route(work, board, scope, facts, settings):
     proc = {"status": PASS, "reasons": [], "commands": [], "output_board": None, "exit_code": None}
     rel = freerouting_installed()
@@ -1527,7 +1559,10 @@ def freerouting_route(work, board, scope, facts, settings):
     proc["commands"].append(common.public(rec))
     bridge = tagged_json(rec["output"], "BRIDGE_JSON") if rec["exit_code"] == 0 else None
     if not bridge or not dsn.exists():
-        proc.update(status=FAIL, reasons=[f"DSN export failed (exit {rec['exit_code']}); see {rec['log']}"])
+        refusal = tagged_json(rec["output"], "BRIDGE_REFUSAL") or {}  # `run` refuses these before routing
+        proc.update(status=FAIL, reasons=[f"DSN export failed (exit {rec['exit_code']}"
+                                          + (f": {refusal['message']}" if refusal.get("message") else "")
+                                          + f"); see {rec['log']}"])
         return proc
     budget = settings["budget_s"]
     argv = [java[0], "-Djava.awt.headless=true", "-jar", rel["jar"], "-de", dsn, "-do", ses,
@@ -2184,7 +2219,7 @@ def audit(args):
 BACKENDS = {
     "krt": {"route": krt_route, "version": krt_version, "unsupported": krt_unsupported},
     "freerouting": {"route": freerouting_route, "version": freerouting_version,
-                    "unsupported": freerouting_unsupported},
+                    "unsupported": freerouting_unsupported, "preflight": freerouting_preflight},
 }
 
 
