@@ -60,8 +60,9 @@ def test_schema_is_a_valid_versioned_json_schema():
 
 
 def test_committed_summaries_match_the_schema():
-    """Every routing.blocked_by in the committed fixture evidence (version 1 summaries,
-    before this schema) is valid; so is any committed full blocked-by.json."""
+    """Every routing.blocked_by in the committed fixture evidence is valid (version 1
+    summaries from before this schema and version 2 summaries alike); so is any
+    committed full blocked-by.json."""
     found = 0
     for path in sorted(REPORTS.rglob("*.json")):
         doc = json.loads(path.read_text())
@@ -76,7 +77,8 @@ def test_committed_summaries_match_the_schema():
 def test_summary_schema_rejects_drift():
     good = json.loads((REPORTS / "blocked_krt.json").read_text())["routing"]["blocked_by"]
     assert summary_errors({**good, "top": [{"id": "x"}]})
-    assert summary_errors({**good, "schema": blocked.SCHEMA_ID})                   # schema without version
+    unversioned = {k: v for k, v in good.items() if k != "version"}
+    assert summary_errors({**unversioned, "schema": blocked.SCHEMA_ID})            # schema without version
     assert summary_errors({k: v for k, v in good.items() if k != "nets"})
     assert summary_errors({"error": "KeyError: x"}) == []
 
