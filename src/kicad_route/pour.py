@@ -11,7 +11,9 @@ failures on top of the native grading.
 
 FAIL when, against the reference:
 - a zone-connected pad that touched the fill no longer touches it
-  (`lost_fill_contact`);
+  (`lost_fill_contact`), or the zone no longer reaches it at all
+  (`lost_pad_reach`: the candidate has no record for a pad the reference's zone
+  reached and fed);
 - a thermal pad whose spokes (fill spokes plus tracks from the pad into the fill,
   as KiCad counts them) were at or above the minimum is now below it (`spokes_below_minimum`); the
   minimum is the project's `min_resolved_spokes`, raised (never lowered) by
@@ -99,8 +101,19 @@ def compare(ref, cand, area_loss_pct=None, min_spokes=None):
     for key in sorted(set(ref["pads"]) | set(cand["pads"])):
         r, c = ref["pads"].get(key), cand["pads"].get(key)
         if r is None or c is None:
-            info.append({"kind": "pad_reach_changed", "pad": key, "reference": r is not None,
-                         "candidate": c is not None})
+            # The zone reached a connected pad on the reference and does not reach it on the
+            # candidate (the zone outline, its net, the pad or its net changed): that pad lost
+            # its pour, as surely as lost_fill_contact. A pad reached only on the candidate,
+            # or one the reference reached without fill contact, is reported.
+            if r is not None and r["connection"] != "none" and r["touches_fill"]:
+                failures.append({"kind": "lost_pad_reach", "pad": key, "connection": r["connection"],
+                                 "position_mm": r["position_mm"], "touches_fill": [True, False],
+                                 "spokes": [r["spokes"], 0], "solid": [r["solid"], False],
+                                 "track_spokes": [r["track_spokes"], 0], "in_main": [r["in_main"], False],
+                                 "zone": r.get("zone")})
+            else:
+                info.append({"kind": "pad_reach_changed", "pad": key, "reference": r is not None,
+                             "candidate": c is not None})
             continue
         if r["connection"] == "none":
             continue

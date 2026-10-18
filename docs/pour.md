@@ -69,6 +69,7 @@ Quadtree tiling of the fill polygons keeps it fast; without tiling it took 160 s
 | Kind | Condition |
 |---|---|
 | `lost_fill_contact` | a pad that touched the fill no longer touches it |
+| `lost_pad_reach` | the zone no longer reaches a pad it reached and fed on the reference (the zone outline, its net, the pad or the pad's net changed), so the candidate has no record for that pad at all |
 | `isolated_island` | a pad that was on the main pour of its net is now cut off from it: its fill island has no via, track or other polygon that reaches the main pour. The island (area, bounding box, pads, vias, tracks) is listed |
 | `spokes_below_minimum` | a thermal pad's spokes (fill spokes plus track spokes, as above) were at or above the minimum and are now below it. Solid connections count as unlimited |
 | `area_loss` | only with `--pour-area-loss PCT`: a net/layer lost more than PCT % of its fill area |
@@ -76,8 +77,8 @@ Quadtree tiling of the fill polygons keeps it fast; without tiling it took 160 s
 **Reported, not failed:** area change per net/layer, polygon counts, area off the
 main pour, spoke counts that dropped but stay at or above the minimum
 (`spokes_reduced`), candidate islands without pads (`floating_island`), and pads
-the zone reaches on only one side (`pad_reach_changed`). New routing may reduce
-pour area legitimately.
+the zone reaches only on the candidate, or reached on the reference without fill
+contact (`pad_reach_changed`). New routing may reduce pour area legitimately.
 
 If pour facts cannot be extracted for either board, the check fails (it does not
 pass silently).

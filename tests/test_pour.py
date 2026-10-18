@@ -137,6 +137,32 @@ def test_pour_thermal_crowding(tmp_path, pour_run, sides, kind):
     assert not failures(delta, "isolated_island")
 
 
+def test_pour_outline_loses_pad(tmp_path, pour_run):
+    """A GND zone whose outline no longer covers J2.2 does not reach that pad at all, so the
+    candidate's pour facts have no record for it. That is a lost pour (lost_pad_reach), not
+    the informational pad_reach_changed; J1.2 is still compared as before."""
+    import pcbnew
+
+    def edit(board):
+        z = next(z for z in board.Zones() if z.GetNetname() == "GND")
+        outline = z.Outline()
+        outline.RemoveAllContours()
+        outline.NewOutline()
+        for x, y in ((100.5, 100.5), (140, 100.5), (140, 129.5), (100.5, 129.5)):
+            outline.Append(pcbnew.FromMM(x), pcbnew.FromMM(y))
+    r, res, check, delta = revalidate(tmp_path, pour_run[1], edit)
+    record("pour_lost_reach", {"exit_code": r.returncode, "pour_integrity": check})
+    assert r.returncode == 3 and res["validation"]["preservation"]["pour_integrity"] == route.FAIL
+    lost = failures(delta, "lost_pad_reach")
+    assert set(lost) == {"J2.2@B.Cu"}, delta["failures"]
+    f = lost["J2.2@B.Cu"]
+    assert f["connection"] == "thermal" and f["touches_fill"] == [True, False] and f["spokes"] == [4, 0]
+    assert not [i for i in delta["informational"] if i["kind"] == "pad_reach_changed"]
+    assert {p["pad"] for p in delta["pads"]} == {"J1.2@B.Cu"}
+    assert not failures(delta, "lost_fill_contact") and not failures(delta, "isolated_island")
+    assert any("pour_integrity" in reason and "lost_pad_reach" in reason for reason in res["validation"]["reasons"])
+
+
 def test_pour_area_loss_threshold(tmp_path, pour_run):
     """A track near the bottom edge cuts off a strip of pour with no pads (KiCad removes
     it as an island). Area loss is informational unless --pour-area-loss is given."""
