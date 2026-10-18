@@ -1064,6 +1064,7 @@ def run_attempt(args):
         for pair in pairs:
             pair["initially_connected"] = not {pair["p"], pair["n"]} & opened
     attempt = {
+        "schema": contract.schema_id("attempt", 2 if pairs is not None else 1),
         "backend": args.backend, "project": project, "board": board_name,
         "schematic": cfg.get("schematic"), "input_fingerprint": fingerprint,
         "source": {k: manifest.get(k) for k in ("source_dir", "source", "source_git_head", "source_dirty_files")},
@@ -1122,7 +1123,7 @@ def run_attempt(args):
         routing = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
     repro = statemanifest.reproducibility(args.backend)  # KICADROUTE-7: attempt or measurement
     result = {
-        "schema": contract.schema_id("route"),
+        "schema": contract.schema_id("route", 2) if pairs is not None else contract.schema_id("route"),
         "kind": "route",
         "backend": {"name": args.backend, **backend_version, "reproducible": repro["reproducible"],
                     "reproducible_basis": repro["basis"]},
@@ -2316,6 +2317,7 @@ def validate_record(args):
     if pairs is None and "pairs" in graded_attempt:
         pairs = diff_pairs.grade(graded_attempt["pairs"], graded_attempt.get("pair_routing", {}), None, None)
     if pairs is not None:
+        rec["schema"] = contract.schema_id("route-validate", 2)
         rec["pairs"] = pairs
     common.write_json(out / "result.json", rec)
     log(f"[validate] routing: {routing['status']}  validation: {validation['status']}"

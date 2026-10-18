@@ -381,12 +381,6 @@
               "pattern": "^[0-9a-f]{64}$"
             }
           }
-        },
-        "pairs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/differential-pair"
-          }
         }
       },
       "allOf": [
@@ -655,12 +649,6 @@
                 "type": "string"
               }
             }
-          }
-        },
-        "pairs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/differential-pair"
           }
         }
       },
@@ -1224,138 +1212,6 @@
             "properties": {
               "reasons": {
                 "minItems": 1
-              }
-            }
-          }
-        }
-      ]
-    },
-    "differential-pair": {
-      "type": "object",
-      "required": [
-        "p",
-        "n",
-        "netclass",
-        "width_mm",
-        "gap_mm",
-        "routed",
-        "length_p",
-        "length_n",
-        "skew",
-        "gap_violations",
-        "status",
-        "backend_status",
-        "backend_report"
-      ],
-      "properties": {
-        "p": {
-          "type": "string",
-          "minLength": 1
-        },
-        "n": {
-          "type": "string",
-          "minLength": 1
-        },
-        "netclass": {
-          "type": "string"
-        },
-        "width_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "gap_mm": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "initially_connected": {
-          "type": "boolean"
-        },
-        "routed": {
-          "type": "boolean"
-        },
-        "length_p": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0
-        },
-        "length_n": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0
-        },
-        "skew": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0
-        },
-        "gap_violations": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "minimum": 0
-        },
-        "status": {
-          "enum": [
-            "ROUTED",
-            "INCOMPLETE",
-            "NOT_RUN"
-          ]
-        },
-        "backend_status": {
-          "enum": [
-            "COUPLED",
-            "ALREADY_CONNECTED",
-            "REJECTED",
-            "PROCESS_FAILED",
-            "BUDGET_EXHAUSTED",
-            "NOT_RUN"
-          ]
-        },
-        "backend_report": {
-          "type": [
-            "object",
-            "null"
-          ]
-        }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "routed": {
-                "const": true
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "status": {
-                "const": "ROUTED"
-              },
-              "gap_violations": {
-                "const": 0
-              },
-              "backend_status": {
-                "enum": [
-                  "COUPLED",
-                  "ALREADY_CONNECTED"
-                ]
-              },
-              "length_p": {
-                "type": "number"
-              },
-              "length_n": {
-                "type": "number"
-              },
-              "skew": {
-                "type": "number"
               }
             }
           }

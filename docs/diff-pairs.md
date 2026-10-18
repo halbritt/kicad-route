@@ -51,7 +51,11 @@ ordinary track width, for the net-class geometry preservation check.
 Opt-in results have a top-level `pairs` array in `result.json` and a table in
 `RESULT.md`. The array is present even when empty or the process fails. Ordinary
 runs omit it. `validate` measures the current candidate again and includes the
-same array in its record.
+same array in its record. Pair results carry `schema: "kicad-route/route/2"`;
+re-validation with pair evidence carries `kicad-route/route-validate/2`. Both use
+[`schemas/result-2.json`](../schemas/result-2.json), including when the array is
+empty or measurements are unavailable. Runs without the option retain
+`kicad-route/route/1` (and re-validation `/route-validate/1`).
 
 | Field of each pair | Meaning |
 |---|---|
@@ -74,8 +78,11 @@ rules; it does not assert a coupling percentage, a skew limit or impedance.
 The test fixture supplies an explicit native gap rule.
 
 The opt-in `settings` adds `diff_pairs: "auto"` and `pairs` (the deterministic pair
-plan). `attempt.json` also records `pairs` and `pair_routing`, keyed by positive
-net name with `status` and optional backend `report`. Re-validation reads these
+plan). `attempt.json` carries `schema: "kicad-route/attempt/2"` and adds `pairs`
+and `pair_routing` to the base `attempt/1` key set. Without the option, the attempt
+carries `kicad-route/attempt/1` and omits both keys. The exact key sets are listed
+in [interface.md](interface.md#attempt-and-result-key-sets). `pair_routing` is keyed
+by positive net name with `status` and optional backend `report`. Re-validation reads these
 receipts; it cannot turn a rejected single-ended fallback into coupled success.
 Native settings and lengths are in `facts/pair-facts.json` and
 `validate/pair-facts.json`: a net-name map with `netclass`, integer-nanometre

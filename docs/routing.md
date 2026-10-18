@@ -134,7 +134,8 @@ Exit status: 0 complete and valid; 1 process failure (no candidate board: also f
 4 refused before routing (ledger or canary, [hygiene.md](hygiene.md), a board
 without its own project file, below, or a usage or input error), with a refusal
 record under `OUT/refusals/` and no run directory left. `result.json` carries
-`"schema": "kicad-route/route/1"`; what each exit code promises, the stable fields
+`"schema": "kicad-route/route/1"` without pair evidence, or `kicad-route/route/2`
+with `--diff-pairs auto`; what each exit code promises, the stable fields
 and the deprecation rule are in [interface.md](interface.md), checked against the
 fixture evidence by `tests/test_interface_contract.py`.
 

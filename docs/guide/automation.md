@@ -37,7 +37,11 @@ sequenceDiagram
 
 ### Records
 
-Every record carries `"schema": "kicad-route/<kind>/<major>"` and `"kind"`.
+Every command record carries `"schema": "kicad-route/<kind>/<major>"` and `"kind"`.
+With pair evidence, `route` and `route-validate` use `/2` and `result-2.json`;
+without it they keep `/1`. `attempt.json` carries `kicad-route/attempt/1` without
+the option or `kicad-route/attempt/2` with `--diff-pairs auto` (no `kind` field).
+The exact key sets are in [interface.md](../interface.md#attempt-and-result-key-sets).
 
 | `kind` | `schema` | Written to | From |
 |---|---|---|---|
@@ -66,9 +70,10 @@ never a routing verdict.
 
 ### Versioning
 
-Adding a field keeps the major version. Removing or redefining a stable field bumps
-it (`kicad-route/route/2`), and for at least one release the old field is written
-beside the new one and listed under `deprecated`.
+Informational additions keep the major version. Pair evidence uses distinct `/2`
+ids so callers can bind its key sets while default results keep `/1`.
+Removing or redefining a stable field bumps the major, and for at least one release
+the old field is written beside the new one and listed under `deprecated`.
 
 ## Guards for unattended runs
 

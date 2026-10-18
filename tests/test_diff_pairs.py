@@ -2,12 +2,14 @@
 import json
 import shutil
 
+import jsonschema
 import pytest
 
-from helpers import FIXTURE, ROOT, cli, record, run, tree_hash
+from helpers import FIXTURE, cli, record, run, tree_hash
 from kicad_route import cli as route
 from kicad_route import diff_pairs
 from kicad_route import ledger
+from test_interface_contract import BASE_ATTEMPT_KEYS, BASE_RESULT_KEYS, PAIR_RESULT_SCHEMA
 
 
 def pair_project(directory, blocked=False, single=False, width=0.25, gap=0.35):
@@ -88,6 +90,13 @@ def test_native_pair_routing_and_evidence(pair_attempt):
     process, directory, result = pair_attempt
     record("diff_pair", result)
     assert process.returncode == 0, result
+    assert result["schema"] == "kicad-route/route/2"
+    assert set(result) == BASE_RESULT_KEYS | {"pairs"}
+    attempt = json.loads((directory / "attempt.json").read_text())
+    assert attempt["schema"] == "kicad-route/attempt/2"
+    assert set(attempt) == BASE_ATTEMPT_KEYS | {"schema", "pairs", "pair_routing"}
+    assert result["settings"]["diff_pairs"] == "auto"
+    assert result["settings"]["pairs"]
     assert result["validation"]["status"] == "PASS", result["validation"]
     assert all(value == "PASS" for value in result["validation"]["preservation"].values())
     pair, = result["pairs"]
@@ -108,8 +117,7 @@ def test_native_pair_routing_and_evidence(pair_attempt):
     # The separate remaining-net pass neither moves nor unlocks the pair permanently.
     facts = json.loads((directory / "validate" / "candidate-facts.json").read_text())
     assert not any(t["locked"] for t in facts["tracks"])
-    import jsonschema
-    jsonschema.validate(result, json.loads((ROOT / "schemas" / "result-1.json").read_text()))
+    jsonschema.validate(result, PAIR_RESULT_SCHEMA)
 
 
 def test_pair_revalidation_measures_current_candidate(pair_attempt, tmp_path):
@@ -131,11 +139,42 @@ def test_pair_revalidation_measures_current_candidate(pair_attempt, tmp_path):
     process = cli("validate", str(copied), "--json")
     result = json.loads(process.stdout)
     assert process.returncode == 2, result
+    assert result["schema"] == "kicad-route/route-validate/2"
+    jsonschema.validate(result, PAIR_RESULT_SCHEMA)
     pair, = result["pairs"]
     assert pair["routed"] is False and pair["status"] == "INCOMPLETE"
     assert pair["length_p"] == 0
     assert pair["length_n"] == original["pairs"][0]["length_n"]
     assert pair["skew"] == pair["length_n"]
+
+
+@pytest.mark.parametrize("field", ["schema", "pairs", "settings.diff_pairs", "settings.pairs"])
+def test_pair_schema_requires_version_and_pair_fields(pair_attempt, field):
+    result = json.loads(json.dumps(pair_attempt[2]))
+    if field.startswith("settings."):
+        del result["settings"][field.split(".")[1]]
+    elif field == "schema":
+        result[field] = "kicad-route/route/1"
+    else:
+        del result[field]
+    assert list(jsonschema.Draft202012Validator(PAIR_RESULT_SCHEMA).iter_errors(result))
+
+
+def test_empty_pair_plan_still_uses_version_2(tmp_path):
+    process, directory, result = run("run", "--backend", "krt", "--diff-pairs", "auto",
+                                   "--dir", str(FIXTURE), "--nets", "/SIG_A*", "--budget", "120",
+                                   "--default-clearance", "0.4", "--label", "diff-pair-empty")
+    assert process.returncode == 0, result
+    assert result["schema"] == "kicad-route/route/2" and result["pairs"] == []
+    attempt = json.loads((directory / "attempt.json").read_text())
+    assert attempt["schema"] == "kicad-route/attempt/2" and attempt["pairs"] == []
+    assert attempt["pair_routing"] == {}
+    jsonschema.validate(result, PAIR_RESULT_SCHEMA)
+    process = cli("validate", str(directory), "--json")
+    revalidated = json.loads(process.stdout)
+    assert process.returncode == 0, revalidated
+    assert revalidated["schema"] == "kicad-route/route-validate/2" and revalidated["pairs"] == []
+    jsonschema.validate(revalidated, PAIR_RESULT_SCHEMA)
 
 
 def test_unroutable_pair_is_incomplete(tmp_path):
