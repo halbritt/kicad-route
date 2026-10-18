@@ -19,9 +19,14 @@ kicad-route decoupling --board my.kicad_pcb --radius 3 --ic 'U*' 'IC*' --cap 'C*
 kicad-route decoupling --board my.kicad_pcb --power '+3V3' 'VDD*' --ground 'GND' 'AGND'
 ```
 
-Exit status: 0 the report was written; 1 the analysis failed (no board, KiCad could
-not load it, not a routing run). The board's SHA-256 is checked before and after the
-analysis; a change fails the command.
+Exit status: 0 the report was written; 1 the analysis ran and failed (the pcbnew
+script failed, or the board changed while analysed): `decoupling.json` then holds the
+failure record (`error`) and no `.md` is left beside it; 4 refused before any analysis
+(no such board, KiCad could not load it, not a routing run, a run without its
+reference or candidate board): a refusal record in `OUT/refusals/` (docs/interface.md).
+`--json` prints the record (`kicad-route/decoupling/1` for `--board`,
+`kicad-route/decoupling-run/1` for a run) or the refusal on stdout. The board's SHA-256
+is checked before and after the analysis; a change fails the command.
 
 ## Cells
 

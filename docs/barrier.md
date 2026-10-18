@@ -100,8 +100,17 @@ strip is added to `process.reasons` and fails `keepouts`.
 
 This plans the same barriers and injects them into a copy of the run's reference
 project, `RUN_DIR/barrier-preview/<project>/`, without routing. Open that copy in KiCad to see
-where the barriers would go. The plan is `RUN_DIR/barrier-preview/barrier-plan.json`. The exit
-status is 0 when at least one barrier was injected, otherwise 1.
+where the barriers would go. The plan is `RUN_DIR/barrier-preview/barrier-plan.json`
+(record `kicad-route/barrier-preview/1`, also printed by `--json`); each preview
+replaces the whole `barrier-preview/` directory. Exit status:
+
+- 0: at least one barrier was injected.
+- 1: the analysis ran and failed: locating the collisions failed, or every barrier lies
+  on existing copper. The plan file is the record (`reasons`).
+- 4: refused before the preview, with a refusal record (docs/interface.md): `input`
+  when RUN_DIR is not a graded run, has nothing to barrier (no copper collision made
+  by new copper, none locatable) or its candidate cannot be loaded by KiCad; `state`
+  when the barriers cannot be injected into the preview copy.
 
 ## Limits
 

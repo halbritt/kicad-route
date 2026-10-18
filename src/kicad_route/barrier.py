@@ -24,6 +24,12 @@ backend must go around it. The barrier is removed before grading.
   whether the same collision (type and other item) came back.
 - preview(): `kicad-route barrier RUN_DIR` plans and injects into a copy of the
   run's reference project (RUN_DIR/barrier-preview/<project>/) without routing.
+  Exit 0 a barrier was injected; 1 the analysis ran and failed (locating the
+  collisions failed, or every barrier lies on existing copper), with the record in
+  barrier-preview/barrier-plan.json; 4 refused before the preview was made
+  (contract.refuse): input when RUN_DIR is not a graded run, KiCad cannot load its
+  candidate, or it has no collision to barrier; state when the barriers cannot be
+  injected into the preview copy.
 
 See docs/barrier.md.
 """
@@ -36,6 +42,7 @@ from . import contract
 PASS, FAIL = common.PASS, common.FAIL
 SCRIPT = Path(__file__).resolve().parent / "kicad" / "barrier.py"
 NM = 1_000_000
+LOAD_ERROR = "BARRIER_LOAD_ERROR:"  # kicad/barrier.py: the board did not load (exit 3)
 DEFAULT_SIZE_MM = 0.05
 # DRC findings that are a collision between two copper items, one of which the routing placed.
 BARRIER_TYPES = ("clearance", "tracks_crossing", "shorting_items", "hole_clearance", "copper_edge_clearance")
@@ -102,15 +109,15 @@ def plan(src_run, out_dir, size_mm=DEFAULT_SIZE_MM):
     rec = {"from": common.rel(src_run), "size_mm": size_mm, "size": round(size_mm * NM), "barriers": [],
            "skipped": [], "notes": [], "reasons": [], "commands": []}
     attempt = common.load_json(src_run / "attempt.json")
-    if attempt is None:
+    if not isinstance(attempt, dict):
         rec["reasons"].append(f"{common.rel(src_run)}: not a routing run (attempt.json missing)")
         return rec
     vdir = src_run / "validate"
     violations, source, note = findings_of(vdir)
-    ref_facts = common.load_json(src_run / attempt["reference_facts"])
+    ref_facts = common.load_json(src_run / attempt["reference_facts"]) if attempt.get("reference_facts") else None
     cand_facts = common.load_json(vdir / "candidate-facts.json")
-    board = src_run / attempt["candidate_dir"] / attempt["board"]
-    if violations is None or ref_facts is None or cand_facts is None or not board.exists():
+    board = src_run / attempt.get("candidate_dir", "candidate") / attempt.get("board", "")
+    if violations is None or ref_facts is None or cand_facts is None or not board.is_file():
         rec["reasons"].append(f"{common.rel(src_run)}: no graded candidate (candidate board, DRC report and "
                               "facts are needed)")
         return rec
@@ -130,7 +137,11 @@ def plan(src_run, out_dir, size_mm=DEFAULT_SIZE_MM):
     rec["commands"].append(common.public(r))
     located = common.load_json(out) if r["exit_code"] == 0 and tag else None
     if located is None:
-        rec["reasons"].append(f"could not locate the collisions (see {r['log']})")
+        if r["exit_code"] == 3 and LOAD_ERROR in r["output"]:
+            rec["reasons"].append(f"KiCad could not load the candidate board {common.rel(board)} (see {r['log']})")
+        else:  # the analysis itself failed: `kicad-route barrier` exits 1, not a refusal
+            rec["locate_failed"] = True
+            rec["reasons"].append(f"could not locate the collisions (see {r['log']})")
         return rec
     rec["skipped"] += located["skipped"]
     descs = {q["index"]: q["description"] for q in requests}
@@ -238,36 +249,53 @@ def outcome(rec, run_dir, attempt):
 
 # ------------------------------------------------------------- preview
 
+def _preview_record(rec, bdir, rc):
+    """The `kicad-route barrier` record (--json prints it), in barrier-preview/barrier-plan.json."""
+    rec = {"schema": contract.schema_id("barrier-preview"), "kind": "barrier-preview", "exit_code": rc, **rec}
+    common.write_json(bdir / "barrier-plan.json", rec)
+    return rc, rec
+
+
 def preview(src_run, size_mm=DEFAULT_SIZE_MM):
-    """Plan barriers from RUN_DIR and inject them into a copy of its reference project."""
+    """Plan barriers from RUN_DIR and inject them into a copy of its reference project
+    -> (exit code, record). Every failure before the preview is a refusal (exit 4)."""
     import shutil
     src_run = Path(src_run).resolve()
+    attempt = common.load_json(src_run / "attempt.json")
+    if not isinstance(attempt, dict) or not all(attempt.get(k) for k in ("reference_dir", "candidate_dir", "board")):
+        contract.refuse("input", f"{common.rel(src_run)}: not a routing run (attempt.json missing or incomplete)")
+    ref = src_run / attempt["reference_dir"]
+    if not (ref / attempt["board"]).is_file():
+        contract.refuse("input", f"{common.rel(src_run)}: no reference board ({common.rel(ref / attempt['board'])})")
     bdir = src_run / "barrier-preview"  # not barrier/: a --barrier-from run keeps its own plan there
+    shutil.rmtree(bdir, ignore_errors=True)  # an earlier preview's board or plan never sits beside a refusal
     rec = plan(src_run, bdir, size_mm)
-    if rec["reasons"]:
+    if rec.get("locate_failed"):
         for r in rec["reasons"]:
             log(f"[barrier] {r}")
-        return 1
-    attempt = common.load_json(src_run / "attempt.json")
-    ref = src_run / attempt["reference_dir"]
+        return _preview_record(rec, bdir, 1)
+    if rec["reasons"]:
+        contract.refuse("input", f"{common.rel(src_run)}: nothing to barrier: {'; '.join(rec['reasons'])}")
     dst = bdir / ref.name
-    shutil.rmtree(dst, ignore_errors=True)
     shutil.copytree(ref, dst, symlinks=True)
     ir, itag = _script(["inject", dst / attempt["board"], bdir / "barrier-plan.json"], bdir, bdir / "barrier-inject.log")
+    rec["commands"].append(common.public(ir))
     if ir["exit_code"] != 0 or itag is None:
-        log(f"[barrier] could not inject (see {ir['log']})")
-        return 1
+        shutil.rmtree(dst, ignore_errors=True)
+        contract.refuse("state", f"could not inject the barriers into the preview copy of "
+                                 f"{common.rel(ref / attempt['board'])} (see {ir['log']})")
     rec.update(injected=itag["injected"], injected_names=[b["name"] for b in itag["barriers"]],
                preview_board=common.rel(dst / attempt["board"]))
     rec["skipped"] += itag["skipped"]
-    common.write_json(bdir / "barrier-plan.json", rec)
     for b in rec["barriers"]:
         state = "injected" if b["name"] in rec["injected_names"] else "skipped"
         log(f"[barrier] {b['name']} on {b['layer']} ({b['type']}, new {b['new_item']['kind']} "
             f"{b['new_item']['net']}): {state}")
     log(f"[barrier] {itag['injected']} barrier(s) in {common.rel(dst / attempt['board'])}; "
         f"plan {common.rel(bdir / 'barrier-plan.json')}")
-    return 0 if itag["injected"] else 1
+    if not itag["injected"]:
+        rec["reasons"].append("every barrier overlaps existing copper; nothing was injected")
+    return _preview_record(rec, bdir, 0 if itag["injected"] else 1)
 
 
 # ------------------------------------------------------------- CLI
@@ -296,6 +324,5 @@ def add_parser(sub):
 
 
 def cmd(args):
-    if not (Path(args.run_dir) / "attempt.json").exists():
-        contract.refuse("input", f"{args.run_dir}: not a routing run (attempt.json missing)")
+    """-> (exit code, record)."""
     return preview(args.run_dir, args.size)

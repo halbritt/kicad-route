@@ -4,6 +4,9 @@ run pin -> capacitor -> plane?
 
     decoupling.py BOARD.kicad_pcb OUT.json [OPTIONS_JSON]
 
+Exit 0 OUT.json written; 3 KiCad could not load the board (`DECOUPLING_LOAD_ERROR:`
+line); anything else, the analysis failed.
+
 Read-only: the board is loaded with KiCad's loader, its zones are refilled IN MEMORY
 (so the planes are what DRC would grade) and nothing is ever saved.
 
@@ -220,8 +223,25 @@ def side(graph, pin, cap):
     return rec
 
 
+LOAD_ERROR = "DECOUPLING_LOAD_ERROR:"  # the board did not load: the host refuses (input), exit 3
+
+
+class LoadError(Exception):
+    pass
+
+
+def load(pcbnew, board_path):
+    try:
+        board = pcbnew.LoadBoard(str(board_path))
+    except Exception as e:  # older pcbnew raises IO_ERROR, KiCad 10 returns None
+        raise LoadError(f"{board_path}: KiCad could not load the board ({e})") from e
+    if board is None:
+        raise LoadError(f"{board_path}: KiCad could not load the board")
+    return board
+
+
 def analyze(pcbnew, board_path, opts):
-    board = pcbnew.LoadBoard(str(board_path))
+    board = load(pcbnew, board_path)
     zones = [z for z in board.Zones() if not z.GetIsRuleArea()]
     filled = pcbnew.ZONE_FILLER(board).Fill(board.Zones()) if zones else True
     board.BuildConnectivity()
@@ -303,7 +323,11 @@ def main(argv):
         return 2
     import pcbnew
     opts = json.loads(argv[2]) if len(argv) == 3 else {}
-    report = analyze(pcbnew, Path(argv[0]), opts)
+    try:
+        report = analyze(pcbnew, Path(argv[0]), opts)
+    except LoadError as e:
+        print(LOAD_ERROR + " " + json.dumps(str(e)))
+        return 3
     Path(argv[1]).write_text(json.dumps(report, indent=1) + "\n")
     print("DECOUPLING_JSON: " + json.dumps({"cells": len(report["cells"]), "counts": report["counts"],
                                              "unpaired": len(report["unpaired"]),

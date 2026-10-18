@@ -235,12 +235,14 @@ def test_run_dir_reports_cells_the_candidate_changed(board, tmp_path):
 
 
 def test_fails_closed(tmp_path):
+    """Bad input is refused before any analysis (exit 4, KICADROUTE-58; the records are
+    checked in test_adhd_refusals.py)."""
     r = cli("decoupling", "--board", str(tmp_path / "missing.kicad_pcb"), timeout=60)
-    assert r.returncode == 1 and "no such board" in r.stdout
+    assert r.returncode == 4 and "no such board" in r.stdout
     bad = tmp_path / "bad.kicad_pcb"
     bad.write_text("(kicad_pcb (version 1) garbage")
     r = cli("decoupling", "--board", str(bad), timeout=120)
-    assert r.returncode == 1 and "analysis failed" in r.stdout
+    assert r.returncode == 4 and "could not load the board" in r.stdout
     r = cli("decoupling", str(tmp_path), timeout=60)
-    assert r.returncode == 1 and "not a routing run" in r.stdout
+    assert r.returncode == 4 and "not a routing run" in r.stdout
     shutil.rmtree(OUT / "decoupling" / "bad", ignore_errors=True)
