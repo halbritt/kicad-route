@@ -139,6 +139,8 @@ records them; one shared definition):
     `corpus add` refuse under it.
   - `--ledger PATH` keeps the run ledger outside OUT, so repeat refusal survives a
     fresh OUT per stage.
+  - Both are environment options: `campaign` passes them to every step, a corpus
+    entry never records them, and `corpus check` takes its own.
   - `result.json` `sandbox` records the network namespace (isolated or not), the
     state directory's writability and the flag.
 

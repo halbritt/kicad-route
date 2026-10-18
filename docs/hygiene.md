@@ -256,6 +256,11 @@ kicad-route corpus list
 `add` takes the same routing options as `run` (one definition,
 `cli.add_route_args`, so `--protect human`, `--reserve-spokes`, `--pour-*`,
 `--canary` and `--floor-history` are recorded and replayed by `check` too).
+`--ledger PATH` and `--require-readonly-state` are not routing options: they describe
+the environment of one command's runs (`cli.add_environment_args`, docs/sandbox.md).
+`add` uses them for its baseline run and does not record them; `check` takes its own
+and passes them to every entry's run. An entry added before this split may still carry
+them in `entry.json`; `check` ignores them there.
 It takes a snapshot of the project with `snapshot_input`: sheets, rules,
 library tables and local libraries. The snapshot goes into
 `STATE/corpus/<name>/reference/`. A directory mapped with `--library-dir NAME=PATH`
@@ -274,7 +279,8 @@ or `$KICAD_ROUTE_CORPUS`. To re-add an entry, remove its directory first.
 
 `check` routes every entry again with the installed backends. The runs go to
 `OUT/runs/<name>/corpus-<name>/`. These are deliberate repeats, so they pass
-the ledger as forced. A **regression** is any of:
+the ledger (`OUT/ledger.jsonl`, or `check --ledger PATH`) as forced. A **regression**
+is any of:
 
 - process FAIL
 - more unconnected items in scope

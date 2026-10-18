@@ -4,7 +4,8 @@ and baseline outcomes, re-run against the currently installed backends.
     kicad-route corpus add --dir D [--board B] [--rev REV] [--library-dir NAME=PATH] --name NAME
                            [--backend krt|freerouting] [any `run` routing option: --nets, --netclass,
                            --budget, --protect, --reserve-spokes, --pour-*, ...]
-    kicad-route corpus check [--name NAME ...]
+                           [--ledger PATH] [--require-readonly-state]
+    kicad-route corpus check [--name NAME ...] [--ledger PATH] [--require-readonly-state]
     kicad-route corpus list
 
 The corpus lives in STATE/corpus/<name>/ (STATE is the install state, the
@@ -16,6 +17,10 @@ It is never committed. Each entry holds:
     entry.json          the attempt (backend, scope, settings) and its baseline
                         outcome from one run at `add` time
     checks/<stamp>.json every later `check` of the entry
+
+--ledger and --require-readonly-state (cli.add_environment_args) describe the
+environment of one command's runs, not the attempt: they are never recorded in an
+entry, and each `check` takes its own.
 
 `check` routes each entry again (runs go to OUT/runs/<NAME>/corpus-<NAME>/)
 and compares to the baseline. A regression is: process FAIL, more unconnected
@@ -35,7 +40,9 @@ from . import cli as route
 
 PASS, FAIL = common.PASS, common.FAIL
 # Recorded in entry.json and replayed by `check`: the backend plus every routing
-# option of `run` (cli.add_route_args), so the corpus cannot drift from run.
+# option of `run` (cli.add_route_args), so the corpus cannot drift from run. The
+# environment options (cli.ENVIRONMENT_DESTS) are not among them; entries recorded
+# before that split may still carry them, and attempt_args ignores them there.
 # library_dir: the reference snapshot keeps a mapped library as a link, and every
 # check maps it again (snapshot.make_snapshot), as the add-time run did.
 REPLAYED_INPUT_KEYS = ("library_dir",)
@@ -78,12 +85,19 @@ def outcome(result):
             "run_dir": str(Path(result["run_dir"]).resolve())}
 
 
-def attempt_args(entry):
-    """A run Namespace (every run option at its default) for cli.run_attempt from a corpus entry."""
+def attempt_args(entry, **environment):
+    """A run Namespace (every run option at its default) for cli.run_attempt from a corpus
+    entry, in this command's `environment` (cli.ENVIRONMENT_DESTS: ledger,
+    require_readonly_state). Only routing keys are read from the entry: an environment
+    key an older entry recorded is ignored, never replayed."""
     a = entry["attempt"]
     proj = entry["_dir"] / entry["reference_dir"]
     values = {k: a[k] for k in (*route.route_option_dests(), *REPLAYED_INPUT_KEYS)
               if k in a}  # unset options keep run's defaults
+    unknown = sorted(set(environment) - set(route.ENVIRONMENT_DESTS))
+    if unknown:
+        raise TypeError(f"not environment options: {unknown}")
+    values.update(environment)
     values.update(dir=str(proj), board=entry["board"], schematic=entry.get("schematic"), name=entry["name"],
                   label=f"corpus-{entry['name']}",
                   force=True)   # a corpus check repeats an attempt on purpose; the ledger records it as forced
@@ -112,7 +126,7 @@ def add(args):
                              if getattr(args, k, None) not in (None, [], False)}}
         entry["_dir"] = d
         route.log(f"[corpus] {args.name}: baseline attempt ({entry['attempt']['backend']})")
-        result = route.run_attempt(attempt_args(entry))
+        result = route.run_attempt(attempt_args(entry, **environment(args)))
         entry["baseline"] = outcome(result)
     except BaseException:
         shutil.rmtree(d, ignore_errors=True)
@@ -160,8 +174,32 @@ def compare(base, now):
     return reg, imp
 
 
-def check(names=None, root=None):
-    """Re-run every entry (or those named); returns the summary record."""
+def environment(args):
+    """The environment options (cli.add_environment_args) a corpus command was given."""
+    return {k: getattr(args, k, None) for k in route.ENVIRONMENT_DESTS}
+
+
+def check_refusal(root=None, flag=False):
+    """Under --require-readonly-state, why `corpus check` cannot run here, or None. Like
+    `run`, STATE must be present and read-only; and `check` writes <root>/<name>/checks/,
+    so the corpus root must not lie inside that read-only STATE."""
+    from . import sandbox
+    if not sandbox.require_readonly_state(flag):
+        return None
+    refusal = sandbox.state_refusal("corpus check")
+    if refusal:
+        return refusal
+    base, state = corpus_root(root), common.STATE.expanduser().resolve()
+    if base == state or state in base.parents:
+        return (f"--require-readonly-state: the corpus {base} lies inside the read-only STATE {state}, and "
+                f"`corpus check` writes each entry's checks/ there; pass --root (or KICAD_ROUTE_CORPUS) "
+                f"a writable copy of the corpus")
+    return None
+
+
+def check(names=None, root=None, **env):
+    """Re-run every entry (or those named) in the environment `env` (attempt_args);
+    returns the summary record."""
     stamp = common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ")
     rows = []
     selected = [e for e in entries(root) if not names or e["name"] in names]
@@ -169,7 +207,7 @@ def check(names=None, root=None):
     for e in selected:
         route.log(f"[corpus] check {e['name']} ({e['attempt']['backend']})")
         try:
-            result = route.run_attempt(attempt_args(e))
+            result = route.run_attempt(attempt_args(e, **env))
             now = outcome(result)
         except SystemExit as ex:  # e.g. the snapshot no longer loads
             now = {"refused": f"attempt could not start: {ex}", "exit_code": None}
@@ -215,7 +253,10 @@ def cmd_corpus(args):
     if args.corpus_cmd == "add":
         return add(args)
     if args.corpus_cmd == "check":
-        return 0 if check(args.names, args.root)["status"] == PASS else 1
+        refusal = check_refusal(args.root, args.require_readonly_state)
+        if refusal:   # before any entry runs, as `run` and `campaign` refuse
+            contract.refuse("state", refusal)
+        return 0 if check(args.names, args.root, **environment(args))["status"] == PASS else 1
     for e in entries(args.root):
         route.log(f"{e['name']:<24} {e['attempt']['backend']:<12} {summary_line(e['baseline'])}  ({e['_dir']})")
     return 0
@@ -228,8 +269,10 @@ def add_parser(sub, cli):
     cli.add_input_args(a)  # its --name is the entry's name (required)
     a.add_argument("--backend", default="krt", choices=sorted(cli.BACKENDS))
     cli.add_route_args(a)   # the same routing options as run, recorded in the entry
+    cli.add_environment_args(a)   # the add-time run's environment, not recorded
     c = cs.add_parser("check", help="re-run every entry with the installed backends and compare to its baseline")
     c.add_argument("--name", dest="names", action="append", metavar="NAME", help="only this entry (repeatable)")
+    cli.add_environment_args(c)   # this check's environment, for every entry's run
     ls = cs.add_parser("list", help="list the corpus entries and their baselines")
     for p in (a, c, ls):
         p.add_argument("--root", help="corpus location (default STATE/corpus or $KICAD_ROUTE_CORPUS)")

@@ -281,7 +281,7 @@ def test_campaign_refuses_writable_state(tmp_path):
 
 
 def test_campaign_passes_sandbox_flags_to_runs(tmp_path, monkeypatch):
-    """Both are routing options (cli.add_route_args), so route_argv forwards them to every
+    """Both are environment options (cli.add_environment_args); route_argv forwards them to every
     step; a relative --ledger is made absolute, since steps may run from another directory."""
     from kicad_route import cli
     monkeypatch.chdir(tmp_path)

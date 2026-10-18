@@ -55,7 +55,8 @@ jsonschema.Draft202012Validator(schema).validate(json.load(open(run_dir + "/resu
   matches its manifest; `result.json` `sandbox` records what the run saw. Details and
   the agent-ee launch: [sandbox.md](sandbox.md).
 - **The ledger in a sandbox.** The run ledger (exit 4 on an identical failed attempt)
-  is `OUT/ledger.jsonl` unless `run`/`campaign` get `--ledger PATH`. A caller that
+  is `OUT/ledger.jsonl` unless `run`/`campaign`/`corpus check` get `--ledger PATH` (an
+  environment option, like `--require-readonly-state`: never recorded in a corpus entry). A caller that
   gives every stage a fresh OUT chooses one of: pass a persistent, writable
   `--ledger PATH` (recorded as `ledger.path`; repeats stay refused across stages), or
   accept that repeats are not refused inside the sandbox and keep that accounting
