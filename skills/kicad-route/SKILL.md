@@ -141,6 +141,9 @@ records them; one shared definition):
     fresh OUT per stage.
   - `result.json` `sandbox` records the network namespace (isolated or not), the
     state directory's writability and the flag.
+  - Nothing is written under `HOME`: KiCad's, fontconfig's and the Freerouting
+    JVM's per-user files go under `OUT/.home` and `OUT/.kicad-config`, so `HOME`
+    may be read-only (`sandbox.home` in `result.json`).
 
 ## Reading a result
 

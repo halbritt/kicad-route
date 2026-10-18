@@ -8,7 +8,8 @@ Three things live here:
   before routing when STATE is missing, holds no installed backend, is not the
   directory its state manifest describes (or has drifted from it), or is writable;
   `update` and `corpus add` write STATE, so they refuse under the flag unconditionally.
-- facts(): what this process sees (network namespace, STATE, the flag), recorded as
+- facts(): what this process sees (network namespace, STATE, the flag, where the
+  tools' per-user files go instead of HOME), recorded as
   result.json "sandbox" and in doctor's JSON.
 - requirements(): what a sandbox has to provide for kicad-route to work: the
   read-only paths (resolved, at their host paths), the one writable OUT, the
@@ -164,6 +165,7 @@ def facts(flag=False, probe=True):
             "state": state_status(),
             "tool_root": {"path": str(common.TOOL_ROOT), "writable": _writable(common.TOOL_ROOT)},
             "out": {"path": str(common.out_dir())},
+            "home": common.home_facts(),
             "network": network_facts(probe=probe)}
 
 
@@ -223,8 +225,9 @@ def requirements(*, venv_python, pcbnew_python, pcbnew_module=None, java=None, o
     env = [
         {"name": "KICAD_ROUTE_STATE", "value": str(common.STATE), "required": True,
          "purpose": "the installed backends (default would be the checkout)"},
-        {"name": "HOME", "value": str(out / "home"), "required": True,
-         "purpose": "any writable directory (Java and KiCad may write there); OUT/home is inside the writable OUT"},
+        {"name": "HOME", "value": str(out / "home"), "required": False,
+         "purpose": "optional, need not be writable: KiCad's config, cache and data, fontconfig's cache "
+                    "and the Freerouting JVM's user.home are kept under OUT (OUT/.kicad-config, OUT/.home)"},
         {"name": "PATH", "value": path_value, "required": True, "purpose": "kicad-cli and git"},
         {"name": "KICAD_ROUTE_PCBNEW_PYTHON", "value": str(pcbnew_python), "required": False,
          "purpose": "only when it is not /usr/bin/python3"},
@@ -236,6 +239,7 @@ def requirements(*, venv_python, pcbnew_python, pcbnew_module=None, java=None, o
         "ro_paths": ro,
         "ro_binds": _cover([r["path"] for r in ro if r["exists"]]),
         "rw_paths": [{"path": str(out), "purpose": "--out: runs, baseline cache, hermetic KiCad config, "
+                                                   "the tools' per-user files (OUT/.home), "
                                                    "doctor output, the ledger (unless --ledger)"}],
         "tmp": "/tmp may be a private tmpfs",
         "env": env,

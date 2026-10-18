@@ -30,7 +30,7 @@ The record holds `status`, `required_failed`, `checks`, `versions`, `capabilitie
 | `ro_paths` | each read-only path with its purpose: `/usr`, `/etc`, the checkout (TOOL_ROOT), its git common dir when it is a worktree, STATE, the KRT venv's interpreter target, the pcbnew Python and module, `/usr/share/kicad`, `kicad-cli`, `git`, and the JVM directory `find_java` chose. Paths are resolved and absolute. Bind them at the same path: the venv stores absolute paths |
 | `ro_binds` | the smallest subset of `ro_paths` whose binds cover all of them |
 | `rw_paths` | OUT, the only writable path a run needs |
-| `env` | variables to set, with values: `KICAD_ROUTE_STATE`, `HOME` (any writable directory; Java and KiCad may write there), `PATH` (`kicad-cli`, `git`), and the optional `KICAD_ROUTE_PCBNEW_PYTHON`, `KICAD_ROUTE_OUT`, `KICAD_ROUTE_REQUIRE_READONLY_STATE` |
+| `env` | variables to set, with values: `KICAD_ROUTE_STATE`, `PATH` (`kicad-cli`, `git`), and the optional `HOME` (`required: false`; it need not be writable, see [HOME](#home) below), `KICAD_ROUTE_PCBNEW_PYTHON`, `KICAD_ROUTE_OUT`, `KICAD_ROUTE_REQUIRE_READONLY_STATE` |
 | `network` | hosts per command. `run`, `campaign`, `validate`, `blocked` and `doctor --offline` need none. `doctor` needs `api.github.com`. `update` needs GitHub (API, clone, release assets) and PyPI |
 | `writes_state` | the commands that write STATE: `update` and `corpus add` |
 | `observed` | what the doctor process itself saw (the same facts a run records, below) |
@@ -63,6 +63,22 @@ fingerprint as the same runs outside the sandbox, and the same candidate: identi
 copper and an identical rest of the file. The raw file hashes differ, because KiCad
 gives every new track and via a random UUID, so no two runs (sandboxed or not) are
 byte-identical (`tests/test_doctor_sandbox.py::test_sandboxed_round_trip_matches_unsandboxed`).
+
+## HOME
+
+kicad-route writes nothing under `HOME`, so `HOME` may be read-only (agent-ee's
+`--setenv HOME /work/home` above is harmless but not needed). KiCad's configuration
+goes to `OUT/.kicad-config`; KiCad's cache and user data, fontconfig's cache and the
+other XDG directories go to `OUT/.home` (`KICAD_CACHE_HOME`, `KICAD_DOCUMENTS_HOME`,
+`XDG_CACHE_HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, set by
+`common.tool_env()` for every tool subprocess). The Freerouting JVM reads `user.home`
+from the password database, not `$HOME`, so each launch gets `-Duser.home` and
+`-Djava.util.prefs.userRoot` under `OUT/.home/java`. The full table is in
+[hygiene.md](hygiene.md#nothing-under-home). `/tmp` still receives KiCad's instance
+lock, the JVM's `hsperfdata` and KRT's temporary directories.
+`tests/test_home_containment.py` runs the fixture's round trips and `doctor --json
+--offline` with an empty read-only `HOME` under `strace` and fails on any write
+attempt there, under the real home, or outside OUT and `/tmp` (KICADROUTE-60).
 
 ## `--require-readonly-state`
 
@@ -109,6 +125,7 @@ Every run records `sandbox`:
 | `state` | `path`, `exists`, `installed`, `writable`, `writable_parts`, `readonly_mount` (statvfs `ST_RDONLY`) |
 | `tool_root` | the checkout's path and whether it is writable |
 | `out` | OUT |
+| `home` | `HOME` as the process saw it, `required: false`, `tool_home` (`OUT/.home`), the variables that redirect KiCad's and the XDG writers' files (`env`) and the JVM options (`jvm`); see [HOME](#home) |
 | `network` | interfaces and routes of the process's network namespace (from `/proc/net`), the namespace id, and `connect_probe`: a UDP `connect()` to `192.0.2.1:9` (TEST-NET-1), which asks the kernel for a route and sends no packet. `isolated` is true when only loopback exists and the probe finds no route |
 
 `doctor --offline` reports the same facts without the probe.

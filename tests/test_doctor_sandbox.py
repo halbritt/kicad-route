@@ -174,7 +174,7 @@ def test_doctor_json_offline_record(doctor_record):
     assert all(any(p == b or p.startswith(b.rstrip("/") + "/") for b in sb["ro_binds"]) for p in ro)
     assert sb["rw_paths"][0]["path"] == str(out)
     env = {e["name"]: e for e in sb["env"]}
-    assert env["KICAD_ROUTE_STATE"]["value"] == str(STATE) and env["HOME"]["required"]
+    assert env["KICAD_ROUTE_STATE"]["value"] == str(STATE) and env["HOME"]["required"] is False  # KICADROUTE-60
     assert sb["network"]["run"] == [] and sb["network"]["doctor --offline"] == []
     assert any("github" in h for h in sb["network"]["update"]) and any("pypi" in h for h in sb["network"]["update"])
     assert "connect_probe" not in sb["observed"]["network"]  # --offline opens no socket at all

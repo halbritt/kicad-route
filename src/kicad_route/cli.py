@@ -1530,7 +1530,7 @@ def freerouting_route(work, board, scope, facts, settings):
         proc.update(status=FAIL, reasons=[f"DSN export failed (exit {rec['exit_code']}); see {rec['log']}"])
         return proc
     budget = settings["budget_s"]
-    argv = [java[0], "-Djava.awt.headless=true", "-jar", rel["jar"], "-de", dsn, "-do", ses,
+    argv = [java[0], "-Djava.awt.headless=true", *common.jvm_home_args(), "-jar", rel["jar"], "-de", dsn, "-do", ses,
             "--gui.enabled=false", "-da", "--api_server.enabled=false",
             f"--user_data_path={work / 'freerouting-userdata'}", f"--router.result_json={res}",
             # no narrowing of traces into pins: deliver the net class width or nothing.
@@ -1780,10 +1780,10 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
 
     kv = common.tool_versions()["kicad-cli"]
     add("kicad-cli", PASS if kv else FAIL, kv or "not found")
-    r = subprocess.run(["kicad-cli", "pcb", "drc", "--help"], capture_output=True, text=True)
+    r = subprocess.run(["kicad-cli", "pcb", "drc", "--help"], capture_output=True, text=True, env=common.tool_env())
     for flag in ("--refill-zones", "--save-board", "--schematic-parity", "--severity-all", "--format"):
         add(f"kicad-cli pcb drc {flag}", PASS if flag in r.stdout else FAIL, "native grading")
-    r = subprocess.run(["kicad-cli", "pcb", "export", "--help"], capture_output=True, text=True)
+    r = subprocess.run(["kicad-cli", "pcb", "export", "--help"], capture_output=True, text=True, env=common.tool_env())
     add("kicad-cli DSN export", PASS if "dsn" in r.stdout.lower() else UNSUPPORTED,
         "not in kicad-cli: the Freerouting bridge uses pcbnew SWIG instead", required=False)
     r = subprocess.run([str(pcbnew_python()), "-c", "import pcbnew; print(pcbnew.GetBuildVersion()); "
@@ -1829,8 +1829,8 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
     if fv.get("java"):
         rel = freerouting_installed()
         java = fv["java"].split(" (")[0]
-        r = subprocess.run([java, "-Djava.awt.headless=true", "-jar", str(rel["jar"]), "--help"],
-                           capture_output=True, text=True, env=dict(os.environ, **OFFLINE_ENV), timeout=120)
+        r = subprocess.run([java, "-Djava.awt.headless=true", *common.jvm_home_args(), "-jar", str(rel["jar"]), "--help"],
+                           capture_output=True, text=True, env=dict(common.tool_env(), **OFFLINE_ENV), timeout=120)
         out = r.stdout + r.stderr
         add("Freerouting headless CLI", PASS if r.returncode == 0 and "-de" in out and "-do" in out else FAIL,
             re.search(r"Freerouting v\S+[^\n]*", out).group(0) if re.search(r"Freerouting v\S+", out) else out[-200:])
