@@ -98,10 +98,17 @@ def check(cli, backend="krt", runs=2, budget=180, dir=None, board=None, backend_
             os.environ["KICAD_ROUTE_LEDGER"] = saved
     layers = [layer_record(r) for r in results]
     verdict = compare(layers)
-    m = statemanifest.read()
+    executed = [statemanifest.execution_build_id(r.get("tool_identity"), backend) for r in results]
+    same_build = bool(executed) and None not in executed and len(set(executed)) == 1
+    verdict["same"]["execution_build"] = same_build
+    if not same_build:
+        verdict["reproducible"] = False
+        verdict["reasons"].append("missing execution build identity" if None in executed or not executed
+                                  else "executed builds differ between repeats")
+        verdict["differs_at"] = verdict["differs_at"] or "execution_build"
     first = results[0] if results else {}
     rec = {"schema": SCHEMA, "backend": backend, "verified_utc": common.now_utc().isoformat(),
-           "build_id": statemanifest.current_build_id(backend=backend) if m else None,
+           "build_id": executed[0] if same_build else None,
            "build": (first.get("tool_identity") or {}).get("backend"),
            "kicad_cli": ((first.get("tool_identity") or {}).get("kicad_cli") or {}).get("version"),
            "input": {"dir": common.rel(Path(dir or cli.FIXTURE)),
@@ -113,12 +120,11 @@ def check(cli, backend="krt", runs=2, budget=180, dir=None, board=None, backend_
     common.write_json(out / "determinism.json", rec)
     rec_path = out / "determinism.json"
     if record:
-        if m is None:
-            rec["record_error"] = "no state manifest: run `kicad-route state-manifest` first"
-        elif statemanifest.verify(m):
-            rec["record_error"] = "state manifest drift: re-record it with `kicad-route state-manifest` first"
-        else:
+        try:
             statemanifest.record_determinism(rec)
+        except (OSError, RuntimeError) as error:
+            rec["record_error"] = str(error)
+        else:
             rec["recorded_in"] = str(statemanifest.manifest_path())
         common.write_json(rec_path, rec)
     return rec, rec_path

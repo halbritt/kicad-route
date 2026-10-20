@@ -372,6 +372,32 @@ def build_id(m, backend="krt"):
     return common.sha256_of({"backend": backend, **parts})
 
 
+def execution_build_id(tools, backend="krt"):
+    """The build actually executed, using the same content fields as build_id.
+
+    Missing execution evidence cannot be replaced with the currently selected
+    installation: a worker may still be running a prior generation.
+    """
+    tools = tools or {}
+    executed = tools.get("backend") or {}
+    native = (tools.get("kicad_cli") or {}).get("sha256")
+    if backend == "krt":
+        source = executed.get("source_sha256")
+        module = executed.get("extension_module_sha256")
+        packages = executed.get("venv_packages_sha256")
+        if not all((source, module, packages, native)):
+            return None
+        manifest = {"krt": {"source_sha256": source, "extension_module": {"sha256": module},
+                            "venv": {"packages_sha256": packages}}}
+    else:
+        jar, java = executed.get("jar_sha256"), executed.get("java_version")
+        if not all((jar, java, native)):
+            return None
+        manifest = {backend: {"jar": {"sha256": jar}}, "java": {"version": java}}
+    manifest["kicad"] = {"kicad_cli": {"sha256": native}}
+    return build_id(manifest, backend)
+
+
 def current_build_id(state=None, backend="krt"):
     """build_id of what is on disk now, from the manifest's own paths."""
     state = Path(state or common.STATE)
@@ -435,13 +461,20 @@ def attempt_qualification(repeat, process):
 
 
 def record_determinism(rec, state=None):
-    """Store a determinism record in the manifest (rewritten atomically)."""
-    m = read(state)
-    if m is None:
-        raise RuntimeError(f"no state manifest at {manifest_path(state)}: run `kicad-route state-manifest` first")
-    m.setdefault("determinism", {})[rec["backend"]] = rec
-    write(m, state)
-    return m
+    """Record proof only for its executed build, under the activation lock."""
+    from .installation import update_lock
+    state = Path(state or common.STATE)
+    with update_lock(state):
+        m = read(state)
+        if m is None:
+            raise RuntimeError(f"no state manifest at {manifest_path(state)}: run `kicad-route state-manifest` first")
+        if rec.get("build_id") is None or rec["build_id"] != current_build_id(state, rec["backend"]):
+            raise RuntimeError("executed repeat build differs from the active installation; rerun determinism")
+        if verify(m, state):
+            raise RuntimeError("state manifest drift: re-record it with `kicad-route state-manifest` first")
+        m.setdefault("determinism", {})[rec["backend"]] = rec
+        write(m, state)
+        return m
 
 
 def doctor_checks(state=None):
@@ -477,12 +510,15 @@ def default_build_router_log():
 
 
 def refresh(written_by="state-manifest", build_router_log=None, state=None):
-    """Collect and write the manifest for the current install; returns (path, manifest)."""
-    log = build_router_log or default_build_router_log()
-    m = collect(state, log, written_by=written_by, previous=read(state))
-    if m["krt"] and (m["krt"].get("prebuilt") is None):
-        m["krt"]["prebuilt_note"] = f"no build_router log at {log}: prebuilt asset URL not recorded"
-    return write(m, state), m
+    """Collect and write under the same lock that activates router generations."""
+    from .installation import update_lock
+    state = Path(state or common.STATE)
+    with update_lock(state):
+        log = build_router_log or default_build_router_log()
+        m = collect(state, log, written_by=written_by, previous=read(state))
+        if m["krt"] and (m["krt"].get("prebuilt") is None):
+            m["krt"]["prebuilt_note"] = f"no build_router log at {log}: prebuilt asset URL not recorded"
+        return write(m, state), m
 
 
 def cmd(args):
