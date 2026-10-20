@@ -86,6 +86,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -2066,11 +2067,13 @@ def smoke(publish=None):
     """The integration tests on the bundled fixture, run under OUT/smoke. With
     publish, the structured evidence (not the boards) is copied there for committing."""
     from . import publication
-    out = out_path("smoke")
+    root = out_path("smoke")
     protected = (common.out_dir().resolve(), FIXTURE.resolve())
     dest = publication.destination(publish, 'smoke', protected) if publish else None
-    shutil.rmtree(out, ignore_errors=True)
-    out.mkdir(parents=True)
+    if any(p.is_symlink() for p in (root, *root.parents)):
+        contract.refuse("input", f"smoke workspace has a symlink: {root}")
+    root.mkdir(parents=True, exist_ok=True)
+    out = Path(tempfile.mkdtemp(prefix=common.now_utc().strftime("%Y%m%dT%H%M%S-"), dir=root))
     junit = out / "junit.xml"
     env = dict(common.tool_env(), KICAD_ROUTE_TEST_OUT=str(out), KICAD_ROUTE_STATE=str(common.STATE))
     r = subprocess.run([str(pcbnew_python()), "-m", "pytest", "-v", "-p", "no:cacheprovider",

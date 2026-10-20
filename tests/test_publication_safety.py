@@ -131,3 +131,20 @@ def test_source_directory_aliases_cannot_publish_external_receipts(tmp_path):
     dest = tmp_path / 'dest'
     cli.publish_run(run, dest)
     assert not list(dest.rglob('secret.json'))
+
+
+def test_smoke_workspaces_preserve_unrelated_previous_files(tmp_path, monkeypatch):
+    out = tmp_path / 'out'
+    root = out / 'smoke'
+    root.mkdir(parents=True)
+    sentinel = root / 'unrelated.json'
+    sentinel.write_text('owner data')
+    monkeypatch.setattr(common, 'out_dir', lambda: out)
+    monkeypatch.setattr(cli, 'out_path', lambda *parts: out.joinpath(*parts))
+    monkeypatch.setattr(cli, 'krt_version', lambda: {})
+    monkeypatch.setattr(cli, 'freerouting_version', lambda: {})
+    monkeypatch.setattr(common, 'tool_versions', lambda: {})
+    monkeypatch.setattr(cli.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=1))
+    assert cli.smoke() == 1
+    assert sentinel.read_text() == 'owner data'
+    assert len(list(root.glob('*/summary.json'))) == 1

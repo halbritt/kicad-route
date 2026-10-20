@@ -359,3 +359,7 @@ it does not rerun or upgrade that attempt. Freerouting remains an attempt.
 and any `record_error`. Failed repeat qualification or recording makes update
 nonzero; a later passing gate cannot erase an earlier failure. The manifest hash
 in the final receipt includes the recorded repeat check.
+
+Each smoke invocation uses a fresh generation under `OUT/smoke/`; it does not
+remove pre-existing scratch directories. Retaining prior generations makes a
+failed or interrupted smoke run inspectable without deleting earlier evidence.

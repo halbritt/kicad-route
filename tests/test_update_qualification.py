@@ -1,6 +1,4 @@
 """Required repeat gates and current-attempt wall-clock qualification."""
-from types import SimpleNamespace
-
 import pytest
 from kicad_route import cli, common, corpus, determinism, statemanifest
 
