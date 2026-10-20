@@ -30,6 +30,42 @@ def _escape_net_name(name: Optional[str]) -> Optional[str]:
     return name.replace('\\', '\\\\').replace('"', '\\"')
 
 
+def _sexpr_spans(content: str, tags):
+    """Find real expression tokens, validating nesting and quoted strings.
+
+    One lexical pass avoids interpreting text such as "(gr_text" as syntax.
+    Yielded spans include the closing parenthesis; malformed input fails before
+    a writer can emit a partial board.
+    """
+    stack = []
+    spans = []
+    quoted = escaped = False
+    token = re.compile(r'([^\s()]+)')
+    for i, ch in enumerate(content):
+        if quoted:
+            if escaped:
+                escaped = False
+            elif ch == '\\':
+                escaped = True
+            elif ch == '"':
+                quoted = False
+        elif ch == '"':
+            quoted = True
+        elif ch == '(':
+            match = token.match(content, i + 1)
+            stack.append((i, match.group(1) if match else ''))
+        elif ch == ')':
+            if not stack:
+                raise ValueError(f"Unexpected closing parenthesis at offset {i}")
+            start, tag = stack.pop()
+            if tag in tags:
+                spans.append((start, i + 1, tag))
+    if quoted or stack:
+        raise ValueError("Truncated PCB S-expression: unterminated " +
+                         ("quoted string" if quoted else f"block at offset {stack[-1][0]}"))
+    return sorted(spans)
+
+
 def move_copper_text_to_silkscreen(content: str) -> str:
     """
     Move gr_text elements from copper layers to silkscreen layers.
@@ -45,29 +81,9 @@ def move_copper_text_to_silkscreen(content: str) -> str:
     """
     count = 0
 
-    # Find all gr_text blocks by finding "(gr_text" and matching to closing paren
-    i = 0
     result_parts = []
     last_end = 0
-
-    while True:
-        # Find next gr_text
-        start = content.find('(gr_text', i)
-        if start == -1:
-            break
-
-        # Find the matching closing paren by counting nesting
-        depth = 0
-        end = start
-        for j in range(start, len(content)):
-            if content[j] == '(':
-                depth += 1
-            elif content[j] == ')':
-                depth -= 1
-                if depth == 0:
-                    end = j + 1
-                    break
-
+    for start, end, _tag in _sexpr_spans(content, {'gr_text'}):
         # Extract the gr_text block
         block = content[start:end]
 
@@ -83,8 +99,6 @@ def move_copper_text_to_silkscreen(content: str) -> str:
             result_parts.append(new_block)
             last_end = end
             count += 1
-
-        i = end
 
     # Add remaining content
     result_parts.append(content[last_end:])
@@ -249,30 +263,9 @@ def move_copper_graphics_to_silkscreen(content: str) -> str:
         # gate exists to stop, and silently, because the "Kept ..." line
         # drifts away with it.
         _keep_spans = _functional_footprint_spans(content)
-        token = '(' + tag
-        tlen = len(token)
         result_parts = []
         last_end = 0
-        i = 0
-        while True:
-            start = content.find(token, i)
-            if start == -1:
-                break
-            # Require a token boundary so '(gr_line' doesn't match '(gr_linex'.
-            nxt = content[start + tlen: start + tlen + 1]
-            if nxt and (nxt.isalnum() or nxt == '_'):
-                i = start + tlen
-                continue
-            depth = 0
-            end = start
-            for j in range(start, len(content)):
-                if content[j] == '(':
-                    depth += 1
-                elif content[j] == ')':
-                    depth -= 1
-                    if depth == 0:
-                        end = j + 1
-                        break
+        for start, end, _tag in _sexpr_spans(content, {tag}):
             block = content[start:end]
             layer_match = re.search(r'\(layer\s+"(F\.Cu|B\.Cu)"\)', block)
             # #337: a NET-TIED copper graphic is FUNCTIONAL copper (the router
@@ -305,7 +298,6 @@ def move_copper_graphics_to_silkscreen(content: str) -> str:
             result_parts.append(content[last_end:start])
             result_parts.append(block)
             last_end = end
-            i = end
         result_parts.append(content[last_end:])
         content = ''.join(result_parts)
 
