@@ -149,7 +149,7 @@ def run_sample(config, side, index):
     cli = getattr(config, side + "_cli")
     state = getattr(config, side + "_state")
     command = ["/usr/bin/time", "-q", "-f",
-               '{"wall_s":%e,"max_rss_kib":%M}', "-o", str(directory / "time.json"),
+               '{"wall_s":%e,"user_s":%U,"system_s":%S,"max_rss_kib":%M}', "-o", str(directory / "time.json"),
                sys.executable, str(cli), "--out", str(config.output / (side + "-out")),
                "run", "--backend", "krt", "--dir", str(config.project),
                "--run-dir", str(directory / "run"), "--json", *config.arg]
@@ -214,7 +214,7 @@ def main():
     reference, candidate, warmup = [], [], {}
     report = {"schema": "kicad-route/engine-comparison/2", "project": str(args.project),
               "args": args.arg, "reference": reference, "candidate": candidate, "warmup": warmup,
-              "mode": args.mode,
+              "mode": args.mode, "cpu_affinity": sorted(os.sched_getaffinity(0)),
               "measurement": "medians: full-CLI wall time, GNU-time largest individual-process RSS, "
                              "and sampled concurrent process-tree summed RSS (50 ms interval); "
                              "all three gates enforce 1.10. Sampled RSS is a lower bound on peak."}
