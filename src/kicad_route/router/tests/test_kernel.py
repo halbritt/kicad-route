@@ -159,6 +159,23 @@ class SearchTests(unittest.TestCase):
                     if actual:
                         self.assertTrue(all(not t[1][0, s[0], s[1]] for s in actual))
 
+    def test_permitted_layer_and_pair_turn_debt_match_oracle(self):
+        for paired, search in ((False, lane), (True, pair)):
+            t = tables()
+            t[1][1, 3, :] = True
+            t[1][1, 3, 2] = False
+            options = dict(rt=2, st=1, pr=1) if paired else {}
+            path = search(t, lays=(1,), **options)
+            expected = oracle(t, paired, lays=(1,), **options)
+            self.assertEqual(path, None if expected is None else
+                             [state if paired else state[:4] for state in expected])
+            if paired:
+                self.assertIsNone(path)
+                self.assertIsNotNone(search(t, lays=(1,), rt=0, st=1, pr=1))
+            else:
+                self.assertIsNotNone(path)
+                self.assertTrue(all(not t[1][1, state[0], state[1]] for state in path))
+
     def test_no_path_and_empty_search(self):
         t = tables()
         t[0][:] = False
