@@ -46,9 +46,11 @@ def manifest_path(state=None):
     return Path(state or common.STATE) / FILENAME
 
 
-def layout(state):
+def layout(state, generation=None):
     state = Path(state)
-    return {"krt": engine.ROOT, "venv": state / ".venv-krt",
+    generation = Path(generation) if generation else common.router_generation(state)
+    return {"generation": generation, "krt": generation / "router" if generation else engine.ROOT,
+            "venv": generation / "venv" if generation else state / ".venv-krt",
             "freerouting": state / "vendor" / "freerouting"}
 
 
@@ -175,8 +177,8 @@ def kicad_route_identity():
 
 # -------------------------------------------------------------- collection
 
-def collect_krt(state, build_router_log=None):
-    d = layout(state)
+def collect_krt(state, build_router_log=None, generation=None):
+    d = layout(state, generation)
     krt, venv = d["krt"], d["venv"]
     if not krt.exists():
         return None
@@ -193,12 +195,14 @@ def collect_krt(state, build_router_log=None):
         except (OSError, subprocess.TimeoutExpired):
             grid = None
     pkgs = venv_packages(venv)
-    identity = engine.identity()
+    identity = engine.identity(krt)
     return {
+        "generation": _rel(d["generation"], state) if d["generation"] else None,
         "tag": None,
         "describe": identity["build"],
         "commit": identity["commit"],
         "source_sha256": identity["source_sha256"],
+        "source_path": _rel(krt, state),
         "source": "https://github.com/halbritt/kicad-route",
         "clone_url": None,
         "upstream": identity["upstream"],
@@ -242,7 +246,7 @@ def collect_java(freerouting):
             "version": java_full_version(java[0]) if java else None, "required": need}
 
 
-def collect(state=None, build_router_log=None, written_by="state-manifest", previous=None):
+def collect(state=None, build_router_log=None, written_by="state-manifest", previous=None, generation=None):
     """The manifest for what is installed under state now. Downloads nothing.
     A determinism record from `previous` is kept when its build is still the one installed."""
     state = Path(state or common.STATE).resolve()
@@ -255,7 +259,7 @@ def collect(state=None, build_router_log=None, written_by="state-manifest", prev
         "pinned": False,  # update follows each backend's latest release (docs/routing.md)
         "kicad_route": kicad_route_identity(),
         "python": {"version": sys.version.split()[0], "executable": sys.executable},
-        "krt": collect_krt(state, build_router_log),
+        "krt": collect_krt(state, build_router_log, generation),
         "freerouting": fr,
         "java": collect_java(fr),
         "kicad": {"kicad_cli": kicad_cli_identity(), "pcbnew_build_version": pcbnew_build_version(),
@@ -320,7 +324,10 @@ def current_identity(m, state):
     cur = {}
     k = m.get("krt")
     if k is not None:
-        cur["krt.source_sha256"] = engine.source_sha256()
+        source = k.get("source_path")
+        if source is None and k.get("generation"):
+            source = str(Path(k["generation"]) / "router")
+        cur["krt.source_sha256"] = engine.source_sha256(state / source if source else engine.ROOT)
         mod = (k.get("extension_module") or {}).get("path")
         cur["krt.extension_module.sha256"] = _sha(state / mod) if mod else None
         req = (k.get("requirements") or {}).get("path")
@@ -384,7 +391,10 @@ def current_build_id(state=None, backend="krt"):
     return build_id(live, backend)
 
 
-def reproducibility(backend, state=None):
+_UNSPECIFIED_GENERATION = object()
+
+
+def reproducibility(backend, state=None, runtime_generation=_UNSPECIFIED_GENERATION):
     """backend.reproducible and the result's measurement flag for a run on the installed build.
     Freerouting's outcome may vary run to run: never reproducible, never a measurement.
     KRT: what the state manifest's determinism record says for the build on disk now."""
@@ -392,6 +402,12 @@ def reproducibility(backend, state=None):
         return {"reproducible": False, "measurement": False,
                 "basis": "Freerouting's outcome may vary between runs: this result is an attempt, not a measurement"}
     m = read(state)
+    if runtime_generation is not _UNSPECIFIED_GENERATION:
+        selected = common.router_generation(state)
+        runtime = Path(runtime_generation) if runtime_generation else None
+        if runtime != selected:
+            return {"reproducible": None, "measurement": False,
+                    "basis": "routing process uses a previous generation; the active manifest selects another build"}
     rec = ((m or {}).get("determinism") or {}).get(backend)
     if not rec:
         return {"reproducible": None, "measurement": False,

@@ -139,8 +139,10 @@ free of other copper for the spoke to survive. `--reserve-spokes` reserves them;
 
 **stall** — `--stall S`: stop a backend whose log shows no progress for S seconds.
 
-**STATE** — the state directory (`$KICAD_ROUTE_STATE`, default the checkout):
-`vendor/freerouting`, `.venv-krt`, `corpus/`, `manifest.json`. The owned routing
+**STATE** — the state directory (`$KICAD_ROUTE_STATE`, default the checkout for
+source installs or `${XDG_STATE_HOME:-~/.local/state}/kicad-route` for wheels):
+`vendor/freerouting`, `.router-generations`, legacy `.venv-krt`, `corpus/`,
+`manifest.json`. The owned routing
 source is included in the kicad-route package.
 Only `update` and `corpus add` write it.
 

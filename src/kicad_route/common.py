@@ -2,9 +2,10 @@
 
 Two locations matter:
 
-- TOOL_ROOT, this checkout, including the owned routing source. Runtime state
-  lives under STATE (default: the checkout itself; override with
-  KICAD_ROUTE_STATE): vendor/freerouting, .venv-krt and generated vendor/skills.
+- TOOL_ROOT, this checkout or the installed package. Runtime resources are
+  under RESOURCE_ROOT; writable STATE defaults to the checkout for source
+  installs and XDG_STATE_HOME/kicad-route for wheels (KICAD_ROUTE_STATE overrides).
+  It contains backend generations, manifests and vendor/freerouting.
 - OUT, where a project's attempts go (default ./build/kicad-route; set with
   `kicad-route --out DIR` or KICAD_ROUTE_OUT). It holds runs/, the baseline cache
   and a hermetic KiCad configuration, and never touches the routed project.
@@ -22,8 +23,15 @@ from pathlib import Path
 
 PASS, FAIL, NOT_RUN, UNSUPPORTED = "PASS", "FAIL", "NOT_RUN", "UNSUPPORTED"
 
-TOOL_ROOT = Path(__file__).resolve().parents[2]
-STATE = Path(os.environ.get("KICAD_ROUTE_STATE") or TOOL_ROOT).expanduser().resolve()
+PACKAGE_ROOT = Path(__file__).resolve().parent
+_source_root = PACKAGE_ROOT.parents[1]
+CHECKOUT_ROOT = _source_root if (_source_root / "pyproject.toml").is_file() and \
+    (_source_root / "bin" / "kicad-route").is_file() else None
+TOOL_ROOT = CHECKOUT_ROOT or PACKAGE_ROOT
+RESOURCE_ROOT = CHECKOUT_ROOT or PACKAGE_ROOT / "resources"
+_default_state = CHECKOUT_ROOT or Path(os.environ.get("XDG_STATE_HOME") or
+                                     Path.home() / ".local" / "state") / "kicad-route"
+STATE = Path(os.environ.get("KICAD_ROUTE_STATE") or _default_state).expanduser().resolve()
 KICAD_SHARE = Path("/usr/share/kicad")
 # KiCad's Python bindings ship for the system interpreter.
 PCBNEW_PYTHON = Path(os.environ.get("KICAD_ROUTE_PCBNEW_PYTHON") or "/usr/bin/python3")
@@ -108,6 +116,21 @@ def count_by(items, key):
 
 
 # --------------------------------------------------------------------------- env
+
+def router_generation(state=None):
+    """The generation selected by the atomically published state manifest."""
+    state = Path(state or STATE)
+    manifest = load_json(state / "manifest.json") or {}
+    generation = (manifest.get("krt") or {}).get("generation")
+    if generation is None:
+        return None
+    path = (state / generation).resolve()
+    if not path.is_relative_to((state / ".router-generations").resolve()):
+        raise RuntimeError("router generation escapes STATE/.router-generations")
+    if not (path / "installation.json").is_file():
+        raise RuntimeError(f"selected router generation is incomplete: {path}")
+    return path
+
 
 def kicad_version():
     # even `kicad-cli version` writes its config, cache and data directories: contained too

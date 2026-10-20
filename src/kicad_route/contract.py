@@ -22,7 +22,7 @@ REFUSED_EXIT = 4
 # ledger / canary: the pre-flight gates of `run`; state: kicad-route's own state
 # (an existing --run-dir, an existing corpus entry).
 REASON_CLASSES = ("usage", "input", "ledger", "canary", "state")
-SCHEMAS_DIR = common.TOOL_ROOT / "schemas"
+SCHEMAS_DIR = common.RESOURCE_ROOT / "schemas"
 
 
 def schema_id(kind, major=None):

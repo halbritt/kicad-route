@@ -1,6 +1,8 @@
 # Installed backends and generated skills (kicad-route update)
 /vendor/
 /.venv-krt/
+/.router-generations/
+/.router-update.lock
 /manifest.json
 # Runs, caches, smoke output
 /build/

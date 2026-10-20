@@ -104,7 +104,7 @@ and a refusal record (`reason_class: state`, `OUT/refusals/`, docs/interface.md)
 STATE:
 
 - does not exist;
-- holds no installed backend environment (`.venv-krt` or `vendor/freerouting`), so it is not a
+- holds no installed backend environment (`.router-generations`, legacy `.venv-krt` or `vendor/freerouting`), so it is not a
   kicad-route state directory;
 - is not the directory its state manifest (`STATE/manifest.json`, written by `update`
   or `kicad-route state-manifest`) describes: the manifest is missing or malformed,
@@ -129,7 +129,7 @@ the owned routing source or the venv, and git runs with `--no-optional-locks` so
 --dirty` does not rewrite the checkout's index. The tests snapshot every entry's type,
 size and mtime under STATE around each fixture run, sandboxed and not, and fail on any
 difference. When STATE is also a source checkout (the default), only its installed
-parts (`vendor/`, `.venv-krt/`, `corpus/`) are snapshotted, because merges and commits
+parts (`vendor/`, `.router-generations/`, legacy `.venv-krt/`, `corpus/`) are snapshotted, because merges and commits
 change the sources and git metadata while tests run. Python bytecode for kicad-route
 itself is not written either, so a checkout used as STATE stays clean too.
 

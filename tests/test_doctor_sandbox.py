@@ -29,6 +29,7 @@ from pathlib import Path
 import pytest
 
 from helpers import FIXTURE, ROOT, record
+from kicad_route import cli as route
 
 STATE = Path(os.environ.get("KICAD_ROUTE_STATE") or ROOT).resolve()
 KR = [sys.executable, str(ROOT / "bin" / "kicad-route")]
@@ -37,7 +38,7 @@ AGENT_EE_SRC = Path(os.environ.get("AGENT_EE_SRC") or ROOT.parent / "agent-ee" /
 # source checkout (the default, STATE = the checkout), only its installed parts are:
 # the sources, git metadata and build output change under other processes' hands
 # (merges, commits from worktrees, a checkout's own test runs).
-INSTALLED = ("vendor", ".venv-krt", "corpus")
+INSTALLED = ("vendor", ".router-generations", ".venv-krt", "corpus")
 # The smoke round trips' settings (tests/test_routing.py): complete and valid on the fixture.
 ROUTE_ARGS = {"krt": ["--budget", "180", "--name", "route_demo", "--default-clearance", "0.4"],
               "freerouting": ["--budget", "180", "--name", "route_demo", "--clearance-margin", "0.01",
@@ -175,7 +176,7 @@ def test_doctor_json_offline_record(doctor_record):
     ro = {e["path"] for e in sb["ro_paths"]}
     java = rec["versions"]["freerouting"]["java"].split(" (")[0]
     for need in (str(STATE), str(ROOT), str(Path(java).resolve().parents[1]),
-                 str((STATE / ".venv-krt" / "bin" / "python").resolve()), "/usr/share/kicad"):
+                 str(route.route_python().resolve()), "/usr/share/kicad"):
         assert need in ro, need
     assert all(any(p == b or p.startswith(b.rstrip("/") + "/") for b in sb["ro_binds"]) for p in ro)
     assert sb["rw_paths"][0]["path"] == str(out)

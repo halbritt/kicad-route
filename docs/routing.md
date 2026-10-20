@@ -37,7 +37,7 @@ kicad-route smoke                                    # integration tests on the 
 |---|---|---|
 | Upstream | github.com/drandyhaas/KiCadRoutingTools (MIT) | github.com/freerouting/freerouting (GPL-3.0) |
 | Channel used | owned source in `src/kicad_route/router/`, with patched-KRT provenance | latest GitHub release, executable jar `vendor/freerouting/current/` |
-| Runtime | `.venv-krt` (Python 3.12, numpy/scipy/shapely/Pillow) + Rust module built from the included locked crate | newest installed JVM that satisfies the jar (Java 25 for 2.5.x, apt `openjdk-25-jre-headless`) |
+| Runtime | generation venv (Python 3.12, numpy/scipy/shapely/Pillow) + Rust module built from the included locked crate | newest installed JVM that satisfies the jar (Java 25 for 2.5.x, apt `openjdk-25-jre-headless`) |
 | KiCad interface | reads/writes `.kicad_pcb` directly | KiCad pcbnew SWIG: `ExportSpecctraDSN(board, dsn)` / `ImportSpecctraSES(board, ses)` (`src/kicad_route/kicad/specctra.py`) |
 | Needs a running KiCad editor | no | no (the two-argument SWIG functions work headless) |
 | Net-name scope | `--nets` passed through | DSN rewrite: out-of-scope nets move to `<class>__skip` copies (same rules), ignored with `--router.autorouter.ignore_net_classes` |
@@ -281,8 +281,9 @@ The routing engine is maintained in this repository; its source digest and build
 are recorded in every `result.json`,
 `OUT/doctor/doctor.json`, `OUT/update/update.json` and the state manifest for
 diagnosis; they are not install requirements. Installed state lives in this checkout
-(or `$KICAD_ROUTE_STATE`): `vendor/freerouting`, `.venv-krt`, the
-generated `vendor/skills` and `manifest.json`, all git-ignored.
+for source installs, or `${XDG_STATE_HOME:-~/.local/state}/kicad-route` for wheels
+(`$KICAD_ROUTE_STATE` overrides): `.router-generations`, `vendor/freerouting`, the
+generated `vendor/skills` and `manifest.json`. Legacy `.venv-krt` remains readable.
 
 **State manifest** (`STATE/manifest.json`, schema `kicad-route/state/1`,
 `kicad_route/statemanifest.py`). `update` writes it atomically after installing;
@@ -319,11 +320,14 @@ and acceptance requirements.
   (`--no-update` skips it). A stale link (another checkout) is repointed; a real file
   or directory at a link path is never replaced.
 - `kicad-route update`:
-  - Owned routing engine: create
-    `.venv-krt` if needed (on the Python running kicad-route, or
-    `$KICAD_ROUTE_KRT_PYTHON`; KRT does not use pcbnew), `uv pip install --upgrade -r requirements.txt`,
-    build the included Rust crate with Cargo's locked dependencies, then run
-    `startup_checks.py`.
+  - Owned routing engine: prepare a fresh source snapshot and venv under
+    `.router-generations/<unique-id>` (on the Python running kicad-route, or
+    `$KICAD_ROUTE_KRT_PYTHON`; KRT does not use pcbnew). Install requirements,
+    build the included Rust crate with Cargo's locked dependencies, and validate
+    startup and route help before atomic manifest activation. Failures preserve
+    the prior generation; updates serialize and retain old generations. See
+    [generation recovery](routing-engine-migration.md) for interrupted preparation
+    and explicit restoration.
   - Freerouting: download the latest stable release's `freerouting-<v>.jar` (a
     pre-release-suffixed jar such as `-rc1` only when the release has no plain one),
     verify it against GitHub's per-asset `sha256:` digest (a mismatch aborts; a missing
@@ -427,7 +431,7 @@ rules remain unchanged.
   as a check input.
 - **Backends stay upstream; versions are recorded per run** (agent-ee decision 6). KRT
   and Freerouting are installed from their upstream releases into the git-ignored
-  state directory (`vendor/`, `.venv-krt`), never committed or modified here, and
+  state directory (`vendor/`, `.router-generations/`, legacy `.venv-krt`), never committed or modified here, and
   every `result.json` records the backend version and build. Freerouting (GPL-3.0) and
   KRT run only as separate processes; kicad-route does not import or link either.
 - **MIT license for kicad-route** (2026-10-17, [`LICENSE`](../LICENSE)). It covers this

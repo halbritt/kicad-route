@@ -117,10 +117,11 @@ PASS, FAIL, NOT_RUN, UNSUPPORTED = common.PASS, common.FAIL, common.NOT_RUN, com
 COMPLETE, INCOMPLETE = "COMPLETE", "INCOMPLETE"
 
 TOOL_ROOT = common.TOOL_ROOT
-KRT_VENV = common.STATE / ".venv-krt"
+_ROUTER_GENERATION = engine.GENERATION
+KRT_VENV = _ROUTER_GENERATION / "venv" if _ROUTER_GENERATION else common.STATE / ".venv-krt"
 KRT_DIR = engine.ROOT
 FREEROUTING_DIR = common.STATE / "vendor" / "freerouting"
-FIXTURE = TOOL_ROOT / "fixtures" / "route_demo"
+FIXTURE = common.RESOURCE_ROOT / "fixtures" / "route_demo"
 KICAD_SCRIPTS = Path(__file__).resolve().parent / "kicad"  # run with KiCad's Python (pcbnew)
 NM = 1_000_000  # nanometres per millimetre
 
@@ -1119,7 +1120,7 @@ def run_attempt(args):
     else:
         validation = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
         routing = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
-    repro = statemanifest.reproducibility(args.backend)  # KICADROUTE-7: attempt or measurement
+    repro = statemanifest.reproducibility(args.backend, runtime_generation=engine.GENERATION)
     qualification = statemanifest.attempt_qualification(repro, proc)
     proc["measurement_qualification"] = qualification
     result = {
@@ -1333,6 +1334,8 @@ KRT_REQUIRED_FLAGS = KRT_FLAGS[::2] + KRT_PROTECT_EXISTING_FLAGS + ["--json-out"
 
 def krt_version():
     v = engine.identity()
+    v["runtime"] = {"source": str(KRT_DIR), "venv": str(KRT_VENV),
+                    "generation": str(engine.GENERATION) if engine.GENERATION else None}
     v["rust_router"] = None
     if route_python().exists():
         r = subprocess.run([str(route_python()), "-c", "import sys; sys.path.insert(0, 'rust_router'); "
@@ -1740,22 +1743,13 @@ def krt_venv_python(env=None):
 
 
 def update_krt(steps):
-    """Install dependencies and build the routing source shipped by kicad-route."""
-    def checked(argv, cwd, log_name):
-        record = common.run_cmd(argv, cwd, out_path("update") / log_name)
-        steps.append(record)
-        if record.get("exit_code") != 0:
-            raise RuntimeError(f"router installation failed (see {record['log']})")
-
-    common.STATE.mkdir(parents=True, exist_ok=True)
-    if not route_python().exists():
-        checked(["uv", "venv", KRT_VENV, "--python", krt_venv_python()], common.STATE, "venv.log")
-    env_cmd = ["env", f"VIRTUAL_ENV={KRT_VENV}", "uv", "pip", "install", "--upgrade", "-r", KRT_DIR / "requirements.txt"]
-    checked(env_cmd, common.STATE, "krt-deps.log")
-    checked([route_python(), KRT_DIR / "build_router.py", "--target-dir",
-             common.STATE / "build" / "router-native"], common.STATE, "krt-build-router.log")
-    checked([route_python(), "py_router/startup_checks.py"], KRT_DIR, "krt-startup-checks.log")
-    return engine.identity()["build"]
+    """Prepare, validate and atomically activate a complete routing generation."""
+    from . import installation
+    global KRT_DIR, KRT_VENV
+    generation, manifest = installation.install(steps, out_path("update"), krt_venv_python())
+    KRT_DIR, KRT_VENV = generation / "router", generation / "venv"
+    engine.ROOT, engine.GENERATION = KRT_DIR, generation
+    return manifest["krt"]["describe"]
 
 
 # The executable jar of a Freerouting release: freerouting-<version>.jar, optionally
@@ -1837,6 +1831,12 @@ def update_freerouting(steps):
 
 
 def update():
+    from . import installation
+    with installation.update_lock():
+        return _update_locked()
+
+
+def _update_locked():
     out_path("update").mkdir(parents=True, exist_ok=True)
     before = {"krt": krt_version() if KRT_DIR.exists() else None, "freerouting": freerouting_version()}
     steps, errors = [], []
@@ -1854,7 +1854,10 @@ def update():
         errors.append(f"Freerouting needs Java {after['freerouting']['java_required']}+: "
                       f"sudo apt install openjdk-{after['freerouting']['java_required']}-jre-headless")
     # STATE/manifest.json: what is installed now, hashed (statemanifest.py, KICADROUTE-3)
-    manifest_path, manifest = statemanifest.refresh("update", out_path("update") / "krt-build-router.log")
+    if errors:
+        manifest_path, manifest = statemanifest.manifest_path(), statemanifest.read()
+    else:
+        manifest_path, manifest = statemanifest.refresh("update", out_path("update") / "krt-build-router.log")
     record = {"when": common.now_utc().isoformat(), "before": before, "after": after,
               "commands": [common.public(s) for s in steps], "errors": errors,
               "state_manifest": {"path": str(manifest_path), "sha256": statemanifest.file_sha256()}}
@@ -2087,6 +2090,8 @@ def publish_run(run_dir, dest):
 def smoke(publish=None):
     """The integration tests on the bundled fixture, run under OUT/smoke. With
     publish, the structured evidence (not the boards) is copied there for committing."""
+    if common.CHECKOUT_ROOT is None or not (TOOL_ROOT / "tests").is_dir():
+        contract.refuse("state", "smoke requires a development checkout containing tests; installed wheels support doctor, run and campaign")
     from . import publication
     root = out_path("smoke")
     protected = (common.out_dir().resolve(), FIXTURE.resolve())

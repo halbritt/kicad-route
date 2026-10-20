@@ -50,7 +50,7 @@ from . import contract
 STRATEGIES = ("hardfirst",)
 ORDERINGS = ("pads", "span", "netclass")  # --race lanes, in this order
 DEFAULT_CLASS = "Default"
-CLI = [sys.executable, str(common.TOOL_ROOT / "bin" / "kicad-route")]
+CLI = [sys.executable, "-m", "kicad_route"]
 # Subprocess timeouts (step_limits). After its --budget a run's backend gets
 # run_budgeted's stop grace; then the run grades its candidate (snapshot, refill,
 # DRC, parity, preservation). GRADE_ALLOWANCE_S bounds that with --total-budget;
@@ -290,7 +290,11 @@ class Campaign:
         timed_out = False
         recf = logf.with_suffix(".json")
         with open(logf, "w") as err, open(recf, "w") as out:
-            proc = subprocess.Popen(full, cwd=self.cwd, stdout=out, stderr=err, start_new_session=True)
+            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+            # The checkout launcher adjusts sys.path in-process. Give children the
+            # same package location; installed wheels resolve here as well.
+            env["PYTHONPATH"] = str(common.PACKAGE_ROOT.parent) + os.pathsep + env.get("PYTHONPATH", "")
+            proc = subprocess.Popen(full, cwd=self.cwd, env=env, stdout=out, stderr=err, start_new_session=True)
             with self.procs_lock:
                 self.procs.add(proc)
             try:

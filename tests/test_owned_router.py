@@ -4,6 +4,7 @@ import os
 import subprocess
 
 from helpers import CLI, FIXTURE, ROOT
+from kicad_route import cli as route
 
 
 def test_route_uses_owned_source_with_no_external_checkout(tmp_path):
@@ -11,7 +12,7 @@ def test_route_uses_owned_source_with_no_external_checkout(tmp_path):
     # metadata is available under it, and updates cannot repair a missing import.
     state = tmp_path / "state"
     state.mkdir()
-    (state / ".venv-krt").symlink_to(ROOT / ".venv-krt", target_is_directory=True)
+    (state / ".venv-krt").symlink_to(route.KRT_VENV, target_is_directory=True)
     directory = tmp_path / "attempt"
     env = dict(os.environ, KICAD_ROUTE_STATE=str(state), KICAD_ROUTE_LEDGER="off")
     process = subprocess.run([

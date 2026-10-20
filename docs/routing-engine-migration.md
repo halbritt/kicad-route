@@ -28,12 +28,37 @@ Nonliteral imports and sibling-script references are recorded for review.
 Shared diagnostic and placement helpers account for code outside `py_router`.
 They are initially preserved to keep source extraction separate from cleanup.
 
-`kicad-route update` installs the Python dependencies and compiles the owned Rust
-source with `cargo build --release --locked`. Build output goes to
-`STATE/build/router-native`, and the extension is installed into the routing
-environment (`STATE/.venv-krt`). Routing does not build or modify that environment
-or the source tree. The source tree can be mounted read-only. Cargo and the Python
-package manager need their ordinary registry access when dependencies are uncached.
+`kicad-route update` prepares a complete generation under
+`STATE/.router-generations/<unique-id>/`: a frozen copy of the owned routing source,
+a fresh `venv`, and Cargo output in `build`. It installs dependencies and compiles
+with `cargo build --release --locked`, verifies extension import, startup checks
+and route help, then collects the source/module/package manifest. Atomically
+replacing `STATE/manifest.json` activates the generation recorded in
+`krt.generation`. Overlapping updates hold `STATE/.router-update.lock` for the
+whole update. Routing pins the source and environment paths when its CLI starts;
+already running workers keep their old generation across activation.
+
+Preparation failures leave the selected environment and manifest unchanged.
+`preparation.json` and logs identify failed or interrupted preparations; retrying
+always starts a fresh generation. A cold failure leaves no active manifest.
+Validated prior generations remain available; to recover, stop updates, preserve
+the current manifest, and atomically restore a prior generation's `manifest.json`
+to `STATE/manifest.json`. Later determinism records can be regenerated. Update
+never removes a generation automatically, and corpus regressions continue to be
+reported without rollback. Legacy checkout environments at `STATE/.venv-krt`
+remain readable until a successful generation activation.
+
+Routing does not build or modify that environment or the source tree. The source
+tree can be mounted read-only. Cargo and the Python package manager need their
+ordinary registry access when dependencies are uncached.
+
+Wheels include the public fixture and JSON Schemas as package resources. Writable
+state defaults to `${XDG_STATE_HOME:-~/.local/state}/kicad-route`, outside
+site-packages. Campaign children invoke `python -m kicad_route` from the same
+package. `smoke` explicitly requires a development checkout with its test suite;
+run installed-package acceptance with
+`KICAD_ROUTE_WHEEL_RUNTIME=/path/to/native/venv python3 -m pytest tests/test_installed_wheel.py`.
+The existing `scripts/install.sh` checkout symlink installation remains supported.
 
 The backend identity records a digest of the owned source tree (`source_sha256`),
 the kicad-route repository commit when available, and the upstream

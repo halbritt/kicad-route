@@ -106,14 +106,15 @@ def backend_identity(name, version, state=None):
     """The backend part of tool_identity, from its version record and the state on disk."""
     state = Path(state or common.STATE)
     if name == "krt":
-        module = statemanifest.extension_module(statemanifest.layout(state)["venv"])
+        venv = Path((version.get("runtime") or {}).get("venv") or statemanifest.layout(state)["venv"])
+        module = statemanifest.extension_module(venv)
         return {"name": "krt", "tag": version.get("build"), "version": version.get("version"),
                 "commit": version.get("commit"), "grid_router_version": version.get("rust_router"),
                 "source_sha256": version.get("source_sha256"),
                 "extension_module_sha256": _sha(module) if module else None,
-                "venv_python_version": statemanifest.venv_python_version(statemanifest.layout(state)["venv"]),
+                "venv_python_version": statemanifest.venv_python_version(venv),
                 "venv_packages_sha256": statemanifest.packages_sha256(
-                    statemanifest.venv_packages(statemanifest.layout(state)["venv"]))}
+                    statemanifest.venv_packages(venv))}
     java = (version.get("java") or "").split(" (")[0] or None
     installed = statemanifest.collect_freerouting(state) or {}
     return {"name": name, "tag": version.get("version"), "jar_sha256": version.get("sha256"),
@@ -125,6 +126,12 @@ def tool_identity(name, version, pcbnew_build=None, state=None):
     """tool_identity for a run with backend `name` (version: the backend's version record).
     Holds no timestamps: equal for runs on the same tools."""
     m = statemanifest.read(state)
+    drift = [d["item"] for d in statemanifest.verify(m, state or common.STATE)] if m else None
+    if name == "krt" and "runtime" in version:
+        runtime = version["runtime"].get("generation")
+        selected = common.router_generation(state)
+        if (Path(runtime) if runtime else None) != selected:
+            drift = [*(drift or []), "krt.runtime_generation"]
     return {
         "kicad_route": statemanifest.kicad_route_identity(),
         "kicad_cli": statemanifest.kicad_cli_identity(),
@@ -132,6 +139,5 @@ def tool_identity(name, version, pcbnew_build=None, state=None):
         "python": {"version": sys.version.split()[0], "executable": sys.executable},
         "backend": backend_identity(name, version, state) if name else None,
         "state_manifest_sha256": statemanifest.file_sha256(state),
-        "state_manifest_drift": [d["item"] for d in statemanifest.verify(m, state or common.STATE)]
-        if m else None,
+        "state_manifest_drift": drift,
     }

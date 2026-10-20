@@ -17,7 +17,7 @@ def test_native_attempt_stop_disqualifies_measurement_and_survives_revalidation(
     out = tmp_path / "out"
     monkeypatch.setattr(common, "_out", out)
     monkeypatch.setenv("KICAD_ROUTE_LEDGER", "off")
-    monkeypatch.setattr(statemanifest, "reproducibility", lambda backend: {
+    monkeypatch.setattr(statemanifest, "reproducibility", lambda backend, **kwargs: {
         "reproducible": True, "measurement": True, "basis": "installed build repeat passed"})
     project = pair_project(tmp_path / "pair", single=True) if pair_mode else FIXTURE
     before = tree_hash(project)

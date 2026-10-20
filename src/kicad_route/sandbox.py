@@ -30,8 +30,8 @@ from . import common
 
 ENV_FLAG = "KICAD_ROUTE_REQUIRE_READONLY_STATE"
 # STATE's installed parts (only those present are reported).
-STATE_PARTS = (".venv-krt", "vendor/freerouting", "vendor/skills", "corpus")
-BACKEND_PARTS = (".venv-krt", "vendor/freerouting")
+STATE_PARTS = (".router-generations", ".venv-krt", "vendor/freerouting", "vendor/skills", "corpus")
+BACKEND_PARTS = (".router-generations", ".venv-krt", "vendor/freerouting")
 PROBE = ("192.0.2.1", 9)  # TEST-NET-1 (RFC 5737): never a real host
 
 UPDATE_HOSTS = ["api.github.com:443", "github.com:443", "objects.githubusercontent.com:443",
@@ -205,7 +205,7 @@ def requirements(*, venv_python, pcbnew_python, pcbnew_module=None, java=None, o
     git_dir = common.git(common.TOOL_ROOT, "rev-parse", "--path-format=absolute", "--git-common-dir")
     if git_dir and not _within(git_dir, common.TOOL_ROOT):
         add(git_dir, "the checkout's git metadata (a worktree's common dir): kicad-route's version")
-    add(common.STATE, "STATE: .venv-krt, vendor/freerouting; the venv stores absolute paths, "
+    add(common.STATE, "STATE: router generations, legacy .venv-krt, vendor/freerouting; the venv stores absolute paths, "
                       "so bind it at the same path")
     for part in BACKEND_PARTS:
         installed = common.STATE / part
@@ -229,7 +229,7 @@ def requirements(*, venv_python, pcbnew_python, pcbnew_module=None, java=None, o
     path_value = ":".join(dict.fromkeys([*exe_dirs, "/usr/local/bin", "/usr/bin", "/bin"]))
     env = [
         {"name": "KICAD_ROUTE_STATE", "value": str(common.STATE), "required": True,
-         "purpose": "the installed backends (default would be the checkout)"},
+         "purpose": "the installed backends (checkout or user state directory by default)"},
         {"name": "HOME", "value": str(out / "home"), "required": False,
          "purpose": "optional, need not be writable: KiCad's config, cache and data, fontconfig's cache "
                     "and the Freerouting JVM's user.home are kept under OUT (OUT/.kicad-config, OUT/.home)"},
