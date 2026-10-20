@@ -116,8 +116,14 @@ the two-route repeat test, already passed in the full invocation). The union
 covers every current case; this is not a claim that the original full invocation
 was green. The original failures and corrected reruns are retained together.
 
-Installation on `main` is checked again after integration, using the exact
-qualified native binary and a separate empty-state source build. Local raw evidence
-and the installation receipt live under `build/owned-engine-migration/`.
+Installation on `main` passed after integration. The installed binary matches the
+qualified artifact, the refreshed state manifest verifies, and offline doctor
+passes all 24 checks. A real route using the independently compiled empty state
+completes, passes native validation and preservation, and matches the frozen
+baseline's copper without a KRT checkout.
+`reports/routing-engine/main-installation.json` records this checkpoint against
+code commit `1e96ce32ce17b1a1ec350d50001f4dec2f635c95`; the subsequent receipt commit
+changes only these reports and notes. Local raw evidence lives under
+`build/owned-engine-migration/`.
 These checks qualify routing software and fixtures, not fabrication or physical
 board acceptance.

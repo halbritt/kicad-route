@@ -1,0 +1,78 @@
+{
+  "schema": "kicad-route/owned-main-installation/1",
+  "status": "PASS",
+  "observed_utc": "2026-10-20T11:38:17.029888+00:00",
+  "qualified_code_commit": "1e96ce32ce17b1a1ec350d50001f4dec2f635c95",
+  "engine_source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+  "installed_module_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+  "independently_built_module_sha256": "b23b94246df135a0588c05f07ef7b05599031731787d363cae9b95d14c9c12d5",
+  "python_packages": [
+    "numpy==2.5.4",
+    "pillow==13.0.0",
+    "scipy==1.18.1",
+    "shapely==2.2.0"
+  ],
+  "land": {
+    "pushed": true,
+    "worktree_removed": true,
+    "branch_removed": true,
+    "checks_passed": 21,
+    "checks_deselected": 1
+  },
+  "doctor": {
+    "status": "PASS",
+    "required_failed": [],
+    "checks": 24,
+    "offline": true,
+    "canaries": [
+      {
+        "check": "canary split (awkward net names)",
+        "status": "PASS"
+      },
+      {
+        "check": "canary bridge (awkward net names)",
+        "status": "PASS"
+      }
+    ]
+  },
+  "independent_clean_state_route": {
+    "process": "PASS",
+    "routing": "COMPLETE",
+    "validation": "PASS",
+    "new_violations": 0,
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    },
+    "external_krt_checkout": false,
+    "command_uses_vendor_krt": false,
+    "input_board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+    "copper_sha256": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+    "matches_frozen_baseline_copper": true
+  },
+  "manifest_verified": true,
+  "generated_skills_source": "src/kicad_route/router/",
+  "original_vendor_krt_left_untouched": true,
+  "raw_evidence_root": "build/owned-engine-migration/",
+  "raw_record_sha256": {
+    "main-doctor.json": "a88c93e146b66c732afe63cf2b3afb03cf5297f0c416f943a76c9bd1a9aec08c",
+    "main-clean-route.json": "38b81101989cf76f58db51acd5705e207ecb8ac482a143f556127e93c4e83639",
+    "main-clean-route/attempt/result.json": "916403f1221ecc2e60a535520f2c778c686d10096d683e4ceb6fe1cddf02b709",
+    "qualification/land.log": "f3ef2b8a08186979b8a239a04d57a0602d8cb3cc16d680a4cc8cb4ce46a221d9"
+  },
+  "boundary": "Local installed routing software and retained fixtures; not downstream production or physical PCB acceptance."
+}

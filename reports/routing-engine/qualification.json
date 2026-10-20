@@ -1,7 +1,7 @@
 {
   "schema": "kicad-route/owned-engine-qualification/1",
-  "scope": "Source, build, native routing and regression qualification; main installation is a subsequent checkpoint.",
-  "status": "source-and-regression-gates-passed",
+  "scope": "Source, build, native routing, regression and installed-main qualification.",
+  "status": "migration-gates-passed",
   "observed_utc": "2026-10-20T11:27:38.346005+00:00",
   "baseline": {
     "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
@@ -174,5 +174,5 @@
     "Per-board median runtime or maximum-RSS ratio above 1.10",
     "Conflicting source ownership or unavailable required authority"
   ],
-  "required_next_checkpoint": "Land verified source, install exact qualified module on main, refresh state/skills, and run offline doctor plus a real route using the independently built empty state."
+  "completed_installation_checkpoint": "reports/routing-engine/main-installation.json"
 }
