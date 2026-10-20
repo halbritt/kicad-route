@@ -127,3 +127,30 @@ changes only these reports and notes. Local raw evidence lives under
 `build/owned-engine-migration/`.
 These checks qualify routing software and fixtures, not fabrication or physical
 board acceptance.
+
+## Subsequent comparison harness (engine-comparison/2)
+
+KICADROUTE-81 adds a separate all-attempt correctness gate: warmups and measured
+runs must supply native validation, preservation, input/copper identity, routing
+outcome, open connections, pair completion and uncensored command evidence.
+A COMPLETE reference must remain COMPLETE. At least three measured repetitions
+and one separate warmup per implementation are required. Raw result locators,
+CLI digest, tool identities and input file hashes are retained per sample.
+
+The default `--mode migration-equivalence` also requires identical copper geometry
+in every attempt. `--mode algorithm-change` allows changed copper only under the
+same independent native-validation, preservation, pair and completion gates; it
+does not relax rules or permit lost connections. Performance uses measured
+samples only. Each board gates median wall time, legacy GNU-time individual-process
+maximum RSS, and sampled concurrent process-tree summed RSS at a ratio of 1.10.
+The latter sums resident pages of concurrent descendants, including backend
+sessions, every 50 ms. It is a sampled lower bound on peak and can double-count
+shared pages; it is not unique physical memory or an exact kernel high-water mark.
+The raw legacy metric and this aggregate metric remain distinct in each report.
+The completed historical migration receipt above keeps its original meaning.
+
+The retained sanitized `reports/routing-engine/inputs/multipoint-tap` workload
+covers multipoint routing and its tap rescue path; its files are source-pinned in
+Git and each comparison records their snapshot hashes. Include it alongside the
+route demo, differential-pair and four-layer-plane workloads when qualifying
+engine changes. This bounded corpus does not establish dense-board performance.
