@@ -115,7 +115,7 @@ def quality(result):
         "new_violations": ((validation.get("drc") or {}).get("new_violations") or {}).get("count"),
         "input_fingerprint": (result.get("input") or {}).get("fingerprint"),
         "copper": ((result.get("evidence") or {}).get("candidate_copper_signature") or {}).get("sha256"),
-        "pairs": pairs, "wall_clock_stop": any(
+        "pairs": pairs, "wall_clock_stop": None if not process.get("commands") else any(
             command.get(flag) for command in [process, *(process.get("commands") or [])]
             for flag in ("budget_reached", "stalled", "killed")),
     }

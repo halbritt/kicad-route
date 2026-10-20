@@ -1,5 +1,4 @@
 """Every attempt protects correctness; measured medians enforce owner limits."""
-import copy
 import importlib.util
 import os
 from pathlib import Path
