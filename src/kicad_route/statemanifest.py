@@ -5,9 +5,9 @@ writes it for an existing install without downloading anything. It records the
 identity of everything a routing run depends on (schema kicad-route/state/1):
 
     kicad_route   this checkout's describe, commit and dirty flag when written
-    krt           tag, commit, clone URL, VERSION, grid_router version, the
-                  extension module's path and sha256, the prebuilt asset it came
-                  from (when build_router's log names it), requirements.txt's
+    krt           owned source digest, repository commit, upstream provenance,
+                  VERSION, grid_router version, the extension module's path
+                  and sha256, source-build origin, requirements.txt's
                   sha256 and the venv's package list with its sha256
     freerouting   tag, asset, URL, sha256 (release.json and the jar on disk),
                   build revision, published_at, the Java release it needs
@@ -16,14 +16,13 @@ identity of everything a routing run depends on (schema kicad-route/state/1):
     determinism   per backend, the latest repeat check (determinism.py) and the
                   build it was made for
 
-Reading it (read(), verify(), doctor_checks()) needs no network, runs no
-subprocess except `git rev-parse` in the KRT checkout, and never writes under
+Reading it (read(), verify(), doctor_checks()) needs no network or subprocesses and never writes under
 STATE. verify() recomputes the recorded hashes on disk: a replaced jar or
 extension module, a changed venv or a different kicad-cli is drift, which
 `doctor` reports as a required FAIL.
 
-Nothing is pinned: `update` still installs each backend's latest release. The
-manifest records what that was, so a caller (agent-ee) can refuse a run whose
+`update` builds the owned routing source and acquires Freerouting's current
+release. The manifest lets a caller (agent-ee) refuse a run whose
 tool identity differs from the one it captured.
 """
 import json
@@ -36,10 +35,10 @@ import zipfile
 from pathlib import Path
 
 from . import common
+from . import engine
 
 SCHEMA = "kicad-route/state/1"
 FILENAME = "manifest.json"
-KRT_CLONE_URL = "https://github.com/drandyhaas/KiCadRoutingTools.git"
 KRT_RELEASE_URL = "https://github.com/drandyhaas/KiCadRoutingTools/releases/download/{tag}/{asset}"
 
 
@@ -49,7 +48,7 @@ def manifest_path(state=None):
 
 def layout(state):
     state = Path(state)
-    return {"krt": state / "vendor" / "krt", "venv": state / ".venv-krt",
+    return {"krt": engine.ROOT, "venv": state / ".venv-krt",
             "freerouting": state / "vendor" / "freerouting"}
 
 
@@ -69,10 +68,10 @@ def _sha(path):
         return None
 
 
-def extension_module(krt_dir):
-    """KRT's compiled grid_router module (what build_router.py downloads or builds)."""
-    found = sorted(Path(krt_dir, "rust_router").glob("grid_router*.so")) + \
-        sorted(Path(krt_dir, "rust_router").glob("grid_router*.pyd"))
+def extension_module(venv):
+    """The owned extension installed into the routing environment."""
+    found = sorted(Path(venv).glob("lib/python*/site-packages/grid_router*.so")) + \
+        sorted(Path(venv).glob("lib/python*/site-packages/grid_router*.pyd"))
     return found[0] if found else None
 
 
@@ -182,7 +181,7 @@ def collect_krt(state, build_router_log=None):
     if not krt.exists():
         return None
     version = (krt / "VERSION").read_text().strip() if (krt / "VERSION").exists() else None
-    module = extension_module(krt)
+    module = extension_module(venv)
     grid = None
     py = venv / "bin" / "python"
     if py.exists():
@@ -193,20 +192,21 @@ def collect_krt(state, build_router_log=None):
             grid = r.stdout.strip() if r.returncode == 0 else None
         except (OSError, subprocess.TimeoutExpired):
             grid = None
-    log_text = None
-    if build_router_log and Path(build_router_log).exists():
-        log_text = Path(build_router_log).read_text(errors="replace")
     pkgs = venv_packages(venv)
+    identity = engine.identity()
     return {
-        "tag": common.git(krt, "describe", "--tags", "--exact-match"),
-        "describe": common.git(krt, "describe", "--tags", "--always", "--dirty"),
-        "commit": common.git(krt, "rev-parse", "HEAD"),
-        "clone_url": common.git(krt, "remote", "get-url", "origin") or KRT_CLONE_URL,
+        "tag": None,
+        "describe": identity["build"],
+        "commit": identity["commit"],
+        "source_sha256": identity["source_sha256"],
+        "source": "https://github.com/halbritt/kicad-route",
+        "clone_url": None,
+        "upstream": identity["upstream"],
         "version": version,
         "grid_router_version": grid,
         "extension_module": {"path": _rel(module, state) if module else None,
                              "sha256": _sha(module) if module else None},
-        "prebuilt": prebuilt_from_log(log_text),
+        "prebuilt": {"asset": None, "url": None, "release": None, "from_source": True},
         "requirements": {"path": _rel(krt / "requirements.txt", state),
                          "sha256": _sha(krt / "requirements.txt")},
         "venv": {"path": _rel(venv, state), "python": str((venv / "bin" / "python").resolve()) if py.exists() else None,
@@ -320,8 +320,7 @@ def current_identity(m, state):
     cur = {}
     k = m.get("krt")
     if k is not None:
-        d = layout(state)
-        cur["krt.commit"] = common.git(d["krt"], "rev-parse", "HEAD")
+        cur["krt.source_sha256"] = engine.source_sha256()
         mod = (k.get("extension_module") or {}).get("path")
         cur["krt.extension_module.sha256"] = _sha(state / mod) if mod else None
         req = (k.get("requirements") or {}).get("path")
@@ -357,7 +356,7 @@ def build_id(m, backend="krt"):
     environment plus the KiCad that refills and saves every candidate."""
     if backend == "krt":
         k = m.get("krt") or {}
-        parts = {"commit": k.get("commit"), "extension_module": (k.get("extension_module") or {}).get("sha256"),
+        parts = {"source": k.get("source_sha256") or k.get("commit"), "extension_module": (k.get("extension_module") or {}).get("sha256"),
                  "venv": (k.get("venv") or {}).get("packages_sha256")}
     else:
         f = m.get(backend) or {}
@@ -375,6 +374,7 @@ def current_build_id(state=None, backend="krt"):
     cur = current_identity(m, state)
     if backend == "krt":
         live = {"krt": {"commit": cur.get("krt.commit"),
+                        "source_sha256": cur.get("krt.source_sha256"),
                         "extension_module": {"sha256": cur.get("krt.extension_module.sha256")},
                         "venv": {"packages_sha256": cur.get("krt.venv.packages_sha256")}}}
     else:
@@ -432,7 +432,7 @@ def doctor_checks(state=None):
                 else "; ".join(problems), True))
     drift = verify(m, state)
     out.append(("state manifest matches the files on disk", common.PASS if not drift else common.FAIL,
-                "jar, extension module, venv packages, requirements, KRT commit, kicad-cli" if not drift else
+                "jar, extension module, venv packages, requirements, owned source, kicad-cli" if not drift else
                 "drift: " + "; ".join(f"{d['item']} recorded {str(d['recorded'])[:16]} now {str(d['current'])[:16]}"
                                       for d in drift) + " (reinstall, or re-record with `kicad-route state-manifest`)",
                 True))

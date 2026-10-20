@@ -7,7 +7,7 @@ description: "Use for KiCad PCB trace routing with kicad-route: run KRT or Freer
 
 `kicad-route` routes an isolated copy of a KiCad project with one of two backends
 and grades the result with KiCad's own checks:
-- **KRT** (KiCadRoutingTools) reads and writes the native KiCad files.
+- **krt** selects the owned engine extracted from patched KRT; it reads and writes native KiCad files.
 - **Freerouting** goes through KiCad's Specctra DSN/SES bridge.
 
 The source checkout is `~/git/kicad-route`. Full reference, install and update notes,
@@ -57,7 +57,7 @@ first.
 | `kicad-route audit --old REV [--new REV]` | Grade a committed board change against its parent: DRC, parity, rule changes and what they hide, design edits, the rule floor |
 | `kicad-route floor [--write-declared]` | Rules looser than their git high-water mark or the declared floor `<board>.rules-floor.json` (`OUT/floor/<project>/floor.json`) |
 | `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured receipts (every JSON receipt plus `RESULT.md`: validation, spokes, blocked-by, pour integrity, provenance, facts, latest re-validation; never a board, log or `work/`) to `<DIR>/<project>/<label>/` for committing |
-| `kicad-route update` | Move both backends to their latest upstream release, write `STATE/manifest.json`, regenerate the `krt-*` skills, run `smoke`, the corpus gate and the KRT repeat check |
+| `kicad-route update` | Build the owned engine and acquire Freerouting's current release, write `STATE/manifest.json`, regenerate the `krt-*` skills, run `smoke`, the corpus gate and the routing repeat check |
 | `kicad-route state-manifest` | Record what is installed under STATE (versions, URLs, sha256 of the jar, the KRT extension module, the venv packages, kicad-cli) in `STATE/manifest.json`; downloads nothing. `doctor` fails when the files drift from it |
 | `kicad-route determinism [--backend krt] [--runs N] [--record]` | Route the fixture (or `--dir`) N times, ledger off, and compare copper geometry, candidate bytes and outcome; `--record` stores the verdict in the state manifest (exit 0 reproducible, 3 not) |
 | `kicad-route smoke` | Integration tests on the bundled fixture board |
@@ -286,7 +286,7 @@ routing or another agent's routing, without routing anything:
 - **CLI:** `~/git/kicad-route/bin/kicad-route`, linked as `~/.local/bin/kicad-route`.
 - **Code:** `src/kicad_route/`. That's `cli.py`, plus `kicad/facts.py`,
   `kicad/specctra.py` and `kicad/locks.py`, which run under KiCad's Python.
-- **Backends:** `vendor/krt` (latest release checkout) with `.venv-krt`, and
+- **Backends:** owned source in `src/kicad_route/router/` with `STATE/.venv-krt`, and
   `vendor/freerouting/current/freerouting-*.jar`. The jar runs with the newest
   installed JVM that satisfies it (Java 25 for 2.5.x).
 - **Evidence:** the fixture is in `fixtures/route_demo/`, and its smoke evidence is

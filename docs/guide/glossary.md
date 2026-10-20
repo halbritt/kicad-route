@@ -140,7 +140,8 @@ free of other copper for the spoke to survive. `--reserve-spokes` reserves them;
 **stall** — `--stall S`: stop a backend whose log shows no progress for S seconds.
 
 **STATE** — the state directory (`$KICAD_ROUTE_STATE`, default the checkout):
-`vendor/krt`, `vendor/freerouting`, `.venv-krt`, `corpus/`, `manifest.json`.
+`vendor/freerouting`, `.venv-krt`, `corpus/`, `manifest.json`. The owned routing
+source is included in the kicad-route package.
 Only `update` and `corpus add` write it.
 
 **state manifest** — `STATE/manifest.json`: what is installed, with hashes.

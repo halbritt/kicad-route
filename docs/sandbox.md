@@ -27,11 +27,11 @@ The record holds `status`, `required_failed`, `checks`, `versions`, `capabilitie
 
 | Key | Contents |
 |---|---|
-| `ro_paths` | each read-only path with its purpose: `/usr`, `/etc`, the checkout (TOOL_ROOT), its git common dir when it is a worktree, STATE, the KRT venv's interpreter target, the pcbnew Python and module, `/usr/share/kicad`, `kicad-cli`, `git`, and the JVM directory `find_java` chose. Paths are resolved and absolute. Bind them at the same path: the venv stores absolute paths |
+| `ro_paths` | each read-only path with its purpose: `/usr`, `/etc`, the checkout (TOOL_ROOT), its git common dir when it is a worktree, STATE, resolved runtime directories when the venv or Freerouting is a symlink outside STATE, the KRT venv's interpreter target, the pcbnew Python and module, `/usr/share/kicad`, `kicad-cli`, `git`, and the JVM directory `find_java` chose. Paths are resolved and absolute. Bind them at the same path: the venv stores absolute paths |
 | `ro_binds` | the smallest subset of `ro_paths` whose binds cover all of them |
 | `rw_paths` | OUT, the only writable path a run needs |
 | `env` | variables to set, with values: `KICAD_ROUTE_STATE`, `PATH` (`kicad-cli`, `git`), and the optional `HOME` (`required: false`; it need not be writable, see [HOME](#home) below), `KICAD_ROUTE_PCBNEW_PYTHON`, `KICAD_ROUTE_OUT`, `KICAD_ROUTE_REQUIRE_READONLY_STATE` |
-| `network` | hosts per command. `run`, `campaign`, `validate`, `blocked` and `doctor --offline` need none. `doctor` needs `api.github.com`. `update` needs GitHub (API, clone, release assets) and PyPI |
+| `network` | hosts per command. `run`, `campaign`, `validate`, `blocked` and `doctor --offline` need none. `doctor` needs `api.github.com`. `update` needs GitHub release assets, PyPI and the Cargo registry |
 | `writes_state` | the commands that write STATE: `update` and `corpus add` |
 | `observed` | what the doctor process itself saw (the same facts a run records, below) |
 
@@ -92,7 +92,7 @@ and a refusal record (`reason_class: state`, `OUT/refusals/`, docs/interface.md)
 STATE:
 
 - does not exist;
-- holds no installed backend (`vendor/krt` or `vendor/freerouting`), so it is not a
+- holds no installed backend environment (`.venv-krt` or `vendor/freerouting`), so it is not a
   kicad-route state directory;
 - is not the directory its state manifest (`STATE/manifest.json`, written by `update`
   or `kicad-route state-manifest`) describes: the manifest is missing or malformed,
@@ -113,7 +113,7 @@ flag or the variable. Without the flag nothing changes.
 kicad-route never writes under STATE during `run`, `validate`, `campaign`, `blocked`
 or `doctor`. Python runs with bytecode writing off (`bin/kicad-route` and every backend
 or KiCad-script subprocess), so no `__pycache__` appears in the checkout,
-`vendor/krt` or the venv, and git runs with `--no-optional-locks` so `describe
+the owned routing source or the venv, and git runs with `--no-optional-locks` so `describe
 --dirty` does not rewrite the checkout's index. The tests snapshot every entry's type,
 size and mtime under STATE around each fixture run, sandboxed and not, and fail on any
 difference. When STATE is also a source checkout (the default), only its installed

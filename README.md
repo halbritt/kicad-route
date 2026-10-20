@@ -2,7 +2,8 @@
 
 Agent-driven PCB trace routing for KiCad projects, graded by KiCad itself.
 
-`kicad-route` runs a routing backend — [KRT (KiCadRoutingTools)](https://github.com/drandyhaas/KiCadRoutingTools)
+`kicad-route` runs a routing backend — its owned engine, extracted from patched
+[KRT (KiCadRoutingTools)](https://github.com/drandyhaas/KiCadRoutingTools),
 or [Freerouting](https://github.com/freerouting/freerouting) — on an isolated copy of a
 KiCad project and hands back a native KiCad candidate board. The candidate is then graded
 with `kicad-cli` DRC (zones refilled, schematic parity) against the input's own,
@@ -23,7 +24,9 @@ machine interface: `--json` prints one schema-carrying record on stdout ([`docs/
 ## Install
 
 Requirements: Linux, KiCad 10 with its Python bindings for `/usr/bin/python3`
-(`kicad-cli`, `pcbnew`), `git`, [`uv`](https://docs.astral.sh/uv/), and a Java runtime new
+(`kicad-cli`, `pcbnew`), `git`, [`uv`](https://docs.astral.sh/uv/), a Rust toolchain
+with Cargo and C build tools (`build-essential` on Debian/Ubuntu) to build the
+owned engine, and a Java runtime new
 enough for the current Freerouting jar (Java 25 for 2.5.x:
 `sudo apt install openjdk-25-jre-headless`). `pytest` and `jsonschema` for `smoke` (test-only).
 The `planes` command also requires Bubblewrap (`bwrap`) on PATH.
@@ -36,8 +39,9 @@ kicad-route doctor
 
 `install.sh` links `~/.local/bin/kicad-route` and the `kicad-route` agent skill into
 `~/.agents/skills`, `~/.codex/skills` and `~/.claude/skills`. `kicad-route update`
-installs both backends at their latest upstream releases (nothing is pinned; the versions
-used are recorded in every result), generates the `krt-*` skills from the installed KRT,
+builds the owned engine from this repository and installs Freerouting's current
+release. The versions and source hashes used are recorded in every result.
+It generates the `krt-*` skills from the included routing diagnostics,
 and runs the integration tests. Re-run it to update.
 
 ## Use
@@ -94,6 +98,8 @@ sandboxes, and a glossary. The pages below are the reference.
 - [`docs/routing.md`](docs/routing.md) — backends and what the adapters switch off,
   run layout and result semantics, native grading, preservation checks, `audit`,
   installation and updates, decisions, known limitations, fixture evidence.
+- [`docs/routing-engine-migration.md`](docs/routing-engine-migration.md) — patched
+  baseline, source provenance, owned build and migration acceptance requirements.
 - [`docs/campaign.md`](docs/campaign.md) — `campaign`: automated hard-nets-first chains,
   backlog rounds, ranking, race orderings.
 - [`docs/floor.md`](docs/floor.md) — rule high-water mark and the declared rule floor
@@ -137,10 +143,12 @@ make fixture      # regenerate fixtures/route_demo
 
 kicad-route itself is MIT-licensed ([`LICENSE`](LICENSE)).
 
-The two backends are separate upstream programs under their own licenses:
-[KRT](https://github.com/drandyhaas/KiCadRoutingTools) is MIT (copyright drandyhaas) and
-[Freerouting](https://github.com/freerouting/freerouting) is GPL-3.0. Neither is part of
-this repository or redistributed with it. `kicad-route update` installs them from their
-upstream releases into the git-ignored state directory (`vendor/krt`,
-`vendor/freerouting`, `.venv-krt` under the checkout or `$KICAD_ROUTE_STATE`), and
-kicad-route runs them only as separate processes; it does not import or link either one.
+The owned routing engine derives from MIT-licensed
+[KRT](https://github.com/drandyhaas/KiCadRoutingTools), copyright drandyhaas.
+Its license and source provenance are retained in
+[`src/kicad_route/router/`](src/kicad_route/router/). It runs in a separate worker
+process, using a Rust extension built from the included source.
+
+[Freerouting](https://github.com/freerouting/freerouting) is GPL-3.0 and remains a
+separate program, acquired into the git-ignored `STATE/vendor/freerouting` directory.
+It is not redistributed, imported or linked by kicad-route.

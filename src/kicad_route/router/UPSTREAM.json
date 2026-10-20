@@ -1,0 +1,17 @@
+{
+  "project": "KiCadRoutingTools",
+  "license": "MIT",
+  "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+  "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+  "upstream_release": "v0.23.1",
+  "fork": "https://github.com/halbritt/KiCadRoutingTools",
+  "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+  "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+  "fixes": {
+    "KICADROUTE-64": "4b316ba",
+    "KICADROUTE-63": "0494a05"
+  },
+  "source_inventory": "reports/routing-engine/source-closure.json",
+  "additional_license_notices": ["py_router/stage3d/vendor/three/LICENSE"],
+  "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+}

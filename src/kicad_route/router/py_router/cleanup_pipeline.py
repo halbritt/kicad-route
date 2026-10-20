@@ -1,0 +1,926 @@
+"""Shared post-route cleanup pipeline (issue #319 restructure).
+
+One ordered pipeline used by BOTH routing fronts (route.py single-ended,
+route_diff.py diff-pair), so the pass list, the ordering constraints, and the
+strip-list plumbing exist exactly once instead of being hand-mirrored.
+
+The contract -- uniform, with NO exceptions:
+
+  * every pass MUTATES ``pcb_data`` in place, so at any point in (and after)
+    the pipeline ``pcb_data`` IS the board that will be written, modulo the
+    swap vias / stub layer modifications the writer applies to the file text
+    separately;
+  * removed copper that this run routed (present in a ``results`` entry) is
+    dropped from ``results`` -- the write-list -- in place;
+  * removed copper that came from the INPUT FILE is collected in
+    ``CleanupOutcome.input_strip_segments`` for the writer to delete from its
+    verbatim copy of the input;
+  * subtractive passes must not manufacture soft joints (they run with the
+    ``_restore_soft_joint_bridges`` guard), and ``close_soft_joints`` is the
+    last pass that ADDS copper. The one subtractive pass after it, the final
+    strict collapse (#1063), never removes the soft-joint bridges and web
+    connectors close lays and refuses any removal that would make a soft
+    joint, so no joint close firmed is ever reopened.
+
+``KICAD_BOARD_LEDGER=1`` audits the contract at the end of a run (see
+``verify_board_file_parity``): per in-scope net, the copper in ``pcb_data``
+and the copper the writer will produce (original input copper - strips +
+emitted results) must be identical.
+"""
+from __future__ import annotations
+
+import os
+import env_knobs
+from dataclasses import dataclass, field
+from typing import Callable, List, Optional
+
+from pcb_modification import (
+    snap_stub_gaps,
+    drop_phantom_copper,
+    prune_grazing_segments,
+    weld_redundant_grazing_detours,
+    nudge_grazing_octolinear,
+    nudge_grazing_microshift,
+    nudge_grazing_vias,
+    prune_redundant_cycles,
+    collapse_strict_redundant,
+    remove_orphan_islands,
+    sweep_dead_ends,
+    trim_dangles_past_body_anchor,
+    neck_wide_segments_grazing_pads,
+    smooth_octolinear_chains,
+    close_soft_joints,
+    merge_collinear_segments,
+    CLOSE_SOFT_JOINT_KINDS,
+)
+
+from terminal_colors import RED, RESET
+
+
+def _net_copper_signature(pcb_data, scope_net_ids):
+    """{net_id: frozenset of segment object ids} over the scope -- identity,
+    not geometry: every pass that changes a net's copper replaces, adds or
+    drops Segment objects."""
+    sig = {}
+    for s in pcb_data.segments:
+        if scope_net_ids is None or s.net_id in scope_net_ids:
+            sig.setdefault(s.net_id, set()).add(id(s))
+    return {k: frozenset(v) for k, v in sig.items()}
+
+
+def _changed_nets(before, after):
+    """Net ids whose segment set differs between two signatures."""
+    return {n for n in set(before) | set(after)
+            if before.get(n) != after.get(n)}
+
+
+# route.py runs the strict collapse ONCE, on the board it ships, after the
+# plane finalize and the reconciliation (route._late_strict_collapse1063). Its
+# in-run cleanup passes strict_collapse=False, and while the finalize runs it
+# holds this counter so the plane-repair cleanups it calls in-process skip the
+# collapse too. The counter lives HERE because route.py is `__main__` on the
+# CLI while repair_planes imports it as `route` -- a flag in route.py would be
+# two flags (#1069's two summary sinks).
+_STRICT_COLLAPSE_DEFERRED = [0]
+
+
+def defer_strict_collapse(delta: int) -> None:
+    """+1 on entering a region whose copper a later strict collapse will
+    grade, -1 on leaving it (pair them in try/finally)."""
+    _STRICT_COLLAPSE_DEFERRED[0] = max(0, _STRICT_COLLAPSE_DEFERRED[0] + delta)
+
+
+def strict_collapse_deferred() -> bool:
+    return _STRICT_COLLAPSE_DEFERRED[0] > 0
+
+
+def _smooth_skip_net_ids(pcb_data):
+    """Nets the #536 octolinear smoothing pass must never touch: protected
+    nets (length/time-matched groups, coupled diff pairs, KiCad-locked
+    copper -- prior steps via the .kicad_pro plus THIS step's not-yet-
+    consumed registrations) and impedance-declared nets. Their geometry is
+    the spec: meanders exist on purpose, and smoothing one pair leg destroys
+    the coupling. Peeks at protected_nets._notes WITHOUT consuming -- the
+    writeback site owns the consume."""
+    import protected_nets as _pn
+    names = set(_pn.protection_map(pcb_data))
+    names |= set(_pn._notes.get(_pn.PRO_KEY, {}) or {})
+    names |= set(_pn.read_impedance_for_pcb_data(pcb_data))
+    names |= set(_pn._notes.get(_pn.IMPEDANCE_KEY, {}) or {})
+    return {nid for nid, net in pcb_data.nets.items()
+            if getattr(net, 'name', None) in names}
+
+
+@dataclass
+class CleanupOutcome:
+    """What the pipeline did, for the caller's writer/summary plumbing."""
+    # Original INPUT-FILE segments removed by any pass: the writer must strip
+    # these blocks from its verbatim copy of the input file.
+    input_strip_segments: List = field(default_factory=list)
+    # Original INPUT-FILE vias removed (orphan islands take their barrels).
+    input_strip_vias: List = field(default_factory=list)
+    counts: dict = field(default_factory=dict)
+
+
+def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
+                           protect_net_ids=None,
+                           label: str = '',
+                           snap: bool = True,
+                           phantom: bool = True,
+                           graze: bool = True,
+                           octolinear: bool = True,
+                           via_nudge: bool = True,
+                           cycles: bool = True,
+                           neck: bool = True,
+                           microshift_max_shift: Optional[float] = None,
+                           freeze_hook: Optional[Callable[[], None]] = None,
+                           original_segment_ids=None,
+                           original_via_ids=None,
+                           keep_input_copper: bool = False,
+                           progress_callback=None,
+                           smooth: bool = False,
+                           merge_collinear: bool = True,
+                           strict_collapse: bool = True,
+                           ) -> CleanupOutcome:
+    """Run the post-route cleanup passes in their one canonical order.
+
+    Order and rationale (each pass's own docstring has the full story):
+      1. snap_stub_gaps        -- additive; extend a stub that stopped a
+                                  fraction short of same-net copper (#84).
+      2. drop_phantom_copper   -- reconcile the write-list against the board so
+                                  ripped-but-unrestored copper never ships (#133).
+         -> ``freeze_hook`` fires HERE: the board is now exactly what routing
+            committed, before any cleanup pass trims it. route.py freezes its
+            stale-input-strip reference snapshot at this point (#220/#284),
+            which is what makes the strip immune to the passes below.
+      3. prune_grazing_segments -- drop a redundant foreign-grazing segment
+                                  (#224); before the cycle/dead-end passes so
+                                  the stub it leaves gets collapsed.
+      4. nudge_grazing_octolinear / 5. nudge_grazing_microshift /
+      6. nudge_grazing_vias    -- re-bend / micro-shift load-bearing grazes the
+                                  prune must keep (#224/#276/#280).
+      7. prune_redundant_cycles -- per-net tree invariant (RAM_A9 loops),
+         then collapse_strict_redundant (#217/#1063: strictly redundant
+         copper, incl. in-pad / in-via wiggles, and the vias it frees) and
+         remove_orphan_islands. The collapse (and 10b) runs only with
+         ``strict_collapse`` and outside a defer_strict_collapse region:
+         route.py collapses once at the END of its run instead, so the
+         copper its plane finalize and reconciliation route around is the
+         copper the router laid (cparti_fpga: collapsing mid-run steered
+         the finalize's rip/reroute, 6 open nets -> 15).
+      8. sweep_dead_ends       -- trim dead-end spurs and unsupported vias.
+      9. neck_wide_segments_grazing_pads -- width-only fix for wide power
+                                  trunks overlapping a fine-pitch foreign pad.
+      9b. smooth_octolinear_chains -- #536: collapse staircase micro-jogs
+                                  into diagonal+axis shortcuts. Front default
+                                  via the ``smooth`` kwarg (route step ON,
+                                  diff pairs / plane round-trip OFF);
+                                  KICAD_SMOOTH_ROUTE=1/0 overrides. Last
+                                  shape pass, still before close (it removes
+                                  copper); skips protected / impedance nets
+                                  (_smooth_skip_net_ids).
+     10. close_soft_joints     -- LAST ADDITIVE copper step (#319 ordering):
+                                  bridge any remaining same-net soft joint.
+                                  The subtractive passes above run with the
+                                  _restore_soft_joint_bridges guard, so every
+                                  joint close sees is router-born, never one a
+                                  cleanup pass manufactured.
+     10b. collapse_strict_redundant again (#1063) -- only on nets changed
+                                  since step 7's collapse: smoothing and
+                                  close's via->pad bridge add copper that the
+                                  strict model (and check_weird) call
+                                  redundant. It never removes close's
+                                  soft-joint bridges or web connectors and
+                                  refuses any removal that makes a soft
+                                  joint, so every joint close firmed stands.
+     11. merge_collinear_segments -- #811: join collinear same-net/layer/width
+                                  pieces into one track. Runs AFTER close on
+                                  purpose, and is the only pass allowed to:
+                                  it MOVES NO COPPER (a vertex merges only
+                                  when it lies within 1nm of the line joining
+                                  its neighbours), so it cannot reopen a joint
+                                  close just bridged -- it absorbs the bridge
+                                  into the track instead. It must run last to
+                                  catch the joints close, smooth and the cycle
+                                  prune each leave behind.
+
+    ``label`` prefixes the progress prints (e.g. "Diff-pair "). The pass
+    switches exist for front parity, not taste:
+      * route_diff.py historically runs without snap/phantom/neck; flipping
+        them on there is a deliberate behavior change, not a side effect of
+        this refactor (octolinear WAS flipped on for #318: the re-bend keeps
+        anchors coincident and clears() includes the partner net);
+      * the plane fronts' file-round-trip (clean_plane_copper) must keep
+        ``via_nudge`` OFF -- it re-parses the written board, so every via is
+        an "input" via whose in-place geometry move the segment-level
+        write-back cannot express (#280/#281: input-via moves silently revert
+        in writers, stranding the dragged segment endpoints);
+      * ``microshift_max_shift`` defaults to grid_step/2 (sub-grid
+        quantization); the plane repair path passes a full grid_step (#308 --
+        its tracks are on-grid against off-grid holes).
+
+    ``progress_callback(0, 0, "<label>Cleanup: <pass>...")`` fires before
+    each pass (#527: the whole pipeline used to run behind whatever message
+    the previous phase left on screen -- minutes of apparent hang on dense
+    boards). No cancel hook by design: the passes maintain board/write-list
+    invariants pairwise, and aborting between them ships a half-reconciled
+    ledger.
+
+    Returns a CleanupOutcome; input-file removals from every pass are merged
+    into ``input_strip_segments`` in pass order.
+
+    ``keep_input_copper`` makes INPUT-FILE copper read-only for every
+    subtractive/rewriting pass: it still anchors connectivity, degree and
+    grazing models, but is never removed, split, or re-bent — for chained
+    flows whose earlier stages author copper (escape stubs, hand-authored
+    routes) that a later stage must still see verbatim. This-run copper is
+    cleaned normally, and the strip lists then stay empty by construction.
+    Do NOT set it on the plane fronts' file-round-trip (results=[] makes
+    every segment read as input and would freeze all plane copper).
+    """
+    out = CleanupOutcome()
+    counts = out.counts
+    strip = out.input_strip_segments
+
+    # KICAD_LEDGER_TRACE="x,y;x,y;..." -- ledger-leak forensics: after every
+    # pass, print how many pcb_data / write-list segments have an endpoint
+    # within 0.05mm of each watched point. Pinpoints WHICH pass moved one
+    # representation without the other (pair with KICAD_BOARD_LEDGER).
+    _trace_pts = []
+    _t = env_knobs.LEDGER_TRACE
+    if _t:
+        for tok in _t.split(';'):
+            try:
+                x, y = tok.split(',')
+                _trace_pts.append((float(x), float(y)))
+            except ValueError:
+                pass
+
+    def _trace(stage):
+        if not _trace_pts:
+            return
+        for (tx, ty) in _trace_pts:
+            def near(s):
+                return ((abs(s.start_x - tx) < 0.05 and abs(s.start_y - ty) < 0.05)
+                        or (abs(s.end_x - tx) < 0.05 and abs(s.end_y - ty) < 0.05))
+            nb = sum(1 for s in pcb_data.segments if near(s))
+            nr = sum(1 for r in results for s in (r.get('new_segments') or []) if near(s))
+            ns = sum(1 for s in strip if near(s))
+            print(f"[LEDGER_TRACE]{label} after {stage}: ({tx},{ty}) "
+                  f"board={nb} writelist={nr} strip={ns}")
+
+    def _prog(stage):
+        if progress_callback:
+            progress_callback(0, 0, f"{label}Cleanup: {stage}...")
+
+    _trace('start')
+    if snap:
+        _prog("stub-gap snap")
+        _snapped = snap_stub_gaps(results, pcb_data, scope_net_ids, config)
+        counts['stub_gaps_snapped'] = _snapped
+        _trace('snap')
+        if _snapped:
+            print(f"{label}Closed {_snapped} stub gap(s) to same-net copper")
+
+    if phantom:
+        _prog("phantom reconcile")
+        # Two-way reconciliation: write-list phantoms dropped from results, and
+        # -- when the caller identifies its input copper -- orphan routed
+        # copper (rip/reroute slivers no result references) dropped from
+        # pcb_data, so board == write model from here on.
+        _ph_segs, _ph_vias = drop_phantom_copper(
+            results, pcb_data,
+            original_segment_ids=original_segment_ids,
+            original_via_ids=original_via_ids)
+        counts['phantom_segments'] = _ph_segs
+        counts['phantom_vias'] = _ph_vias
+        _trace('phantom')
+        if _ph_segs or _ph_vias:
+            print(f"{label}Dropped {_ph_segs} phantom segment(s) and {_ph_vias} "
+                  f"phantom via(s) not on the board from the write-list")
+
+    # The board now holds exactly what routing committed (rips applied, write
+    # list reconciled). A caller that needs a stable "what routing produced"
+    # reference -- route.py's #220/#284 stale-input strip -- snapshots it here,
+    # BEFORE the subtractive passes below trim it.
+    if freeze_hook is not None:
+        freeze_hook()
+
+    # #436/#438: cross-class + board-edge floors, threaded into every copper-
+    # MOVING cleanup pass so a re-bend / micro-shift / via-nudge / connector-snap
+    # honors each foreign net's class clearance and the board edge rule (not the
+    # flat routing clearance the base A* map already respected). Inert on an
+    # all-Default board (net_clearances empty) with no strict edge rule.
+    _nc = getattr(config, 'net_clearances', None) or None
+    _bec = getattr(config, 'board_edge_clearance', 0.0) or 0.0
+
+    if graze:
+        _prog("graze prune")
+        _gz_segs, _gz_nets, _gz_strip = prune_grazing_segments(
+            results, pcb_data, scope_net_ids, clearance=config.clearance,
+            check_foreign_segments=True, keep_input_copper=keep_input_copper,
+            net_clearances=_nc)
+        counts['graze_pruned'] = _gz_segs
+        _trace('graze')
+        strip.extend(_gz_strip)
+        if _gz_segs:
+            print(f"{label}Graze prune: removed {_gz_segs} grazing segment(s) "
+                  f"across {_gz_nets} net(s)")
+        # #441: drop a redundant out-and-back detour whose nub grazes a foreign net
+        # and that prune_grazing_segments' strict gate refused (the surviving A~C
+        # overlap is non-coincident), by welding the solidly-overlapping neighbours
+        # coincident (picodvi DVI_CK terminal-leg jog).
+        _wd_segs, _wd_nets, _wd_strip = weld_redundant_grazing_detours(
+            results, pcb_data, scope_net_ids, clearance=config.clearance,
+            keep_input_copper=keep_input_copper, net_clearances=_nc)
+        counts['detours_welded'] = _wd_segs
+        _trace('weld_detour')
+        strip.extend(_wd_strip)
+        if _wd_segs:
+            print(f"{label}Detour weld: removed {_wd_segs} redundant grazing "
+                  f"detour seg(s) across {_wd_nets} net(s)")
+
+    if octolinear:
+        _prog("octolinear graze re-bend")
+        _nz_segs, _nz_nets, _nz_strip, _ = nudge_grazing_octolinear(
+            results, pcb_data, scope_net_ids, clearance=config.clearance,
+            keep_input_copper=keep_input_copper,
+            net_clearances=_nc, board_edge_clearance=_bec)
+        counts['octolinear_nudged'] = _nz_segs
+        _trace('octolinear')
+        strip.extend(_nz_strip)
+        if _nz_segs:
+            print(f"{label}Graze nudge: re-bent grazing octolinear jog(s) "
+                  f"on {_nz_nets} net(s)")
+
+    _prog("graze micro-shift")
+    _ms_segs, _ms_nets, _ms_strip, _ = nudge_grazing_microshift(
+        results, pcb_data, scope_net_ids, clearance=config.clearance,
+        max_shift=(microshift_max_shift if microshift_max_shift is not None
+                   else config.grid_step / 2),
+        keep_input_copper=keep_input_copper,
+        # #436: cross-class-aware graze fix — measure shortfall against each
+        # net's own netclass floor and each foreign net's class, not the global
+        # clearance (daisho's 456 same-class grid grazes, cparti's SW1-vs-SMA).
+        net_clearances=_nc, board_edge_clearance=_bec,
+        # #617: this front HAS a config, so the explicit
+        # `config.hole_clearance` override reaches resolve_hole_clearance
+        # rather than being silently dropped. Both fronts call this pipeline.
+        config=config)
+    counts['microshifted'] = _ms_segs
+    _trace('microshift')
+    strip.extend(_ms_strip)
+    if _ms_segs:
+        print(f"{label}Graze micro-shift: moved copper by its clearance "
+              f"shortfall on {_ms_nets} net(s)")
+
+    if via_nudge:
+        _prog("via nudge")
+        _vn_moved, _vn_nets, _ = nudge_grazing_vias(
+            results, pcb_data, scope_net_ids, clearance=config.clearance,
+            hole_to_hole=config.hole_to_hole_clearance,
+            # #339 rework: one grid cell (was grid_step/2), capped per-via at
+            # via_size/4 inside the fn. grid_step/2 (~0.025 at fine grid) was too
+            # short to clear the ~40um grazes the looser UNBLOCK_REFIT_MARGIN_MM now
+            # leaves; a full cell reaches them while a via never moves more than
+            # one cell. Moves the via (still connected), never shrinks it.
+            max_shift=config.grid_step,
+            net_clearances=_nc, board_edge_clearance=_bec,
+            same_net_pad_clearance=getattr(config, 'same_net_pad_clearance',
+                                           -1.0))  # #581
+        counts['vias_nudged'] = _vn_moved
+        _trace('via_nudge')
+        if _vn_moved:
+            print(f"{label}Via nudge: moved {_vn_moved} grazing via(s) on "
+                  f"{_vn_nets} net(s) by their sub-grid clearance shortfall (#280)")
+
+    # #473 (extended): protected nets keep ALL their copper through EVERY
+    # subtractive pass, not just the dead-end sweep. Cycle prune / strict
+    # collapse / orphan islands / dangle trim on an unfinished net is the
+    # same landing-site erosion the sweep guard exists for (a fragment
+    # graded "redundant"/"orphan" today is the copper the next chain step
+    # welds to). Restrict their scope instead of threading a new parameter
+    # through each pass.
+    _sub_scope = scope_net_ids
+    if protect_net_ids:
+        if scope_net_ids is None:
+            _sub_scope = ({s.net_id for s in pcb_data.segments}
+                          | {v.net_id for v in pcb_data.vias}) - set(protect_net_ids)
+        else:
+            _sub_scope = set(scope_net_ids) - set(protect_net_ids)
+    if cycles:
+        _prog("cycle prune")
+        _cy_segs, _cy_nets, _cy_strip = prune_redundant_cycles(
+            results, pcb_data, _sub_scope, clearance=config.clearance,
+            keep_input_copper=keep_input_copper)
+        counts['cycles_pruned'] = _cy_segs
+        _trace('cycles')
+        strip.extend(_cy_strip)
+        if _cy_segs:
+            print(f"{label}Cycle prune: removed {_cy_segs} redundant loop "
+                  f"segment(s) across {_cy_nets} net(s)")
+
+    # Strict-redundant collapse (#217 classes 1-2, #1063): superseded
+    # parallel chains, pad/via-buried tails and in-pad/in-via wiggles that
+    # are redundant under the strict removability model (the one check_weird
+    # grades with). Before the sweep so its freed this-run vias drop too.
+    _collapse_on = strict_collapse and not strict_collapse_deferred()
+    _sc_n, _sc_strip, _sc_stats = 0, [], {}
+    if _collapse_on:
+        _prog("strict-redundant collapse")
+        _sc_n, _sc_strip = collapse_strict_redundant(
+            results, pcb_data, _sub_scope, keep_input_copper=keep_input_copper,
+            stats=_sc_stats)
+    counts['strict_collapsed'] = _sc_n
+    counts['strict_collapse_vias'] = _sc_stats.get('vias', 0)
+    _trace('strict_collapse')
+    strip.extend(_sc_strip)
+    if _sc_n:
+        print(f"{label}Strict collapse: removed {_sc_n} redundant segment(s)"
+              + (f" and {_sc_stats['vias']} via(s) they freed"
+                 if _sc_stats.get('vias') else "")
+              + " (superseded parallel/buried/in-pad copper)")
+    # What each net looked like when the collapse finished: the final
+    # collapse below revisits only the nets a later pass changed. The object
+    # list is held so no id in the signature can be recycled meanwhile.
+    _after_collapse = _net_copper_signature(pcb_data, _sub_scope)
+    _after_collapse_refs = list(pcb_data.segments)  # noqa: F841 (keeps ids live)
+
+    # Orphan islands (#217): track-copper components reaching NO pad of
+    # their net -- rip/reroute leftovers connected to nothing. Runs before
+    # the dead-end sweep so the sweep's unsupported-via pass drops the
+    # islands' freed this-run vias.
+    _prog("orphan islands")
+    _oi_n, _oi_segs, _oi_strip, _oi_via_strip, _oi_nv = remove_orphan_islands(
+        results, pcb_data, _sub_scope, keep_input_copper=keep_input_copper)
+    out.input_strip_vias.extend(_oi_via_strip)
+    counts['orphan_islands'] = _oi_n
+    _trace('orphan_islands')
+    strip.extend(_oi_strip)
+    if _oi_n:
+        # Vias are named separately: since #659 an island can be a BARE VIA
+        # with no track at all, where "(0 segment(s))" alone would read as a
+        # no-op report.
+        print(f"{label}Orphan islands: removed {_oi_n} pad-less copper "
+              f"island(s) ({_oi_segs} segment(s)"
+              + (f", {_oi_nv} via(s)" if _oi_nv else "") + ")")
+
+    _prog("dead-end sweep")
+    _de_segs, _de_vias, _de_strip = sweep_dead_ends(
+        results, pcb_data, scope_net_ids,
+        protect_net_ids=protect_net_ids,
+        keep_input_copper=keep_input_copper,
+        # #672: protected (unfinished) nets still shed sub-CELL dead-end
+        # slivers -- rip/restore/prune debris no landing needs. One routing
+        # cell is the epsilon: no A* span is shorter. Plane-flow namespace
+        # configs carry no grid_step, which disables the pass there.
+        # #672: OPT-IN (env_knobs.SLIVER_TRIM). One routing cell is the
+        # epsilon -- no A* span is shorter -- but trimming sub-cell debris
+        # off a net the ladder is still retrying measured as a LOST NET on
+        # orangecrab, so it is off by default. See the knob's note.
+        sliver_eps=(float(getattr(config, 'grid_step', 0.0) or 0.0)
+                    if env_knobs.SLIVER_TRIM else 0.0))
+    counts['dead_ends_swept'] = _de_segs
+    counts['dead_end_vias'] = _de_vias
+    _trace('sweep')
+    strip.extend(_de_strip)
+    if _de_segs or _de_vias:
+        print(f"{label}Dead-end sweep: trimmed {_de_segs} dead-end segment(s) "
+              f"and {_de_vias} unsupported via(s)")
+
+    # Half-segment dangles the sweep cannot touch (#347 core1106 CLK1P tail):
+    # a dead-end segment T-anchored mid-BODY (a via ON the trace, or a tee) is
+    # load-bearing through the anchor, so the whole-segment prune keeps it and
+    # the copper past the anchor ships as an antenna. Split-trim to the anchor.
+    _prog("dangle trim")
+    _dt_n, _dt_strip = trim_dangles_past_body_anchor(results, pcb_data, _sub_scope,
+                                                     keep_input_copper=keep_input_copper)
+    counts['dangles_trimmed'] = _dt_n
+    _trace('dangle_trim')
+    strip.extend(_dt_strip)
+    if _dt_n:
+        print(f"{label}Dangle trim: cut {_dt_n} dead-end tail(s) back to their "
+              f"mid-body anchor")
+
+    if neck:
+        _prog("width neck")
+        _necked = neck_wide_segments_grazing_pads(results, pcb_data, config)
+        counts['width_necked'] = _necked
+        _trace('neck')
+        if _necked:
+            print(f"{label}Width neck: narrowed {_necked} wide segment(s) "
+                  f"grazing a foreign pad")
+
+    # Octolinear smoothing (#536): collapse grid-A* staircase micro-jogs
+    # into a single diagonal+axis run. Last copper-SHAPE pass by design --
+    # it must see the junk-free copper the subtractive passes leave (a
+    # smoothed staircase can't be cycle-pruned apart, and neck's width
+    # changes are deliberate chain boundaries) and must still run BEFORE
+    # close_soft_joints (#319 ordering). Front default via the ``smooth``
+    # kwarg: ON for the single-ended route step, OFF for diff pairs (pair
+    # geometry is the spec; their nets are skip-listed anyway) and the
+    # plane fronts' file-round-trip. KICAD_SMOOTH_ROUTE overrides both
+    # ways ('1' on / '0' off, '' = front default). Pour cuts the shortcut
+    # may inflict are repaired downstream by the plane finalize /
+    # kicad-oracle recheck, exactly as for routing-inflicted cuts.
+    # Guide-corridor steps (#7) keep the front default OFF: the route hugs a
+    # USER-DRAWN polyline on purpose, and smoothing would flatten the arch
+    # (run_all guide gate caught this on default-on). Same doctrine as
+    # meanders -- drawn geometry is the spec. An explicit =1 still forces.
+    _sm_env = (env_knobs.SMOOTH_ROUTE or '').strip().lower()
+    if _sm_env == '':
+        _sm_on = smooth and not getattr(config, 'guide_corridor_enabled', False)
+    else:
+        _sm_on = _sm_env in ('1', 'true', 'on')
+    if _sm_on:
+        _prog("octolinear smoothing")
+        _sm_n, _sm_nets, _sm_strip, _sm_added, _sm_stats = smooth_octolinear_chains(
+            results, pcb_data, _sub_scope, clearance=config.clearance,
+            keep_input_copper=keep_input_copper,
+            net_clearances=_nc, board_edge_clearance=_bec,
+            config=config,
+            skip_net_ids=_smooth_skip_net_ids(pcb_data))
+        counts['smoothed_spans'] = _sm_stats.get('spans', 0)
+        counts['smoothed_saved_mm'] = _sm_stats.get('saved_mm', 0.0)
+        _trace('smooth')
+        strip.extend(_sm_strip)
+        if _sm_n:
+            print(f"{label}Octolinear smoothing: collapsed "
+                  f"{_sm_stats.get('spans', 0)} staircase span(s) on "
+                  f"{_sm_nets} net(s), -{_sm_stats.get('saved_mm', 0.0):.2f} mm "
+                  f"of copper (#536)")
+
+    # FINAL copper step (#319 ordering): nothing below may remove copper.
+    # KICAD_NO_SOFT_JOINT_BRIDGE=1 is an A/B ablation knob (like
+    # PRUNE_CONN_VERIFY / KICAD_BOARD_LEDGER): it isolates close's contribution
+    # when validating pipeline changes across a replay corpus -- the shipped
+    # joints then surface as check_drc segment-endpoint-gap warnings instead.
+    if env_knobs.NO_SOFT_JOINT_BRIDGE:
+        print(f"{label}soft-joint bridging DISABLED (KICAD_NO_SOFT_JOINT_BRIDGE)")
+        counts['soft_joints_bridged'] = 0
+    else:
+        _prog("soft-joint bridging")
+        _bridged = close_soft_joints(results, pcb_data, scope_net_ids, config)
+        counts['soft_joints_bridged'] = _bridged
+        if _bridged:
+            print(f"{label}Bridged {_bridged} same-net soft joint(s) with a tiny "
+                  f"connector")
+
+    # Final strict collapse (#1063). Two passes above ADD the copper
+    # check_weird counts as removable, after the collapse has run: octolinear
+    # smoothing ends a shortcut inside the pad it lands on (an in-pad wiggle),
+    # and close_soft_joints' via->pad bridge (#470) closes a loop through the
+    # via it firms (esp_prog /D_N: a direct F.Cu path beside a B.Cu detour
+    # through two vias). Re-collapse only the nets that changed since
+    # the collapse, never touching the soft-joint bridges and web connectors
+    # close laid (CLOSE_SOFT_JOINT_KINDS): that, plus the model's
+    # no-new-soft-joint guard, keeps the #319 contract that no later pass
+    # reopens a joint close firmed. The model leaves no dangle, island or
+    # dangling via behind, so no sweep has to follow it.
+    _changed = _changed_nets(_after_collapse,
+                             _net_copper_signature(pcb_data, _sub_scope))
+    if _changed and _collapse_on:
+        _prog("final strict collapse")
+        _close_ids = {id(s) for r in results
+                      if r.get('cleanup') in CLOSE_SOFT_JOINT_KINDS
+                      for s in (r.get('new_segments') or [])}
+        _fc_stats = {}
+        _fc_n, _fc_strip = collapse_strict_redundant(
+            results, pcb_data, _changed, keep_input_copper=keep_input_copper,
+            protect_segment_ids=_close_ids, stats=_fc_stats)
+        counts['strict_collapsed_final'] = _fc_n
+        counts['strict_collapse_vias'] = (counts.get('strict_collapse_vias', 0)
+                                          + _fc_stats.get('vias', 0))
+        _trace('final_strict_collapse')
+        strip.extend(_fc_strip)
+        if _fc_n:
+            print(f"{label}Final strict collapse: removed {_fc_n} redundant "
+                  f"segment(s)"
+                  + (f" and {_fc_stats['vias']} via(s) they freed"
+                     if _fc_stats.get('vias') else "")
+                  + " left by smoothing / joint bridging")
+
+    # #811 FINAL pass. Geometry-preserving by construction (see the pass
+    # docstring), which is what lets it run after close_soft_joints and what
+    # makes it safe on every front without a per-front switch. KICAD_MERGE_
+    # COLLINEAR=0 ablates it for A/B isolation.
+    if merge_collinear and env_knobs.MERGE_COLLINEAR:
+        _prog("collinear merge")
+        _mc_n, _mc_nets, _mc_strip, _mc_added, _mc_stats = merge_collinear_segments(
+            results, pcb_data, scope_net_ids,
+            keep_input_copper=keep_input_copper)
+        counts['collinear_merged'] = _mc_n
+        counts['collinear_joints'] = _mc_stats.get('joints', 0)
+        _trace('merge_collinear')
+        strip.extend(_mc_strip)
+        if _mc_n:
+            print(f"{label}Merged {_mc_stats.get('joints', 0)} collinear joint(s) "
+                  f"on {_mc_nets} net(s): -{_mc_n} redundant segment(s) (#811)")
+
+    # The passes above edit pcb_data's copper in place; anything cached
+    # against the old copper must not answer for the new.
+    from pcb_modification import bump_copper_epoch
+    bump_copper_epoch(pcb_data)
+    return out
+
+
+def _q(x):
+    """Ledger coordinate quantizer: FIRST round at the writer's emission
+    precision (kicad_writer emits coordinates with :.6f), THEN bucket at 1um.
+    Without the pre-round, an in-memory float a half-ULP below a 0.5um
+    boundary (50.12249999...) and its 6dp file text (50.122500) land in
+    different 1um buckets and the post-write audit reports a phantom
+    board/file pair (castor_pollux VUSB etc. -- same copper, sub-0.5um)."""
+    return round(round(x, 6), 3)
+
+
+def _seg_ledger_sig(s):
+    a = (_q(s.start_x), _q(s.start_y))
+    b = (_q(s.end_x), _q(s.end_y))
+    return (min(a, b), max(a, b), s.layer, _q(s.width))
+
+
+def _via_ledger_sig(v):
+    return (_q(v.x), _q(v.y),
+            _q(getattr(v, 'size', 0) or 0),
+            _q(getattr(v, 'drill', 0) or 0))
+
+
+def file_only_copper(output_file, pcb_data, scope_net_ids):
+    """The SHARED board-vs-target core: copper present on the shipped target
+    that `pcb_data` does not have, as the target's own objects.
+
+    Both front-ends assemble their output the same way -- start from something
+    that ALREADY holds the board's original copper, then apply the run's
+    additions and a list of removals (the CLI copies the input file verbatim
+    and strips `segments_to_remove`, #220; the GUI applies the same list to the
+    live pcbnew board, #84). So copper only leaves if some pass REMEMBERED to
+    put it in that list, which is a coverage argument, and coverage arguments
+    fail silently. Two structural reasons they do, both measured on
+    cparti_fpga's retry step:
+
+      * IDENTITY -- input copper is matched by id(); a rip -> restore ->
+        cleanup cycle can leave a DIFFERENT object in pcb_data, so the pass no
+        longer recognises it as input-file copper;
+      * NESTING -- each batch_route owns its own strip list, and route.py's
+        plane finalize runs a NESTED batch_route (repair_planes' #517
+        reconnect) whose removals need not reach the outer writer.
+
+    Comparing the ARTIFACT against pcb_data is representation-independent: it
+    does not care which channel missed the removal, whether identity survived,
+    or how deep the nesting was. pcb_data is the engine's own final answer --
+    every pass maintains it, and the DRC and connectivity route.py reports are
+    computed from it -- so copper on the target that pcb_data lacks was never
+    part of that answer.
+
+    MEASURED (2026-09-16, cparti_fpga step 10): the dead-end sweep removed
+    SRAM_D0's B.Cu diagonal from pcb_data, octolinear smoothing then routed
+    SRAM_A4 through the vacated corridor -- correctly, its clearance check saw
+    an empty corridor (0 violations across 602 emitted segments) -- and the
+    diagonal SHIPPED anyway, crossing it. 8 of 333 nets diverged; SRAM_D0 by 19
+    segments. Every net in that board's remaining DRC (SRAM_D0, SRAM_A7,
+    SRAM_WE) is in the diverged set.
+
+    Returns (segments, vias) from the WRITTEN file, or ([], []) if it cannot be
+    re-parsed -- an audit must never break a run.
+    """
+    from collections import Counter
+    from kicad_parser import parse_kicad_pcb
+    try:
+        written = parse_kicad_pcb(output_file)
+    except Exception:                                  # noqa: BLE001
+        return [], []
+    scope = {pcb_data.nets[nid].name for nid in (scope_net_ids or [])
+             if nid in getattr(pcb_data, 'nets', {})}
+
+    def _by_name(pcb, attr, graphic_ok=False):
+        out = {}
+        for o in getattr(pcb, attr, []) or []:
+            if not graphic_ok and getattr(o, 'graphic', False):
+                continue
+            n = pcb.nets[o.net_id].name if o.net_id in pcb.nets else o.net_id
+            out.setdefault(n, []).append(o)
+        return out
+
+    b_s, f_s = _by_name(pcb_data, 'segments'), _by_name(written, 'segments')
+    b_v, f_v = _by_name(pcb_data, 'vias'), _by_name(written, 'vias')
+    segs, vias = [], []
+    for name in scope:
+        # MULTISET, not set: a net legitimately carrying two identical stacked
+        # segments must not have one read as a leak because the other matched.
+        want = Counter(_seg_ledger_sig(x) for x in b_s.get(name, []))
+        for x in f_s.get(name, []):
+            k = _seg_ledger_sig(x)
+            if want.get(k, 0) > 0:
+                want[k] -= 1
+            else:
+                segs.append(x)
+        wantv = Counter(_via_ledger_sig(x) for x in b_v.get(name, []))
+        for x in f_v.get(name, []):
+            k = _via_ledger_sig(x)
+            if wantv.get(k, 0) > 0:
+                wantv[k] -= 1
+            else:
+                vias.append(x)
+    return segs, vias
+
+
+def unreported_input_strips(orig_seg_by_net, orig_via_by_net, scope_net_ids,
+                            known_seg_ids, known_via_ids, board_segments,
+                            board_vias, extra_segments=(), extra_vias=()):
+    """Input copper that is gone from the engine's model but that no pass put on
+    a strip list -- derived by GEOMETRY, returned as (segments, vias).
+
+    Every pass reports the input copper it removed by object id(). That is a
+    coverage argument, and a rip -> restore -> cleanup cycle breaks identity, so
+    a removal can go unrecorded and the input file's copy ships. Deriving the
+    remainder closes that loop whoever missed it and however deeply nested.
+
+    NEITHER GRAPHIC NOR LOCKED COPPER IS EVER A CANDIDATE. Graphic is the
+    asymmetry that motivated this function (below). LOCKED copper is the same
+    class for the same reason: KiCad's `(locked yes)` is user-pinned, every
+    prune, trim, re-bend and shift site refuses it (`pcb_modification._locked`,
+    #1261) and
+    #521 makes its net never-rippable with no override -- so a locked original
+    missing from the model is not something this pass may finish by deleting
+    the user's copper from the output.
+
+    GRAPHIC COPPER IS NEVER A CANDIDATE, and that asymmetry is the whole reason
+    this is a named function instead of a comprehension. The "still present" set
+    is built from non-graphic copper (graphics are not tracks; the writer has no
+    `(segment)` block to strip and no pass may prune them -- #337/#908), so a
+    graphic original is absent from it BY CONSTRUCTION. Filtering the reference
+    but not the candidates therefore strips every graphic in scope. Measured on
+    zynq_ad9364: 10 net-tagged graphics on VCC_1V8/VCC_3V3 stripped, the first
+    behavioural divergence in a 64k-line log, cascading to rip candidates
+    196 -> 195, six nets left unrouted, and ETH_RXD0 routed across VCC_3V3's
+    art (an `ETH_RXD0 <-> VCC_3V3 [Graphic]` short).
+
+    `extra_segments`/`extra_vias` are the write-list's new copper: the #284
+    re-emit clause lets a result reproduce an original's span, so that span is
+    still on the board even when the original object is not in `board_*`.
+    """
+    present_s = {_seg_ledger_sig(x) for x in board_segments
+                 if not getattr(x, 'graphic', False)}
+    present_v = {_via_ledger_sig(x) for x in board_vias}
+    for x in extra_segments:
+        present_s.add(_seg_ledger_sig(x))
+    for x in extra_vias:
+        present_v.add(_via_ledger_sig(x))
+    segs = [x for nid in (scope_net_ids or ())
+            for x in orig_seg_by_net.get(nid, ())
+            if id(x) not in known_seg_ids
+            and not getattr(x, 'graphic', False)
+            and not getattr(x, 'locked', False)
+            and _seg_ledger_sig(x) not in present_s]
+    vias = [x for nid in (scope_net_ids or ())
+            for x in orig_via_by_net.get(nid, ())
+            if id(x) not in known_via_ids
+            and not getattr(x, 'locked', False)
+            and _via_ledger_sig(x) not in present_v]
+    return segs, vias
+
+
+def verify_written_file_parity(output_file, pcb_data, scope_net_ids,
+                               label: str = '') -> bool:
+    """KICAD_BOARD_LEDGER=1 post-write audit: re-parse the WRITTEN file and
+    compare each in-scope net's copper (segments AND vias) against pcb_data.
+
+    This is the deep end of the ledger: the in-memory check
+    (verify_board_file_parity) audits the pipeline's own bookkeeping, but the
+    writer applies a further set of TEXT transformations to the input copy --
+    layer modifications from stub swaps, polarity/target-swap net relabels,
+    strip-list block removal -- each matching file text by pattern (the #264
+    bug class: a layer-swap mod relabelled the WRONG net's identical-geometry
+    segment). Those mechanisms all mutate pcb_data at decision time, so after
+    a correct write the file must equal the board for every in-scope net; any
+    divergence is a writer-application bug. Nets are matched by NAME (KiCad 10
+    files reference nets by name; ids can renumber across a parse).
+
+    No-op unless KICAD_BOARD_LEDGER is set. Returns True when clean.
+    """
+    if not env_knobs.BOARD_LEDGER:
+        return True
+    from collections import Counter
+    from kicad_parser import parse_kicad_pcb
+
+    try:
+        written = parse_kicad_pcb(output_file)
+    except Exception as e:  # audit must never break the run
+        print(f"{RED}[FILE_LEDGER]{label} could not re-parse {output_file}: {e}{RESET}")
+        return False
+
+    def by_name(pcb):
+        segs, vias = {}, {}
+        for s in pcb.segments:
+            n = pcb.nets[s.net_id].name if s.net_id in pcb.nets else s.net_id
+            segs.setdefault(n, []).append(s)
+        for v in pcb.vias:
+            n = pcb.nets[v.net_id].name if v.net_id in pcb.nets else v.net_id
+            vias.setdefault(n, []).append(v)
+        return segs, vias
+
+    board_segs, board_vias = by_name(pcb_data)
+    file_segs, file_vias = by_name(written)
+    scope_names = sorted(pcb_data.nets[nid].name for nid in (scope_net_ids or [])
+                         if nid in getattr(pcb_data, 'nets', {}))
+    bad = 0
+    for name in scope_names:
+        bs = Counter(_seg_ledger_sig(s) for s in board_segs.get(name, []))
+        fs = Counter(_seg_ledger_sig(s) for s in file_segs.get(name, []))
+        bv = Counter(_via_ledger_sig(v) for v in board_vias.get(name, []))
+        fv = Counter(_via_ledger_sig(v) for v in file_vias.get(name, []))
+        if bs != fs or bv != fv:
+            bad += 1
+            print(f"{RED}[FILE_LEDGER]{label} {name} diverged: "
+                  f"segs board-only={sum((bs - fs).values())} "
+                  f"file-only={sum((fs - bs).values())}, "
+                  f"vias board-only={sum((bv - fv).values())} "
+                  f"file-only={sum((fv - bv).values())}{RESET}")
+            for sig, n in list((bs - fs).items())[:3]:
+                print(f"    seg board-only x{n}: {sig}")
+            for sig, n in list((fs - bs).items())[:3]:
+                print(f"    seg file-only  x{n}: {sig}")
+    if bad:
+        print(f"{RED}[FILE_LEDGER]{label} FAILED: {bad}/{len(scope_names)} "
+              f"net(s) differ between pcb_data and the written file{RESET}")
+    else:
+        print(f"[FILE_LEDGER]{label} OK: written file matches pcb_data for all "
+              f"{len(scope_names)} in-scope net(s)")
+    return bad == 0
+
+
+def verify_board_file_parity(pcb_data, scope_net_ids, orig_seg_by_net, results,
+                             strip_segments, label: str = '') -> bool:
+    """KICAD_BOARD_LEDGER=1 audit of the pipeline contract: for every in-scope
+    net, the board (``pcb_data.segments``) must equal the WRITE MODEL -- the
+    original input copper minus every stripped segment, plus every segment the
+    write-list will emit. A divergence means some pass changed one
+    representation without the other (the exact class of bug behind the #319
+    B1 regression) and would ship a file that does not match what the cleanup
+    passes and connectivity gates reasoned about.
+
+    Segments are compared as multisets of (endpoints, layer, width) signatures
+    (object identity intentionally ignored: in-place edits shared between
+    board and write-list are fine -- geometry divergence is what matters).
+    Prints a per-net report and returns True when clean. No-op unless
+    KICAD_BOARD_LEDGER is set.
+    """
+    if not env_knobs.BOARD_LEDGER:
+        return True
+    from collections import Counter
+
+    strip_ids = {id(s) for s in (strip_segments or [])}
+    emitted_by_net = {}
+    for r in results:
+        for s in (r.get('new_segments') or []):
+            emitted_by_net.setdefault(s.net_id, []).append(s)
+    board_by_net = {}
+    _seen_board_ids = set()
+    for s in pcb_data.segments:
+        # A duplicate OBJECT entry in pcb_data.segments is always a bug (#195:
+        # duplicate graph nodes defeat every connectivity gate; here it also
+        # desyncs the board from the write model, which holds the object once).
+        if id(s) in _seen_board_ids:
+            print(f"{RED}[BOARD_LEDGER]{label} DUPLICATE board entry: net "
+                  f"{s.net_id} ({s.start_x},{s.start_y})-({s.end_x},{s.end_y}) "
+                  f"{s.layer} appears more than once in pcb_data.segments{RESET}")
+        _seen_board_ids.add(id(s))
+        board_by_net.setdefault(s.net_id, []).append(s)
+    _seen_via_ids = set()
+    for v in pcb_data.vias:
+        # Via twin of the duplicate check (the swap-via double-append shipped
+        # every pad swap via onto the board twice).
+        if id(v) in _seen_via_ids:
+            print(f"{RED}[BOARD_LEDGER]{label} DUPLICATE board via: net "
+                  f"{v.net_id} at ({v.x},{v.y}) appears more than once in "
+                  f"pcb_data.vias{RESET}")
+        _seen_via_ids.add(id(v))
+
+    scope = sorted(scope_net_ids or [])
+    bad = 0
+    for nid in scope:
+        model = [s for s in orig_seg_by_net.get(nid, []) if id(s) not in strip_ids]
+        model += emitted_by_net.get(nid, [])
+        model_sig = Counter(_seg_ledger_sig(s) for s in model)
+        board_sig = Counter(_seg_ledger_sig(s) for s in board_by_net.get(nid, []))
+        if model_sig != board_sig:
+            bad += 1
+            board_only = board_sig - model_sig
+            file_only = model_sig - board_sig
+            name = (pcb_data.nets[nid].name
+                    if nid in getattr(pcb_data, 'nets', {}) else f"net {nid}")
+            print(f"{RED}[BOARD_LEDGER]{label} {name} (id={nid}) diverged: "
+                  f"{sum(board_only.values())} board-only, "
+                  f"{sum(file_only.values())} file-only segment(s){RESET}")
+            for sig, n in list(board_only.items())[:5]:
+                print(f"    board-only x{n}: {sig}")
+            for sig, n in list(file_only.items())[:5]:
+                print(f"    file-only  x{n}: {sig}")
+    if bad:
+        print(f"{RED}[BOARD_LEDGER]{label} FAILED: {bad}/{len(scope)} net(s) "
+              f"diverged between pcb_data and the write model{RESET}")
+    else:
+        print(f"[BOARD_LEDGER]{label} OK: pcb_data == write model for all "
+              f"{len(scope)} in-scope net(s)")
+    return bad == 0

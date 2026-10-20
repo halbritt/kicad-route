@@ -194,6 +194,22 @@ def _netns_runner(tmp_path, binds):
     pytest.skip("neither bwrap nor unshare -rn can create a network namespace here")
 
 
+def test_sandbox_declares_runtime_symlink_targets(tmp_path, monkeypatch):
+    from kicad_route import common, sandbox
+    state = tmp_path / "state"
+    state.mkdir()
+    targets = [tmp_path / "cached-venv", tmp_path / "cached-freerouting"]
+    for target in targets:
+        target.mkdir()
+    (state / "vendor").mkdir()
+    (state / ".venv-krt").symlink_to(targets[0], target_is_directory=True)
+    (state / "vendor" / "freerouting").symlink_to(targets[1], target_is_directory=True)
+    monkeypatch.setattr(common, "STATE", state)
+    requirements = sandbox.requirements(venv_python="/usr/bin/python3",
+                                       pcbnew_python="/usr/bin/python3", offline=True)
+    assert all(str(target) in requirements["ro_binds"] for target in targets)
+
+
 def test_doctor_json_offline_without_network(doctor_record, tmp_path):
     """The acceptance run: full doctor (canary included) in a network namespace with
     only loopback finishes without network timeouts and prints parseable JSON."""
@@ -246,7 +262,7 @@ def test_require_readonly_state_refuses(case, tmp_path):
         fake.mkdir()
         env["KICAD_ROUTE_STATE"] = str(fake)
     if case in ("no_manifest", "other_manifest"):
-        (fake / "vendor" / "krt").mkdir(parents=True)  # looks installed, but no manifest of its own
+        (fake / ".venv-krt").mkdir(parents=True)  # looks installed, but no manifest of its own
         if case == "other_manifest":
             if not (STATE / "manifest.json").exists():
                 pytest.skip("STATE has no manifest to copy")

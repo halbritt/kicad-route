@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""Score candidate (x, y, rotation) poses for a part, cheapest evidence first.
+
+The pieces to answer "where should this part go, and facing which way" all
+exist and none of them is joined up:
+
+    legality of a pose      QuenchState.candidate_valid
+    cost of a placement     QuenchState.total_cost  (wirelength, crossings,
+                                                     halo, edge, alignment)
+    the rotations to try    quench.ROTATIONS = [0, 90, 180, 270]
+    does it actually route  route.py --nets <affected> --json-out
+
+What did not exist is a function that takes a part and returns its candidate
+poses RANKED. The one multi-pose scorer in the tree holds position fixed and
+varies only rotation, so a part that needs to move 1.5 mm and turn 90 degrees
+has never been scored as a single decision.
+
+This module is deliberately only tiers 1 and 2 -- milliseconds, no router. Tier
+3 (a scoped route of just the affected nets) and tier 4 (the full chain) belong
+to the caller, because only the caller knows what "affected" means for its
+board. The point of ranking here is that tier 3 is seconds and tier 4 is
+minutes: you want to spend them on two candidates, not forty.
+
+    poses = rank_poses(pcb_data, board_path, 'U3', radius=2.0)
+    for p in poses[:2]:
+        ...route the affected nets from p and compare...
+"""
+import _path  # noqa: F401  (py_placer -> py_router/py_tools on sys.path)
+from typing import Dict, List, Optional, Sequence
+
+ROTATIONS: Sequence[float] = (0.0, 90.0, 180.0, 270.0)
+
+
+def _offsets(radius: float, step: float):
+    """Concentric ring offsets out to `radius`, nearest first.
+
+    Nearest-first matters: a tie between two equally-costed poses should go to
+    the one that disturbs the board least, and the caller usually stops early.
+    """
+    out = [(0.0, 0.0)]
+    n = max(1, int(round(radius / step)))
+    for ring in range(1, n + 1):
+        r = ring * step
+        ring_pts = []
+        k = max(1, int(round(r / step)))
+        for i in range(-k, k + 1):
+            for j in range(-k, k + 1):
+                if max(abs(i), abs(j)) != k:
+                    continue                      # perimeter of this ring only
+                ring_pts.append((i * step, j * step))
+        ring_pts.sort(key=lambda d: (d[0] * d[0] + d[1] * d[1]))
+        out.extend(ring_pts)
+    return out
+
+
+def make_state(pcb_data, board_path: str, *, clearance: float = 0.25,
+               board_edge_clearance: float = 0.55, grid_step: float = 0.1,
+               crossing_penalty: float = 30.0, length_weight: float = 0.3,
+               halo_base: float = 0.5, halo_coef: float = 0.15,
+               halo_weight: float = 2.0, edge_halo: float = 2.0,
+               edge_weight: float = 2.0,
+               ignore_net_ids=None, net_weights=None, move_refs=None,
+               extra_locked_refs=None, keepouts=None, intent_zones=None,
+               exclusive_zones=None, body_model=False):
+    """A QuenchState used purely as an oracle -- built, queried, thrown away.
+
+    Defaults mirror the placement guidance rather than quench's own library
+    defaults, so a pose ranked here is ranked by the same objective a real
+    place_optimize run would optimise.
+    """
+    from placement.quench import QuenchState
+    return QuenchState(
+        pcb_data=pcb_data, pcb_file=board_path,
+        clearance=clearance, board_edge_clearance=board_edge_clearance,
+        crossing_penalty=crossing_penalty, halo_base=halo_base,
+        halo_coef=halo_coef, halo_weight=halo_weight, edge_halo=edge_halo,
+        edge_weight=edge_weight, grid_step=grid_step,
+        length_weight=length_weight, ignore_net_ids=ignore_net_ids,
+        net_weights=net_weights, move_refs=move_refs,
+        extra_locked_refs=extra_locked_refs,
+        # #701: the intent's keep-outs, for the SEAT predicate. Passed through
+        # rather than read here, because this factory has no intent -- every
+        # caller that has one hands it over, and a caller that has none gets
+        # the inert default.
+        keepouts=keepouts,
+        # #702: declared zones, same passthrough. Note the ASYMMETRY, which is
+        # deliberate -- `place_seed`'s post-polish re-seat passes `keepouts`
+        # and must NOT pass this. The re-seat's whole job is to move a part
+        # that is ALREADY violating back where it belongs, and the zone gate is
+        # monotone against the pose the part is in, so handing it over would
+        # make the repair refuse its own target and quietly stop repairing.
+        intent_zones=intent_zones,
+        # #797: the EXCLUSIVE slice, which every seat path DOES take -- note
+        # this is not the asymmetry above being quietly undone. That one is
+        # about `zone_containment`, a must-be-INSIDE claim whose repair has to
+        # start from a violating pose; this is a must-be-OUTSIDE claim whose
+        # target is clean by definition, so an absolute gate on it cannot
+        # refuse a repair its own target. See `quench.exclusive_spec`.
+        exclusive_zones=exclusive_zones,
+        # #916. `make_state` is what the SEEDER, the repair path and
+        # `reseat_scope` build their state from, so without this the flag
+        # reached `quench()` and nothing that actually SEATS a part -- half a
+        # fix for an issue whose whole subject is `pose_ok`. False keeps every
+        # existing caller bit-identical.
+        body_model=body_model)
+
+
+class PoseUnrankable(KeyError):
+    """A ref `rank_poses` cannot rank, with the reason and the exit code a CLI
+    should use (#959, #999).
+
+    It was a bare `KeyError`, and `converge poses` has no handler, so a
+    pad-less logo block exited 1 through a traceback -- the SAME code as the
+    verdict "no legal pose, including staying put". A crash and a verdict must
+    not share a code.
+
+    `code` follows `pose_ops.PoseRefusal`: 2 when the ref names nothing on this
+    board (a typo the caller fixes by rewriting the command), 4 when it names a
+    real block the placement state cannot move (a measurement the caller acts
+    on). Still a `KeyError` subclass, so a caller that caught the old error
+    keeps working; `__str__` is the plain reason rather than KeyError's quoted
+    repr.
+    """
+
+    def __init__(self, reason: str, code: int, why: str = ''):
+        super().__init__(reason)
+        self.reason = reason
+        self.code = code
+        #: The bare cause, without the advice `reason` appends -- a caller
+        #: that is itself `place_pose set` must not be told to run it.
+        self.why = why or reason
+
+    def __str__(self):
+        return self.reason
+
+
+def _same_rot(a, b) -> bool:
+    d = abs(float(a) - float(b)) % 360.0
+    return min(d, 360.0 - d) <= 1e-6
+
+
+def veto_phrase(dropped_by: Dict, top: int = 3) -> str:
+    """`rank_poses`' `dropped_by` as one line, most frequent check first:
+    `pads 290 (C12 88, C13 61, C9 40); courtyard 33 (U2 20)` (#1113)."""
+    out = []
+    for chk, d in list((dropped_by or {}).items())[:top]:
+        blk = ', '.join(f"{r} {n}" for r, n in d.get('blockers') or ())
+        out.append(f"{chk} {d['count']}" + (f" ({blk})" if blk else ''))
+    return '; '.join(out) or 'nothing'
+
+
+def in_place_phrase(dropped_in_place_by) -> str:
+    """The in-place vetoes grouped by (check, blocker): `pads_under_body (J9)
+    at 0, 90, 180, 270` (#1113). The top-N cut of `veto_phrase` can drop the
+    one check that refused the part's own spot."""
+    groups: Dict = {}
+    for d in dropped_in_place_by or ():
+        groups.setdefault((d['check'], d.get('blocker')), []).append(d['rot'])
+    return '; '.join(
+        f"{chk}" + (f" ({blk})" if blk else '') + ' at '
+        + ', '.join(f"{r:g}" for r in rots)
+        for (chk, blk), rots in sorted(groups.items(),
+                                       key=lambda kv: (-len(kv[1]), kv[0][0])))
+
+
+def rank_poses(pcb_data, board_path: str, ref: str, *, radius: float = 2.0,
+               step: float = 0.5, rotations: Sequence[float] = ROTATIONS,
+               limit: int = 12, allow_rotations: bool = True,
+               state=None, diagnostics: Optional[Dict] = None,
+               cancel_check=None,
+               **state_kw) -> List[Dict]:
+    """Legal poses for `ref`, cheapest first.
+
+    Returns `[{x, y, rot, cost, delta, dist_mm, legal}]`, sorted by cost. `delta`
+    is against the part's CURRENT pose, so a negative delta is an improvement
+    and a list whose best delta is >= 0 says "leave it alone" -- which is a real
+    answer and one a caller should be able to get without paying for a route.
+
+    Illegal poses are dropped, not scored: an illegal pose has no meaningful
+    cost, and returning one ranked would invite a caller to try it. They are
+    no longer dropped SILENTLY, though (run-7 S4): pass `diagnostics={}` and
+    it comes back with `dropped_total` and `dropped_in_place` -- the rotations
+    at the part's OWN (x, y) that candidate_valid vetoed. An empty ranked list
+    whose dropped_in_place includes the part's current rotation says "the
+    knobs veto even staying put", which is a knob problem, not a pose answer.
+
+    #1113: and it says WHICH check vetoed each one -- `dropped_by` ({check:
+    {count, blockers: [[ref, n], ...] (top 3), blockers_distinct}}, from
+    `QuenchState.candidate_veto`, the same predicate candidate_valid is),
+    `dropped_in_place_by` ([{rot, check, blocker}]), `evaluated_total`, and
+    `all_moves_vetoed`: nothing survived but the part's own pose. A part
+    whose rotation its neighbours were packed around reads exactly that way,
+    and a one-part move cannot judge such a rotation (`veto_phrase` says it
+    in one line).
+    """
+    st = state if state is not None else make_state(pcb_data, board_path, **state_kw)
+    part = st.parts.get(ref) if hasattr(st, 'parts') else None
+    if part is None:
+        fp = (getattr(pcb_data, 'footprints', None) or {}).get(ref)
+        if fp is None:
+            raise PoseUnrankable(
+                f"{ref} is not a footprint block on this board", code=2,
+                why='it is not a footprint block on this board')
+        from kicad_parser import non_aperture_pads
+        why = ('it has no pads and no courtyard, so the placement state '
+               'carries no geometry for it' if not non_aperture_pads(fp) else
+               'the placement state does not carry it as a movable part')
+        raise PoseUnrankable(
+            f"{ref} cannot be ranked: {why}. Place it with `place_pose set` "
+            f"and lock it", code=4, why=why)
+
+    x0, y0, rot0 = part.x, part.y, part.rot
+    # total_cost() returns the objective AND its components (length, crossings,
+    # halo, edge, hpwl, align, orient). Rank on 'total', but carry the breakdown:
+    # "better overall, worse on crossings" is exactly the kind of trade a caller
+    # needs to see before spending a routing run on it.
+    base = st.total_cost()
+    rots = list(rotations) if allow_rotations else [rot0]
+
+    # Pin-order inversions (run-6, placement/pair_order.py): a LOWER BOUND on
+    # crossings a router cannot remove, carried as a component but NOT in the
+    # ranked total -- the objective must not chase a bound it can't trade off
+    # (fact (a): proxies mislead optimizers). rot-0 vs rot-180 ties in `cost`
+    # are exactly where this number decides (test-board U3: 9 -> 0).
+    #
+    # STILL TRUE HERE after #893, and not by accident: that issue added a
+    # `facing_weight` which DOES put this bound into `total_cost`, but
+    # `make_state` never sets it, so a state built by this module ranks on a
+    # total with no facing term and the sentence above holds. A caller that
+    # passes its own armed state via `state=` gets a ranked total that includes
+    # it -- which is a deliberate choice by that caller, not this default.
+    from placement.pair_order import ref_inversions
+    base_inv = ref_inversions(st, ref)
+
+    scored = []
+    dropped_total = 0
+    dropped_in_place = []
+    dropped_by: Dict[str, Dict] = {}
+    dropped_in_place_by = []
+    evaluated = 0
+    # ONE predicate call per candidate: the #702 refusal tallies count calls.
+    _veto = getattr(st, 'candidate_veto', None)
+    if _veto is None:       # a duck-typed state without the #1113 labels
+        def _veto(r, x, y, rot):
+            return None if st.candidate_valid(r, x, y, rot) else (
+                'unattributed', None)
+    for dx, dy in _offsets(radius, step):
+        # THE SWEEP, which `--limit` never bounded: limit truncates the sorted
+        # RESULT on the last line of this function, while every candidate here
+        # has already paid a full total_cost() plus ref_inversions(). A 30mm /
+        # 0.25mm ring set is 231,392 candidates and --limit 12 evaluates all of
+        # them. `_offsets` yields flat POINTS, not rings, so this runs once
+        # per candidate position (58,081 for r=30/s=0.25) -- finer than a
+        # ring and still negligible against a full cost evaluation.
+        if cancel_check is not None and cancel_check():
+            if diagnostics is not None:
+                diagnostics['stopped_early'] = True
+            break
+        for rot in rots:
+            x, y = x0 + dx, y0 + dy
+            evaluated += 1
+            veto = _veto(ref, x, y, rot)
+            if veto is not None:
+                dropped_total += 1
+                _chk, _blk = veto
+                _d = dropped_by.setdefault(_chk, {'count': 0, '_b': {}})
+                _d['count'] += 1
+                if _blk is not None:
+                    _d['_b'][_blk] = _d['_b'].get(_blk, 0) + 1
+                if dx == 0.0 and dy == 0.0:
+                    dropped_in_place.append(rot)
+                    dropped_in_place_by.append(
+                        {'rot': rot, 'check': _chk, 'blocker': _blk})
+                continue
+            st.apply_move(ref, x, y, rot)
+            cost = st.total_cost()
+            st.apply_move(ref, x0, y0, rot0)          # always restore
+            inv = ref_inversions(st, ref, x, y, rot)
+            scored.append({
+                'x': round(x, 4), 'y': round(y, 4), 'rot': rot,
+                'cost': round(cost['total'], 4),
+                'delta': round(cost['total'] - base['total'], 4),
+                'dist_mm': round((dx * dx + dy * dy) ** 0.5, 4),
+                'legal': True,
+                'components': dict(
+                    {k: round(v, 4) for k, v in cost.items() if k != 'total'},
+                    inversions=inv),
+                'component_delta': dict(
+                    {k: round(v - base.get(k, 0), 4)
+                     for k, v in cost.items() if k != 'total'},
+                    inversions=inv - base_inv),
+            })
+    if diagnostics is not None:
+        diagnostics['dropped_total'] = dropped_total
+        diagnostics['dropped_in_place'] = dropped_in_place
+        diagnostics['dropped_in_place_by'] = dropped_in_place_by
+        diagnostics['evaluated_total'] = evaluated
+        diagnostics['dropped_by'] = {
+            chk: {'count': d['count'],
+                  'blockers': [[r, n] for r, n in sorted(
+                      d['_b'].items(), key=lambda kv: (-kv[1], kv[0]))[:3]],
+                  'blockers_distinct': len(d['_b'])}
+            for chk, d in sorted(dropped_by.items(),
+                                 key=lambda kv: (-kv[1]['count'], kv[0]))}
+        # Nothing survived but staying put (or nothing at all): the reading
+        # a one-part move gives a part its neighbours were packed around.
+        diagnostics['all_moves_vetoed'] = bool(dropped_total) and all(
+            p['dist_mm'] == 0 and _same_rot(p['rot'], rot0) for p in scored)
+        diagnostics['in_place_evaluated'] = any(
+            _same_rot(r, rot0) for r in rots)
+        diagnostics['input_rotation'] = rot0
+    # cost, then least disturbance, then a stable rotation order
+    scored.sort(key=lambda p: (p['cost'], p['dist_mm'], p['rot']))
+    return scored[:limit]
+
+
+def best_pose(pcb_data, board_path: str, ref: str, *, min_gain: float = 1e-6,
+              **kw) -> Optional[Dict]:
+    """The single best pose, or None when nothing beats staying put.
+
+    `min_gain` is hysteresis: a pose that is better by a rounding error is not
+    better, and accepting one turns a convergence loop into a random walk.
+    """
+    poses = rank_poses(pcb_data, board_path, ref, **kw)
+    if not poses:
+        return None
+    top = poses[0]
+    return top if top['delta'] < -abs(min_gain) else None

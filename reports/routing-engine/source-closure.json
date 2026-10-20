@@ -1,0 +1,3441 @@
+{
+  "assets": {
+    "LICENSE": {
+      "bytes": 1067,
+      "lines": 21,
+      "sha256": "6df0be9100e852f1749d2e88df423b0f71cab5bff7af35f749e10cf644911390"
+    },
+    "VERSION": {
+      "bytes": 7,
+      "lines": 1,
+      "sha256": "e14c67c5f4dd36234ef4bc5ba5ef48d5d79e27bad4038c9bc8a64714566aa06a"
+    },
+    "py_router/stage3d/package-lock.json": {
+      "bytes": 702,
+      "lines": 28,
+      "sha256": "77fbbd720f5d2ecf2ebd226bceb0a3c8a64972d5ea5dda0809c4c8c18a40f442"
+    },
+    "py_router/stage3d/package.json": {
+      "bytes": 292,
+      "lines": 11,
+      "sha256": "3c5c157fa742ef026c0307249d773387a23e361c76b38d30d5ea36990dc91df9"
+    },
+    "py_router/stage3d/page/index.html": {
+      "bytes": 647,
+      "lines": 18,
+      "sha256": "40ced37a7e8fa68946c9959c20c399872aa9cc658052233a8896e4cc23745875"
+    },
+    "py_router/stage3d/page/stage3d.mjs": {
+      "bytes": 25858,
+      "lines": 590,
+      "sha256": "5ffa585a3c80ee727e9043c070511fc1a4fcdaeec1285bb22d33a4b02d1b3c74"
+    },
+    "py_router/stage3d/render.mjs": {
+      "bytes": 5003,
+      "lines": 90,
+      "sha256": "81dffb15754ebe01a63fda9801783d16e5c56ec62b15b8599840e63bcfa36401"
+    },
+    "py_router/stage3d/vendor/three/LICENSE": {
+      "bytes": 1081,
+      "lines": 21,
+      "sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+    },
+    "py_router/stage3d/vendor/three/VERSION.txt": {
+      "bytes": 467,
+      "lines": 6,
+      "sha256": "1f4ccdfddd489858e33b31607735544ec7335960fc0f6d03b5cb0f7f61600519"
+    },
+    "py_router/stage3d/vendor/three/build/three.core.js": {
+      "bytes": 1458113,
+      "lines": 60586,
+      "sha256": "9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6"
+    },
+    "py_router/stage3d/vendor/three/build/three.module.js": {
+      "bytes": 662772,
+      "lines": 19719,
+      "sha256": "9052042d676cb0fdc1ddfefe193053f34b7ac0513a616fdac4535d49987812ea"
+    },
+    "py_router/stage3d/vendor/three/examples/jsm/loaders/GLTFLoader.js": {
+      "bytes": 117570,
+      "lines": 4925,
+      "sha256": "131c0f78c01d19368ae495caa65b3adaa10487810a36a05bb5901b769a35ac16"
+    },
+    "py_router/stage3d/vendor/three/examples/jsm/utils/BufferGeometryUtils.js": {
+      "bytes": 37712,
+      "lines": 1501,
+      "sha256": "9fb63427ce6641fa14fd0baff9cc4d1b5f9c3d85fd084bf2e90e803c44ec1797"
+    },
+    "py_router/stage3d/vendor/three/examples/jsm/utils/SkeletonUtils.js": {
+      "bytes": 11535,
+      "lines": 496,
+      "sha256": "b1632a703206c3d830de9fcbe515696770d04b71a15ee6b50afa6d2c3298c86f"
+    },
+    "requirements.txt": {
+      "bytes": 3177,
+      "lines": 58,
+      "sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43"
+    },
+    "rust_router/Cargo.lock": {
+      "bytes": 8009,
+      "lines": 311,
+      "sha256": "f14e7b0c06ae682e63f1b452862a72417cb69ee629f51ac49bac242a24d94203"
+    },
+    "rust_router/Cargo.toml": {
+      "bytes": 798,
+      "lines": 24,
+      "sha256": "b75f1a594d1933a7b539f123e356014f6af8c621864e01f6f0746d31330acf89"
+    },
+    "rust_router/src/dubins.rs": {
+      "bytes": 6947,
+      "lines": 215,
+      "sha256": "578db6b9034dcea6a90849323843e47792b3c0921427d2951d325bfdb6147730"
+    },
+    "rust_router/src/lane_search.rs": {
+      "bytes": 7674,
+      "lines": 199,
+      "sha256": "2e63ecb7c53943ce6188725600400be5dd9e0625fd5c36137948fb3f290c1ce9"
+    },
+    "rust_router/src/lib.rs": {
+      "bytes": 5120,
+      "lines": 152,
+      "sha256": "3bb11f80ee27862414a32b9774f19d087749994d8f4a163af73546452120e44e"
+    },
+    "rust_router/src/obstacle_map.rs": {
+      "bytes": 65960,
+      "lines": 1516,
+      "sha256": "f5abe681accc32a7870101c6b776058ece72f5b90deaca5180dba688db7ce471"
+    },
+    "rust_router/src/pair_search.rs": {
+      "bytes": 11106,
+      "lines": 276,
+      "sha256": "f384c7331e677f6821176da6d36d3e51a00fd4bb9f06151e7520963b463c5204"
+    },
+    "rust_router/src/pose_router.rs": {
+      "bytes": 36327,
+      "lines": 716,
+      "sha256": "a4df246ef8a886d1cd3df989734bfd4a15ddc72e551905b046fbbe056c240a4c"
+    },
+    "rust_router/src/router.rs": {
+      "bytes": 78140,
+      "lines": 1655,
+      "sha256": "d3cb9ac9cfa5d25180f29d92f4c55a9082393ac67c9c81d9968ab26177d0681d"
+    },
+    "rust_router/src/types.rs": {
+      "bytes": 9935,
+      "lines": 326,
+      "sha256": "70058395d6c08ccefbe7b26596025adb60724767565182d8eca2db42ebccbfe4"
+    },
+    "tests/test_krt64_tap_grid.py": {
+      "bytes": 10063,
+      "lines": 210,
+      "sha256": "65e10213bd0429937972ed976d67667ab3b63b79714fa0ee170c547adeaf0c1c"
+    },
+    "tests/test_pour_launch_forbidden_layer_welds.py": {
+      "bytes": 10636,
+      "lines": 238,
+      "sha256": "be2c95e968234c53a85c07c1fea626a868dbb28211cf4b88d91335c00e728a2b"
+    }
+  },
+  "dynamic_imports": [
+    {
+      "expression": "importlib.import_module(module_name)",
+      "line": 222,
+      "source": "py_router/startup_checks.py"
+    },
+    {
+      "expression": "importlib.import_module(module_name.split('.')[0])",
+      "line": 281,
+      "source": "py_router/startup_checks.py"
+    }
+  ],
+  "entrypoints": [
+    "py_router/route.py",
+    "py_router/route_diff.py",
+    "py_router/check_connected.py",
+    "py_router/check_drc.py",
+    "py_router/check_weird.py",
+    "py_router/list_nets.py",
+    "py_tools/check_orphan_stubs.py",
+    "py_tools/check_impedance.py",
+    "py_tools/check_reachability.py",
+    "py_tools/board_score.py",
+    "py_router/stage3d/blender_scene.py"
+  ],
+  "external_modules": [
+    "PIL",
+    "__future__",
+    "argparse",
+    "ast",
+    "atexit",
+    "bisect",
+    "bmesh",
+    "bpy",
+    "bpy_extras",
+    "collections",
+    "colorsys",
+    "concurrent",
+    "contextlib",
+    "copy",
+    "ctypes",
+    "dataclasses",
+    "datetime",
+    "difflib",
+    "fnmatch",
+    "functools",
+    "gc",
+    "glob",
+    "grid_router",
+    "hashlib",
+    "heapq",
+    "imageio",
+    "importlib",
+    "inspect",
+    "io",
+    "itertools",
+    "json",
+    "math",
+    "mathutils",
+    "ntpath",
+    "numbers",
+    "numpy",
+    "operator",
+    "os",
+    "pathlib",
+    "pcbnew",
+    "platform",
+    "posixpath",
+    "psutil",
+    "random",
+    "re",
+    "resource",
+    "scipy",
+    "shapely",
+    "shlex",
+    "shutil",
+    "stat",
+    "struct",
+    "subprocess",
+    "sys",
+    "sysconfig",
+    "tempfile",
+    "threading",
+    "time",
+    "traceback",
+    "types",
+    "typing",
+    "uuid",
+    "winreg",
+    "wx",
+    "zlib"
+  ],
+  "files": {
+    "krt_capabilities.py": {
+      "bytes": 26287,
+      "lines": 547,
+      "sha256": "14cbaa11069bdf789d7999d0cbd44612195a34ee10ce3da2133c61451e953d86"
+    },
+    "py_placer/_path.py": {
+      "bytes": 1250,
+      "lines": 30,
+      "sha256": "c93bbd159ada44096f7313267e85b68533b7e71674c290d9eca869c976fb4dde"
+    },
+    "py_placer/place_route_loop.py": {
+      "bytes": 86118,
+      "lines": 1594,
+      "sha256": "3a1c54a1bb9d5f97e8291d9a66d22db73b3382ea756a63d0c8a621ad677a9810"
+    },
+    "py_placer/placement/__init__.py": {
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "py_placer/placement/arrays.py": {
+      "bytes": 54064,
+      "lines": 1135,
+      "sha256": "5a37d73a19a1854960742ec70b7f2887260ed6b8c32942667db01932a1330539"
+    },
+    "py_placer/placement/board_grid.py": {
+      "bytes": 9911,
+      "lines": 197,
+      "sha256": "9732d3d0c06bffe277b3a4899158579a221858dfa1266edb7368adac4fc0090c"
+    },
+    "py_placer/placement/body.py": {
+      "bytes": 23927,
+      "lines": 495,
+      "sha256": "5199c05c5bf89693d058cf92d899e0b55e597021e0dc44847e0169045e158c90"
+    },
+    "py_placer/placement/cli_gates.py": {
+      "bytes": 23063,
+      "lines": 438,
+      "sha256": "fd9c9ab4f8f2007ec1b8593e52147c32a857c43ebfb33fa809f7013196fde5e5"
+    },
+    "py_placer/placement/connector_geometry.py": {
+      "bytes": 20712,
+      "lines": 444,
+      "sha256": "0db0e1de251cf74114fbbd0c288022279000b672671bdbaa143871790c950b66"
+    },
+    "py_placer/placement/design_brief.py": {
+      "bytes": 128830,
+      "lines": 2501,
+      "sha256": "d540cdaf8c1e7ac8f6f86ca9be3a36cb69d8dbd3aaf91826919d9db19f4b4a73"
+    },
+    "py_placer/placement/diagnosis.py": {
+      "bytes": 39148,
+      "lines": 841,
+      "sha256": "bfcfa28608efb5cc2128685ba07555f0760fa87e4cedf69a8b79c47f1da603fe"
+    },
+    "py_placer/placement/edge_facing.py": {
+      "bytes": 7995,
+      "lines": 167,
+      "sha256": "eaf2166416750cbd79521b393ef735a96ea8c5006541db202c841e448be7c529"
+    },
+    "py_placer/placement/emc_roles.py": {
+      "bytes": 36481,
+      "lines": 729,
+      "sha256": "727e7a583994897ce04d5f46f76af345e320c84e0568fc13046719c1577caa8f"
+    },
+    "py_placer/placement/escape.py": {
+      "bytes": 96067,
+      "lines": 1854,
+      "sha256": "553af70095728cdbf477249460ba63ba8383ac90ac144c15a289ca7156d6abf8"
+    },
+    "py_placer/placement/floorplan.py": {
+      "bytes": 577574,
+      "lines": 11069,
+      "sha256": "5e212aa6bf6117540fd3e9b11fa65c5616e95221794340c56a536c6835cff7f9"
+    },
+    "py_placer/placement/groups.py": {
+      "bytes": 34342,
+      "lines": 747,
+      "sha256": "8e588f887d62573485526368b4e963f69436893b68e88eec6c79687911348990"
+    },
+    "py_placer/placement/legality.py": {
+      "bytes": 358311,
+      "lines": 6884,
+      "sha256": "154aaa36d5bc2fbcb9e8a0ec5ea043c01e6527e272d10588538de34a741981b7"
+    },
+    "py_placer/placement/lock_advisor.py": {
+      "bytes": 27785,
+      "lines": 587,
+      "sha256": "58803c7ed97037fac32fd7a703b32500403df30037b349cc1ae4bcb76bac09d3"
+    },
+    "py_placer/placement/mating.py": {
+      "bytes": 17497,
+      "lines": 350,
+      "sha256": "9f520de5f509deb719f61ae6768994ae989d369815c29ad597530e96a9c46ea5"
+    },
+    "py_placer/placement/options.py": {
+      "bytes": 62780,
+      "lines": 1163,
+      "sha256": "389ef429555d5891eed31709517a59dada18396d16cd10647e68f4ff982518f9"
+    },
+    "py_placer/placement/pair_order.py": {
+      "bytes": 18185,
+      "lines": 387,
+      "sha256": "3636f936b7699e44f0348fee7398b3f6b609b7cd930aed5e1a4880945677409a"
+    },
+    "py_placer/placement/parser.py": {
+      "bytes": 36489,
+      "lines": 792,
+      "sha256": "1af5f80cf19e06ac711379bd722e3b2b4e605a23ba2a05b9f694b5bf1e920bdb"
+    },
+    "py_placer/placement/part_class.py": {
+      "bytes": 15524,
+      "lines": 304,
+      "sha256": "001f5cfc3b2c952d68395f80aaee6132b5e5c435f399ae1735834fefdbf1d52f"
+    },
+    "py_placer/placement/pin_rows.py": {
+      "bytes": 12383,
+      "lines": 279,
+      "sha256": "488bd8100321fe20b01c577861d80bb81ace3c18126ea21a86b3c82b5a94ef23"
+    },
+    "py_placer/placement/placement_state.py": {
+      "bytes": 35863,
+      "lines": 742,
+      "sha256": "26148d3b2cd6648223dd116c7db9d4ad910584260112a6efee9a389aa09dfb2c"
+    },
+    "py_placer/placement/portfolio.py": {
+      "bytes": 63461,
+      "lines": 1234,
+      "sha256": "b5878857ca58d0e6a85bc3e8a3c829e1dd25ac71a8e42cd94120066eb1363af2"
+    },
+    "py_placer/placement/pose_ops.py": {
+      "bytes": 107470,
+      "lines": 2014,
+      "sha256": "dda20791574817f61c6f77baf89f6f8331d55ef4d93f92b137a64229dc05a1c1"
+    },
+    "py_placer/placement/provenance.py": {
+      "bytes": 26721,
+      "lines": 577,
+      "sha256": "250f04eb2ab2cf665b013e2b7f23376d97670cd2da8610dc6d8eb5a2f5fed8c2"
+    },
+    "py_placer/placement/quench.py": {
+      "bytes": 280296,
+      "lines": 5387,
+      "sha256": "ede844c4d40ea9a9f05e183eb54a6bf94f4074c932b4c741a113f8fc07c55846"
+    },
+    "py_placer/placement/reachability.py": {
+      "bytes": 45061,
+      "lines": 959,
+      "sha256": "308daeca20825d7dec7c4d07accb7492be9a2ce47a0a21bfcd3b201801e77ba5"
+    },
+    "py_placer/placement/reconcile.py": {
+      "bytes": 41903,
+      "lines": 855,
+      "sha256": "796a72b1fbab3c15efd966eff6c70842a02c35de095b91a0f627c9c4a1b8ae1e"
+    },
+    "py_placer/placement/reconstruct.py": {
+      "bytes": 100241,
+      "lines": 2111,
+      "sha256": "239736b1f1ee5ef45d6cf003fd2c1021335f35fb157bc093fec7af73807ccdd2"
+    },
+    "py_placer/placement/relocate.py": {
+      "bytes": 60837,
+      "lines": 1217,
+      "sha256": "162a7950ac20aaf6ccfced800f47fda6307b39b0ce3ba23aefd46c2298868c40"
+    },
+    "py_placer/placement/replicate.py": {
+      "bytes": 34727,
+      "lines": 734,
+      "sha256": "f87d5048ee02aa6fb0c83fc093ff7ad3bdb83bfa7d63a2c9564a740454690ff8"
+    },
+    "py_placer/placement/roles.py": {
+      "bytes": 8518,
+      "lines": 190,
+      "sha256": "3b1f4ade3c21000dbc996e8f4df291d6657ae05174903ab37a5adac458e13c67"
+    },
+    "py_placer/placement/routability.py": {
+      "bytes": 80541,
+      "lines": 1609,
+      "sha256": "cf54662d9b76ccd4d7a5ee1bc693c9f105627604ccdf07c51b5407117b2dd58d"
+    },
+    "py_placer/placement/seeder.py": {
+      "bytes": 634613,
+      "lines": 11933,
+      "sha256": "4f0501d48e8297c74d693e7106fb80af68c7d57f2f1a5c09aeea3106fc7ce907"
+    },
+    "py_placer/placement/utility.py": {
+      "bytes": 4389,
+      "lines": 108,
+      "sha256": "980546b1022f421210ac7c9cc6630c3f4253eecb8670ec3916ab5944934313b6"
+    },
+    "py_placer/placement/writer.py": {
+      "bytes": 70557,
+      "lines": 1377,
+      "sha256": "b6d9637c03b18ee0f4419546b95c16f8d48583ddd959acf2e132ed9143507da0"
+    },
+    "py_placer/placement_score.py": {
+      "bytes": 64572,
+      "lines": 1280,
+      "sha256": "cee8dc53f8b101d30aa9293a7cf7c4863cb0c63304d8307c372f19e9788c3727"
+    },
+    "py_placer/pose_score.py": {
+      "bytes": 16425,
+      "lines": 328,
+      "sha256": "f4abe0946fd34652223191bf60ae3ac9cfd0b4aad8025c696e7f386c5df22a83"
+    },
+    "py_router/_placer_path.py": {
+      "bytes": 1194,
+      "lines": 27,
+      "sha256": "6f7dc70624a51fbe1142ecf29965829105666bbdf8d0ba7e739267810a815c65"
+    },
+    "py_router/add_gnd_vias.py": {
+      "bytes": 18482,
+      "lines": 376,
+      "sha256": "2887466ca41aa8a0f087a0c099f72983ca25b5be8867e85d0538dbf214beecd6"
+    },
+    "py_router/animate_route.py": {
+      "bytes": 75978,
+      "lines": 1605,
+      "sha256": "236b494d5ca5596933aa428371d88db8f4bba5f4ea7ea74cadf8347d16a2c8bf"
+    },
+    "py_router/bga_fanout.py": {
+      "bytes": 1030,
+      "lines": 27,
+      "sha256": "e0bd1c7d1af04cbb33186063cbbac5f02649d25e1061ca94daf2b05991c4261c"
+    },
+    "py_router/bga_fanout/__init__.py": {
+      "bytes": 282358,
+      "lines": 5377,
+      "sha256": "fd66290a79f3940dabe7a3288481efcd09bdb79693ec1688bbe6ffa1932b4055"
+    },
+    "py_router/bga_fanout/collision.py": {
+      "bytes": 9200,
+      "lines": 215,
+      "sha256": "07825fd66148dc54676a1070461ebf1e40c0dfe1a2e735cd5788b216da1aa844"
+    },
+    "py_router/bga_fanout/constants.py": {
+      "bytes": 822,
+      "lines": 22,
+      "sha256": "e64e41a82aaeca04c2e261ead8d4ea1718e35c0312d9ddcafb3bed3e6dbdc27e"
+    },
+    "py_router/bga_fanout/diff_pair.py": {
+      "bytes": 2594,
+      "lines": 75,
+      "sha256": "204ed0b36870a72181a961d4ba23f616405b7b8f853e75118656030f092fb0c8"
+    },
+    "py_router/bga_fanout/escape.py": {
+      "bytes": 50763,
+      "lines": 1110,
+      "sha256": "be8cd7502e4763472f3fe28c82503dad31cd986c3ba2e7173c7f4e2783f126d1"
+    },
+    "py_router/bga_fanout/flip_frame.py": {
+      "bytes": 10090,
+      "lines": 232,
+      "sha256": "30bea853f5b8d1d23800c2f6842fa6da9e64b0f6e7bd6803c8159254cec0067e"
+    },
+    "py_router/bga_fanout/geometry.py": {
+      "bytes": 31070,
+      "lines": 621,
+      "sha256": "83aafff01408d1810eb925313089cd9134d332c3a78350b693d2840809e4b657"
+    },
+    "py_router/bga_fanout/grid.py": {
+      "bytes": 8540,
+      "lines": 215,
+      "sha256": "3d0ab716440615a06fab86aa39d5286019d8519bff76e7eaea2dd808b47af4f6"
+    },
+    "py_router/bga_fanout/layer_assignment.py": {
+      "bytes": 16803,
+      "lines": 359,
+      "sha256": "0bd0b19c70e005c4af50df1fb9ecd9c31e3f3d00687d8336227fdc2d03baebb5"
+    },
+    "py_router/bga_fanout/layer_balance.py": {
+      "bytes": 14953,
+      "lines": 378,
+      "sha256": "7cf7cd7199af811d88bdd8e0f4c5bfb42dd31b17f92926876f2deb696542a59d"
+    },
+    "py_router/bga_fanout/reroute.py": {
+      "bytes": 60874,
+      "lines": 1321,
+      "sha256": "34147e95f561b9af5d773e1fd035694499520edcb1b8e1a2d4297a2c474e12fc"
+    },
+    "py_router/bga_fanout/rotate_frame.py": {
+      "bytes": 10296,
+      "lines": 244,
+      "sha256": "40d2e0982ab823b550049077795ec18eec7798da97b860e1d382f8d7cec724e0"
+    },
+    "py_router/bga_fanout/tracks.py": {
+      "bytes": 11698,
+      "lines": 240,
+      "sha256": "7f02d835c8e7769c4e24d10775f402d2e8a3a3659a2b2ebd62101582bcd4a0d3"
+    },
+    "py_router/bga_fanout/types.py": {
+      "bytes": 4159,
+      "lines": 128,
+      "sha256": "812f7cecd8899804b2dad7a97c9ae33e8ac010120faa64da3ffad8a408ed0338"
+    },
+    "py_router/bga_fanout/underpad.py": {
+      "bytes": 209719,
+      "lines": 3994,
+      "sha256": "a9d98952a04726aebfdb6a561610ec735ee34df33512aa412100c4dce984d540"
+    },
+    "py_router/blocking_analysis.py": {
+      "bytes": 45212,
+      "lines": 966,
+      "sha256": "83daa554a378cc337cd92cba8569659f1f00ff9ead65ee61ebac444c3aee3db5"
+    },
+    "py_router/bresenham_utils.py": {
+      "bytes": 1463,
+      "lines": 50,
+      "sha256": "0da8a0d9d58a36aa6d5137ba7109ba19ff9dc6fd2e269d154d00663399c9dfd7"
+    },
+    "py_router/bus_corridor.py": {
+      "bytes": 9570,
+      "lines": 185,
+      "sha256": "951f22a3e22b4304f05335e350ff4af8173202a887ffdd0aff49f98e2613333a"
+    },
+    "py_router/bus_detection.py": {
+      "bytes": 15856,
+      "lines": 422,
+      "sha256": "ada6f88d665c00ee4e6935e12f84810e37a1710e6e35194ede205220ba2f069d"
+    },
+    "py_router/check_connected.py": {
+      "bytes": 121187,
+      "lines": 2437,
+      "sha256": "66997ad37e026b871dbdb2d3515d372f7ead4b13ed748abf9773cb63853961c3"
+    },
+    "py_router/check_drc.py": {
+      "bytes": 276437,
+      "lines": 5410,
+      "sha256": "9abefbb16151d51bdbbc3f2c86000705ee173b19f6f235aa1f58251dfea33477"
+    },
+    "py_router/check_pads.py": {
+      "bytes": 14298,
+      "lines": 315,
+      "sha256": "6627b37eca7a7afb234b4ae2fc047e65d452a6da0ea647c05696af6b052cd59c"
+    },
+    "py_router/check_weird.py": {
+      "bytes": 53367,
+      "lines": 1016,
+      "sha256": "c5540de9647f7294da3d386e4d3f67cb3127bb9b0d07c43edfb0e83e547fcea3"
+    },
+    "py_router/chip_boundary.py": {
+      "bytes": 13947,
+      "lines": 397,
+      "sha256": "76d3867bca3340a2f44d466df7169e6a13d159d603d386256102c784649294b9"
+    },
+    "py_router/cleanup_pipeline.py": {
+      "bytes": 47232,
+      "lines": 926,
+      "sha256": "7c9c10a8c90f365c32360f1ce080ef32231d46cb9ac18d99f33f3ad04da4d1f4"
+    },
+    "py_router/clearance_ledger.py": {
+      "bytes": 3446,
+      "lines": 85,
+      "sha256": "caa7c20b4347bf79c89aae6e21a33c973ab15fd6f6e4aa4879bccecf4f4e4c1b"
+    },
+    "py_router/cli_banner.py": {
+      "bytes": 7069,
+      "lines": 174,
+      "sha256": "dfbce4fba8eb386ff0de8148b139c9fce4b8b9a2a904fb3c905af05b5734111f"
+    },
+    "py_router/cli_nets.py": {
+      "bytes": 1541,
+      "lines": 34,
+      "sha256": "773d1250d9316628f9d719fe695f76816d7c00ed416232c766cf6672de6d535e"
+    },
+    "py_router/cmd_timing.py": {
+      "bytes": 45705,
+      "lines": 1005,
+      "sha256": "bcc6834cd496c0765f074539fdc98b63ad2cd97f067652ce5bb0c5d4bc8b92f7"
+    },
+    "py_router/congestion_field.py": {
+      "bytes": 16539,
+      "lines": 364,
+      "sha256": "9ba4c0588df393403664ceaa452be6447e9dabc5d1a9e9a8fa0860a73ed6e1ad"
+    },
+    "py_router/connectivity.py": {
+      "bytes": 104151,
+      "lines": 2230,
+      "sha256": "5384ff5ccc607a5b0fa0cca62a093295a45e9ba32411e37a3e8f42fde4ec06d1"
+    },
+    "py_router/console_encoding.py": {
+      "bytes": 3117,
+      "lines": 79,
+      "sha256": "788397094cc7175cfe2b595b14f1d20c2ab677d3b9e3a824a030889dd45479a9"
+    },
+    "py_router/copper_motion.py": {
+      "bytes": 6970,
+      "lines": 167,
+      "sha256": "6ce75c48d9344e5af739c01773b0c3a5f523e568d9486aa47d2cf510d5fb6772"
+    },
+    "py_router/copy_board.py": {
+      "bytes": 5012,
+      "lines": 108,
+      "sha256": "79cf1319ca961f10caa4d540afb0f3460d94dd8532214e0307ee89d1712e7877"
+    },
+    "py_router/design_rules.py": {
+      "bytes": 54509,
+      "lines": 1240,
+      "sha256": "e3e9260afde28bd4d5e8ac42f489826c708be2b28a143ca254360c2e9b0031ff"
+    },
+    "py_router/diff_pair_custody.py": {
+      "bytes": 35401,
+      "lines": 670,
+      "sha256": "f07e2cec713bfeda971b68fbbdba2a6630244f5e1e54bf01df3529257835b173"
+    },
+    "py_router/diff_pair_loop.py": {
+      "bytes": 74680,
+      "lines": 1209,
+      "sha256": "636f07595a727b3e81ec882762094ea90b6bc86b80c5ebad4b017abac3494a4f"
+    },
+    "py_router/diff_pair_multipoint.py": {
+      "bytes": 63595,
+      "lines": 1219,
+      "sha256": "5468ddcedf1fdc3355d7451adaba08f4e982ddde074facef0c54aba54ad7871d"
+    },
+    "py_router/diff_pair_routing.py": {
+      "bytes": 273875,
+      "lines": 5243,
+      "sha256": "aa355c8a1a10fbb672000a78dfa7974bb7ab95fc9c079eca716639586d6726a0"
+    },
+    "py_router/diff_xnet.py": {
+      "bytes": 6360,
+      "lines": 155,
+      "sha256": "204665ebc1494103a7e6960aa43bfd0eada9d17c70d31dc6cda8be63e5909f24"
+    },
+    "py_router/dup_trap.py": {
+      "bytes": 8893,
+      "lines": 210,
+      "sha256": "f3a3cc3b91d7318b46a091d14586ce31469c3101ddcd61b325bbda90e63fa1ee"
+    },
+    "py_router/env_knobs.py": {
+      "bytes": 46658,
+      "lines": 738,
+      "sha256": "7b9c9fc08f0bad191aba5a5c1e8e7c058e2457c9c83b43c8b090a27b52fbc382"
+    },
+    "py_router/fab_notes.py": {
+      "bytes": 25122,
+      "lines": 534,
+      "sha256": "0683295464406c4a6ac992b48a78da47322bfcd1f830607c85b4b06f281cda14"
+    },
+    "py_router/fab_tiers.py": {
+      "bytes": 57052,
+      "lines": 1128,
+      "sha256": "66e7156a4ee1507c575dd9b11c75c1d1c62b7cc1a518e8259965c888f0a8b39b"
+    },
+    "py_router/film_passes.py": {
+      "bytes": 6728,
+      "lines": 142,
+      "sha256": "857a08f1a1b72ad77e7aab9fa17bd9e9f7fd52b9755f47ace047bd9c54e36115"
+    },
+    "py_router/fix_kicad_drc_settings.py": {
+      "bytes": 140327,
+      "lines": 2677,
+      "sha256": "34c67467b45297380b000e2be1cdb3b5ca857b0ef3d2c1a078295e79fffdb296"
+    },
+    "py_router/frame_layout.py": {
+      "bytes": 18366,
+      "lines": 432,
+      "sha256": "b48541f17dc702bde45417cf1f807a738b47b6f66946d889ba55f6aa2fd11f87"
+    },
+    "py_router/frame_spool.py": {
+      "bytes": 9583,
+      "lines": 245,
+      "sha256": "41d4097012d9bd9b923a4fb7978203a56db476aa4a334cb0caa702a83e37bf60"
+    },
+    "py_router/geometry_utils.py": {
+      "bytes": 17186,
+      "lines": 467,
+      "sha256": "ea599cc0b449b824dfc0ca692dcef9b1035aa56b060404cc29a57e0dbb9a852b"
+    },
+    "py_router/global_plan.py": {
+      "bytes": 58466,
+      "lines": 1228,
+      "sha256": "56a9ad335c828aab0ffe4309b3f2763247b9a241ccbc9ab1e99affabdd2bb527"
+    },
+    "py_router/group_routing.py": {
+      "bytes": 13377,
+      "lines": 283,
+      "sha256": "c5b2b08b0996a2704b1f9b91780838fc4c9b13d37291ada03de981fd67dfe491"
+    },
+    "py_router/history_congestion.py": {
+      "bytes": 22482,
+      "lines": 493,
+      "sha256": "1519450ca76dfad53467838a271d5c6fa8b099509f4413a6fbbe5cd7824f810e"
+    },
+    "py_router/impedance.py": {
+      "bytes": 68930,
+      "lines": 1789,
+      "sha256": "1e3be5974d48207433d38b24baea0dbae755923de0eb8128ae1d92b36253368b"
+    },
+    "py_router/improvement_gate.py": {
+      "bytes": 15610,
+      "lines": 332,
+      "sha256": "9336728d5ad4df580207d1dee4af83b01c2dd1b0b59ca448fb824613671252d3"
+    },
+    "py_router/keep_away.py": {
+      "bytes": 47652,
+      "lines": 1019,
+      "sha256": "83e28ea8b3904cfadc80b26e86b5866ae9d6bd800645fb8ac2231e312fbdf1e3"
+    },
+    "py_router/kicad_dru.py": {
+      "bytes": 30936,
+      "lines": 663,
+      "sha256": "0dc0a5ab50b9d0ca83b178071b1f56eb86cd6906160c4e90f0864ec6a9af4c96"
+    },
+    "py_router/kicad_exact_fill.py": {
+      "bytes": 54328,
+      "lines": 1193,
+      "sha256": "12edfc03be0955dd95ccd20f6ddc5bcd435d72bbb13352151397f0ff558e7cef"
+    },
+    "py_router/kicad_iso_render.py": {
+      "bytes": 20889,
+      "lines": 446,
+      "sha256": "cbbdb7ad575742ede223b5f1a2fd508210fe6486a076718170ff5a3f4417235c"
+    },
+    "py_router/kicad_locate.py": {
+      "bytes": 27231,
+      "lines": 610,
+      "sha256": "0fd5de7ea5024691f3e75947b1d70ea80048e77ee8c24cd78ebd3d46befb0f26"
+    },
+    "py_router/kicad_oracle.py": {
+      "bytes": 179389,
+      "lines": 3498,
+      "sha256": "35c96fd9d9656b7a27ff0f04bb7758161bbc97f44a53e7a27802f03f47c64663"
+    },
+    "py_router/kicad_parser.py": {
+      "bytes": 496229,
+      "lines": 10451,
+      "sha256": "f85b1b8f2bc85f418dea0ba1aac6c35a7c89863026c3e91953214f7d15b83ade"
+    },
+    "py_router/kicad_writer.py": {
+      "bytes": 90383,
+      "lines": 2097,
+      "sha256": "ffce00f68e84b4a37f393a21c995036f9301f43778e0b78728106bb7644425c5"
+    },
+    "py_router/layer_swap_fallback.py": {
+      "bytes": 36779,
+      "lines": 630,
+      "sha256": "4fa52734ddd7879ff71a5b0f43819750e4b4fb56f2295b72bd40fee477715b5f"
+    },
+    "py_router/layer_swap_optimization.py": {
+      "bytes": 128292,
+      "lines": 2341,
+      "sha256": "fa1f6f93960a4d87f17d7acb348d55183bb60688ab6ba0700bb0f3c32df460bc"
+    },
+    "py_router/ledger_score.py": {
+      "bytes": 11816,
+      "lines": 287,
+      "sha256": "ce31d6080f0eceb3dc134ba0010f620ad1799cb01f8db93726e99d7fc85a881d"
+    },
+    "py_router/leg_rip.py": {
+      "bytes": 10851,
+      "lines": 233,
+      "sha256": "24c3fc9b503f2c7e0c2c0ef43e0c6b489b40e825f2d0abd69546f9f104c6022c"
+    },
+    "py_router/length_matching.py": {
+      "bytes": 188152,
+      "lines": 4182,
+      "sha256": "4ece75938d0bd922e6de5a324be98115198e13b1dbf8a3f3af685c77a8270a87"
+    },
+    "py_router/list_nets.py": {
+      "bytes": 61027,
+      "lines": 1215,
+      "sha256": "0faa09212907b347e48ce721d3c874125758ddf40d4f7bf48761072d7512908f"
+    },
+    "py_router/make_movie.py": {
+      "bytes": 33928,
+      "lines": 661,
+      "sha256": "670c89f82703cbe8bc401e9e13693b102cbcf756d3a746274ddab4111031b98b"
+    },
+    "py_router/memory_debug.py": {
+      "bytes": 5180,
+      "lines": 135,
+      "sha256": "6c0e549c44847f57ccfbfeb36f71f2e7b04fade388e0c12d5256971835243d63"
+    },
+    "py_router/movie_attempts.py": {
+      "bytes": 31036,
+      "lines": 677,
+      "sha256": "7bb978d7576314766fa33fd4e3aa26082303f17ced3bd03fb08cd86c4e784e1f"
+    },
+    "py_router/movie_benchmark.py": {
+      "bytes": 31924,
+      "lines": 757,
+      "sha256": "d23010db2d435df793a24238766184db6a620706f22f4027795b76bac65c91e2"
+    },
+    "py_router/movie_camera.py": {
+      "bytes": 51342,
+      "lines": 1150,
+      "sha256": "2fafc2e7f1eda4f603b7109531e9771cb509437340d6c3dcc82686f973c73052"
+    },
+    "py_router/movie_placement.py": {
+      "bytes": 49855,
+      "lines": 1206,
+      "sha256": "12c22f1668add5daa8a1df911f25e0463823430d5faae65f24f45beb58deacf2"
+    },
+    "py_router/mps_layer_swap.py": {
+      "bytes": 22580,
+      "lines": 505,
+      "sha256": "e744f54c365b8260a79885bb8faf24965384e0719c637885bba48b645bf3b432"
+    },
+    "py_router/net_cost.py": {
+      "bytes": 5289,
+      "lines": 122,
+      "sha256": "5d4964c0e296fbab73182fed2b091d6005080062d5a663ebb85f90b9e2ad9c66"
+    },
+    "py_router/net_ordering.py": {
+      "bytes": 9017,
+      "lines": 224,
+      "sha256": "bec77b33cf11177d8fc276ad0d47a531110b9854004e764d1dfa331464f40aa0"
+    },
+    "py_router/net_queries.py": {
+      "bytes": 119362,
+      "lines": 2654,
+      "sha256": "6b47c762cfe67ca0b0f432a4b47f149d52f82a10c2f5d8a1781d26b652275cd9"
+    },
+    "py_router/net_rescue.py": {
+      "bytes": 110058,
+      "lines": 2107,
+      "sha256": "38fca12fce416c441c80823809390be9a3a10bf591aae25525ef34544e9514be"
+    },
+    "py_router/net_story.py": {
+      "bytes": 6391,
+      "lines": 153,
+      "sha256": "a54ca5aff45e80d8a27b8b15fa4f4576a2bda803a8ce2ab4b7613e94101674ac"
+    },
+    "py_router/obstacle_cache.py": {
+      "bytes": 76415,
+      "lines": 1501,
+      "sha256": "dea6d6315a9fdd69413fbaefabafb73b79979e5bac50826c44e80830f3b6c6d3"
+    },
+    "py_router/obstacle_costs.py": {
+      "bytes": 36947,
+      "lines": 786,
+      "sha256": "66afaf065eeafe21af70b361cc2f0cf64c9a6efb7da1b418b0379167093358ec"
+    },
+    "py_router/obstacle_map.py": {
+      "bytes": 245648,
+      "lines": 4726,
+      "sha256": "4fa8ab6598268267cc286047f05be90bc2b355cd33d87a083b6db8f1e0ff4757"
+    },
+    "py_router/output_writer.py": {
+      "bytes": 26115,
+      "lines": 522,
+      "sha256": "617d58a2125558419a380557c8628ad8fba3cf8d0f31efe0872ed4f2fa4bdaaf"
+    },
+    "py_router/pack_river.py": {
+      "bytes": 17088,
+      "lines": 397,
+      "sha256": "34d54fb0f9ae956ab0507fa818cf604fdc8816a0b54508f23db9c742e7c31dc0"
+    },
+    "py_router/paste_apertures.py": {
+      "bytes": 26381,
+      "lines": 651,
+      "sha256": "0c7a864b934ae7ec812f0fb091d16385f442b8472fa34885b85f20219e7e6031"
+    },
+    "py_router/pcb_io_utils.py": {
+      "bytes": 1632,
+      "lines": 41,
+      "sha256": "a128f2dc42e869dc46ac240d739e6523eb31a75ffec85798c396784ab7606892"
+    },
+    "py_router/pcb_modification.py": {
+      "bytes": 403500,
+      "lines": 7818,
+      "sha256": "3c8da17cd58610d263a77a8703ff09df27974ff86d19e9162876089c00212a20"
+    },
+    "py_router/phase3_routing.py": {
+      "bytes": 116626,
+      "lines": 2191,
+      "sha256": "fa208fc1ffe6d446e8a5eccd54c56c1836ddf3345564093a253f749577e134e4"
+    },
+    "py_router/place_motion.py": {
+      "bytes": 8143,
+      "lines": 170,
+      "sha256": "9fa0574956f290e947a1c842f0d6ffe38a7e8ff42b881ecf7b94780e78d00f09"
+    },
+    "py_router/plane_blocker_detection.py": {
+      "bytes": 15364,
+      "lines": 349,
+      "sha256": "c439b516ff466034902153e29a52969d16002891506ada7d6b61d5f7ca1931d1"
+    },
+    "py_router/plane_component_oracle.py": {
+      "bytes": 12393,
+      "lines": 267,
+      "sha256": "845aee20a9d3080b1047f48023bb93fb9cebfb072962bca64e6a0a2f208ebf96"
+    },
+    "py_router/plane_corridor_ghosts.py": {
+      "bytes": 8490,
+      "lines": 188,
+      "sha256": "dd2e5cc64a7946af47cdf98b6da9a5ac530eff2a64619c4774c2c81ce208a2e1"
+    },
+    "py_router/plane_fill_model.py": {
+      "bytes": 34043,
+      "lines": 710,
+      "sha256": "001778d66ca3b4b01309c3bb979fcba6a989d07495dcad1c7662b74fee00777a"
+    },
+    "py_router/plane_fragility.py": {
+      "bytes": 33562,
+      "lines": 701,
+      "sha256": "c5d4fe82872c8767abb07c2a439dbf76701b0b426402469e2b7e01d4b081cd60"
+    },
+    "py_router/plane_io.py": {
+      "bytes": 41510,
+      "lines": 903,
+      "sha256": "0155a404aaf856d9256282d1115a257b923eeff7ad87620b19efe95d942b9169"
+    },
+    "py_router/plane_lattice.py": {
+      "bytes": 5342,
+      "lines": 129,
+      "sha256": "c96af256f7f1827cf7b5d2a1ec472eda1a841f61bfa817307cb762765015c353"
+    },
+    "py_router/plane_obstacle_builder.py": {
+      "bytes": 66276,
+      "lines": 1362,
+      "sha256": "cbc959ff99e9c666913037e7c40c456f166feba549220e166b9f0a64b67dbdd7"
+    },
+    "py_router/plane_pad_tap.py": {
+      "bytes": 82263,
+      "lines": 1594,
+      "sha256": "53fd384f7def41f3461c41cfcb53e09f48c25f4ceee791e8f9443b0b88ddf04f"
+    },
+    "py_router/plane_region_connector.py": {
+      "bytes": 195665,
+      "lines": 3947,
+      "sha256": "ef9aab2d3fa40191fa7e0978348ccfeab8981d96e2c47744921f8aedc1c73b34"
+    },
+    "py_router/plane_resistance.py": {
+      "bytes": 24686,
+      "lines": 686,
+      "sha256": "13ac213ca844508852f397853234815a3b5d5675afcad593206933130322005a"
+    },
+    "py_router/plane_split_raster.py": {
+      "bytes": 19399,
+      "lines": 391,
+      "sha256": "c0e938278fde7ef7b38c31cfc8ed3d4bef6ba0e377941692b3088a4fe4f2a59f"
+    },
+    "py_router/plane_write_reconcile.py": {
+      "bytes": 6787,
+      "lines": 136,
+      "sha256": "1c257a0b76f329e040c3cf99f6499e283fccaa2ba4526217fe164ca2a114c9e3"
+    },
+    "py_router/plane_zone_geometry.py": {
+      "bytes": 6972,
+      "lines": 223,
+      "sha256": "8c2ba668b5a2bc40755b8701075296f3b7635813a260bc52af37282e1edaa095"
+    },
+    "py_router/polarity_swap.py": {
+      "bytes": 8795,
+      "lines": 194,
+      "sha256": "586014b0c93f79222eaaf2a6f0554a4edb379e615441bb26cb6e78351776d4b0"
+    },
+    "py_router/pour_guard.py": {
+      "bytes": 21154,
+      "lines": 480,
+      "sha256": "60890ff3814d6c49b01f37ed24bbab3457f896b50471578e6e6b58bc2e5192f3"
+    },
+    "py_router/pour_promise.py": {
+      "bytes": 12988,
+      "lines": 282,
+      "sha256": "55d2db38af8da4acf7298da184fb08868623b62474bcd77f28ec52b220b978f9"
+    },
+    "py_router/protected_nets.py": {
+      "bytes": 22591,
+      "lines": 515,
+      "sha256": "8e1aaa2002befb452e75948fd19a2ed4d1a9440a6b659b3dfce8be3f58174fd9"
+    },
+    "py_router/redo_record.py": {
+      "bytes": 5023,
+      "lines": 113,
+      "sha256": "f167110134b8b5e385a67863bd22a02256b2b85c67566a9100b9859c19a7b143"
+    },
+    "py_router/render_chrome.py": {
+      "bytes": 15780,
+      "lines": 370,
+      "sha256": "1182ac85522eac27cfb1c3eb833df5299f039722ab612a55bd705f0580823f7c"
+    },
+    "py_router/render_panels.py": {
+      "bytes": 15274,
+      "lines": 324,
+      "sha256": "44c6e4e391e111b67395f636495c951a33dccb28e14891f19aa9ced79d06b780"
+    },
+    "py_router/render_plan.py": {
+      "bytes": 9132,
+      "lines": 207,
+      "sha256": "8972d1277db570ac91e33022d4ee8488f8b0c066f964ea1ccd6c42ee6f0b0dff"
+    },
+    "py_router/render_theme.py": {
+      "bytes": 24440,
+      "lines": 511,
+      "sha256": "cb661cb989717f1c0ce6d0f1afad2485763527014b7cfd2364e7661f70b9ddf3"
+    },
+    "py_router/repair_planes.py": {
+      "bytes": 226805,
+      "lines": 4037,
+      "sha256": "5a5fdd7906ef5ad3acbbf6a0b72a08dd64fe3c4a4fee107e20a117d9432d0fbc"
+    },
+    "py_router/reroute_loop.py": {
+      "bytes": 89686,
+      "lines": 1356,
+      "sha256": "7b5002ba9c5b412784372f3cd8c789bdec370180ba17c370506def89581bf2cd"
+    },
+    "py_router/rip_defer.py": {
+      "bytes": 6592,
+      "lines": 140,
+      "sha256": "c965f8b2cdf65d10254735049b5eebafe72c4229d9d9efbedd10bd0dd06dfdb6"
+    },
+    "py_router/rip_restore.py": {
+      "bytes": 15562,
+      "lines": 302,
+      "sha256": "9a5a68cf13050035de319d8158807cea3104b79241ef15523a729edf42ae544b"
+    },
+    "py_router/rip_up_reroute.py": {
+      "bytes": 40687,
+      "lines": 785,
+      "sha256": "e438891f67059b0376eae91c4bff82bb26f2dec9e702aee454927abc29cc5149"
+    },
+    "py_router/route.py": {
+      "bytes": 527145,
+      "lines": 9012,
+      "sha256": "a5b387a0cc562fbe2899efd25bac563a0abf1df02896d5b2bbe42044930cff1e"
+    },
+    "py_router/route_diff.py": {
+      "bytes": 161348,
+      "lines": 2725,
+      "sha256": "3da7ecc9a60de4a7521d7dd5f598b80a5e768e669f80c46e9c582af9c8826ff8"
+    },
+    "py_router/route_planes.py": {
+      "bytes": 245903,
+      "lines": 4773,
+      "sha256": "468d17b55a84161bc70ad8594dfc5142e2416addda501f8b8cd6aa6b25940cb3"
+    },
+    "py_router/route_render.py": {
+      "bytes": 47009,
+      "lines": 946,
+      "sha256": "5fca0a39fbca4d58e0a77f503867e0fb48bed766ede31b9664a5a0b6c9f7131f"
+    },
+    "py_router/route_summary.py": {
+      "bytes": 43199,
+      "lines": 847,
+      "sha256": "3c8575595d90ca286dc06e36df2905aea583a10e986d13633fd36b5e8d026410"
+    },
+    "py_router/route_trace.py": {
+      "bytes": 14660,
+      "lines": 324,
+      "sha256": "4511cbacf524a9b72739ed06e4d1b1ff28cf035fef5aa634939cfba3f0c73e3b"
+    },
+    "py_router/routing_common.py": {
+      "bytes": 55287,
+      "lines": 1143,
+      "sha256": "a698bbb0c09d6be2bb9e87e741e4cb23bb563e0fe9a7ebe6ed29356a00166311"
+    },
+    "py_router/routing_config.py": {
+      "bytes": 58870,
+      "lines": 990,
+      "sha256": "3165f32065b639825515b00a7df6716228faef7c72c94f6c14cd88bf3b322719"
+    },
+    "py_router/routing_constants.py": {
+      "bytes": 3674,
+      "lines": 74,
+      "sha256": "5bd4f2aa4d42b5b8f581111bd2ef534a5a1aa53af81b7757fbecfff529c2f718"
+    },
+    "py_router/routing_context.py": {
+      "bytes": 60098,
+      "lines": 1240,
+      "sha256": "2285fa2acee5d0cd1893dd0d95f100b54abd35a7fc625849ab69b4d050911f0e"
+    },
+    "py_router/routing_defaults.py": {
+      "bytes": 24587,
+      "lines": 418,
+      "sha256": "814cb2693c8029539b9a37726fa84c8b93ed76edbd32da31ac6722a80e75ddf9"
+    },
+    "py_router/routing_diagnostics.py": {
+      "bytes": 44424,
+      "lines": 942,
+      "sha256": "82aef147c608c83d897b8713073893b722bb71d0880f8575ac1c3d94afc46b15"
+    },
+    "py_router/routing_exceptions.py": {
+      "bytes": 1923,
+      "lines": 72,
+      "sha256": "2f881ffd0ea1eb1bb19d49c300d1ddac5a2da87a20403f62cc6026c9a5f4c03a"
+    },
+    "py_router/routing_state.py": {
+      "bytes": 23649,
+      "lines": 490,
+      "sha256": "38b8ce2090aa5029bf63ef657b3ef62ce66f03a553f193f570b442dd60f44c01"
+    },
+    "py_router/routing_utils.py": {
+      "bytes": 29686,
+      "lines": 636,
+      "sha256": "a7d25f7423f4fcddc5be3ebbfedc31f3c70ae895963c23740679489ebd75e536"
+    },
+    "py_router/rust_alloc.py": {
+      "bytes": 3301,
+      "lines": 65,
+      "sha256": "838d142cd07a85f8f78b49b8a237f783525c1a548f545195aaa3008331a7655e"
+    },
+    "py_router/schematic_updater.py": {
+      "bytes": 13742,
+      "lines": 365,
+      "sha256": "3dc6cccbadd5e61ee99b08c11557566cb030d6cadf9916352357df6bf52582d8"
+    },
+    "py_router/single_ended_loop.py": {
+      "bytes": 107206,
+      "lines": 1746,
+      "sha256": "7e8dc8d72175fb067781434e6c2c673fcda6482b7a0465f1ed3fc7fedb7bc4c5"
+    },
+    "py_router/single_ended_routing.py": {
+      "bytes": 313211,
+      "lines": 6071,
+      "sha256": "a0f5cf37746f694a693e5fba39530eacd09a257385953443a195a570d889a9a5"
+    },
+    "py_router/stage3d/__init__.py": {
+      "bytes": 490,
+      "lines": 9,
+      "sha256": "161f136b3da4952b101ecd563d9bd3037acfa100d74339683eb0e197bd888970"
+    },
+    "py_router/stage3d/blender_scene.py": {
+      "bytes": 18562,
+      "lines": 438,
+      "sha256": "d99c8de1bbccb507d5f4088fcf9eb99df42034c1632efc76b4c78aa6bbf551a2"
+    },
+    "py_router/stage3d/film.py": {
+      "bytes": 6035,
+      "lines": 139,
+      "sha256": "fe6e00044a30326121b7d5cfb7fe7035f108eb9409207ee8a5b46ca5eb6cff6c"
+    },
+    "py_router/stage3d/render3d.py": {
+      "bytes": 17497,
+      "lines": 401,
+      "sha256": "098cac31929a6d27291047f8c444da9a4ecb672748899fa64de1d69fbd5d6d17"
+    },
+    "py_router/stage3d/scene.py": {
+      "bytes": 17819,
+      "lines": 387,
+      "sha256": "a99eadf1f6eb827858ce5135f88e5e1ced8fb1e223ea952f28ceeb86a716ec31"
+    },
+    "py_router/stage3d/timeline.py": {
+      "bytes": 12094,
+      "lines": 295,
+      "sha256": "85a8fa201161bf3f2e606dc8cc70afc3936f6988d1d1b505acf5427f6100f590"
+    },
+    "py_router/startup_checks.py": {
+      "bytes": 26874,
+      "lines": 636,
+      "sha256": "2721cee806e90d48e9d1086a86876b615d2205c40b35420d6ee000fbfcb76bd3"
+    },
+    "py_router/stub_layer_switching.py": {
+      "bytes": 76605,
+      "lines": 1630,
+      "sha256": "42b46236da915cbe1f3c3468c1fba09134cc02b87ee02af48f38c87579e7df5d"
+    },
+    "py_router/swig_compat.py": {
+      "bytes": 3919,
+      "lines": 83,
+      "sha256": "6c3d48c24a439231901b84d08467d8c59817a8993730a499cbcdfe071d46925f"
+    },
+    "py_router/tap_relocation.py": {
+      "bytes": 11105,
+      "lines": 237,
+      "sha256": "c516170f8f4c6b7b5ebb880722032386baa4a2b852bd2d5cabb7ada225d990f1"
+    },
+    "py_router/target_swap.py": {
+      "bytes": 72767,
+      "lines": 1756,
+      "sha256": "01bc14831d34493d1b7ea5903815a79ab6e8b55e62170b8fd52b8f3b48c6e00b"
+    },
+    "py_router/terminal_colors.py": {
+      "bytes": 1641,
+      "lines": 46,
+      "sha256": "824dbf2811eb5ab677a4440bbc44e8734445d628847fbf6b43e7da367761ae24"
+    },
+    "py_router/tool_records.py": {
+      "bytes": 11346,
+      "lines": 296,
+      "sha256": "d459728ad947d6d078c3e0ec045425793f2832705e1a5e560942e2352ccda74c"
+    },
+    "py_router/ui_thread.py": {
+      "bytes": 8051,
+      "lines": 182,
+      "sha256": "434574ac58739a0370d469b1a387fc67b43e675b3b4d54dbb67485f4442b0070"
+    },
+    "py_tools/_path.py": {
+      "bytes": 1005,
+      "lines": 25,
+      "sha256": "d58191abe45e6d016915dcbc7de0b357489237082370af35be654984a5e0ed46"
+    },
+    "py_tools/board_brief.py": {
+      "bytes": 61564,
+      "lines": 1220,
+      "sha256": "22948dba3d97398885ed49545db59f452f488ac144a85ca7d990c6acc42053ff"
+    },
+    "py_tools/board_context.py": {
+      "bytes": 60064,
+      "lines": 1254,
+      "sha256": "c5160fac7c731659abe4c688a8ff5497a7511d192390d9ab0237b5908f4faa79"
+    },
+    "py_tools/board_score.py": {
+      "bytes": 86945,
+      "lines": 1602,
+      "sha256": "cba1191684ee564af0427f3479ef79d4289e0bbb8ecf6724b9f26f3e81c548e6"
+    },
+    "py_tools/check_floorplan.py": {
+      "bytes": 65538,
+      "lines": 1204,
+      "sha256": "4b1751d6654a5b758961e828f1ec78b02fe13b11debd3c918e00147e976ed0b8"
+    },
+    "py_tools/check_impedance.py": {
+      "bytes": 48014,
+      "lines": 1034,
+      "sha256": "ea58a0fe25257c4a72c4a6171c7d8ae77614adc436e3ce1a709b736cb895e864"
+    },
+    "py_tools/check_orphan_stubs.py": {
+      "bytes": 16807,
+      "lines": 403,
+      "sha256": "21e7dab33cd719b96fcbb9190352bd5b95f20c459cb32573b9fe877a5d60ded3"
+    },
+    "py_tools/check_reachability.py": {
+      "bytes": 32865,
+      "lines": 635,
+      "sha256": "19a0e4f7ee73cbead1904593e58882cf7ab37afe6b179737629442f35c3ff3e2"
+    },
+    "py_tools/render_placement.py": {
+      "bytes": 156103,
+      "lines": 2949,
+      "sha256": "24e6d63a04f8e5d2b3ad39db28504968c467d80c22bc0074c9e4583f1c4fd543"
+    }
+  },
+  "imports": {
+    "krt_capabilities.py": [],
+    "py_placer/_path.py": [],
+    "py_placer/place_route_loop.py": [
+      "py_placer/_path.py",
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/cli_gates.py",
+      "py_placer/placement/diagnosis.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/lock_advisor.py",
+      "py_placer/placement/placement_state.py",
+      "py_placer/placement/portfolio.py",
+      "py_placer/placement/provenance.py",
+      "py_placer/placement/quench.py",
+      "py_placer/placement/relocate.py",
+      "py_placer/placement/routability.py",
+      "py_placer/placement/writer.py",
+      "py_placer/pose_score.py",
+      "py_router/cli_nets.py",
+      "py_router/kicad_parser.py",
+      "py_router/make_movie.py",
+      "py_router/redo_record.py",
+      "py_router/route_summary.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_placer/placement/__init__.py": [],
+    "py_placer/placement/arrays.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/part_class.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py"
+    ],
+    "py_placer/placement/board_grid.py": [],
+    "py_placer/placement/body.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/utility.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/cli_gates.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/design_brief.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/provenance.py",
+      "py_placer/placement/reconcile.py"
+    ],
+    "py_placer/placement/connector_geometry.py": [
+      "py_placer/placement/body.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/parser.py",
+      "py_router/kicad_parser.py",
+      "py_router/paste_apertures.py"
+    ],
+    "py_placer/placement/design_brief.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/reconcile.py",
+      "py_router/keep_away.py"
+    ],
+    "py_placer/placement/diagnosis.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/quench.py",
+      "py_placer/placement/routability.py",
+      "py_router/list_nets.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_placer/placement/edge_facing.py": [
+      "py_placer/placement/escape.py",
+      "py_placer/placement/pose_ops.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/emc_roles.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/roles.py",
+      "py_router/keep_away.py",
+      "py_router/net_queries.py"
+    ],
+    "py_placer/placement/escape.py": [
+      "py_placer/placement/legality.py",
+      "py_placer/placement/pin_rows.py",
+      "py_router/fab_tiers.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/paste_apertures.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_placer/placement/floorplan.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/arrays.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/connector_geometry.py",
+      "py_placer/placement/edge_facing.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/mating.py",
+      "py_placer/placement/options.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/placement_state.py",
+      "py_placer/placement/pose_ops.py",
+      "py_placer/placement/provenance.py",
+      "py_placer/placement/quench.py",
+      "py_placer/placement/reconcile.py",
+      "py_placer/placement/reconstruct.py",
+      "py_placer/placement/replicate.py",
+      "py_placer/placement/routability.py",
+      "py_placer/placement/utility.py",
+      "py_placer/pose_score.py",
+      "py_router/keep_away.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/paste_apertures.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_placer/placement/groups.py": [
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/roles.py",
+      "py_router/chip_boundary.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py"
+    ],
+    "py_placer/placement/legality.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/utility.py",
+      "py_router/check_drc.py",
+      "py_router/check_pads.py",
+      "py_router/design_rules.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_map.py",
+      "py_router/paste_apertures.py",
+      "py_router/routing_defaults.py",
+      "py_router/tool_records.py"
+    ],
+    "py_placer/placement/lock_advisor.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/placement_state.py",
+      "py_placer/placement/reconstruct.py",
+      "py_placer/pose_score.py",
+      "py_router/check_drc.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_placer/placement/mating.py": [
+      "py_placer/placement/body.py",
+      "py_placer/placement/floorplan.py"
+    ],
+    "py_placer/placement/options.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/escape.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/pin_rows.py",
+      "py_placer/placement/utility.py",
+      "py_router/fab_tiers.py",
+      "py_router/kicad_parser.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_placer/placement/pair_order.py": [],
+    "py_placer/placement/parser.py": [
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/part_class.py": [
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/pin_rows.py": [
+      "py_router/kicad_parser.py",
+      "py_router/obstacle_map.py",
+      "py_router/routing_config.py"
+    ],
+    "py_placer/placement/placement_state.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/utility.py",
+      "py_router/check_drc.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/portfolio.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/board_grid.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/pair_order.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/quench.py",
+      "py_placer/placement/seeder.py",
+      "py_placer/placement/utility.py",
+      "py_placer/placement/writer.py",
+      "py_placer/pose_score.py",
+      "py_router/copy_board.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/pose_ops.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/escape.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/portfolio.py",
+      "py_placer/placement/provenance.py",
+      "py_placer/placement/replicate.py",
+      "py_placer/placement/seeder.py",
+      "py_placer/placement/writer.py",
+      "py_placer/pose_score.py",
+      "py_router/copy_board.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_placer/placement/provenance.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/legality.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/quench.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/arrays.py",
+      "py_placer/placement/board_grid.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/pair_order.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/routability.py",
+      "py_placer/placement/seeder.py",
+      "py_placer/placement/utility.py",
+      "py_router/connectivity.py",
+      "py_router/kicad_parser.py",
+      "py_router/paste_apertures.py"
+    ],
+    "py_placer/placement/reachability.py": [
+      "py_router/check_connected.py",
+      "py_router/net_queries.py"
+    ],
+    "py_placer/placement/reconcile.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/provenance.py",
+      "py_placer/pose_score.py"
+    ],
+    "py_placer/placement/reconstruct.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/seeder.py",
+      "py_router/check_drc.py"
+    ],
+    "py_placer/placement/relocate.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/diagnosis.py"
+    ],
+    "py_placer/placement/replicate.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/arrays.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/pose_ops.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/roles.py": [
+      "py_placer/placement/part_class.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/routability.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/escape.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/quench.py",
+      "py_router/net_queries.py"
+    ],
+    "py_placer/placement/seeder.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/arrays.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/connector_geometry.py",
+      "py_placer/placement/edge_facing.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/placement_state.py",
+      "py_placer/placement/quench.py",
+      "py_placer/placement/reconstruct.py",
+      "py_placer/placement/writer.py",
+      "py_placer/pose_score.py",
+      "py_router/copy_board.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py"
+    ],
+    "py_placer/placement/utility.py": [
+      "py_router/kicad_parser.py"
+    ],
+    "py_placer/placement/writer.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/provenance.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/plane_io.py"
+    ],
+    "py_placer/placement_score.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/edge_facing.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/parser.py",
+      "py_placer/placement/part_class.py",
+      "py_router/impedance.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/routing_defaults.py",
+      "py_tools/board_context.py"
+    ],
+    "py_placer/pose_score.py": [
+      "py_placer/_path.py",
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/pair_order.py",
+      "py_placer/placement/quench.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/_placer_path.py": [],
+    "py_router/add_gnd_vias.py": [
+      "py_router/fab_tiers.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/routing_config.py",
+      "py_router/rust_alloc.py"
+    ],
+    "py_router/animate_route.py": [
+      "py_router/copper_motion.py",
+      "py_router/env_knobs.py",
+      "py_router/frame_layout.py",
+      "py_router/frame_spool.py",
+      "py_router/kicad_parser.py",
+      "py_router/movie_attempts.py",
+      "py_router/render_chrome.py",
+      "py_router/render_panels.py",
+      "py_router/render_theme.py",
+      "py_router/route_render.py",
+      "py_router/route_trace.py",
+      "py_router/stage3d/__init__.py",
+      "py_router/stage3d/film.py"
+    ],
+    "py_router/bga_fanout.py": [
+      "py_router/bga_fanout.py",
+      "py_router/console_encoding.py",
+      "py_router/env_knobs.py",
+      "py_router/redo_record.py"
+    ],
+    "py_router/bga_fanout/__init__.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/collision.py",
+      "py_router/bga_fanout/diff_pair.py",
+      "py_router/bga_fanout/escape.py",
+      "py_router/bga_fanout/flip_frame.py",
+      "py_router/bga_fanout/geometry.py",
+      "py_router/bga_fanout/grid.py",
+      "py_router/bga_fanout/layer_assignment.py",
+      "py_router/bga_fanout/layer_balance.py",
+      "py_router/bga_fanout/reroute.py",
+      "py_router/bga_fanout/rotate_frame.py",
+      "py_router/bga_fanout/tracks.py",
+      "py_router/bga_fanout/types.py",
+      "py_router/bga_fanout/underpad.py",
+      "py_router/check_drc.py",
+      "py_router/check_pads.py",
+      "py_router/clearance_ledger.py",
+      "py_router/cli_nets.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_notes.py",
+      "py_router/fab_tiers.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_io_utils.py",
+      "py_router/plane_lattice.py",
+      "py_router/plane_obstacle_builder.py",
+      "py_router/protected_nets.py",
+      "py_router/route.py",
+      "py_router/route_planes.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/startup_checks.py",
+      "py_router/stub_layer_switching.py"
+    ],
+    "py_router/bga_fanout/collision.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/constants.py"
+    ],
+    "py_router/bga_fanout/constants.py": [],
+    "py_router/bga_fanout/diff_pair.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/types.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py"
+    ],
+    "py_router/bga_fanout/escape.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/grid.py",
+      "py_router/bga_fanout/types.py",
+      "py_router/net_queries.py"
+    ],
+    "py_router/bga_fanout/flip_frame.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/legality.py",
+      "py_router/_placer_path.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/bga_fanout/geometry.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/constants.py",
+      "py_router/bga_fanout/types.py",
+      "py_router/check_drc.py",
+      "py_router/fab_tiers.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/bga_fanout/grid.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/constants.py",
+      "py_router/bga_fanout/types.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/bga_fanout/layer_assignment.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/collision.py",
+      "py_router/bga_fanout/types.py"
+    ],
+    "py_router/bga_fanout/layer_balance.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/collision.py",
+      "py_router/bga_fanout/constants.py",
+      "py_router/bga_fanout/types.py"
+    ],
+    "py_router/bga_fanout/reroute.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/collision.py",
+      "py_router/bga_fanout/constants.py",
+      "py_router/bga_fanout/escape.py",
+      "py_router/bga_fanout/geometry.py",
+      "py_router/bga_fanout/grid.py",
+      "py_router/bga_fanout/layer_assignment.py",
+      "py_router/bga_fanout/types.py",
+      "py_router/check_drc.py",
+      "py_router/kicad_parser.py",
+      "py_router/obstacle_map.py"
+    ],
+    "py_router/bga_fanout/rotate_frame.py": [
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/bga_fanout/tracks.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/collision.py",
+      "py_router/bga_fanout/constants.py",
+      "py_router/bga_fanout/types.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/bga_fanout/types.py": [
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/bga_fanout/underpad.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/geometry.py",
+      "py_router/bga_fanout/types.py",
+      "py_router/check_drc.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_tiers.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/plane_fill_model.py",
+      "py_router/plane_fragility.py",
+      "py_router/protected_nets.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_router/blocking_analysis.py": [
+      "py_router/check_drc.py",
+      "py_router/history_congestion.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_cost.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_map.py",
+      "py_router/protected_nets.py",
+      "py_router/routing_config.py",
+      "py_router/routing_utils.py",
+      "py_router/single_ended_routing.py"
+    ],
+    "py_router/bresenham_utils.py": [],
+    "py_router/bus_corridor.py": [
+      "py_router/bus_detection.py",
+      "py_router/env_knobs.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_map.py",
+      "py_router/single_ended_routing.py"
+    ],
+    "py_router/bus_detection.py": [
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/check_connected.py": [
+      "py_router/check_drc.py",
+      "py_router/cli_banner.py",
+      "py_router/cli_nets.py",
+      "py_router/connectivity.py",
+      "py_router/console_encoding.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_exact_fill.py",
+      "py_router/kicad_oracle.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/plane_fill_model.py"
+    ],
+    "py_router/check_drc.py": [
+      "py_router/check_drc.py",
+      "py_router/cli_banner.py",
+      "py_router/cli_nets.py",
+      "py_router/connectivity.py",
+      "py_router/console_encoding.py",
+      "py_router/design_rules.py",
+      "py_router/fab_notes.py",
+      "py_router/fab_tiers.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/route_render.py",
+      "py_router/routing_constants.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_router/check_pads.py": [
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/check_weird.py": [
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/connectivity.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/pcb_modification.py",
+      "py_router/routing_constants.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/chip_boundary.py": [
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/cleanup_pipeline.py": [
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/pcb_modification.py",
+      "py_router/protected_nets.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/clearance_ledger.py": [],
+    "py_router/cli_banner.py": [
+      "py_router/env_knobs.py"
+    ],
+    "py_router/cli_nets.py": [],
+    "py_router/cmd_timing.py": [
+      "py_router/render_theme.py",
+      "py_router/route_render.py"
+    ],
+    "py_router/congestion_field.py": [
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/connectivity.py": [
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/routing_config.py",
+      "py_router/routing_constants.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/console_encoding.py": [],
+    "py_router/copper_motion.py": [],
+    "py_router/copy_board.py": [
+      "py_router/redo_record.py"
+    ],
+    "py_router/design_rules.py": [
+      "py_router/kicad_dru.py",
+      "py_router/list_nets.py"
+    ],
+    "py_router/diff_pair_custody.py": [
+      "py_router/check_connected.py",
+      "py_router/connectivity.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/layer_swap_fallback.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/pcb_modification.py",
+      "py_router/polarity_swap.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/routing_context.py",
+      "py_router/single_ended_routing.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/diff_pair_loop.py": [
+      "py_router/blocking_analysis.py",
+      "py_router/diff_pair_custody.py",
+      "py_router/diff_pair_multipoint.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/layer_swap_fallback.py",
+      "py_router/memory_debug.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/pcb_modification.py",
+      "py_router/polarity_swap.py",
+      "py_router/protected_nets.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/routing_config.py",
+      "py_router/routing_context.py",
+      "py_router/routing_diagnostics.py",
+      "py_router/routing_state.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/diff_pair_multipoint.py": [
+      "py_router/check_drc.py",
+      "py_router/connectivity.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/layer_swap_fallback.py",
+      "py_router/length_matching.py",
+      "py_router/net_queries.py",
+      "py_router/pcb_modification.py",
+      "py_router/polarity_swap.py",
+      "py_router/routing_config.py",
+      "py_router/routing_context.py",
+      "py_router/stub_layer_switching.py"
+    ],
+    "py_router/diff_pair_routing.py": [
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_tiers.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_modification.py",
+      "py_router/polarity_swap.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py",
+      "py_router/rust_alloc.py",
+      "py_router/single_ended_routing.py",
+      "py_router/stub_layer_switching.py"
+    ],
+    "py_router/diff_xnet.py": [
+      "py_router/kicad_parser.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/dup_trap.py": [],
+    "py_router/env_knobs.py": [],
+    "py_router/fab_notes.py": [
+      "py_router/check_drc.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/paste_apertures.py"
+    ],
+    "py_router/fab_tiers.py": [
+      "py_router/routing_defaults.py"
+    ],
+    "py_router/film_passes.py": [
+      "py_router/movie_benchmark.py",
+      "py_router/movie_placement.py"
+    ],
+    "py_router/fix_kicad_drc_settings.py": [
+      "py_router/copy_board.py",
+      "py_router/fab_tiers.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/terminal_colors.py",
+      "py_router/tool_records.py"
+    ],
+    "py_router/frame_layout.py": [
+      "py_router/env_knobs.py"
+    ],
+    "py_router/frame_spool.py": [],
+    "py_router/geometry_utils.py": [],
+    "py_router/global_plan.py": [
+      "py_router/bresenham_utils.py",
+      "py_router/congestion_field.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/layer_swap_optimization.py",
+      "py_router/obstacle_costs.py",
+      "py_router/obstacle_map.py",
+      "py_router/plane_pad_tap.py",
+      "py_router/routing_config.py",
+      "py_router/single_ended_routing.py",
+      "py_router/stub_layer_switching.py"
+    ],
+    "py_router/group_routing.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/groups.py",
+      "py_router/_placer_path.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/plane_io.py",
+      "py_router/protected_nets.py"
+    ],
+    "py_router/history_congestion.py": [
+      "py_router/env_knobs.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/impedance.py": [
+      "py_router/fab_tiers.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py"
+    ],
+    "py_router/improvement_gate.py": [
+      "py_router/check_connected.py"
+    ],
+    "py_router/keep_away.py": [
+      "py_router/connectivity.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/kicad_dru.py": [
+      "py_router/design_rules.py",
+      "py_router/fab_tiers.py",
+      "py_router/list_nets.py"
+    ],
+    "py_router/kicad_exact_fill.py": [
+      "py_router/check_connected.py",
+      "py_router/kicad_locate.py",
+      "py_router/kicad_oracle.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/swig_compat.py"
+    ],
+    "py_router/kicad_iso_render.py": [
+      "py_router/kicad_oracle.py"
+    ],
+    "py_router/kicad_locate.py": [],
+    "py_router/kicad_oracle.py": [
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_tiers.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/geometry_utils.py",
+      "py_router/global_plan.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_exact_fill.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/net_queries.py",
+      "py_router/net_rescue.py",
+      "py_router/plane_fill_model.py",
+      "py_router/plane_pad_tap.py",
+      "py_router/plane_region_connector.py",
+      "py_router/single_ended_routing.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/kicad_parser.py": [
+      "py_router/check_drc.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_exact_fill.py",
+      "py_router/obstacle_map.py",
+      "py_router/paste_apertures.py",
+      "py_router/routing_defaults.py",
+      "py_router/swig_compat.py",
+      "py_router/tool_records.py",
+      "py_router/ui_thread.py"
+    ],
+    "py_router/kicad_writer.py": [
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/kicad_parser.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/layer_swap_fallback.py": [
+      "py_router/blocking_analysis.py",
+      "py_router/connectivity.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/history_congestion.py",
+      "py_router/kicad_parser.py",
+      "py_router/layer_swap_optimization.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_modification.py",
+      "py_router/polarity_swap.py",
+      "py_router/protected_nets.py",
+      "py_router/routing_config.py",
+      "py_router/routing_context.py",
+      "py_router/stub_layer_switching.py"
+    ],
+    "py_router/layer_swap_optimization.py": [
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/connectivity.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/fab_tiers.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/layer_swap_fallback.py",
+      "py_router/net_queries.py",
+      "py_router/routing_config.py",
+      "py_router/stub_layer_switching.py"
+    ],
+    "py_router/ledger_score.py": [],
+    "py_router/leg_rip.py": [
+      "py_router/routing_config.py"
+    ],
+    "py_router/length_matching.py": [
+      "py_router/check_drc.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/geometry_utils.py",
+      "py_router/impedance.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/protected_nets.py",
+      "py_router/routing_config.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/list_nets.py": [
+      "py_router/console_encoding.py",
+      "py_router/fab_tiers.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py"
+    ],
+    "py_router/make_movie.py": [
+      "py_router/animate_route.py",
+      "py_router/cmd_timing.py",
+      "py_router/env_knobs.py",
+      "py_router/film_passes.py",
+      "py_router/frame_layout.py",
+      "py_router/frame_spool.py",
+      "py_router/movie_camera.py",
+      "py_router/render_theme.py",
+      "py_router/route_render.py",
+      "py_router/stage3d/__init__.py",
+      "py_router/stage3d/film.py"
+    ],
+    "py_router/memory_debug.py": [],
+    "py_router/movie_attempts.py": [
+      "py_router/frame_layout.py",
+      "py_router/ledger_score.py",
+      "py_router/movie_camera.py"
+    ],
+    "py_router/movie_benchmark.py": [
+      "py_router/frame_layout.py",
+      "py_router/frame_spool.py",
+      "py_router/ledger_score.py",
+      "py_router/movie_attempts.py",
+      "py_router/render_theme.py",
+      "py_router/route_render.py",
+      "py_tools/board_score.py"
+    ],
+    "py_router/movie_camera.py": [
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/movie_camera.py",
+      "py_router/place_motion.py",
+      "py_router/route_render.py"
+    ],
+    "py_router/movie_placement.py": [
+      "py_router/frame_layout.py",
+      "py_router/frame_spool.py",
+      "py_router/kicad_parser.py",
+      "py_router/movie_attempts.py",
+      "py_router/movie_camera.py",
+      "py_router/render_chrome.py",
+      "py_router/render_theme.py",
+      "py_router/route_render.py",
+      "py_tools/check_floorplan.py",
+      "py_tools/render_placement.py"
+    ],
+    "py_router/mps_layer_swap.py": [
+      "py_router/connectivity.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/kicad_parser.py",
+      "py_router/layer_swap_optimization.py",
+      "py_router/net_queries.py",
+      "py_router/routing_config.py",
+      "py_router/stub_layer_switching.py"
+    ],
+    "py_router/net_cost.py": [],
+    "py_router/net_ordering.py": [
+      "py_router/kicad_parser.py",
+      "py_router/mps_layer_swap.py",
+      "py_router/net_queries.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/net_queries.py": [
+      "py_router/check_drc.py",
+      "py_router/chip_boundary.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/routing_config.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/net_rescue.py": [
+      "py_router/bga_fanout.py",
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/geometry.py",
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_tiers.py",
+      "py_router/geometry_utils.py",
+      "py_router/keep_away.py",
+      "py_router/kicad_oracle.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_pad_tap.py",
+      "py_router/routing_config.py",
+      "py_router/routing_context.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_state.py",
+      "py_router/single_ended_routing.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/net_story.py": [],
+    "py_router/obstacle_cache.py": [
+      "py_router/check_drc.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_tiers.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_map.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py",
+      "py_router/rust_alloc.py"
+    ],
+    "py_router/obstacle_costs.py": [
+      "py_router/bresenham_utils.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/routing_config.py",
+      "py_router/rust_alloc.py"
+    ],
+    "py_router/obstacle_map.py": [
+      "py_router/check_drc.py",
+      "py_router/check_pads.py",
+      "py_router/env_knobs.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/paste_apertures.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py",
+      "py_router/rust_alloc.py"
+    ],
+    "py_router/output_writer.py": [
+      "py_router/connectivity.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/pack_river.py": [
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/paste_apertures.py": [
+      "py_router/check_drc.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/pcb_io_utils.py": [],
+    "py_router/pcb_modification.py": [
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/check_weird.py",
+      "py_router/cleanup_pipeline.py",
+      "py_router/connectivity.py",
+      "py_router/design_rules.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_map.py",
+      "py_router/pack_river.py",
+      "py_router/paste_apertures.py",
+      "py_router/plane_fill_model.py",
+      "py_router/plane_io.py",
+      "py_router/routing_constants.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py",
+      "py_router/single_ended_routing.py"
+    ],
+    "py_router/phase3_routing.py": [
+      "py_router/blocking_analysis.py",
+      "py_router/bus_detection.py",
+      "py_router/check_drc.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/global_plan.py",
+      "py_router/kicad_parser.py",
+      "py_router/leg_rip.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_fragility.py",
+      "py_router/plane_pad_tap.py",
+      "py_router/polarity_swap.py",
+      "py_router/protected_nets.py",
+      "py_router/rip_restore.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/routing_config.py",
+      "py_router/routing_context.py",
+      "py_router/routing_diagnostics.py",
+      "py_router/routing_state.py",
+      "py_router/single_ended_routing.py",
+      "py_router/stub_layer_switching.py",
+      "py_router/tap_relocation.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/place_motion.py": [
+      "py_router/render_theme.py"
+    ],
+    "py_router/plane_blocker_detection.py": [
+      "py_router/bresenham_utils.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/plane_component_oracle.py": [
+      "py_router/check_connected.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/plane_corridor_ghosts.py": [
+      "py_router/obstacle_costs.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/plane_fill_model.py": [
+      "py_router/env_knobs.py",
+      "py_router/obstacle_map.py",
+      "py_router/routing_defaults.py"
+    ],
+    "py_router/plane_fragility.py": [
+      "py_router/kicad_exact_fill.py",
+      "py_router/kicad_parser.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/plane_io.py": [
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/rip_up_reroute.py"
+    ],
+    "py_router/plane_lattice.py": [
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/plane_obstacle_builder.py": [
+      "py_router/check_drc.py",
+      "py_router/kicad_parser.py",
+      "py_router/obstacle_map.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py",
+      "py_router/rust_alloc.py"
+    ],
+    "py_router/plane_pad_tap.py": [
+      "py_router/bga_fanout/__init__.py",
+      "py_router/bga_fanout/geometry.py",
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/clearance_ledger.py",
+      "py_router/fab_tiers.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/obstacle_cache.py",
+      "py_router/plane_obstacle_builder.py",
+      "py_router/plane_region_connector.py",
+      "py_router/route_planes.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/plane_region_connector.py": [
+      "py_router/bresenham_utils.py",
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/env_knobs.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_oracle.py",
+      "py_router/kicad_parser.py",
+      "py_router/obstacle_map.py",
+      "py_router/plane_fill_model.py",
+      "py_router/plane_obstacle_builder.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py",
+      "py_router/rust_alloc.py",
+      "py_router/single_ended_routing.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/plane_resistance.py": [
+      "py_router/console_encoding.py",
+      "py_router/routing_constants.py"
+    ],
+    "py_router/plane_split_raster.py": [],
+    "py_router/plane_write_reconcile.py": [],
+    "py_router/plane_zone_geometry.py": [],
+    "py_router/polarity_swap.py": [
+      "py_router/connectivity.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/pcb_modification.py",
+      "py_router/routing_config.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/pour_guard.py": [
+      "py_router/check_connected.py",
+      "py_router/env_knobs.py",
+      "py_router/kicad_exact_fill.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_map.py",
+      "py_router/plane_fill_model.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/pour_promise.py": [
+      "py_router/check_connected.py",
+      "py_router/env_knobs.py",
+      "py_router/kicad_exact_fill.py",
+      "py_router/kicad_oracle.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/protected_nets.py": [
+      "py_router/tool_records.py"
+    ],
+    "py_router/redo_record.py": [],
+    "py_router/render_chrome.py": [
+      "py_router/render_theme.py",
+      "py_router/route_render.py"
+    ],
+    "py_router/render_panels.py": [
+      "py_router/render_theme.py",
+      "py_router/route_render.py"
+    ],
+    "py_router/render_plan.py": [
+      "py_router/render_theme.py",
+      "py_router/route_render.py"
+    ],
+    "py_router/render_theme.py": [
+      "py_router/env_knobs.py"
+    ],
+    "py_router/repair_planes.py": [
+      "py_router/check_connected.py",
+      "py_router/cleanup_pipeline.py",
+      "py_router/clearance_ledger.py",
+      "py_router/cli_banner.py",
+      "py_router/cli_nets.py",
+      "py_router/console_encoding.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_notes.py",
+      "py_router/fab_tiers.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/global_plan.py",
+      "py_router/improvement_gate.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_exact_fill.py",
+      "py_router/kicad_oracle.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_blocker_detection.py",
+      "py_router/plane_component_oracle.py",
+      "py_router/plane_corridor_ghosts.py",
+      "py_router/plane_fill_model.py",
+      "py_router/plane_io.py",
+      "py_router/plane_pad_tap.py",
+      "py_router/plane_region_connector.py",
+      "py_router/plane_write_reconcile.py",
+      "py_router/protected_nets.py",
+      "py_router/redo_record.py",
+      "py_router/rip_restore.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/route.py",
+      "py_router/route_summary.py",
+      "py_router/route_trace.py",
+      "py_router/routing_common.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/startup_checks.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/reroute_loop.py": [
+      "py_router/blocking_analysis.py",
+      "py_router/bus_detection.py",
+      "py_router/connectivity.py",
+      "py_router/diff_pair_custody.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/env_knobs.py",
+      "py_router/layer_swap_fallback.py",
+      "py_router/leg_rip.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_fragility.py",
+      "py_router/polarity_swap.py",
+      "py_router/protected_nets.py",
+      "py_router/rip_defer.py",
+      "py_router/rip_restore.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/routing_context.py",
+      "py_router/routing_diagnostics.py",
+      "py_router/routing_state.py",
+      "py_router/single_ended_routing.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/rip_defer.py": [
+      "py_router/net_cost.py"
+    ],
+    "py_router/rip_restore.py": [
+      "py_router/check_connected.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/obstacle_cache.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/rip_up_reroute.py": [
+      "py_router/geometry_utils.py",
+      "py_router/history_congestion.py",
+      "py_router/kicad_parser.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_fragility.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/route.py": [
+      "krt_capabilities.py",
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/provenance.py",
+      "py_placer/placement/writer.py",
+      "py_router/_placer_path.py",
+      "py_router/blocking_analysis.py",
+      "py_router/check_connected.py",
+      "py_router/check_weird.py",
+      "py_router/cleanup_pipeline.py",
+      "py_router/clearance_ledger.py",
+      "py_router/cli_banner.py",
+      "py_router/cli_nets.py",
+      "py_router/congestion_field.py",
+      "py_router/connectivity.py",
+      "py_router/console_encoding.py",
+      "py_router/copy_board.py",
+      "py_router/design_rules.py",
+      "py_router/diff_pair_custody.py",
+      "py_router/dup_trap.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_notes.py",
+      "py_router/fab_tiers.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/global_plan.py",
+      "py_router/group_routing.py",
+      "py_router/history_congestion.py",
+      "py_router/impedance.py",
+      "py_router/improvement_gate.py",
+      "py_router/keep_away.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_exact_fill.py",
+      "py_router/kicad_oracle.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/layer_swap_optimization.py",
+      "py_router/list_nets.py",
+      "py_router/memory_debug.py",
+      "py_router/net_cost.py",
+      "py_router/net_ordering.py",
+      "py_router/net_queries.py",
+      "py_router/net_rescue.py",
+      "py_router/net_story.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/obstacle_map.py",
+      "py_router/output_writer.py",
+      "py_router/pack_river.py",
+      "py_router/pcb_io_utils.py",
+      "py_router/pcb_modification.py",
+      "py_router/phase3_routing.py",
+      "py_router/plane_fill_model.py",
+      "py_router/plane_fragility.py",
+      "py_router/plane_resistance.py",
+      "py_router/pour_guard.py",
+      "py_router/pour_promise.py",
+      "py_router/protected_nets.py",
+      "py_router/redo_record.py",
+      "py_router/repair_planes.py",
+      "py_router/reroute_loop.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/route_render.py",
+      "py_router/route_summary.py",
+      "py_router/route_trace.py",
+      "py_router/routing_common.py",
+      "py_router/routing_config.py",
+      "py_router/routing_constants.py",
+      "py_router/routing_context.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_diagnostics.py",
+      "py_router/routing_exceptions.py",
+      "py_router/routing_state.py",
+      "py_router/rust_alloc.py",
+      "py_router/schematic_updater.py",
+      "py_router/single_ended_loop.py",
+      "py_router/single_ended_routing.py",
+      "py_router/startup_checks.py",
+      "py_router/tap_relocation.py",
+      "py_router/target_swap.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/route_diff.py": [
+      "py_router/blocking_analysis.py",
+      "py_router/cleanup_pipeline.py",
+      "py_router/clearance_ledger.py",
+      "py_router/cli_banner.py",
+      "py_router/cli_nets.py",
+      "py_router/congestion_field.py",
+      "py_router/connectivity.py",
+      "py_router/console_encoding.py",
+      "py_router/diff_pair_custody.py",
+      "py_router/diff_pair_loop.py",
+      "py_router/diff_pair_routing.py",
+      "py_router/diff_xnet.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_notes.py",
+      "py_router/fab_tiers.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/history_congestion.py",
+      "py_router/impedance.py",
+      "py_router/keep_away.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/layer_swap_fallback.py",
+      "py_router/layer_swap_optimization.py",
+      "py_router/length_matching.py",
+      "py_router/list_nets.py",
+      "py_router/memory_debug.py",
+      "py_router/net_ordering.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/obstacle_map.py",
+      "py_router/output_writer.py",
+      "py_router/pcb_io_utils.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_fragility.py",
+      "py_router/polarity_swap.py",
+      "py_router/protected_nets.py",
+      "py_router/redo_record.py",
+      "py_router/reroute_loop.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/route_trace.py",
+      "py_router/routing_common.py",
+      "py_router/routing_config.py",
+      "py_router/routing_constants.py",
+      "py_router/routing_context.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_exceptions.py",
+      "py_router/routing_state.py",
+      "py_router/routing_utils.py",
+      "py_router/rust_alloc.py",
+      "py_router/schematic_updater.py",
+      "py_router/startup_checks.py",
+      "py_router/target_swap.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/route_planes.py": [
+      "py_router/add_gnd_vias.py",
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/cleanup_pipeline.py",
+      "py_router/clearance_ledger.py",
+      "py_router/cli_banner.py",
+      "py_router/cli_nets.py",
+      "py_router/connectivity.py",
+      "py_router/console_encoding.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_notes.py",
+      "py_router/fab_tiers.py",
+      "py_router/fix_kicad_drc_settings.py",
+      "py_router/kicad_dru.py",
+      "py_router/kicad_exact_fill.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/list_nets.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_fill_model.py",
+      "py_router/plane_io.py",
+      "py_router/plane_lattice.py",
+      "py_router/plane_obstacle_builder.py",
+      "py_router/plane_pad_tap.py",
+      "py_router/plane_resistance.py",
+      "py_router/plane_split_raster.py",
+      "py_router/plane_write_reconcile.py",
+      "py_router/plane_zone_geometry.py",
+      "py_router/protected_nets.py",
+      "py_router/redo_record.py",
+      "py_router/route.py",
+      "py_router/route_trace.py",
+      "py_router/routing_config.py",
+      "py_router/routing_constants.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_utils.py",
+      "py_router/rust_alloc.py",
+      "py_router/startup_checks.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/route_render.py": [
+      "py_router/kicad_parser.py",
+      "py_router/render_theme.py",
+      "py_router/startup_checks.py"
+    ],
+    "py_router/route_summary.py": [],
+    "py_router/route_trace.py": [],
+    "py_router/routing_common.py": [
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/length_matching.py",
+      "py_router/memory_debug.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_fragility.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/routing_config.py": [
+      "py_router/check_drc.py",
+      "py_router/design_rules.py",
+      "py_router/fab_tiers.py",
+      "py_router/routing_constants.py"
+    ],
+    "py_router/routing_constants.py": [],
+    "py_router/routing_context.py": [
+      "py_router/congestion_field.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/global_plan.py",
+      "py_router/history_congestion.py",
+      "py_router/keep_away.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_fragility.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/routing_config.py"
+    ],
+    "py_router/routing_defaults.py": [],
+    "py_router/routing_diagnostics.py": [
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/obstacle_map.py",
+      "py_router/plane_blocker_detection.py",
+      "py_router/protected_nets.py",
+      "py_router/routing_common.py"
+    ],
+    "py_router/routing_exceptions.py": [],
+    "py_router/routing_state.py": [
+      "py_router/kicad_parser.py",
+      "py_router/routing_config.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/routing_utils.py": [
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py"
+    ],
+    "py_router/rust_alloc.py": [],
+    "py_router/schematic_updater.py": [],
+    "py_router/single_ended_loop.py": [
+      "py_router/blocking_analysis.py",
+      "py_router/bus_corridor.py",
+      "py_router/bus_detection.py",
+      "py_router/connectivity.py",
+      "py_router/diff_pair_custody.py",
+      "py_router/env_knobs.py",
+      "py_router/geometry_utils.py",
+      "py_router/global_plan.py",
+      "py_router/leg_rip.py",
+      "py_router/memory_debug.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_costs.py",
+      "py_router/obstacle_map.py",
+      "py_router/pcb_modification.py",
+      "py_router/plane_fragility.py",
+      "py_router/polarity_swap.py",
+      "py_router/protected_nets.py",
+      "py_router/rip_defer.py",
+      "py_router/rip_up_reroute.py",
+      "py_router/routing_context.py",
+      "py_router/routing_diagnostics.py",
+      "py_router/routing_state.py",
+      "py_router/single_ended_routing.py",
+      "py_router/stub_layer_switching.py",
+      "py_router/tap_relocation.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/single_ended_routing.py": [
+      "py_router/bresenham_utils.py",
+      "py_router/check_connected.py",
+      "py_router/check_drc.py",
+      "py_router/connectivity.py",
+      "py_router/env_knobs.py",
+      "py_router/fab_tiers.py",
+      "py_router/geometry_utils.py",
+      "py_router/global_plan.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/obstacle_cache.py",
+      "py_router/obstacle_map.py",
+      "py_router/plane_blocker_detection.py",
+      "py_router/plane_fill_model.py",
+      "py_router/plane_fragility.py",
+      "py_router/plane_pad_tap.py",
+      "py_router/routing_config.py",
+      "py_router/routing_context.py",
+      "py_router/routing_defaults.py",
+      "py_router/routing_diagnostics.py",
+      "py_router/routing_state.py",
+      "py_router/routing_utils.py",
+      "py_router/rust_alloc.py",
+      "py_router/stub_layer_switching.py",
+      "py_router/terminal_colors.py"
+    ],
+    "py_router/stage3d/__init__.py": [],
+    "py_router/stage3d/blender_scene.py": [],
+    "py_router/stage3d/film.py": [
+      "py_router/frame_spool.py",
+      "py_router/kicad_parser.py",
+      "py_router/stage3d/__init__.py",
+      "py_router/stage3d/render3d.py",
+      "py_router/stage3d/scene.py",
+      "py_router/stage3d/timeline.py"
+    ],
+    "py_router/stage3d/render3d.py": [
+      "py_router/render_theme.py"
+    ],
+    "py_router/stage3d/scene.py": [
+      "py_router/kicad_iso_render.py"
+    ],
+    "py_router/stage3d/timeline.py": [
+      "py_router/animate_route.py"
+    ],
+    "py_router/startup_checks.py": [],
+    "py_router/stub_layer_switching.py": [
+      "py_router/connectivity.py",
+      "py_router/fab_tiers.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/pcb_modification.py",
+      "py_router/routing_config.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/swig_compat.py": [],
+    "py_router/tap_relocation.py": [
+      "py_router/env_knobs.py",
+      "py_router/kicad_parser.py",
+      "py_router/obstacle_cache.py",
+      "py_router/pcb_modification.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_router/single_ended_routing.py"
+    ],
+    "py_router/target_swap.py": [
+      "py_router/chip_boundary.py",
+      "py_router/connectivity.py",
+      "py_router/geometry_utils.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/pcb_modification.py",
+      "py_router/routing_config.py",
+      "py_router/routing_utils.py"
+    ],
+    "py_router/terminal_colors.py": [],
+    "py_router/tool_records.py": [],
+    "py_router/ui_thread.py": [],
+    "py_tools/_path.py": [],
+    "py_tools/board_brief.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/cli_gates.py",
+      "py_placer/placement/design_brief.py",
+      "py_placer/placement/escape.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/lock_advisor.py",
+      "py_placer/placement/options.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/placement_state.py",
+      "py_placer/placement/reconcile.py",
+      "py_placer/placement/utility.py",
+      "py_router/kicad_parser.py",
+      "py_router/kicad_writer.py",
+      "py_router/list_nets.py",
+      "py_tools/_path.py"
+    ],
+    "py_tools/board_context.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/body.py",
+      "py_placer/placement/cli_gates.py",
+      "py_placer/placement/emc_roles.py",
+      "py_placer/placement/escape.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/mating.py",
+      "py_placer/placement/pair_order.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/roles.py",
+      "py_router/diff_xnet.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/routing_config.py",
+      "py_router/routing_defaults.py",
+      "py_tools/_path.py",
+      "py_tools/board_brief.py",
+      "py_tools/render_placement.py"
+    ],
+    "py_tools/board_score.py": [
+      "py_placer/placement_score.py",
+      "py_router/check_drc.py",
+      "py_router/cli_banner.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py"
+    ],
+    "py_tools/check_floorplan.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/arrays.py",
+      "py_placer/placement/cli_gates.py",
+      "py_placer/placement/design_brief.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/placement_state.py",
+      "py_placer/placement/reconcile.py",
+      "py_placer/placement/seeder.py",
+      "py_router/cli_banner.py",
+      "py_router/keep_away.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_tools/_path.py"
+    ],
+    "py_tools/check_impedance.py": [
+      "py_router/impedance.py",
+      "py_router/kicad_parser.py",
+      "py_router/net_queries.py",
+      "py_router/plane_fill_model.py",
+      "py_router/protected_nets.py",
+      "py_router/routing_defaults.py",
+      "py_tools/_path.py"
+    ],
+    "py_tools/check_orphan_stubs.py": [
+      "py_router/cli_banner.py",
+      "py_router/connectivity.py",
+      "py_router/kicad_parser.py",
+      "py_tools/_path.py"
+    ],
+    "py_tools/check_reachability.py": [
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/reachability.py",
+      "py_placer/placement/routability.py",
+      "py_router/fab_tiers.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_tools/_path.py"
+    ],
+    "py_tools/render_placement.py": [
+      "py_placer/place_route_loop.py",
+      "py_placer/placement/__init__.py",
+      "py_placer/placement/floorplan.py",
+      "py_placer/placement/groups.py",
+      "py_placer/placement/legality.py",
+      "py_placer/placement/part_class.py",
+      "py_placer/placement/placement_state.py",
+      "py_placer/placement/quench.py",
+      "py_router/check_drc.py",
+      "py_router/cli_banner.py",
+      "py_router/group_routing.py",
+      "py_router/kicad_parser.py",
+      "py_router/list_nets.py",
+      "py_router/net_queries.py",
+      "py_router/render_chrome.py",
+      "py_router/render_plan.py",
+      "py_router/render_theme.py",
+      "py_router/route_render.py",
+      "py_router/routing_defaults.py",
+      "py_tools/_path.py"
+    ]
+  },
+  "runtime_closure_proven": false,
+  "schema": "kicad-route/routing-source-closure/1",
+  "script_references": [
+    {
+      "line": 72,
+      "literal": "route.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 72,
+      "literal": "route_diff.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 72,
+      "literal": "route_planes.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 72,
+      "literal": "repair_planes.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 73,
+      "literal": "place_optimize.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 73,
+      "literal": "place_route_loop.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 73,
+      "literal": "place_fanout_clearance.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 74,
+      "literal": "bga_fanout.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 74,
+      "literal": "qfn_fanout.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 75,
+      "literal": "check_drc.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 75,
+      "literal": "check_connected.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 75,
+      "literal": "check_floorplan.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 76,
+      "literal": "check_impedance.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 76,
+      "literal": "check_orphan_stubs.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 76,
+      "literal": "check_pads.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 77,
+      "literal": "check_pockets.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 77,
+      "literal": "place_seed.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 78,
+      "literal": "kicad_unconnected.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 78,
+      "literal": "net_forensics.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 78,
+      "literal": "copy_board.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 83,
+      "literal": "fill_for_delivery.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 84,
+      "literal": "make_movie.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 84,
+      "literal": "render_placement.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 84,
+      "literal": "list_nets.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 84,
+      "literal": "route_summary.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 91,
+      "literal": "check_channels.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 91,
+      "literal": "check_capacity.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 95,
+      "literal": "board_context.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 101,
+      "literal": "place_pose.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 105,
+      "literal": "route.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 105,
+      "literal": "route_diff.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 105,
+      "literal": "route_planes.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 106,
+      "literal": "repair_planes.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 106,
+      "literal": "place_route_loop.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 107,
+      "literal": "place_optimize.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 107,
+      "literal": "check_drc.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 107,
+      "literal": "check_floorplan.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 108,
+      "literal": "bga_fanout.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 108,
+      "literal": "qfn_fanout.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 168,
+      "literal": ".py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 169,
+      "literal": "__init__.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 434,
+      "literal": ".py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 435,
+      "literal": "__init__.py",
+      "source": "krt_capabilities.py"
+    },
+    {
+      "line": 67,
+      "literal": "route.py",
+      "source": "py_placer/place_route_loop.py"
+    },
+    {
+      "line": 980,
+      "literal": "place_route_loop.py",
+      "source": "py_placer/place_route_loop.py"
+    },
+    {
+      "line": 1591,
+      "literal": "place_route_loop.py",
+      "source": "py_placer/place_route_loop.py"
+    },
+    {
+      "line": 317,
+      "literal": " part(s) have a SYNTHETIC courtyard (the pad box, carrying no courtyard margin), so their blocking pairs are excluded from the census by legality.py",
+      "source": "py_placer/placement/diagnosis.py"
+    },
+    {
+      "line": 50,
+      "literal": "place_seed.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 50,
+      "literal": "place_optimize.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 51,
+      "literal": "place_reconstruct.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 51,
+      "literal": "place_portfolio.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 51,
+      "literal": "place_route_loop.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 52,
+      "literal": "place_fanout_clearance.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 52,
+      "literal": "converge.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 56,
+      "literal": "place_pose.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 63,
+      "literal": "route.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 74,
+      "literal": "perturb.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 74,
+      "literal": "stage_blind.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 74,
+      "literal": "stage_unaided.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 83,
+      "literal": "beautify_labels.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 101,
+      "literal": "stage_blind.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 101,
+      "literal": "stage_unaided.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 101,
+      "literal": "perturb.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 145,
+      "literal": "provenance.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 150,
+      "literal": "/contextlib.py",
+      "source": "py_placer/placement/provenance.py"
+    },
+    {
+      "line": 5320,
+      "literal": "check_drc.py",
+      "source": "py_router/check_drc.py"
+    },
+    {
+      "line": 571,
+      "literal": "refill.py",
+      "source": "py_router/kicad_exact_fill.py"
+    },
+    {
+      "line": 670,
+      "literal": "refill.py",
+      "source": "py_router/kicad_exact_fill.py"
+    },
+    {
+      "line": 272,
+      "literal": "board_score.py",
+      "source": "py_router/movie_benchmark.py"
+    },
+    {
+      "line": 7870,
+      "literal": "route.py",
+      "source": "py_router/route.py"
+    },
+    {
+      "line": 359,
+      "literal": "blender_scene.py",
+      "source": "py_router/stage3d/render3d.py"
+    },
+    {
+      "line": 588,
+      "literal": "  python build_router.py",
+      "source": "py_router/startup_checks.py"
+    },
+    {
+      "line": 138,
+      "literal": "check_drc.py",
+      "source": "py_tools/board_score.py"
+    },
+    {
+      "line": 269,
+      "literal": "check_connected.py",
+      "source": "py_tools/board_score.py"
+    },
+    {
+      "line": 684,
+      "literal": "check_assembly.py",
+      "source": "py_tools/board_score.py"
+    },
+    {
+      "line": 725,
+      "literal": "check_drc.py",
+      "source": "py_tools/board_score.py"
+    },
+    {
+      "line": 834,
+      "literal": "check_floorplan.py",
+      "source": "py_tools/board_score.py"
+    },
+    {
+      "line": 858,
+      "literal": "check_impedance.py",
+      "source": "py_tools/board_score.py"
+    },
+    {
+      "line": 1234,
+      "literal": "placement_score.py",
+      "source": "py_tools/board_score.py"
+    },
+    {
+      "line": 2174,
+      "literal": "render_placement.py",
+      "source": "py_tools/render_placement.py"
+    }
+  ],
+  "source": {
+    "commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+    "origin": "https://github.com/halbritt/KiCadRoutingTools.git",
+    "tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1"
+  },
+  "totals": {
+    "python_bytes": 12499164,
+    "python_files": 205,
+    "python_lines": 248520
+  }
+}

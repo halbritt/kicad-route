@@ -1,0 +1,410 @@
+{
+  "schema": "kicad-route/engine-matrix/1",
+  "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+  "baseline_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+  "limits": {
+    "elapsed_ratio": 1.1,
+    "max_process_rss_ratio": 1.1
+  },
+  "cases": {
+    "diff-pair": {
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 108.4,
+            "candidate_median": 83.89,
+            "ratio": 0.7738929889298892,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1590636,
+            "candidate_median": 1607756,
+            "ratio": 1.0107629904013238,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true
+      },
+      "reference_samples": [
+        {
+          "elapsed_s": 114.6,
+          "max_rss_kib": 1589288,
+          "backend_runtime_s": 24.124
+        },
+        {
+          "elapsed_s": 108.4,
+          "max_rss_kib": 1594448,
+          "backend_runtime_s": 26.972
+        },
+        {
+          "elapsed_s": 91.36,
+          "max_rss_kib": 1590636,
+          "backend_runtime_s": 23.931
+        }
+      ],
+      "candidate_samples": [
+        {
+          "elapsed_s": 99.85,
+          "max_rss_kib": 1599208,
+          "backend_runtime_s": 19.401
+        },
+        {
+          "elapsed_s": 71.13,
+          "max_rss_kib": 1629156,
+          "backend_runtime_s": 19.298
+        },
+        {
+          "elapsed_s": 83.89,
+          "max_rss_kib": 1607756,
+          "backend_runtime_s": 18.196
+        }
+      ],
+      "input_board_sha256": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+      "copper_sha256": "5a9deaa3b5d73d50747e2e2ef029fa2878b3c21437b76af8530194dac91869e2",
+      "native_records": [
+        {
+          "path": "comparisons/diff-pair/reference-1/run/result.json",
+          "sha256": "ee7621627bbc9b5fa62143e9d46fb91597f5cb93d7dc78e8aecf7e31e5f6d8b5"
+        },
+        {
+          "path": "comparisons/diff-pair/reference-2/run/result.json",
+          "sha256": "302357a8d5cd6da05e9d72890b0565f09fe6b071fd09012147023c096b064d30"
+        },
+        {
+          "path": "comparisons/diff-pair/reference-3/run/result.json",
+          "sha256": "94f39a4409eb400610b6e5d60f517764492dc79eebd0eaad9ed36b7a1f38149d"
+        },
+        {
+          "path": "comparisons/diff-pair/candidate-1/run/result.json",
+          "sha256": "90da46663e75c5bec429faf3234c34efaf2f41adeb28cf81fb702502da88f0c9"
+        },
+        {
+          "path": "comparisons/diff-pair/candidate-2/run/result.json",
+          "sha256": "40b167110d3922d08994d43326c80e5faa7fd5d1706de3e80b3b78d8e0f2f5f3"
+        },
+        {
+          "path": "comparisons/diff-pair/candidate-3/run/result.json",
+          "sha256": "8ae3efbc038112488ba855bd2b2c29350cbc6aedb57335fe05ffd9360d80b502"
+        },
+        {
+          "path": "comparisons/diff-pair/reference-0/run/result.json",
+          "sha256": "dc42fa1f0833aeffb3f08f56b66b9a13c65277ed913256908db529237981fdc1"
+        },
+        {
+          "path": "comparisons/diff-pair/candidate-0/run/result.json",
+          "sha256": "8ce83d77f292dd47a1353328d4912d6485cb13d3f5006cfbc9c9b2592f836b27"
+        }
+      ]
+    },
+    "four-layer-plane": {
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 101.07,
+            "candidate_median": 109.33,
+            "ratio": 1.0817255367567034,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1608876,
+            "candidate_median": 1605472,
+            "ratio": 0.9978842371941654,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true
+      },
+      "reference_samples": [
+        {
+          "elapsed_s": 109.08,
+          "max_rss_kib": 1608876,
+          "backend_runtime_s": 46.444
+        },
+        {
+          "elapsed_s": 101.07,
+          "max_rss_kib": 1630668,
+          "backend_runtime_s": 33.277
+        },
+        {
+          "elapsed_s": 88.13,
+          "max_rss_kib": 1605948,
+          "backend_runtime_s": 32.871
+        }
+      ],
+      "candidate_samples": [
+        {
+          "elapsed_s": 127.44,
+          "max_rss_kib": 1597644,
+          "backend_runtime_s": 43.485
+        },
+        {
+          "elapsed_s": 109.33,
+          "max_rss_kib": 1605472,
+          "backend_runtime_s": 39.283
+        },
+        {
+          "elapsed_s": 104.99,
+          "max_rss_kib": 1626216,
+          "backend_runtime_s": 36.31
+        }
+      ],
+      "input_board_sha256": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+      "copper_sha256": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+      "native_records": [
+        {
+          "path": "comparisons/four-layer-plane/reference-1/run/result.json",
+          "sha256": "30b38c2631a52de8a4f2a25490097d94a23914fe90bb4f98cf317aba33219e15"
+        },
+        {
+          "path": "comparisons/four-layer-plane/reference-2/run/result.json",
+          "sha256": "c3534a32e442bd81e15ef17e0ebcd01234d57d1e88e178261d29c19f428c17ec"
+        },
+        {
+          "path": "comparisons/four-layer-plane/reference-3/run/result.json",
+          "sha256": "a501b0341dde85e5d1acdd9b9416bbf370e9c97c06b9660c8a865aec8d84a06a"
+        },
+        {
+          "path": "comparisons/four-layer-plane/candidate-1/run/result.json",
+          "sha256": "5f02bf6c528692a41ecdb5e8f97741460a46c454c0b90fc0ce42c801ef0b3646"
+        },
+        {
+          "path": "comparisons/four-layer-plane/candidate-2/run/result.json",
+          "sha256": "708a13700a380f5955fab0f906c57ea575084a26036abf4965c973a5bee881a0"
+        },
+        {
+          "path": "comparisons/four-layer-plane/candidate-3/run/result.json",
+          "sha256": "33d0e67dce71e7f34522dfac16c356da5cec617369926a1ad1eb71fba836491a"
+        },
+        {
+          "path": "comparisons/four-layer-plane/reference-0/run/result.json",
+          "sha256": "ffa69393a3c6af924fd750ce6282267133fb33639e75807abefbda5e0885918c"
+        },
+        {
+          "path": "comparisons/four-layer-plane/candidate-0/run/result.json",
+          "sha256": "16732dbe9e97291bb6d5c386ae31c34eaa13fd6755c6d5071a4be982573c645a"
+        }
+      ]
+    },
+    "multipoint-tap": {
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 85.62,
+            "candidate_median": 89.57,
+            "ratio": 1.0461340808222377,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1596916,
+            "candidate_median": 1607916,
+            "ratio": 1.0068882771542147,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true
+      },
+      "reference_samples": [
+        {
+          "elapsed_s": 93.09,
+          "max_rss_kib": 1606796,
+          "backend_runtime_s": 9.062
+        },
+        {
+          "elapsed_s": 85.62,
+          "max_rss_kib": 1596916,
+          "backend_runtime_s": 7.29
+        },
+        {
+          "elapsed_s": 60.66,
+          "max_rss_kib": 1566976,
+          "backend_runtime_s": 6.616
+        }
+      ],
+      "candidate_samples": [
+        {
+          "elapsed_s": 89.57,
+          "max_rss_kib": 1609080,
+          "backend_runtime_s": 5.447
+        },
+        {
+          "elapsed_s": 93.36,
+          "max_rss_kib": 1607916,
+          "backend_runtime_s": 10.28
+        },
+        {
+          "elapsed_s": 79.63,
+          "max_rss_kib": 1595044,
+          "backend_runtime_s": 9.093
+        }
+      ],
+      "input_board_sha256": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+      "copper_sha256": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+      "native_records": [
+        {
+          "path": "comparisons/multipoint-tap/reference-1/run/result.json",
+          "sha256": "caa1678fb56800d88fa8a10325a0883f9816e8e8683dcb8ee2cdb894343118b8"
+        },
+        {
+          "path": "comparisons/multipoint-tap/reference-2/run/result.json",
+          "sha256": "199d9dcef51ece5e1a165a73320faeb3245a1ad74e6372d4cefdaa18b1a856e1"
+        },
+        {
+          "path": "comparisons/multipoint-tap/reference-3/run/result.json",
+          "sha256": "2d5ba7d0965d3bf3325a4e38a8b556d907919b11851b5bd9b4eea32cc3c1bd27"
+        },
+        {
+          "path": "comparisons/multipoint-tap/candidate-1/run/result.json",
+          "sha256": "403027e23a7b069718e2369144b051847e88efc25f2c023e8857e4b148def193"
+        },
+        {
+          "path": "comparisons/multipoint-tap/candidate-2/run/result.json",
+          "sha256": "23a3d4d4e80f6137b23223b3980ad2025c39a7313f1406a62a7858634d28e0e1"
+        },
+        {
+          "path": "comparisons/multipoint-tap/candidate-3/run/result.json",
+          "sha256": "d33187c81fd2e7522e96f2110d08f09c7275f15f89864ac05ef0d8cc32049caa"
+        },
+        {
+          "path": "comparisons/multipoint-tap/reference-0/run/result.json",
+          "sha256": "6cd2be082eaabcd68e206fbbf445da9a21459006bde98a6b1d147d59cb141f77"
+        },
+        {
+          "path": "comparisons/multipoint-tap/candidate-0/run/result.json",
+          "sha256": "8088c4023616028b48f90e19c5b1ac1801d772878479dc48b35339edffb4c049"
+        }
+      ]
+    },
+    "route-demo": {
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 119.32,
+            "candidate_median": 130.52,
+            "ratio": 1.093865236339256,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1621040,
+            "candidate_median": 1609388,
+            "ratio": 0.992812021911859,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true
+      },
+      "reference_samples": [
+        {
+          "elapsed_s": 102.02,
+          "max_rss_kib": 1621040,
+          "backend_runtime_s": 44.724
+        },
+        {
+          "elapsed_s": 119.32,
+          "max_rss_kib": 1617172,
+          "backend_runtime_s": 51.02
+        },
+        {
+          "elapsed_s": 143.06,
+          "max_rss_kib": 1638296,
+          "backend_runtime_s": 45.437
+        }
+      ],
+      "candidate_samples": [
+        {
+          "elapsed_s": 124.46,
+          "max_rss_kib": 1607280,
+          "backend_runtime_s": 43.189
+        },
+        {
+          "elapsed_s": 134.41,
+          "max_rss_kib": 1609388,
+          "backend_runtime_s": 44.916
+        },
+        {
+          "elapsed_s": 130.52,
+          "max_rss_kib": 1619260,
+          "backend_runtime_s": 44.58
+        }
+      ],
+      "input_board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "copper_sha256": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+      "native_records": [
+        {
+          "path": "comparisons/route-demo/reference-1/run/result.json",
+          "sha256": "1ae2626782c120fd7b04594495e0966bfdfa77b3a8af49a66052c24fb3c932ad"
+        },
+        {
+          "path": "comparisons/route-demo/reference-2/run/result.json",
+          "sha256": "65d910b9c10c789253d7a1ceb88afdf636e750b4c29b2dfbfa4c5361acd9da09"
+        },
+        {
+          "path": "comparisons/route-demo/reference-3/run/result.json",
+          "sha256": "acb48264187add8f9e8a174016b5dff67d1e5d5995c84516b06457d333fe3e07"
+        },
+        {
+          "path": "comparisons/route-demo/candidate-1/run/result.json",
+          "sha256": "31ff98cc4f6ac688cac1d30230fa3cdaaa8da1340cde42327e9ca64ac9aaac9e"
+        },
+        {
+          "path": "comparisons/route-demo/candidate-2/run/result.json",
+          "sha256": "82e7d4b17b3815c4223b291948826e3abc97c3066a626121a32c231546520129"
+        },
+        {
+          "path": "comparisons/route-demo/candidate-3/run/result.json",
+          "sha256": "b10ee5e33f9ee0d7829e169c528104a867dd2b70ea7796d296e8ba5cb21388de"
+        },
+        {
+          "path": "comparisons/route-demo/reference-0/run/result.json",
+          "sha256": "da6813d86c9703e121d13e569702c8896bead11c6596bed93678c9128bf8918f"
+        },
+        {
+          "path": "comparisons/route-demo/candidate-0/run/result.json",
+          "sha256": "fda2d3cb6de29a6f663c83c738e1934e7b159b0c667a66c8bf1f2923449b121d"
+        }
+      ]
+    }
+  },
+  "native_runs": 32,
+  "complete_valid_runs": 32,
+  "status": "benchmark gates passed",
+  "host_source_scope": "Snapshot at benchmark execution; later metadata and sandbox-mount fixes have separate regression coverage.",
+  "host_sources": {
+    "src/kicad_route/__init__.py": "23611cbf0bfd79c20f1e18fa402bbe8c1bcd63b412fbf84e7eb3b5f3c0062af4",
+    "src/kicad_route/barrier.py": "de34c57c391248c4fdb02fdd9f71d6736edbc15621350be1ff188bc8b217df6c",
+    "src/kicad_route/blocked.py": "b2dc298ca38dd994479afdb6ced91d8196b0fd1626f2828c0996135ecb57c7f5",
+    "src/kicad_route/campaign.py": "5cfad4d863c03578aa02fb2221598e8dcab73b2ac673124f8ff9d440ab4d2aa6",
+    "src/kicad_route/canary.py": "38e56e7bd96f01025f9ca8a3c57d4f902f939723f55f50f214395561c3cbbf1c",
+    "src/kicad_route/cli.py": "5cff5eb1b1e78b1c7ef6917f827cf598542886bf83a24f964dbb67c4929358ab",
+    "src/kicad_route/common.py": "a42c0258052acc83004e921c139881bd0aa0ac4daa26f268348b04ee8dd2f923",
+    "src/kicad_route/contract.py": "306516b16cc6a55ce62d1915f354c298297bc944f4ae5eccc24a0d49bb83b2b6",
+    "src/kicad_route/corpus.py": "f63cedc1ec87b37b06c1a717f2eb02ec57af34a659b8f7e9e330eff5736bda14",
+    "src/kicad_route/decoupling.py": "29724e237cc94c0af783619991dc5659b4b582eb6cdb33fd0d59542a108232f6",
+    "src/kicad_route/determinism.py": "653d6c37b4e69d50cd701223e23c6feb2e8afd5b240b5bdd5a5f4c1146af5778",
+    "src/kicad_route/diff_pairs.py": "f1d1070ed0acc459d28cbe7397ae7c22b196f5dbb869e751af24e93a3c1b1092",
+    "src/kicad_route/engine.py": "5e2ecaae2ad0b2b4119a2787283e4c319581d154b59d5617b74f205db9914bdb",
+    "src/kicad_route/evidence.py": "d2f1acb31df60b1874b565c341378b25962570b6c12689d6b029f7e348b96f8b",
+    "src/kicad_route/floor.py": "2f954a2d1142c4f68d7e2904781f4470c0976af925a0a91c31c8de26d4f31ae6",
+    "src/kicad_route/ledger.py": "37f140a1b6ccbf6c6ffa6724ea8acdf97e404eabd5ddb8c8c264a19cc1e6f752",
+    "src/kicad_route/netnames.py": "731bcf61a909ef2720fd90b074f6cfb991a1c6ea6bea7fecf5ba3cb7fc47304f",
+    "src/kicad_route/plane_plan.py": "fab213cc155347af3c36bda5694b7aa871058c6f8b77eaf52ebd2b209bfb2d80",
+    "src/kicad_route/planes.py": "2adaab4efe91f380723efdf3af913e90dba90453b6db5792f5506b93956d3563",
+    "src/kicad_route/pour.py": "630b957fddeab33d108d634fb0f229f3c1471f80953e971effad27ca33beb2e9",
+    "src/kicad_route/procgroup.py": "d843c9b334874d0334c5ea0e9a58d83d22581648e915d40f13a6d8c8b595a3d5",
+    "src/kicad_route/provenance.py": "cf82fd9940086584a8056787ae0ca4fd58ced78ed5737f85b4e5713501add49f",
+    "src/kicad_route/sandbox.py": "5d4f05d153d74607865d5ac402dc420f82a3b7271c0862d3cae6e6b6c5fcc016",
+    "src/kicad_route/skills.py": "b261fcb7596db3921c089af549a77d5803ba6c0e7590132026e9fdb85106cee8",
+    "src/kicad_route/snapshot.py": "7c51203f4a439cc99a575e6bc5433f3ab78dda7735dcd03c940f6169fe7fb9a4",
+    "src/kicad_route/spokes.py": "fc5b3f90c31cbcc9a9944628bfe6b9bc93dc31de21c893f8e476160f21033506",
+    "src/kicad_route/stall.py": "095445837a1621ca8eaa62fee2f87ec772d13fcb9111e75528743f24f095d188",
+    "src/kicad_route/statemanifest.py": "ec79b33d1c84fc89071453a5f1571aaebe04184fa76822490df186427e3aaf53"
+  },
+  "host_sources_sha256": "4577bc80faea26d950adbdb73dea3a5f7c1b1641d0a4eb4a162d523b082a58f6"
+}

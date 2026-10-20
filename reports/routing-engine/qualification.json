@@ -1,0 +1,178 @@
+{
+  "schema": "kicad-route/owned-engine-qualification/1",
+  "scope": "Source, build, native routing and regression qualification; main installation is a subsequent checkpoint.",
+  "status": "source-and-regression-gates-passed",
+  "observed_utc": "2026-10-20T11:27:38.346005+00:00",
+  "baseline": {
+    "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+    "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+    "wrapper_commit": "50af32245b4c3e3440de5757bff6222b351fb52b"
+  },
+  "engine_source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+  "qualified_extension_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+  "source_inventory": {
+    "file_count": 232,
+    "byte_identical_to_frozen_fork": true,
+    "report": "reports/routing-engine/source-closure.json"
+  },
+  "benchmark": {
+    "report": "reports/routing-engine/benchmark-matrix.json",
+    "report_sha256": "fa4b1a2b60880bcfb790928c8f9e83c8cb4c56a50f19b70b40f910f77f083c37",
+    "boards": 4,
+    "repeats_per_implementation": 3,
+    "excluded_warmups_per_implementation": 1,
+    "native_runs": 32,
+    "complete_valid_preserved_runs": 32,
+    "identical_copper_within_each_board": true,
+    "runtime_limit_ratio": 1.1,
+    "max_process_rss_limit_ratio": 1.1
+  },
+  "tests": {
+    "current_collected": 490,
+    "original_full_collected": 488,
+    "original_full": {
+      "passed": 485,
+      "failed": 3,
+      "exit_code": 1,
+      "duration_s": 5700.87,
+      "failures": [
+        "tests/test_doctor_sandbox.py::test_doctor_json_offline_without_network",
+        "tests/test_doctor_sandbox.py::test_sandboxed_round_trip_matches_unsandboxed[krt]",
+        "tests/test_doctor_sandbox.py::test_sandboxed_round_trip_matches_unsandboxed[freerouting]"
+      ],
+      "cause": "Cached pre-fix sandbox mount list omitted the shared Freerouting symlink target."
+    },
+    "fresh_sandbox": {
+      "passed": 17,
+      "failed": 0,
+      "duration_s": 521.75
+    },
+    "fresh_metadata": {
+      "passed": 14,
+      "failed": 0,
+      "deselected": 1,
+      "duration_s": 27.54,
+      "exclusion": "Two-route repeat integration case already passed in the full invocation."
+    },
+    "unique_current_nodes_covered_by_passing_runs": 490,
+    "reconciliation": "Full collection equals current nodes minus the new symlink-mount and Git-independent-manifest tests. Remove its three failures, then union with the fresh sandbox module and metadata unit selection; the result equals all current nodes.",
+    "single_clean_full_invocation": false,
+    "known_fix_underlying_tests": 7,
+    "known_fix_subtests": 32
+  },
+  "clean_install": {
+    "report": "reports/routing-engine/clean-install.json",
+    "external_krt_checkout": false,
+    "source_unchanged": true
+  },
+  "wheel": {
+    "sha256": "b153d1743a343b8d603d59ba7bb6c268f8f469771fb11a25dfbdf20811341280",
+    "owned_engine_files_byte_identical": 237
+  },
+  "raw_evidence_root": "build/owned-engine-migration/",
+  "qualification_log_sha256": {
+    "owned-suite-final.log": "38f69b1a6b17b10387f8efd55d0b49757ff179cd4d221994e436a4db55491145",
+    "sandbox-followup.log": "18c0a9e017c0d30a1a37461980494e8e99078549daefba25ec161e715b904ede",
+    "metadata-followup.log": "b7b1c5a2e5b6b10c87c3e843bd2dd81187b1c07d60066c1321252b81c705af46",
+    "metadata-followup.xml": "9255e19ce42c6ae87a0e9258c7c45583807aae587155f8440f9f9d90fb564350",
+    "current-collection.log": "85636a10856718c0de68504562e8c11e7272b0b9ea17c7ef68246d02611c7b07",
+    "owned-fixes.log": "9c067efab791dddb7734ca13e951bae5cb4f29df36a488f415af29217c6ee452"
+  },
+  "host_sources_at_qualification": {
+    "src/kicad_route/__init__.py": "23611cbf0bfd79c20f1e18fa402bbe8c1bcd63b412fbf84e7eb3b5f3c0062af4",
+    "src/kicad_route/barrier.py": "de34c57c391248c4fdb02fdd9f71d6736edbc15621350be1ff188bc8b217df6c",
+    "src/kicad_route/blocked.py": "b2dc298ca38dd994479afdb6ced91d8196b0fd1626f2828c0996135ecb57c7f5",
+    "src/kicad_route/campaign.py": "5cfad4d863c03578aa02fb2221598e8dcab73b2ac673124f8ff9d440ab4d2aa6",
+    "src/kicad_route/canary.py": "38e56e7bd96f01025f9ca8a3c57d4f902f939723f55f50f214395561c3cbbf1c",
+    "src/kicad_route/cli.py": "5cff5eb1b1e78b1c7ef6917f827cf598542886bf83a24f964dbb67c4929358ab",
+    "src/kicad_route/common.py": "a42c0258052acc83004e921c139881bd0aa0ac4daa26f268348b04ee8dd2f923",
+    "src/kicad_route/contract.py": "306516b16cc6a55ce62d1915f354c298297bc944f4ae5eccc24a0d49bb83b2b6",
+    "src/kicad_route/corpus.py": "f63cedc1ec87b37b06c1a717f2eb02ec57af34a659b8f7e9e330eff5736bda14",
+    "src/kicad_route/decoupling.py": "29724e237cc94c0af783619991dc5659b4b582eb6cdb33fd0d59542a108232f6",
+    "src/kicad_route/determinism.py": "653d6c37b4e69d50cd701223e23c6feb2e8afd5b240b5bdd5a5f4c1146af5778",
+    "src/kicad_route/diff_pairs.py": "f1d1070ed0acc459d28cbe7397ae7c22b196f5dbb869e751af24e93a3c1b1092",
+    "src/kicad_route/engine.py": "5e2ecaae2ad0b2b4119a2787283e4c319581d154b59d5617b74f205db9914bdb",
+    "src/kicad_route/evidence.py": "d2f1acb31df60b1874b565c341378b25962570b6c12689d6b029f7e348b96f8b",
+    "src/kicad_route/floor.py": "2f954a2d1142c4f68d7e2904781f4470c0976af925a0a91c31c8de26d4f31ae6",
+    "src/kicad_route/ledger.py": "37f140a1b6ccbf6c6ffa6724ea8acdf97e404eabd5ddb8c8c264a19cc1e6f752",
+    "src/kicad_route/netnames.py": "731bcf61a909ef2720fd90b074f6cfb991a1c6ea6bea7fecf5ba3cb7fc47304f",
+    "src/kicad_route/plane_plan.py": "fab213cc155347af3c36bda5694b7aa871058c6f8b77eaf52ebd2b209bfb2d80",
+    "src/kicad_route/planes.py": "2adaab4efe91f380723efdf3af913e90dba90453b6db5792f5506b93956d3563",
+    "src/kicad_route/pour.py": "630b957fddeab33d108d634fb0f229f3c1471f80953e971effad27ca33beb2e9",
+    "src/kicad_route/procgroup.py": "d843c9b334874d0334c5ea0e9a58d83d22581648e915d40f13a6d8c8b595a3d5",
+    "src/kicad_route/provenance.py": "cf82fd9940086584a8056787ae0ca4fd58ced78ed5737f85b4e5713501add49f",
+    "src/kicad_route/sandbox.py": "5668f18e1b25d81d96f1568ee2e9fe8508a0abbaa63c28b8573dc3ebfa27edc6",
+    "src/kicad_route/skills.py": "b261fcb7596db3921c089af549a77d5803ba6c0e7590132026e9fdb85106cee8",
+    "src/kicad_route/snapshot.py": "7c51203f4a439cc99a575e6bc5433f3ab78dda7735dcd03c940f6169fe7fb9a4",
+    "src/kicad_route/spokes.py": "fc5b3f90c31cbcc9a9944628bfe6b9bc93dc31de21c893f8e476160f21033506",
+    "src/kicad_route/stall.py": "095445837a1621ca8eaa62fee2f87ec772d13fcb9111e75528743f24f095d188",
+    "src/kicad_route/statemanifest.py": "1a9903902e7f0fb1771d2730f986076c692db9579bfcbc42a9c0b576e5777ae2"
+  },
+  "doctrine": {
+    "packet_id": "pkt-98b07fec4d3b935e",
+    "packet_content_sha256": "98b07fec4d3b935e9989d5bb579e6ee239579dcdec1ec56f53750eadfd013420",
+    "corpus_version": "corpus-2026-07-12-a11702cc9217",
+    "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+    "retriever_version": "retriever-ec995ecdd083b2c8",
+    "release_commit": "d3e0c0d4ccd1920b2e045c156f1cf0db4fc5f04f",
+    "authority": "Owner-authorized implementation, verification and trunk integration; not physical PCB acceptance.",
+    "unmet_obligations": [
+      {
+        "requirement": "evidence-incidents",
+        "required_by": "task:legacy-change",
+        "classification": "nonmaterial-to-selected-migration",
+        "rationale": "The owner selected the patched baseline; this migration does not diagnose historical production incidents or alter the routing algorithms."
+      },
+      {
+        "requirement": "alternatives including no change where viable",
+        "required_by": "universal-evidence-before-intervention",
+        "classification": "nonmaterial-to-selected-migration",
+        "rationale": "The owner has selected migration into kicad-route. This result does not reopen that architecture decision, recommend optional cleanup, claim a complete security audit, or rely on an unmeasured cost comparison with leaving the external fork in place."
+      },
+      {
+        "requirement": "actual current cost/risk or absence within a stated interval",
+        "required_by": "universal-no-change-option",
+        "classification": "nonmaterial-to-selected-migration",
+        "rationale": "The owner has selected migration into kicad-route. This result does not reopen that architecture decision, recommend optional cleanup, claim a complete security audit, or rely on an unmeasured cost comparison with leaving the external fork in place."
+      },
+      {
+        "requirement": "expected future change from accepted plans",
+        "required_by": "universal-no-change-option",
+        "classification": "nonmaterial-to-selected-migration",
+        "rationale": "The owner has selected migration into kicad-route. This result does not reopen that architecture decision, recommend optional cleanup, claim a complete security audit, or rely on an unmeasured cost comparison with leaving the external fork in place."
+      },
+      {
+        "requirement": "intervention cost and uncertainty",
+        "required_by": "universal-no-change-option",
+        "classification": "nonmaterial-to-selected-migration",
+        "rationale": "The owner has selected migration into kicad-route. This result does not reopen that architecture decision, recommend optional cleanup, claim a complete security audit, or rely on an unmeasured cost comparison with leaving the external fork in place."
+      },
+      {
+        "requirement": "latent security, safety, data, durability, and compatibility check",
+        "required_by": "universal-no-change-option",
+        "classification": "nonmaterial-to-selected-migration",
+        "rationale": "The owner has selected migration into kicad-route. This result does not reopen that architecture decision, recommend optional cleanup, claim a complete security audit, or rely on an unmeasured cost comparison with leaving the external fork in place."
+      },
+      {
+        "requirement": "proc-decide-leave-code-alone",
+        "required_by": "universal-no-change-option",
+        "classification": "nonmaterial-to-selected-migration",
+        "rationale": "The owner has selected migration into kicad-route. This result does not reopen that architecture decision, recommend optional cleanup, claim a complete security audit, or rely on an unmeasured cost comparison with leaving the external fork in place."
+      }
+    ]
+  },
+  "limits": [
+    "Measurements qualify these four fixtures under the recorded toolchain and shared-host conditions, not all designs.",
+    "Maximum RSS is GNU time's largest individual-process RSS, not aggregate process-tree memory.",
+    "The conservative static inventory is not proof of every optional runtime branch.",
+    "Four pre-existing unused-import lint findings remain in touched legacy host/test files; new authored files pass F/E9 lint.",
+    "Nine whitespace findings in byte-identical imported sources are retained (eight extra EOF blank lines and one third-party space-before-tab indent). The authored integration files pass whitespace checks.",
+    "Independent native KiCad validation is retained; no fabrication or physical acceptance is asserted."
+  ],
+  "stop_conditions": [
+    "Unexplained correctness, preservation or completion regression",
+    "Per-board median runtime or maximum-RSS ratio above 1.10",
+    "Conflicting source ownership or unavailable required authority"
+  ],
+  "required_next_checkpoint": "Land verified source, install exact qualified module on main, refresh state/skills, and run offline doctor plus a real route using the independently built empty state."
+}

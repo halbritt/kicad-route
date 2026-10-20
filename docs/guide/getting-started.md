@@ -23,7 +23,7 @@ every result instead ([routing.md](../routing.md#installation-and-updates)).
 flowchart LR
     A["scripts/install.sh"] --> B["link ~/.local/bin/kicad-route<br/>and the agent skill"]
     B --> C["kicad-route update"]
-    C --> D["KRT: latest release<br/>+ .venv-krt"]
+    C --> D["Owned routing source<br/>Cargo build + .venv-krt"]
     C --> E["Freerouting: latest jar<br/>(sha256 verified)"]
     C --> F["STATE/manifest.json<br/>what is installed"]
     C --> G["smoke: integration tests<br/>on the demo board"]

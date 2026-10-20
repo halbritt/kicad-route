@@ -1,0 +1,942 @@
+"""
+Heuristic suggestions for what to adjust when routes or via placements fail.
+
+These are intentionally generic - they don't try to root-cause individual
+failures, they just inspect the parameter values the user ran with and
+flag the ones most likely to be too aggressive. The output is a list of
+short, actionable bullet strings the GUI can append to its completion
+dialog.
+"""
+from __future__ import annotations
+
+import re
+from typing import Dict, List, Any, Set
+
+
+def _g(config: Dict[str, Any], key: str, default=None):
+    """Config getter that tolerates missing keys."""
+    return config.get(key, default) if config else default
+
+
+def suggest_route_adjustments(failed: int, total: int,
+                              config: Dict[str, Any]) -> List[str]:
+    """Suggestions for the Route tab (batch_route) when routes fail.
+
+    Args:
+        failed: Number of nets that failed to route.
+        total: Total number of nets attempted (successful + failed).
+        config: The routing config dict that was used (same keys as
+            _build_routing_config).
+
+    Returns suggestions ordered with the most impactful first. Empty list
+    if `failed` is 0.
+    """
+    if failed <= 0:
+        return []
+
+    suggestions: List[str] = []
+    severity = failed / total if total > 0 else 1.0
+
+    clearance = _g(config, 'clearance')
+    track_width = _g(config, 'track_width')
+    max_ripup = _g(config, 'max_ripup')
+    max_iter = _g(config, 'max_iterations')
+    heur = _g(config, 'heuristic_weight')
+    via_size = _g(config, 'via_size')
+    layers = _g(config, 'layers') or []
+
+    # #907: an ACTIVE same-net pad via clearance is the one suggestion whose
+    # cause is a control the user set on this very dialog, and it can make a
+    # boxed-in SMD pad unroutable outright rather than merely harder. It goes
+    # FIRST for that reason -- the others ask for a knob to be turned, this
+    # one names a rule that may have closed the last via site.
+    snpc = _g(config, 'same_net_pad_clearance')
+    if snpc is not None and snpc > 0:
+        # The control is the 'Allow via-in-pad' CHECKBOX, ticked by default;
+        # UNticking it is what arms this clearance. Name it as the user sees
+        # it, and in the direction they must move it.
+        suggestions.append(
+            f"Tick 'Allow via-in-pad' (or set Same-net pad clearance, "
+            f"currently {snpc:g} mm, to 0) - it bans every via within "
+            f"{snpc:g} mm of the net's OWN SMD pads, and an SMD pad boxed in "
+            f"closer than that on every side has no legal via site at all. "
+            f"When a net fails with no rippable blockers, the run log names "
+            f"any pad this actually sealed."
+        )
+
+    # Rip-up is the single highest-leverage fix for "blocker" failures.
+    if max_ripup is not None and max_ripup < 3:
+        suggestions.append(
+            f"Raise Max Rip-up (currently {int(max_ripup)}) to 3-5 - lets the "
+            f"router temporarily remove blocker nets and retry."
+        )
+
+    # Track width: anything above 0.2 mm starts crowding dense boards.
+    if track_width is not None and track_width > 0.2:
+        suggestions.append(
+            f"Reduce Track Width (currently {track_width:.2f} mm) toward "
+            f"0.15-0.2 mm if the board can carry it - wider tracks have less "
+            f"room to weave between pads."
+        )
+
+    # Clearance similarly squeezes the routable channel between pads.
+    if clearance is not None and clearance > 0.15:
+        suggestions.append(
+            f"Reduce Clearance (currently {clearance:.2f} mm) toward "
+            f"0.1-0.15 mm if your fab and net classes permit it - smaller "
+            f"clearance opens up more channels."
+        )
+
+    # Iteration budget: hard routes need more time.
+    if max_iter is not None and max_iter < 200_000:
+        suggestions.append(
+            f"Increase Max Iterations (currently {int(max_iter):,}) to "
+            f"200,000-1,000,000 for hard-to-find paths."
+        )
+
+    # Heuristic weight: high values trade quality for speed and can wall off
+    # alternative paths.
+    if heur is not None and heur > 2.5:
+        suggestions.append(
+            f"Lower Heuristic Weight (currently {heur:.1f}) toward 1.5-1.9 - "
+            f"high values find routes faster but bias the search away from "
+            f"detours that may be the only path."
+        )
+
+    # Layer count: 2-layer boards run out of room quickly.
+    if len(layers) <= 2 and severity > 0.2:
+        suggestions.append(
+            "Enable more copper layers if the stackup allows - 2-layer "
+            "routing has little freedom to detour around blockers."
+        )
+
+    # Vias: 0.6 mm+ vias take a lot of space. Only mention on dense failures.
+    if via_size is not None and via_size > 0.6 and severity > 0.2:
+        suggestions.append(
+            f"Try smaller Via Size (currently {via_size:.2f} mm) if the "
+            f"stackup supports it - large vias block routing channels."
+        )
+
+    # If nothing matched the heuristics, give a generic hint.
+    if not suggestions:
+        suggestions.append(
+            "Try enabling rip-up, lowering clearance/track width, or "
+            "increasing Max Iterations. The Log tab has a per-net failure "
+            "history that can point at specific blockers."
+        )
+
+    return suggestions
+
+
+def suggest_plane_adjustments(failed_pads: int, total_pads: int,
+                              config: Dict[str, Any]) -> List[str]:
+    """Suggestions for the Planes tab when stitching vias couldn't be placed.
+
+    Args:
+        failed_pads: Number of pads that couldn't get a via to the plane.
+        total_pads: Total pads that needed a via.
+        config: The plane-creation config dict (shared params + tab options).
+    """
+    if failed_pads <= 0:
+        return []
+
+    suggestions: List[str] = []
+    severity = failed_pads / total_pads if total_pads > 0 else 1.0
+
+    clearance = _g(config, 'clearance')
+    via_size = _g(config, 'via_size')
+    via_drill = _g(config, 'via_drill')
+    hole_to_hole = _g(config, 'hole_to_hole_clearance')
+    rip_blocker = _g(config, 'rip_blocker_nets')
+    max_search = _g(config, 'max_search_radius')
+
+    if rip_blocker is False:
+        suggestions.append(
+            "Enable 'Rip up blocking nets' - lets plane creation remove "
+            "obstructing nets and retry placing the via."
+        )
+
+    if clearance is not None and clearance > 0.15:
+        suggestions.append(
+            f"Reduce Clearance (currently {clearance:.2f} mm) toward "
+            f"0.1-0.15 mm - tight clearance frees up positions near "
+            f"existing pads/tracks."
+        )
+
+    if via_size is not None and via_size > 0.5:
+        suggestions.append(
+            f"Try smaller Via Size (currently {via_size:.2f} mm) - smaller "
+            f"vias fit between dense pads/tracks."
+        )
+
+    if via_drill is not None and via_drill > 0.3:
+        suggestions.append(
+            f"Try smaller Via Drill (currently {via_drill:.2f} mm)."
+        )
+
+    if hole_to_hole is not None and hole_to_hole > 0.2:
+        suggestions.append(
+            f"Reduce Hole-to-Hole Clearance (currently {hole_to_hole:.2f} mm) "
+            f"toward 0.2 mm to allow vias closer to existing drills."
+        )
+
+    if max_search is not None and max_search < 15.0 and severity > 0.2:
+        suggestions.append(
+            f"Increase Max Search Radius (currently {max_search:.1f} mm) - "
+            f"lets the placer wander further from each pad to find a slot."
+        )
+
+    if not suggestions:
+        suggestions.append(
+            "Try enabling 'Rip up blocking nets', or reducing Clearance / "
+            "Via Size. The Log tab shows which pads failed and why."
+        )
+
+    return suggestions
+
+
+def suggest_diff_pair_adjustments(failed: int, total: int,
+                                  config: Dict[str, Any]) -> List[str]:
+    """Suggestions for the Differential tab when pairs fail to route.
+
+    Differential pairs are tighter than single-ended nets - small changes
+    to the pair width/gap and clearance often unblock them.
+    """
+    if failed <= 0:
+        return []
+
+    suggestions: List[str] = []
+    severity = failed / total if total > 0 else 1.0
+
+    dp_width = _g(config, 'diff_pair_width')
+    dp_gap = _g(config, 'diff_pair_gap')
+    clearance = _g(config, 'clearance')
+    max_ripup = _g(config, 'max_ripup')
+    max_iter = _g(config, 'max_iterations')
+    min_turn_r = _g(config, 'diff_pair_min_turning_radius')
+
+    if dp_width is not None and dp_width > 0.15:
+        suggestions.append(
+            f"Reduce Diff Pair Width (currently {dp_width:.2f} mm) toward "
+            f"0.08-0.12 mm - narrower traces fit through tight channels."
+        )
+    if dp_gap is not None and dp_gap > 0.12:
+        suggestions.append(
+            f"Reduce Diff Pair Gap (currently {dp_gap:.3f} mm) toward "
+            f"0.10-0.12 mm if your stackup permits - tighter coupling needs "
+            f"less channel width."
+        )
+    if clearance is not None and clearance > 0.15:
+        suggestions.append(
+            f"Reduce Clearance (currently {clearance:.2f} mm) - the pair's "
+            f"required channel = 2*width + gap + 2*clearance, so clearance "
+            f"is often the limiting factor."
+        )
+    if max_ripup is not None and max_ripup < 3:
+        suggestions.append(
+            f"Raise Max Rip-up (currently {int(max_ripup)}) to 3-5 so the "
+            f"router can temporarily remove blockers."
+        )
+    if max_iter is not None and max_iter < 200_000 and severity > 0.2:
+        suggestions.append(
+            f"Increase Max Iterations (currently {int(max_iter):,}) - diff "
+            f"pair routing is heavier than single-ended; hard pairs need "
+            f"more budget."
+        )
+    if min_turn_r is not None and min_turn_r > 0.3:
+        suggestions.append(
+            f"Reduce Min Turning Radius (currently {min_turn_r:.2f} mm) - "
+            f"larger radii block tight detours."
+        )
+
+    if not suggestions:
+        suggestions.append(
+            "Try narrowing Diff Pair Width/Gap, lowering Clearance, or "
+            "enabling rip-up. The Log tab shows per-pair failure details."
+        )
+
+    return suggestions
+
+
+def suggest_bga_fanout_adjustments(failed: int, total: int,
+                                   config: Dict[str, Any]) -> List[str]:
+    """Suggestions for the Fanout tab (BGA) when some nets fail to fanout.
+
+    The BGA grid is one of the densest regions on the board - track width,
+    clearance, and via size dominate the success rate.
+    """
+    if failed <= 0:
+        return []
+
+    suggestions: List[str] = []
+
+    track_width = _g(config, 'track_width')
+    clearance = _g(config, 'clearance')
+    via_size = _g(config, 'via_size')
+    via_drill = _g(config, 'via_drill')
+    exit_margin = _g(config, 'exit_margin')
+
+    if track_width is not None and track_width > 0.15:
+        suggestions.append(
+            f"Reduce Track Width (currently {track_width:.2f} mm) toward "
+            f"0.10-0.13 mm - BGA channels are narrow and a track that "
+            f"barely fits leaves no room for clearance."
+        )
+    if clearance is not None and clearance > 0.12:
+        suggestions.append(
+            f"Reduce Clearance (currently {clearance:.2f} mm) toward "
+            f"0.08-0.12 mm - clearance between traces and BGA balls is "
+            f"the usual bottleneck."
+        )
+    if via_size is not None and via_size > 0.45:
+        suggestions.append(
+            f"Try smaller Via Size (currently {via_size:.2f} mm) - smaller "
+            f"vias fit between BGA balls and free up routing channels."
+        )
+    if via_drill is not None and via_drill > 0.25:
+        suggestions.append(
+            f"Try smaller Via Drill (currently {via_drill:.2f} mm)."
+        )
+    if exit_margin is not None and exit_margin > 0.6:
+        suggestions.append(
+            f"Reduce Exit Margin (currently {exit_margin:.2f} mm) - shorter "
+            f"exits before the first bend free up downstream channels."
+        )
+
+    if not suggestions:
+        suggestions.append(
+            "Try narrower Track Width/Clearance and smaller vias. "
+            "Crowded BGA fanouts are mostly about channel geometry."
+        )
+
+    return suggestions
+
+
+def suggest_qfn_fanout_adjustments(failed: int, total: int,
+                                   config: Dict[str, Any]) -> List[str]:
+    """Suggestions for the Fanout tab (QFN/QFP) when stub endpoints collide.
+
+    QFN failure mode: stub endpoints land closer than `track_width + extension`
+    to a neighbouring net's stub endpoint. Useful adjustments:
+      - Increase Extension so stubs fan out further before bending.
+      - Narrow Track Width.
+    """
+    if failed <= 0:
+        return []
+
+    suggestions: List[str] = []
+
+    track_width = _g(config, 'track_width')
+    extension = _g(config, 'extension')
+
+    if extension is not None and extension < 0.4:
+        suggestions.append(
+            f"Increase Extension (currently {extension:.2f} mm) toward "
+            f"0.3-0.6 mm - the 45-degree segment then has more room to "
+            f"spread stub endpoints apart."
+        )
+    elif extension is not None:
+        suggestions.append(
+            f"Try a larger Extension (currently {extension:.2f} mm) - the "
+            f"minimum endpoint spacing scales with this value."
+        )
+
+    if track_width is not None and track_width > 0.12:
+        suggestions.append(
+            f"Reduce Track Width (currently {track_width:.2f} mm) toward "
+            f"0.08-0.12 mm - narrower stubs need less endpoint spacing."
+        )
+
+    if not suggestions:
+        suggestions.append(
+            "Try increasing Extension and/or reducing Track Width. The "
+            "minimum allowed endpoint spacing is roughly "
+            "(track_width + extension)."
+        )
+
+    return suggestions
+
+
+def format_suggestions_for_dialog(suggestions: List[str]) -> str:
+    """Turn the suggestion list into a 'Suggested adjustments:' block.
+
+    Returns an empty string if there are no suggestions, otherwise a block
+    with a header line and one bullet per suggestion.
+    """
+    if not suggestions:
+        return ""
+    lines = ["Suggested adjustments before retrying:"]
+    for s in suggestions:
+        lines.append(f"  - {s}")
+    return "\n".join(lines)
+
+
+_HINT_SENTENCES_SEEN: Set[str] = set()
+
+
+def condense_hint(text: str) -> str:
+    """Drop rationale sentences this run has already printed verbatim.
+
+    The failure hints are mostly fixed prose -- what --rip-existing-nets does,
+    why the router will never rip a protected net, what to try for fine-pitch
+    parts. On a board where several nets fail the same way that paragraph
+    repeats per net (15 times, ~8 KB, on one corpus retry step) while only its
+    first sentence -- the one naming THIS net's blockers -- differs.
+
+    Sentence-level rather than hint-specific: the variable sentence always
+    differs and so always survives, and any hint added later gets the same
+    treatment with no extra wiring. The full text is still what the hint
+    functions RETURN, so net-history records stay complete -- this condensing
+    is for the console only.
+    """
+    if not text:
+        return text
+    out_lines = []
+    for line in text.split("\n"):
+        kept, dropped = [], 0
+        for sentence in re.split(r'(?<=\.)\s+', line):
+            if not sentence.strip():
+                continue
+            if sentence in _HINT_SENTENCES_SEEN:
+                dropped += 1
+                continue
+            _HINT_SENTENCES_SEEN.add(sentence)
+            kept.append(sentence)
+        if kept:
+            out_lines.append(" ".join(kept)
+                             + ("  [rationale as above]" if dropped else ""))
+    return "\n".join(out_lines)
+
+
+def reset_hint_condenser() -> None:
+    """Forget printed sentences (new run / new board in one process)."""
+    _HINT_SENTENCES_SEEN.clear()
+
+
+def preexisting_blocker_hint(blocked_cells, config, pcb_data, net_id,
+                              routed_net_ids=(), rip_existing_names=None,
+                              return_names=False):
+    """Name the PRE-EXISTING nets whose copper blocks a failed route (#301).
+
+    Copper committed by an earlier run/step lives in the BASE obstacle map, so
+    the rip-up blocker attribution (which only knows this run's routed nets)
+    cannot see it and the net dies with a bare 'no rippable blockers found'
+    (rp2350_dev GPIO4: boxed in by GPIO5/GPIO3 escape stubs from the fanout
+    step). Geometric frontier attribution (the plane-repair machinery) names
+    them, and --rip-existing-nets (#103) is the existing, connectivity-safe way
+    to let this run rip + re-route them. Returns '' when nothing attributable.
+    """
+    def _ret(text, names):
+        return (text, names) if return_names else text
+    if not blocked_cells or pcb_data is None:
+        return _ret("", [])
+    import io
+    import math
+    from contextlib import redirect_stdout
+    from plane_blocker_detection import find_route_blocker_from_frontier
+    protected = set(routed_net_ids) | {net_id, 0}
+    from kicad_parser import pour_zones
+    # Plane nets are never named as blockers; a teardropped signal net is not
+    # one (#1164).
+    protected |= {z.net_id for z in pour_zones(getattr(pcb_data, 'zones', None))}
+
+    # Attribute NEAR-ENDPOINT cells first: the decisive blockers of a boxed-in
+    # pad are the couple of stubs at the corridor mouth, while a whole-frontier
+    # cell count is dominated by whatever big power stub the search spread
+    # along (rp2350_dev GPIO4: global attribution named +3.3V/+1V1, the actual
+    # lockout was GPIO5/GPIO3 flanking the pad).
+    near_cells = []
+    try:
+        from connectivity import get_net_endpoints
+        srcs, tgts, _err = get_net_endpoints(pcb_data, net_id, config)
+        anchors = [(s[3], s[4]) for s in (srcs or [])[:2]] + \
+                  [(t[3], t[4]) for t in (tgts or [])[:2]]
+        if anchors:
+            r_cells = max(4, int(2.0 / config.grid_step))
+            for (gx, gy, l) in blocked_cells:
+                cx, cy = gx * config.grid_step, gy * config.grid_step
+                if any(math.hypot(cx - ax, cy - ay) <= r_cells * config.grid_step
+                       for ax, ay in anchors):
+                    near_cells.append((gx, gy, l))
+    except Exception:
+        near_cells = []
+
+    # Rank by blocked-cell count, but the DECISIVE blocker of a boxed pad can
+    # be a small stub ranked below bigger bystanders (GPIO5's stub vs GPIO2's
+    # on rp2350_dev) -- so name a generous candidate set rather than a top-3.
+    names = []
+    for cell_set in (near_cells, blocked_cells):
+        if not cell_set:
+            continue
+        for _ in range(8):
+            if len(names) >= 6:
+                break
+            with redirect_stdout(io.StringIO()):  # silence the helper's
+                blocker = find_route_blocker_from_frontier(  # protected-net chatter
+                    cell_set, pcb_data, config, net_id, protected)
+            if blocker is None:
+                break
+            protected.add(blocker)
+            net = pcb_data.nets.get(blocker)
+            if net and net.name:
+                names.append(net.name)
+    # Frontier attribution can only name nets whose copper TOUCHES the
+    # recorded frontier; a stub the search never reached (because a bigger
+    # blocker stopped it first) is invisible there, yet ripping it may be the
+    # actual unlock (rp2350_dev GPIO5). Add every net with copper within ~1mm
+    # of the failing net's endpoints -- the candidates that box the pad in.
+    try:
+        seen = set(names)
+        for ax, ay in anchors:
+            for s in pcb_data.segments:
+                if s.net_id in protected or s.net_id == net_id:
+                    continue
+                # coarse distance to segment bbox, then exact point-to-segment
+                if min(s.start_x, s.end_x) - 1.0 <= ax <= max(s.start_x, s.end_x) + 1.0 and \
+                   min(s.start_y, s.end_y) - 1.0 <= ay <= max(s.start_y, s.end_y) + 1.0:
+                    from geometry_utils import point_to_segment_distance
+                    if point_to_segment_distance(ax, ay, s.start_x, s.start_y,
+                                                 s.end_x, s.end_y) <= 1.0:
+                        net = pcb_data.nets.get(s.net_id)
+                        if net and net.name and net.name not in seen:
+                            seen.add(net.name)
+                            names.append(net.name)
+                            protected.add(s.net_id)
+    except Exception:
+        pass
+    if rip_existing_names:
+        names = [n for n in names if n not in rip_existing_names]
+    # PROTECTED walls get their OWN sentence (2026-08-06, ecp5 /PF37-): the
+    # decisive wall can be a #521-protected pair CROSSING the corridor a few
+    # mm out -- beyond the 1mm rippable ring and behind the nearer stamps the
+    # frontier stalls on, so the hint named six rippable red herrings while
+    # omitting the one net that mattered. Scan wider (3mm) for protected
+    # copper and say it plainly: the router will never rip it; the fixes are
+    # plan-level. Protected names are PROSE-ONLY -- never in the returned
+    # names, so no authority machinery ever receives them (a47f244).
+    prot_txt = ""
+    try:
+        from protected_nets import protection_map
+        _pmap = protection_map(pcb_data,
+                               getattr(pcb_data, 'source_path', None))
+        if _pmap and anchors:
+            from geometry_utils import point_to_segment_distance
+            _pnames = []
+            _pids = {i for i, n in pcb_data.nets.items() if n.name in _pmap}
+            for s2 in pcb_data.segments:
+                if s2.net_id not in _pids:
+                    continue
+                nm2 = pcb_data.nets[s2.net_id].name
+                if nm2 in _pnames:
+                    continue
+                for ax, ay in anchors:
+                    if point_to_segment_distance(
+                            ax, ay, s2.start_x, s2.start_y,
+                            s2.end_x, s2.end_y) <= 3.0:
+                        _pnames.append(nm2)
+                        break
+            if _pnames:
+                _pq = ", ".join(f"'{n}' ({_pmap[n]})" for n in _pnames)
+                # #1261: only a non-'locked' reason has the exact-name
+                # override; KiCad-locked copper has none, so offering it
+                # sends the reader to a flag that will be refused.
+                _plock = [n for n in _pnames if _pmap[n] == 'locked']
+                _ovr = [n for n in _pnames if _pmap[n] != 'locked']
+                _fix = "reorder so this net routes BEFORE them"
+                if _ovr:
+                    _fix += (", or override deliberately by naming "
+                             + ("a non-locked one" if _plock else "the net")
+                             + " EXACTLY (no glob) in --rip-existing-nets")
+                if _plock:
+                    _fix += ("; KiCad-locked copper has no override -- "
+                             "unlock it in the board")
+                prot_txt = (f"\nHint: the box also includes PROTECTED "
+                            f"net(s) {_pq} within 3mm of the failing "
+                            f"endpoint(s). The router will NEVER rip these "
+                            f"(#521). If one is the decisive wall, the "
+                            f"fixes are plan-level: {_fix}.")
+    except Exception:
+        prot_txt = ""
+    if not names:
+        return _ret(prot_txt.lstrip("\n") if prot_txt else "", [])
+    # #1156: say which of them this run could ALREADY rip. The automatic
+    # candidacy (route.py: unprotected, <=30 segments and <=6 vias) and
+    # --rip-existing-nets both grant it, and a net the run ripped had it; the
+    # hint used to call all of them "not allowed to rip" and prescribe the
+    # flag, which on multichannel_mixer named 7 nets the same run had ripped
+    # -- and the gate then reverted the follow-up run for having MORE
+    # authority. The returned names are unchanged: they feed the #103
+    # reconciliation, whose authority is a separate decision.
+    _auth = set(getattr(pcb_data, '_rip_authority_ids', None) or ())
+    _ripped = set((getattr(pcb_data, '_preexisting_rips', None) or {}).keys())
+    _n2i = {n.name: i for i, n in pcb_data.nets.items() if n.name}
+    had = [n for n in names if _n2i.get(n) in (_auth | _ripped)]
+    outside = [n for n in names if n not in had]
+    had_txt = ""
+    if had:
+        _nr = sum(1 for n in had if _n2i.get(n) in _ripped)
+        had_txt = (f" {len(had)} {'of them' if outside else 'blocking net(s)'} "
+                   f"({' '.join(repr(n) for n in had)}) this run could already "
+                   f"rip{f', and ripped {_nr}' if _nr else ''} (automatic "
+                   f"candidacy or --rip-existing-nets): granting the flag "
+                   f"adds no authority over them.")
+    # #1261: --rip-existing-nets is refused for KiCad-locked copper, so a
+    # locked blocker is never put in the retry command; it is named for what
+    # it is. A net protected for another reason (#521) stays in the command:
+    # naming it EXACTLY, as the command does, is the override its rule allows.
+    _prot = {}
+    try:
+        from protected_nets import protection_map
+        _prot = protection_map(pcb_data,
+                               getattr(pcb_data, 'source_path', None)) or {}
+    except Exception:
+        _prot = {}
+    locked_out = [n for n in outside if _prot.get(n) == 'locked']
+    outside = [n for n in outside if n not in set(locked_out)]
+    lock_txt = ""
+    if locked_out:
+        lock_txt = (f" {len(locked_out)} blocking net(s) "
+                    f"({' '.join(repr(n) for n in locked_out)}) carry "
+                    f"KiCad-locked copper, which no flag can rip (#521): "
+                    f"unlock it in the board, or plan around it.")
+    prot_out = [n for n in outside if n in _prot]
+    prot_out_txt = ""
+    if prot_out:
+        _pr = ", ".join(f"'{n}' ({_prot[n]})" for n in prot_out)
+        prot_out_txt = (f" {_pr} {'is' if len(prot_out) == 1 else 'are'} "
+                        f"protected (#521): naming {'it' if len(prot_out) == 1 else 'them'} "
+                        f"EXACTLY, as the command does, is the deliberate "
+                        f"override -- a glob would not lift it.")
+    if not outside:
+        return _ret(f"Hint: the blocking copper belongs to pre-existing "
+                    f"net(s) committed by an earlier run/step.{had_txt}"
+                    f"{lock_txt}" + prot_txt, names)
+    quoted = " ".join(f"'{n}'" for n in outside)
+    # The net list appears ONCE, in the retry command -- naming them in the
+    # prose as well doubled a hint that already runs to several hundred
+    # characters, and the command is the half the reader acts on.
+    return _ret(f"Hint: the blocking copper belongs to {len(names)} pre-existing "
+            f"net(s) committed by an earlier run/step; {len(outside)} of them "
+            f"this run may not rip. Retry with --rip-existing-nets {quoted} to "
+            f"rip and re-route them in this run (issue #103) -- the decisive "
+            f"blocker may be any of them, so start with the full set (each "
+            f"ripped net is re-routed and the run reports honestly if one "
+            f"cannot be), then bisect if you want a minimal rip.{prot_out_txt}"
+            f"{had_txt}{lock_txt}" + prot_txt, names)
+
+
+def fanout_dropped_ball_hint(pcb_data, config, net_id, net_name=None, *,
+                             return_verdict=False, plane_like_pads=6):
+    """`no rippable blockers found` is TRUE. It is also useless (#652).
+
+    A ball the fanout dropped is removed from the output, and every later
+    routing step then fails its net with `no rippable blockers found` -- which
+    invites retries that can never work (rip authority, force-reroute, smaller
+    vias), because the ball has no escape stub for any of them to work with.
+    Measured on orangecrab: EXT_PLL+ and LED_R shipped unrouted in ~15 route-step
+    variants across an entire campaign, including `--rip-existing-nets '*'` and
+    `--force-reroute`, before the cause was traced back to the fanout log.
+
+    Unlike the other hints in this module this one is not a heuristic about the
+    search -- it is a statement about the BOARD: this net has a pad buried
+    inside a package's own pad field with no copper attached to it. Nothing
+    downstream can route that; the fix is upstream, in the fanout.
+
+    Re-derived from geometry because it has to be: the fanout's
+    `unescaped_nets` is printed and then lost -- no consumer, no sidecar, and
+    #472 settled that this machinery stays board-state-driven -- so a later
+    `route.py` PROCESS cannot be told, only shown.
+
+    Returns '' (or `('', None)`) when the net has no such pad, which is the
+    common case: the caller should print whatever it was going to print.
+    """
+    def _ret(hint, verdict=None):
+        return (hint, verdict) if return_verdict else hint
+
+    if pcb_data is None or not net_id:
+        return _ret('')
+    try:
+        from routing_common import entombed_bare_pads
+        bare = entombed_bare_pads(pcb_data, [net_id])
+    except Exception:
+        return _ret('')
+    if not bare:
+        return _ret('')
+    pad, ref = bare[0]
+    where = f"{ref}.{pad.pad_number}"
+    name = net_name or pad.net_name or f"net{net_id}"
+    # A net with many pads is usually plane-destined, and telling its owner to
+    # re-run the FANOUT is the wrong remedy: on a pre-plane board `zones` is
+    # empty, so `entombed_bare_pads` cannot tell a dropped signal ball from a
+    # GND ball waiting for its pour, and measured, power/ground dominates that
+    # population (118 of 120 hits on orangecrab_ext_pll). The observation is
+    # the same either way -- this pad owns no copper -- so the hint is not
+    # suppressed; the ADVICE is what changes. 6 is `fanout_candidate_nets`'
+    # own plane_min_pads, so the two agree about what looks like a plane.
+    n_pads = len(pcb_data.pads_by_net.get(net_id, []))
+    plane_like = n_pads >= plane_like_pads
+    remedy = ("re-create the plane for this net (route_planes.py), or fan it "
+              "out explicitly" if plane_like else
+              "re-run the fanout for this net (bga_fanout.py / qfn_fanout.py "
+              "--escape-method underpad, or a smaller --via-size)")
+    hint = (f"Hint: pad {where} is a fanout-dropped ball (no escape stub) -- "
+            f"it sits inside {ref}'s pad field with no copper of {name} "
+            f"attached, so no rip authority or retry can reach it"
+            + (f". {name} has {n_pads} pads, so it looks plane-destined: "
+               f"{remedy}." if plane_like else f". {remedy[0].upper()}"
+               f"{remedy[1:]}."))
+    return _ret(hint, {'verdict': 'fanout_dropped', 'pad': where,
+                       'component': ref, 'plane_like': plane_like,
+                       'pads': [f"{r}.{p.pad_number}" for p, r in bare[:6]]})
+
+
+def same_net_pad_seal_hint(pcb_data, config, net_id, net_name=None,
+                           obstacles=None, layer_count=None, *,
+                           return_verdict=False):
+    """`--same-net-pad-clearance` can make an SMD pad unroutable, silently (#907).
+
+    The flag bans VIA placement within pad-edge + via/2 + clearance + grid/2 of
+    the net's own SMD pads (`obstacle_map.same_net_pad_via_keepout_cells`). On
+    a pad boxed in on every side closer than that, the ban closes the last
+    legal via site and the net simply fails -- and NOTHING in the failure
+    report names the flag. The router's own diagnostic inspects the target
+    CELL ("backward cell ... ok, 0/8 neighbors blocked"), which is about TRACK
+    blocking and stays green while the via map is what is closed. Measured on
+    run 25's esp_prog: U2's tab pad became unroutable in the quality lap and
+    the cause was found by hand geometry, not by the tool.
+
+    The test is the A/B the router itself cannot do: for each of the net's
+    SMD pads, take the cells THIS FLAG contributes around that pad alone,
+    remove them from the via map, and ask again whether any site that could
+    serve the pad is legal. If one appears only with the flag's cells gone,
+    the flag is what closed it. The map is REFCOUNTED, so the removal and the
+    re-add are exactly balanced and the map is byte-for-byte what it was --
+    and the restore runs in a `finally`, because a diagnosis that corrupts the
+    obstacle map would be far worse than no diagnosis.
+
+    That balance holds only on a map that CARRIES the flag's stamp, so
+    `obstacles` must be the map the route searched: prepared by
+    `prepare_obstacles_inplace` (or stamped by `add_same_net_via_clearance`)
+    and not yet restored (#1229). A restored map holds the net's own cached
+    copper in place of its keep-out, so the removal takes counts that copper
+    holds and the hint blames the flag for a seal it did not make. The probe
+    reads, and touches, only the via map of `config.via_rung` (rung 0 unless
+    that rung's map is populated -- `is_via_blocked_rung`'s own fallback), and
+    sizes the keep-out at the via that map was stamped with. Pass a net at its
+    own #530 via the config the route searched it with
+    (`_per_net_via_config`): it names the net's rung and carries the run's via
+    in `run_via`.
+
+    "A site that could serve the pad" is the pad's own cells plus the off-pad
+    escape-stub radius (`KICAD_ESCAPE_STUB_RADIUS`, 1.0 mm by default), which
+    is the actual fallback rung `_place_shrunk_via_in_pad` uses when this flag
+    forbids the in-pad arm -- so the question asked is the one the router
+    really answers.
+
+    Returns '' (or `('', None)`) whenever the flag is off, the net has no SMD
+    pad, or a legal site exists either way -- the common case, in which the
+    caller should print whatever it was going to print.
+    """
+    def _ret(hint, verdict=None):
+        return (hint, verdict) if return_verdict else hint
+
+    snpc = getattr(config, 'same_net_pad_clearance', -1.0)
+    if obstacles is None or pcb_data is None or not net_id             or snpc is None or snpc <= 0:
+        return _ret('')
+    try:
+        from dataclasses import replace
+        from obstacle_map import same_net_pad_via_keepout_cells, GridCoord
+        import numpy as _np
+        import env_knobs
+    except Exception:
+        return _ret('')
+    pads = [p for p in pcb_data.pads_by_net.get(net_id, [])
+            if not getattr(p, 'drill', 0)]
+    if not pads:
+        return _ret('')            # through-hole only: the flag exempts those
+    coord = GridCoord(config.grid_step)
+    rung = int(getattr(config, 'via_rung', 0) or 0)
+    if rung:
+        # An unpopulated rung reads as rung 0 (is_via_blocked_rung falls
+        # back), so rung 0 is the map to probe -- and the one to touch.
+        try:
+            if not obstacles.rung_len(rung):
+                rung = 0
+        except Exception:
+            rung = 0
+    # The via the keep-out on THAT map was stamped at, as
+    # prepare_obstacles_inplace stamps it: rung 0 and the #568 small rung at
+    # the RUN's via, a #530 per-net rung -- slot 1 included, on a board with
+    # no small slot -- at that rung's own via (#1226), the layout
+    # _per_net_rung_geometry reads. The cells removed below are then cells
+    # the stamp added, and the surround the hint quotes is the one the route
+    # was held to.
+    run_via = tuple(getattr(config, 'run_via', None)
+                    or (config.via_size, config.via_drill))
+    via = run_via
+    if rung:
+        try:
+            from obstacle_map import _per_net_rung_geometry
+            _run_cfg = replace(config, via_size=run_via[0], via_drill=run_via[1],
+                               via_rung=0, run_via=None)
+            via = {r: (d, h) for r, d, h in
+                   _per_net_rung_geometry(obstacles, _run_cfg)}.get(rung, via)
+        except Exception:
+            pass
+    if via != (config.via_size, config.via_drill):
+        config = replace(config, via_size=via[0], via_drill=via[1])
+    reach_mm = max(0.0, env_knobs.ESCAPE_STUB_RADIUS)
+
+    def _free_site(pad):
+        """Is any via site that could serve `pad` legal right now?"""
+        pgx, pgy = coord.to_grid(pad.global_x, pad.global_y)
+        span = int(round((max(pad.size_x, pad.size_y) / 2 + reach_mm)
+                         / config.grid_step))
+        for gx in range(pgx - span, pgx + span + 1):
+            for gy in range(pgy - span, pgy + span + 1):
+                try:
+                    blocked = obstacles.is_via_blocked_rung(gx, gy, rung)
+                except Exception:
+                    blocked = obstacles.is_via_blocked(gx, gy)
+                if not blocked:
+                    return True
+        return False
+
+    # #962: the flag also keeps vias out of the net's paste OPENINGS. An
+    # opening near a pad takes part in sealing it, so its cells are removed
+    # together with the pad's and the hint names it.
+    try:
+        from obstacle_map import paste_keepout_apertures
+        _keepout_aps = paste_keepout_apertures(pcb_data, net_id)
+    except Exception:
+        _keepout_aps = []
+    for pad in pads:
+        _reach = max(pad.size_x, pad.size_y) / 2 + reach_mm + config.via_size
+        _aps = [ap for ap in _keepout_aps
+                if ap.bounds[0] - _reach <= pad.global_x <= ap.bounds[2] + _reach
+                and ap.bounds[1] - _reach <= pad.global_y <= ap.bounds[3] + _reach]
+        try:
+            cells = same_net_pad_via_keepout_cells(pcb_data, net_id, config,
+                                                   pads=[pad])
+            if _aps:
+                _ac = same_net_pad_via_keepout_cells(pcb_data, net_id, config,
+                                                     pads=[], apertures=_aps)
+                if len(_ac):
+                    cells = (_np.concatenate([cells, _ac]) if len(cells) else _ac)
+        except Exception:
+            continue
+        if not len(cells):
+            continue
+        if _free_site(pad):
+            continue               # a legal site exists: the flag sealed nothing
+        arr = _np.asarray(cells, dtype=_np.int32)
+        # REMOVE EXACTLY WHAT THE STAMP ADDED, from the one map `_free_site`
+        # reads and nothing else. Every via map SATURATES at zero (an absent
+        # key is a no-op), so removing cells a map does not hold removes
+        # nothing and the re-add then STAMPS them, over-blocking via placement
+        # for the rest of the run on the failure path -- exactly when the
+        # router is already struggling. A map the probe does not read can
+        # only be harmed by it: measured (#1229), the #568 small rung gained
+        # 132 cells on a restored map, and 381 on a clone whose small rung
+        # had been empty -- populated with this keep-out ALONE, the hazard
+        # populated_via_rungs exists to prevent.
+        _removed = False
+        try:
+            if rung:
+                obstacles.remove_blocked_vias_rung_batch(rung, arr)
+            else:
+                obstacles.remove_blocked_vias_batch(arr)
+            _removed = True
+            freed = _free_site(pad)
+        except Exception:
+            continue
+        finally:
+            # Balanced on a refcounted map -- a cell blocked by this flag AND
+            # by something else keeps its other reference and stays blocked,
+            # which is the right answer. Re-added ONLY if the removal actually
+            # happened, so a throw part-way through cannot leak a stamp.
+            if _removed:
+                try:
+                    if rung:
+                        obstacles.add_blocked_vias_rung_batch(rung, arr)
+                    else:
+                        obstacles.add_blocked_vias_batch(arr)
+                except Exception:
+                    pass
+        if not freed:
+            continue               # something else seals it; not this flag
+        where = f"{pad.component_ref}.{pad.pad_number}"
+        name = net_name or pad.net_name or f"net{net_id}"
+        need = config.via_size / 2 + snpc + config.grid_step / 2
+        _ap_labels = [ap.label() for ap in _aps]
+        _ap_clause = (f" (with the paste opening(s) {', '.join(_ap_labels)} it "
+                      f"also keeps clear, #962)" if _ap_labels else "")
+        hint = (f"Hint: pad {where} is sealed by --same-net-pad-clearance "
+                f"{snpc:g}{_ap_clause} -- with that flag's keep-out removed a "
+                f"legal via site appears, and with it there is none within the "
+                f"{reach_mm:g}mm escape-stub reach. It needs {need:.3f}mm of "
+                f"clear pad surround (via/2 {config.via_size / 2:.3f} + "
+                f"clearance {snpc:g} + grid/2 {config.grid_step / 2:.3f}), so "
+                f"{name} cannot change layer here. Re-run with "
+                f"--same-net-pad-clearance 0 to allow via-in-pad on this "
+                f"board (a via then placed in a pad or paste opening is "
+                f"stamped filled+capped, #962), or widen the channel around "
+                f"{where} in placement.")
+        return _ret(hint, {'verdict': 'sealed_by_snpc', 'pad': where,
+                           'aperture': _ap_labels,
+                           'same_net_pad_clearance': float(snpc),
+                           'required_surround_mm': round(need, 4),
+                           'escape_reach_mm': round(reach_mm, 3),
+                           'net': name})
+    return _ret('')
+
+
+def static_boxin_hint(result, config, pcb_data=None, *, return_verdict=False):
+    """One-line hint when a route died immediately with nothing rippable.
+
+    A failure with almost no A* iterations and no rippable blockers means the
+    start/target cells are boxed in by STATIC obstacles (neighboring pads plus
+    clearance expansion) - typical for fine-pitch (0.4-0.65 mm) packages at
+    coarse grid/clearance settings - not by other nets' routes (issue #95).
+    Returns '' when the failure doesn't match that signature.
+
+    `return_verdict=True` returns `(hint, verdict_or_None)` -- the same shape
+    `preexisting_blocker_hint`'s `return_names=True` uses -- so callers can
+    record the static-vs-congestion decision as data (`boxed_in` in the
+    summary) instead of only printing it.
+    """
+    def _ret(hint, verdict=None):
+        return (hint, verdict) if return_verdict else hint
+
+    if result is None:
+        return _ret("")
+    iters = result.get('iterations_forward', 0) + result.get('iterations_backward', 0)
+    if iters >= 20000:
+        return _ret("")
+    finer = config.grid_step / 2
+    # Don't steer users into an OOM (issue #105): halving the grid step
+    # quadruples cell count. Above ~4M cells per layer, suggest scoping the
+    # finer grid to the failing nets instead of a board-global parameter.
+    grid_advice = f"--grid-step {finer:g}"
+    if pcb_data is not None and getattr(pcb_data.board_info, 'board_bounds', None):
+        b = pcb_data.board_info.board_bounds
+        cells = (b[2] - b[0]) * (b[3] - b[1]) / (finer * finer)
+        if cells > 4e6:
+            grid_advice = (f"--grid-step {finer:g} scoped to just the failing nets "
+                           f"via --nets (board-global it is ~{cells / 1e6:.0f}M "
+                           f"cells/layer and may exhaust memory)")
+    return _ret(
+        f"Hint: search exhausted after only {iters} iterations with no rippable "
+        f"blockers - the start/target pads are boxed in by static obstacles "
+        f"(neighboring pads + clearance), not by congestion. For fine-pitch "
+        f"parts try a finer grid and/or smaller clearance/track, e.g. "
+        f"{grid_advice} --clearance 0.15 --track-width 0.15 "
+        f"(current: grid {config.grid_step:g}, clearance {config.clearance:g}, "
+        f"track {config.track_width:g} mm)",
+        # The same decision as data: the iteration count it was made on and
+        # the geometry that was in force.
+        {'verdict': 'boxed_in_static', 'iterations': iters,
+         'geometry': {'grid_step': config.grid_step,
+                      'clearance': config.clearance,
+                      'track_width': config.track_width,
+                      'via_diameter': getattr(config, 'via_diameter', None)}})

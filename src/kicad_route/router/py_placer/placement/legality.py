@@ -1,0 +1,6884 @@
+"""Placement legality geometry: board side, true board outline, courtyard rects.
+
+The single home for the geometric predicates that decide whether a placement is
+LEGAL, as opposed to merely cheap. Both placement engines consume it:
+
+- ``placement/quench.py`` -- the perturbative nudge/rotate/swap optimizer
+- ``placement/fanout_clearance.py`` -- the decoupling-cap repair pass
+
+and so can a placement grader: `placement_overlap_area` (total courtyard overlap
+area) and `placement_out_of_board` are the two legality metrics the placement
+scorecard needs (#456, feeding #411/#110), computed by the same code the
+optimizers gate on rather than by a second implementation that can disagree.
+
+Two things here are easy to get wrong and are therefore centralized:
+
+**Board side.** Parts on opposite sides of the board overlap in XY without
+overlapping in copper -- a back-side decoupling cap legitimately sits under a
+front-side BGA. A side-blind clearance check calls that a collision, and since
+only CANDIDATE poses are validated (never the incumbent), every candidate near
+such a part is rejected and the part freezes in place. But a THROUGH-HOLE part
+does occupy both sides: its leads pass through the board. So a part occupies its
+own side with its full courtyard, and the opposite side only with the bounding
+box of its drilled pads (`sides_occupied` / `rect_on` / `pair_min_gap`).
+
+**The board is not its bounding box.** `board_bounds` is an axis-aligned bbox
+(kicad_parser), so an inset of it is blind to an L-shaped outline, a notch, or an
+interior cutout -- a part gets nudged into the hole. `BoardOutlineGate` measures
+against the real Edge.Cuts rings, with the three-level short-circuit that makes
+it affordable: board-level opt-out when the outline IS its bbox, a cached
+per-part reachable-disk prune, then the exact ring test.
+"""
+from __future__ import annotations
+
+import math
+import os
+from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, Tuple
+
+EPS = 1e-6
+
+#: #1127: confirm the per-pad sweep's box hits on the pads' own outlines
+#: before the gate refuses a pose for them. ONE switch for both conjuncts the
+#: boxes decide: `PairShortfall.stack` (`_exact_pad_stack`, the check
+#: check_assembly's pad_intersection channel makes) and the PAD conjunct --
+#: `pad` and `pad_overlap` -- re-measured by check_drc's own pad-pad check at
+#: the pair's requirement (`LegalityContext._pad_confirmed`). Read ONCE, when a
+#: `PartPads` / `LegalityContext` is built, so one context never mixes the two
+#: answers. Off: the conservative box answer, unchanged.
+STACK_EXACT_CONFIRM = False
+
+# Run-6: a part covering at least this fraction of the board bbox MAY be a
+# CONTAINER (a module-outline footprint hosting the design -- a frame, not a
+# body). Calibration: rp2350_fpga_eensy U8 = 1.13x board area; the largest
+# non-container anywhere in the 33-board corpus = 0.29 (sonde_u J1). Since
+# fa10 P1 the ratio is only the first test: `_container_kind` decides, on
+# geometry (an `outline` or a `pin_frame`, see FRAME_DRILLED_FRAC), so
+# One-Air-Max's BAT1 at 0.62 is a body. Census over the tracked corpus and the
+# fa10 human boards: U8 'pin_frame', watchy REF** 'outline', nothing else.
+# An outline's courtyard pairs are waived `container_class`; a pin frame's
+# rect pairs are dropped and its HOLES graded (`pin_in_courtyard`); the pad
+# layer applies in full to both.
+CONTAINER_RATIO = 0.5
+
+BOTH_SIDES = frozenset(('F', 'B'))
+# #834: interned so `PartPads.pad_sides` allocates none of these per part --
+# `pair_shortfall` intersects them in `quench.candidate_valid`'s inner loop,
+# and a board contributes a few hundred parts.
+FRONT_ONLY = frozenset(('F',))
+BACK_ONLY = frozenset(('B',))
+NO_SIDES = frozenset()
+
+
+# --- rect primitives ---------------------------------------------------------
+# rotate_local_bounds and rect_gap lived in duplicate in quench.py and
+# fanout_clearance.py; both now re-export from here.
+
+def rotate_local_bounds(lmin_x, lmin_y, lmax_x, lmax_y, rotation):
+    """Rotate a local bounding box by the footprint rotation (KiCad sign)."""
+    rot = rotation % 360
+    if abs(rot) < 0.01:
+        return lmin_x, lmin_y, lmax_x, lmax_y
+    angle = math.radians(-rot)
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    corners = [(lmin_x, lmin_y), (lmax_x, lmin_y),
+               (lmin_x, lmax_y), (lmax_x, lmax_y)]
+    xs = [x * cos_a - y * sin_a for x, y in corners]
+    ys = [x * sin_a + y * cos_a for x, y in corners]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def rect_gap(a, b):
+    """Smallest axis-aligned gap between two rects (negative if overlapping)."""
+    dx = max(a[0] - b[2], b[0] - a[2])
+    dy = max(a[1] - b[3], b[1] - a[3])
+    if dx < 0 and dy < 0:
+        return max(dx, dy)  # overlap amount (negative)
+    return math.hypot(max(dx, 0), max(dy, 0)) if (dx > 0 and dy > 0) else max(dx, dy)
+
+
+def rect_overlap_shortfall(a, b, clearance):
+    """Clearance shortfall between two rects (0 when they are clear)."""
+    return max(0.0, clearance - rect_gap(a, b))
+
+
+def pad_half_extents(pad):
+    """(half_x, half_y) of a pad's axis-aligned bbox, honouring `rect_rotation`.
+
+    `pad.size_x/size_y` are already resolved to board space for an orthogonal
+    pad; `rect_rotation` is the residual tilt for one on a non-orthogonal angle
+    (in (-90, 90]), and ignoring it UNDER-sizes the pad. THREE copies lived in
+    `fanout_clearance` alone -- `_Cap`'s pad list, its via pass, and its rect
+    builder -- so it lives here now, beside the gap function its callers pair
+    it with.
+
+    Two near neighbours are deliberately NOT folded in, and naming them is the
+    point of this paragraph: `reachability._point_rect_dist` rotates the query
+    POINT into the pad frame instead, which is an exact rotated-rect distance
+    rather than a bbox; and `py_router/check_drc._pad_half_extents` computes
+    the same numbers but lives across the package boundary and also handles
+    custom-pad polygons. A first draft of this docstring listed `reachability`
+    as one of the three and did not mention `check_drc` at all -- which is
+    exactly the map a later reader hunting duplicates would have trusted.
+
+    The bbox OVER-states a tilted pad, so a gap computed from it UNDER-states
+    the true clearance: the safe direction for a proximity rule, and the same
+    convention `reachability` already records -- modelling one pad two ways puts
+    the naming and the number in different geometries.
+    """
+    tilt = math.radians(getattr(pad, 'rect_rotation', 0.0) or 0.0)
+    c, s = abs(math.cos(tilt)), abs(math.sin(tilt))
+    hx, hy = pad.size_x / 2.0, pad.size_y / 2.0
+    return hx * c + hy * s, hx * s + hy * c
+
+
+def pad_rect(pad, margin: float = 0.0):
+    """A pad's axis-aligned copper rect in BOARD coordinates, plus `margin`.
+
+    `global_x/global_y` is always the copper centre even when the drill is
+    offset from it, so this is the right anchor for a clearance question and the
+    wrong one for a drill question.
+    """
+    hx, hy = pad_half_extents(pad)
+    hx += margin
+    hy += margin
+    return (pad.global_x - hx, pad.global_y - hy,
+            pad.global_x + hx, pad.global_y + hy)
+
+
+def rect_overlap_area(a, b):
+    """Area of the intersection of two rects (0 when disjoint).
+
+    The OO ("total component overlap area") legality metric's primitive: unlike
+    rect_gap this is a real area, so it stays comparable across boards.
+    """
+    w = min(a[2], b[2]) - max(a[0], b[0])
+    if w <= 0.0:
+        return 0.0
+    h = min(a[3], b[3]) - max(a[1], b[1])
+    return w * h if h > 0.0 else 0.0
+
+
+def rect_area(rect):
+    return max(0.0, rect[2] - rect[0]) * max(0.0, rect[3] - rect[1])
+
+
+# --- drawn outlines (#1094) ----------------------------------------------------
+# The rect primitives above are exact only for an axis-aligned part. A part at
+# 45 degrees graded as the box around its rotated box reported 74 courtyard
+# pairs on KiCad's StickHub demo where KiCad reports 0, and six fab
+# CONTAINMENTS that made the human board NOT BUILDABLE. The graders keep the
+# rects as their broad phase and measure a pair the rects say overlaps on the
+# drawn outlines below, which is what KiCad measures.
+
+def place_local_shape(shape, x, y, rotation):
+    """A local-frame shapely geometry at the pose (x, y, rotation).
+
+    The same sign as `rotate_local_bounds`, so the bbox of the result is the
+    rect that function would give for an axis-aligned shape.
+    """
+    from shapely import affinity
+    rot = (rotation or 0.0) % 360
+    g = shape if abs(rot) < 0.01 else affinity.rotate(shape, -rot,
+                                                      origin=(0, 0))
+    return affinity.translate(g, x, y)
+
+
+def shape_overlap(a, b):
+    """(area, depth, rect) of two board-frame geometries' intersection.
+
+    `depth` is `overlap_thickness` of the intersection -- for two
+    axis-aligned rects exactly `min(dx, dy)`, the rect channel's own depth
+    -- and `rect` its bounding box, which is what the edge-class waiver
+    tests against the outline. (0.0, 0.0, None) when they do not overlap.
+    """
+    ix = a.intersection(b)
+    area = ix.area
+    if area <= EPS:
+        return 0.0, 0.0, None
+    return area, overlap_thickness(ix), tuple(ix.bounds)
+
+
+def overlap_thickness(geom) -> float:
+    """How thick an overlap region is, in mm: twice the radius of the largest
+    circle it contains, over its thickest part.
+
+    MOVED to `py_router/geometry_utils.py` (#1111), verbatim, so check_pads
+    can measure a custom pad's overlap with this same ruler without the router
+    importing a placement engine (`_placer_path.py`: one direction only). The
+    name stays here because every placement grader calls it from here.
+    Imported lazily: this module has no module-scope router import.
+    """
+    from geometry_utils import overlap_thickness as _thickness
+    return _thickness(geom)
+
+
+#: A body overlap at or above this fraction of the SMALLER body is a
+#: CONTAINMENT rather than a kiss. Corpus-calibrated on the 33 boards in
+#: kicad_files/, measured (not assumed), in the FAB currency:
+#:
+#:     FID2 / J5   (orangecrab_ext_pll)  frac 1.000  2.25 mm2  marker-exempt
+#:     FID1 / J4   (orangecrab_ext_pll)  frac 0.867  1.95 mm2  marker-exempt
+#:     GPDI1 / J5  (ulx3s)               frac 0.011  0.22 mm2  non-exempt
+#:     GPDI1 / SW1 (ulx3s)               frac 0.001  0.085 mm2 non-exempt
+#:
+#: Those 4 pairs are the entire fab census. NON-EXEMPT fab containment at
+#: frac >= 0.5 is ZERO on all 33 healthy boards, and the worst healthy
+#: non-exempt fab frac is 0.011 against a measured defect of 1.000 -- a ~90x
+#: separation, the same standard that licensed `stacks` to gate.
+CONTAINMENT_FRAC = 0.5
+
+#: Courtyard BLOCKING policy (run-23). The courtyard channel stayed advisory
+#: because area alone cannot tell a by-design kiss from an interpenetration:
+#: run-23's final board shipped D3<->SW1 at 0.059 mm2 / depth 0.02 (a sliver a
+#: healthy board carries) NEXT TO J4<->U6 at 5.56 mm2 / depth 0.90 (two parts
+#: in the same space) and every gate passed both. A pair gates only when BOTH
+#: exceed these floors -- area says the overlap is substantial, depth says it
+#: is an interpenetration rather than an edge graze -- and the pair is
+#: unwaived (marker/edge/container/intent ladders still apply) and both
+#: courtyards are REAL geometry (see GradedPart.synthetic: a zero-pad
+#: footprint's fictional +/-0.5mm box manufactures phantom pairs).
+COURTYARD_BLOCKING_MIN_MM2 = 0.5
+COURTYARD_BLOCKING_MIN_DEPTH_MM = 0.3
+#: The RELATIVE floor (run-23, user finding #2): an absolute area floor is
+#: blind to small parts -- J4<->R21 measured 0.445mm2 (11% under the area
+#: floor) while a QUARTER of R21's courtyard sat inside J4's. A pair also
+#: gates when the overlap consumes this fraction of the SMALLER courtyard,
+#: the same denominator containment_frac uses and for the same reason: area
+#: is everything to a 0402 and nothing to a connector.
+COURTYARD_BLOCKING_MIN_FRAC = 0.25
+
+
+def containment_frac(area, ra, rb):
+    """How much of the SMALLER of two bodies the overlap `area` consumes.
+
+    The number `area_mm2` alone cannot supply, and the reason run-22 shipped a
+    board every gate called buildable: a connector shell KISSING a neighbour
+    and a part sitting WHOLLY INSIDE another part produce the same
+    `area_mm2` on different-sized parts, so a reader could not tell an
+    intended overhang from an assembly impossibility without re-deriving the
+    geometry by hand (the run wrote a throwaway probe to do exactly that).
+
+    Measured on that board: RN3 inside U5 and RN7 inside U6 both reported
+    `fab 2.0 mm2` -- identical to a large shell's legitimate graze -- while
+    being 1.000 of the smaller body.
+
+    Smaller-body denominator, because containment is asymmetric: a 2 mm2
+    overlap is everything to a 0402 and nothing to a connector. Returns
+    0.0..1.0, or None when either body has no area (nothing to be inside of).
+    """
+    return containment_frac_of_areas(area, rect_area(ra), rect_area(rb))
+
+
+def containment_frac_of_areas(area, area_a, area_b):
+    """`containment_frac` for bodies known by their AREAS (#1094: a drawn
+    outline is not a rect, and its bbox area over-states the body)."""
+    small = min(area_a, area_b)
+    if small <= EPS:
+        return None
+    return round(min(1.0, area / small), 4)
+
+
+def point_to_seg_dist(px, py, x1, y1, x2, y2):
+    """Distance from a point to a line segment."""
+    dx, dy = x2 - x1, y2 - y1
+    L2 = dx * dx + dy * dy
+    if L2 < 1e-12:
+        return math.hypot(px - x1, py - y1)
+    t = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / L2))
+    return math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
+
+
+def ring_is_rect(ring):
+    """True when an outline ring is an axis-aligned rectangle equal to its own
+    bbox (shoelace area == bbox area) -- then the bbox inset test is exact and
+    the per-candidate ring checks can be skipped entirely (#370 B2)."""
+    xs = [p[0] for p in ring]
+    ys = [p[1] for p in ring]
+    bbox_area = (max(xs) - min(xs)) * (max(ys) - min(ys))
+    if bbox_area <= 0:
+        return False
+    a = 0.0
+    n = len(ring)
+    for i in range(n):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return abs(abs(a) / 2.0 - bbox_area) <= max(1e-6, 1e-3 * bbox_area)
+
+
+# --- board side model --------------------------------------------------------
+
+def side_of_layer(layer) -> str:
+    """'F' or 'B' from a LAYER NAME. Anything not starting with 'B' is front.
+
+    THE string-level rule (#878). `footprint_side` below is this applied to an
+    object's `.layer`; every other site in the tree that carried its own copy
+    of the same collapse now calls one of the two, and
+    `tests/test_878_side_rule_sites.py` refuses a new copy rather than letting
+    a ninth appear.
+
+    `str(...)` where the old spelling had `or ''` is a widening, not a change:
+    the old form raised `AttributeError` on a truthy non-string layer, and every
+    caller in the tree passes a `str` or `None`.
+
+    On a `str` or `None` layer this and the spellings it replaced are
+    ALGEBRAICALLY equal, so the corpus cannot separate them -- it carries
+    exactly two layer values, `F.Cu` and `B.Cu`, over 1349 footprints. The
+    corpus check in `tests/test_878_side_rule_sites.py` is therefore a change
+    detector for THIS function, not evidence that the spellings differ; the
+    inputs that do separate them (a falsy layer, a truthy non-string) are
+    exercised there synthetically, because no board can supply them.
+    """
+    return 'B' if str(layer or '').startswith('B') else 'F'
+
+
+def footprint_side(fp) -> str:
+    """'F' or 'B' from a footprint's layer. Anything not B.* reads as front,
+    matching how the rest of the package resolves side from `fp.layer`."""
+    return side_of_layer(getattr(fp, 'layer', ''))
+
+
+def footprint_has_through_pads(fp) -> bool:
+    """True when any pad is drilled, so the part's leads occupy BOTH sides.
+
+    Deliberately plain `drill > 0`, not `pad_is_plated_through`: the question
+    here is physical body/lead obstruction, not electrical layer-tying, so an
+    unplated hole blocks the far side exactly as a plated one does.
+    """
+    return any((getattr(p, 'drill', 0) or 0) > 0 for p in (fp.pads or []))
+
+
+def through_pad_bounds_local(fp):
+    """Local bbox over a footprint's DRILLED pads, or None if it has none.
+
+    PUBLIC and living here since #878. It is the far half of `rect_on`
+    below and of `LocalBounds.tht_local`, so it is legality's own concept.
+    It used to sit in `quench` under a leading underscore and be reached
+    from here by a function-local import -- a private name across a module
+    boundary, which this repo already records as a rule it does not keep
+    (see `options.hosts_the_design`). The import had to be function-local
+    because `quench` imports `legality` at module scope, so the dependency
+    ran backwards; now it does not, and `options.grow_board` can charge the
+    far face without pulling the whole quench search engine into a
+    reporting CLI's import graph.
+
+    This is the footprint's footprint on the OPPOSITE board side: its body and
+    courtyard live on its own side, but its leads pass through, so a part on the
+    far side may not sit inside this box (#456 item 1). Deliberately the drill
+    hole's own extent rather than the pad copper's -- the far side sees the
+    barrel and the lead, and the annular ring on that side is part of it.
+    """
+    # The per-pad boxes and why each is what it is: `drilled_pad_boxes_local`.
+    # This is their UNION. Since #1206 the decision sites read the
+    # per-cluster boxes instead (`far_side_local`); this box is what every
+    # other reader -- the broad phases, the #878 far-face currency -- takes.
+    boxes = drilled_pad_boxes_local(fp)
+    if not boxes:
+        return None
+    return (min(b[0] for b in boxes), min(b[1] for b in boxes),
+            max(b[2] for b in boxes), max(b[3] for b in boxes))
+
+
+def drilled_pad_boxes_local(fp) -> List[Tuple[float, float, float, float]]:
+    """One local box per DRILLED pad, in pad order -- the boxes
+    `through_pad_bounds_local` is the bbox of (#1206). See that function for
+    why each box is what it is."""
+    # `local_x/local_y` is the pad ANCHOR in the footprint's frame, and for a
+    # drilled pad the anchor IS the hole: kicad_parser records hole_x/hole_y as
+    # the pre-offset position and only then shifts global_x/global_y to the
+    # copper centre. So the hole needs no offset correction at all -- an earlier
+    # version "corrected" local_* by (hole - global), which is minus the offset,
+    # landing the box one full offset on the WRONG side of the hole.
+    #
+    # size_x/size_y are BOARD-axis resolved (kicad_parser swaps them for a pad at
+    # ~90 degrees), so they cannot be used as local half-extents directly -- that
+    # transposed the box on every 90/270-degree footprint (kit-dev SW_ONOFF201
+    # modelled 2.54 x 13.97 where the truth is 3.81 x 12.70, under-blocking
+    # 1.27mm). Project them through the pad's local tilt exactly as
+    # placement/utility.compute_footprint_bbox_local does.
+    out = []
+    for p in (fp.pads or []):
+        d = getattr(p, 'drill', 0) or 0
+        if d <= 0:
+            continue
+        local_tilt = math.radians((getattr(p, 'rect_rotation', 0.0) or 0.0)
+                                  + (fp.rotation or 0.0))
+        c, s = abs(math.cos(local_tilt)), abs(math.sin(local_tilt))
+        hx, hy = (getattr(p, 'size_x', 0) or 0) / 2.0, (getattr(p, 'size_y', 0) or 0) / 2.0
+        # An oval/slotted hole is bounded by the pad extent it sits in; taking
+        # the larger of drill radius and half pad size keeps a slot covered.
+        r = d / 2.0
+        rx = max(r, hx * c + hy * s)
+        ry = max(r, hx * s + hy * c)
+        out.append((p.local_x - rx, p.local_y - ry,
+                    p.local_x + rx, p.local_y + ry))
+    return out
+
+
+#: #1206. Drilled pads whose boxes come within this many mm of each other
+#: share one far-side box; farther apart, each cluster gets its own. Measured
+#: on the 22 tracked boards plus CM5: the gap from each drilled pad to its
+#: nearest drilled neighbour has a valley at 1.27-2.54 mm (30 pads, against
+#: 1400 below it), and 2.54 sits at its top -- every pin row and 2-row header
+#: stays one box, 5.08 mm terminal blocks merge, DIP rows (7.62 mm) and far
+#: posts split. A NAMED constant rather than a pitch-derived rule: a pitch
+#: rule merges CM5 Module302's two mounting holes, whose own pitch is 48 mm.
+FAR_SIDE_CLUSTER_GAP_MM = 2.54
+
+
+def through_pad_clusters_local(fp) -> List[Tuple[float, float, float, float]]:
+    """Local boxes of the CLUSTERS of a footprint's drilled pads (#1206):
+    single-link, merging two pads whose boxes are within
+    `FAR_SIDE_CLUSTER_GAP_MM`. Sorted, so the result is a function of the
+    footprint alone. Empty when it has no drilled pads.
+
+    Why: the far side used to be ONE box over all drilled pads, so CM5's
+    Module302 -- a B-side SMD connector with two NPTH mount holes 48 mm
+    apart -- became a 3 x 51 mm F-side strip, and 11 parts the designer
+    placed between the holes read as COURTYARD-BLOCKING. Every hole box is
+    inside its cluster box, so nothing a hole really touches is lost."""
+    boxes = drilled_pad_boxes_local(fp)
+    if not boxes:
+        return []
+    from geometry_utils import UnionFind
+    uf = UnionFind()
+    order = sorted(range(len(boxes)), key=lambda i: boxes[i][0])
+    for k, i in enumerate(order):
+        uf.find(i)
+        bi = boxes[i]
+        for j in order[k + 1:]:
+            bj = boxes[j]
+            if bj[0] - bi[2] > FAR_SIDE_CLUSTER_GAP_MM:
+                break
+            if rect_gap(bi, bj) <= FAR_SIDE_CLUSTER_GAP_MM:
+                uf.union(i, j)
+    groups: Dict[object, list] = {}
+    for i in range(len(boxes)):
+        groups.setdefault(uf.find(i), []).append(boxes[i])
+    return sorted((min(b[0] for b in g), min(b[1] for b in g),
+                   max(b[2] for b in g), max(b[3] for b in g))
+                  for g in groups.values())
+
+
+class FarSide(tuple):
+    """A part's far-side obstruction when its drilled pads form more than one
+    cluster (#1206): the UNION box -- this tuple, so every reader that
+    unpacks four numbers reads exactly the box it always did -- carrying
+    `.boxes`, one per cluster. A site that ignores `.boxes` is therefore
+    STRICTER, never more permissive; the decision sites read the boxes
+    (`far_boxes`, `far_geom`)."""
+
+    def __new__(cls, boxes):
+        boxes = tuple(tuple(float(v) for v in b) for b in boxes)
+        self = super().__new__(cls, (min(b[0] for b in boxes),
+                                     min(b[1] for b in boxes),
+                                     max(b[2] for b in boxes),
+                                     max(b[3] for b in boxes)))
+        self.boxes = boxes
+        # Disjoint boxes sum exactly; overlapping ones (a far courtyard
+        # partly covering a cluster, or any box set off the lattice) would
+        # count their shared area twice, so `far_overlap_area` takes the
+        # union instead.
+        self.disjoint = not any(
+            rect_overlap_area(a, b) > EPS
+            for i, a in enumerate(boxes) for b in boxes[i + 1:])
+        return self
+
+    def __reduce__(self):
+        return (FarSide, (self.boxes,))
+
+    def __repr__(self):
+        return f"FarSide({tuple(self)}, {len(self.boxes)} boxes)"
+
+
+def far_side_local(fp, far_courtyard=None):
+    """The far-side obstruction in the footprint's frame: None (no drilled
+    pads), a plain 4-tuple (one box -- bit-identical to the old box), or a
+    `FarSide` (several).
+
+    `far_courtyard` (`far_courtyard_of`) is a courtyard the footprint DRAWS
+    on its far face: KiCad grades that courtyard there, so it is part of the
+    far side, with the clusters it does not already cover. Without it a
+    connector drawing B.CrtYd between two lead clusters lost its pair with a
+    0603 under that body -- a courtyards_overlap kicad-cli reports (phase-2
+    verifier); the old single box over every drilled pad covered it by
+    accident. No tracked corpus part draws both faces."""
+    clusters = through_pad_clusters_local(fp)
+    if not clusters:
+        return None
+    if far_courtyard is not None:
+        fc = tuple(far_courtyard)
+        clusters = [fc] + [c for c in clusters
+                           if not (fc[0] <= c[0] and fc[1] <= c[1]
+                                   and c[2] <= fc[2] and c[3] <= fc[3])]
+    if len(clusters) == 1:
+        return tuple(clusters[0])
+    return FarSide(clusters)
+
+
+def far_courtyard_of(courtyard_sides, own: str):
+    """The courtyard a footprint draws on its FAR face (`parser.
+    extract_courtyard_sides` local bbox), or None. Only when its OWN face is
+    drawn too: a lone far-face courtyard is what `courtyard_for_side` already
+    adopts as the own-side one (a library that drew only F.CrtYd, mounted on
+    B), and must not count twice."""
+    if not courtyard_sides:
+        return None
+    far = 'B' if own == 'F' else 'F'
+    if own in courtyard_sides and far in courtyard_sides:
+        return courtyard_sides[far]
+    return None
+
+
+def far_boxes(r):
+    """The boxes a far-side value stands for: its clusters, or itself."""
+    if r is None:
+        return ()
+    return getattr(r, 'boxes', None) or (r,)
+
+
+def rotate_far(r, rot):
+    """`rotate_local_bounds` for a far-side value, cluster by cluster."""
+    if isinstance(r, FarSide):
+        return FarSide([rotate_local_bounds(*b, rot) for b in r.boxes])
+    return rotate_local_bounds(*r, rot)
+
+
+def offset_far(r, x, y):
+    """A far-side value at a position: local + (x, y), cluster by cluster."""
+    if isinstance(r, FarSide):
+        return FarSide([(x + b[0], y + b[1], x + b[2], y + b[3])
+                        for b in r.boxes])
+    return (x + r[0], y + r[1], x + r[2], y + r[3])
+
+
+def far_geom(r):
+    """Shapely geometry of a rect or a far-side value."""
+    from shapely.geometry import box
+    if isinstance(r, FarSide):
+        from shapely.ops import unary_union
+        return unary_union([box(*b) for b in r.boxes])
+    return box(*r)
+
+
+def far_gap(ra, rb) -> float:
+    """`rect_gap` between two rects either of which may be a `FarSide`."""
+    return min(rect_gap(a, b) for a in far_boxes(ra) for b in far_boxes(rb))
+
+
+def far_overlap_area(ra, rb) -> float:
+    """`rect_overlap_area` between two rects either of which may be a
+    `FarSide`: summed box pair by box pair while every FarSide's boxes are
+    disjoint (clusters at the orthogonal turns, more than
+    `FAR_SIDE_CLUSTER_GAP_MM` apart), else the area of the two UNIONS'
+    intersection -- a far courtyard partly covering a cluster, or boxes
+    turned off the lattice (a DIP-16 at 45 degrees summed 497.5 against an
+    exact 389.7; the phase-2 verifiers), would count their shared area
+    twice."""
+    if not isinstance(ra, FarSide) and not isinstance(rb, FarSide):
+        return rect_overlap_area(ra, rb)
+    if all(getattr(r, 'disjoint', True) for r in (ra, rb)):
+        return sum(rect_overlap_area(a, b)
+                   for a in far_boxes(ra) for b in far_boxes(rb))
+    return far_geom(ra).intersection(far_geom(rb)).area
+
+
+def sides_occupied(side: str, has_tht: bool) -> frozenset:
+    """The board sides a part physically obstructs."""
+    return BOTH_SIDES if has_tht else frozenset((side,))
+
+
+#: The counting rule `assembly_census` reports under, named rather than
+#: assumed. Every published per-side number for this corpus is ambiguous
+#: without it: #726 stopped `PCBData.footprints` silently overwriting a
+#: duplicate reference, which moved ulx3s from 234 blocks to 235 and
+#: glasgow_revC from 266 to 272 -- so a census quoting a bare total cannot be
+#: checked against any earlier one. `check_assembly`'s `coincident_origins`
+#: channel already carries this disclosure for the same reason.
+ASSEMBLY_CENSUS_BASIS = (
+    'every footprint BLOCK (#726): blocks sharing one reference are keyed '
+    'with an ordinal suffix and counted separately. `pad_bearing` restricts '
+    'that to blocks carrying at least one pad that is not a paste/mask '
+    'aperture (#1143), and it is the count the '
+    'populated-side verdict is taken from -- a zero-pad graphic on the back '
+    'does not make a board double-sided.')
+
+
+def assembly_census(pcb_data) -> Dict:
+    """Which faces this board is POPULATED on, under both counting rules.
+
+    This is deliberately not `sides_occupied`, and the distinction is the
+    whole point. `sides_occupied` answers "which faces does this part
+    physically obstruct", so a drilled pad puts its part on both -- under it
+    17 of the 22 tracked boards read double-sided, `splitflap_driver`
+    (65 parts, all on F.Cu, 24 of them through-hole) included. That is the
+    right answer to the obstruction question and the wrong answer to the
+    assembly one: a through-hole part on the front does not demand a second
+    reflow pass, it demands wave or hand soldering. So the verdict here is
+    taken from the BODY face (`footprint_side`) and the through-hole count is
+    reported beside it, never folded into it.
+
+    `sides` is the scalar the intent's `assembly.sides` carries and
+    `emit_intent` observes: 'F', 'B', 'both', or None when no face is
+    populated at all. (Not to be confused with `keepouts[].sides`, which is a
+    LIST of faces an entry binds to and has no 'both' member.) It is read off
+    the pad-bearing census, so `esp_prog` -- whose three back-side blocks are
+    all zero-pad OLIMEX logos -- observes 'F', which is what the fab builds.
+
+    The through-hole split asks `pad_is_plated_through`, never bare
+    `drill > 0`. An NPTH hole is an alignment post, a tooling hole or a screw
+    hole -- it is not a soldered pin, so a part whose only drilled features are
+    NPTH is a REFLOW part. `drill > 0` reported watchy as carrying 5
+    through-hole parts when it carries 1: SW1-SW4 are SMD switches with 0.75mm
+    `np_thru_hole` alignment posts, and the text channel then told the reader
+    they need wave or hand soldering. Same rule CLAUDE.md records for #328,
+    for the same reason: `footprint_has_through_pads` answers the OBSTRUCTION
+    question -- where an unplated hole blocks the far side exactly as a plated
+    one does -- and this is the assembly question.
+    """
+    from kicad_parser import pad_is_plated_through, non_aperture_pads
+    blocks = {'F': 0, 'B': 0}
+    pad_bearing = {'F': 0, 'B': 0}
+    pad_bearing_refs = {'F': [], 'B': []}
+    smd = {'F': 0, 'B': 0}
+    through_hole_by_side = {'F': 0, 'B': 0}
+    unsoldered = {'F': 0, 'B': 0}
+    # BOTH faces, not just the back. Without the front list the printed
+    # arithmetic does not close on 7 of the 22 tracked boards -- interf_u
+    # reports "24 pad-bearing of 25 blocks" and discloses nothing, because its
+    # missing block is a zero-pad graphic on the FRONT.
+    zero_pad = {'F': [], 'B': []}
+    for ref, fp in sorted((pcb_data.footprints or {}).items()):
+        side = footprint_side(fp)
+        blocks[side] = blocks.get(side, 0) + 1
+        # An aperture-only pad (a paste or mask window) is not a pad (#1143):
+        # a block whose only pads are apertures is a zero-pad block.
+        pads = non_aperture_pads(fp)
+        if not pads:
+            zero_pad[side].append(ref)
+            continue
+        pad_bearing[side] = pad_bearing.get(side, 0) + 1
+        pad_bearing_refs[side].append(ref)
+        if any(pad_is_plated_through(p) for p in pads):
+            through_hole_by_side[side] += 1
+        elif any(getattr(p, 'pad_type', '') != 'np_thru_hole' for p in pads):
+            smd[side] += 1
+        else:
+            # NPTH-ONLY: every pad is an unplated hole, so the part is
+            # soldered by no process at all -- a mounting hole, a tooling
+            # hole, an alignment post. A third bucket rather than a default,
+            # because folding it into either of the other two is a wrong
+            # answer with a witness: flat_hierarchy's 6 NPTH mounting holes
+            # counted as SMD would report 1 reflow pass for a board whose 58
+            # real parts are every one of them through-hole.
+            unsoldered[side] += 1
+    populated = tuple(s for s in ('F', 'B') if pad_bearing[s])
+    return {
+        'basis': ASSEMBLY_CENSUS_BASIS,
+        'blocks': blocks,
+        'pad_bearing': pad_bearing,
+        # The REFS, not just the count, so a consumer that grades against this
+        # census grades the same population it reports. `rule_assembly_side`
+        # reads this rather than `ctx.parts`: the two agree on every tracked
+        # board and are NOT the same set by construction -- `quench` admits a
+        # zero-pad footprint that draws a courtyard as a locked obstacle
+        # (quench.py, `_Part` construction) and this census excludes it. One
+        # such board and check_assembly would print a count check_floorplan
+        # contradicts, which is the two-populations defect #837 is about.
+        'pad_bearing_refs': pad_bearing_refs,
+        'zero_pad': zero_pad,
+        'zero_pad_back': zero_pad['B'],
+        'smd': smd,
+        'unsoldered': unsoldered,
+        'through_hole_by_side': through_hole_by_side,
+        'through_hole': sum(through_hole_by_side.values()),
+        # None, not 'both', when NOTHING is populated: a board with no
+        # pad-bearing part has no face to grade, and `emit_intent` omits the
+        # key rather than emitting a claim about it. 'both' would be an
+        # assertion nobody made, and it would read identically to a real
+        # two-sided board.
+        'sides': (populated[0] if len(populated) == 1
+                  else ('both' if populated else None)),
+        # REFLOW passes, counted from the SMD population -- not from the
+        # populated faces, which is the same number on 21 of 22 tracked boards
+        # and wrong on the 22nd. `flat_hierarchy` is 64 parts, every one of
+        # them through-hole: it is populated on F and takes ZERO reflow
+        # passes. The through-hole counts above are the rest of the assembly
+        # story (wave, selective or hand), reported and never folded in.
+        'reflow_passes': sum(1 for s in ('F', 'B') if smd[s]),
+    }
+
+
+#: fa10 P1 (#1184, #1212). What separates a FRAME from a big BODY is
+#: geometry, not area and not a lock: rp2350's U8 (the Teensy 4.0 frame, 66
+#: drilled pins ringing the board, nothing drawn) hosts the design; One-Air-
+#: Max's BAT1 (an SMD 18650 holder, 6 clips and 1 drill) is a body the
+#: designer keeps parts out of -- on the human board only NTC1 touches it.
+#: Both cover more than half the board. A container is therefore one of:
+#:
+#:   'outline'    -- no copper pads and no holes at all: a mechanical outline
+#:                   stacked over the board (watchy's e-paper REF**, which the
+#:                   designer puts J2 and SW1-4 under);
+#:   'pin_frame'  -- at least FRAME_DRILLED_FRAC of its pads drilled, and no
+#:                   pad centre inside its box inset by FRAME_BAND_FRAC of the
+#:                   shorter side: a ring of pins, hollow inside.
+#:
+#: and never a part whose COURTYARD is drawn: that is the designer's keep-out,
+#: and KiCad grades it as one. The two thresholds rest on two parts (U8 at
+#: 1.0 drilled, BAT1 at 0.14) and are pinned as a change detector.
+FRAME_DRILLED_FRAC = 0.5
+FRAME_BAND_FRAC = 0.2
+
+
+def container_kinds(pcb_data, local_bounds) -> Dict[str, str]:
+    """{ref: 'outline' | 'pin_frame'} for every container on the board, from
+    its LOCAL geometry only -- a turn cannot make a part a frame. Empty when
+    the board declares no bounds (the conservative answer). See
+    `FRAME_DRILLED_FRAC` for the rule and the measurements behind it."""
+    return {ref: k for ref, lb in sorted(local_bounds.items())
+            for k in (_container_kind(pcb_data, ref, lb.local, lb.source,
+                                      lb.synthetic),) if k}
+
+
+def _container_kind(pcb_data, ref, local, source, synthetic):
+    """The one decision behind `container_kinds` and `container_refs`:
+    'outline', 'pin_frame' or None for one part, from its LOCAL occupancy
+    box, its occupancy source and its pads."""
+    from placement.body import SOURCE_COURTYARD
+    bb = getattr(getattr(pcb_data, 'board_info', None), 'board_bounds', None)
+    if not bb or local is None:
+        return None
+    barea = max(1e-9, (bb[2] - bb[0]) * (bb[3] - bb[1]))
+    x0, y0, x1, y1 = local
+    if (x1 - x0) * (y1 - y0) < CONTAINER_RATIO * barea:
+        return None
+    if source == SOURCE_COURTYARD or synthetic:
+        return None
+    fp = (pcb_data.footprints or {}).get(ref)
+    if fp is None:
+        return None
+    pads = [p for p in (fp.pads or ())
+            if (getattr(p, 'drill', 0) or 0) > 0 or _pad_carries_copper(p)]
+    if not pads:
+        return 'outline'
+    drilled = sum(1 for p in pads if (getattr(p, 'drill', 0) or 0) > 0)
+    if drilled < FRAME_DRILLED_FRAC * len(pads):
+        return None
+    inset = FRAME_BAND_FRAC * min(x1 - x0, y1 - y0)
+    ix0, iy0, ix1, iy1 = x0 + inset, y0 + inset, x1 - inset, y1 - inset
+    if any(ix0 < p.local_x < ix1 and iy0 < p.local_y < iy1 for p in pads):
+        return None
+    return 'pin_frame'
+
+
+def container_refs(pcb_data, graded=None, pcb_file: Optional[str] = None
+                   ) -> set:
+    """The board's containers (`_container_kind`), as a set of refs.
+
+    Shared by the courtyard channel, the escape ledger (#835) and
+    routability, so a part cannot be a frame to one and a body to another.
+    From `graded` (a `graded_parts_from_file` list, which carries each
+    part's LOCAL occupancy box) when the caller has one -- no second board
+    read -- else from the board's local bounds. Never from a rect at a pose:
+    a turn grows the rotated rect, and made sonde_u's J1 a "container".
+    """
+    if graded is not None and all(g.local is not None for g in graded):
+        return {g.ref for g in graded
+                if _container_kind(pcb_data, g.ref, g.local, g.source,
+                                   g.synthetic)}
+    try:
+        lbs = part_local_bounds(pcb_data, pcb_file)
+    except Exception:                                        # noqa: BLE001
+        return set()
+    return set(container_kinds(pcb_data, lbs))
+
+
+
+def rect_on(side_wanted: str, own_side: str, courtyard_rect, tht_rect):
+    """The rect a part presents on `side_wanted`.
+
+    Its own side gets the full courtyard; the opposite side gets only the
+    drilled-pad bounding box (None when the part has no drilled pads, i.e. it
+    does not reach that side at all).
+    """
+    return courtyard_rect if side_wanted == own_side else tht_rect
+
+
+def pair_min_gap(a_sides, a_side, a_rect, a_tht,
+                 b_sides, b_side, b_rect, b_tht) -> Optional[float]:
+    """Smallest rect gap between two parts over the sides they SHARE.
+
+    None when they share no side -- then they cannot interact at all and every
+    consumer (hard clearance, halo penalty, overlap grader) must skip the pair.
+    On a single-sided board the shared set is always the one side and this
+    reduces to plain courtyard-vs-courtyard, which is what keeps the existing
+    behaviour (and the existing tests) unchanged.
+    """
+    best = None
+    for s in (a_sides & b_sides):
+        ra = rect_on(s, a_side, a_rect, a_tht)
+        rb = rect_on(s, b_side, b_rect, b_tht)
+        if ra is None or rb is None:
+            continue
+        # #1206: a far side of several clusters is gapped box by box.
+        g = far_gap(ra, rb)
+        if best is None or g < best:
+            best = g
+    return best
+
+
+def pair_overlap_area(a_sides, a_side, a_rect, a_tht,
+                      b_sides, b_side, b_rect, b_tht) -> float:
+    """Largest per-shared-side overlap area between two parts (0 if none).
+
+    Max rather than sum: on a THT/THT pair the same physical interference shows
+    up on both sides, and counting it twice would double-charge one overlap.
+    """
+    worst = 0.0
+    for s in (a_sides & b_sides):
+        ra = rect_on(s, a_side, a_rect, a_tht)
+        rb = rect_on(s, b_side, b_rect, b_tht)
+        if ra is None or rb is None:
+            continue
+        worst = max(worst, far_overlap_area(ra, rb))
+    return worst
+
+
+# --- board outline gate ------------------------------------------------------
+
+class BoardOutlineGate:
+    """Board-containment tests against the REAL Edge.Cuts outline (#370 B2).
+
+    Callers keep using the cheap `usable` bbox inset as a first filter and reach
+    for this only when it is not exact. Three levels of short-circuit:
+
+    1. `active` is False when the board's outline IS its bounding box (one ring,
+       rectangular, no cutouts) -- then the inset test is already exact, and it
+       is also False when the parser found no usable ring at all, in which case
+       the bbox is all we have and behaviour is unchanged.
+    2. `edges_near(key, seed_rect, travel)` -- cached per key; a part that cannot
+       reach any ring from its seed never pays for the exact test, and one that
+       can gets the short list of edges to measure against rather than all of
+       them. Pass that list back into the level-3 calls; skipping this prune is
+       correct but roughly an order of magnitude slower in a candidate loop.
+    3. `rect_blocked(rect)` / `rect_outside_amount(rect)` -- the exact tests.
+
+    Caching note: a key's answer is computed from the pose and budget of the
+    FIRST call, so a caller whose budget grows later must use a distinct key.
+    Over-estimating `travel` is always safe (more edges, same verdict).
+    """
+
+    def __init__(self, board_info, margin: float):
+        # Function-local import: check_drc pulls the DRC stack, and this module
+        # is imported at the top of both placement engines. Same reason
+        # fanout_clearance imported it locally.
+        from check_drc import board_edge_geometry
+        rings, outer, cutouts = board_edge_geometry(board_info)
+        self.rings = rings
+        self.outer = outer
+        self.cutouts = cutouts
+        # Milled interior contours (#505). Already inside `rings` (that is what
+        # board_edge_geometry does with them), so the distance tests see them;
+        # kept separately because the SWALLOW probe needs them too (#628).
+        self.milled = [c for c in
+                       (getattr(board_info, 'board_edge_contours', None) or [])
+                       if len(c) >= 3]
+        # One representative vertex per interior ring, for the swallow probe in
+        # rect_blocked / rect_outside_amount. Any vertex serves: a ring wholly
+        # inside the rect has every vertex inside it, and a ring only partly
+        # inside is already caught by the corner and edge tests.
+        #
+        # DELIBERATELY NOT a containment rule. A milled contour's interior is
+        # NOT declared off-board here, and must not be: board_edge_contours
+        # mixes a real inner OUTLINE (interior = board -- crkbd's nested half,
+        # bus_pirate5's 60.8x80.2mm inner ring) with a milled SLOT (interior =
+        # not board), and the parser cannot tell them apart. Calling the
+        # interior off-board re-opens #291, where bus_pirate5 lost all 870 pads
+        # and the run broke the chain. "A part may not swallow a milled ring"
+        # is true for both readings, which is exactly why it is safe.
+        #
+        # Carries the ring's IDENTITY, not just its vertex: a part whose own
+        # pads sit inside a milled ring must be allowed to swallow THAT ring
+        # (see rings_enclosing / skip_rings below). Ids are indices into
+        # cutouts + milled, in that order.
+        self._swallow_pts = (
+            [(i, r[0][0], r[0][1]) for i, r in enumerate(self.cutouts)]
+            + [(len(self.cutouts) + i, r[0][0], r[0][1])
+               for i, r in enumerate(self.milled)])
+        self.margin = margin
+        self.bounds = getattr(board_info, 'board_bounds', None)
+        self.usable = None
+        if self.bounds is not None:
+            self.usable = (self.bounds[0] + margin, self.bounds[1] + margin,
+                           self.bounds[2] - margin, self.bounds[3] - margin)
+        self.active = bool(rings) and (
+            bool(cutouts) or len(rings) > 1 or not ring_is_rect(rings[0]))
+        self._near: Dict[object, list] = {}
+        self._edges = None
+
+    def edges(self):
+        """Every ring edge as (x1, y1, x2, y2), built once."""
+        if self._edges is None:
+            out = []
+            for ring in self.rings:
+                n = len(ring)
+                for i in range(n):
+                    out.append((ring[i][0], ring[i][1],
+                                ring[(i + 1) % n][0], ring[(i + 1) % n][1]))
+            self._edges = out
+        return self._edges
+
+    def _ring_edge_set(self, skip_rings) -> frozenset:
+        """The EDGES belonging to `skip_rings`, as a set for exact filtering.
+
+        Ring ids index `cutouts + milled` (the `_swallow_pts` convention), which
+        is NOT the ordering of `self.rings` -- so the mapping is done from the
+        source lists rather than by index into `edges()`. Edges are built from
+        the same vertex tuples in both places, so equality is exact; both
+        orientations are stored because `edges()` walks each ring in one
+        direction only and a future caller might not.
+
+        Cached: `rect_blocked` is called in the innermost candidate loop.
+        """
+        if not skip_rings:
+            return frozenset()
+        key = frozenset(skip_rings)
+        cache = getattr(self, '_ring_edge_cache', None)
+        if cache is None:
+            cache = self._ring_edge_cache = {}
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+        out = set()
+        for rid in key:
+            if rid < len(self.cutouts):
+                ring = self.cutouts[rid]
+            elif rid - len(self.cutouts) < len(self.milled):
+                ring = self.milled[rid - len(self.cutouts)]
+            else:
+                continue
+            n = len(ring)
+            for i in range(n):
+                a, b = ring[i], ring[(i + 1) % n]
+                out.add((a[0], a[1], b[0], b[1]))
+                out.add((b[0], b[1], a[0], a[1]))
+        hit = frozenset(out)
+        cache[key] = hit
+        return hit
+
+    # -- level 2: cached reachability prune
+    def edges_near(self, key, seed_rect, travel: float, center=None) -> list:
+        """Cached: the ring edges a part seeded at `seed_rect` could ever bring
+        a pose within the edge margin of, given `travel` of displacement budget.
+
+        Keyed on the SEED pose, so the reachable disk covers every pose the part
+        can ever take and the answer holds for the whole run. Empty means the
+        exact ring test can be skipped entirely; otherwise this is the short list
+        the exact test should measure against instead of every ring, which is
+        what keeps a dense candidate loop affordable (the segment-to-ring
+        distances dominated a naive port).
+
+        `center` is the part's pose ORIGIN, and callers whose parts can ROTATE
+        must pass it. Measuring the span from the seed rect's own centre assumes
+        the rect stays centred there, which is false for a courtyard that is
+        off-centre from the footprint origin: a 90/180/270 pose swings it about
+        the origin, and the reachable disk drawn around the seed centre can then
+        miss an edge the part really can reach. Rotation preserves distance FROM
+        THE ORIGIN, so the max origin-to-corner distance bounds every pose
+        exactly. (Omitting it is safe only for parts that never rotate, or whose
+        courtyard is origin-symmetric -- the fanout caps this prune came from.)
+        """
+        near = self._near.get(key)
+        if near is None:
+            if center is not None:
+                cx, cy = center
+                span = max(math.hypot(px - cx, py - cy)
+                           for px in (seed_rect[0], seed_rect[2])
+                           for py in (seed_rect[1], seed_rect[3]))
+            else:
+                cx = (seed_rect[0] + seed_rect[2]) / 2.0
+                cy = (seed_rect[1] + seed_rect[3]) / 2.0
+                span = math.hypot(seed_rect[2] - cx, seed_rect[3] - cy)
+            reach = travel + span + self.margin + EPS
+            # An edge farther than reach from that centre cannot come within
+            # margin of any reachable pose: every point of a reachable rect lies
+            # within travel + span of it.
+            near = [e for e in self.edges()
+                    if point_to_seg_dist(cx, cy, *e) <= reach]
+            self._near[key] = near
+        return near
+
+    def may_reach(self, key, seed_rect, travel: float, center=None) -> bool:
+        return bool(self.edges_near(key, seed_rect, travel, center))
+
+    def rings_enclosing(self, points) -> frozenset:
+        """Ids of the MILLED rings enclosing any of `points` -- a part's OWN
+        milled relief, for the `skip_rings` argument of the two probes.
+
+        Only milled contours can be owned, by construction:
+        `drop_pad_containing_cutouts` moves every ring enclosing >= 2 pad
+        centres OUT of board_cutouts and into board_edge_contours, so no ring
+        left in `self.cutouts` encloses a pad and no cutout id can ever land in
+        a skip set. That is what keeps the genuine-cutout half of the swallow
+        probe untouchable rather than merely untouched.
+
+        >= 1 enclosed pad, not >= 2: two parts with one pad each inside a ring
+        are both partial owners and both must be exempt. Pad CENTRES and the
+        same containment test the parser used to reclassify the ring in the
+        first place (kicad_parser.drop_pad_containing_cutouts -> _pt_in_ring).
+        """
+        if not self.milled:
+            return frozenset()
+        # #962: one implementation, in check_drc, which the graphic-copper
+        # census calls too. py_router must not import the placement engines.
+        from check_drc import milled_rings_enclosing
+        base = len(self.cutouts)
+        return frozenset(base + i for i in milled_rings_enclosing(self.milled, points))
+
+    # -- level 2b: per-rect bbox prefilter, exact
+    def _edges_touching(self, rect, edges):
+        """The subset of `edges` that can possibly come within `margin` of
+        `rect`.
+
+        EXACT, not a heuristic, and that is the whole reason it is safe to put
+        in front of the threshold tests: if an edge's bounding box is
+        separated from the rect's bbox by more than `margin` on EITHER axis,
+        then every point of that edge differs from every point of the rect by
+        more than `margin` on that axis alone, so their distance exceeds
+        `margin` and the edge cannot contribute.
+
+        It is not usable in front of `edge_clearance`, which reports the true
+        minimum distance rather than testing it against a threshold -- the
+        nearest edge there may be arbitrarily far away.
+
+        Why it matters: `edges_near` prunes per PART, sized by a displacement
+        budget, and the seeder's state has no budget at all (pose_score builds
+        its QuenchState without `build_neighbor_lists`, so `_travel_budget` is
+        infinite and `edges_near` returns every edge). `_try_place` calls
+        `rect_outside_amount` once per candidate offset, and `_offsets(16,
+        0.25)` alone is 16,641 offsets.
+
+        Measured on run 19's urchin, a 638-edge outline with one milled ring:
+        7x to 14x depending on machine load and on which rect population is
+        swept (a sweep near an edge keeps more edges than one over open
+        board). The conservative end is the number to quote. An independent
+        measurement that neutralised this method by monkeypatching it to the
+        identity -- so the ONLY difference between arms was the prefilter --
+        put it at 11.98x on two separate runs.
+        """
+        m = self.margin
+        lo_x, lo_y, hi_x, hi_y = rect[0] - m, rect[1] - m, rect[2] + m, rect[3] + m
+        out = []
+        for e in edges:
+            ax, ay, bx, by = e
+            if (ax if ax > bx else bx) < lo_x:
+                continue
+            if (ax if ax < bx else bx) > hi_x:
+                continue
+            if (ay if ay > by else by) < lo_y:
+                continue
+            if (ay if ay < by else by) > hi_y:
+                continue
+            out.append(e)
+        return out
+
+    # -- level 3: the exact tests
+    def rect_blocked(self, rect, edges=None, skip_rings=None) -> bool:
+        """True when a rect leaves the real outline, enters a cutout, or comes
+        within the edge margin of either.
+
+        `edges` restricts the distance test to a pre-filtered edge list from
+        `edges_near`; omitted, every ring edge is measured.
+
+        `skip_rings` (from `rings_enclosing`) exempts the tested part's OWN
+        milled rings -- a connector over its own milled relief may swallow it,
+        and without this it is judged board-violating at its own hand-placed
+        pose.
+
+        THE EXEMPTION COVERS THE EDGE-MARGIN TEST TOO, not only the swallow
+        probe. It did not, and the omission made the exemption almost useless:
+        a part whose own pads caused a contour to be reclassified as an inner
+        milled edge still had every pose within `margin` of that contour
+        vetoed -- which, for a part sitting INSIDE its own relief, is every
+        pose there is. Measured on run 20's SW2, which owns the strap slot its
+        two NPTH posts sit in: 0 legal poses of 14884 at the board's own
+        floors, and at margin 0, 508 of 9604 -- all at rot 0/180, none at SW2's
+        own rot 270. `place_optimize` with SW2 free and 83 refs locked moved it
+        0 mm with the edge term as the entire objective; `place_reconstruct`
+        reported "no legal pose within any cap". The run had to declare SW2 an
+        `edge_actuator` and waive it permanently.
+
+        PER-PART, never global: the ring stays a hard edge for every other
+        part, and `rings_enclosing` only ever returns MILLED ids, so the outer
+        outline and the genuine cutouts can never be exempted by this path.
+        """
+        from check_drc import _point_on_board, _seg_seg_dist_coords
+        x0, y0, x1, y1 = rect
+        for (px, py) in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+            if not _point_on_board(px, py, self.outer, self.cutouts):
+                return True
+        near = self._edges_touching(
+            rect, self.edges() if edges is None else edges)
+        _own = self._ring_edge_set(skip_rings)
+        if _own:
+            near = [e for e in near if e not in _own]
+        for (ax, ay, bx, by) in ((x0, y0, x1, y0), (x1, y0, x1, y1),
+                                 (x1, y1, x0, y1), (x0, y1, x0, y0)):
+            for (ex1, ey1, ex2, ey2) in near:
+                if _seg_seg_dist_coords(ax, ay, bx, by,
+                                        ex1, ey1, ex2, ey2) < self.margin:
+                    return True
+        # An interior ring FULLY INSIDE the rect evades both tests above -- no
+        # corner is off-board and no rect edge comes near a ring edge (#628).
+        for (rid, cx, cy) in self._swallow_pts:
+            if skip_rings and rid in skip_rings:
+                continue  # the part's own milled relief
+            if x0 <= cx <= x1 and y0 <= cy <= y1:
+                return True
+        return False
+
+    def bbox_outside_amount(self, rect) -> float:
+        """Total per-axis overshoot of the `usable` bbox inset (0 when inside).
+
+        This is the whole board test on a rectangular board, and the fallback
+        when the parser produced no outline rings.
+        """
+        if self.usable is None:
+            return 0.0
+        u = self.usable
+        return (max(0.0, u[0] - rect[0]) + max(0.0, u[1] - rect[1])
+                + max(0.0, rect[2] - u[2]) + max(0.0, rect[3] - u[3]))
+
+    def rect_overrun_mm(self, rect) -> float:
+        """How far `rect` reaches past the outline, in mm (#1096): see
+        `points_overrun_mm`, over the rect's corners."""
+        x0, y0, x1, y1 = rect
+        return self.points_overrun_mm(((x0, y0), (x1, y0), (x1, y1),
+                                       (x0, y1)))
+
+    def points_overrun_mm(self, points) -> float:
+        """The largest distance from one of `points` that is off the board to
+        the outline, 0.0 when every one is on it (#1096).
+
+        A DISTANCE, unlike `rect_outside_amount`, which sums an overshoot
+        term per corner and per edge so that it can rank candidate poses: a
+        0402 wholly off the board read "36.8mm" there, and its farthest
+        copper is 7.84 mm out. Pass the vertices of a shape's true outline
+        (`check_pads.pad_outline_polygon`), not its bbox: a round pad's bbox
+        corner leaves a round board where the pad does not. A vertex test
+        cannot see copper bridging a notch with every vertex on the board;
+        that is the same blind spot `rect_outside_amount` has.
+        """
+        corners = tuple(points)
+        if not corners:
+            return 0.0
+        if not self.rings:
+            if self.bounds is None:
+                return 0.0
+            bx0, by0, bx1, by1 = self.bounds
+            return max(math.hypot(max(bx0 - x, 0.0, x - bx1),
+                                  max(by0 - y, 0.0, y - by1))
+                       for x, y in corners)
+        from check_drc import _point_on_board, _point_to_rings_distance
+        return max((_point_to_rings_distance(x, y, self.rings)
+                    for x, y in corners
+                    if not _point_on_board(x, y, self.outer, self.cutouts)),
+                   default=0.0)
+
+    def rect_outside_amount(self, rect, exact: bool = True, edges=None,
+                            skip_rings=None) -> float:
+        """Magnitude of a rect's board-boundary violation; 0 iff fully legal.
+
+        Zero exactly when the bbox inset holds AND `rect_blocked` is False, so
+        it can drive a "may not worsen" acceptance rule and a grader from one
+        definition. It is a distance-like magnitude, not an area -- see
+        `out_of_board_area` for an area.
+
+        `exact=False` skips the ring terms, for a caller that has already
+        established via `may_reach` that this rect cannot come near a ring. The
+        ring terms are ~100x the cost of the bbox term, and in a hot candidate
+        loop most parts are nowhere near an edge.
+
+        `skip_rings` must match what `rect_blocked` is given for the same rect,
+        or the two stop agreeing on legality (see the swallow probe below).
+        """
+        amt = self.bbox_outside_amount(rect)
+        if not (self.active and exact):
+            return amt
+        from check_drc import _point_on_board, _point_to_rings_distance, \
+            _seg_seg_dist_coords
+        use = self.edges() if edges is None else edges
+        x0, y0, x1, y1 = rect
+        for (px, py) in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+            if not _point_on_board(px, py, self.outer, self.cutouts):
+                # How far the stray corner must come back, floored at the margin
+                # so an off-board corner always outweighs a mere margin graze.
+                amt += max(self.margin,
+                           _point_to_rings_distance(px, py, self.rings))
+        # Only edges that can come within `margin` can contribute a term, and
+        # `_edges_touching` selects exactly those -- so this stays the same
+        # number while measuring against a short list. See its docstring.
+        near = self._edges_touching(rect, use)
+        # Same exemption as rect_blocked's, and it MUST be the same: the two
+        # functions' agreement is what makes `violation() == 0` imply `not
+        # rect_blocked()`. Exempting the owned ring in one and not the other
+        # would give a part a legal verdict and a non-zero cost at the same
+        # pose, which every acceptance rule downstream reads as a regression.
+        _own = self._ring_edge_set(skip_rings)
+        if _own:
+            near = [e for e in near if e not in _own]
+        for (ax, ay, bx, by) in ((x0, y0, x1, y0), (x1, y0, x1, y1),
+                                 (x1, y1, x0, y1), (x0, y1, x0, y0)):
+            d = min((_seg_seg_dist_coords(ax, ay, bx, by, *e) for e in near),
+                    default=float('inf'))
+            if d < self.margin:
+                amt += self.margin - d
+        # Swallowed interior ring (cutout or milled contour), same probe and
+        # same charge as rect_blocked's -- the two must agree on legality or
+        # `violation()==0` stops implying `not rect_blocked()` (#628).
+        for (rid, cx, cy) in self._swallow_pts:
+            if skip_rings and rid in skip_rings:
+                continue  # the part's own milled relief
+            if x0 <= cx <= x1 and y0 <= cy <= y1:
+                amt += self.margin
+        return amt
+
+    def edge_clearance(self, rect, edges=None) -> float:
+        """Distance from a rect to the nearest board edge (rings when we have
+        them, else the raw bbox). Negative is not reported -- a rect straddling
+        an edge reads as 0. Drives the SOFT edge-margin penalty, which otherwise
+        measures to the bounding box and ignores notches entirely.
+
+        `edges` restricts the measurement to a pre-filtered list; a caller that
+        knows the rect is farther than it cares about from every edge should not
+        call this at all.
+        """
+        if self.active:
+            from check_drc import _seg_seg_dist_coords
+            use = self.edges() if edges is None else edges
+            x0, y0, x1, y1 = rect
+            best = float('inf')
+            for (ax, ay, bx, by) in ((x0, y0, x1, y0), (x1, y0, x1, y1),
+                                     (x1, y1, x0, y1), (x0, y1, x0, y0)):
+                for e in use:
+                    d = _seg_seg_dist_coords(ax, ay, bx, by, *e)
+                    if d < best:
+                        best = d
+            return max(0.0, best)
+        if self.bounds is None:
+            return float('inf')
+        b = self.bounds
+        return max(0.0, min(rect[0] - b[0], rect[1] - b[1],
+                            b[2] - rect[2], b[3] - rect[3]))
+
+    def out_of_board_area(self, rect) -> float:
+        """Area of `rect` outside the usable bbox inset (exact on a rectangular
+        board; a lower bound on a notched one, where the rings also bite)."""
+        if self.usable is None:
+            return 0.0
+        inside = rect_overlap_area(rect, self.usable)
+        return max(0.0, rect_area(rect) - inside)
+
+
+# --- graders (#456 comment: shared with the #411/#110 placement scorecard) ----
+
+class GradedPart(NamedTuple):
+    """One placed part, as the graders want it: absolute rects, resolved side."""
+    ref: str
+    side: str                       # 'F' or 'B'
+    rect: Tuple[float, float, float, float]      # courtyard, own side
+    tht_rect: Optional[Tuple[float, float, float, float]] = None
+    has_tht: bool = False
+    # True when `rect` is the +/-0.5mm FICTION compute_footprint_bbox_local
+    # returns for a footprint with no courtyard AND no pads (logos, graphics).
+    # Such a rect is not geometry anyone drew, so overlap against it must
+    # never gate -- run-23's G***<->J5 "0.537 mm2" pair was exactly this
+    # artifact. A pad-bbox fallback (pads exist, courtyard missing) stays
+    # False: those bounds are real copper.
+    synthetic: bool = False
+    # #896. WHICH drawn geometry `rect` came from -- one of
+    # `body.SOURCES`. Carried here because `graded_parts_from_file` used to
+    # drop `LocalBounds.from_courtyard` on the floor, and every downstream
+    # consumer reads GradedPart, not LocalBounds: a pair reported against a
+    # pad bbox and a pair reported against a drawn housing are different
+    # claims, and a reader could not tell them apart.
+    source: str = ''
+    # #1094. The part's OWN-side occupancy as board-frame shapely geometry:
+    # the drawn courtyard outline united with its pads' copper, or the
+    # oriented occupancy box on the other rungs. `rect` bounds it and stays
+    # the broad phase; None (a generator's own record) means the pair is
+    # measured on the rects alone.
+    poly: object = None
+    # fa10 P1: the part's LOCAL occupancy box (`LocalBounds.local`), so a
+    # consumer can ask a pose-independent question -- `container_refs` --
+    # without reading the board again. None on a generator's own record.
+    local: object = None
+
+    @property
+    def sides(self) -> frozenset:
+        return sides_occupied(self.side, self.has_tht)
+
+
+class OutOfBoard(NamedTuple):
+    count: int          # parts with any board-boundary violation
+    amount: float       # summed rect_outside_amount (distance-like)
+    area: float         # summed out_of_board_area (mm^2, bbox-exact)
+
+
+def placement_overlap_area(parts: Sequence[GradedPart]) -> float:
+    """OO: total pairwise courtyard overlap area, side-aware (mm^2).
+
+    Zero on a legal placement. Cross-side pairs contribute nothing unless a
+    through-hole part's lead field reaches the other side.
+    """
+    total = 0.0
+    items = list(parts)
+    for i, a in enumerate(items):
+        for b in items[i + 1:]:
+            total += pair_overlap_area(a.sides, a.side, a.rect, a.tht_rect,
+                                       b.sides, b.side, b.rect, b.tht_rect)
+    return total
+
+
+def placement_out_of_board(parts: Sequence[GradedPart], board_info,
+                           margin: float) -> OutOfBoard:
+    """OoB: how many parts leave the real board outline, and by how much."""
+    gate = BoardOutlineGate(board_info, margin)
+    count = 0
+    amount = 0.0
+    area = 0.0
+    for p in parts:
+        amt = gate.rect_outside_amount(p.rect)
+        if amt > EPS:
+            count += 1
+            amount += amt
+            area += gate.out_of_board_area(p.rect)
+    return OutOfBoard(count=count, amount=amount, area=area)
+
+
+# --- body-overlap channel (run-6: the assembly gate) --------------------------
+# Run 5 shipped a board with two 0402s STACKED (C14 on R14): their pads
+# physically intersected by 0.25 mm^2 on the same side, and every gate in the
+# chain was blind by construction -- pair_shortfall deliberately skips same-net
+# pairs (it is a SHORT detector), the aggregate overlap_area has a legitimate
+# nonzero floor on human boards (mount-hole courtyards under connector shells),
+# and nothing anywhere reported overlap as PAIRS. This channel is the fix,
+# CALIBRATED on the 33-board corpus (measured, not assumed):
+#
+#   pad_intersection  cross-footprint pad rects INTERSECTING on a shared side,
+#                     ANY net (same-net included -- two different footprints'
+#                     copper in the same space is an assembly impossibility
+#                     regardless of net). Exact-verified. Corpus census: ZERO
+#                     pairs on all 33 healthy boards. THE blocking channel;
+#                     never waivable.
+#   fab               F/B.Fab BODY-outline intersection pairs (no courtyard
+#                     margin). Corpus census: 4 pairs, all by-design
+#                     (fiducials under connector bodies; an HDMI shell kissing
+#                     neighbors) -- one of which no class evidence can waive
+#                     (ulx3s GPDI1/J5, a custom-lib receptacle) -- so this is
+#                     an ADVISORY channel: reported with waiver labels, a fix
+#                     target for the placement loop, never blocking.
+#   courtyard         side-aware courtyard intersection pairs. Corpus census:
+#                     6 real boards carry them (shells over low parts, tight
+#                     watch layouts) -- ADVISORY, same policy as fab. This is
+#                     the run-4 lesson holding: courtyards carry their own
+#                     margin, and a courtyard kiss is not proof of a defect.
+#
+# Waiver ladder for the advisory channels (never for pad_intersection):
+# member classifies mount_hole/fiducial/testpoint (pose-independent part_class
+# KB), member classifies an edge class (shells overhang neighbors by design),
+# or the pair is declared in the intent's overlap_waivers (authored only).
+
+def pads_under_body_frac(pad_shape, body_shape):
+    """Share of a BODY-LESS part's pad copper (`pad_shape`, the union of its
+    copper pads at the pose) that lies under another part's drawn body
+    (#1106), or 0.0. One-directional by construction: a part with no drawn
+    body can only be the one UNDER a body, never the one containing others
+    -- the direction the run-6 fallback measured (+77 fab pairs, led by
+    rp2350's body-less Teensy40 "swallowing" 56 neighbours) never arises.
+    Read by the checker (`grade_body_overlap`) and the generator (quench's
+    waived seat), so neither can be more permissive than the other."""
+    if pad_shape is None or body_shape is None:
+        return 0.0
+    area = pad_shape.area
+    if area <= EPS:
+        return 0.0
+    return pad_shape.intersection(body_shape).area / area
+
+
+def bodyless_pad_shape(fp, x=None, y=None, rot=None):
+    """Union of a footprint's COPPER pads (NPTH and aperture-only pads
+    skipped, #1143) at a pose, as a board-frame shapely geometry, or None when
+    it has none. Pads are taken as their rectangles about their own centres at
+    the footprint's angle -- the coarse, conservative reading a 'pad under a
+    body' question needs."""
+    from shapely.geometry import box
+    from shapely.ops import unary_union
+    from paste_apertures import pad_has_copper
+    x = fp.x if x is None else x
+    y = fp.y if y is None else y
+    rot = (fp.rotation or 0.0) if rot is None else rot
+    boxes = []
+    for p in fp.pads or ():
+        if not pad_has_copper(p):
+            continue
+        lx, ly = float(p.local_x), float(p.local_y)
+        # local size: board-space size_x/size_y were resolved at the file's
+        # angle; a pad box about its own centre is all this needs.
+        hx = max(float(p.size_x), float(p.size_y)) / 2.0
+        boxes.append(box(lx - hx, ly - hx, lx + hx, ly + hx))
+    if not boxes:
+        return None
+    return place_local_shape(unary_union(boxes), x, y, rot)
+
+
+# --- #1250: a test point under another part's drawn body ---------------------
+#
+# The marker waiver (`_MARKER_NONPHYSICAL`) excuses a test point's courtyard
+# pair and `_GATE_EXEMPT` excuses its containment, on the premise that a test
+# point has nothing above board level. Neither looks at the other direction:
+# a test point whose PAD a move carried under another part's body. That pad is
+# where the designer meant a probe or a bed-of-nails pin to land, and no probe
+# reaches copper under an IC. glasgow's TP6 moved 39.7 mm into U19's TSSOP
+# body and check_assembly --baseline called the board buildable, because the
+# only pair that saw it carried `marker_class`.
+#
+# Measured with the #1106 measurement (`bodyless_pad_shape` against a drawn
+# body, `pads_under_body_frac`), at its own `CONTAINMENT_FRAC`. On the 22
+# tracked boards 2 of 40 test points read covered, orangecrab TP26/TP27 under
+# J4 at 1.000, both the designer's own poses -- so the census GATES only when a
+# member moved relative to --baseline, as the courtyard gate does.
+
+class TestpointCover(NamedTuple):
+    testpoint: str
+    cover: str           # the part whose drawn body lies over the pad
+    frac: float          # share of the test point's pad copper under it
+    side: str            # the face it happens on ('F'/'B')
+    body_source: str     # the cover's drawn-body rung: 'fab' | 'silk'
+    # 'intent_declared' (the pair is in the intent's overlap_waivers) or
+    # 'container_class' (a board-sized outline other parts sit under), else
+    # ''. `marker_class` is deliberately never recorded: it is the label this
+    # census exists to look past.
+    waiver: str
+    # True when this finding gates once a member moves: a .Fab body (a silk
+    # body never gates, #896) and no waiver above.
+    gates_if_moved: bool
+
+
+def testpoint_covered_gating(findings, moved) -> list:
+    """The `TestpointCover` findings that GATE: gate-eligible and a member
+    moved relative to the baseline (`moved_refs`), the courtyard gate's
+    currency (#1250)."""
+    return [t for t in findings if t.gates_if_moved
+            and (t.testpoint in moved or t.cover in moved)]
+
+
+class BodyOverlapPair(NamedTuple):
+    a: str
+    b: str
+    kind: str            # 'pad_intersection' | 'courtyard' | 'fab'
+    area_mm2: float      # intersection area on the worst shared side
+    side: str            # the shared side it occurs on ('F'/'B'; worst side)
+    waived: bool
+    # In `_waiver_for`'s own precedence order. 'intent_declared' is FIRST and
+    # outranks every class label (#897); '' means not waived at all.
+    waiver: str          # 'intent_declared' | 'container_class' |
+    #                      'marker_class' | 'edge_class' | ''
+    # Run-7 filed a report saying this channel false-positives on SAME-NET
+    # contact, because DRC exempts it. Re-measured: the disputed pair really
+    # was same-net (a 0402's whole pad, 0.83mm2, inside a connector pad on the
+    # same GND) -- and it is still a defect. DRC exempts same-net because DRC
+    # grades electrical clearance; this channel grades whether two parts can
+    # both be built, and two parts cannot occupy the same copper whatever the
+    # net. That is precisely the case the channel was created for: the pair of
+    # stacked 0402s it was calibrated on were same-net too. Finding REFUTED,
+    # policy unchanged.
+    #
+    # What the report DID expose is that a pair says nothing about which pads
+    # touched, so a reader had to re-derive it to judge. `shorts` names up to
+    # three DIFFERENT-net pad intersections when they exist -- those are a
+    # short on top of the assembly defect, and they should never have to be
+    # re-derived. Empty is the common case and means every verified
+    # intersection was same-net.
+    shorts: Tuple[str, ...] = ()      # e.g. ('C1.1:+3V3 <-> U1.8:/USB_P',)
+    # kind='pin_in_courtyard' (#1212): the frame's pins (pad numbers) whose
+    # holes lie inside the other part's occupancy. Appended LAST below, with
+    # a default, so every positional construction keeps its meaning.
+    # Either member carries KiCad's own (locked yes). A locked part's pose is
+    # a decision somebody made; copper landing on it is never dispositionable
+    # by a placement search (run-8 E6).
+    locked_ref: str = ''
+    # How much of the SMALLER body this overlap consumes, 0..1 -- see
+    # `containment_frac`. THE field `area_mm2` alone cannot supply: run-22
+    # shipped RN3-in-U5 and RN7-in-U6 at `fab 2.0 mm2`, which is also what a
+    # large connector's by-design graze measures. Area cannot tell a KISS from
+    # a part WHOLLY INSIDE another; this can.
+    #
+    # None = NOT MEASURED, not "no containment". The pad_intersection channel
+    # has no body rect in scope, so it reports None rather than a 0.0 that
+    # would read as a measurement someone took.
+    contained_frac: Optional[float] = None
+    # Penetration depth: the SHORTER axis extent of the intersection rect, mm
+    # (0.0 = not measured; the pad_intersection channel has no body rects).
+    # Area cannot tell a long thin kiss from a real interpenetration --
+    # run-23: D3<->SW1 0.059mm2 at depth 0.02 vs J4<->U6 5.56mm2 at depth
+    # 0.90 -- and the courtyard blocking policy keys on this axis.
+    depth_mm: float = 0.0
+    # WHERE the overlap is: the intersection rect (x0, y0, x1, y1), None =
+    # not measured. run-23 user finding #1: the edge-class waiver needs the
+    # REGION, not only the pair -- J1's mating overhang legitimately covers
+    # the strip at/over the outline, and nothing else, yet R5 sat 45.7%
+    # inside J1's INTERIOR courtyard (under the connector body, 1.5mm inside
+    # the board) behind the same waiver.
+    overlap_rect: Optional[Tuple[float, float, float, float]] = None
+    # `contained_frac >= CONTAINMENT_FRAC`, **on the fab channel only**.
+    #
+    # Why fab-only, measured on the same 33 boards: the COURTYARD currency
+    # ships frac-1.0 containment on four healthy boards -- esp_prog (a part
+    # inside USB1), orangecrab_ext_pll (R9, R12 inside J5),
+    # rp2350_fpga_eensy_prePlane (U3 inside J2), ulx3s (R24, R22, C18 inside
+    # GPDI1, OSHW inside U9). A courtyard is body PLUS margin PLUS shell
+    # overhang volume, so a small part living under a connector's courtyard is
+    # ordinary and correct. The .Fab outline is the real body, and there a
+    # non-exempt containment is unknown on the corpus.
+    #
+    # So `contained_frac` is measured on both body channels because it is free
+    # and true, while `contained` -- the flag anything downstream acts on --
+    # is asserted only where the corpus says it discriminates.
+    contained: bool = False
+    # #1212: see `shorts` above. ('16', '17') for SW1 over U8's pins.
+    pins: Tuple[str, ...] = ()
+    # kind='pin_in_courtyard': 'pth' or 'npth' -- KiCad grades the two under
+    # separate rules (pth_ / npth_inside_courtyard), each with its own
+    # project severity -- and whether the other part's DRAWN courtyard was
+    # what the hole met ('courtyard'), or only its occupancy (a part that
+    # draws none, which KiCad cannot report: listed, never gating).
+    hole: str = ''
+    basis: str = ''
+    # #1201. For a CONTAINED pair: why it does not gate, or '' when it does
+    # -- the `_GATE_EXEMPT` waiver it carries, else 'silk_drawn' (a member's
+    # drawn body is silk, which never gates, #896). check_assembly prints
+    # it per pair, so a reader is never told a pair is "a marker or a
+    # board-sized container" when the silk rule is what let it through.
+    gate_exempt: str = ''
+
+
+def _pair_exact(a: GradedPart, b: GradedPart, s: str, ra, rb):
+    """(area, depth, overlap_rect, area_a, area_b) of a pair on shared side
+    `s`: on the drawn outlines where the parts carry them, else the rects.
+
+    A part's `poly` is used only on its OWN side; the far side of a
+    through-hole part is its drilled-pad box -- or, since #1206, one box per
+    cluster of drilled pads (`FarSide`), measured as their union.
+    """
+    pa = a.poly if (s == a.side and a.poly is not None) else None
+    pb = b.poly if (s == b.side and b.poly is not None) else None
+    if (pa is None and pb is None and not isinstance(ra, FarSide)
+            and not isinstance(rb, FarSide)):
+        ix = (max(ra[0], rb[0]), max(ra[1], rb[1]),
+              min(ra[2], rb[2]), min(ra[3], rb[3]))
+        return (rect_overlap_area(ra, rb), min(ix[2] - ix[0], ix[3] - ix[1]),
+                ix, rect_area(ra), rect_area(rb))
+    ga = pa if pa is not None else far_geom(ra)
+    gb = pb if pb is not None else far_geom(rb)
+    area, depth, ix = shape_overlap(ga, gb)
+    return area, depth, ix, ga.area, gb.area
+
+
+def pair_overlap_area_exact(a: GradedPart, b: GradedPart) -> float:
+    """`pair_overlap_area` measured the way `body_overlap_pairs` measures it
+    (#1094): the rects as broad phase, the drawn outlines deciding.
+
+    For a GENERATOR that must not refuse what the checker accepts on the same
+    geometry -- the #1054 fixed-pose seating refused StickHub's declared
+    human poses at -135 degrees on the rects alone.
+    """
+    worst = 0.0
+    for s in (a.sides & b.sides):
+        ra = rect_on(s, a.side, a.rect, a.tht_rect)
+        rb = rect_on(s, b.side, b.rect, b.tht_rect)
+        if ra is None or rb is None or rect_overlap_area(ra, rb) <= EPS:
+            continue
+        worst = max(worst, _pair_exact(a, b, s, ra, rb)[0])
+    return worst
+
+
+def graded_part_at_pose(pcb_data, ref: str, pose, side: str, rect, tht_rect,
+                        has_tht: bool, pcb_file: Optional[str] = None,
+                        cache: Optional[dict] = None) -> GradedPart:
+    """A `GradedPart` for `ref` at a pose nothing has written yet, carrying
+    its drawn occupancy outline there (#1094). `cache` (any dict the caller
+    keeps) holds the one board read this needs across calls. `rect` is the
+    caller's: `seeder._courtyard_overlap` hands the occupancy rect when the
+    search is armed (#1182) and its own rect when it is not."""
+    if cache is None:
+        cache = {}
+    lbs, bodies = _bodies_cached(pcb_data, pcb_file, cache)
+    lb = lbs.get(ref)
+    fp = (pcb_data.footprints or {}).get(ref)
+    poly = None
+    if lb is not None and fp is not None:
+        try:
+            poly = occupancy_shape(footprint_at_pose(fp, tuple(pose)), lb,
+                                   bodies.get(ref))
+        except Exception:                                    # noqa: BLE001
+            poly = None
+    return GradedPart(ref=ref, side=side, rect=rect, tht_rect=tht_rect,
+                      has_tht=has_tht, poly=poly)
+
+
+def _bodies_cached(pcb_data, pcb_file, cache):
+    if 'bodies' not in cache:
+        try:
+            cache['bodies'] = _part_local_bounds_and_bodies(pcb_data, pcb_file)
+        except Exception:                                    # noqa: BLE001
+            cache['bodies'] = ({}, {})
+    return cache['bodies']
+
+
+def occupancy_rect_at(pcb_data, ref: str, pose, fallback=None,
+                      pcb_file: Optional[str] = None,
+                      cache: Optional[dict] = None,
+                      courtyard_less_only: bool = False):
+    """`ref`'s OCCUPANCY rect (`LocalBounds.local`) at `pose` -- the rect
+    check_assembly's courtyard channel grades -- or `fallback` when the
+    board read cannot bound it. Cheap: no polygon is built.
+
+    `courtyard_less_only`: `fallback` for a part that DRAWS a courtyard, too.
+    A declared pose is judged on KiCad's courtyard where one is drawn (#1054:
+    a human layout packs courtyards edge to edge, and pads reaching past a
+    drawn courtyard are not courtyard); only a courtyard-less part, whose
+    search rect is a pad box, is screened on the body (#1182)."""
+    if cache is None:
+        cache = {}
+    lb = _bodies_cached(pcb_data, pcb_file, cache)[0].get(ref)
+    if lb is None or (courtyard_less_only and lb.from_courtyard):
+        return fallback
+    x, y, rot = pose
+    lx0, ly0, lx1, ly1 = rotate_local_bounds(*lb.local, rot)
+    return (x + lx0, y + ly0, x + lx1, y + ly1)
+
+
+def courtyard_budget_universe(census, refs, poses=None):
+    """`(graded, excluded)`: the parts of `refs` a courtyard-overlap
+    BUDGET grades (`{ref: GradedPart}` at `poses`), and the ones it leaves
+    out by name -- `{'containers': [...], 'synthetic': [...], 'silk':
+    [...]}`. One rule, so `courtyard_overlap_pairs` and the plan's area
+    bounds price the same parts, and a reader can see who was not counted
+    (a silk-only part is invisible to the budget, #896)."""
+    from placement.body import SOURCE_SILK
+    poses = poses or {}
+    gp = {}
+    excluded = {'containers': [], 'synthetic': [], 'silk': []}
+    for r in refs:
+        if r not in census.lbs:
+            continue
+        if r in census.containers:
+            excluded['containers'].append(r)
+            continue
+        g = census.graded_part(r, poses.get(r))
+        if g.synthetic:
+            excluded['synthetic'].append(r)
+        elif g.source == SOURCE_SILK:
+            excluded['silk'].append(r)
+        else:
+            gp[r] = g
+    return gp, {k: sorted(v) for k, v in excluded.items()}
+
+
+def courtyard_overlap_pairs(census, refs, poses=None, rect_of=None):
+    """`(exact_total, rect_total, pairs)`: the courtyard overlap a floorplan
+    budget grades, pair by pair, on check_assembly's drawn-outline geometry
+    (#1162). `pairs` is `[[a, b, rect_mm2, exact_mm2], ...]`, worst exact
+    first, every pair either reading puts above EPS.
+
+    `refs` is the UNIVERSE -- the grade's own parts, never the board's: a
+    caller that rebuilt it from `graded_parts_from_file` counted KiCad-locked
+    pad-less logos as 1 x 1 mm bodies the grade never sees (glasgow g8: J5
+    against two REF** logos, 2.0 mm2, where the grade said 0.0). Containers
+    and synthetic parts are left out, as the grade leaves them out, and so
+    is a part whose occupancy is SILK: #896's rule that a silk body never
+    gates holds for a budget too (esp_prog's OLIMEX brackets read 37.7 mm2
+    of 'overlap' on a seed whose parts clear their real bodies).
+    `poses` overrides the file's ({ref: (x, y, rot)}). `rect_of(ref)` gives
+    the caller's own `(sides, side, rect, tht_rect)` for the RECT reading --
+    the search's currency, reported beside the exact one so a reader sees
+    which overlap the budget used to count; default the census's rects."""
+    gp, _excluded = courtyard_budget_universe(census, refs, poses)
+    keys = sorted(gp)
+    pairs = []
+    ex_tot = rc_tot = 0.0
+    for i, a in enumerate(keys):
+        ga = gp[a]
+        for b in keys[i + 1:]:
+            gb = gp[b]
+            if rect_of is not None:
+                ra, rb = rect_of(a), rect_of(b)
+                rc = pair_overlap_area(*ra, *rb)
+            else:
+                rc = pair_overlap_area(ga.sides, ga.side, ga.rect,
+                                       ga.tht_rect, gb.sides, gb.side,
+                                       gb.rect, gb.tht_rect)
+            ex = pair_overlap_area_exact(ga, gb)
+            if rc > EPS or ex > EPS:
+                pairs.append([a, b, round(rc, 4), round(ex, 4)])
+                rc_tot += rc
+                ex_tot += ex
+    pairs.sort(key=lambda p: (-p[3], -p[2], p[0], p[1]))
+    return ex_tot, rc_tot, pairs
+
+
+def body_overlap_pairs(parts: Sequence[GradedPart]) -> List[BodyOverlapPair]:
+    """Per-PAIR side-aware courtyard intersections (kind='courtyard').
+
+    The pair decomposition of `placement_overlap_area`: same side rules
+    (cross-side pairs contribute nothing unless a THT lead field reaches the
+    far side), but reported as pairs so a gate can charge the DEFECT and a
+    waiver can bless the by-design cases. Waivers are the CALLER's job --
+    this function reports raw geometry (waived=False throughout).
+    """
+    out: List[BodyOverlapPair] = []
+    items = list(parts)
+    for i, a in enumerate(items):
+        for b in items[i + 1:]:
+            p = courtyard_pair(a, b)
+            if p is not None:
+                out.append(p)
+    out.sort(key=lambda p: (-p.area_mm2, p.a, p.b))
+    return out
+
+
+def courtyard_pair(a: GradedPart, b: GradedPart
+                   ) -> Optional[BodyOverlapPair]:
+    """One pair of `body_overlap_pairs`: the raw courtyard intersection of
+    `a` and `b` (kind='courtyard', unwaived), or None when they do not
+    overlap on any shared side."""
+    worst = 0.0
+    worst_side = ''
+    worst_geo = None
+    # SORTED: on an exact area tie between the two faces the first one wins
+    # (strict `>` below), and iterating a frozenset made that a function of
+    # PYTHONHASHSEED -- the pair's `side` and `contained_frac` (which feeds
+    # the relative blocking floor) changed from one run to the next on
+    # rp2350 and glasgow (fa10 P1 phase-0 verifier).
+    for s in sorted(a.sides & b.sides):
+        ra = rect_on(s, a.side, a.rect, a.tht_rect)
+        rb = rect_on(s, b.side, b.rect, b.tht_rect)
+        if ra is None or rb is None:
+            continue
+        if rect_overlap_area(ra, rb) <= EPS:
+            continue
+        # The rects overlap: measure the pair on the drawn outlines
+        # (#1094), a rect standing in for a side that has none.
+        area, depth, ix, fa, fb = _pair_exact(a, b, s, ra, rb)
+        if area > worst:
+            worst = area
+            worst_side = s
+            worst_geo = (depth, ix, fa, fb)
+    if worst <= EPS:
+        return None
+    depth, ix, fa, fb = worst_geo
+    return BodyOverlapPair(
+        a=min(a.ref, b.ref), b=max(a.ref, b.ref),
+        kind='courtyard', area_mm2=round(worst, 4),
+        side=worst_side, waived=False, waiver='',
+        contained_frac=containment_frac_of_areas(worst, fa, fb),
+        depth_mm=round(max(0.0, depth), 4),
+        overlap_rect=tuple(round(v, 4) for v in ix))
+
+
+class LocalBounds(NamedTuple):
+    """One part's UNROTATED local geometry, before any pose is applied.
+
+    The half of `graded_parts_from_file` that does not depend on where the part
+    currently sits: which box the courtyard is, whether it is the pad-bbox
+    fallback or the zero-pad fiction, and the drilled-pad box. Split out because
+    a consumer asking "could this part fit HERE, at any rotation" needs the
+    local box at a rotation the file does not carry, and re-deriving that chain
+    is exactly the second implementation #456 exists to prevent.
+
+    `local` / `tht_local` are in the footprint's own frame; rotate them with
+    `rotate_local_bounds` and offset by the pose to get board coordinates.
+    """
+    ref: str
+    side: str
+    local: Tuple[float, float, float, float]
+    tht_local: Optional[Tuple[float, float, float, float]]
+    has_tht: bool
+    # True when `local` is the +/-0.5mm FICTION for a footprint with no
+    # courtyard AND no pads. See `GradedPart.synthetic`: not geometry anyone
+    # drew, so it must never gate.
+    synthetic: bool
+    # False when the courtyard was missing and `local` is the PAD bbox, which
+    # carries no courtyard margin. NOT a safe direction, contrary to an earlier
+    # comment here: a smaller part is more permissive only WITHIN a fixed
+    # anchor mode, and shrinking can flip `zone_is_anchor` True->False, whose
+    # non-anchor branch has a strictly smaller admissible origin box. Measured:
+    # zone [0,0,5,2] tol 0, keep-out [0,0.9,2,1.1] -- a 6x3 courtyard is
+    # `seated` and its 4x1 pad bbox is REFUSED. So a consumer refusing on this
+    # geometry may differ in EITHER direction, which is why it is recorded
+    # per part rather than assumed away.
+    from_courtyard: bool
+    # #896. The rung of `body.body_geometry`'s ladder that answered:
+    # 'courtyard' | 'fab' | 'silk' | 'pad_bbox' | 'none'. `from_courtyard`
+    # above is kept as a FIELD rather than becoming a property derived from
+    # this -- a NamedTuple cannot carry both under one name, and removing it
+    # would change `_fields`, the arity and `_asdict()` ordering that
+    # floorplan's `measured` dict and tests/mutate_799.py both read.
+    source: str = ''
+    # #896. Silk was drawn but did not survive the ladder: either the
+    # footprint has no pads (a logo) or its silk bbox lies inside the pad
+    # bbox (a pin-1 tick), so the union IS the pad bbox. A disclosure, not
+    # an error -- a fragment must not be LABELLED a body.
+    silk_rejected: bool = False
+    # #1201. The .Fab rung was a marking, not a body
+    # (`body.fab_cannot_be_body`). Appended LAST for the `_fields` reason
+    # `source` records above.
+    fab_rejected: bool = False
+
+
+def part_local_bounds(pcb_data, pcb_file: Optional[str] = None
+                      ) -> Dict[str, LocalBounds]:
+    """THE local-bounds chain, once: `{ref: LocalBounds}`.
+
+    The geometry decision itself lives in `placement.body` (#896) and this is
+    its pose-independent half plus the drilled-pad box: courtyard, else the
+    drawn .Fab body, else silk unioned with the pad bbox, else the pad bbox --
+    with `source` naming which rung answered. Before #896 this ladder went
+    straight from courtyard to the pad bbox, so on a library drawing no
+    courtyard every consumer of this function graded pad boxes and no
+    instrument could see a connector housing at all.
+
+    Needs the board FILE for the drawn geometry (neither parse path carries
+    footprint graphics on `Footprint`); falls back to `pcb_data.source_path`,
+    then to pad bboxes everywhere.
+
+    NOT the quench's ladder. `quench._Part.__init__` keeps its own
+    courtyard-or-pad-bbox bounds deliberately (see `body.py`): adopting the
+    model there changes which poses `pose_ok` admits and therefore the basin
+    the anneal lands in, which is a search change needing its own A/B, not a
+    ride-along on a reporting one.
+
+    A ref is ABSENT when even the pad fallback raised -- the same parts
+    `graded_parts_from_file` skips, so both consumers see one universe.
+    """
+    return _part_local_bounds_and_bodies(pcb_data, pcb_file)[0]
+
+
+def _part_local_bounds_and_bodies(pcb_data, pcb_file: Optional[str] = None):
+    """`part_local_bounds` plus the `board_bodies` it was read from, so
+    `graded_parts_from_file` gets the drawn outlines (#1094) without a second
+    file read. `LocalBounds` itself stays shape-free: its `_asdict()` feeds
+    JSON (floorplan's `measured`), which a shapely object would break."""
+    from placement.body import (SOURCE_COURTYARD, SOURCE_NONE, board_bodies)
+    from placement.utility import compute_footprint_bbox_local
+
+    bodies = board_bodies(pcb_data, pcb_file)
+    out: Dict[str, LocalBounds] = {}
+    for ref, fp in sorted((pcb_data.footprints or {}).items()):
+        own = footprint_side(fp)
+        geom = bodies.get(ref)
+        # OCCUPANCY, not the bare body. Every consumer of this chain asks an
+        # occupancy question -- does this part's extent intrude here -- and the
+        # rect must therefore never SHRINK: measured over the 22 corpus boards,
+        # taking the drawn body bare removed three real run-23 courtyard
+        # findings on ulx3s and two on esp_prog, because a .Fab body is
+        # routinely narrower than the pads it sits between (ulx3s AUDIO1
+        # 194.5 -> 115.6 mm2, 0.59x; U3/U4/U5 TSOT-25 0.55x). The BODY rect is
+        # what the assembly seam and the body-source disclosure report, and
+        # they read `placement.body` directly.
+        local = geom.occupancy_local if geom is not None else None
+        source = geom.source if geom is not None else ''
+        silk_rejected = bool(geom.silk_rejected) if geom is not None else False
+        fab_rejected = bool(getattr(geom, 'fab_rejected', False))
+        if local is None:
+            # SOURCE_NONE, or no readable board file at all: the +/-0.5mm
+            # fiction, which `synthetic` marks so it can never gate.
+            try:
+                local = compute_footprint_bbox_local(fp)
+                source = source or SOURCE_NONE
+            except Exception:
+                local = None
+        if local is None:
+            continue
+        # #896. `synthetic` means "not geometry anyone drew", and that is now
+        # SOURCE_NONE -- not "has no pads". A pad-less footprint that draws a
+        # real .Fab body is a real body: watchy's REF** is a 1.54" e-paper
+        # display, 31.8 x 37.3mm on a 33.8 x 46mm board, which graded as the
+        # +/-0.5mm fiction and therefore could never gate anything, while parts
+        # genuinely sit under it. The silk rung already refuses pad-less
+        # footprints (a logo is decoration, not a part), so this admits drawn
+        # bodies without admitting silk graphics.
+        synthetic = source == SOURCE_NONE
+        tht_local = None
+        has_tht = footprint_has_through_pads(fp)
+        if has_tht:
+            # #1206: one box per cluster of drilled pads (a FarSide when
+            # there are several), a plain tuple when there is one; plus a
+            # far-face courtyard the footprint draws.
+            tht_local = far_side_local(
+                fp, getattr(geom, 'far_court_local', None))
+        out[ref] = LocalBounds(ref=ref, side=own, local=tuple(local),
+                               tht_local=tht_local,
+                               has_tht=has_tht, synthetic=synthetic,
+                               from_courtyard=(source == SOURCE_COURTYARD),
+                               source=source, silk_rejected=silk_rejected,
+                               fab_rejected=fab_rejected)
+    return out, bodies
+
+
+def occupancy_shape(fp, lb: 'LocalBounds', geom=None):
+    """A part's own-side occupancy as board-frame geometry at its file pose
+    (#1094): the drawn courtyard outline united with the part's pad copper
+    when the courtyard rung answered, else the occupancy box, oriented.
+
+    The pads are united pad by pad (`check_pads`' outline, the checker that
+    already measures pad copper) rather than as their bbox: a stepped QFP
+    courtyard hugs its pin rows, and the pad BBOX would put back the corners
+    the drawing cut away (StickHub U1<->Y1, 2.01 mm2, which KiCad does not
+    report). A CUSTOM pad is united as its parsed primitives
+    (`check_pads.custom_pad_copper`, #1123), not as its size box, which is
+    symmetric about the anchor and so covers whatever side the copper does
+    not reach; the box only where the parser could not draw the pad.
+    A pad that puts no copper on a copper layer -- an NPTH hole, or a
+    paste-only aperture -- is not occupancy and is skipped
+    (`_pad_carries_copper`, the predicate `PartPads` builds from, #1128).
+    """
+    from shapely.geometry import Polygon, box
+    from shapely.ops import unary_union
+    court = getattr(geom, 'court_shape_local', None) if geom else None
+    if court is None or lb.synthetic:
+        return place_local_shape(box(*lb.local), fp.x, fp.y, fp.rotation)
+    shape = place_local_shape(court, fp.x, fp.y, fp.rotation)
+    from check_pads import custom_pad_copper, pad_outline_polygon
+    extra = []
+    for pad in (fp.pads or ()):
+        if not _pad_carries_copper(pad):
+            continue
+        try:
+            pp = custom_pad_copper(pad)
+            if pp is None:
+                pts = pad_outline_polygon(pad)
+                pp = Polygon(pts) if len(pts) >= 3 else None
+        except Exception:                                    # noqa: BLE001
+            continue
+        if pp is not None:
+            if pp.is_valid and not shape.contains(pp):
+                extra.append(pp)
+    return unary_union([shape] + extra) if extra else shape
+
+
+def graded_parts_from_file(pcb_data, pcb_file: Optional[str] = None
+                           ) -> List[GradedPart]:
+    """`GradedPart` records at the FILE's own poses.
+
+    The pose half of `part_local_bounds`: rotate each part's local box by its
+    own rotation and offset it. The chain itself lives there, so a consumer
+    that needs the box at ANOTHER rotation does not grow a second copy of it.
+    """
+    out: List[GradedPart] = []
+    lbs, bodies = _part_local_bounds_and_bodies(pcb_data, pcb_file)
+    for ref, lb in lbs.items():
+        fp = pcb_data.footprints[ref]
+        rot = fp.rotation or 0.0
+        lx0, ly0, lx1, ly1 = rotate_local_bounds(*lb.local, rot)
+        rect = (fp.x + lx0, fp.y + ly0, fp.x + lx1, fp.y + ly1)
+        tht = None
+        if lb.has_tht and lb.tht_local is not None:
+            tht = offset_far(rotate_far(lb.tht_local, rot), fp.x, fp.y)
+        out.append(GradedPart(ref=ref, side=lb.side, rect=rect,
+                              tht_rect=tht, has_tht=lb.has_tht,
+                              synthetic=lb.synthetic, source=lb.source,
+                              poly=occupancy_shape(fp, lb, bodies.get(ref)),
+                              local=tuple(lb.local)))
+    return out
+
+
+#: The waiver label a courtyard pair carries when the board's own project
+#: sets KiCad's `courtyards_overlap` to a non-error severity (#1095); the
+#: severity is appended, e.g. 'project_severity_ignore'.
+PROJECT_SEVERITY_WAIVER = 'project_severity_'
+
+
+#: The categories the pre-#856 `fix_kicad_drc_settings.severity_plan` set to
+#: ignore on every route step, as they were THEN. A literal on purpose: built
+#: from the live plan, a category added to it later would make every old
+#: tool-written ignore read as the author's again.
+LEGACY_SEVERITY_PLAN_IGNORES = (
+    'annular_width', 'courtyards_overlap', 'lib_footprint_issues',
+    'lib_footprint_mismatch', 'malformed_courtyard', 'npth_inside_courtyard',
+    'pth_inside_courtyard', 'solder_mask_bridge')
+
+
+def courtyard_severity_of(pcb_file: Optional[str],
+                          rule: str = 'courtyards_overlap'
+                          ) -> Tuple[Optional[str], str]:
+    """`(severity, basis)`: the AUTHOR's severity of KiCad DRC `rule`
+    (default `courtyards_overlap`) for the board, or None (no project,
+    unset -- KiCad's default is error -- or not the author's), and where it
+    came from (#1095). fa10 P1 reads `pth_inside_courtyard` and
+    `npth_inside_courtyard` the same way, for a pin frame's pins.
+
+    An 'ignore' is only trusted as the author's. This repository's own
+    tools wrote it too: before #856 every route step applied
+    `fix_kicad_drc_settings.severity_plan`, whose early form set
+    courtyards_overlap to ignore along with the rest of its categories, and
+    the writeback only ever loosens, so it carries down every later copy
+    (run outputs of that era carry it: glasgow_revC's routed loop outputs
+    read 0 courtyard-blocking pairs under it and 24-25 without). So:
+
+    - `kicad_routing_tools.saved_severities.courtyards_overlap` exists: a
+      current tool changed the value and kept the author's; that is the
+      answer ('saved: author's value').
+    - the project ignored EVERY category the legacy plan ignored BEFORE any
+      current tool touched it: tool written, graded at error ('legacy
+      severity plan'). "Before" is each category's `saved_severities`
+      record where it has one, else its value. The pre-#856 writer never
+      wrote that record (it did not exist until #856), and a current
+      `--relax-severities` records every category it changes -- so an
+      author's own `ignore` followed by a relax, which ignores the other
+      seven, reads as the author's, while a legacy project a current tool
+      later touched still reads as legacy (its categories were already at
+      ignore, so nothing was recorded for them).
+    - otherwise the project's own value ('project').
+    """
+    if not pcb_file:
+        return None, 'no board file'
+    import json as _json
+    pro = os.path.splitext(pcb_file)[0] + '.kicad_pro'
+    try:
+        with open(pro, encoding='utf-8') as fh:
+            doc = _json.load(fh)
+    except (OSError, ValueError):
+        return None, 'no project'
+    sev = (((doc.get('board') or {}).get('design_settings') or {})
+           .get('rule_severities') or {})
+    # The records as the board holds them: the newer of the project's copy and
+    # the board file's (tool_records -- KiCad's own save keeps the latter).
+    try:
+        import tool_records
+        _ns = tool_records.effective_namespace(pcb_file)
+    except Exception:                                   # noqa: BLE001
+        _ns = doc.get('kicad_routing_tools') or {}
+    saved_all = (_ns.get('saved_severities') or {})
+    saved = saved_all.get(rule)
+    if saved is not None:
+        return saved, "saved: the author's value, kept when a tool changed it"
+    value = sev.get(rule)
+    if value == 'ignore':
+        legacy = LEGACY_SEVERITY_PLAN_IGNORES
+        if all(saved_all.get(c, sev.get(c)) == 'ignore' for c in legacy):
+            return None, ("legacy severity plan: the project ignores all of "
+                          + ', '.join(sorted(legacy)) + ", which this "
+                          "repo's pre-#856 route steps wrote, so the ignore "
+                          "is not taken as the author's")
+    return value, 'project'
+
+
+# --- check_assembly's courtyard channel, callable at ANY poses (fa10 P1) ----
+#
+# The waiver ladder, the blocking floors and the moved-vs-baseline gate lived
+# as closures inside `grade_body_overlap` and inline in check_assembly's
+# main(), so nothing could ask the grader's question about a pose nobody had
+# written. The seeder, `--repair`, `--reseat` and the floorplan budget each
+# answered it again on their own rects, and their answers disagreed with the
+# grader's (#1182, #1162). These are the same code, lifted; `CourtyardCensus`
+# is the one place it runs.
+
+_MARKER_CLASSES = ('mount_hole', 'fiducial', 'testpoint')
+_EDGE_CLASSES = ('edge_receptacle', 'edge_actuator')
+# Marker classes whose courtyard is NON-PHYSICAL and may keep the blanket
+# blocking exemption. A mount_hole is deliberately absent (run-23, user
+# finding #3): its courtyard is the SCREW-HEAD/standoff keepout -- J3's
+# header sat 1.47mm inside locked H2's courtyard behind the same
+# 'marker_class' label a fiducial gets, and a screw in H2 lands on J3's
+# pin row. Fiducials and testpoints have nothing above board level;
+# mounting holes do.
+_MARKER_NONPHYSICAL = ('fiducial', 'testpoint')
+
+
+def moved_refs(pcb_now, pcb_base, eps: float = 1e-3) -> set:
+    """Refs whose POSE differs from `pcb_base` (position, rotation mod 360, or
+    layer), the courtyard gate's currency: a pair is chargeable only when OUR
+    moves put a member there. Pair-membership ("new vs baseline") is NOT
+    enough -- run-23's RN3<->U5 existed in the damaged baseline (the staged
+    containment), the repair moved RN3 3.28mm and left the pair blocking, and
+    a membership test would have called it pre-existing. A ref absent from
+    the baseline counts as moved: something put it there."""
+    return moved_refs_at(pcb_now, pcb_base, None, eps)
+
+
+def moved_refs_at(pcb_now, pcb_base, poses=None, eps: float = 1e-3) -> set:
+    """`moved_refs` with `poses` ({ref: (x, y, rot)}) overriding the
+    positions `pcb_now` holds -- a search state's poses before anything is
+    written (#1182: the repair's courtyard re-grade asks it of its final
+    poses). The layer is `pcb_now`'s: no search here flips a part."""
+    poses = poses or {}
+    out = set()
+    for ref, fp in (pcb_now.footprints or {}).items():
+        bp = (pcb_base.footprints or {}).get(ref)
+        if bp is None:
+            out.add(ref)
+            continue
+        x, y, rot = poses.get(ref, (fp.x, fp.y, fp.rotation or 0.0))
+        drot = ((rot or 0.0) - (bp.rotation or 0.0)) % 360.0
+        if (abs(x - bp.x) > eps or abs(y - bp.y) > eps
+                or min(drot, 360.0 - drot) > eps
+                or (fp.layer or '') != (bp.layer or '')):
+            out.add(ref)
+    return out
+
+
+def courtyard_gating(blocking_pairs, moved) -> list:
+    """The courtyard-blocking pairs that GATE: a member moved (run-23)."""
+    return [q for q in blocking_pairs if q.a in moved or q.b in moved]
+
+
+# --- #1255: a component body's distance to the board edge --------------------
+#
+# Past the hard outline gate, the only pressure keeping a BODY off the edge was
+# the quench's soft halo (`_edge_penalty`), and no grader reads that cost.
+# render's `a_off_outline.courtyard` asks a different question: the courtyard
+# against the outline inset by the clearance and copper-edge floors. Neither
+# check_assembly nor board_score measured body-to-edge distance at all. A
+# 1.77 mm nudge put splitflap R1's fab body 1.00 mm from the south edge, and
+# every grader read the board exactly as before.
+#
+# The number belongs to an ASSEMBLER, not to the board. JLCPCB's assembly
+# terms ask for 2.5 mm between a component body and the board edge, and JLC
+# adds edge rails when the file has none, after which the board edge is no
+# longer the conveyor edge. Every human board measured breaks 2.5 mm
+# (splitflap, esp_prog, glasgow, watchy, ulx3s). So the census is REPORT-ONLY
+# unless the intent declares `assembly.body_edge_mm`, and then it gates every
+# part in the band.
+
+#: The band when nothing declares one. Reported as `derived_default`, always
+#: beside `BODY_EDGE_DEFAULT_CITATION`.
+BODY_EDGE_DEFAULT_MM = 2.5
+BODY_EDGE_DEFAULT_CITATION = (
+    'JLCPCB assembly terms, section 2 "Notes on DFM", item 3: "The distance '
+    'between the body of the components and the edge of the board must be '
+    'equal or greater than 2.5mm." One assembler\'s rule, which also adds '
+    'edge rails when the file has none (https://jlcpcb.com/help/article/'
+    'Terms-and-Conditions-of-JLCPCB-Assembly-Service, read 2026-10-14)')
+
+
+def body_edge_band(pcb_data, pcb_file: Optional[str] = None, *,
+                   threshold_mm: Optional[float] = None,
+                   edge_claim_refs: Sequence[str] = (),
+                   moved: Optional[set] = None,
+                   bodies=None) -> Dict[str, object]:
+    """Pad-bearing parts whose BODY lies within `threshold_mm` of the edge.
+
+    The body is the drawn one (`placement.body`: .Fab, else silk united with
+    the pads). A part that draws neither falls back to its occupancy rung,
+    which is the courtyard, else the pad box. `source` names the rung. The
+    body's rect at the part's pose is measured against the real outline at
+    margin 0 (`BoardOutlineGate.edge_clearance`, cutouts included). A body
+    that reaches past the outline reads 0.
+
+    Some parts belong at the edge by what they are. Edge-class parts
+    (`edge_receptacle` / `edge_actuator`), markers (`mount_hole` /
+    `fiducial` / `testpoint`) and refs in `edge_claim_refs` (an edge the
+    intent declares) are listed apart in `excluded`, with `why`, and never
+    counted. A connector-family part with no edge claim stays IN, because
+    those are most of the hits on human boards.
+
+    `threshold_mm` None means nothing declared a band: the band is
+    `BODY_EDGE_DEFAULT_MM`, labelled `derived_default`, and `gates` is False.
+    `moved` (a `moved_refs` set) adds `new_in_band`, the in-band parts that
+    moved relative to a baseline. `bodies` (a `board_bodies` map) skips the
+    board-file read.
+    """
+    declared = threshold_mm is not None
+    thr = float(threshold_mm) if declared else BODY_EDGE_DEFAULT_MM
+    out: Dict[str, object] = {
+        'threshold_mm': thr,
+        'threshold_basis': 'declared' if declared else 'derived_default',
+        'citation': None if declared else BODY_EDGE_DEFAULT_CITATION,
+        'gates': declared,
+        'measured': 0, 'eligible': 0, 'in_band': [], 'excluded': [],
+        'unmeasured': [],
+        'new_in_band': None, 'new_in_band_refs': None, 'error': None,
+    }
+    bi = getattr(pcb_data, 'board_info', None)
+    if bi is None or getattr(bi, 'board_bounds', None) is None:
+        # Unmeasured is not clean: a caller that gates must fail closed.
+        out['error'] = 'the board has no outline to measure against'
+        return out
+    from kicad_parser import non_aperture_pads
+    from placement.part_class import classify_part
+    if bodies is None:
+        from placement.body import board_bodies
+        bodies = board_bodies(pcb_data, pcb_file)
+    og = BoardOutlineGate(bi, 0.0)
+    claimed = set(edge_claim_refs or ())
+    in_band: list = []
+    excluded: list = []
+    unmeasured: list = []
+    measured = 0
+    eligible = 0          # measured and not excluded: the band's population
+    for ref, fp in sorted((pcb_data.footprints or {}).items()):
+        if not non_aperture_pads(fp):
+            continue                    # not pad-bearing: nothing to assemble
+        g = bodies.get(ref)
+        local, src = None, None
+        if g is not None:
+            if g.drawn_local is not None:
+                local, src = g.drawn_local, g.drawn_source
+            elif g.body_local is not None:
+                local, src = g.body_local, g.source
+        if local is None:
+            unmeasured.append(ref)
+            continue
+        x0, y0, x1, y1 = rotate_local_bounds(*local, fp.rotation or 0.0)
+        rect = (fp.x + x0, fp.y + y0, fp.x + x1, fp.y + y1)
+        mm = (0.0 if og.rect_outside_amount(rect) > EPS
+              else og.edge_clearance(rect))
+        measured += 1
+        try:
+            cls = classify_part(fp, ref).name
+        except Exception:                                    # noqa: BLE001
+            cls = None
+        why = (cls if cls in _EDGE_CLASSES or cls in _MARKER_CLASSES
+               else 'declared_edge' if ref in claimed else '')
+        if not why:
+            eligible += 1
+        if mm >= thr - EPS:
+            continue
+        row = {'ref': ref, 'mm': round(mm, 3), 'source': src,
+               'side': footprint_side(fp)}
+        if why:
+            row['why'] = why
+            excluded.append(row)
+        else:
+            in_band.append(row)
+
+    def _key(r):
+        return (r['mm'], r['ref'])
+    out.update(measured=measured, eligible=eligible,
+               in_band=sorted(in_band, key=_key),
+               excluded=sorted(excluded, key=_key), unmeasured=unmeasured)
+    if moved is not None:
+        new = [r['ref'] for r in out['in_band'] if r['ref'] in moved]
+        out['new_in_band'] = len(new)
+        out['new_in_band_refs'] = new
+    return out
+
+
+class PairWaivers:
+    """The waiver ladder check_assembly labels a body pair with, and the
+    subset of those labels that may excuse a courtyard pair from BLOCKING.
+
+    One instance per grade: it records which authored waivers fired, so the
+    caller can report the ones that resolved to nothing (#897). `rect_of`
+    returns a ref's courtyard rect at the poses being graded -- the edge
+    waiver is a claim about where the part IS, so it must read the pose the
+    grade is about, not the file's.
+    """
+
+    def __init__(self, pcb_data, *, intent_waivers: Sequence = (),
+                 containers=(), locked_refs=(), rect_of=None):
+        self.pcb_data = pcb_data
+        self.fps = pcb_data.footprints or {}
+        self.waiver_sets = {frozenset(p) for p in intent_waivers
+                            if len(p) == 2}
+        self.containers = set(containers)
+        self.locked_refs = set(locked_refs)
+        self.rect_of = rect_of or (lambda ref: None)
+        self.bb = getattr(getattr(pcb_data, 'board_info', None),
+                          'board_bounds', None)
+        self.hit: set = set()
+        self._classes: Dict[str, Optional[str]] = {}
+        self._edge_live: Dict[str, bool] = {}
+
+    def class_of(self, ref: str) -> Optional[str]:
+        if ref not in self._classes:
+            fp = self.fps.get(ref)
+            name = None
+            if fp is not None:
+                try:
+                    from placement.part_class import classify_part
+                    name = classify_part(fp, ref).name
+                except Exception:                            # noqa: BLE001
+                    name = None
+            self._classes[ref] = name
+        return self._classes[ref]
+
+    def label(self, a: str, b: str) -> str:
+        # AUTHORED FIRST (#897). An operator naming a pair in the intent's
+        # `overlap_waivers` outranks every class label -- which is what the
+        # consumers already assume: `blocking_waived` returns True for
+        # 'intent_declared' BEFORE it tests locked-ness, and `_GATE_EXEMPT`
+        # lists it. Testing it LAST meant a pair the intent explicitly waives
+        # never read 'intent_declared' whenever either part was a marker, an
+        # edge part or a container -- which is exactly the kind of pair anyone
+        # waives. Run 25: a fiducial inside USB1's pad box, both poses
+        # mechanical, both locked, waived in intent.json, carried the banner
+        # `BLOCKING, past the floors (1)` on every review sheet of the run
+        # while check_assembly --baseline called the same pair baseline's own.
+        # `waiver_sets` is empty on every caller but check_assembly --intent and
+        # place_reconstruct --intent, and this runs per PAIR per grade -- so do
+        # not build a frozenset for boards that declared no waivers at all.
+        if self.waiver_sets:
+            pair = frozenset((a, b))
+            if pair in self.waiver_sets:
+                self.hit.add(pair)
+                return 'intent_declared'
+        if a in self.containers or b in self.containers:
+            return 'container_class'
+        ca, cb = self.class_of(a), self.class_of(b)
+        if ca in _MARKER_CLASSES or cb in _MARKER_CLASSES:
+            return 'marker_class'
+        if ca in _EDGE_CLASSES or cb in _EDGE_CLASSES:
+            return 'edge_class'
+        return ''
+
+    def edge_live(self, ref: str) -> bool:
+        """An edge-class waiver is a claim that the part's shell or actuator
+        legitimately overhangs -- which is only TRUE of a part that is
+        actually AT an edge: overhanging the outline, or within SEAT_TOL_MM
+        of one. Run-23's SW2 sat 8.33mm INTERIOR behind this waiver."""
+        if ref in self._edge_live:
+            return self._edge_live[ref]
+        live = False
+        if self.class_of(ref) in _EDGE_CLASSES and self.bb:
+            rect = self.rect_of(ref)
+            if rect is not None:
+                try:
+                    from .part_class import SEAT_TOL_MM
+                    og = BoardOutlineGate(self.pcb_data.board_info, 0.0)
+                    live = (og.rect_outside_amount(rect) > EPS
+                            or og.edge_clearance(rect) <= SEAT_TOL_MM)
+                except Exception:                            # noqa: BLE001
+                    live = True     # unmeasurable geometry never UN-waives
+        self._edge_live[ref] = live
+        return live
+
+    def blocking_waived(self, p) -> bool:
+        if not p.waived:
+            return False
+        # An AUTHORED waiver outranks everything below: it is a recorded
+        # human decision about this exact pair.
+        if p.waiver == 'intent_declared':
+            return True
+        # #1095: the board declared KiCad's courtyard rule non-blocking. Its
+        # own DRC reports none of these pairs, locked or not, so neither do
+        # we; the pair stays in the census with its label.
+        if p.waiver.startswith(PROJECT_SEVERITY_WAIVER):
+            return True
+        # A container (an `outline` since fa10 P1 -- a pin frame's pairs
+        # never reach here, its pins are graded instead) is waived for what
+        # it IS, a mechanical outline other parts sit under, so its lock is
+        # not the question (#1184: the seeder exempted it, locked or not,
+        # while this refused it for a lock, so the two disagreed).
+        if p.waiver == 'container_class':
+            return True
+        # No CLASS waiver blesses contact with a KiCad-LOCKED part (the
+        # run-8 E6 principle, extended to the courtyard channel): a locked
+        # pose is a decision somebody made, and a class label chosen for
+        # unlocked parts does not apply to copper or courtyards landing on
+        # it. The pair still faces the floors + the moved gate like any
+        # unwaived pair.
+        if p.a in self.locked_refs or p.b in self.locked_refs:
+            return False
+        if p.waiver == 'marker_class':
+            return (self.class_of(p.a) in _MARKER_NONPHYSICAL
+                    or self.class_of(p.b) in _MARKER_NONPHYSICAL)
+        if p.waiver != 'edge_class':
+            return True
+        if not (self.edge_live(p.a) or self.edge_live(p.b)):
+            return False
+        # run-23 user finding #1: an edge-LIVE part's waiver covers its
+        # MATING ZONE, never its whole courtyard. The overhang story is
+        # about the strip at/over the outline; an overlap sitting INSIDE
+        # the board is under the part's BODY, whoever is at the edge --
+        # R5 sat 45.7% inside J1's interior courtyard behind this waiver.
+        # The overlap region must leave the outline or hug the edge
+        # (within SEAT_TOL_MM); unmeasurable geometry never UN-waives.
+        r = p.overlap_rect
+        if r is None or not self.bb:
+            return True
+        try:
+            from .part_class import SEAT_TOL_MM
+            og = BoardOutlineGate(self.pcb_data.board_info, 0.0)
+            return (og.rect_outside_amount(r) > EPS
+                    or og.edge_clearance(r) <= SEAT_TOL_MM)
+        except Exception:                                    # noqa: BLE001
+            return True
+
+    @staticmethod
+    def row(pair) -> List[str]:
+        """A declared pair as a LIST OF TWO refs, whatever it was authored as.
+
+        `waiver_sets` holds frozensets, so `["U1","U1"]` -- a rename typo, and
+        `floorplan.load_intent` accepts it because it checks the raw list's
+        LENGTH and not its distinctness -- collapses to one element. Every
+        consumer formats these as `a <-> b`; one crashed on the ragged row with
+        an IndexError, turning a mistyped intent into a broken instrument.
+        """
+        refs = sorted(pair)
+        return refs if len(refs) == 2 else [refs[0], refs[0]]
+
+    def unresolved(self) -> List[List[str]]:
+        return sorted(self.row(p) for p in self.waiver_sets
+                      if any(r not in self.fps for r in p))
+
+    def unused(self) -> List[List[str]]:
+        return sorted(self.row(p) for p in self.waiver_sets
+                      if p not in self.hit and all(r in self.fps for r in p))
+
+
+def courtyard_blocking(pairs, waivers: PairWaivers, *, synthetic_refs=(),
+                       silk_occupancy_refs=()) -> list:
+    """The courtyard pairs that BLOCK (run-23): unwaived, past both floors,
+    no synthetic member, no silk-sourced occupancy.
+
+    Both floors must trip -- area >= COURTYARD_BLOCKING_MIN_MM2 (or the
+    relative floor) and depth >= COURTYARD_BLOCKING_MIN_DEPTH_MM -- so
+    by-design slivers a healthy board carries stay advisory, and a synthetic
+    (+/-0.5mm fiction) courtyard never gates anything. A silk-sourced body
+    reports, it does not gate (#896): silk is the last rung and the least
+    trustworthy.
+    """
+    synthetic_refs = set(synthetic_refs)
+    silk = set(silk_occupancy_refs)
+    return [
+        p for p in pairs
+        if p.kind == 'courtyard' and not waivers.blocking_waived(p)
+        # ABSOLUTE floor or RELATIVE floor (user finding #2: 0.445mm2 was
+        # 25.5% of R21's courtyard and slid under the absolute floor).
+        and (p.area_mm2 >= COURTYARD_BLOCKING_MIN_MM2
+             or (p.contained_frac or 0.0) >= COURTYARD_BLOCKING_MIN_FRAC)
+        and p.depth_mm >= COURTYARD_BLOCKING_MIN_DEPTH_MM
+        and p.a not in synthetic_refs and p.b not in synthetic_refs
+        and not (p.a in silk or p.b in silk)]
+
+
+class CourtyardGrade(NamedTuple):
+    """One `CourtyardCensus.grade`: check_assembly's courtyard channel."""
+    parts: Dict[str, GradedPart]     # every graded part, at the graded poses
+    pairs: List[BodyOverlapPair]     # kind='courtyard', labelled
+    blocking: List[BodyOverlapPair]
+    gating: Optional[List[BodyOverlapPair]]   # None when `moved` was None
+    synthetic_refs: frozenset
+    silk_occupancy_refs: frozenset
+    containers: frozenset            # `container_kinds`, pose-independent
+    severity: Optional[str]
+    severity_basis: str
+    severity_waiver: str
+    waivers: PairWaivers
+    # #1212: a pin frame's pins against every other part's occupancy
+    # (kind='pin_in_courtyard'), labelled; `pin_blocking` are the ones that
+    # gate, absolutely -- KiCad's pth_inside_courtyard has no "moved" either.
+    pin_pairs: List[BodyOverlapPair] = []
+    pin_blocking: List[BodyOverlapPair] = []
+
+    @property
+    def overlap_exact(self) -> float:
+        """Total courtyard overlap (mm2) over every pair, waived or not, on
+        the grader's exact geometry: `placement_overlap_area`'s question
+        answered on check_assembly's rects. #1182: reseat's gate compares
+        this, not the search's (pad boxes on a courtyard-less library).
+        Synthetic parts (a pad-less logo's +/-0.5 mm fiction), containers
+        and silk-sourced occupancy are left out, as `courtyard_overlap_pairs`
+        and the floorplan budget leave them out (#1162: g8's two logos read
+        2.0 mm2 otherwise; a silk body never gates, #896)."""
+        skip = (set(self.synthetic_refs) | set(self.containers)
+                | set(self.silk_occupancy_refs))
+        return round(sum(p.area_mm2 for p in self.pairs
+                         if p.a not in skip and p.b not in skip), 4)
+
+
+class CourtyardCensus:
+    """check_assembly's courtyard channel at any pose map.
+
+    Reads the board once (local bounds, drawn bodies, locks, the project's
+    courtyard severity), then grades whatever poses it is handed --
+    `grade()` with no poses grades the file exactly as `grade_body_overlap`
+    does, because `grade_body_overlap` calls it. A generator asking "would
+    the grader gate this pose" calls `grade(poses)` instead of rebuilding
+    the answer on its own rects; that rebuild is what #1182 and #1162 found
+    disagreeing with the grader.
+    """
+
+    def __init__(self, pcb_data, pcb_file: Optional[str] = None, *,
+                 intent_waivers: Sequence = (),
+                 courtyard_severity: Optional[str] = 'auto',
+                 locked_refs=None):
+        self.pcb_data = pcb_data
+        self.pcb_file = pcb_file
+        self.fps = pcb_data.footprints or {}
+        self.intent_waivers = tuple(tuple(p) for p in intent_waivers)
+        self.lbs, self.bodies = _part_local_bounds_and_bodies(pcb_data,
+                                                              pcb_file)
+        if courtyard_severity == 'auto':
+            self.severity, self.severity_basis = courtyard_severity_of(
+                pcb_file or getattr(pcb_data, 'source_path', None))
+        else:
+            self.severity, self.severity_basis = courtyard_severity, 'caller'
+        self.severity_waiver = (PROJECT_SEVERITY_WAIVER + self.severity
+                                if self.severity == 'ignore' else '')
+        # #1212 (phase-3 verifier): a frame pin is KiCad's pth/npth_inside_
+        # courtyard, not courtyards_overlap, and boards set them apart --
+        # StickHub ignores courtyards_overlap and warns on PTH pins,
+        # One-Air-Max the reverse. Read each rule's own severity.
+        self.pin_severity: Dict[str, Optional[str]] = {}
+        if courtyard_severity == 'auto':
+            for _hole, _rule in (('pth', 'pth_inside_courtyard'),
+                                 ('npth', 'npth_inside_courtyard')):
+                # The same file the courtyard severity is read from: a
+                # census built from a parsed board alone (no `pcb_file`)
+                # read the courtyard rule off its source and the pin rules
+                # off nothing (second phase-3 verifier).
+                self.pin_severity[_hole] = courtyard_severity_of(
+                    pcb_file or getattr(pcb_data, 'source_path', None),
+                    _rule)[0]
+        if locked_refs is None:
+            # KiCad's own (locked yes) stamps. Best-effort: the file is
+            # optional here, and a missing or unreadable one simply means no
+            # pair is marked locked.
+            locked_refs = set()
+            if pcb_file:
+                try:
+                    from .parser import extract_locked_refs
+                    locked_refs = set(extract_locked_refs(pcb_file) or ())
+                except Exception:                            # noqa: BLE001
+                    locked_refs = set()
+        self.locked_refs = set(locked_refs)
+        self._parts: Dict[tuple, GradedPart] = {}
+        # #1184 / #1212: who is a container is the part's own geometry
+        # (`container_kinds`), not its rect at a pose -- before, turning
+        # sonde_u's J1 to 135 degrees made it one. A pin frame's rect pairs
+        # leave the courtyard channel; its PINS are graded instead.
+        self.kinds = container_kinds(pcb_data, self.lbs)
+        self.containers = frozenset(self.kinds)
+        self.pin_frames = frozenset(r for r, k in self.kinds.items()
+                                    if k == 'pin_frame')
+        self._holes: Dict[tuple, list] = {}
+
+    #: Cached GradedParts at poses other than the file's; the cache is
+    #: dropped when it reaches this, so a generator asking about many
+    #: candidate poses does not grow memory without bound.
+    POSE_CACHE_CAP = 20000
+
+    #: How far a hole must reach into a courtyard before KiCad reports it
+    #: (mm). MEASURED, not chosen: SW1's courtyard slid toward U8's pins on
+    #: the tracked rp2350 board in 1 um steps, kicad-cli 10.0 is silent up to
+    #: 5 um of penetration and reports pth_inside_courtyard from 6 um --
+    #: KiCad's arc approximation error (ARC_HIGH_DEF, 0.005 mm). Grading the
+    #: exact circle made a 1 um graze NOT BUILDABLE that KiCad passes (fa10
+    #: 06 s04_u6r90_seed0, second phase-3 verifier).
+    #: `tests/measure_1212_kicad_pins.py --onset` re-measures it.
+    #: KiCad's model is not this one, only equal to it on a straight edge: it
+    #: deflates the courtyard POLYGON by that error and tests the exact hole.
+    #: Probed (79cfc025 verifier): at a convex corner KiCad reports 1-2 um
+    #: LATER than this does, and on a round courtyard (fp_circle / fp_arc,
+    #: which KiCad polygonises as well) up to 3 um EARLIER -- a few-micron
+    #: window where a hole KiCad reports is missed here. No frame board
+    #: measured (35 of them) draws a round courtyard over a pin.
+    PIN_HOLE_TOLERANCE_MM = 0.005
+
+    def graded_part(self, ref: str, pose=None) -> GradedPart:
+        """`ref` as the grader sees it at `pose` (None: the file's pose)."""
+        key = (ref, None if pose is None else tuple(pose))
+        hit = self._parts.get(key)
+        if hit is not None:
+            return hit
+        if pose is not None and len(self._parts) > self.POSE_CACHE_CAP:
+            self._parts = {k: v for k, v in self._parts.items()
+                           if k[1] is None}
+        fp = self.fps[ref]
+        lb = self.lbs[ref]
+        if pose is None:
+            x, y, rot = fp.x, fp.y, (fp.rotation or 0.0)
+            posed = fp
+        else:
+            x, y, rot = pose
+            posed = footprint_at_pose(fp, (x, y, rot))
+        lx0, ly0, lx1, ly1 = rotate_local_bounds(*lb.local, rot)
+        rect = (x + lx0, y + ly0, x + lx1, y + ly1)
+        tht = None
+        if lb.has_tht and lb.tht_local is not None:
+            tht = offset_far(rotate_far(lb.tht_local, rot), x, y)
+        if pose is None:
+            poly = occupancy_shape(posed, lb, self.bodies.get(ref))
+        else:
+            try:
+                poly = occupancy_shape(posed, lb, self.bodies.get(ref))
+            except Exception:                                # noqa: BLE001
+                poly = None
+        gp = GradedPart(ref=ref, side=lb.side, rect=rect, tht_rect=tht,
+                        has_tht=lb.has_tht, synthetic=lb.synthetic,
+                        source=lb.source, poly=poly, local=tuple(lb.local))
+        self._parts[key] = gp
+        return gp
+
+    def waivers(self, rect_of=None, containers=None) -> PairWaivers:
+        return PairWaivers(self.pcb_data, intent_waivers=self.intent_waivers,
+                           containers=(self.containers if containers is None
+                                       else containers),
+                           locked_refs=self.locked_refs, rect_of=rect_of)
+
+    def grade(self, poses: Optional[Dict[str, tuple]] = None, *,
+              moved=None) -> CourtyardGrade:
+        """Grade the courtyard channel with `poses` overriding the file's
+        (refs not in `poses` stay where the file has them). `moved`, a ref
+        set, arms the gate (`courtyard_gating`)."""
+        poses = poses or {}
+        parts = {r: self.graded_part(r, poses.get(r)) for r in self.lbs}
+        return self._select(parts, body_overlap_pairs(list(parts.values())),
+                            moved, self._pin_pairs(parts, poses))
+
+    def grade_ref(self, ref: str, pose, poses: Optional[Dict[str, tuple]]
+                  = None, *, moved=None) -> CourtyardGrade:
+        """`grade` restricted to the pairs `ref` is a member of, with `ref`
+        at `pose`: O(parts) instead of O(parts^2), for a caller asking about
+        one candidate seat. Every pair it returns is the pair `grade` would
+        return at the same poses (same pair function, same order of
+        members, same waivers and floors); it only omits pairs `ref` is
+        not in."""
+        poses = dict(poses or {})
+        poses[ref] = tuple(pose)
+        parts = {r: self.graded_part(r, poses.get(r)) for r in self.lbs}
+        me = parts.get(ref)
+        raw = []
+        if me is not None:
+            seen_me = False
+            for r, gp in parts.items():
+                if r == ref:
+                    seen_me = True
+                    continue
+                p = (courtyard_pair(gp, me) if not seen_me
+                     else courtyard_pair(me, gp))
+                if p is not None:
+                    raw.append(p)
+        return self._select(parts, raw, moved,
+                            self._pin_pairs(parts, poses, members={ref}))
+
+    def _frame_holes(self, frame: str, pose=None) -> list:
+        """[(pin, hole shape, its bounds, 'pth' | 'npth')] of a pin
+        frame's DRILLED pads at `pose`: the drill, a circle or a milled slot
+        (`pad_drill_capsule`), not the pad copper -- KiCad's
+        pth_inside_courtyard tests the hole, and the copper ring would add 19
+        hits on rp2350's r06_seed4 where kicad-cli reports 2."""
+        key = (frame, None if pose is None else tuple(pose))
+        hit = self._holes.get(key)
+        if hit is not None:
+            return hit
+        from kicad_parser import pad_drill_capsule
+        from shapely.geometry import LineString, Point
+        fp = self.fps[frame]
+        posed = fp if pose is None else footprint_at_pose(fp, tuple(pose))
+        holes = []
+        for pad in (posed.pads or ()):
+            if (getattr(pad, 'drill', 0) or 0) <= 0:
+                continue
+            p1, p2, r = pad_drill_capsule(pad)
+            # A hole KiCad does not report until it reaches this far in
+            # (`PIN_HOLE_TOLERANCE_MM`): tested shrunk by it.
+            r = r - self.PIN_HOLE_TOLERANCE_MM
+            if r <= 0:
+                continue
+            shape = (Point(p1).buffer(r, 16) if p1 == p2
+                     else LineString([p1, p2]).buffer(r, 16))
+            holes.append((str(pad.pad_number or ''), shape, shape.bounds,
+                          'npth' if getattr(pad, 'pad_type', '') ==
+                          'np_thru_hole' else 'pth'))
+        if len(self._holes) > self.POSE_CACHE_CAP:
+            self._holes = {}
+        self._holes[key] = holes
+        return holes
+
+    #: A pin pair's basis when the courtyard over it does not CLOSE:
+    #: listed, never gating -- KiCad reports `malformed_courtyard` there and
+    #: tests no pin against it.
+    MALFORMED_COURTYARD_BASIS = 'courtyard_malformed'
+
+    def _pin_shapes(self, ref, gp, pose) -> list:
+        """`[(shape, basis)]`: what a frame hole is tested against for
+        `ref`, gating shapes first. KiCad's pth/npth_inside_courtyard reads
+        the DRAWN courtyards -- the own face's outline, and a far-face one
+        the footprint draws (a hole goes through both faces; the phase-3
+        verifier's F-side part with a B.CrtYd over pin 1 was missed), each
+        AS DRAWN (an L-shaped or turned far courtyard's bbox covered a pin
+        KiCad does not report) -- so a part that draws one is graded on
+        those, basis 'courtyard'. A courtyard that does not close is basis
+        `MALFORMED_COURTYARD_BASIS`, and a part that draws none is tested on
+        its occupancy, basis its source: KiCad reports nothing in either
+        case, so both are listed and neither gates."""
+        from shapely.geometry import box
+        from shapely.ops import unary_union
+        from placement.body import SOURCE_COURTYARD
+        from placement.parser import OUTLINE_POLYGON
+        lb = self.lbs.get(ref)
+        geom = self.bodies.get(ref)
+        fp = self.fps[ref]
+        x, y, rot = (pose if pose is not None
+                     else (fp.x, fp.y, fp.rotation or 0.0))
+
+        def placed_box(loc):
+            l = rotate_local_bounds(*loc, rot)
+            return box(x + l[0], y + l[1], x + l[2], y + l[3])
+        if lb is not None and lb.source == SOURCE_COURTYARD and geom is not \
+                None and geom.body_local is not None:
+            good, bad = [], []
+            for shape, how, loc in (
+                    (geom.court_shape_local, geom.court_shape_how,
+                     geom.body_local),
+                    (getattr(geom, 'far_court_shape_local', None),
+                     getattr(geom, 'far_court_shape_how', ''),
+                     getattr(geom, 'far_court_local', None))):
+                if loc is None:
+                    continue
+                if shape is not None and how == OUTLINE_POLYGON:
+                    good.append(place_local_shape(shape, x, y, rot))
+                else:
+                    bad.append(place_local_shape(shape, x, y, rot)
+                               if shape is not None else placed_box(loc))
+            out = []
+            if good:
+                out.append((unary_union(good), 'courtyard'))
+            if bad:
+                out.append((unary_union(bad), self.MALFORMED_COURTYARD_BASIS))
+            return out
+        shape = gp.poly if gp.poly is not None else box(*gp.rect)
+        return [(shape, lb.source if lb is not None else '')]
+
+    def _pin_pairs(self, parts, poses, members=None) -> list:
+        """Raw kind='pin_in_courtyard' pairs: each pin frame's holes against
+        every other part's courtyards (`_pin_shapes`, #1212), one pair per
+        hole RULE (PTH / NPTH) and basis. A part on either face counts -- a
+        plated hole goes through both. `members` restricts to the pairs one of these refs
+        is in."""
+        out = []
+        poses = poses or {}
+        for frame in sorted(self.pin_frames):
+            if frame not in parts:
+                continue
+            holes = self._frame_holes(frame, poses.get(frame))
+            for r, gp in parts.items():
+                if r == frame or r in self.containers or gp.synthetic:
+                    continue
+                if members is not None and frame not in members \
+                        and r not in members:
+                    continue
+                shapes = None
+                found: Dict[tuple, list] = {}
+                for num, hs, hb, hole in holes:
+                    if shapes is None:
+                        shapes = [(s, b, s.bounds) for s, b in
+                                  self._pin_shapes(r, gp, poses.get(r))]
+                    # The first shape a hole reaches decides its basis --
+                    # gating shapes come first, so a hole under a closed
+                    # courtyard is never filed under a malformed one.
+                    for shape, basis, sb in shapes:
+                        if (hb[2] < sb[0] or hb[0] > sb[2]
+                                or hb[3] < sb[1] or hb[1] > sb[3]):
+                            continue
+                        a = hs.intersection(shape).area
+                        if a > EPS:
+                            f = found.setdefault((hole, basis), [[], 0.0])
+                            f[0].append(num)
+                            f[1] += a
+                            break
+                for (hole, basis), (pins, area) in sorted(found.items()):
+                    out.append(BodyOverlapPair(
+                        a=min(frame, r), b=max(frame, r),
+                        kind='pin_in_courtyard', area_mm2=round(area, 4),
+                        side=gp.side, waived=False, waiver='',
+                        pins=tuple(pins), hole=hole, basis=basis))
+        return out
+
+    def pin_hits(self, ref: str, pose, poses: Optional[Dict[str, tuple]]
+                 = None) -> list:
+        """The GATING pin_in_courtyard pairs `ref` is in, with `ref` at
+        `pose` and every other part at `poses` (else the file's): the
+        search's question, answered with the grader's own pairs. Cheap when
+        `ref` is near no pin -- the broad phase is the frame holes' boxes
+        against `ref`'s occupancy rect, built without a polygon."""
+        if not self.pin_frames or ref not in self.lbs:
+            return []
+        poses = dict(poses or {})
+        poses[ref] = tuple(pose)
+        if ref in self.pin_frames:
+            refs = list(self.lbs)
+        else:
+            lb = self.lbs[ref]
+            x, y, rot = pose
+            lx0, ly0, lx1, ly1 = rotate_local_bounds(*lb.local, rot)
+            # The broad phase covers every shape `_pin_shapes` tests: the
+            # occupancy, and a drawn FAR courtyard, which can reach past it
+            # (second phase-3 verifier: a B.CrtYd over pin 1 beside a small
+            # F.CrtYd -- the grader gated it, this returned [] before).
+            _far = getattr(self.bodies.get(ref), 'far_court_local', None)
+            if _far is not None:
+                fx0, fy0, fx1, fy1 = rotate_local_bounds(*_far, rot)
+                lx0, ly0 = min(lx0, fx0), min(ly0, fy0)
+                lx1, ly1 = max(lx1, fx1), max(ly1, fy1)
+            rect = (x + lx0, y + ly0, x + lx1, y + ly1)
+            near = any(not (hb[2] < rect[0] or hb[0] > rect[2]
+                            or hb[3] < rect[1] or hb[1] > rect[3])
+                       for f in self.pin_frames
+                       for _n, _s, hb, _h in self._frame_holes(
+                           f, poses.get(f)))
+            if not near:
+                return []
+            refs = [ref] + sorted(self.pin_frames)
+        parts = {r: self.graded_part(r, poses.get(r)) for r in refs
+                 if r in self.lbs}
+        g = self._select(parts, [], None,
+                         self._pin_pairs(parts, poses, members={ref}))
+        return list(g.pin_blocking)
+
+    def _select(self, parts, raw, moved, pin_raw=()) -> CourtyardGrade:
+        from placement.body import SOURCE_SILK
+        containers = self.containers
+        waivers = self.waivers(
+            rect_of=lambda r: parts[r].rect if r in parts else None,
+            containers=containers)
+        # #1212: a pin frame's RECT is not a body -- its pairs leave the
+        # courtyard channel and its pins are graded below instead.
+        raw = [p for p in raw
+               if p.a not in self.pin_frames and p.b not in self.pin_frames]
+        pairs = []
+        for p in raw:
+            waiver = waivers.label(p.a, p.b)
+            # #1095: the board's own severity outranks every inferred class
+            # label, and only an authored intent waiver outranks it.
+            if self.severity_waiver and waiver != 'intent_declared':
+                waiver = self.severity_waiver
+            pairs.append(p._replace(waived=bool(waiver), waiver=waiver))
+        pairs.sort(key=lambda p: (p.waived, -p.area_mm2, p.a, p.b))
+        synthetic = frozenset(r for r, g in parts.items() if g.synthetic)
+        silk = frozenset(r for r, g in parts.items()
+                         if g.source == SOURCE_SILK)
+        blocking = courtyard_blocking(pairs, waivers,
+                                      synthetic_refs=synthetic,
+                                      silk_occupancy_refs=silk)
+        gating = (None if moved is None
+                  else courtyard_gating(blocking, set(moved)))
+        # Pin pairs: only an AUTHORED waiver or the board's own severity of
+        # the pin's OWN rule (pth_ / npth_inside_courtyard) excuses them --
+        # no class label, and no lock, applies to a part sitting on a frame's
+        # pin; and courtyards_overlap is a different KiCad rule.
+        pin_pairs = []
+        for p in pin_raw:
+            waiver = ''
+            sev = self.pin_severity.get(p.hole)
+            if waivers.waiver_sets and frozenset((p.a, p.b)) in \
+                    waivers.waiver_sets:
+                waivers.hit.add(frozenset((p.a, p.b)))
+                waiver = 'intent_declared'
+            elif sev == 'ignore':
+                waiver = PROJECT_SEVERITY_WAIVER + sev
+            pin_pairs.append(p._replace(waived=bool(waiver), waiver=waiver))
+        pin_pairs.sort(key=lambda p: (p.waived, -p.area_mm2, p.a, p.b))
+        # Only a hole in a DRAWN courtyard gates: that is the rule KiCad
+        # runs, and a part that draws none (silk, .Fab or pad occupancy) is
+        # reported here and nowhere in KiCad.
+        pin_blocking = [p for p in pin_pairs if not p.waived
+                        and p.basis == 'courtyard']
+        return CourtyardGrade(
+            parts=parts, pairs=pairs, blocking=blocking, gating=gating,
+            synthetic_refs=synthetic, silk_occupancy_refs=silk,
+            containers=containers, severity=self.severity,
+            severity_basis=self.severity_basis,
+            severity_waiver=self.severity_waiver, waivers=waivers,
+            pin_pairs=pin_pairs, pin_blocking=pin_blocking)
+
+
+def courtyard_census(pcb_data, pcb_file: Optional[str] = None, *,
+                     poses: Optional[Dict[str, tuple]] = None, moved=None,
+                     **kw) -> CourtyardGrade:
+    """The grader's own courtyard pairs, publicly (#1162's comment).
+
+    Rebuilding them from `graded_parts_from_file` + `pair_overlap_area`
+    answers a different question in a different universe -- rects instead
+    of drawn outlines, synthetic logo bodies counted, no waivers -- and an
+    agent discarded a legal layout on that reconstruction. Call this.
+    """
+    return CourtyardCensus(pcb_data, pcb_file, **kw).grade(poses,
+                                                            moved=moved)
+
+
+def grade_body_overlap(pcb_data, clearance: float,
+                       intent_waivers: Sequence[Sequence[str]] = (),
+                       pcb_file: Optional[str] = None,
+                       courtyard_severity: Optional[str] = 'auto'
+                       ) -> Dict[str, object]:
+    """Board-level ASSEMBLY audit at the file's own poses.
+
+    Returns {'blocking': int, 'advisory': int, 'waived': int,
+    'pairs': [BodyOverlapPair...], 'blocking_pairs': [...],
+    'advisory_pairs': [...]}. `blocking` counts pad_intersection pairs only
+    (the corpus-calibrated hard channel); `advisory` counts UNWAIVED fab and
+    courtyard pairs -- fix targets for the placement loop, dispositioned by
+    the boundary verifier, never a gate by themselves (see the module
+    comment's corpus census for why).
+
+    `courtyard_severity` (#1095) is KiCad's `courtyards_overlap` severity to
+    grade the COURTYARD channel at: 'auto' reads the board's own project,
+    None grades at error whatever the project says (the OFF arm). At
+    'ignore' every courtyard pair the intent does not already waive carries
+    `PROJECT_SEVERITY_WAIVER + 'ignore'` and never gates: KiCad runs no
+    courtyard check at all then, and reports none of them.
+
+    'warning' is graded as error, deliberately. KiCad still REPORTS a
+    warning, and `fix_kicad_drc_settings --relax-severities` writes exactly
+    that demotion into a project on the promise that check_assembly stays
+    the arbiter -- honouring it would switch the courtyard gate off on every
+    board that tool ever relaxed.
+
+    The fab/containment, pad and locked-contact channels are NOT KiCad's
+    courtyard rule and are graded as before: a severity is the board's word
+    about courtyards, not about two bodies in one place.
+    """
+    fps = pcb_data.footprints or {}
+    # -- courtyard channel (advisory + the run-23 blocking policy below) ------
+    # The census is the channel, at the file's poses; the drawn-body and
+    # containment channels below share its waiver ladder (one instance, so
+    # every authored waiver that fires anywhere is recorded once).
+    _census = CourtyardCensus(pcb_data, pcb_file,
+                              intent_waivers=intent_waivers,
+                              courtyard_severity=courtyard_severity)
+    _cg = _census.grade()
+    _cy_sev = _cg.severity
+    _cy_basis = _cg.severity_basis
+    _cy_waiver = _cg.severity_waiver
+    _waivers = _cg.waivers
+    _waiver_for = _waivers.label
+    # Refs whose courtyard rect is the zero-pad +/-0.5mm fiction: their pairs
+    # may inform but must never gate (run-23's phantom G***<->J5).
+    _synthetic_refs = set(_cg.synthetic_refs)
+
+    pairs: List[BodyOverlapPair] = list(_cg.pairs) + list(_cg.pin_pairs)
+    # Refs the DRAWN-BODY channel could not judge: no .Fab outline and no
+    # usable silk either (#896 widened this from ".Fab only"). A board with no
+    # readable source path leaves this empty AND judges nothing -- both are
+    # reported rather than silently conflated with "clean".
+    fab_unjudged: set = set()
+    # #896. Per-ref `drawn_source` for every judged part, so the caller can
+    # report "body from silk" instead of "no body" and can say which claims
+    # rest on a housing outline rather than a fab outline.
+    body_sources: Dict[str, str] = {}
+    # #896. Refs whose body came from SILK. Silk is the least trustworthy rung
+    # and it NEVER gates -- see the exclusion below, which is structural rather
+    # than a measured coincidence.
+    silk_sourced: set = set()
+    # #896. Seam inputs: every judged part's DRAWN body in board coordinates.
+    seam_parts: list = []
+    # #1201. Parts whose .Fab drawing was rejected as a body (a pin-1 dot).
+    fab_rejected_refs: list = []
+    # #1250. Test points whose pad copper lies under another part's body.
+    testpoint_covered: List[TestpointCover] = []
+
+    # -- DRAWN BODY channel (advisory) ----------------------------------------
+    # Reads `placement.body`'s drawn-body ladder rather than calling
+    # extract_fab_sides itself: this loop WAS the second implementation of
+    # "what is this part's body" (#896), and its .Fab-only ladder is why six
+    # esp_prog parts -- the connector housings, the SSOP and the SOT89 -- were
+    # unjudged on a board where silk is the only body drawn.
+    path = pcb_file or getattr(pcb_data, 'source_path', None)
+    if path:
+        from placement.body import (SOURCE_NONE as _BODY_NONE,
+                                    SOURCE_SILK as _BODY_SILK, board_bodies)
+        try:
+            _bodies = board_bodies(pcb_data, path)
+        except Exception:                                    # noqa: BLE001
+            _bodies = {}
+        fab_rejected_refs = sorted(r for r, _g in _bodies.items()
+                                   if getattr(_g, 'fab_rejected', False))
+        fab_parts = []
+        for ref, fp in sorted(fps.items()):
+            geom = _bodies.get(ref)
+            lb = geom.drawn_local if geom is not None else None
+            if lb is None:
+                fab_unjudged.add(ref)
+                continue
+            body_sources[ref] = (geom.drawn_source if geom is not None
+                                 else _BODY_NONE)
+            if body_sources[ref] == _BODY_SILK:
+                silk_sourced.add(ref)
+            own = footprint_side(fp)
+            rot = fp.rotation or 0.0
+            x0, y0, x1, y1 = rotate_local_bounds(*lb, rot)
+            _rect = (fp.x + x0, fp.y + y0, fp.x + x1, fp.y + y1)
+            # #1094: the drawn .Fab outline at the pose, when the fab rung
+            # answered; the rect is only its broad phase. A silk-rung body is
+            # a box by construction (silk U pads) and is measured oriented.
+            _drawn = getattr(geom, 'drawn_shape_local', None)
+            from shapely.geometry import box as _box
+            _shape = place_local_shape(_drawn if _drawn is not None
+                                       else _box(*lb), fp.x, fp.y, rot)
+            fab_parts.append((ref, own, _rect, _shape))
+            # #896 seam input. The drilled-pad box rides along so the seam
+            # obeys the same shared-side rule the graders use: a B-side part
+            # and an F-side part have no seam at all unless a barrel makes
+            # them share a face.
+            _has_tht = footprint_has_through_pads(fp)
+            _tht = None
+            if _has_tht:
+                # The census's own far side (`part_local_bounds`), so the
+                # seam and the courtyard channel read one geometry.
+                _lb = _census.lbs.get(ref)
+                _t = (_lb.tht_local if _lb is not None
+                      else far_side_local(fp))
+                if _t is not None:
+                    _tht = offset_far(rotate_far(_t, rot), fp.x, fp.y)
+            seam_parts.append((ref, sides_occupied(own, _has_tht), own,
+                               _rect, _tht, body_sources[ref]))
+        for i, (ra, sa, rca, sha) in enumerate(fab_parts):
+            for rb, sb, rcb, shb in fab_parts[i + 1:]:
+                if sa != sb:
+                    continue
+                if rect_overlap_area(rca, rcb) <= EPS:
+                    continue
+                # #1094: the rects overlap; the drawn bodies decide. U1 at
+                # -135 degrees on StickHub "contained" six passives on the
+                # rects, which overlap its drawn body by 0.0 mm2.
+                ov, _depth, _ix = shape_overlap(sha, shb)
+                if ov > EPS:
+                    waiver = _waiver_for(ra, rb)
+                    _cf = containment_frac_of_areas(ov, sha.area, shb.area)
+                    pairs.append(BodyOverlapPair(
+                        a=min(ra, rb), b=max(ra, rb), kind='fab',
+                        area_mm2=round(ov, 4), side=sa,
+                        waived=bool(waiver), waiver=waiver,
+                        contained_frac=_cf, contained=_cf is not None
+                        and _cf >= CONTAINMENT_FRAC,
+                        depth_mm=round(max(0.0, _depth), 4)))
+        # #1106: a part that draws NO body (no .Fab, no usable silk) was
+        # skipped above, so nothing graded it sitting under another part's
+        # body -- StickHub's J9 (a 1-pad GND land) and JP1 (a solder jumper)
+        # were seeded inside U1's LQFP-48 and every checker said buildable.
+        # Its pad copper is what it occupies: judged against each same-face
+        # drawn body, one-directionally (`pads_under_body_frac`).
+        for ref in sorted(fab_unjudged):
+            fp = fps.get(ref)
+            if fp is None:
+                continue
+            _ps = bodyless_pad_shape(fp)
+            if _ps is None:
+                continue
+            _sides = sides_occupied(footprint_side(fp),
+                                    footprint_has_through_pads(fp))
+            _pb = _ps.bounds
+            for rb, sb, rcb, shb in fab_parts:
+                if sb not in _sides:
+                    continue
+                if rect_overlap_area(_pb, rcb) <= EPS:
+                    continue
+                _f = pads_under_body_frac(_ps, shb)
+                if _f >= CONTAINMENT_FRAC:
+                    waiver = _waiver_for(ref, rb)
+                    pairs.append(BodyOverlapPair(
+                        a=min(ref, rb), b=max(ref, rb),
+                        kind='pads_under_body',
+                        area_mm2=round(_f * _ps.area, 4), side=sb,
+                        waived=bool(waiver), waiver=waiver,
+                        contained_frac=round(_f, 3), contained=True,
+                        depth_mm=0.0))
+        # #1250: every TEST POINT's pad copper against every other same-face
+        # drawn body -- whether or not the test point draws a body of its
+        # own. TP6 draws silk, so the #1106 loop above never asks about it,
+        # and a body-less test point there carries `marker_class`, which
+        # `_GATE_EXEMPT` excuses. Fiducials are not in this census: human
+        # boards seat them under connectors on purpose (esp_prog Ref*~2 under
+        # USB1, orangecrab FID1/FID2 under J4/J5), and the containment
+        # channel already reports them.
+        for ref in sorted(fps):
+            if _waivers.class_of(ref) != 'testpoint':
+                continue
+            fp = fps[ref]
+            _ps = bodyless_pad_shape(fp)
+            if _ps is None:
+                continue
+            _sides = sides_occupied(footprint_side(fp),
+                                    footprint_has_through_pads(fp))
+            _pb = _ps.bounds
+            for rb, sb, rcb, shb in fab_parts:
+                if rb == ref or sb not in _sides:
+                    continue
+                if rect_overlap_area(_pb, rcb) <= EPS:
+                    continue
+                _f = pads_under_body_frac(_ps, shb)
+                if _f < CONTAINMENT_FRAC:
+                    continue
+                _label = _waiver_for(ref, rb)
+                _w = (_label if _label in ('intent_declared',
+                                           'container_class') else '')
+                _src = body_sources.get(rb, _BODY_NONE)
+                testpoint_covered.append(TestpointCover(
+                    testpoint=ref, cover=rb, frac=round(_f, 3), side=sb,
+                    body_source=_src, waiver=_w,
+                    gates_if_moved=(not _w and _src != _BODY_SILK)))
+
+    # -- pad_intersection channel (never waivable) ----------------------------
+    # #1064: lifted VERBATIM into `pad_intersection_pairs`, so place_pose
+    # and check_floorplan grade a pad stack with this channel's own code.
+    # KiCad's own (locked yes) stamps, for the E6 channel below -- read once,
+    # by the census.
+    locked_refs = _census.locked_refs
+    pairs.extend(pad_intersection_pairs(pcb_data, clearance, locked_refs))
+
+    pairs.sort(key=lambda p: (p.waived, -p.area_mm2, p.a, p.b))
+    blocking = [p for p in pairs if p.kind == 'pad_intersection']
+    advisory = [p for p in pairs
+                if p.kind != 'pad_intersection' and not p.waived]
+    contained = [p for p in pairs if p.contained]
+    # The subset that GATES. A containment is by-design when a MARKER
+    # (mount_hole/fiducial/testpoint) or a CONTAINER (courtyard >= half the
+    # board) is involved -- orangecrab ships FID2 wholly inside J5 at frac
+    # 1.000 and FID1 inside J4 at 0.867, and both are correct -- or when an
+    # operator has named the pair in the intent's `overlap_waivers`, which is
+    # AUTHORED and recorded.
+    #
+    # `edge_class` is deliberately NOT an exemption, and that is the whole
+    # point. It is a pure part-class lookup with no geometry in it, and it is
+    # the waiver that hid run-22's D4-wholly-inside-SW2 (SW2 is a declared
+    # edge_actuator) and C26/FB3/R1 inside J1's 65mm2 USB-C body on the board
+    # that run shipped as `buildable`. An operator may still accept those --
+    # by writing the pair into the intent, where the acceptance is visible --
+    # but never by inheriting a class waiver nobody authored.
+    #
+    # Corpus effect, measured: ZERO boards gate on this.
+    _GATE_EXEMPT = ('marker_class', 'container_class', 'intent_declared')
+    # #896. A SILK-sourced body never gates, structurally -- not because a
+    # census happened to come out clean. Silk is the last rung and the least
+    # trustworthy: it is whatever the library drew on the silkscreen, and on a
+    # hand-rolled library that is routinely an assembly outline rather than a
+    # body. Measured on the shipped esp_prog: U2's OLIMEX SOT89 draws four
+    # corner brackets at +/-2.5mm plus a pin-1 dot, a 5.2 x 5.2mm square
+    # centred on an origin the pads are not centred on -- and R1, which clears
+    # U2's real body by 2.1mm, read as 89% CONTAINED inside it and gated the
+    # board NOT BUILDABLE. The pairs are still reported, with their source, in
+    # `pairs` / `advisory` and `body_sources`; what they may not do is decide.
+    # Scoped PER CHANNEL, because the two channels grade different rects: the
+    # containment/drawn-body channel reads `drawn_source`, the courtyard
+    # channel reads the occupancy source on `GradedPart`. A part can carry a
+    # real courtyard AND a silk drawn body at once, and suppressing its
+    # COURTYARD pair for that reason threw away findings silk had nothing to
+    # do with -- measured, glasgow_revC's J1<->TP13, J1<->TP15, J3<->TP1 and
+    # orangecrab's J5<->J6, all pre-existing.
+    def _silk_drawn_pair(p) -> bool:
+        return p.a in silk_sourced or p.b in silk_sourced
+    containment_blocking = [p for p in contained
+                            if p.waiver not in _GATE_EXEMPT
+                            and not _silk_drawn_pair(p)]
+
+    # #1201: name each contained pair's reason for not gating, READ OFF the
+    # gate above rather than re-derived beside it (a second copy could
+    # disagree and label a gating pair exempt). Stamped on the pair wherever
+    # it is listed -- `pairs`, `advisory_pairs`, `containment_pairs` -- so
+    # the JSON cannot say '' in one list and 'silk_drawn' in another.
+    _gating = {id(p) for p in containment_blocking}
+
+    def _gate_exempt(p) -> str:
+        if id(p) in _gating:
+            return ''
+        if p.waiver in _GATE_EXEMPT:
+            return p.waiver
+        return 'silk_drawn'
+    _stamped = {id(p): p._replace(gate_exempt=_gate_exempt(p))
+                for p in contained}
+    pairs = [_stamped.get(id(p), p) for p in pairs]
+    advisory = [_stamped.get(id(p), p) for p in advisory]
+    containment_blocking = [_stamped[id(p)] for p in containment_blocking]
+    contained = [_stamped[id(p)] for p in contained]
+    # Courtyard BLOCKING (run-23): the subset of courtyard pairs that gates --
+    # `courtyard_blocking`'s floors and `PairWaivers.blocking_waived`'s ladder,
+    # which carries the run-22/23 edge-LIVE geometry condition, the
+    # non-physical-marker rule and the locked refusal. The census already
+    # selected them, at these poses, with the same code every other caller of
+    # the channel runs.
+    courtyard_blocking = list(_cg.blocking)
+    from placement.body import tightest_body_seam as _tbs
+    _seam = _tbs(seam_parts)
+    return {'courtyard_severity': _cy_sev,
+            'courtyard_severity_basis': _cy_basis,
+            'courtyard_severity_waiver': _cy_waiver,
+            'blocking': len(blocking),
+            'advisory': len(advisory),
+            'waived': sum(1 for p in pairs if p.waived),
+            'pairs': pairs,
+            'blocking_pairs': blocking,
+            'advisory_pairs': advisory,
+            # Body containment: one part's .Fab outline (near-)wholly inside
+            # another's. DISCLOSURE ONLY -- deliberately NOT folded into
+            # `blocking`, because the corpus ships legitimate frac-1.0
+            # containments (fiducials under connector bodies, measured on
+            # orangecrab_ext_pll: FID2/J5 at 1.000, FID1/J4 at 0.867).
+            #
+            # NOT filtered by `waived`, and that one omission is the whole
+            # point. `_waiver_for` is pure class membership and geometry-blind,
+            # so a part sitting WHOLLY inside an `edge_actuator` gets the same
+            # `edge_class` label as a 0.01 mm2 graze and then leaves
+            # `advisory`, `advisory_pairs` AND `new_advisory_pairs` in one
+            # step. Run-22 lost D4-inside-SW2 exactly that way, twice, and
+            # nothing in the chain could report it. This is the list a waiver
+            # cannot empty.
+            'contained': len(contained),
+            'containment_pairs': contained,
+            'containment_blocking': len(containment_blocking),
+            'containment_blocking_pairs': containment_blocking,
+            # Parts whose footprint draws no .Fab outline at all, so the fab
+            # channel CANNOT judge them (parser.extract_fab_sides skips them
+            # and the loop above continues past them). An unjudged part is not
+            # a clean part, and saying nothing would claim it was.
+            #
+            # MEASURED across all 33 corpus boards, so nobody has to re-derive
+            # it: 144 of 1583 footprints are unjudged, and 144 of 144 draw ZERO
+            # .Fab geometric primitives. They are mounting holes, testpoints,
+            # logos, fiducials and panel tabs. There is NO footprint anywhere
+            # in the corpus whose .Fab geometry the parser fails to read --
+            # every primitive kind used on that layer (fp_line, fp_arc,
+            # fp_circle, fp_poly, fp_rect) is already handled, and there are no
+            # degenerate bboxes.
+            #
+            # So a parser tolerance or polygon-closure fix moves ZERO
+            # footprints out of this set. (313 footprints do have non-closing
+            # .Fab line chains -- tigard Q1's left edge stops 0.02mm short --
+            # and every one of them is judged correctly, because a bbox is a
+            # min/max over points and the gap is interior to it.)
+            #
+            # And the one change that WOULD close the hole is measured
+            # dangerous: giving a bodyless part a fallback body (its courtyard,
+            # else its pad bbox) adds 77 new fab pairs corpus-wide, 65 of them
+            # above CONTAINMENT_FRAC -- dominated by rp2350's Teensy40, a
+            # bodyless module whose courtyard swallows 56 neighbours at frac
+            # 1.0. It would also break the 4-pair calibration gate outright.
+            #
+            # DISCLOSURE IS THE ANSWER HERE, not a fix. Report the count and
+            # let a reader judge.
+            'fab_unjudged': len(fab_unjudged),
+            'fab_unjudged_refs': sorted(fab_unjudged),
+            # #896. Which drawn geometry each judged part's body came from,
+            # so a reader can tell a housing outline from a fab outline
+            # rather than being told only that something was judged.
+            'body_sources': dict(body_sources),
+            'fab_rejected_refs': fab_rejected_refs,
+            # #896. The tightest DRAWN-body seam on the board, signed
+            # (negative = overlap). `body_overlap_pairs` reports a depth only
+            # for pairs that already overlap, so a board one micron from a
+            # collision reported nothing; run 25's final layout sat at
+            # 0.183mm, header plastic to an 0402 body, and no instrument in
+            # the chain produced that number. None when fewer than two parts
+            # draw a body.
+            'body_seam': (_seam._asdict() if _seam is not None else None),
+            # #1250: test points whose pad copper lies under another part's
+            # drawn body (`TestpointCover`). ABSOLUTE here; the caller gates
+            # the moved subset (`testpoint_covered_gating`), because the
+            # corpus ships two such poses by design (orangecrab TP26/TP27).
+            'testpoint_covered': testpoint_covered,
+            # Run-23 courtyard blocking channel -- see the selection above.
+            # NOTE these pairs also remain in `advisory`/`advisory_pairs`
+            # (that count's meaning is unchanged for its existing consumers);
+            # a pair can be both advisory-listed and courtyard-blocking.
+            'courtyard_blocking': len(courtyard_blocking),
+            'courtyard_blocking_pairs': courtyard_blocking,
+            # #1212: a pin frame's holes inside another part's occupancy --
+            # KiCad's pth_inside_courtyard. GATES, absolutely: on the two
+            # healthy frame boards it is 0 (rp2350's own and the fa10 final).
+            'pin_in_courtyard': len(_cg.pin_blocking),
+            'pin_in_courtyard_pairs': list(_cg.pin_blocking),
+            # #1184: {ref: 'outline' | 'pin_frame'} -- `container_kinds`.
+            'containers': dict(_census.kinds),
+            # Refs graded on the zero-pad +/-0.5mm fictional box: their pairs
+            # are disclosure, never gates (run-23's phantom G***<->J5).
+            'courtyard_synthetic_refs': sorted(_synthetic_refs),
+            # E6: pairs where copper lands on a part KiCad marks (locked yes),
+            # of ANY channel including waived ones. A locked pose is a decision
+            # somebody made -- a mounting hole against an enclosure, a
+            # connector against a panel cut-out -- so a placement search may
+            # not resolve the contact by moving the other part somewhere it
+            # likes better, and a waiver class chosen for unlocked parts does
+            # not apply. Measured on a wrong-basin placement: fires there,
+            # silent on the truth board and on every healthy corpus board.
+            'locked_contact_pairs': [p for p in pairs if p.locked_ref],
+            # #897: a declared waiver that resolves to nothing is otherwise
+            # SILENT -- the author believes a pair is excused and the grader
+            # has never heard of it. Two populations, kept apart because they
+            # mean different things: `waivers_unresolved` names a ref the board
+            # does not have (a rename or a deletion -- the stale one), while
+            # `waivers_unused` is a pair that exists and that no WAIVABLE
+            # overlap was found for. Note the second is not quite "never
+            # overlapped": the pad-intersection channel is never waivable by
+            # design and does not consult `_waiver_for` at all, so a pair whose
+            # only contact is pad copper lands here too. Reported, never
+            # enforced: an unused waiver is not an error, and this function
+            # grades a board rather than an intent.
+            #
+            # Each entry is a LIST OF TWO refs. `waiver_sets` holds frozensets,
+            # so a degenerate authored pair (`["U1","U1"]` -- a rename typo, and
+            # `load_intent` accepts it: it checks length, not distinctness)
+            # collapses to one element. Pad it back out rather than emitting a
+            # ragged row: a consumer formatting `a <-> b` crashed on it.
+            'waivers_unresolved': _waivers.unresolved(),
+            'waivers_unused': _waivers.unused()}
+
+
+def _exact_pad_stack(pa, pb, routing_layers) -> bool:
+    """Do two pads' copper outlines INTERSECT? check_drc's exact pad-pad
+    check, the confirmation check_assembly's pad_intersection channel puts
+    on every box hit (#1064), shared with the placement gate (#1127) so the
+    two cannot disagree.
+
+    `check_pad_pad_overlap`'s perimeter distance clamps at 0 for interior
+    points, so clearance-0 can never register an intersection. Ask at a tiny
+    epsilon and require the FULL-epsilon shortfall: over >= eps <=> exact
+    edge distance <= 0 <=> real intersection (merely-near pads at
+    0 < gap < eps read over < eps). `routing_layers` resolves a `*.Cu`
+    pad's layers; with none a through pad shares no layer with anything."""
+    from check_drc import check_pad_pad_overlap
+    eps = 1e-3
+    hit, over, _pt = check_pad_pad_overlap(pa, pb, eps, routing_layers,
+                                           clearance_margin=0.0)
+    return bool(hit and over >= eps - 1e-9)
+
+
+def pad_intersection_pairs(pcb_data, clearance: float,
+                           locked_refs=frozenset(),
+                           totals=None) -> List[BodyOverlapPair]:
+    """check_assembly's BLOCKING channel as a function (#1064): two parts'
+    pad copper intersecting on a shared side, ANY net -- a pad stack.
+
+    `grade_body_overlap` reports these as its `pad_intersection` pairs, and
+    `pad_stack_census` (place_pose, check_floorplan) calls the same code, so
+    the three cannot disagree. Never waivable. `locked_refs` only labels a
+    pair's `locked_ref`. Same-net copper is measured like any other: two
+    caps on one pad cannot both be soldered, whatever their nets (esp_prog
+    C4 on Y1 and run 38's C15 on C19 are same-net, and place_pose accepted
+    both before #1064).
+
+    A pair's `area_mm2` is its DEEPEST pad-pair overlap, check_assembly's
+    number. `totals`, a dict the caller passes, receives each pair's
+    overlap summed over EVERY confirmed pad pair, keyed `(a, b)` -- so a
+    stack that spreads from one pad onto two reads worse even while its
+    deepest overlap shrinks.
+    """
+    fps = pcb_data.footprints or {}
+    out: List[BodyOverlapPair] = []
+    # AABB broad phase in the gate currency, then exact re-verification at
+    # clearance 0 (an intersection is a clearance-0 violation) so round or
+    # rotated pads produce no bbox phantoms in a BLOCKING claim.
+    parts = build_part_pads(fps, clearance)
+    pads_by_ref = {ref: [p for p in fp.pads] for ref, fp in fps.items()}
+    routing_layers = list(getattr(pcb_data.board_info, 'copper_layers', [])
+                          or [])
+    check_exact = None
+    try:
+        from check_drc import check_pad_pad_overlap
+        check_exact = check_pad_pad_overlap
+    except Exception:
+        check_exact = None
+    cell = 4.0
+    grid: Dict[Tuple[int, int], set] = {}
+
+    def _pad_label(pads, idx):
+        # `idx` indexes the COPPER pads (PartPads order), not `fp.pads`:
+        # read raw, it named the wrong pad whenever a paste window or an NPTH
+        # peg came first in the file (#1143 final review: a short on U1.2
+        # printed as U1.1). `_pad_with_copper` is the same walk the exact
+        # check below uses.
+        p = _pad_with_copper(pads, idx, clearance)
+        return (getattr(p, 'pad_number', None) or '?') if p is not None \
+            else '?'
+
+    entries = {}
+    for ref, pp in parts.items():
+        fp = fps[ref]
+        rects = pp.pad_rects(fp.x, fp.y, fp.rotation or 0.0)
+        entries[ref] = rects
+        ext = pp.extent(fp.x, fp.y, fp.rotation or 0.0)
+        if ext is None:
+            continue
+        for gx in range(int(ext[0] // cell), int(ext[2] // cell) + 1):
+            for gy in range(int(ext[1] // cell), int(ext[3] // cell) + 1):
+                grid.setdefault((gx, gy), set()).add(ref)
+    seen = set()
+    for ref in sorted(parts):
+        fp = fps[ref]
+        pp = parts[ref]
+        ext = pp.extent(fp.x, fp.y, fp.rotation or 0.0)
+        if ext is None:
+            continue
+        near = set()
+        for gx in range(int(ext[0] // cell), int(ext[2] // cell) + 1):
+            for gy in range(int(ext[1] // cell), int(ext[3] // cell) + 1):
+                near |= grid.get((gx, gy), set())
+        near.discard(ref)
+        for other in near:
+            key = (ref, other) if ref <= other else (other, ref)
+            if key in seen:
+                continue
+            seen.add(key)
+            area = 0.0
+            side = ''
+            shorts = []
+            for ai, (a0, a1, a2, a3, na, sa) in enumerate(entries[ref]):
+                for bi, (b0, b1, b2, b3, nb, sb) in enumerate(entries[other]):
+                    if not _sides_interact(sa, sb):
+                        continue
+                    ov = rect_overlap_area((a0, a1, a2, a3),
+                                           (b0, b1, b2, b3))
+                    if ov <= EPS:
+                        continue
+                    if check_exact is not None:
+                        # Confirmed on the pads' outlines (`_exact_pad_stack`,
+                        # which says why it asks at a tiny epsilon).
+                        pa = _pad_with_copper(pads_by_ref[ref], ai, clearance)
+                        pb = _pad_with_copper(pads_by_ref[other], bi,
+                                              clearance)
+                        if pa is not None and pb is not None:
+                            if not _exact_pad_stack(pa, pb, routing_layers):
+                                continue
+                    if totals is not None:
+                        totals[key] = totals.get(key, 0.0) + ov
+                    if ov > area:
+                        area = ov
+                        side = sa if sa in ('F', 'B') else ''
+                    # Different-net copper touching is a SHORT on top of the
+                    # assembly defect. Record one example per pair so a reader
+                    # cannot mistake the pair for exempt same-net contact.
+                    if na and nb and na != nb and len(shorts) < 3:
+                        pa_num = _pad_label(pads_by_ref[ref], ai)
+                        pb_num = _pad_label(pads_by_ref[other], bi)
+                        shorts.append(f'{ref}.{pa_num}:{na} <-> '
+                                      f'{other}.{pb_num}:{nb}')
+            if area > EPS:
+                locked_ref = ' '.join(sorted(
+                    r for r in (key[0], key[1]) if r in locked_refs))
+                out.append(BodyOverlapPair(
+                    a=key[0], b=key[1], kind='pad_intersection',
+                    area_mm2=round(area, 4), side=side,
+                    waived=False, waiver='',
+                    shorts=tuple(shorts), locked_ref=locked_ref))
+    return out
+
+
+#: What `pad_stack_census` measured, published beside its numbers (#1064).
+PAD_STACK_BASIS = ("check_assembly's pad_intersection channel "
+                   "(legality.pad_intersection_pairs): two parts' pad copper "
+                   "intersecting on a shared side, any net, confirmed on the "
+                   "pads' outlines by check_drc's pad-pad check; never "
+                   "waivable")
+
+
+def pad_stack_census(pcb_data, clearance: float) -> Dict[str, object]:
+    """`pad_intersection_pairs` as the keys place_pose and check_floorplan
+    publish (#1064): `pad_stack_count`, `pad_stack_area` (every stacked pad
+    pair's overlap, SUMMED over pads and parts -- so a stack that deepens
+    while another holds, or spreads onto another pad while its deepest
+    overlap shrinks, still reads worse), `pad_stack_pairs` (`[a, b,
+    area_mm2, side]` with check_assembly's per-pair `area_mm2`, a < b,
+    sorted -- the channel's own order among pairs sharing a first ref
+    follows the hash seed) and `pad_stack_basis`. No `locked_ref`: a lock
+    does not make a stack buildable, and no consumer of these keys reads
+    one."""
+    totals: Dict[Tuple[str, str], float] = {}
+    pairs = pad_intersection_pairs(pcb_data, clearance, totals=totals)
+    rows = sorted([p.a, p.b, p.area_mm2, p.side] for p in pairs)
+    area1064 = sum(totals.get((p.a, p.b), 0.0) for p in pairs)
+    return {'pad_stack_count': len(rows),
+            'pad_stack_area': round(area1064, 4),
+            'pad_stack_pairs': rows,
+            'pad_stack_basis': PAD_STACK_BASIS}
+
+
+# --- pad + drill legality layer ----------------------------------------------
+# The courtyard model above cannot see pad copper or drill holes: a part with
+# no drawn courtyard falls back to its pad bbox with zero margin, the swap
+# phase exchanges nets under identical courtyards, and an NPTH mounting hole
+# is invisible on its own side. This layer adds the missing geometry in the
+# GATE currency (rotation-inflated axis-aligned pad rects, the proven
+# fanout_clearance._Cap pattern): conservative -- it can falsely reject, never
+# falsely accept. Exact pad geometry (check_drc) is used by
+# `grade_pad_legality` for REPORTS, so summaries carry no AABB phantoms, and
+# by the gate itself only under `STACK_EXACT_CONFIRM` (#1127), which confirms
+# the per-pad sweep's box hits -- stack and pad conjuncts -- on the outlines.
+#
+# Baseline semantics: engines gate moves per-PAIR against the SEED poses
+# ("never worse than the board you were handed"), so pre-existing violations
+# on dense or by-design-overhanging boards do not freeze the optimizer, while
+# a NEW different-net pad intersection (a short) is never admitted.
+
+class PairShortfall(NamedTuple):
+    """Pad/hole interference between two parts, in the AABB gate currency."""
+    pad: float          # summed different-net pad clearance shortfall (mm)
+    pad_overlap: bool   # any different-net pad rects INTERSECT (a short)
+    hole: float         # summed pad-copper-into-hole-keepout penetration (mm)
+    stack: bool = False  # ANY-net cross-footprint pad rects INTERSECT --
+    #                      two different parts' copper in the same space is an
+    #                      assembly impossibility regardless of net (run-6:
+    #                      the C14-on-R14 class the same-net skip is blind to)
+
+
+ZERO_SHORTFALL = PairShortfall(0.0, False, 0.0, False)
+
+
+# Local import at module scope would drag the whole DRC stack in at import
+# time (see the BoardOutlineGate note); bound once on first use instead of once
+# per pad, which is where the old inline copy had it.
+def _pad_has_no_copper(p):
+    global _PAD_HAS_NO_COPPER
+    if _PAD_HAS_NO_COPPER is None:
+        from check_drc import _pad_has_no_copper as _f
+        _PAD_HAS_NO_COPPER = _f
+    return _PAD_HAS_NO_COPPER(p)
+
+
+_PAD_HAS_NO_COPPER = None
+
+
+def _pad_carries_copper(p) -> bool:
+    """Does this pad put copper on a copper layer?
+
+    The predicate `PartPads` builds its pad list from, `_pad_with_copper` walks
+    its index with, and `PadClearanceModel` tests inertness by. It has to be ONE
+    function: they are the same two conditions, and they must agree or the
+    rect index stops addressing the pad. Measured when they did not: watchy
+    declares `local_clearance` on 8 NPTH pads that carry no copper, so a raw
+    scan of `fp.pads` reported the board as having overrides while its parts'
+    `max_floor` was 0.0 -- the board lost its inertness for nothing.
+    """
+    if _pad_has_no_copper(p):
+        return False
+    return any(str(l).endswith('.Cu') for l in (getattr(p, 'layers', None) or ()))
+
+
+class PadFloor(NamedTuple):
+    """One pad's required-clearance inputs, resolved once at build time.
+
+    `ncl` is its net's non-Default net-class clearance, `lc` its own (or its
+    footprint's, already resolved by the parser) `local_clearance` override,
+    and `layers` the copper layers its copper occupies -- carried only when the
+    board has .kicad_dru rules to scope, else None.
+    """
+    ncl: float
+    lc: float
+    layers: object = None
+
+
+class PadClearanceModel:
+    """The per-pair required clearance, resolved exactly as check_drc does.
+
+    #697: the placement census used to price every pad pair at one flat scalar,
+    so a board that could not pass DRC reported nothing to fix. Measured: a
+    fiducial keep-clear pad (`local_clearance` 1.016mm) 0.94mm from a connector
+    pad -- `check_drc` flagged it, while `grade_pad_legality` and
+    `place_reconstruct --stages legalize` both reported 0 conflict pairs.
+
+    The formula is check_drc's, and deliberately CALLS its code rather than
+    mirroring it (`check_drc.pads_shared_layer_clearance`, `pad_copper_layers`)::
+
+        base = max(global clearance, netclass(a), netclass(b))
+        eff  = <.kicad_dru layer rules over the SHARED copper layers>   # REPLACES
+        eff  = max(lc_a, lc_b, rules.min_clearance) if either pad has an
+               override, else eff                                       # override REPLACES
+                                                                        # (KiCad 10, measured)
+
+    #768: when the caller passes a `ceiling` -- a `--clearance` it will then
+    CLAMP the output project's classes down to -- the netclass term alone is
+    capped at it, in `for_board`'s map and nowhere else. The dru rules and the
+    pad overrides run afterwards and keep outranking it, because the writeback
+    does not touch either. `ceiling=None` (the default) is the documented
+    "--clearance OMITTED" branch and leaves every tier as it was, which is why
+    the two callers that write no project are untouched by it.
+
+    Note the override enters as a max over BOTH pads: check_drc needs a second
+    max at its own pad-pad call site for the same reason, because a pair is
+    equally in violation when only the SECOND pad carries the keep-clear.
+
+    `active` is False -- and every consumer then takes its original flat-scalar
+    path unchanged -- when the board declares no netclass, no dru rule and no
+    pad override. That is the common case, and the reason this cannot perturb
+    an ordinary board.
+
+    #735: the same `.kicad_dru`'s TRACK-scoped rules are carried too, in
+    `track_rules` / `net_classes`, and answered by `track_pair` -- which is a
+    separate resolver from `pair` and is **not** part of `active`. Both halves
+    of that are deliberate. A track rule binds `A.Type=='track' &&
+    B.Type=='track'`, so it can never price a pad pair, which is all `pair`
+    is asked for; and `active` is the switch consumers use to drop this object
+    entirely, so admitting a track-only board there would move
+    `grade_pad_legality`, `quench` and every broad phase in
+    `fanout_clearance` onto their resolved path to answer a question none of
+    them asks. The one caller that does ask reads `track_rules` for itself.
+    """
+
+    __slots__ = ('base', 'net_floor', 'layer_rules', 'board_copper',
+                 'active', 'notes', 'ceiling', '_pair_cache',
+                 'track_rules', 'net_classes', 'board_min_clearance')
+
+    def __init__(self, base: float, net_floor=None, layer_rules=None,
+                 board_copper=(), has_overrides: bool = False,
+                 ceiling: Optional[float] = None,
+                 track_rules=None, net_classes=None):
+        self.base = float(base)
+        # #768: the --clearance ceiling this model was built under, or None.
+        # Recorded rather than re-derived: `net_floor` is already capped by the
+        # time anyone can look at it, so a value equal to the ceiling and a
+        # value that was never above it are indistinguishable afterwards.
+        self.ceiling = None if ceiling is None else float(ceiling)
+        self.net_floor = dict(net_floor or {})
+        self.layer_rules = dict(layer_rules or {})
+        self.board_copper = list(board_copper or [])
+        # #735: the TRACK-scoped .kicad_dru channel and the class memberships
+        # that are its binding key. A separate tier from the three above, and
+        # deliberately NOT part of `active`: those three price the pair kinds
+        # every consumer of this model asks about, while a track rule binds
+        # track-vs-track and nothing else (KiCad's `A.Type=='track' &&
+        # B.Type=='track'`). Folding it in would move `grade_pad_legality`,
+        # `quench` and every broad phase in `fanout_clearance` off their inert
+        # path to answer a question none of them asks. The one consumer that
+        # DOES ask reads `track_rules` directly -- see `track_pair`.
+        self.track_rules = list(track_rules or [])
+        self.net_classes = dict(net_classes or {})
+        # rules.min_clearance: the floor under a pad override (set by for_board).
+        self.board_min_clearance = 0.0
+        self.active = bool(self.net_floor or self.layer_rules or has_overrides)
+        self.notes = []
+        self._pair_cache = {}
+
+    # -- construction ---------------------------------------------------------
+    @classmethod
+    def for_board(cls, pcb_data, clearance: float, pcb_file: str = None,
+                  ceiling: Optional[float] = None):
+        """Resolve from the board's own sibling files.
+
+        Path discovery is the #498 rule: the caller's `pcb_file` when it has
+        one, else `PCBData.source_path` (engines whose signature carries no
+        input file). A missing sibling is a strict no-op, never an error -- the
+        model simply carries fewer sources.
+
+        `ceiling` (#768) caps the NETCLASS tier at a `--clearance` that will
+        be clamped into the output project. The test is whether THE RUN THIS
+        PRICES FOR writes that clamp, not whether this process does: pass it
+        when the clamp lands, leave it None otherwise, or the pass prices at a
+        class KiCad will still enforce.
+
+        The distinction is not pedantic -- `animate_fanout_clearance.py` passes
+        a ceiling and writes no project at all, because it exists to VISUALISE
+        `place_fanout_clearance.py` and must price identically or the GIF shows
+        a repair the tool does not perform. `grade_pad_legality` and `quench`
+        leave it None for the opposite reason: nothing downstream of them
+        clamps anything.
+        """
+        path = pcb_file or getattr(pcb_data, 'source_path', '') or ''
+        fps = getattr(pcb_data, 'footprints', None) or {}
+        has_overrides = any(
+            (getattr(p, 'local_clearance', 0.0) or 0.0) > 0.0
+            and _pad_carries_copper(p)
+            for fp in fps.values()
+            for p in (getattr(fp, 'pads', None) or ()))
+        board_copper = list(
+            getattr(getattr(pcb_data, 'board_info', None), 'copper_layers', None)
+            or [])
+        net_floor = {}
+        layer_rules = {}
+        track_rules = []
+        net_classes = {}
+        notes = []
+        if path:
+            nets = getattr(pcb_data, 'nets', None) or {}
+            try:
+                # check_drc's map, NOT the router's `net_clearance_map_by_id`.
+                # That one omits every net resolving only to Default and takes
+                # the MAX over all matching classes -- both correct for a
+                # router (a Default net routes at config.clearance;
+                # over-blocking is safe) and both wrong for a grader, which has
+                # to agree with check_drc pair for pair. Dropping Default
+                # re-created this very issue whenever an explicit --clearance
+                # sits BELOW the board's Default class, which check_assembly
+                # tells users they may pass; taking the max over glob
+                # memberships invented requirements check_drc grades clean.
+                from list_nets import net_clearance_map
+                by_name = net_clearance_map(
+                    path, [n.name for n in nets.values()
+                           if getattr(n, 'name', None)]) or {}
+                if ceiling is not None:
+                    # #768: --clearance is a CEILING on the netclass tier and
+                    # nothing above it. min() BEFORE the admission test below,
+                    # so a class at or under the ceiling still raises normally
+                    # and one above it collapses to the ceiling -- which is
+                    # `clearance` itself, so it never enters the map at all.
+                    #
+                    # Capped HERE and not in `pair_with_source` for two
+                    # reasons. This map IS this pass's netclass tier, and it is
+                    # the same place the router caps (route.py pre-caps the
+                    # netclass map before set_net_clearances installs it), so
+                    # the two halves of the toolchain do the same thing in the
+                    # same place. And the dru REPLACE and the pad override run
+                    # after it in `pair_with_source`, which is what keeps them
+                    # outranking the ceiling -- they must, because the project
+                    # writeback clamps neither.
+                    _capped = {}
+                    for _v in by_name.values():
+                        if _v > ceiling + 1e-9:
+                            _k = round(_v, 6)
+                            _capped[_k] = _capped.get(_k, 0) + 1
+                    if _capped:
+                        notes.append(
+                            'net classes capped at the %gmm --clearance '
+                            'ceiling: %s' % (ceiling, ', '.join(
+                                '%g -> %g (%d net%s)'
+                                % (_v, ceiling, _c, '' if _c == 1 else 's')
+                                for _v, _c in sorted(_capped.items()))))
+                    by_name = {n: min(v, ceiling) for n, v in by_name.items()}
+                # Same admission rule as check_drc: a class at or below the
+                # board-wide floor cannot raise anything, so it never enters.
+                net_floor = {nid: by_name[n.name]
+                             for nid, n in nets.items()
+                             if getattr(n, 'name', None) in by_name
+                             and by_name[n.name] > clearance}
+            except Exception as exc:                            # noqa: BLE001
+                net_floor = {}
+                notes.append('net classes unread (%s: %s)'
+                             % (type(exc).__name__, exc))
+            try:
+                from kicad_dru import read_board_layer_clearances
+                layer_rules, dru_notes = read_board_layer_clearances(
+                    path, board_copper)
+                notes.extend('.kicad_dru: ' + n for n in dru_notes)
+            except Exception as exc:                            # noqa: BLE001
+                layer_rules = {}
+                notes.append('.kicad_dru unread (%s: %s)'
+                             % (type(exc).__name__, exc))
+            # #735: the SAME .kicad_dru's track-scoped rules, plus the class
+            # memberships that bind them. `board_track_rules` is quiet by
+            # construction and never raises -- it answers ([], {}) for a
+            # missing file, an unparsable one, and the case where the rules
+            # parse but memberships cannot be read (keeping rules there would
+            # grade every pair as a NON-member, which is a different answer,
+            # not a degraded one; check_drc drops them for the same reason).
+            #
+            # NOTHING IS ADDED TO `notes` HERE, and that is deliberate twice
+            # over.
+            #
+            # The parse notes would DUPLICATE. `read_board_layer_clearances`
+            # and `read_board_track_clearances` are two calls into the same
+            # `kicad_dru._parse_dru`, differing only in the copper list they
+            # pass -- and no note site in that function depends on the copper
+            # list, so the two note lists come back byte-identical (measured
+            # on a six-rule dru). The layer read above already filed them.
+            #
+            # And a note SAYING WHICH RULES WERE HONOURED would be a lie in
+            # two of this constructor's three callers. `notes` reaches the
+            # operator as `pad clearance: ...` from `grade_pad_legality` and
+            # from the quench census, and NEITHER reads `track_rules` --
+            # a track rule binds no pad pair, which is the whole reason it is
+            # a separate tier. The pass that does honour it discloses it where
+            # it acts, in the nudger's own fallback line.
+            try:
+                from kicad_dru import board_track_rules
+                track_rules, net_classes = board_track_rules(pcb_data, path)
+            except Exception as exc:                            # noqa: BLE001
+                track_rules, net_classes = [], {}
+                notes.append('.kicad_dru track rules unread (%s: %s)'
+                             % (type(exc).__name__, exc))
+        model = cls(clearance, net_floor, layer_rules, board_copper,
+                    track_rules=track_rules, net_classes=net_classes,
+                    has_overrides=has_overrides, ceiling=ceiling)
+        model.notes = notes
+        if has_overrides and path:
+            try:
+                from design_rules import board_min_clearance_for
+                model.board_min_clearance = board_min_clearance_for(pcb_data, path)
+            except Exception as exc:                            # noqa: BLE001
+                notes.append('rules.min_clearance unread (%s: %s)'
+                             % (type(exc).__name__, exc))
+        return model
+
+    # -- per-pad --------------------------------------------------------------
+    def pad_floor(self, pad):
+        """This pad's clearance inputs.
+
+        `getattr` on local_clearance, never a bare attribute read: the placement
+        tests build duck-typed pad fakes that do not carry the field, and a hard
+        read would turn a missing attribute into a crash instead of the "no
+        override" it means.
+        """
+        lc = getattr(pad, 'local_clearance', 0.0) or 0.0
+        ncl = self.net_floor.get(getattr(pad, 'net_id', 0) or 0, 0.0)
+        layers = None
+        if self.layer_rules:
+            from check_drc import pad_copper_layers
+            layers = frozenset(pad_copper_layers(pad, self.board_copper))
+        return PadFloor(float(ncl), float(lc), layers)
+
+    def max_floor(self, floor) -> float:
+        """An UPPER BOUND on what this pad can require of any partner, for the
+        broad phases only. Never the requirement itself: a dru rule REPLACES, so
+        it can also LOWER the pair value below `base`, and a broad phase that
+        under-reaches drops real pairs (over-reaching only costs a test)."""
+        v = max(floor.ncl, floor.lc)
+        if self.layer_rules and floor.layers:
+            for l in floor.layers:
+                r = self.layer_rules.get(l)
+                if r is not None and r > v:
+                    v = r
+        return v
+
+    # -- the pair -------------------------------------------------------------
+    def pair(self, fa, fb) -> float:
+        """The required clearance between two pads (mm)."""
+        return self.pair_with_source(fa, fb)[0]
+
+    def pair_with_source(self, fa, fb):
+        """(required clearance in mm, what set it).
+
+        The source is recorded AT the assignment, never reconstructed from the
+        final value. Reconstruction is wrong under the dru's REPLACE semantics:
+        with netclass 0.5 and a layer rule replacing it to 0.3, the value 0.3
+        still satisfies `max(ncl) >= eff`, so an after-the-fact test attributes
+        it to the net class when the RULE set it. Disclosure is the whole point
+        of carrying this, so it has to be exact.
+
+        The empty source means "the board-wide floor" -- the same test
+        check_drc's `_mark_required` applies before disclosing anything.
+        """
+        eff = self.base
+        src = ''
+        if fa.ncl > eff:
+            eff, src = fa.ncl, 'netclass'
+        if fb.ncl > eff:
+            eff, src = fb.ncl, 'netclass'
+        if self.layer_rules:
+            key = (fa.layers, fb.layers, eff)
+            cached = self._pair_cache.get(key)
+            if cached is None:
+                from check_drc import pads_shared_layer_clearance
+                cached = pads_shared_layer_clearance(
+                    eff, self.layer_rules, fa.layers or (), fb.layers or ())
+                self._pair_cache[key] = cached
+            if cached != eff:
+                # REPLACE: a rule may raise OR lower, and either way it is the
+                # rule that decided the value.
+                eff, src = cached, 'layer rule'
+        # A pad / footprint clearance OVERRIDE REPLACES the class / rule value,
+        # floored at rules.min_clearance -- KiCad returns before it looks at
+        # either (drc_engine.cpp; measured on KiCad 10.0.0 by
+        # tests/oracle/constraint_agreement.py). It may therefore LOWER the
+        # pair below the class: 2932 pads on 48 corpus boards declare exactly
+        # that (fine-pitch BGA/QFN). Same helper as check_drc and the router.
+        lc = max(fa.lc, fb.lc)
+        if lc > 0.0:
+            bm = getattr(self, 'board_min_clearance', 0.0) or 0.0
+            eff, src = (lc if lc >= bm else bm), 'pad override'
+        if eff <= self.base + 1e-9:
+            # check_drc's `_mark_required` threshold exactly, not legality's
+            # 1e-6 EPS: a requirement between the two would be disclosed by one
+            # grader and not the other.
+            src = ''
+        return eff, src
+
+    # -- the TRACK-vs-track pair (#735) ---------------------------------------
+    def track_pair(self, net_a: int, net_b: int, resolved: float):
+        """(required mm, the TrackRule that raised it or None) for one pair of
+        TRACKS -- `resolved` raised by any binding `.kicad_dru` track rule.
+
+        A SEPARATE resolver from `pair`, not a flag on it, because this is the
+        only pair kind a track rule can bind: KiCad's condition is
+        `A.Type=='track' && B.Type=='track'`, so a pad or a via on either side
+        exempts the pair, and every other requirement this model answers has
+        one. Callers pass the value `pair()` already gave them: the rule is the
+        LAST tier and raise-only, exactly the order check_drc composes it in.
+
+        Keyed on NETS, never on floors, so it is correct to call with a
+        `resolved` that came from the flat fallback -- which is what happens on
+        a board whose only declaration IS a track rule, where the model is
+        `active is False` and no floor resolves at all.
+        """
+        if not self.track_rules:
+            return resolved, None
+        from kicad_dru import track_pair_clearance
+        return track_pair_clearance(self.track_rules,
+                                    self.net_classes.get(net_a, ()),
+                                    self.net_classes.get(net_b, ()), resolved)
+
+
+def resolve_npth_floor(pcb_data, pcb_file: str = None,
+                       notes: list = None) -> float:
+    """The board's copper-to-NPTH-hole FLOOR: the JLC fab floor, raised to the
+    board's own declared `min_hole_clearance` when it declares more (#761).
+
+    The one resolver, and it lives OUTSIDE `PartPads` on purpose. That class
+    takes a footprint and scalars and reads no board -- a contract
+    `tests/test_730_...py` pins, because six call sites build parts and a
+    board read inside would change what each of them means. So the board is
+    read here, once, by the caller that has one, and the resolved float is
+    passed down. That is exactly the shape `fanout_clearance` already uses
+    (`self.npth_floor`, fanout_clearance.py:664-666).
+
+    `check_drc`'s requirement is
+    `max(clearance, NPTH_TO_TRACK_CLEARANCE, hole_clearance, lc)`
+    (check_drc.py:2714, :2733); this supplies the middle two terms.
+
+    Measured over the 22 tracked boards: `flat_hierarchy` is the ONLY one
+    declaring above the fab floor (0.2500), and all 6 of its NPTH pads carry
+    `local_clearance` 0.0 -- so it is the single witness that this term fires
+    at all, and every other board resolves to 0.2000.
+
+    `pcb_file` follows the #498 rule every sibling here follows -- the
+    CALLER's path when it has one, else `PCBData.source_path`. It is not
+    decoration: a board staged into a temp dir and parsed from there carries a
+    `source_path` that is not the board the caller means, and flat_hierarchy
+    staged that way resolves 0.2000 where the real path resolves 0.2500 --
+    which is exactly the 2.3500 -> 2.4000 radius this term exists for.
+
+    Returns the plain fab floor when the board cannot be read, which is what a
+    caller with no board gets by default. `notes` collects WHY, if a list is
+    given: a silent fallback here drops the modelled floor by up to the
+    declared value and reports a byte-identical census, which is the shape of
+    silence this issue was filed about.
+    """
+    import routing_defaults as defaults
+    floor = float(defaults.NPTH_TO_TRACK_CLEARANCE)
+    if pcb_data is None:
+        return floor
+    try:
+        from obstacle_map import resolve_hole_clearance
+        return max(floor,
+                   float(resolve_hole_clearance(pcb_data, None, pcb_file)))
+    except Exception as e:                                       # noqa: BLE001
+        if notes is not None:
+            notes.append('copper-to-hole floor unresolved (%s: %s); the NPTH '
+                         'keep-out falls back to the %.2fmm fab floor'
+                         % (type(e).__name__, e, floor))
+        return floor
+
+
+class PartPads:
+    """Pose-owning pad/hole model for one footprint.
+
+    Offsets are captured in a seed-relative frame and re-derived per DELTA
+    rotation (the `_Cap.pad_rects` pattern) because parser `pad.global_x` is
+    stale after an in-memory footprint move -- this class owns the pose->pad
+    transform. Half-extents fold `rect_rotation` into an axis-aligned bbox,
+    exact for the axis-aligned pads that dominate placement and conservative
+    for the rest.
+
+    With a `PadClearanceModel` (#697) each copper pad also carries its
+    required-clearance inputs in `pad_floors`, INDEX-ALIGNED with `pads_local`
+    and therefore with everything `pad_rects` emits. Without one -- the default,
+    and what the silk (labels.py) and extent-only (routability.py) consumers
+    pass -- `pad_floors` is empty and `max_floor` is 0.0, so every caller keeps
+    its original flat-scalar behaviour exactly.
+
+    `pad_rects`' 6-tuple is deliberately NOT widened to carry the floor: it is a
+    public shape (render_placement slices `r[:4]`, two test modules unpack it
+    positionally) and the rect index already addresses the pad.
+
+    NPTH holes are carried TWICE (#730), index-aligned: `holes_local` at the
+    copper KEEP-OUT radius that `hole_circles()` serves, and `holes_extent` at
+    the radius `extent_local()` needs. They differ only by the hole pad's own
+    `local_clearance`, and only when a caller asks for it -- but the two
+    questions are different in kind ("how close may copper come" versus "where
+    is this part"), and answering the second with the first lets an author's
+    keep-clear declaration push a part off the board outline.
+    """
+
+    __slots__ = ('ref', 'side', 'has_tht', 'seed_rot', 'pads_local', '_pad_tilt',
+                 'fp_snapshot',
+                 'holes_local', 'holes_extent', 'n_pads', '_pad_cache',
+                 '_hole_cache', '_keepout_cache', '_ext_cache', 'pad_floors',
+                 'max_floor', 'clearance', 'hole_reach', 'holes_req',
+                 'pad_sides', '_ext_side_cache')
+
+    def __init__(self, fp, clearance: float, model=None,
+                 copper_holes: bool = True, npth_floor: float = None):
+        # Local imports: check_drc pulls the whole DRC stack (see the
+        # BoardOutlineGate note); kicad_parser is cheap but keeps the module's
+        # import surface unchanged for existing consumers.
+        from kicad_parser import pad_drill_circles
+        import routing_defaults as defaults
+
+        self.ref = fp.reference
+        self.side = footprint_side(fp)
+        self.has_tht = footprint_has_through_pads(fp)
+        self.seed_rot = (fp.rotation or 0.0) % 360
+        # The flat clearance this part was built at. Stored (#761) because the
+        # NPTH keep-out radius is only complete WITH it -- see hole_keepouts --
+        # and a consumer that had to supply it separately is a consumer that
+        # can forget to, which is exactly how the keep-out came to be graded
+        # without one.
+        self.clearance = float(clearance)
+        # #1127: the footprint as it stood when the offsets below were taken
+        # -- its pose and SHALLOW copies of its pads -- so the gate can pose
+        # the real pads for an exact stack check even after something moves
+        # the live footprint in memory (the reason this class owns the
+        # transform). Only under STACK_EXACT_CONFIRM; None costs nothing.
+        self.fp_snapshot = _fp_snapshot(fp) if STACK_EXACT_CONFIRM else None
+        self.pads_local = []    # (off_x, off_y, half_x, half_y, net_id, pside)
+        # #1094: each pad's own box and tilt, parallel to `pads_local`, for
+        # the off-lattice turns in `_rotated`. `(hx, hy, tilt)`: the seed
+        # AABB with tilt 0 for a pad square to the board, else the pad's
+        # size and residual angle -- growing the seed AABB of an already
+        # tilted pad again double-inflates it (a 0.4 x 1.2 pad seeded at 45
+        # read 0.8 x 0.8 half-extents at 0 and at 90).
+        self._pad_tilt = []
+        self.holes_local = []   # (off_x, off_y, radius) -- NPTH keepouts, inflated
+        self.holes_extent = []  # ...the same holes at their EXTENT radius (#730)
+        self.holes_req = []     # ...and the REQUIREMENT each one resolved to (#761)
+        self.pad_floors = []    # PadFloor per copper pad, index-aligned (#697)
+        self.max_floor = 0.0    # upper bound on this part's pad requirements
+        # `copper_holes` gates the BOARD floor exactly as it gates the
+        # pad's own override, and for the same reason: a declared
+        # `min_hole_clearance` is a COPPER rule, and KiCad has no silk-to-hole
+        # rule at all.
+        #
+        # It is HARDENING, not a defect fix, and the commit that added it
+        # (#761) claimed otherwise -- corrected here rather than left
+        # standing. `labels.py:303`, the only `copper_holes=False` caller,
+        # passes no `npth_floor` at all, so silk took the flat fab floor with
+        # or without this gate; measured, silk output is byte-identical across
+        # the whole change. What the silk arm caught is a latent hole that any
+        # future silk caller supplying a floor would fall into, which is worth
+        # closing but is not what the commit said it was.  The arm still
+        # asserts against an OFFERED floor rather than the default, because
+        # that is the only way to see this branch at all.
+        _npth_floor = (defaults.NPTH_TO_TRACK_CLEARANCE
+                       if (npth_floor is None or not copper_holes)
+                       else max(defaults.NPTH_TO_TRACK_CLEARANCE,
+                                float(npth_floor)))
+        for p in fp.pads:
+            if not _pad_carries_copper(p):
+                # Copper-less drilled pad (NPTH mounting hole): the DRILL still
+                # removes copper closer than the NPTH-to-track floor. A
+                # paste/mask-only aperture has neither copper nor a hole and
+                # simply drops out.
+                #
+                # The inflation matches fanout_clearance's foreign-pad
+                # keepouts -- and the inflation is only HALF of the rule
+                # (#761). What is stored here is the growth ABOVE `clearance`;
+                # the requirement is that radius PLUS `clearance`, which each
+                # sibling adds at its own gap test: fanout_clearance through
+                # `_pair_or_flat` (an NPTH tuple files floor `None`, so it
+                # hands back the flat scalar, fanout_clearance.py:894/1306),
+                # and labels.py by comparing against `silk_pad_clearance`
+                # (labels.py:399). legality compared this circle against RAW
+                # pad rects and added nothing, so its modelled standoff was
+                # `max(0, requirement - clearance)` -- which collapses to ZERO
+                # once `clearance` reaches the requirement, at 0.20 for a plain
+                # hole and 0.40 for ulx3s's AUDIO1. The inflation matched; the
+                # COMPARISON did not, and only the inflation was ever checked.
+                # `hole_keepouts()` is now the one place that composes both.
+                #
+                # #730: ...or closer than the pad's OWN `(clearance ...)`
+                # override, when that is larger. That is what KiCad enforces
+                # and what check_drc grades (`max(npth_clr, lc)`,
+                # check_drc.py:2733). PER-PAD, so it is computed per pad and no
+                # longer hoisted above the loop -- a footprint may carry
+                # several holes with different overrides, and a hoisted value
+                # would give them all the first one's answer. Raise-only:
+                # 20 of the 22 tracked boards carry no NPTH override at all,
+                # and watchy's 8 are 0.100, under the 0.20 fab floor, so it is
+                # the negative control rather than a second example. The board
+                # that moves is ulx3s -- AUDIO1's two 1.7mm holes at lc 0.400,
+                # radius 0.950 -> 1.150 at --clearance 0.1.
+                #
+                # `copper_holes` is False for a SILK caller and that is not a
+                # tuning knob. `hole_circles()` answers two different
+                # questions: legality's copper consumers want the override,
+                # and labels.py uses the same circles to keep a reference
+                # designator's INK off a drill. `local_clearance` is a copper
+                # rule -- KiCad has no silk-to-hole rule at all -- so applying
+                # it there would push ulx3s's labels 0.20mm further from
+                # AUDIO1 for a reason that does not exist. Naming the question
+                # in the signature rather than inferring it from `model`:
+                # measured, only two of the six `build_part_pads` call sites
+                # pass one (grade_pad_legality and quench), so a model gate
+                # would leave legality's own pad-overlap path, routability and
+                # seeder unfixed while looking principled -- and it would key
+                # a COPPER-vs-SILK question on an argument that answers a
+                # different one.
+                #
+                # The BOARD's declared min_hole_clearance, which
+                # check_drc's `npth_clr` carries, arrives as the resolved
+                # scalar `npth_floor` (#761) -- NOT as a board pointer. This
+                # class still reads no board; `resolve_npth_floor` does, once,
+                # in the caller that has one. It defaults to the fab floor, so
+                # a caller that passes nothing keeps exactly its previous
+                # answer.
+                if _pad_has_no_copper(p) and (p.drill or 0) > 0:
+                    _lc = ((getattr(p, 'local_clearance', 0.0) or 0.0)
+                           if copper_holes else 0.0)
+                    npth_grow = max(0.0, max(_npth_floor, _lc) - clearance)
+                    # ...and the SAME holes without the override, for extents.
+                    # `holes_local` is a copper KEEP-OUT and `extent_local` is
+                    # a question about where the part physically IS -- an
+                    # author's copper keep-clear must not make a part read as
+                    # hanging off the board outline. Measured on
+                    # splitflap_driver at --clearance 0.25, injecting lc on
+                    # H6/H7's NPTH pads only: without this split, lc 0.90 takes
+                    # `oob_pad_count` from 0 to 2 and lc 0.95 puts both refs in
+                    # the seeder's ZERO-margin off-board census, which
+                    # CLAUDE.md calls the top-priority placement defect. This
+                    # keeps every extent byte-identical to pre-#730.
+                    # The FLAT floor, deliberately (#761): a board's
+                    # declared copper-to-hole rule is a copper rule, exactly
+                    # like `local_clearance` above, and `extent_local` asks
+                    # where the part physically IS. Keeping it out here keeps
+                    # every extent byte-identical on every board, which is what
+                    # stops a declaration from pushing a part off the outline.
+                    ext_grow = max(0.0, defaults.NPTH_TO_TRACK_CLEARANCE
+                                   - clearance)
+                    # The resolved requirement itself, for DISCLOSURE
+                    # (#761). Derivable from the radius only with `hd/2` in
+                    # hand, which no consumer has -- and a census that counts
+                    # a conflict without naming what it required is the same
+                    # shape of silence #697 fixed for the pad channel.
+                    npth_req = max(clearance, _npth_floor, _lc)
+                    for hx, hy, hd in pad_drill_circles(p):
+                        self.holes_local.append(
+                            (hx - fp.x, hy - fp.y, hd / 2.0 + npth_grow))
+                        self.holes_extent.append(
+                            (hx - fp.x, hy - fp.y, hd / 2.0 + ext_grow))
+                        self.holes_req.append(npth_req)
+                continue
+            copper = [l for l in p.layers if str(l).endswith('.Cu')]
+            through = (p.drill or 0) > 0
+            # #834: a pad on BOTH faces reads as through, not as back-only.
+            # An SMD pad listed on `*.Cu` (or explicitly on F.Cu and B.Cu) is
+            # not drilled, so the old expression fell to its `'B'` arm and
+            # declared the F copper away. That was harmless while the
+            # over-cap branch ignored sides entirely; once `pair_shortfall`
+            # SKIPS a pair whose pad sides are disjoint, it becomes a false
+            # ACCEPT -- which this module's contract forbids outright (see the
+            # class docstring: it may falsely reject, never falsely accept).
+            # Measured a no-op on the corpus: zero such pads on any of the 22
+            # tracked boards, so this is hardening, not a behaviour change.
+            # `*.Cu` is KiCad's ALL-copper wildcard, so it is both faces on its
+            # own -- and it read as FRONT, because it does not start with 'B'.
+            _star = any(str(l).startswith('*') for l in copper)
+            _b = any(str(l).startswith('B') for l in copper)
+            _f = any(not str(l).startswith(('B', '*')) for l in copper)
+            pside = (None if (through or _star or (_b and _f))
+                     else ('B' if _b else 'F'))
+            # THE one formula (see its docstring): PartPads was a fourth
+            # copy of it, and `part_copper_geometry` keys a pad's own rect
+            # on the same call, so a lookup cannot disagree with the box it
+            # is looking up.
+            phx, phy = pad_half_extents(p)
+            self.pads_local.append((p.global_x - fp.x, p.global_y - fp.y,
+                                    phx, phy, p.net_id, pside))
+            _tilt = float(getattr(p, 'rect_rotation', 0.0) or 0.0)
+            if abs(_tilt - 90.0 * round(_tilt / 90.0)) < 1e-6:
+                self._pad_tilt.append((phx, phy, 0.0))
+            else:
+                self._pad_tilt.append((p.size_x / 2.0, p.size_y / 2.0,
+                                       _tilt))
+            if model is not None:
+                floor = model.pad_floor(p)
+                self.pad_floors.append(floor)
+                mf = model.max_floor(floor)
+                if mf > self.max_floor:
+                    self.max_floor = mf
+        self.n_pads = len(self.pads_local)
+        # How far this part's hole keep-outs reach BEYOND its own extent
+        # (#761) -- the broad-phase bound, 0.0 with no holes.
+        #
+        # Both early-outs drop a pair on the gap between EXTENT boxes, and
+        # `max_floor` is built from copper pads only: an NPTH pad `continue`s
+        # above, before `pad_floors.append`, so a hole's requirement reaches
+        # neither bound. Measured on ulx3s: AUDIO1.max_floor is 0.0 while its
+        # holes require 0.400, so at `model.base` 0.25 every pair at an extent
+        # gap in [0.25, 0.40) returned ZERO_SHORTFALL before the hole loop ran
+        # -- i.e. the keep-out fix above is INERT without this term.
+        #
+        # Soundness: an extent box contains its hole at `extent_r`, so
+        # `rect_gap(ea, eb) >= dist(hole_centre, foreign_rect) - extent_r`,
+        # while a penetration needs `dist < keepout_r`. Dropping at
+        # `gap >= reach` is therefore safe exactly when
+        # `reach >= keepout_r - extent_r`, which is this.
+        self.hole_reach = 0.0
+        for (_hx, _hy, _kr), (_ex, _ey, _er) in zip(self.holes_local,
+                                                    self.holes_extent):
+            over = (_kr + self.clearance) - _er
+            if over > self.hole_reach:
+                self.hole_reach = over
+        # #834: the board sides this part's COPPER PADS occupy -- a through
+        # pad (`pside is None`) occupies both. Deliberately NOT
+        # `sides_occupied(self.side, self.has_tht)`, which answers the BODY
+        # question and is always a superset: glasgow_revC's J5 has pads on F
+        # only but two NPTH holes, so its body occupies both faces, and
+        # pricing pad clearance at the body's answer would make this fix inert
+        # on the one over-cap part in the corpus that carries holes.
+        _sides = set()
+        for _t in self.pads_local:
+            if _t[5] is None:
+                _sides = BOTH_SIDES
+                break
+            _sides.add(_t[5])
+        self.pad_sides = (BOTH_SIDES if _sides is BOTH_SIDES else
+                          FRONT_ONLY if _sides == {'F'} else
+                          BACK_ONLY if _sides == {'B'} else
+                          BOTH_SIDES if _sides else NO_SIDES)
+        self._pad_cache: Dict[float, list] = {}
+        self._hole_cache: Dict[float, list] = {}
+        self._keepout_cache: Dict[float, list] = {}
+        self._ext_cache: Dict[float, Tuple[float, float, float, float]] = {}
+        self._ext_side_cache: Dict[Tuple[float, str], tuple] = {}
+
+    def _delta_key(self, rot: float) -> float:
+        return round(((rot or 0.0) - self.seed_rot) % 360, 3)
+
+    def _rotated(self, rot: float):
+        key = self._delta_key(rot)
+        cache = self._pad_cache.get(key)
+        if cache is None:
+            rad = math.radians(-key)
+            c, s = math.cos(rad), math.sin(rad)
+            swap = round(key) % 180 == 90
+            # #1094: off a 90-degree step the pad box is not swapped but
+            # TURNED, and its axis-aligned half-extents grow to
+            # hx|c| + hy|s|. Swapping only at 90/270 left a 45-degree pad at
+            # its seed-pose extents -- smaller than the copper, so this gate
+            # (which may falsely reject, never falsely accept) accepted pad
+            # overlaps the written board then failed. The orthogonal steps
+            # keep the exact swap, so they stay bit-identical.
+            ortho = abs(key - 90.0 * round(key / 90.0)) < 1e-9
+            cache = []
+            for i, (ox, oy, hx, hy, net, pside) in enumerate(self.pads_local):
+                rx = ox * c - oy * s
+                ry = ox * s + oy * c
+                if ortho:
+                    HX, HY = (hy, hx) if swap else (hx, hy)
+                else:
+                    # The pad's own box turned to its new tilt, then boxed:
+                    # a footprint turn of `key` turns each pad by -key in
+                    # this frame (the sign `rotate_local_bounds` uses).
+                    px, py, tilt = (self._pad_tilt[i]
+                                    if i < len(self._pad_tilt)
+                                    else (hx, hy, 0.0))
+                    t = math.radians(tilt - key)
+                    tc, ts = abs(math.cos(t)), abs(math.sin(t))
+                    HX, HY = px * tc + py * ts, px * ts + py * tc
+                cache.append((rx, ry, HX, HY, net, pside))
+            self._pad_cache[key] = cache
+        return cache
+
+    def pad_rects(self, x: float, y: float, rot: float):
+        """[(x0, y0, x1, y1, net_id, pside)] at the given pose."""
+        out = []
+        for ox, oy, HX, HY, net, pside in self._rotated(rot):
+            cx, cy = x + ox, y + oy
+            out.append((cx - HX, cy - HY, cx + HX, cy + HY, net, pside))
+        return out
+
+    def hole_circles(self, x: float, y: float, rot: float):
+        """[(cx, cy, radius)] NPTH hole circles at the given pose, at the
+        INFLATION radius -- the growth above `clearance`, not the requirement.
+
+        A copper consumer wants `hole_keepouts` instead. This accessor exists
+        for the caller that adds its own term at its own gap test: labels.py
+        (silk, `< config.silk_pad_clearance`, labels.py:399).
+        """
+        key = self._delta_key(rot)
+        cache = self._hole_cache.get(key)
+        if cache is None:
+            rad = math.radians(-key)
+            c, s = math.cos(rad), math.sin(rad)
+            cache = [(ox * c - oy * s, ox * s + oy * c, r)
+                     for ox, oy, r in self.holes_local]
+            self._hole_cache[key] = cache
+        return [(x + ox, y + oy, r) for ox, oy, r in cache]
+
+    def hole_keepouts(self, x: float, y: float, rot: float):
+        """[(cx, cy, radius)] NPTH COPPER keep-out circles at the given pose.
+
+        The one resolver for "how close may foreign copper come to this hole"
+        (#761). It is `hole_circles`' radius PLUS the flat clearance, because
+        the stored growth is `max(0, requirement - clearance)`; adding the
+        clearance back composes, per hole, to
+
+            hd/2 + max(clearance, NPTH floor, the hole pad's local_clearance)
+
+        -- a MAX rather than a sum, since the growth is already floored at 0.
+        That is `check_drc`'s own requirement (`max(npth_clr, lc)`,
+        check_drc.py:2733) and what fanout_clearance's cap gate charges.
+
+        Tested against RAW pad rects, so the whole requirement lives in this
+        radius: `_circle_rect_penetration` stays a pure geometric predicate
+        with no clearance parameter to forget.
+        """
+        key = self._delta_key(rot)
+        cache = self._keepout_cache.get(key)
+        if cache is None:
+            clr = self.clearance
+            cache = [(ox, oy, r + clr)
+                     for ox, oy, r in self.hole_circles(0.0, 0.0, rot)]
+            self._keepout_cache[key] = cache
+        return [(x + ox, y + oy, r) for ox, oy, r in cache]
+
+    def extent_local(self, rot: float):
+        """Bbox over pads and holes at delta-rot, in the part frame (cached).
+        None when the part has neither copper pads nor holes."""
+        key = self._delta_key(rot)
+        ext = self._ext_cache.get(key)
+        if ext is None:
+            xs0, ys0, xs1, ys1 = [], [], [], []
+            for ox, oy, HX, HY, _n, _s in self._rotated(rot):
+                xs0.append(ox - HX); ys0.append(oy - HY)
+                xs1.append(ox + HX); ys1.append(oy + HY)
+            # #730: the EXTENT radii, not the keep-out ones -- see the note
+            # beside holes_extent. `_rotated`-style rotation done inline
+            # because holes rotate about the part origin exactly as
+            # hole_circles rotates them.
+            rad = math.radians(-key)
+            hc, hs = math.cos(rad), math.sin(rad)
+            for ox, oy, r in self.holes_extent:
+                cx, cy = ox * hc - oy * hs, ox * hs + oy * hc
+                xs0.append(cx - r); ys0.append(cy - r)
+                xs1.append(cx + r); ys1.append(cy + r)
+            if not xs0:
+                ext = ()
+            else:
+                ext = (min(xs0), min(ys0), max(xs1), max(ys1))
+            self._ext_cache[key] = ext
+        return ext or None
+
+    def extent(self, x: float, y: float, rot: float):
+        e = self.extent_local(rot)
+        if e is None:
+            return None
+        return (x + e[0], y + e[1], x + e[2], y + e[3])
+
+    def hole_extent_rects(self, x: float, y: float, rot: float):
+        """[(x0, y0, x1, y1)] one box per NPTH hole at its EXTENT radius (the
+        holes `extent` folds into the union), rotated as `extent_local`
+        rotates them -- so a census can grade each drill ALONE (#1193)."""
+        rad = math.radians(-self._delta_key(rot))
+        hc, hs = math.cos(rad), math.sin(rad)
+        out = []
+        for ox, oy, r in self.holes_extent:
+            cx, cy = x + ox * hc - oy * hs, y + ox * hs + oy * hc
+            out.append((cx - r, cy - r, cx + r, cy + r))
+        return out
+
+    def extent_local_side(self, rot: float, side: str):
+        """`extent_local`, restricted to the pads that occupy `side` (#834).
+
+        The over-cap branch of `pair_shortfall` grades a pair on the gap
+        between EXTENT boxes, and a whole-part extent spans both faces -- so a
+        BGA on F was charged for a part on B whenever the pad-pair product
+        crossed `PAIR_TEST_CAP`, and only then. This is the same box, built
+        over the pads that `_sides_interact` would have admitted.
+
+        Holes go into BOTH sides' boxes: a drill removes copper on every
+        layer, so it is not a side's to exclude. That also makes this box
+        equal to `extent_local` for a part whose pads all occupy one side --
+        which is why no same-side pair can move (measured: every one of the 35
+        same-side over-cap pairs on the tracked corpus, at four rotations, is
+        bit-identical).
+
+        `holes_extent` is rotated INLINE here for the same reason
+        `extent_local` does it: `hole_circles()` serves `holes_local`, the
+        keep-OUT radii, and substituting them would inflate every extent on
+        every board.
+        """
+        key = (self._delta_key(rot), side)
+        ext = self._ext_side_cache.get(key)
+        if ext is None:
+            xs0, ys0, xs1, ys1 = [], [], [], []
+            for ox, oy, HX, HY, _n, _s in self._rotated(rot):
+                if not _sides_interact(_s, side):
+                    continue
+                xs0.append(ox - HX); ys0.append(oy - HY)
+                xs1.append(ox + HX); ys1.append(oy + HY)
+            rad = math.radians(-key[0])
+            hc, hs = math.cos(rad), math.sin(rad)
+            for ox, oy, r in self.holes_extent:
+                cx, cy = ox * hc - oy * hs, ox * hs + oy * hc
+                xs0.append(cx - r); ys0.append(cy - r)
+                xs1.append(cx + r); ys1.append(cy + r)
+            ext = () if not xs0 else (min(xs0), min(ys0), max(xs1), max(ys1))
+            self._ext_side_cache[key] = ext
+        return ext or None
+
+    def extent_side(self, x: float, y: float, rot: float, side: str):
+        e = self.extent_local_side(rot, side)
+        if e is None:
+            return None
+        return (x + e[0], y + e[1], x + e[2], y + e[3])
+
+
+def build_part_pads(footprints: Dict[str, object],
+                    clearance: float, model=None,
+                    copper_holes: bool = True,
+                    npth_floor: float = None,
+                    tolerant: bool = False) -> Dict[str, 'PartPads']:
+    """PartPads for every footprint that has any pad (copper or NPTH).
+
+    `model` is an optional `PadClearanceModel` (#697); without it the parts
+    carry no per-pad clearance floors and every consumer behaves exactly as
+    before.
+
+    `tolerant` (#841) SKIPS a footprint whose pad model cannot be built rather
+    than losing the whole map to it. Default False, so the six existing call
+    sites are bit-identical: a gate that silently drops a part it could not
+    model is worse than one that raises. It exists for the lane ledgers, whose
+    callers include hand-built test fixtures that carry no `reference` -- there
+    a missing part degrades to the pad-centre box it always had, and
+    `CopperGeometry.modelled` says which parts those are.
+    """
+    out = {}
+    for ref, fp in footprints.items():
+        if not getattr(fp, 'pads', None):
+            continue
+        try:
+            pp = PartPads(fp, clearance, model, copper_holes, npth_floor)
+        except Exception:                                    # noqa: BLE001
+            if not tolerant:
+                raise
+            continue
+        if pp.n_pads or pp.holes_local:
+            out[ref] = pp
+    return out
+
+
+class CopperGeometry(NamedTuple):
+    """One part's copper, as both lane ledgers charge it (#841)."""
+    ref: str
+    #: `PartPads.extent`: pad copper UNION the NPTH hole extents. This is the
+    #: part's obstruction box -- what it contributes as a NEIGHBOUR, and the
+    #: box its own faces are measured on, so two parts facing each other
+    #: cannot disagree about where the channel between them is.
+    rect: Tuple[float, float, float, float]
+    #: The union of the PAD rects alone, never wider than `rect`. Face
+    #: ASSIGNMENT is measured against this one, because every edge of it is
+    #: attained by some pad -- which is what keeps an edge pad at distance
+    #: exactly 0. `rect` does not have that property: measured, on 12 of the
+    #: 388 edges of the corpus's fine-pitch parts the extreme edge is set by
+    #: an NPTH hole and no pad reaches it -- watchy SW1-SW4 (8 edges, 0.400mm)
+    #: and rp2350 J2 (4, up to 1.372mm). Regenerate with
+    #: `tests/test_841_obstruction_rect.py`, which prints the count.
+    #:
+    #: It read 14 for one commit, with ulx3s U1 (2 edges, 0.1905mm) named as a
+    #: third hole part. U1 has no holes: those two edges were `copper` losing
+    #: four stacked pad rects to a lookup keyed on the centre alone, and the
+    #: number was corrected in the docstring before the bug behind it was
+    #: found. A number that disagrees with another number is not always the
+    #: one to change.
+    copper: Tuple[float, float, float, float]
+    #: `{(cx, cy, half_x, half_y): (x0, y0, x1, y1)}` -- each copper pad's own
+    #: rect at this pose, keyed by its centre AND its half-extents (rounded to
+    #: 1e-4 mm) so a caller holding a `Pad` can find it. NOT indexed by
+    #: position: `PartPads` drops pads that carry no copper, so its order does
+    #: not align with `fp.pads`.
+    #:
+    #: The size is in the key because the centre alone is not unique. Pads
+    #: STACKED at one point are ordinary -- a cross-shaped alignment mark, a
+    #: thermal pad drawn as several rects -- and keying on the centre gave the
+    #: last one to whichever pad asked: measured, glasgow_revC U1's 0.6mm
+    #: GND pad 57 was handed a co-located 6.22mm box, and rp2350 U6's pad 61
+    #: a 3.4mm one.
+    #:
+    #: Measured over the tracked corpus, 383 of 9491 pads have no rect and
+    #: every one of them is copper-less; no NETTED pad misses, and none is now
+    #: handed another pad's box.
+    pads: Dict[Tuple[float, float], Tuple[float, float, float, float]]
+    #: False when the pad model could not be built and `rect`/`copper` are the
+    #: pad-CENTRE bbox instead -- today's answer, kept for the caller that has
+    #: no `PartPads` behind its footprints.
+    modelled: bool
+    #: `{'F': rect, 'B': rect}` -- `rect` restricted to the pads that occupy
+    #: each board side (#848), from `PartPads.extent_side`. A side the part's
+    #: pad model does not reach is ABSENT; `{}` when `modelled` is False.
+    #: Read it through `rect_on_sides`, never directly.
+    #:
+    #: What it is for: the side FILTER in both lane ledgers is already
+    #: per-side (`own & other` over `sides_occupied`, #835), but the rectangle
+    #: each charged was the whole part -- so an F.Cu part escaping past a B.Cu
+    #: connector with a few through pins was charged the connector's entire
+    #: back-side pad field, copper those tracks never have to share.
+    #:
+    #: HOLES ARE IN BOTH BOXES (see `extent_local_side`): a drill removes
+    #: copper on every layer, so it is not a side's to exclude. That is also
+    #: why this is very nearly inert -- measured over the tracked corpus at
+    #: clearance 0.2, 20 (ref, side) boxes differ from `rect` at all, 3 are
+    #: ever charged against a face in deficit, and no board's reported deficit
+    #: moves. It is correct and it is cheap; it is here to be right before a
+    #: board exercises it, not because a board does today.
+    rect_sides: Dict[str, Tuple[float, float, float, float]]
+
+
+def part_copper_geometry(footprints: Dict[str, object], clearance: float, *,
+                         parts: Optional[Dict[str, 'PartPads']] = None
+                         ) -> Dict[str, CopperGeometry]:
+    """{ref: CopperGeometry} at each footprint's own pose -- THE lane-ledger
+    obstruction geometry (#841).
+
+    One definition, because two lane ledgers asking "what stops a track
+    leaving this face" answered it with two different rectangles: `escape`
+    charged the bbox of pad CENTRES (a 0.9mm passive terminal contributing a
+    zero-width body), `routability.face_lane_ledger` charged the COURTYARD (an
+    assembly keep-out a track may legally run under). Neither is copper.
+
+    `clearance` is NOT decoration. `holes_extent` carries
+    `max(0, NPTH_TO_TRACK_CLEARANCE - clearance)` (see `extent_local`), so
+    below 0.20mm the hole box grows: measured over the 22 tracked boards, 19
+    parts on 6 boards differ between clearance 0.05 and 0.20, by up to
+    0.150mm, and nothing differs between 0.20 and 0.40. Pass the clearance you
+    priced the LANE at -- `check_channels` runs the corpus at 0.09, squarely
+    inside that regime, so two ledgers on different clearances would disagree
+    exactly where the starved-face gate lives.
+
+    A pad-LESS footprint is absent from the result (as it is from
+    `build_part_pads`). That is deliberate and it closes #841's own hazard:
+    the +/-0.5mm `synthetic` fiction `part_local_bounds` invents for a
+    footprint with neither courtyard nor pads can no longer reach a lane
+    SUPPLY, which `options.move_blocker` turns into an instruction to move a
+    part. Measured over the whole tracked corpus, the refs this drops from
+    `face_lane_ledger`'s neighbour list are EXACTLY that board's `synthetic`
+    set -- set equality, on every board that has one: ulx3s 9, glasgow_revC 8,
+    orangecrab 3, tigard 3, esp_prog 3, watchy 2, and interf_u_unrouted /
+    interf_u_unrouted_placed 1 each. Those last two carry no fine-pitch part,
+    so no default run reaches them; they are named because "and none
+    elsewhere" is what was written here first, and it was wrong.
+    """
+    if parts is None:
+        parts = build_part_pads(footprints, clearance, tolerant=True)
+    else:
+        # `parts` decides the NPTH hole growth, not `clearance` -- the boxes
+        # are already built. A caller handing in a map built at a different
+        # clearance would get hole extents up to 0.2mm off the value it just
+        # asked for, silently, and the docstring above spends a paragraph
+        # promising the opposite. `PartPads` records the clearance it was
+        # built at, so the disagreement is checkable rather than trusted.
+        for _pp in parts.values():
+            if abs(float(_pp.clearance) - float(clearance)) > 1e-9:
+                raise ValueError(
+                    'part_copper_geometry: parts were built at clearance '
+                    '{} but {} was requested; the NPTH hole extents would be '
+                    'the former and every caller would read the latter'
+                    .format(_pp.clearance, clearance))
+            break
+    from kicad_parser import non_aperture_pads
+    out: Dict[str, CopperGeometry] = {}
+    for ref, fp in footprints.items():
+        # Aperture-only pads are not pads (#1143): a part with no other pad
+        # obstructs no lane, like a pad-less one.
+        _pads = non_aperture_pads(fp)
+        if not _pads:
+            continue
+        pp = parts.get(ref)
+        ext = None if pp is None else pp.extent(fp.x, fp.y, fp.rotation or 0.0)
+        if pp is None or ext is None:
+            xs = [p.global_x for p in _pads]
+            ys = [p.global_y for p in _pads]
+            centre = (min(xs), min(ys), max(xs), max(ys))
+            out[ref] = CopperGeometry(ref=ref, rect=centre, copper=centre,
+                                      pads={}, modelled=False, rect_sides={})
+            continue
+        boxes = [(r[0], r[1], r[2], r[3])
+                 for r in pp.pad_rects(fp.x, fp.y, fp.rotation or 0.0)]
+        # The UNION comes from the full list, never from the lookup dict.
+        # Keying it by centre alone collapsed pads STACKED at one point -- a
+        # cross-shaped alignment pad, a thermal pad drawn as several rects --
+        # so `copper` silently lost them: measured, ulx3s U1 dropped 4 of its
+        # 389 rects and came out 0.1905mm short on two sides, and glasgow U1's
+        # 0.6mm pad 57 was handed a co-located 6.22mm box. A dict cannot be
+        # the union AND the lookup; it is now only the lookup.
+        if boxes:
+            copper = (min(b[0] for b in boxes), min(b[1] for b in boxes),
+                      max(b[2] for b in boxes), max(b[3] for b in boxes))
+        else:
+            copper = ext                      # holes only: no pad copper at all
+        # ...and the lookup key carries the pad's SIZE as well as its centre,
+        # so two pads at one point are distinguishable and a hit is the pad's
+        # own box. BOTH sides of that key come from `pad_half_extents(pad)` --
+        # here and in `pad_box` -- rather than one from the pad and one from
+        # the finished rect: measured, re-deriving the half-extent as
+        # `(x1 - x0) / 2` puts esp_prog U2 pad 2 (1.5019mm wide) at 0.7509
+        # against the pad's own 0.751, and it stops being findable.
+        #
+        # `pads_local` is built by walking `fp.pads` and keeping the pads that
+        # carry copper, so `pad_rects` is index-aligned with that same filter;
+        # the zip below is that correspondence, and the length check is what
+        # refuses to guess if it ever stops holding.
+        copper_pads = [q for q in fp.pads if _pad_carries_copper(q)]
+        rects = {}
+        if len(copper_pads) == len(boxes):
+            for q, box in zip(copper_pads, boxes):
+                qhx, qhy = pad_half_extents(q)
+                rects[(round(q.global_x, 4), round(q.global_y, 4),
+                       round(qhx, 4), round(qhy, 4))] = box
+        # #848: the same box per board SIDE. Built here rather than at the
+        # ledgers because BOTH of them charge `rect` today -- `escape.
+        # _blocked_span` and `routability.face_lane_ledger` -- and a per-side
+        # rect in one of them re-opens the disagreement #841 closed.
+        # `extent_side` is memoized per (delta-rot, side) inside `PartPads`, so
+        # this is two cached lookups per part.
+        rot = fp.rotation or 0.0
+        sides_ext = {}
+        for _side in ('F', 'B'):
+            _e = pp.extent_side(fp.x, fp.y, rot, _side)
+            if _e is not None:
+                sides_ext[_side] = _e
+        out[ref] = CopperGeometry(ref=ref, rect=ext, copper=copper,
+                                  pads=rects, modelled=True,
+                                  rect_sides=sides_ext)
+    return out
+
+
+def rect_on_sides(geom: CopperGeometry, sides=None
+                  ) -> Tuple[float, float, float, float]:
+    """`geom`'s obstruction box over the board sides in `sides` (#848).
+
+    The copper analogue of `rect_on` above, which makes exactly this
+    distinction for COURTYARDS: a part's own side gets its whole body, the
+    opposite side gets only what reaches through. Both lane ledgers already
+    decide WHETHER to charge a neighbour with `own & other` over
+    `sides_occupied`; this is what they charge once they have.
+
+    `sides=None` means "every side" and returns `geom.rect` -- today's answer,
+    and the answer for a caller with no side map. So does an empty union and
+    one naming only sides this part's PAD model does not reach: `g.sides` is
+    courtyard-derived while `rect_sides` is pad-derived, and the two can
+    legitimately disagree. A caller must never silently LOSE an obstruction,
+    which is the same rule `_blocked_span` states for its three `.get` maps.
+
+    Union, not intersection: a through-hole part occupying {F, B} and charged
+    against a part occupying both contributes what it has on either.
+    """
+    if not sides or not geom.rect_sides:
+        return geom.rect
+    boxes = [geom.rect_sides[s] for s in sides if s in geom.rect_sides]
+    if not boxes:
+        return geom.rect
+    return (min(b[0] for b in boxes), min(b[1] for b in boxes),
+            max(b[2] for b in boxes), max(b[3] for b in boxes))
+
+
+def pad_box(geom: CopperGeometry, pad) -> Optional[Tuple[float, float,
+                                                         float, float]]:
+    """`pad`'s own copper rect within `geom`, or None when it has none.
+
+    The one lookup, so a caller does not re-derive a pad's half-extents from
+    `size_x`/`size_y`/`rect_rotation` and end up with a box that disagrees with
+    the `copper` union built from `PartPads`. None means the pad carries no
+    copper (a paste aperture, an NPTH mounting hole) -- measured, no NETTED pad
+    on the tracked corpus answers None.
+    """
+    if not geom.pads:
+        # An unmodelled part (`modelled=False`) has no pad boxes at all, and
+        # asking one for its half-extents is how this reached out and touched
+        # a `size_x` the caller's footprints do not carry -- the hand-built
+        # fixtures in `tests/test_escape_ledger.py` are exactly that caller.
+        return None
+    hx, hy = pad_half_extents(pad)
+    return geom.pads.get((round(pad.global_x, 4), round(pad.global_y, 4),
+                          round(hx, 4), round(hy, 4)))
+
+
+def _sides_interact(a, b) -> bool:
+    """Do two pad sides share copper? None = through (both sides)."""
+    return a is None or b is None or a == b
+
+
+def _hole_shortfall(pa, xa, ya, ra, rects_b, pb, xb, yb, rb, rects_a):
+    """Total penetration of either part's NPTH keep-outs into the other's
+    copper (#761). ONE resolver, because `pair_shortfall` reaches it from two
+    branches -- the full pad sweep and the PAIR_TEST_CAP extent branch -- and
+    a second copy is how the cap branch came to report a hardcoded zero.
+
+    Keep-outs, not `hole_circles`: the requirement lives in the radius, and
+    the rects are raw.
+    """
+    hole = 0.0
+    for cx, cy, r in pb.hole_keepouts(xb, yb, rb):
+        for a0, a1, a2, a3, _na, _sa in rects_a:
+            hole += _circle_rect_penetration(cx, cy, r, (a0, a1, a2, a3))
+    for cx, cy, r in pa.hole_keepouts(xa, ya, ra):
+        for b0, b1, b2, b3, _nb, _sb in rects_b:
+            hole += _circle_rect_penetration(cx, cy, r, (b0, b1, b2, b3))
+    return hole
+
+
+def _circle_rect_penetration(cx, cy, r, rect) -> float:
+    """How deep a circle penetrates a rect's keepout (0 when clear)."""
+    dx = max(rect[0] - cx, 0.0, cx - rect[2])
+    dy = max(rect[1] - cy, 0.0, cy - rect[3])
+    return max(0.0, r - math.hypot(dx, dy))
+
+
+# Above this many pad-pair tests the per-pad loop is skipped and the pair is
+# gated on extents + its seed baseline alone (BGA-vs-BGA); the exact report
+# still surfaces anything a candidate loop misses. The product is the
+# WINDOWED one (#1213, `_pad_windows`): only pads within reach of the other
+# part count, so a pair reaches the extent branch only when that many pads
+# genuinely face each other.
+PAIR_TEST_CAP = 4096
+
+
+def _rects_bbox(items):
+    """Bbox of `[(index, rect)]`'s rects."""
+    return (min(r[0] for _i, r in items), min(r[1] for _i, r in items),
+            max(r[2] for _i, r in items), max(r[3] for _i, r in items))
+
+
+def _pad_windows(rects_a, ea, rects_b, reach):
+    """`(wa, wb)`: `[(original index, rect)]` of each part's pads that can
+    interact with the other part within `reach` (#1213).
+
+    EXACT, not a heuristic: `rect_gap` never grows when its second rect grows
+    (each axis gap only shrinks), so a pad pair closer than `reach` has its
+    b-pad within reach of `ea` (which contains every a-pad), and its a-pad
+    within reach of the bbox of the surviving b-pads. Every pad pair the
+    sweep could charge -- `pad_short` needs a gap under the pair's floor, at
+    most `reach`; `stack` needs a negative gap -- therefore survives, in its
+    original order, and every dropped pair would have contributed nothing.
+
+    It exists for the hollow part: rp2350's U8 is a ring of 66 pins on the
+    board edge, and U6's 71 pads inside it made a 4686-pair product, so the
+    cap priced U6 against U8's EXTENT -- the whole board -- and no pose
+    anywhere was legal. Windowed, the product is 0.
+    """
+    wb = [(j, r) for j, r in enumerate(rects_b) if rect_gap(r, ea) < reach]
+    if not wb:
+        return [], []
+    bbb = _rects_bbox(wb)
+    wa = [(i, r) for i, r in enumerate(rects_a) if rect_gap(r, bbb) < reach]
+    if not wa:
+        return [], []
+    bba = _rects_bbox(wa)
+    wb = [(j, r) for j, r in wb if rect_gap(r, bba) < reach]
+    return wa, wb
+
+
+def _pose_key(pose) -> Tuple[float, float, float]:
+    """A pose as the gate's posed-pad cache keys it (#1127): two poses that
+    round together are posed once, so every exact answer is keyed the same."""
+    return (round(pose[0], 6), round(pose[1], 6),
+            round(pose[2] % 360.0, 6))
+
+
+class LegalityContext:
+    """Pad/hole legality for one engine run.
+
+    The engine supplies `pose_of(ref) -> (x, y, rot)` for CURRENT poses and
+    `seed_of(ref) -> (x, y, rot)` for the input board's poses; baselines are
+    computed lazily from seeds and never invalidated (seeds are constant for
+    the run, unlike incumbents).
+    """
+
+    def __init__(self, part_pads: Dict[str, PartPads],
+                 gate: Optional[BoardOutlineGate], clearance: float,
+                 pose_of, seed_of, model=None, keepouts=None):
+        self.parts = part_pads
+        self.gate = gate
+        self.clearance = clearance
+        # #1031: board rule-area keep-outs (RuleAreaKeepouts), or None. The
+        # search may not deepen any part's pads into a band beyond its SEED
+        # reach -- see keepout_ok.
+        self.keepouts = (keepouts if (keepouts is not None
+                                      and keepouts.active) else None)
+        self._keepout_seed: Dict[str, float] = {}
+        # #697: the per-pair required clearance, when the board declares one
+        # above the flat scalar (pad override / netclass / .kicad_dru rule).
+        # None -- the common case, and every board that declares nothing -- is
+        # the original flat-scalar path, unchanged and untouched.
+        self._floors = model if (model is not None and model.active) else None
+        self.pose_of = pose_of
+        self.seed_of = seed_of
+        self._baselines: Dict[Tuple[str, str], PairShortfall] = {}
+        # #1127: confirm a box stack on the pads' outlines. Fixed here, so a
+        # context never mixes the two answers -- `seed_baseline` caches its
+        # verdicts for the whole run.
+        self.stack_exact = bool(STACK_EXACT_CONFIRM)
+        # ...and the PAD conjunct on them, from the same switch: a stack-exact
+        # gate whose clearance shortfall stayed box refused 29 of #1064's 35
+        # C4/Y1 poses anyway (#1154). Two attributes so one can be measured
+        # without the other; the cached baselines make either fixed per run.
+        self.pad_exact = bool(STACK_EXACT_CONFIRM)
+        self._posed_pads: Dict[Tuple, Optional[List]] = {}
+        self._exact_memo: Dict[Tuple, object] = {}
+        # run-19: a PILE seed is not a license. Every conjunct of pads_ok is
+        # relative to seed_baseline, and on a pile the seed pair carries huge
+        # base.pad with pad_overlap and stack both True -- so ANY smaller
+        # intersection passed (measured: the SW23/SW28<->U2 blocker pairs).
+        # A seed bucket of >= 3 parts at one round(coord, 3) point is the
+        # pile signature; every part in one loses its baseline license and
+        # must be absolutely clean toward every neighbor. Deliberately above
+        # 2: a legitimate two-part by-design overlap (run 18's under-module
+        # R1<->U2 pairs) KEEPS its license.
+        _buckets: Dict[Tuple[float, float], List[str]] = {}
+        for _ref in part_pads:
+            _sx, _sy = seed_of(_ref)[:2]
+            _buckets.setdefault((round(_sx, 3), round(_sy, 3)),
+                                []).append(_ref)
+        self._degenerate_refs = frozenset(
+            r for refs in _buckets.values() if len(refs) >= 3 for r in refs)
+
+    @property
+    def pad_clearance_model(self):
+        """The active `PadClearanceModel`, or None for the flat scalar --
+        what `pad_pair_conflict` takes as `model` (#1065)."""
+        return self._floors
+
+    # -- pair measurement ------------------------------------------------------
+    def pair_shortfall(self, a: str, b: str, pose_a=None,
+                       pose_b=None) -> PairShortfall:
+        pa = self.parts.get(a)
+        pb = self.parts.get(b)
+        if pa is None or pb is None:
+            return ZERO_SHORTFALL
+        xa, ya, ra = pose_a if pose_a is not None else self.pose_of(a)
+        xb, yb, rb = pose_b if pose_b is not None else self.pose_of(b)
+        ea = pa.extent(xa, ya, ra)
+        eb = pb.extent(xb, yb, rb)
+        if ea is None or eb is None:
+            return ZERO_SHORTFALL
+        model = self._floors
+        # The pair's REACH: how far apart these two parts can still interact.
+        # With per-pad floors it is bounded by THESE TWO PARTS' own maxima, not
+        # by the board-wide maximum -- this test runs per candidate pose
+        # (quench.candidate_valid -> pads_ok), so a board-wide bound would slow
+        # every pair on the board for the sake of one fiducial.
+        pad_reach = (self.clearance if model is None
+                     else max(self.clearance, model.base,
+                              pa.max_floor, pb.max_floor))
+        # ...and the hole keep-outs, which no pad floor accounts for (#761).
+        # Kept as a SEPARATE name: the cap branch below charges its shortfall
+        # into the PAD channel, and folding the hole requirement into the
+        # number it charges bills one physical violation to two independent
+        # gates (`pads_ok` tests `cur.pad` and `cur.hole` as separate
+        # conjuncts, and quench sums `sf.hole` on its own). Measured on one
+        # hole at lc 1.0 with pads 0.30 off the wall, the only difference
+        # being the pad-pair product: 60x60 -> pad 0.0000, 70x70 -> pad
+        # 0.7000, hole 0.7000 in both.
+        reach = max(pad_reach, pa.hole_reach, pb.hole_reach)
+        if rect_gap(ea, eb) >= reach - EPS:
+            return ZERO_SHORTFALL
+        rects_a = pa.pad_rects(xa, ya, ra)
+        rects_b = pb.pad_rects(xb, yb, rb)
+        # #834: two parts whose pads share no copper face cannot interact
+        # through the PAD channel at all, so answer it here rather than in
+        # either branch below.
+        #
+        # This is EXACT, not conservative, which is what licenses it without
+        # an EPS. `_sides_interact(a, b)` is `a is None or b is None or
+        # a == b`, and a member of `pad_sides` is never None, so: if some pad
+        # pair passes that filter then either one side is None (and that pad
+        # contributes BOTH sides) or the two are equal -- either way the sets
+        # intersect; and if a side s is in both sets then each part has a pad
+        # with pside in {None, s}, which `_sides_interact` admits. Disjoint
+        # therefore holds if and only if the per-pad sweep below would find
+        # zero interacting pairs, so this returns exactly what it returns.
+        #
+        # Placed AFTER the broad-phase early-out and after the rect lists so
+        # only pairs that were about to run the O(n*m) loop pay for the
+        # intersection -- measured on ulx3s, ~0.14us against 310us for one
+        # 778-pad-pair sweep it replaces.
+        #
+        # The HOLE channel is still measured: `reach` above includes
+        # `hole_reach`, so a cross-side pair that interacts ONLY through a
+        # drill survives the broad phase and lands here, and an NPTH hole
+        # pierces both faces (see `footprint_has_through_pads`). Returning a
+        # blanket ZERO_SHORTFALL here would delete #761's channel for exactly
+        # those pairs. The singleton is returned only when neither part has a
+        # hole, where `_hole_shortfall` is 0.0 by construction -- and that is
+        # worth doing, because `pads_ok` short-circuits on its IDENTITY.
+        if not (pa.pad_sides & pb.pad_sides):
+            if not pa.holes_local and not pb.holes_local:
+                return ZERO_SHORTFALL
+            return PairShortfall(0.0, False,
+                                 _hole_shortfall(pa, xa, ya, ra, rects_b,
+                                                 pb, xb, yb, rb, rects_a),
+                                 False)
+        # #1213: the sweep and the cap see only the pads that can interact
+        # (`_pad_windows` says why that loses nothing). The hole channel below
+        # stays on the FULL lists: a keep-out's reach is not `reach`'s.
+        wa, wb = _pad_windows(rects_a, ea, rects_b, reach)
+        if len(wa) * len(wb) > PAIR_TEST_CAP:
+            # Extent-level verdict for the PAD channel only: charge the extent
+            # shortfall as pad shortfall so the baseline comparison still
+            # constrains the pair.
+            #
+            # The HOLE channel is measured anyway (#761). The cap exists for
+            # the pad x pad product; the hole loops are holes x pads, an order
+            # smaller on the one part that trips it -- glasgow_revC's J5 is 44
+            # pads and 2 NPTH drill circles against a 121-pad neighbour that
+            # has none, so 5324 pad pairs against 242 hole tests, a factor of
+            # 22. (First written as "4 holes / 660 tests / two orders", which
+            # a fact-check re-measured; the numbers are here rather than in a
+            # commit message so the next reader can check them.) Returning a
+            # hardcoded `hole=0.0` here made `cur.hole > base.hole` unable to
+            # fire for exactly the dense connectors that carry mounting holes,
+            # and that is corpus-reachable, not theoretical: J5 is the one part
+            # on the 22 tracked boards whose product exceeds the cap.
+            #
+            # ...which was wrong, and is corrected here (#834): 38 pairs on
+            # NINE of those boards exceed the cap, and J5 is not even the only
+            # over-cap part on glasgow (U1 x U30 is 83 x 121). The hole
+            # argument above still holds -- J5 remains the only over-cap part
+            # that CARRIES holes, which is what that paragraph is really
+            # about. Re-derive both with
+            # `tests/measure_834_835_side_awareness.py --table A`.
+            #
+            # The gap is taken PER SHARED SIDE, because the extent boxes above
+            # span both faces and a pair reaching this branch may share only
+            # one. Charging the whole-extent gap here priced a part on B
+            # against a BGA on F -- the same pair the per-pad sweep below
+            # discards on `_sides_interact` -- so the verdict turned on the
+            # pad-pair PRODUCT, a performance switch, rather than on physics.
+            # `min` because the pair interacts on whichever shared face brings
+            # them closest; `default` because a bare `min()` over an empty
+            # generator raises inside `quench.candidate_valid`'s inner loop,
+            # and "the disjoint case already returned above" is exactly the
+            # kind of unreachability that ships as a crash.
+            #
+            # `pad_overlap` and `stack` follow the same g. `stack` becoming
+            # side-aware is the correction, not a side effect: the per-pad
+            # sweep below sets it only AFTER `_sides_interact`, and
+            # `render_placement` already prints front-to-back overlaps as
+            # "opposite faces, NOT a conflict" while this branch refused them.
+            g = min((rect_gap(pa.extent_side(xa, ya, ra, s),
+                              pb.extent_side(xb, yb, rb, s))
+                     for s in ('F', 'B')
+                     if pa.extent_side(xa, ya, ra, s) is not None
+                     and pb.extent_side(xb, yb, rb, s) is not None),
+                    default=rect_gap(ea, eb))
+            return PairShortfall(max(0.0, pad_reach - g), g < 0.0,
+                                 _hole_shortfall(pa, xa, ya, ra, rects_b,
+                                                 pb, xb, yb, rb, rects_a),
+                                 g < 0.0)
+        floors_a = pa.pad_floors if model is not None else None
+        floors_b = pb.pad_floors if model is not None else None
+        pad_short = 0.0
+        overlap = False
+        stack = False
+        clr = self.clearance
+        for ai, (a0, a1, a2, a3, na, sa) in wa:
+            fa = floors_a[ai] if floors_a else None
+            for bi, (b0, b1, b2, b3, nb, sb) in wb:
+                if not _sides_interact(sa, sb):
+                    continue
+                g = rect_gap((a0, a1, a2, a3), (b0, b1, b2, b3))
+                if g < 0.0 and not stack:
+                    # any-net physical intersection: the assembly channel,
+                    # measured BEFORE the same-net skip below (which exists
+                    # for the SHORT semantics only). #1127: under
+                    # STACK_EXACT_CONFIRM a box hit counts only when the two
+                    # pads' outlines intersect, check_assembly's own test --
+                    # a rotated near-touch the boxes overlap is not a stack.
+                    stack = (not self.stack_exact
+                             or self._stack_confirmed(a, ai, (xa, ya, ra),
+                                                      b, bi, (xb, yb, rb)))
+                if na == nb and na > 0:
+                    continue
+                # Cheap pre-reject before resolving the pair's requirement: it
+                # can never exceed `reach`, so a gap at or beyond it is clear
+                # whatever the two pads declare.
+                if g >= reach - EPS:
+                    continue
+                eff = clr if fa is None else model.pair(fa, floors_b[bi])
+                if g < eff - EPS:
+                    # #1127: under the switch the box hit is re-measured on
+                    # the pads' outlines, and the PAD conjunct charges what
+                    # check_drc would grade -- 0.0 for a box-only graze. A
+                    # short is then a different-net stack, the very
+                    # predicate `stack` confirms with.
+                    conf = (self._pad_confirmed(a, ai, (xa, ya, ra),
+                                                b, bi, (xb, yb, rb), eff)
+                            if self.pad_exact else None)
+                    if conf is not None:
+                        pad_short += conf
+                        if g < 0.0 and conf > 0.0 and not overlap:
+                            overlap = self._stack_confirmed(
+                                a, ai, (xa, ya, ra), b, bi, (xb, yb, rb))
+                        continue
+                    pad_short += eff - g
+                    if g < 0.0:
+                        overlap = True
+        # #761: keep-outs, not inflations -- the requirement is the stored
+        # growth PLUS the flat clearance, and the rects below are raw.
+        return PairShortfall(pad_short, overlap,
+                             _hole_shortfall(pa, xa, ya, ra, rects_b,
+                                             pb, xb, yb, rb, rects_a),
+                             stack)
+
+    def _posed_copper(self, ref: str, pose) -> Optional[List]:
+        """`ref`'s COPPER pads, real `Pad` copies at `pose`, in the index
+        order `pad_rects` emits (#1127); None when the part carries no
+        snapshot. Cached by pose, bounded."""
+        key = (ref,) + _pose_key(pose)
+        if key in self._posed_pads:
+            return self._posed_pads[key]
+        pp = self.parts.get(ref)
+        snap = getattr(pp, 'fp_snapshot', None) if pp is not None else None
+        out = None
+        if snap is not None:
+            posed = footprint_at_pose(snap, tuple(pose))
+            out = [p for p in posed.pads if _pad_carries_copper(p)]
+            if len(out) != pp.n_pads:
+                out = None
+        if len(self._posed_pads) > 4096:
+            self._posed_pads.clear()
+        self._posed_pads[key] = out
+        return out
+
+    def _stack_confirmed(self, a, ai, pose_a, b, bi, pose_b) -> bool:
+        """Is the box hit between pad `ai` of `a` and pad `bi` of `b` a real
+        intersection (#1127)? `_exact_pad_stack` on the posed pads, on the
+        two outer faces -- the shared-face question `_sides_interact` already
+        answered for the boxes. True, the box's answer, whenever a pad
+        cannot be posed: the gate may falsely reject, never falsely accept."""
+        key = ('stack', a, ai, _pose_key(pose_a), b, bi, _pose_key(pose_b))
+        got = self._exact_memo.get(key)
+        if got is not None:
+            return got
+        pa_pads = self._posed_copper(a, pose_a)
+        pb_pads = self._posed_copper(b, pose_b)
+        if (pa_pads is None or pb_pads is None or ai >= len(pa_pads)
+                or bi >= len(pb_pads)):
+            return True
+        return self._remember(key, _exact_pad_stack(
+            pa_pads[ai], pb_pads[bi], ['F.Cu', 'B.Cu']))
+
+    def _pad_confirmed(self, a, ai, pose_a, b, bi, pose_b,
+                       eff: float) -> Optional[float]:
+        """The clearance shortfall (mm) between pad `ai` of `a` and pad `bi`
+        of `b` on the pads' OUTLINES (#1127): check_drc's
+        `check_pad_pad_overlap` -- the check check_drc grades pad-pad
+        clearance with, and `grade_pad_legality` confirms its census with --
+        at the pair's requirement `eff` (`PadClearanceModel.pair`, check_drc's
+        own resolution) and margin 0, on the two outer faces as
+        `_stack_confirmed` asks. 0.0 when the outlines clear `eff`. None, the
+        box's answer, whenever a pad cannot be posed: the gate may falsely
+        reject, never falsely accept."""
+        key = ('pad', a, ai, _pose_key(pose_a), b, bi, _pose_key(pose_b), eff)
+        got = self._exact_memo.get(key)
+        if got is not None:
+            return got
+        pa_pads = self._posed_copper(a, pose_a)
+        pb_pads = self._posed_copper(b, pose_b)
+        if (pa_pads is None or pb_pads is None or ai >= len(pa_pads)
+                or bi >= len(pb_pads)):
+            return None
+        from check_drc import check_pad_pad_overlap
+        hit, over, _pt = check_pad_pad_overlap(pa_pads[ai], pb_pads[bi], eff,
+                                               ['F.Cu', 'B.Cu'],
+                                               clearance_margin=0.0)
+        return self._remember(key, float(over) if hit else 0.0)
+
+    def _remember(self, key, value):
+        """Memoise one exact pad-pair answer (#1127). The searches ask the
+        same posed pair over and over -- measured on StickHub's quench, 77,370
+        pad and 68,486 stack confirmations over 27,652 and 16,993 distinct
+        pairs -- and the answer is a function of the pair's `_pose_key`s, the
+        key `_posed_copper` poses by. Bounded the same way."""
+        if len(self._exact_memo) > 65536:
+            self._exact_memo.clear()
+        self._exact_memo[key] = value
+        return value
+
+    def seed_baseline(self, a: str, b: str) -> PairShortfall:
+        # The single choke point every consumer routes through (pads_ok and
+        # swap_pads_ok): a part from a degenerate seed bucket gets the ZERO
+        # baseline, which is exactly the semantics a pile deserves.
+        if a in self._degenerate_refs or b in self._degenerate_refs:
+            return ZERO_SHORTFALL
+        key = (a, b) if a <= b else (b, a)
+        base = self._baselines.get(key)
+        if base is None:
+            base = self.pair_shortfall(key[0], key[1],
+                                       pose_a=self.seed_of(key[0]),
+                                       pose_b=self.seed_of(key[1]))
+            self._baselines[key] = base
+        return base
+
+    # -- the gate --------------------------------------------------------------
+    def pads_ok(self, ref: str, x: float, y: float, rot: float,
+                neighbors: Iterable[str], exclude=None, why=None) -> bool:
+        """May `ref` take this pose? Per neighbor: no worse than the SEED
+        baseline, and a NEW different-net pad intersection is never admitted.
+
+        #1031: and no deeper into a rule-area keep-out band than the seed
+        (`keepout_ok`). Folded in HERE, the one choke point, so every search
+        move is covered -- candidate_valid (both branches), the swap phase
+        (`swap_pads_ok`) and relocate's block shift all call this.
+
+        `why` (#1113, `QuenchState.candidate_veto`): a dict that receives the
+        refusing check and neighbour, first refusal only; None costs nothing."""
+        if ref not in self.parts:
+            return True
+        if not self.keepout_ok(ref, x, y, rot):
+            if why is not None and 'check' not in why:
+                why.update(check='keepout_band', blocker=None)
+            return False
+        pose = (x, y, rot)
+        for nb in neighbors:
+            if nb == ref or (exclude is not None and nb in exclude):
+                continue
+            cur = self.pair_shortfall(ref, nb, pose_a=pose)
+            if cur is ZERO_SHORTFALL:
+                continue
+            base = self.seed_baseline(ref, nb)
+            kind = ('pad' if cur.pad > base.pad + EPS else
+                    'pad_overlap' if cur.pad_overlap and not base.pad_overlap
+                    # run-6: a NEW any-net pad stack (two footprints' copper
+                    # in the same space) is never admitted -- the same-net
+                    # C14-on-R14 class the short conjunct above cannot see
+                    else 'stack' if cur.stack and not base.stack
+                    else 'hole' if cur.hole > base.hole + EPS else None)
+            if kind is not None:
+                if why is not None and 'check' not in why:
+                    why.update(check='pads', blocker=nb, kind=kind)
+                return False
+        return True
+
+    def keepout_amount(self, ref: str, x: float, y: float,
+                       rot: float) -> float:
+        """This part's worst ILLEGAL keep-out pad reach at a pose (#1031), in
+        mm -- `RuleAreaKeepouts.part_amount`, the gates' own currency."""
+        pp = self.parts.get(ref)
+        if pp is None or self.keepouts is None:
+            return 0.0
+        return self.keepouts.part_amount(ref, pp.pad_rects(x, y, rot),
+                                         pp._delta_key(rot))
+
+    def keepout_ok(self, ref: str, x: float, y: float, rot: float) -> bool:
+        """No worse than the SEED on the rule-area keep-out term (#1031).
+
+        Seed-relative like every pads_ok conjunct: a part the input already
+        seats in a band may move within it or out of it, and a part that was
+        clear may not move in. Absolute would freeze a damaged part in place.
+        """
+        if self.keepouts is None or ref not in self.parts:
+            return True
+        cur = self.keepout_amount(ref, x, y, rot)
+        if cur <= EPS:
+            return True
+        base = self._keepout_seed.get(ref)
+        if base is None:
+            # a pile seed is not a license (run-19), same as seed_baseline
+            base = (0.0 if ref in self._degenerate_refs
+                    else self.keepout_amount(ref, *self.seed_of(ref)))
+            self._keepout_seed[ref] = base
+        return cur <= base + EPS
+
+    def pad_oob_amount(self, ref: str, x: float, y: float, rot: float,
+                       exact: bool = True, edges=None) -> float:
+        """Board-boundary violation of the part's PAD extent (catches pads off
+        the board even when a bad courtyard rect is inside)."""
+        pp = self.parts.get(ref)
+        if pp is None or self.gate is None:
+            return 0.0
+        ext = pp.extent(x, y, rot)
+        if ext is None:
+            return 0.0
+        return self.gate.rect_outside_amount(ext, exact=exact, edges=edges)
+
+
+def format_waiver_warnings(grade, limit: int = 6):
+    """Lines naming declared waivers that resolved to nothing (#897).
+
+    ONE spelling, beside the measure, because every consumer that passes
+    `intent_waivers` needs to say the same thing and the first cut said it in
+    `check_assembly` only -- so `place_reconstruct --intent`, which takes the
+    same waivers, still swallowed a stale one silently.
+
+    `waivers_unresolved` names a ref the board does not have: a rename or a
+    deletion, and the pair it was written for is back in the census under
+    whatever class label it now gets. `waivers_unused` is quieter -- the refs
+    exist and no waivable overlap was found for them -- so it is reported only
+    as a note, and only when there is one.
+    """
+    out = []
+    for _p in (grade.get('waivers_unresolved') or ())[:limit]:
+        out.append(f"WARNING: overlap_waivers pair {_p[0]}<->{_p[1]} names a "
+                   f"reference this board does not have -- it waives nothing")
+    _unused = grade.get('waivers_unused') or ()
+    if _unused:
+        out.append("note: %d declared waiver(s) matched no waivable overlap "
+                   "(%s) -- harmless, and the first thing to check if a waiver "
+                   "stopped working. A pad-on-pad contact is never waivable, so "
+                   "such a pair lands here too."
+                   % (len(_unused),
+                      ', '.join(f"{a}<->{b}" for a, b in _unused[:limit])))
+    return out
+
+
+def format_required_clause(report, limit: int = 6) -> str:
+    """One line naming the pairs graded ABOVE the board-wide clearance, and WHY.
+
+    Lives beside the measure for the same reason `format_oob_clause` does: a
+    printed basis hand-copied into each CLI is the Class-2 drift CLAUDE.md
+    warns about, and no parity gate covers a print.
+
+    Without this the #697 fix would trade one confusing report for another --
+    the census would start counting a pair that is nowhere near the `--clearance`
+    the run announced, with nothing on screen to explain the gap. Returns ''
+    when every pair is graded at the flat scalar, which is the common case.
+    """
+    rows = list(report.get('required') or [])
+    if not rows:
+        return ''
+    shown = ', '.join('{}<->{} requires {:g}mm ({})'.format(a, b, mm, src)
+                      for a, b, mm, src in rows[:limit])
+    more = ' ... showing {} of {}'.format(limit, len(rows)) if len(rows) > limit else ''
+    return shown + more
+
+
+def format_oob_clause(report, limit: int = 6) -> str:
+    """One line naming the off-board parts AND which measure produced them.
+
+    Lives beside the measure so the CLIs that print it cannot drift -- hand
+    copying a basis string into each is the Class-2 CLI drift CLAUDE.md warns
+    about, and no parity gate covers a print.
+
+    Sorted by AMOUNT, worst first. Sorting by ref and then truncating hides the
+    offenders that matter: on one board the four mounting holes at 3.0mm sat
+    behind five fiducials at 0.875mm. That is the run-4 census-cap defect,
+    which this module already records elsewhere.
+    """
+    refs = list(report.get('oob_pad_refs') or [])
+    if not refs:
+        return ''
+    refs.sort(key=lambda ra: -ra[1])
+    shown = ', '.join('{} ({}mm)'.format(r, a) for r, a in refs[:limit])
+    more = ' ... showing {} of {}'.format(limit, len(refs)) if len(refs) > limit else ''
+    basis = (
+        "    (part pad AABB -- pads PLUS NPTH drill circles, summed over the "
+        "union rect's four sides -- against an outline inflated by the GRADING "
+        "CLEARANCE. It moves when --clearance moves, so a hit here is not "
+        "necessarily copper off the outline. The per-pad, margin-0 outline "
+        "measure is render_placement's checklist.a_off_outline.pad_copper.)")
+    return shown + more + "\n" + basis
+
+
+def pad_shape_is_modelled(pad) -> bool:
+    """Can `grade_pad_edge_clearance` compute this pad's copper extrema?
+
+    Parsed polygons, or one of the four analytic shapes. Anything else -- a
+    trapezoid, a custom pad with no primitives -- is recorded as unmeasured
+    and produces no finding, so a consumer that reads findings alone learns
+    nothing about where its copper reaches. Public because #961's connector
+    evidence has to ask the same question, and asking it by matching the
+    grader's free-text reason would break on any wording change.
+    """
+    return (bool(getattr(pad, 'polygons', None))
+            or pad.shape in ('rect', 'roundrect', 'circle', 'oval'))
+
+
+def _segments_cover_rectangle(segments, bounds) -> bool:
+    """Every source edge belongs to, and exactly covers, the rectangle."""
+    if not segments or not bounds:
+        return False
+    x0, y0, x1, y1 = bounds
+    sides = [[], [], [], []]
+    for a, b in segments:
+        for index, (axis, fixed) in enumerate(((0, x0), (0, x1), (1, y0), (1, y1))):
+            if abs(a[axis]-fixed) <= EPS and abs(b[axis]-fixed) <= EPS:
+                sides[index].append(sorted((a[1-axis], b[1-axis])))
+                break
+        else:
+            return False
+    for intervals, low, high in zip(sides, (y0, y0, x0, x0), (y1, y1, x1, x1)):
+        cursor = low
+        for start, end in sorted(intervals):
+            if abs(start-cursor) > EPS or end-start <= EPS:
+                return False
+            cursor = end
+        if abs(cursor-high) > EPS:
+            return False
+    return True
+
+
+class PadCopper(NamedTuple):
+    """One copper pad's edge reading, as `EdgeCopperContext` measures it.
+
+    `amount_mm` is how far the pad's copper falls short of the context's
+    required inset: `required - gap` on the analytic path, the DRC sampler's
+    amount on a sampled outline, and None when nothing about the pad can be
+    measured (no outline, or a shape the grader cannot model). `gap_mm` is
+    None on the sampled path, which reports no gap. `reason` is the grader's
+    `unmeasured` row text for this pad, '' when it writes none -- a pad can be
+    measured AND carry a reason (approximated shapes, sampled outlines).
+    """
+    index: int
+    pad: object
+    amount_mm: Optional[float]
+    gap_mm: Optional[float]
+    edge: str
+    basis: str
+    reason: str
+
+
+class PoseCopper(NamedTuple):
+    """One footprint's readings summarised: `worst_mm` over measured pads,
+    `clears` when no measured pad falls short by more than EPS (exactly when
+    `EdgeCopperContext.grade` would write no finding for it), `certified`
+    when the outline is certified rectangular, no edge rule is unmeasured and
+    every pad was measured without a reason, `fallback` the indices of pads
+    with no measurable amount."""
+    pads: Tuple[PadCopper, ...]
+    worst_mm: Optional[float]
+    worst_index: Optional[int]
+    clears: bool
+    certified: bool
+    fallback: Tuple[int, ...]
+
+
+class _PosedPad:
+    """A pad moved to a trial pose, carrying exactly the attributes the edge
+    grader reads (`_pad_has_no_copper`, `pad_shape_is_modelled`, the analytic
+    extrema and `check_drc._pad_perimeter_points`).
+
+    Transient: never hand one to an id-keyed cache such as
+    `check_drc._PAD_PERIMETER_CACHE`, whose fingerprint omits `rect_rotation`
+    and whose ids are reused as soon as the proxy is freed.
+    """
+    __slots__ = ('pad_number', 'pad_type', 'layers', 'shape', 'size_x', 'size_y',
+                 'roundrect_rratio', 'rect_rotation', 'rotation', 'global_x',
+                 'global_y', 'polygons', 'geometry_approximations')
+
+
+def _custom_box_at_pose(original, posed, delta):
+    """A CUSTOM pad's board-frame size box after a turn of `delta` (#1123).
+
+    The parser's box is symmetric about the anchor and encloses every
+    primitive, its stroke and the anchor (`kicad_parser.
+    _custom_pad_board_extent`). A QUARTER turn swaps its extents and a half
+    turn keeps them, exactly as a re-parse gives -- so both inherit whatever
+    the parser's box misses (up to 0.0236 mm2 of a pad's drawn shape on KiCad's
+    jetson demo, at file pose too: H1-H13's custom pads, which are paste-only
+    apertures, not copper). Any other angle takes the anchor-symmetric extent
+    of the posed polygon vertices, which encloses the posed shape by
+    construction and can differ from a re-parse either way: 0.29 mm WIDER
+    on those jetson pads at 33 degrees, where the parser's own box leaves
+    0.042 mm2 of the shape outside it, and 0.07 mm NARROWER on
+    RoyalBlue54L's U5 at 45, where the parser boxes a round anchor's
+    corners. #1123's census (865 custom pad x angle cases on 10 boards):
+    no pad shape outside the posed box at any oblique angle. A re-parse cannot
+    be reproduced here: `Pad` keeps the primitives' polygons, not their
+    text.
+    """
+    if abs(math.remainder(delta, 90.0)) <= 1e-9:
+        if int(round(delta / 90.0)) % 2:
+            return original.size_y, original.size_x
+        return original.size_x, original.size_y
+    pts = [pt for poly in posed.polygons for pt in poly]
+    return (2.0 * max(abs(u - posed.global_x) for u, _v in pts),
+            2.0 * max(abs(v - posed.global_y) for _u, v in pts))
+
+
+def pads_at_pose(fp, pose) -> List[_PosedPad]:
+    """`fp.pads` as they would sit with the footprint at `pose`.
+
+    `pose` is `(x, y, rot)` in the footprint's own `x`/`y`/`rotation`
+    convention -- the one `quench.Part` and `connector_geometry` use -- so a
+    trial rotation turns every pad about the footprint origin by
+    `rot - fp.rotation`. No side change: a pose never flips a part.
+
+    The copper centre is rotated (a drill offset turns with it), the pad angle
+    advances by the same delta, and the size and residual tilt are re-resolved
+    through the parser's own `_resolve_pad_rect` after undoing its near-90
+    size bake, so the tilt keeps the sign the DRC sampler applies. Custom pad
+    polygons are transformed point by point, and their size box is re-derived
+    for the new angle (`_custom_box_at_pose`, #1123): the box IS read -- by
+    `check_pads.pad_outline_polygon` wherever the parser could not draw the
+    copper, by `pad_half_extents`, and by every trial-pose consumer of
+    `footprint_at_pose` -- and carried unchanged it missed copper after any
+    turn other than a half one (tigard JP1/JP2, 0.402 mm2 outside it at +90).
+
+    It agrees with writing the pose and re-parsing -- except a CUSTOM pad's
+    box at an oblique angle, which `_custom_box_at_pose` derives from the
+    copper and can differ from a re-parse either way -- to within the
+    parser's own nanometre snap for poses the writer stores EXACTLY -- coordinates of a few
+    decimals (the seat ladder rounds to 3) and angles of at most six
+    significant digits. The writer prints angles with `%g`, so a
+    full-precision angle is written rounded (measured: 4.1e-5 mm at
+    -126.16549296222809 deg), and an angle within float noise of the parser's
+    1-degree size bake can land on the other side of it.
+    """
+    from kicad_parser import _PAD_ORTHO_TOL, _resolve_pad_rect
+    x, y, rot = pose
+    ox, oy = fp.x, fp.y
+    delta = rot - (fp.rotation or 0.0)
+    c, s = math.cos(math.radians(delta)), math.sin(math.radians(delta))
+    posed = []
+    for original in fp.pads:
+        pad = _PosedPad()
+        a, b = original.global_x - ox, original.global_y - oy
+        pad.global_x, pad.global_y = x + c*a + s*b, y - s*a + c*b
+        pad.pad_number = original.pad_number
+        pad.pad_type = getattr(original, 'pad_type', '')
+        pad.layers = original.layers
+        pad.shape = original.shape
+        pad.roundrect_rratio = getattr(original, 'roundrect_rratio', 0.0)
+        pad.geometry_approximations = getattr(original, 'geometry_approximations', ())
+        base = getattr(original, 'rotation', 0.0) or 0.0
+        pad.rotation = (base + delta) % 360
+        polygons = getattr(original, 'polygons', None)
+        if polygons:
+            pad.polygons = [[(x + c*(u-ox) + s*(v-oy), y - s*(u-ox) + c*(v-oy))
+                             for u, v in poly] for poly in polygons]
+            pad.size_x, pad.size_y = _custom_box_at_pose(original, pad, delta)
+            pad.rect_rotation = getattr(original, 'rect_rotation', 0.0)
+        else:
+            pad.polygons = polygons
+            size_x, size_y = original.size_x, original.size_y
+            if abs(base % 180 - 90) <= _PAD_ORTHO_TOL:
+                size_x, size_y = size_y, size_x
+            pad.size_x, pad.size_y, pad.rect_rotation = _resolve_pad_rect(
+                size_x, size_y, pad.rotation)
+        posed.append(pad)
+    return posed
+
+
+def footprint_at_pose(fp, pose):
+    """A copy of `fp` at `pose` = `(x, y, rot)`, with REAL `Pad` copies moved by
+    `pads_at_pose`'s transform -- every other pad field (net, pin metadata,
+    castellation, local position) kept -- and a drill hole centre moved with its
+    copper. `fp` itself when it already sits at `pose`. For a grader asked about
+    a pose nothing has written yet (#975's grade delta); `pads_at_pose`'s
+    proxies carry only what the edge grader reads."""
+    import copy as _copy
+    x, y, rot = pose
+    if (fp.x, fp.y, (fp.rotation or 0.0) % 360.0) == (x, y, rot % 360.0):
+        return fp
+    delta = rot - (fp.rotation or 0.0)
+    c, s = math.cos(math.radians(delta)), math.sin(math.radians(delta))
+    moved = []
+    for original, posed in zip(fp.pads, pads_at_pose(fp, pose)):
+        pad = _copy.copy(original)
+        for name in ('global_x', 'global_y', 'rotation', 'size_x', 'size_y',
+                     'rect_rotation', 'polygons'):
+            setattr(pad, name, getattr(posed, name))
+        if getattr(original, 'hole_x', None) is not None:
+            a, b = original.hole_x - fp.x, original.hole_y - fp.y
+            pad.hole_x, pad.hole_y = x + c*a + s*b, y - s*a + c*b
+        moved.append(pad)
+    out = _copy.copy(fp)
+    out.pads = moved
+    out.x, out.y, out.rotation = x, y, rot
+    return out
+
+
+def _on_board(gate, x, y) -> bool:
+    """Is (x, y) on the board: the real rings when the gate has them, else
+    the bounds (a plain rectangular outline parses to no rings at all)."""
+    if gate.rings:
+        from check_drc import _point_on_board
+        return _point_on_board(x, y, gate.outer, gate.cutouts)
+    b = gate.bounds
+    return b is not None and b[0] <= x <= b[2] and b[1] <= y <= b[3]
+
+
+def _copper_vertices(geom) -> List[Tuple[float, float]]:
+    """The exterior vertices (closing point dropped) of every polygon part
+    of `geom` -- a custom pad's copper as the point list the outline gate
+    reads (#1123)."""
+    parts = [geom] if geom.geom_type == 'Polygon' else list(geom.geoms)
+    out: List[Tuple[float, float]] = []
+    for g in parts:
+        out.extend((float(x), float(y)) for x, y in list(g.exterior.coords)[:-1])
+    return out
+
+
+def pad_copper_outside_amount(pp, x: float, y: float, rot: float, gate,
+                              skip_rings=None) -> float:
+    """The worst SINGLE copper pad's outline violation, each pad's rect graded
+    alone -- `grade_pad_legality`'s `oob_pad_copper_refs` magnitude (#937),
+    which calls this, and `seeder.repair_placement`'s off-board census
+    (#1193). 0.0 for a part with no copper pads.
+
+    Never the part's pad UNION: on a notched outline that box's corner can
+    sit in the notch while no pad does (StickHub's locked J5, charged 0.65 mm
+    and exit 4 with `oob_pad_copper_refs` empty)."""
+    return max((gate.rect_outside_amount(r[:4], skip_rings=skip_rings)
+                for r in pp.pad_rects(x, y, rot)), default=0.0)
+
+
+def part_outline_rings(gate, pads):
+    """The interior rings `pads`' own centres enclose -- the #628 ownership
+    exemption (a part whose pads ring a milled relief owns that ring), shared
+    by `grade_pad_legality`'s two off-board censuses and the repair's."""
+    return gate.rings_enclosing([(p.global_x, p.global_y) for p in pads or ()])
+
+
+def pad_copper_overrun_mm(pads, gate) -> float:
+    """How far `pads`' copper reaches past the outline, in mm: THE gating
+    measure for pad copper off the board (#1096), shared by check_assembly
+    (via `grade_pad_legality`) and render_placement's `--gate`.
+
+    Each pad on its true outline (`check_pads.pad_outline_polygon`, arcs
+    sampled), so a round pad's bbox corner does not leave a curved board; a
+    CUSTOM pad on the vertices of its parsed copper (#1123), not its size
+    box, whose empty corner can read as off the board when no copper is.
+    It stays a distance read at the vertices -- the farthest copper past a
+    convex outline is a vertex -- so check_assembly's "mm past the outline"
+    keeps its unit. A curved primitive is a polygon INSCRIBED in its curve,
+    so its reach can read short by the parser's sagitta: R(1 - cos(pi/32))
+    for a `gr_circle` (a 32-gon, 4.8 um per mm of radius), at most 1 um for
+    a `gr_arc` stroke, at most 5 um for a polygon's arc or a round anchor.
+    A pad that puts no copper on a copper layer -- an NPTH hole, or a
+    paste-only aperture (a 1 mm F.Paste pad 3 mm off the board used to gate
+    its part at 3.21 mm, #1128) -- carries none past the outline either.
+    A CASTELLATED pad is exempt only while it STRADDLES the outline -- some
+    of its copper on the board, as a half-hole on a module edge is; one
+    wholly off the board counts like any other (a module parked off the
+    board is not on its edge). A pad whose
+    outline cannot be computed falls back to its rect, never to "clean".
+    """
+    from check_pads import custom_pad_copper, pad_outline_polygon
+    over = 0.0
+    for p in pads or ():
+        if not _pad_carries_copper(p):
+            continue
+        try:
+            copper = custom_pad_copper(p)
+            pts = (_copper_vertices(copper) if copper is not None
+                   else pad_outline_polygon(p))
+        except Exception:                                    # noqa: BLE001
+            pts = []
+        if len(pts) < 3:
+            hx, hy = pad_half_extents(p)
+            pts = [(p.global_x - hx, p.global_y - hy),
+                   (p.global_x + hx, p.global_y - hy),
+                   (p.global_x + hx, p.global_y + hy),
+                   (p.global_x - hx, p.global_y + hy)]
+        if getattr(p, 'castellated', False) and any(
+                _on_board(gate, x, y) for x, y in pts):
+            continue
+        over = max(over, gate.points_overrun_mm(pts))
+    return over
+
+
+def pad_copper_gating_mm(pp, fp, pose, gate) -> float:
+    """check_assembly's pad-copper GATE for one part at a TRIAL pose (#1257):
+    how far its copper reaches past the outline, 0.0 when the part would not
+    be listed in `oob_pad_copper_gating_refs` there.
+
+    The two steps `grade_pad_legality` takes, in its order: the per-pad rect
+    magnitude (`pad_copper_outside_amount`) as the filter, then the distance
+    on each pad's true outline with an edge-straddling castellated pad exempt
+    (`pad_copper_overrun_mm`) for a part the filter keeps -- so a round pad
+    whose box corner alone crosses a curved board, or a castellated module on
+    its edge, is not refused here either. `pp` is the part's `PartPads`, `fp`
+    its footprint at any pose (`footprint_at_pose` moves the real pads), and
+    `gate` a ZERO-margin `BoardOutlineGate`, at which the #628 owned-ring
+    exemption the grade passes changes nothing: a ring edge contributes only
+    within the margin and a swallowed ring adds the margin, both 0 there.
+    """
+    x, y, rot = pose
+    if pad_copper_outside_amount(pp, x, y, rot, gate) <= EPS:
+        return 0.0
+    return pad_copper_overrun_mm(footprint_at_pose(fp, pose).pads, gate)
+
+
+class EdgeCopperContext:
+    """`grade_pad_edge_clearance` with its per-board constants read once (#975).
+
+    Construction does every board-level read the grader did per call, in the
+    same order and with the same exceptions: the requirement is validated
+    before anything is read, the outline is certified rectangular from the
+    source file, the `.kicad_dru` edge rules and the `.kicad_pro` edge floor
+    are checked. After that `grade`, `pad_copper` and `pose_copper` read no
+    file. Footprints and pads are read LIVE on every call, so a caller that
+    moves a pad in place grades the moved pad.
+
+    There is deliberately no module-level cache: a candidate rewritten at the
+    same path (pose_ops) must be re-read. Hold a context for the life of one
+    board object instead (`edge_copper_for`).
+    """
+    __slots__ = ('pcb_data', 'path', 'required', 'bounds', 'rings', 'outer',
+                 'cutouts', 'rectangular', 'rules_unmeasured', 'clearance',
+                 'argument_mm', 'knobs', 'source', '_check_pad_board_edge')
+
+    def __init__(self, pcb_data, required: float, pcb_file=None):
+        from check_drc import board_edge_geometry, check_pad_board_edge
+
+        if not math.isfinite(required) or required < 0:
+            raise ValueError('board-edge-clearance must be finite and nonnegative (mm)')
+        bi = pcb_data.board_info
+        bounds = getattr(bi, 'board_bounds', None)
+        rings, outer, cutouts = board_edge_geometry(bi)
+        # Closed rings can omit open internal Edge.Cuts. Inspect ALL source edges
+        # even when a rectangular ring survived parsing; a ring/bbox alone cannot
+        # certify the outline. A live caller must supply its current saved board.
+        rectangular = False
+        source = pcb_file or getattr(pcb_data, 'source_path', None)
+        if source and bounds:
+            from kicad_parser import _collect_edge_cuts_segments
+            try:
+                with open(source, encoding='utf-8') as stream:
+                    segments = _collect_edge_cuts_segments(stream.read())
+                rectangular = _segments_cover_rectangle(segments, bounds)
+            except (OSError, ValueError):
+                pass
+        rules_unmeasured = []
+        if source:
+            from design_rules import parse_dru, validate_dru_structure
+            rule_path = os.path.splitext(source)[0] + '.kicad_dru'
+            if os.path.exists(rule_path):
+                try:
+                    with open(rule_path, encoding='utf-8') as stream:
+                        text = stream.read()
+                    validate_dru_structure(text)
+                    declared, _notes = parse_dru(text)
+                    rules_unmeasured = [
+                        {'rule': rule.name, 'source': rule_path,
+                         'constraint': 'edge_clearance',
+                         'declared': rule.constraints['edge_clearance'],
+                         'reason': 'custom edge rule not evaluated by scalar edge check'}
+                        for rule in declared if 'edge_clearance' in rule.constraints]
+                except (OSError, ValueError) as exc:
+                    rules_unmeasured = [{'source': rule_path,
+                                         'reason': 'custom rules unreadable: ' + str(exc)}]
+            from list_nets import read_design_rules
+            declared_edge = (read_design_rules(source).get('constraints') or {}).get(
+                'min_copper_edge_clearance')
+            if declared_edge is not None:
+                try:
+                    valid = math.isfinite(float(declared_edge)) and float(declared_edge) >= 0
+                except (TypeError, ValueError):
+                    valid = False
+                if not valid:
+                    rules_unmeasured.append({
+                        'source': os.path.splitext(source)[0] + '.kicad_pro',
+                        'constraint': 'min_copper_edge_clearance',
+                        'declared': repr(declared_edge),
+                        'reason': 'project edge clearance must be finite and nonnegative'})
+        self.pcb_data, self.path, self.required = pcb_data, source, required
+        self.bounds, self.rings, self.outer, self.cutouts = bounds, rings, outer, cutouts
+        self.rectangular = rectangular
+        # A tuple, so no caller can append to the board's constants; `grade`
+        # hands out a deep copy because callers mutate the result.
+        self.rules_unmeasured = tuple(rules_unmeasured)
+        self.clearance = self.argument_mm = self.knobs = self.source = None
+        self._check_pad_board_edge = check_pad_board_edge
+
+    @classmethod
+    def for_board(cls, pcb_data, pcb_file, clearance, edge_margin=None):
+        """Resolve the edge requirement as `grade_pad_legality` does -- an
+        explicit `edge_margin` wins, else the project's
+        `min_copper_edge_clearance`, else the fixed default -- and build the
+        context at it. `source` is the label `grade_pad_legality` publishes."""
+        from list_nets import board_floor_knobs
+        _, required, knobs = board_floor_knobs(
+            pcb_file or getattr(pcb_data, 'source_path', None), clearance, edge_margin)
+        ctx = cls(pcb_data, required, pcb_file)
+        ctx.clearance, ctx.argument_mm, ctx.knobs = clearance, edge_margin, knobs
+        ctx.source = ('caller argument' if edge_margin is not None else
+                      knobs['board_edge_clearance']['source'])
+        return ctx
+
+    def pad_copper(self, fp, pose=None) -> Tuple[PadCopper, ...]:
+        """One reading per copper pad of `fp`, in `fp.pads` order, at the
+        footprint's own pose or at `pose` (`pads_at_pose`). Pads with no copper
+        get no reading, as they get no grader row."""
+        pads = fp.pads if pose is None else pads_at_pose(fp, pose)
+        return tuple(self._readings(pads))
+
+    def _readings(self, pads):
+        required, bounds = self.required, self.bounds
+        for index, pad in enumerate(pads):
+            if _pad_has_no_copper(pad):
+                continue
+            polygons = getattr(pad, 'polygons', None)
+            supported = pad_shape_is_modelled(pad)
+            if not bounds or not supported:
+                yield PadCopper(index, pad, None, None, '', 'none', (
+                    'missing board outline' if not bounds else 'unsupported pad geometry'))
+                continue
+            approximations = getattr(pad, 'geometry_approximations', ())
+            reasons = (['simplified pad geometry: ' + ', '.join(approximations)]
+                       if approximations else [])
+            if pad.shape == 'circle' and abs(pad.size_x - pad.size_y) > EPS:
+                reasons.append('unequal-axis circle uses unsupported native geometry')
+            if not self.rectangular:
+                hit, amount, edge = self._check_pad_board_edge(
+                    pad, self.rings, self.outer, self.cutouts, required, bounds, 0.0)
+                reasons.append('outline uses sampled perimeter check')
+                # A miss reports (False, 0.0, ''), so the amount alone carries
+                # the verdict the grader reads as `hit and amount > EPS`.
+                yield PadCopper(index, pad, amount if hit else 0.0, None, edge,
+                                'sampled', '; '.join(reasons))
+                continue
+            if polygons:
+                # The parser tessellates custom circles/arcs into inscribed
+                # polygons. Their extrema can understate copper reach by more
+                # than EPS; keep the measured findings but never certify the
+                # native custom shape from that approximation.
+                reasons.append('custom pad uses parsed polygons')
+                points = [p for poly in polygons for p in poly]
+                x0, y0 = min(p[0] for p in points), min(p[1] for p in points)
+                x1, y1 = max(p[0] for p in points), max(p[1] for p in points)
+                basis = 'polygons'
+            else:
+                hx, hy = pad.size_x / 2, pad.size_y / 2
+                radius = (min(hx, hy) if pad.shape in ('circle', 'oval') else
+                          pad.roundrect_rratio * min(pad.size_x, pad.size_y)
+                          if pad.shape == 'roundrect' else 0.0)
+                radius = min(radius, hx, hy)
+                tilt = pad.rect_rotation or 0.0
+                if tilt == 0.0:
+                    # The shared broad phase bakes rotations within one degree
+                    # of a cardinal axis into size_x/y. Recover the remaining
+                    # tilt from the true pad angle for exact edge extrema.
+                    tilt = ((getattr(pad, 'rotation', 0.0) or 0.0) + 45) % 90 - 45
+                angle = math.radians(tilt)
+                c, s = abs(math.cos(angle)), abs(math.sin(angle))
+                ex = (hx-radius)*c + (hy-radius)*s + radius
+                ey = (hx-radius)*s + (hy-radius)*c + radius
+                x0, y0 = pad.global_x-ex, pad.global_y-ey
+                x1, y1 = pad.global_x+ex, pad.global_y+ey
+                basis = 'analytic'
+            gap, edge = min((x0-bounds[0], 'left'), (bounds[2]-x1, 'right'),
+                            (y0-bounds[1], 'bottom'), (bounds[3]-y1, 'top'))
+            yield PadCopper(index, pad, required - gap, gap, edge, basis,
+                            '; '.join(reasons))
+
+    def pose_copper(self, fp, pose=None) -> PoseCopper:
+        """`pad_copper` summarised for a search: is this footprint, at this
+        pose, clear of the requirement on every pad that can be measured?"""
+        readings = self.pad_copper(fp, pose)
+        worst = worst_index = None
+        fallback = []
+        certified = self.rectangular and not self.rules_unmeasured
+        for reading in readings:
+            if reading.amount_mm is None:
+                fallback.append(reading.index)
+                certified = False
+                continue
+            if reading.reason:
+                certified = False
+            # A NaN amount (a malformed pad size) is no finding in `grade`, so
+            # it is no shortfall here either -- and taken as `worst`, no later
+            # pad could ever replace it.
+            if reading.amount_mm != reading.amount_mm:
+                continue
+            if worst is None or reading.amount_mm > worst:
+                worst, worst_index = reading.amount_mm, reading.index
+        return PoseCopper(readings, worst, worst_index,
+                          worst is None or worst <= EPS, certified, tuple(fallback))
+
+    def grade(self, footprints=None) -> Dict:
+        """The `grade_pad_edge_clearance` result for `footprints` ({ref: fp},
+        default the board's own, read live). A fresh dict on every call."""
+        from copy import deepcopy
+        required = self.required
+        if footprints is None:
+            footprints = self.pcb_data.footprints
+        findings, unmeasured = [], []
+        measured = 0
+        minimum = None
+        # #961: the same minimum per part, so a consumer reporting ONE part's
+        # copper (an edge connector's evidence row) reads it rather than running
+        # this whole function once per part.
+        minimum_by_ref: Dict[str, float] = {}
+        for ref, fp in sorted(footprints.items()):
+            for reading in self._readings(fp.pads):
+                pad = reading.pad
+                identity = {'pad_ref': f'{ref}.{pad.pad_number}', 'pad_index': reading.index,
+                            'pad_loc': [pad.global_x, pad.global_y]}
+                if reading.reason:
+                    unmeasured.append(dict(identity, reason=reading.reason))
+                if reading.amount_mm is None:
+                    continue
+                if reading.gap_mm is None:
+                    if reading.amount_mm > EPS:
+                        findings.append(dict(identity, required_mm=required,
+                                             gap_mm=None, shortfall_mm=reading.amount_mm,
+                                             edge=reading.edge))
+                    continue
+                gap = reading.gap_mm
+                measured += 1
+                minimum = gap if minimum is None else min(minimum, gap)
+                minimum_by_ref[ref] = min(minimum_by_ref.get(ref, gap), gap)
+                amount = reading.amount_mm
+                if amount > EPS:
+                    findings.append(dict(identity, required_mm=required, gap_mm=gap,
+                                         shortfall_mm=amount, edge=reading.edge))
+        rules_unmeasured = deepcopy(list(self.rules_unmeasured))
+        return {'required_mm': required, 'tolerance_mm': EPS, 'units': 'mm',
+                'minimum_gap_mm': minimum, 'measured_pads': measured,
+                'minimum_gap_by_ref_mm': minimum_by_ref,
+                'complete': self.rectangular and not unmeasured and not rules_unmeasured,
+                'rules_unmeasured': rules_unmeasured,
+                'unmeasured': unmeasured, 'findings': findings,
+                'basis': ('analytic pad copper extrema (custom pads: parsed polygons) '
+                          'vs rectangular Edge.Cuts centreline; '
+                          'other outlines sampled, not certified; no body/track/via/fill check')}
+
+
+def edge_copper_for(holder, pcb_data, pcb_file, clearance, edge_margin):
+    """One `EdgeCopperContext` per holder (a search state), rebuilt when the
+    holder is asked about a different board object, path, clearance or edge
+    margin. Returns `(context, None)`, or `(None, error)` when the board's
+    constants cannot be read -- a failure is cached too, so a malformed
+    project costs one read per holder, not one per candidate.
+
+    The key is the board OBJECT, not its contents: a caller that edits
+    `pcb_data.board_info` in place would be served the old outline, so such a
+    caller builds its own context."""
+    key = (pcb_file or getattr(pcb_data, 'source_path', None), clearance, edge_margin)
+    hit = getattr(holder, '_edge_copper', None)
+    if hit is None or hit[0] is not pcb_data or hit[1] != key:
+        try:
+            hit = (pcb_data, key,
+                   EdgeCopperContext.for_board(pcb_data, pcb_file, clearance, edge_margin),
+                   None)
+        except Exception as exc:  # noqa: BLE001 -- reported, never raised mid-search
+            hit = (pcb_data, key, None, f'{type(exc).__name__}: {exc}')
+        holder._edge_copper = hit
+    return hit[2], hit[3]
+
+
+def grade_pad_edge_clearance(pcb_data, required: float, pcb_file=None) -> Dict:
+    """Pad copper inset, separate from physical containment and part AABBs.
+
+    Rectangular Edge.Cuts and supported pad shapes use analytic extrema,
+    including rounded corners and arbitrary rotation. Other parsed outlines
+    use the DRC perimeter sampler and explicitly remain partially measured.
+    EPS (1 nm) is an absolute numerical tolerance, not a rule relaxation.
+
+    Reads the board's constants afresh on every call; a caller grading many
+    poses of one board holds an `EdgeCopperContext` instead (#975).
+    """
+    return EdgeCopperContext(pcb_data, required, pcb_file).grade()
+
+
+def pad_pair_conflict(pp_a, rects_a, pads_a, pp_b, rects_b, pads_b,
+                      clearance, model, check_exact, routing_layers):
+    """How far two parts' pads fall short of their clearance: the census
+    `grade_pad_legality` takes per part pair, as a function (#1065).
+
+    `pp_*` are the parts' `PartPads`; `rects_*` their `pad_rects` at the pose
+    being graded, and `pads_*` their footprint's `Pad` objects AT THAT SAME
+    POSE (`_pad_with_copper` indexes them the way `rects_*` count). `model` is
+    the active `PadClearanceModel` or None (a flat `clearance`), and
+    `check_exact` is check_drc's `check_pad_pad_overlap` or None (the rect
+    gap alone).
+
+    Returns `(pair_mm, pair_hit, pair_required, pair_source)`: the summed
+    shortfall over the conflicting pad pairs, each at its own requirement --
+    the mm `grade_pad_legality` reports in `worst` -- whether any pad pair
+    conflicts, and the largest requirement charged with where it came from.
+
+    Lifted out VERBATIM so `render_placement`'s pad-clearance checklist can
+    CALL the grader instead of mirroring it with bounding-box gaps
+    (`LegalityContext.pair_shortfall` is the seeder and quench gate, and
+    stays as it is). Same-net pads never conflict here; a net-0 pad conflicts
+    with everything.
+    """
+    floors_a = pp_a.pad_floors if model is not None else None
+    floors_b = pp_b.pad_floors if model is not None else None
+    pair_reach = (clearance if model is None else
+                  max(clearance, model.base, pp_a.max_floor,
+                      pp_b.max_floor))
+    pair_mm = 0.0
+    pair_hit = False
+    pair_required = 0.0
+    pair_source = ''
+    for ai, (a0, a1, a2, a3, na, sa) in enumerate(rects_a):
+        fa = floors_a[ai] if floors_a else None
+        for bi, (b0, b1, b2, b3, nb, sb) in enumerate(rects_b):
+            if na == nb and na > 0:
+                continue
+            if not _sides_interact(sa, sb):
+                continue
+            g = rect_gap((a0, a1, a2, a3), (b0, b1, b2, b3))
+            if g >= pair_reach - EPS:
+                continue
+            if fa is None:
+                eff, src = clearance, ''
+            else:
+                eff, src = model.pair_with_source(fa, floors_b[bi])
+            if g >= eff - EPS:
+                continue
+            if check_exact is not None:
+                pa = _pad_with_copper(pads_a, ai, clearance)
+                pb = _pad_with_copper(pads_b, bi, clearance)
+                if pa is not None and pb is not None:
+                    hit, over, _pt = check_exact(pa, pb, eff,
+                                                 routing_layers,
+                                                 clearance_margin=0.0)
+                    if not hit:
+                        continue
+                    pair_mm += over
+                    pair_hit = True
+                    if eff > pair_required:
+                        pair_required, pair_source = eff, src
+                    continue
+            pair_mm += eff - g
+            pair_hit = True
+            if eff > pair_required:
+                pair_required, pair_source = eff, src
+    return pair_mm, pair_hit, pair_required, pair_source
+
+
+def grade_pad_legality(pcb_data, clearance: float, exact: bool = True,
+                       edge_margin: Optional[float] = None,
+                       worst_n: int = 10,
+                       pcb_file: str = None,
+                       declared_keepouts=()) -> Dict[str, object]:
+    """Board-level pad/hole legality audit at the FILE's own poses.
+
+    AABB broad phase over all cross-footprint pad pairs; with `exact` (the
+    default) every AABB hit is re-verified with check_drc's exact pad geometry
+    so the report carries no bbox phantoms on round/rotated pads. Returns::
+
+        {'pad_conflicts': int, 'pad_shortfall': mm, 'hole_conflicts': int,
+         'oob_pad_count': int, 'oob_pad_amount': mm,
+         'pad_edge_conflicts': int, 'pad_edge_shortfall': mm,
+         'pad_edge_unmeasured': int, 'pad_edge': dict,
+         'worst': [(refA, refB, mm), ...],
+         'required': [[refA, refB, mm, source], ...], 'exact': bool}
+
+    `clearance` is the BOARD-WIDE floor, not the whole requirement. Each pair is
+    graded at check_drc's own value -- max over the two nets' net classes, the
+    board's .kicad_dru per-layer rules, and either pad's `local_clearance`
+    override -- resolved by `PadClearanceModel` (#697). Pairs whose requirement
+    exceeds `clearance` are named in `required` with the source that raised
+    them, mirroring check_drc's `required_mm` disclosure; a board that declares
+    none of the three grades exactly as it did before.
+
+    `worst` deliberately stays a 3-tuple: seeder's repair census unpacks it
+    positionally, and the disclosure rides the separate `required` list.
+
+    `edge_margin` now sets the independent per-pad edge requirement, resolved
+    from the project (else .55 mm) when absent. The historical `oob_pad_*`
+    part-AABB diagnostic stays at `clearance`; the physical per-pad census
+    stays at margin zero. `exact` describes the pad-pair checker only: edge
+    coverage is separately recorded in `pad_edge.complete`.
+
+    Consumers: place_optimize / place_seed JSON summaries, the render
+    legality overlay, and the reconstruct gate.
+    """
+    # The legacy part-AABB diagnostic keeps its copper-clearance inset.
+    # The independent per-pad channel enforces the resolved edge requirement;
+    # increasing an edge floor must not invent whole-part AABB phantoms.
+    edge_ctx = EdgeCopperContext.for_board(pcb_data, pcb_file, clearance, edge_margin)
+    edge_grade = edge_ctx.grade()
+    edge_grade['source'] = edge_ctx.source
+    edge_grade['argument_mm'] = edge_margin
+    fps = pcb_data.footprints
+    pads_by_ref = {ref: [p for p in fp.pads] for ref, fp in fps.items()}
+    model = PadClearanceModel.for_board(pcb_data, clearance, pcb_file)
+    # Keep the notes even when the model is dropped: a source that FAILED to
+    # read is exactly what makes the model look inert, so reading them off the
+    # dropped object loses them in the one case they matter.
+    clearance_notes = list(model.notes)
+    if not model.active:
+        model = None
+    # The census reads hole keep-outs, so it carries the board's own
+    # copper-to-hole floor. The three call sites that read only pad rects and
+    # extents (legality's pad_intersection channel, routability, seeder's
+    # off-board census) deliberately do not: for them the term would resolve a
+    # board and change nothing.
+    parts = build_part_pads(
+        fps, clearance, model,
+        npth_floor=resolve_npth_floor(pcb_data, pcb_file, clearance_notes))
+    routing_layers = list(getattr(pcb_data.board_info, 'copper_layers', []) or [])
+    check_exact = None
+    if exact:
+        try:
+            from check_drc import check_pad_pad_overlap
+            check_exact = check_pad_pad_overlap
+        except Exception:
+            check_exact = None
+
+    # cell hash over pad rects at file poses
+    cell = 4.0
+    grid: Dict[Tuple[int, int], set] = {}
+    entries = {}
+    for ref, pp in parts.items():
+        fp = fps[ref]
+        rects = pp.pad_rects(fp.x, fp.y, fp.rotation or 0.0)
+        holes = pp.hole_keepouts(fp.x, fp.y, fp.rotation or 0.0)  # #761
+        entries[ref] = (rects, holes)
+        ext = pp.extent(fp.x, fp.y, fp.rotation or 0.0)
+        if ext is None:
+            continue
+        for gx in range(int(ext[0] // cell), int(ext[2] // cell) + 1):
+            for gy in range(int(ext[1] // cell), int(ext[3] // cell) + 1):
+                grid.setdefault((gx, gy), set()).add(ref)
+
+    # The census reach. Unlike the per-candidate gate this runs ONCE, and the
+    # requirement is a max over BOTH members of a pair -- so the halo must cover
+    # the largest floor any partner could contribute, which is the board-wide
+    # maximum. Under-reaching here is how the original bug hid: a fiducial
+    # keep-clear 1.016mm wide never entered a census bounded at 0.15 + 0.5.
+    board_max_floor = max([pp.max_floor for pp in parts.values()] or [0.0])
+    # ...plus the hole keep-outs (#761): same argument, and the same reason
+    # the per-candidate gate needs it -- an NPTH hole contributes to no pad
+    # floor, so a halo bounded by floors alone never reaches one.
+    board_max_hole = max([pp.hole_reach for pp in parts.values()] or [0.0])
+    census_reach = max(clearance, board_max_floor, board_max_hole,
+                       model.base if model is not None else 0.0)
+
+    def near_refs(ref):
+        fp = fps[ref]
+        pp = parts[ref]
+        ext = pp.extent(fp.x, fp.y, fp.rotation or 0.0)
+        if ext is None:
+            return ()
+        out = set()
+        m = census_reach + 0.5
+        for gx in range(int((ext[0] - m) // cell), int((ext[2] + m) // cell) + 1):
+            for gy in range(int((ext[1] - m) // cell), int((ext[3] + m) // cell) + 1):
+                out |= grid.get((gx, gy), set())
+        out.discard(ref)
+        return out
+
+    pad_conflicts = 0
+    pad_shortfall = 0.0
+    hole_conflicts = 0
+    worst: List[Tuple[str, str, float]] = []
+    # #1100: WHICH pairs conflict, uncapped (`worst` is capped at `worst_n`
+    # and the hole channel records none), so place_pose can refuse a move
+    # that makes a NEW pair while the counts merely tie.
+    pad_pairs: List[List[str]] = []
+    hole_pairs: List[List[str]] = []
+    required: List[list] = []
+    seen_pairs = set()
+    for ref in sorted(parts):
+        rects_a, holes_a = entries[ref]
+        for other in near_refs(ref):
+            key = (ref, other) if ref <= other else (other, ref)
+            if key in seen_pairs:
+                continue
+            seen_pairs.add(key)
+            rects_b, holes_b = entries[other]
+            pair_mm, pair_hit, pair_required, pair_source = pad_pair_conflict(
+                parts[ref], rects_a, pads_by_ref[ref],
+                parts[other], rects_b, pads_by_ref[other],
+                clearance, model, check_exact, routing_layers)
+            if pair_hit:
+                pad_conflicts += 1
+                pad_shortfall += pair_mm
+                worst.append((key[0], key[1], round(pair_mm, 4)))
+                pad_pairs.append([key[0], key[1]])
+                if pair_source:
+                    required.append([key[0], key[1],
+                                     round(pair_required, 4), pair_source])
+            # #761: the hole channel discloses its requirement too. It used
+            # to report a bare `hole_conflicts` count with the mm thrown away,
+            # so a user saw that a mounting hole was too close to something
+            # without ever being told how close it was allowed to be -- and
+            # that number is not the board-wide clearance whenever the hole
+            # pad declares an override or the board declares a floor.
+            hole_pen = 0.0
+            hole_req = 0.0
+            for (cx, cy, r), req in zip(holes_b, parts[other].holes_req):
+                for a0, a1, a2, a3, _na, _sa in rects_a:
+                    pen = _circle_rect_penetration(cx, cy, r,
+                                                   (a0, a1, a2, a3))
+                    hole_pen += pen
+                    if pen > EPS and req > hole_req:
+                        hole_req = req
+            for (cx, cy, r), req in zip(holes_a, parts[ref].holes_req):
+                for b0, b1, b2, b3, _nb, _sb in rects_b:
+                    pen = _circle_rect_penetration(cx, cy, r,
+                                                   (b0, b1, b2, b3))
+                    hole_pen += pen
+                    if pen > EPS and req > hole_req:
+                        hole_req = req
+            if hole_pen > EPS:
+                hole_conflicts += 1
+                hole_pairs.append([key[0], key[1]])
+                # Above the board-wide clearance only, so a plain hole at the
+                # flat scalar stays quiet. NOT literally the pad channel's
+                # bar, which is `pair_source != ''` and therefore sits at
+                # `model.base` -- the two differ when a netclass lifts
+                # `model.base` above `--clearance`, and "the same bar" would
+                # be wrong in exactly that case.
+                #
+                # DISCLOSED, not fixed: the hole channel files into `required`
+                # but not into `worst`, so a hole-ONLY conflict is printed by
+                # `format_required_clause` and is invisible to
+                # `floorplan.suspect_pairs`, which is built from `worst`.
+                # Widening `worst` changes what `place_seed --repair` chooses
+                # to move -- a placement-behaviour change needing its own
+                # before/after, not a rider on an arithmetic fix.
+                if hole_req > clearance + 1e-9:
+                    required.append([key[0], key[1], round(hole_req, 4),
+                                     'NPTH hole'])
+
+    oob_count = 0
+    oob_amount = 0.0
+    # NAME them. This returned a bare count, so the three CLIs that print it
+    # ("N part(s) with pad copper off-board") could not say WHICH part -- one
+    # run deduced the single ref by elimination.
+    oob_refs = []
+    #: The PER-PAD census beside the AABB one (#937). See its basis string
+    #: below for why both travel and neither replaces the other.
+    oob_copper_refs = []
+    oob_copper_overrun: Dict[str, float] = {}
+    board_info = getattr(pcb_data, 'board_info', None)
+    if board_info is not None and getattr(board_info, 'board_bounds', None):
+        gate = BoardOutlineGate(board_info, clearance)
+        for ref, pp in parts.items():
+            fp = fps[ref]
+            ext = pp.extent(fp.x, fp.y, fp.rotation or 0.0)
+            if ext is None:
+                continue
+            # A part whose own pads sit in a milled relief may span it -- e.g. a
+            # connector with pins around its shield slot, whose pad EXTENT
+            # swallows the ring. Ownership from the FILE's own poses, which is
+            # what this function grades (#628).
+            own = gate.rings_enclosing(
+                [(p.global_x, p.global_y) for p in pads_by_ref.get(ref, ())])
+            amt = gate.rect_outside_amount(ext, skip_rings=own)
+            if amt > EPS:
+                oob_count += 1
+                oob_amount += amt
+                oob_refs.append([ref, round(amt, 4)])
+        # ...and the PER-PAD census beside it, at margin 0 (#937).
+        #
+        # The count above is an AABB over the whole part inflated by the
+        # GRADING CLEARANCE, which makes it unusable for the question a
+        # consumer actually has -- WHICH PART DO I MOVE. Measured over the
+        # tracked corpus it is non-zero on three boards, and on two of them
+        # (human reference boards carrying edge-mounted switches, at 0.03mm
+        # and 0.17mm) no pad crosses the real outline at all.
+        #
+        # BOTH TRAVEL; neither replaces the other. The coarse one keeps its
+        # meaning and its consumers: the retired loop_driver's L2 gate was
+        # justified over 119 graded rows, where it refused 24 boards of which
+        # 12 are refusals `blocking` does not make, and the two censuses are
+        # disjoint by construction -- a part off the outline collides with
+        # nothing. What this one adds is WHICH PADS, so a refusal is
+        # actionable and a coarse hit with an empty precise list reads as the
+        # artifact it is instead of as a silent defect.
+        pad_gate = BoardOutlineGate(board_info, 0.0)
+        for ref, pp in parts.items():
+            fp = fps[ref]
+            try:
+                rects = pp.pad_rects(fp.x, fp.y, fp.rotation or 0.0)
+            except Exception:                             # noqa: BLE001
+                continue
+            if not rects:
+                continue
+            # The same #628 ownership exemption the AABB pass takes: a part
+            # whose own pads ring a milled relief OWNS that ring and must not
+            # be graded as hanging off it.
+            own = part_outline_rings(pad_gate, pads_by_ref.get(ref, ()))
+            # #1193: the one per-pad measure, which the repair census reads.
+            amt = pad_copper_outside_amount(pp, fp.x, fp.y,
+                                            fp.rotation or 0.0, pad_gate,
+                                            skip_rings=own)
+            if amt > EPS:
+                oob_copper_refs.append([ref, round(amt, 4)])
+                # #1096: the DISTANCE past the outline, on each pad's TRUE
+                # outline and without a castellated pad that straddles the
+                # edge (rp2350's Teensy U8: 33 half-holes 0.8 mm past it, as
+                # a castellated module is) -- `pad_copper_overrun_mm`, which
+                # render_placement's gate calls too.
+                # The magnitude above keeps its rect currency (render_
+                # placement reads the same list, and ranking needs no
+                # exemption); a part it lists with a 0.0 here is disclosed,
+                # not gated.
+                oob_copper_overrun[ref] = round(pad_copper_overrun_mm(
+                    pads_by_ref.get(ref, ()), pad_gate), 4)
+    # the resolved per-pad edge requirement (#986 moved it onto the context)
+    graphic = _graphic_copper_channel(pcb_data, edge_ctx.required)
+    # #1098: parts inside a PCB-edge plug's mating region, on either face.
+    # `declared_keepouts` is the intent's `keepouts`: a declared
+    # `mating:<ref>` replaces the derived region here as it does in the
+    # seeder and the floorplan grade, so the checker grades the rect the
+    # generator was held to.
+    mating_error = None
+    try:
+        from .floorplan import mating_keepout_findings
+        mating = mating_keepout_findings(pcb_data, pcb_file,
+                                         declared=declared_keepouts)
+    except Exception as exc:                                 # noqa: BLE001
+        # Not "clean": an unmeasured tongue is reported, and check_assembly
+        # fails closed on it (#1098 review).
+        mating, mating_error = [], f"{type(exc).__name__}: {exc}"
+    # #1031: board-level rule-area keep-outs, the third pad-copper channel.
+    keepout = keepout_pad_findings(
+        RuleAreaKeepouts.for_board(pcb_data, clearance, pcb_file), parts,
+        lambda r: ((fps[r].x, fps[r].y, fps[r].rotation or 0.0)
+                   if r in fps else None))
+    worst.sort(key=lambda t: -t[2])
+    return {'pad_conflicts': pad_conflicts,
+            'pad_edge_conflicts': len(edge_grade['findings']),
+            'pad_edge_shortfall': sum(f['shortfall_mm'] for f in edge_grade['findings']),
+            'pad_edge_unmeasured': len(edge_grade['unmeasured']),
+            'pad_edge': edge_grade,
+            'pad_shortfall': round(pad_shortfall, 4),
+            'hole_conflicts': hole_conflicts,
+            'oob_pad_count': oob_count,
+            'oob_pad_amount': round(oob_amount, 4),
+            'oob_pad_refs': sorted(oob_refs),
+            # The PER-PAD channel (#937), margin 0, same #628 ring ownership.
+            # This is the one CLAUDE.md designates for the top-priority
+            # placement defect ("read it off render_placement's
+            # checklist.a_off_outline.pad_copper") -- carried here too so a
+            # consumer holding only the assembly report can act on it without
+            # also rendering, and so the two numbers can be read side by side.
+            # #1098: a part on a PCB-edge plug's mating region (a USB tongue
+            # that has to enter a socket), either face. place_pose gates on
+            # the count and the summed overlap area.
+            'pad_conflict_pairs': sorted(pad_pairs),
+            'hole_conflict_pairs': sorted(hole_pairs),
+            'mating_keepout_count': len({m['ref'] for m in mating}),
+            'mating_keepout_amount': round(sum(m['area_mm2']
+                                               for m in mating), 4),
+            'mating_keepout_refs': mating,
+            'mating_keepout_error': mating_error,
+            'oob_pad_copper_count': len(oob_copper_refs),
+            'oob_pad_copper_refs': sorted(oob_copper_refs),
+            # #1096. `oob_pad_copper_refs` carries rect_outside_amount's
+            # MAGNITUDE (a per-corner and per-edge sum, for ranking); this is
+            # how far each part's copper actually reaches past the outline,
+            # on the true pad outlines, castellated pads left out.
+            'oob_pad_copper_overrun_mm': dict(sorted(
+                oob_copper_overrun.items())),
+            # ...and the parts that GATE: a real distance past the outline.
+            # check_assembly's verdict and board_score read this, never the
+            # magnitude list, which also carries edge-by-design copper.
+            'oob_pad_copper_gating_refs': sorted(
+                r for r, d in oob_copper_overrun.items() if d > EPS),
+            'oob_pad_copper_gating_count': sum(
+                1 for d in oob_copper_overrun.values() if d > EPS),
+            'oob_pad_copper_basis': ('per-PAD copper rects against the real '
+                                     'outline at margin 0, a ranking '
+                                     'MAGNITUDE (render_placement\'s '
+                                     'checklist.a_off_outline.pad_copper). '
+                                     'What gates is oob_pad_copper_gating_'
+                                     'refs: pad_copper_overrun_mm, on true '
+                                     'pad outlines (a custom pad on its '
+                                     'parsed copper) with an edge-straddling '
+                                     'castellated pad exempt'),
+            # WHICH QUANTITY THIS IS. Three tools print "pad copper
+            # off-board" for three different measurements. This one is the
+            # part's pad AABB against an outline inflated by the GRADING
+            # CLEARANCE -- so it moves when --clearance moves, and a rotated
+            # part reports a breach no pad makes. render_placement's
+            # `checklist.a_off_outline.pad_copper` is the per-PAD, margin-0
+            # outline measure the docs designate as authoritative.
+            #
+            # HOW FAR APART THEY ACTUALLY LAND, measured over #703's 120
+            # placements (#788, docs/placement-predictors.md): graded at each
+            # board's own netclass floor the two agree in sign on 119 of 119
+            # and exactly on 118; graded at the 0.25 fallback, 112 of 120 and
+            # 104. Every one of the 8 disagreements is THIS count reporting a
+            # breach the per-pad measure does not, and seven of them are watchy
+            # ROWS -- which are one placement, not seven: the human-authored
+            # board plus six perturbations that did not move it, where SW1..SW4
+            # sit 0.1696mm inside the inflated outline and no pad crosses the
+            # real one. The number is not wrong; it is a different question,
+            # and it is the one the retired loop_driver's L2 gate refused on.
+            'oob_pad_basis': ('part pad AABB vs outline inflated by the '
+                              'grading clearance (NOT the per-pad outline '
+                              'measure; see render_placement '
+                              'checklist.a_off_outline.pad_copper)'),
+            # worst_n <= 0 = list ALL (run-4 F5: the repair rung's census
+            # was silently capped at 10 movers on a 20-pair board).
+            'worst': worst[:worst_n] if worst_n and worst_n > 0 else worst,
+            # #697: pairs whose REQUIREMENT exceeds the board-wide `clearance`,
+            # with what raised it -- check_drc's `required_mm` disclosure, so a
+            # conflict the flat scalar could not explain does not read as an
+            # unexplained number. Empty on a board that declares no netclass,
+            # no .kicad_dru rule and no pad override.
+            'required': sorted(required, key=lambda r: (-r[2], r[0], r[1])),
+            # #697: anything that went WRONG resolving the requirement (an
+            # unreadable .kicad_pro / .kicad_dru, a dru note). Silence there
+            # drops the census back to the flat scalar and reports 0 conflicts
+            # -- the exact silence this issue was filed for.
+            'clearance_notes': clearance_notes,
+            'exact': check_exact is not None,
+            # #962: FOOTPRINT GRAPHIC copper (an SOT-89 tab, an antenna)
+            # against the outline -- the second off-outline channel. See
+            # _graphic_copper_channel.
+            **graphic,
+            # #1031: pad copper in a rule-area keep-out band. See
+            # keepout_pad_findings.
+            **keepout}
+
+
+def _graphic_copper_channel(pcb_data, edge_required: float) -> Dict[str, object]:
+    """Footprint graphic copper against the outline, as placement keys (#962).
+
+    Pads were the only off-outline channel. esp_prog U2's drawn tab went 1.11 mm
+    off the outline under `place_pose set U2 115.34 93.6 --rot 90` while
+    `oob_pad_copper_count` read 0 and every gate stayed green. This calls
+    check_drc's own census, so check_drc, this channel and render_placement
+    give one answer. It re-poses copper for parts moved in memory since
+    parse.
+
+    - `oob_graphic_copper_count/_refs/_amount` are the parts whose copper
+      reaches PAST the outline, measured at margin 0 with the drawn stroke.
+      `_amount` is the sum of the per-part maximum overrun in mm: a distance,
+      like `oob_pad_amount`, not an area. An edge running inside a FILLED
+      shape counts by its depth in the copper.
+    - `_waived` lists board-level art and board-outline owners, with the
+      reason. A lock is not a waiver.
+    - `_unmeasured` lists copper the parser does not model.
+    - `graphic_edge_shortfall_refs` is DISCLOSED only: copper inside the
+      outline but within the edge requirement. It is not gated, because an
+      inherited graze (watchy AE1) is library art, and check_drc --baseline is
+      what separates inherited from placement-created.
+    """
+    from check_drc import footprint_graphic_outline_census, GRAPHIC_WAIVED_STATES
+    census = footprint_graphic_outline_census(pcb_data)
+    over, waived, short = {}, {}, {}
+    for row in census['rows']:
+        key = row['owner_ref'] or '<board>'
+        ov = row['overrun_mm']
+        if ov > EPS:
+            if row['owner_state'] in GRAPHIC_WAIVED_STATES:
+                waived[key] = (max(waived.get(key, (0.0,))[0], ov), row['owner_state'])
+            else:
+                over[key] = max(over.get(key, 0.0), ov)
+        elif (row['owner_state'] not in GRAPHIC_WAIVED_STATES
+              and edge_required and edge_required + ov > EPS):
+            short[key] = max(short.get(key, 0.0), edge_required + ov)
+    return {
+        'oob_graphic_copper_count': len(over),
+        'oob_graphic_copper_amount': round(float(sum(over.values())), 4),
+        'oob_graphic_copper_refs': sorted([k, round(v, 4)] for k, v in over.items()),
+        'oob_graphic_copper_waived': sorted([k, round(v[0], 4), v[1]]
+                                            for k, v in waived.items()),
+        'oob_graphic_copper_unmeasured': [[u.get('owner_ref', ''), u.get('kind', ''),
+                                           u.get('reason', '')]
+                                          for u in census['unmeasured']],
+        'oob_graphic_copper_basis': census['basis'],
+        'graphic_edge_shortfall_refs': sorted([k, round(v, 4)] for k, v in short.items()),
+    }
+
+
+#: What the keep-out channel measures, carried in every report (#1031).
+KEEPOUT_COPPER_BASIS = (
+    "per-PAD copper rect (axis-aligned box at the pose) against each "
+    "board-level rule-area keep-out with tracks not allowed, minus its holes, "
+    "at a band of clearance + track_width/2 (the router's own track reach, "
+    "obstacle_map.add_rule_area_keepout_obstacles). A pad is ILLEGAL when "
+    "every copper layer it occupies is covered and no LANDING clears every "
+    "covering area together by the band -- landings are the router's own "
+    "CELLS on its default grid (routing_defaults.GRID_STEP): the pad's "
+    "centre cell, and the cells of net_queries.pad_landing_extent (the "
+    "shrunk rect, the inscribed ellipse for circle/oval pads, none for a "
+    "tilted pad) -- and its net "
+    "needs a connection (net with 2+ pads, not served by a same-net pour on "
+    "those layers where pour is allowed AND a same-net zone outline reaches "
+    "the pad copper at the pose). A through-hole pad is reported in "
+    "keepout_copper_tht_refs, not failed, only when it keeps an ESCAPE "
+    "layer: an uncovered outer layer, or an uncovered inner layer no zone of "
+    "a different net covers at the pad (placement does not know the routing "
+    "layer set, and a foreign plane is no escape); otherwise it fails like "
+    "an SMD pad. "
+    "The pour test reads the zone OUTLINE, not its fill: fill cut-outs, "
+    "zone priority, zone holes and thermal-relief necks are ignored, so a "
+    "pad the fill does not actually reach can read pour_served")
+
+
+class RuleAreaKeepouts:
+    """A board's rule-area keep-outs as a pad-copper legality term (#1031).
+
+    The router blocks every track cell inside a `(keepout (tracks
+    not_allowed))` rule area and within `clearance + track_width/2` of it
+    (`obstacle_map.add_rule_area_keepout_obstacles`); placement modelled none
+    of it, so a part could be seated with signal pads in the band and every
+    placement gate stayed green (glasgow_revC, run 32: 17 SMD signal pads,
+    route.py "boxed in by static obstacles").
+
+    Scope: BOARD-level rule areas whose tracks are not allowed. A rule area a
+    footprint owns moves with its part and is not re-posed here, so it is
+    listed in `unmeasured` rather than graded at a stale position. Intent
+    keep-outs (floorplan.py, #701) are a different, declared thing.
+
+    One instance per board. The per-pad metadata (`pad_meta`) is pose-free
+    and `part_rows` / `part_amount` take the pad rects at a pose, so the
+    search context and the file-pose grade share it.
+    """
+
+    def __init__(self, pcb_data, clearance: float, track_width: float,
+                 track_source: str = '', grid_step: float = None):
+        from check_drc import _point_on_board, _point_to_rings_distance, \
+            pad_copper_layers, _point_in_poly
+        from net_queries import expand_pad_layers
+        import routing_defaults
+        self._in_poly = _point_in_poly
+        self._pad_layers = pad_copper_layers
+        self._on_region = _point_on_board
+        self._pt_dist = _point_to_rings_distance
+        self._expand = expand_pad_layers
+        self.clearance = float(clearance)
+        self.track_width = float(track_width)
+        self.track_source = track_source
+        # The router lands a track on grid CELLS only (see `landings`). Its
+        # default grid; the finer default rungs (0.05, 0.025) contain every
+        # cell of it, so a landing here is a landing there too.
+        self.grid_step = float(grid_step or routing_defaults.GRID_STEP)
+        self.band = self.clearance + self.track_width / 2.0
+        board_info = getattr(pcb_data, 'board_info', None)
+        self.board_copper = list(getattr(board_info, 'copper_layers', None)
+                                 or ['F.Cu', 'B.Cu'])
+        self.areas: List[dict] = []
+        self.unmeasured: List[list] = []
+        for i, ko in enumerate(getattr(board_info, 'keepouts', None) or ()):
+            if ko.get('tracks_allowed', True):
+                continue
+            poly = [tuple(p) for p in (ko.get('polygon') or ())]
+            if len(poly) < 3:
+                continue
+            tokens = sorted(str(t) for t in (ko.get('layers') or ()))
+            covered = (set(self._expand(tokens, self.board_copper)) if tokens
+                       else set(self.board_copper))
+            covered &= set(self.board_copper)
+            if ko.get('in_footprint'):
+                self.unmeasured.append(
+                    ['<footprint>', i, tokens,
+                     'footprint-owned rule area: moves with its part and is '
+                     'not re-posed by placement, so it is not graded'])
+                continue
+            if not covered:
+                continue
+            holes = [[tuple(p) for p in h] for h in (ko.get('holes') or ())
+                     if len(h) >= 3]
+            xs = [p[0] for p in poly]
+            ys = [p[1] for p in poly]
+            self.areas.append({
+                'index': i, 'outer': poly, 'holes': holes,
+                'rings': [poly] + holes, 'covered': frozenset(covered),
+                'layers': tokens,
+                'pour_allowed': bool(ko.get('copper_pour_allowed', True)),
+                'bbox': (min(xs), min(ys), max(xs), max(ys))})
+        self.active = bool(self.areas)
+        # net_id -> number of copper pads on the board: a single-pad or
+        # net-less pad needs no connection, so the band cannot strand it.
+        self._net_pads: Dict[int, int] = {}
+        self._fps = getattr(pcb_data, 'footprints', {}) or {}
+        for fp in self._fps.values():
+            for p in fp.pads:
+                if _pad_carries_copper(p) and (p.net_id or 0) > 0:
+                    self._net_pads[p.net_id] = self._net_pads.get(p.net_id, 0) + 1
+        # Same-net zones: a pad is served by FILL CONTACT, not a track, only
+        # where its own net's zone outline on the pad's layer actually reaches
+        # the pad copper at the pose, and no rule area forbidding pour covers
+        # that point (`_pour_reaches`). The (net, layer) match only NOMINATES
+        # zones; a same-net zone elsewhere on the layer serves nothing here.
+        self._zones: List[tuple] = []
+        for z in getattr(pcb_data, 'zones', None) or ():
+            nid = getattr(z, 'net_id', 0) or 0
+            poly = [tuple(q) for q in (getattr(z, 'polygon', None) or ())]
+            if nid <= 0 or len(poly) < 3:
+                continue
+            zl = getattr(z, 'layers', None) or [getattr(z, 'layer', None)]
+            for l in zl:
+                if l:
+                    self._zones.append((nid, str(l), poly))
+        # every board-level rule area forbidding POUR, whatever it says
+        # about tracks: (outer, holes, covered layers)
+        self._no_pour: List[tuple] = []
+        for ko in getattr(board_info, 'keepouts', None) or ():
+            if ko.get('copper_pour_allowed', True) or ko.get('in_footprint'):
+                continue
+            poly = [tuple(q) for q in (ko.get('polygon') or ())]
+            if len(poly) < 3:
+                continue
+            toks = sorted(str(t) for t in (ko.get('layers') or ()))
+            cov = (set(self._expand(toks, self.board_copper)) if toks
+                   else set(self.board_copper))
+            self._no_pour.append((poly, [[tuple(q) for q in h] for h in
+                                         (ko.get('holes') or ())
+                                         if len(h) >= 3], cov))
+        self._meta: Dict[str, list] = {}
+
+    @classmethod
+    def for_board(cls, pcb_data, clearance: float, pcb_file: str = None):
+        """Resolve the track width the router would use, board-first
+        (`list_nets.board_floor`, as check_reachability does)."""
+        path = pcb_file or getattr(pcb_data, 'source_path', None)
+        tw, src = 0.15, 'fixed default'
+        # the project read is only worth paying for when there is a band to
+        # measure: no tracks-forbidden rule area, no track width needed
+        _kos = getattr(getattr(pcb_data, 'board_info', None), 'keepouts',
+                       None) or ()
+        if not any(not k.get('tracks_allowed', True) for k in _kos):
+            path = None
+            src = 'not resolved (no tracks-forbidden rule area)'
+        if path:
+            try:
+                import list_nets
+                tw, src = list_nets.board_floor(path, 'track_width',
+                                                fallback=0.15)
+            except Exception:                              # noqa: BLE001
+                tw, src = 0.15, 'fixed default'
+        return cls(pcb_data, clearance, float(tw or 0.15), src)
+
+    # -- per-pad metadata (pose-free) ----------------------------------------
+    def pad_meta(self, ref: str) -> list:
+        """Per COPPER pad (the `PartPads.pad_rects` index): (pad, governed,
+        partial, needs_connection, same-net zones, layers). `governed` are the
+        area indices covering EVERY copper layer of the pad; `partial` those
+        covering only some (a through-hole pad under an outer-layer band)."""
+        m = self._meta.get(ref)
+        if m is not None:
+            return m
+        m = []
+        fp = self._fps.get(ref)
+        for p in (fp.pads if fp is not None else ()):
+            if not _pad_carries_copper(p):
+                continue
+            layers = self._pad_layers(p, self.board_copper)
+            governed, partial = [], []
+            for ai, a in enumerate(self.areas):
+                hit = layers & a['covered']
+                if not hit:
+                    continue
+                (governed if layers <= a['covered'] else partial).append(ai)
+            nid = p.net_id or 0
+            needs = nid > 0 and self._net_pads.get(nid, 0) >= 2
+            # candidate zones only; whether one REACHES the pad is a pose
+            # question, answered in part_rows
+            zones = tuple(zi for zi, (zn, zl, _zp) in enumerate(self._zones)
+                          if zn == nid and zl in layers) if nid > 0 else ()
+            m.append((p, tuple(governed), tuple(partial), needs, zones,
+                      sorted(layers)))
+        self._meta[ref] = m
+        return m
+
+    # -- geometry ------------------------------------------------------------
+    def _clear(self, a: dict, x: float, y: float) -> float:
+        """Signed distance from a point to area `a`'s keep-out region
+        (polygon minus holes): positive outside, negative inside."""
+        d = self._pt_dist(x, y, a['rings'])
+        return -d if self._on_region(x, y, a['outer'], a['holes']) else d
+
+    def _near(self, ai: int, rect) -> bool:
+        """Can area `ai` reach this rect's landings at all?
+
+        Every landing lies within `reach` of the rect's centre: the rect's
+        half-diagonal, or half a cell's diagonal for the centre cell a tiny
+        pad lands on. So a bbox miss by `band + grid_step` is no reach, and
+        -- exactly, since a signed distance moves no faster than its point --
+        neither is a centre that clears the area by `band + reach`. The
+        second test is what spares every pad of a whole-board edge ring (its
+        bbox is the board) the landing walk."""
+        bx = self.areas[ai]['bbox']
+        m = self.band + self.grid_step
+        x0, y0, x1, y1 = rect[:4]
+        if (x1 < bx[0] - m or x0 > bx[2] + m
+                or y1 < bx[1] - m or y0 > bx[3] + m):
+            return False
+        reach = max(math.hypot(x1 - x0, y1 - y0),
+                    self.grid_step * math.sqrt(2.0)) / 2.0
+        return self._clear(self.areas[ai], (x0 + x1) / 2.0,
+                           (y0 + y1) / 2.0) < self.band + reach + 1e-9
+
+    def landings(self, rect, pad=None, delta: float = 0.0) -> list:
+        """The grid CELLS on pad copper `rect` where the router may land a
+        track.
+
+        The router ends a route only on a cell of its grid: the pad's centre
+        cell (`GridCoord.to_grid`), and, when that one is blocked, the free
+        cells of the landing region (`single_ended_routing._free_on_pad_cells`,
+        #479). The region is the router's own rule,
+        `net_queries.pad_landing_extent`: none for a pad tilted off-axis --
+        its file tilt plus the pose's rotation delta -- or too small to hold
+        the track; else the shrunk rect, clipped to the inscribed ellipse for
+        circle and oval pads.
+
+        A point of that region is not a landing unless it is a cell: a pad
+        whose inward edge clears the band while no cell does cannot be
+        reached at the nominal geometry. So a 5x5 lattice (rect) or two rings
+        of 16 (ellipse) over the region is snapped, point by point, to the
+        nearest cell no farther from the centre on either axis, and a cell is
+        kept only when `_free_on_pad_cells`' own test admits it. Every landing
+        is therefore a router cell, so a missed one can only REJECT a pose the
+        router would accept, never accept one it would not.
+        """
+        from net_queries import pad_landing_extent
+        x0, y0, x1, y1 = rect[:4]
+        cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        g = self.grid_step
+        inv = 1.0 / g
+        # the router's terminal cell, GridCoord.to_grid's own arithmetic
+        out = [(round(cx * inv) * g, round(cy * inv) * g)]
+        tilt = ((getattr(pad, 'rect_rotation', 0.0) or 0.0) + (delta or 0.0)) % 90.0
+        tilt = min(tilt, 90.0 - tilt)
+        ext = pad_landing_extent(x1 - x0, y1 - y0,
+                                 getattr(pad, 'shape', 'rect') or 'rect',
+                                 tilt if tilt > 1e-6 else 0.0,
+                                 self.track_width)
+        if ext is None:
+            return out
+        hx, hy, rnd = ext
+        rx, ry = max(hx, 1e-9), max(hy, 1e-9)
+
+        def admits(px, py):
+            # _free_on_pad_cells' test, expression for expression
+            if abs(px - cx) > hx or abs(py - cy) > hy:
+                return False
+            return not (rnd and ((px - cx) / rx) ** 2
+                        + ((py - cy) / ry) ** 2 > 1.0)
+
+        def toward(v, c):
+            # the cell index nearest v on c's side, then one step further in
+            i = math.floor(v * inv) if v >= c else math.ceil(v * inv)
+            return (i, i - 1) if v >= c else (i, i + 1)
+
+        if rnd:
+            pts = [(cx + s * hx * math.cos(2.0 * math.pi * k / 16.0),
+                    cy + s * hy * math.sin(2.0 * math.pi * k / 16.0))
+                   for s in (0.5, 1.0) for k in range(16)]
+        else:
+            pts = [(cx + i * hx / 2.0, cy + j * hy / 2.0)
+                   for i in (-2, -1, 0, 1, 2) for j in (-2, -1, 0, 1, 2)]
+        seen = {out[0]}
+        for px, py in pts:
+            for ix in toward(px, cx):
+                cell = next(((ix * g, iy * g) for iy in toward(py, cy)
+                             if admits(ix * g, iy * g)), None)
+                if cell is not None:
+                    if cell not in seen:
+                        seen.add(cell)
+                        out.append(cell)
+                    break
+        return out
+
+    def _amount(self, area_idxs, pts) -> float:
+        """`band -` the best landing's clearance, where a landing's clearance
+        is its MINIMUM over every area in `area_idxs` (overlapping or adjacent
+        areas act together: a 0.2 mm gap between two bands is no landing).
+        0 when some landing clears them all by `band`. A landing inside a
+        region counts its depth, so the number keeps falling as a part walks
+        out and the search can compare it with the seed's."""
+        band = self.band
+        if not area_idxs:
+            return 0.0
+        best = -math.inf
+        for qx, qy in pts:
+            c = min(self._clear(self.areas[ai], qx, qy) for ai in area_idxs)
+            if c > best:
+                best = c
+                if best >= band:
+                    return 0.0
+        return band - best
+
+    def rect_amount(self, ai: int, rect, pad=None, delta: float = 0.0) -> float:
+        """How far pad copper `rect` falls short of a track landing against
+        area `ai` alone, in mm (see `landings` and `_amount`).
+
+        Every landing is a router cell, and a track cell is free only `band`
+        or more from the keep-out region, so a landing that clears it is a
+        cell the router can end on. Reading "any copper within the band"
+        instead flags a human reference whose pad reaches the band with its
+        far edge only (glasgow_revC R4.1). rp2350's C6.2 IS still named
+        (0.1187 mm at clearance 0.2, fixed-default track): a
+        designer's 0.2 x 0.07 mm F.Cu sliver overlaps that GND pad and no
+        landing on it clears the sliver by the band.
+
+        A landing OFF the board (outside an edge band's outer ring) reads as
+        clear here: that pose is the outline channels' refusal, not this one's.
+        """
+        if not self._near(ai, rect):
+            return 0.0
+        return self._amount([ai], self.landings(rect, pad, delta))
+
+    def _pour_reaches(self, zones, rect) -> bool:
+        """Does one of these same-net zones reach the pad copper `rect`?
+        A sample point of the rect (centre, corners) inside the zone outline
+        and outside every pour-forbidding rule area on the zone's layer, or a
+        zone vertex inside the rect."""
+        x0, y0, x1, y1 = rect[:4]
+        pts = (((x0 + x1) / 2.0, (y0 + y1) / 2.0), (x0, y0), (x1, y0),
+               (x1, y1), (x0, y1))
+        for zi in zones:
+            _n, layer, poly = self._zones[zi]
+            bans = [(o, h) for o, h, cov in self._no_pour if layer in cov]
+            hits = [q for q in pts if self._in_poly(q[0], q[1], poly)]
+            hits += [q for q in poly if x0 <= q[0] <= x1 and y0 <= q[1] <= y1]
+            for qx, qy in hits:
+                if not any(self._on_region(qx, qy, o, h) for o, h in bans):
+                    return True
+        return False
+
+    def _escape_layer(self, p, layers, reach, rect) -> bool:
+        """Does a through-hole pad under partial areas `reach` keep a layer a
+        track can actually escape on? An uncovered OUTER layer always counts.
+        An uncovered INNER layer counts only when no zone of a DIFFERENT net
+        covers the pad there: placement does not know the routing layer set,
+        and an inner layer that is a foreign plane is no escape."""
+        covered = set()
+        for ai in reach:
+            covered |= self.areas[ai]['covered']
+        esc = set(layers) - covered
+        outer = {self.board_copper[0], self.board_copper[-1]}
+        if esc & outer:
+            return True
+        cx, cy = (rect[0] + rect[2]) / 2.0, (rect[1] + rect[3]) / 2.0
+        nid = p.net_id or 0
+        for l in esc:
+            if not any(zn != nid and zl == l and self._in_poly(cx, cy, zp)
+                       for zn, zl, zp in self._zones):
+                return True
+        return False
+
+    def part_rows(self, ref: str, rects, delta: float = 0.0) -> list:
+        """[(pad, area_index, amount, kind)] for this part's pads at `rects`
+        (`PartPads.pad_rects` at the pose; `delta` is the pose's rotation
+        relative to the parse pose, which tilts a pad). One row per pad at
+        most: every area that governs it is judged TOGETHER (`_amount`), and
+        the row names the one binding at the best landing. kind: 'illegal' |
+        'tht' | 'pour_served' | 'no_connection'."""
+        if not self.active:
+            return []
+        meta = self.pad_meta(ref)
+        out = []
+        for i, rect in enumerate(rects):
+            if i >= len(meta):
+                break
+            p, governed, partial, needs, zones, layers = meta[i]
+            g = [ai for ai in governed if self._near(ai, rect)]
+            pa = [ai for ai in partial if self._near(ai, rect)]
+            if not g and not pa:
+                continue
+            pts = self.landings(rect, p, delta)
+            reach = [ai for ai in pa if self._amount([ai], pts) > EPS]
+            tht = []
+            if reach:
+                if g or not self._escape_layer(p, layers, reach, rect):
+                    g = g + reach       # no real escape: judged like SMD
+                else:
+                    tht = reach
+            if g:
+                amt = self._amount(g, pts)
+                if amt > EPS:
+                    who = max(g, key=lambda ai: self._amount([ai], pts))
+                    kind = ('no_connection' if not needs else
+                            'pour_served' if (
+                                zones
+                                and all(self.areas[ai]['pour_allowed']
+                                        for ai in g)
+                                and self._pour_reaches(zones, rect))
+                            else 'illegal')
+                    out.append((p, who, amt, kind))
+            if tht:
+                amt = self._amount(tht, pts)
+                if amt > EPS:
+                    out.append((p, tht[0], amt, 'tht'))
+        return out
+
+    def part_amount(self, ref: str, rects, delta: float = 0.0) -> float:
+        """The part's WORST illegal pad reach, in mm (0 when none).
+
+        The one per-part currency: `keepout_pad_findings` publishes it per
+        part in `oob_keepout_copper_refs` and sums it over parts into
+        `oob_keepout_copper_amount` (place_pose's magnitude arm), the
+        placement skill's `--before` gate compares it per part, and
+        `LegalityContext.keepout_ok` compares it with the seed's. A sum over
+        pads here would let the search accept a move that deepens one pad
+        while pulling another out, which those gates then refuse."""
+        if not self.active:
+            return 0.0
+        return max((r[2] for r in self.part_rows(ref, rects, delta)
+                    if r[3] == 'illegal'), default=0.0)
+
+
+def board_keepout_findings(pcb_data, clearance: float,
+                           pcb_file: str = None) -> Dict[str, object]:
+    """`keepout_pad_findings` at the FILE's own poses, without the rest of
+    `grade_pad_legality`'s census -- what a caller holding a second board
+    (render_placement's --before, the input a placement started from) asks
+    to tell an INHERITED band pad from one the placement put there."""
+    fps = pcb_data.footprints
+    return keepout_pad_findings(
+        RuleAreaKeepouts.for_board(pcb_data, clearance, pcb_file),
+        build_part_pads(fps, clearance, tolerant=True),
+        lambda r: ((fps[r].x, fps[r].y, fps[r].rotation or 0.0)
+                   if r in fps else None))
+
+
+def keepout_pad_findings(keepouts: 'RuleAreaKeepouts',
+                         parts: Dict[str, 'PartPads'],
+                         pose_of) -> Dict[str, object]:
+    """The rule-area keep-out channel as placement keys (#1031).
+
+    ONE measurement for every consumer: `grade_pad_legality` calls it at the
+    file's poses, render_placement at the model's, the search reads the same
+    `RuleAreaKeepouts.part_amount`. `pose_of(ref) -> (x, y, rot)` or None.
+
+    - `oob_keepout_copper_count/_amount/_refs`: parts with an ILLEGAL pad;
+      `_refs` carries each part's worst pad reach (mm, `part_amount`) and
+      `_amount` sums it over parts, like `oob_graphic_copper_amount`.
+    - `keepout_copper_pads`: `[ref, pad, net, amount, area]` per illegal pad.
+    - `keepout_copper_tht_refs`: through-hole pads in the band that stay
+      reachable on an uncovered layer -- reported, not failed.
+    - `keepout_copper_exempt`: pads in the band that need no track (net-less,
+      single-pad net, or pour-served), with the reason.
+    - `keepout_copper_unmeasured`: footprint-owned rule areas.
+    """
+    illegal: Dict[str, float] = {}
+    # keyed (ref, pad number, area[, kind]) keeping the deepest reach: a part
+    # may carry several copper pads under ONE number (a mounting hole's ring
+    # of vias, a shield's two tabs), and one row per number is the finding
+    pads_rows, tht, exempt = {}, {}, {}
+
+    def _keep(d, key, row):
+        if key not in d or row[3] > d[key][3]:
+            d[key] = row
+    if keepouts is not None and keepouts.active:
+        for ref in sorted(parts):
+            pose = pose_of(ref)
+            if pose is None:
+                continue
+            try:
+                rects = parts[ref].pad_rects(*pose)
+            except Exception:                              # noqa: BLE001
+                continue
+            for p, ai, amt, kind in keepouts.part_rows(
+                    ref, rects, parts[ref]._delta_key(pose[2])):
+                row = [ref, str(p.pad_number), p.net_name or '',
+                       round(amt, 4), keepouts.areas[ai]['index']]
+                key = (row[0], row[1], row[4])
+                if kind == 'illegal':
+                    illegal[ref] = max(illegal.get(ref, 0.0), amt)
+                    _keep(pads_rows, key, row)
+                elif kind == 'tht':
+                    _keep(tht, key, row)
+                else:
+                    _keep(exempt, key + (kind,), row + [kind])
+    ko = keepouts
+    return {
+        'oob_keepout_copper_count': len(illegal),
+        'oob_keepout_copper_amount': round(float(sum(illegal.values())), 4),
+        'oob_keepout_copper_refs': sorted([k, round(v, 4)]
+                                          for k, v in illegal.items()),
+        'keepout_copper_pads': sorted(pads_rows.values()),
+        'keepout_copper_tht_refs': sorted(tht.values()),
+        'keepout_copper_exempt': sorted(exempt.values()),
+        'keepout_copper_unmeasured': list(ko.unmeasured) if ko is not None else [],
+        'keepout_copper_band_mm': round(ko.band, 4) if ko is not None else None,
+        'keepout_copper_track_width': ({'value': ko.track_width,
+                                        'source': ko.track_source}
+                                       if ko is not None else None),
+        'keepout_copper_basis': KEEPOUT_COPPER_BASIS,
+    }
+
+
+def _fp_snapshot(fp):
+    """A shallow copy of `fp` holding shallow copies of its pads (#1127)."""
+    import copy as _copy
+    snap = _copy.copy(fp)
+    snap.pads = [_copy.copy(p) for p in (fp.pads or ())]
+    return snap
+
+
+def _pad_with_copper(pads, copper_index: int, clearance: float):
+    """The Nth COPPER pad of a footprint's pad list (grade_pad_legality's
+    PartPads indices count copper pads only, in construction order).
+
+    The skip conditions here MIRROR `PartPads.__init__`'s, and that mirroring is
+    what makes the index valid. Since #697 the same index also addresses
+    `PartPads.pad_floors`, so a change to either skip rule must change both.
+    """
+    n = -1
+    for p in pads:
+        if not _pad_carries_copper(p):
+            continue
+        n += 1
+        if n == copper_index:
+            return p
+    return None

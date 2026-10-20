@@ -30,12 +30,13 @@ from . import common
 
 ENV_FLAG = "KICAD_ROUTE_REQUIRE_READONLY_STATE"
 # STATE's installed parts (only those present are reported).
-STATE_PARTS = ("vendor/krt", ".venv-krt", "vendor/freerouting", "vendor/skills", "corpus")
-BACKEND_PARTS = ("vendor/krt", "vendor/freerouting")
+STATE_PARTS = (".venv-krt", "vendor/freerouting", "vendor/skills", "corpus")
+BACKEND_PARTS = (".venv-krt", "vendor/freerouting")
 PROBE = ("192.0.2.1", 9)  # TEST-NET-1 (RFC 5737): never a real host
 
 UPDATE_HOSTS = ["api.github.com:443", "github.com:443", "objects.githubusercontent.com:443",
-                "release-assets.githubusercontent.com:443", "pypi.org:443", "files.pythonhosted.org:443"]
+                "release-assets.githubusercontent.com:443", "pypi.org:443", "files.pythonhosted.org:443",
+                "index.crates.io:443", "static.crates.io:443"]
 
 
 def require_readonly_state(flag=False):
@@ -204,8 +205,12 @@ def requirements(*, venv_python, pcbnew_python, pcbnew_module=None, java=None, o
     git_dir = common.git(common.TOOL_ROOT, "rev-parse", "--path-format=absolute", "--git-common-dir")
     if git_dir and not _within(git_dir, common.TOOL_ROOT):
         add(git_dir, "the checkout's git metadata (a worktree's common dir): kicad-route's version")
-    add(common.STATE, "STATE: vendor/krt, .venv-krt, vendor/freerouting; the venv stores absolute paths, "
+    add(common.STATE, "STATE: .venv-krt, vendor/freerouting; the venv stores absolute paths, "
                       "so bind it at the same path")
+    for part in BACKEND_PARTS:
+        installed = common.STATE / part
+        if installed.exists() and not _within(installed.resolve(), common.STATE):
+            add(installed.resolve(), f"resolved runtime directory for STATE/{part}")
     venv = Path(venv_python)
     if venv.exists():
         add(venv.resolve(), "interpreter the KRT venv links to (.venv-krt/bin/python)")

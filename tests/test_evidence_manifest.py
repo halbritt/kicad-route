@@ -15,7 +15,7 @@ import pytest
 
 from helpers import FIXTURE, OUT, cli, record  # noqa: F401
 from kicad_route import cli as route
-from kicad_route import common, determinism, evidence, ledger, statemanifest
+from kicad_route import common, determinism, engine, evidence, ledger, statemanifest
 
 
 # ------------------------------------------------------------ copper signature
@@ -55,10 +55,11 @@ def fake_state(root):
     krt = root / "vendor" / "krt"
     (krt / "rust_router").mkdir(parents=True)
     (krt / "VERSION").write_text("9.9.9\n")
-    (krt / "rust_router" / "grid_router.so").write_bytes(b"\x7fELF module v1")
+    (krt / "UPSTREAM.json").write_text('{"fork_commit":"synthetic-test-source"}')
     (krt / "requirements.txt").write_text("numpy>=1\n")
     site = root / ".venv-krt" / "lib" / "python3.12" / "site-packages"
     (site / "numpy-2.5.4.dist-info").mkdir(parents=True)
+    (site / "grid_router.so").write_bytes(b"\x7fELF module v1")
     (site / "numpy-2.5.4.dist-info" / "METADATA").write_text("Metadata-Version: 2.4\nName: numpy\nVersion: 2.5.4\n\nbody\n")
     (root / ".venv-krt" / "pyvenv.cfg").write_text("home = /usr/bin\nversion_info = 3.12.3\n")
     cur = root / "vendor" / "freerouting" / "v9.9.9"
@@ -77,10 +78,11 @@ def fake_state(root):
 
 
 @pytest.fixture
-def state(tmp_path):
+def state(tmp_path, monkeypatch):
     root = tmp_path / "state"
     root.mkdir()
     log = fake_state(root)
+    monkeypatch.setattr(engine, "ROOT", root / "vendor" / "krt")
     path, m = statemanifest.refresh("test", log, state=root)
     return root, m
 
@@ -95,9 +97,9 @@ def test_manifest_records_the_install_and_validates(state):
     assert statemanifest.schema_problems(statemanifest.read(root)) == []
     assert m["schema"] == "kicad-route/state/1" and m["pinned"] is False
     assert m["krt"]["version"] == "9.9.9"
-    assert m["krt"]["extension_module"] == {"path": "vendor/krt/rust_router/grid_router.so",
-                                            "sha256": common.sha256(root / "vendor/krt/rust_router/grid_router.so")}
-    assert m["krt"]["prebuilt"]["url"].endswith("/releases/download/v9.9.9/grid_router-linux-x86_64.so")
+    assert m["krt"]["extension_module"] == {"path": ".venv-krt/lib/python3.12/site-packages/grid_router.so",
+                                            "sha256": common.sha256(root / ".venv-krt/lib/python3.12/site-packages/grid_router.so")}
+    assert m["krt"]["prebuilt"]["from_source"] is True
     assert m["krt"]["venv"]["packages"] == ["numpy==2.5.4"] and m["krt"]["venv"]["python_version"] == "3.12.3"
     assert m["freerouting"]["sha256_matches_release"] is True and m["freerouting"]["java_required"] == 21
     assert m["freerouting"]["build_revision"] == "abc123"
@@ -109,7 +111,7 @@ def test_manifest_records_the_install_and_validates(state):
     record("evidence_manifest_unit_manifest", {"manifest": m, "checks": [list(c) for c in checks.values()]})
 
 
-@pytest.mark.parametrize("change", ["jar", "module", "venv"])
+@pytest.mark.parametrize("change", ["jar", "module", "venv", "source"])
 def test_drift_is_a_required_doctor_fail(state, change):
     root, _ = state
     if change == "jar":
@@ -117,8 +119,11 @@ def test_drift_is_a_required_doctor_fail(state, change):
         jar.write_bytes(jar.read_bytes() + b"tampered")
         item = "freerouting.jar.sha256"
     elif change == "module":
-        (root / "vendor/krt/rust_router/grid_router.so").write_bytes(b"\x7fELF module v2")
+        (root / ".venv-krt/lib/python3.12/site-packages/grid_router.so").write_bytes(b"\x7fELF module v2")
         item = "krt.extension_module.sha256"
+    elif change == "source":
+        (engine.ROOT / "VERSION").write_text("changed source\n")
+        item = "krt.source_sha256"
     else:
         site = root / ".venv-krt/lib/python3.12/site-packages/scipy-1.0.dist-info"
         site.mkdir()
@@ -144,6 +149,14 @@ def test_reading_the_manifest_needs_no_write_access(state):
         for d in dirs:
             d.chmod(stat.S_IRWXU)
     assert sorted(str(p) for p in root.rglob("*")) == before
+
+
+def test_owned_manifest_does_not_require_wrapper_git_metadata(state, tmp_path, monkeypatch):
+    root, manifest = state
+    unversioned = tmp_path / "unversioned-tool"
+    unversioned.mkdir()
+    monkeypatch.setattr(common, "TOOL_ROOT", unversioned)
+    assert statemanifest.verify(manifest, root) == []
 
 
 def test_missing_manifest_is_reported_not_required(tmp_path):
@@ -177,7 +190,7 @@ def test_krt_reproducible_follows_the_record_for_the_build_on_disk(state):
     statemanifest.refresh("test", None, state=root)
     assert statemanifest.read(root)["determinism"]["krt"]["reproducible"] is True
     # another extension module is another build: the record no longer applies
-    (root / "vendor/krt/rust_router/grid_router.so").write_bytes(b"\x7fELF module v2")
+    (root / ".venv-krt/lib/python3.12/site-packages/grid_router.so").write_bytes(b"\x7fELF module v2")
     r = statemanifest.reproducibility("krt", root)
     assert r["reproducible"] is None and r["measurement"] is False and "another krt build" in r["basis"]
     statemanifest.refresh("test", None, state=root)

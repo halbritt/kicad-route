@@ -120,7 +120,7 @@ flowchart LR
     subgraph ro["read-only binds"]
         USR["/usr, /etc<br/>KiCad, Python, JVM"]
         TOOL["kicad-route checkout<br/>(TOOL_ROOT)"]
-        STATE["STATE<br/>vendor/krt, vendor/freerouting,<br/>.venv-krt, manifest.json"]
+        STATE["STATE<br/>vendor/freerouting,<br/>.venv-krt, manifest.json"]
         PROJ["the project<br/>mounted at /candidate"]
     end
     subgraph rw["writable"]

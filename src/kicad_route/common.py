@@ -2,9 +2,9 @@
 
 Two locations matter:
 
-- TOOL_ROOT, this checkout. Installed backends live under STATE (default: the
-  checkout itself; override with KICAD_ROUTE_STATE): STATE/vendor/krt,
-  STATE/vendor/freerouting, STATE/.venv-krt and the generated STATE/vendor/skills.
+- TOOL_ROOT, this checkout, including the owned routing source. Runtime state
+  lives under STATE (default: the checkout itself; override with
+  KICAD_ROUTE_STATE): vendor/freerouting, .venv-krt and generated vendor/skills.
 - OUT, where a project's attempts go (default ./build/kicad-route; set with
   `kicad-route --out DIR` or KICAD_ROUTE_OUT). It holds runs/, the baseline cache
   and a hermetic KiCad configuration, and never touches the routed project.

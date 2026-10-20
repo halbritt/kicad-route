@@ -102,10 +102,10 @@ def backend_identity(name, version, state=None):
     """The backend part of tool_identity, from its version record and the state on disk."""
     state = Path(state or common.STATE)
     if name == "krt":
-        krt = statemanifest.layout(state)["krt"]
-        module = statemanifest.extension_module(krt)
+        module = statemanifest.extension_module(statemanifest.layout(state)["venv"])
         return {"name": "krt", "tag": version.get("build"), "version": version.get("version"),
                 "commit": version.get("commit"), "grid_router_version": version.get("rust_router"),
+                "source_sha256": version.get("source_sha256"),
                 "extension_module_sha256": _sha(module) if module else None,
                 "venv_packages_sha256": statemanifest.packages_sha256(
                     statemanifest.venv_packages(statemanifest.layout(state)["venv"]))}

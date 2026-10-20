@@ -1,0 +1,68 @@
+{
+  "schema": "kicad-route/owned-install-check/1",
+  "build": "owned-c2ac657d5617",
+  "source_unchanged": true,
+  "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+  "external_krt_checkout": false,
+  "commands": [
+    {
+      "argv": [
+        "uv",
+        "venv",
+        "$CHECKOUT/build/owned-engine-migration/clean-state/.venv-krt",
+        "--python",
+        "/usr/bin/python3"
+      ],
+      "cwd": "$CHECKOUT/build/owned-engine-migration/clean-state",
+      "log": "$CHECKOUT/build/owned-engine-migration/install/update/venv.log",
+      "exit_code": 0,
+      "duration_s": 1.44
+    },
+    {
+      "argv": [
+        "env",
+        "VIRTUAL_ENV=$CHECKOUT/build/owned-engine-migration/clean-state/.venv-krt",
+        "uv",
+        "pip",
+        "install",
+        "--upgrade",
+        "-r",
+        "$CHECKOUT/src/kicad_route/router/requirements.txt"
+      ],
+      "cwd": "$CHECKOUT/build/owned-engine-migration/clean-state",
+      "log": "$CHECKOUT/build/owned-engine-migration/install/update/krt-deps.log",
+      "exit_code": 0,
+      "duration_s": 5.188
+    },
+    {
+      "argv": [
+        "$CHECKOUT/build/owned-engine-migration/clean-state/.venv-krt/bin/python",
+        "$CHECKOUT/src/kicad_route/router/build_router.py",
+        "--target-dir",
+        "$CHECKOUT/build/owned-engine-migration/clean-state/build/router-native"
+      ],
+      "cwd": "$CHECKOUT/build/owned-engine-migration/clean-state",
+      "log": "$CHECKOUT/build/owned-engine-migration/install/update/krt-build-router.log",
+      "exit_code": 0,
+      "duration_s": 90.418
+    },
+    {
+      "argv": [
+        "$CHECKOUT/build/owned-engine-migration/clean-state/.venv-krt/bin/python",
+        "py_router/startup_checks.py"
+      ],
+      "cwd": "src/kicad_route/router",
+      "log": "$CHECKOUT/build/owned-engine-migration/install/update/krt-startup-checks.log",
+      "exit_code": 0,
+      "duration_s": 2.801
+    }
+  ],
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "python_packages": [
+    "numpy==2.5.4",
+    "pillow==13.0.0",
+    "scipy==1.18.1",
+    "shapely==2.2.0"
+  ]
+}

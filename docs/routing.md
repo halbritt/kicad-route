@@ -36,8 +36,8 @@ kicad-route smoke                                    # integration tests on the 
 | | KRT (KiCadRoutingTools) | Freerouting |
 |---|---|---|
 | Upstream | github.com/drandyhaas/KiCadRoutingTools (MIT) | github.com/freerouting/freerouting (GPL-3.0) |
-| Channel used | latest GitHub release, git checkout `vendor/krt` | latest GitHub release, executable jar `vendor/freerouting/current/` |
-| Runtime | `.venv-krt` (Python 3.12, numpy/scipy/shapely/Pillow from KRT's `requirements.txt` floors) + KRT's prebuilt Rust module | newest installed JVM that satisfies the jar (Java 25 for 2.5.x, apt `openjdk-25-jre-headless`) |
+| Channel used | owned source in `src/kicad_route/router/`, with patched-KRT provenance | latest GitHub release, executable jar `vendor/freerouting/current/` |
+| Runtime | `.venv-krt` (Python 3.12, numpy/scipy/shapely/Pillow) + Rust module built from the included locked crate | newest installed JVM that satisfies the jar (Java 25 for 2.5.x, apt `openjdk-25-jre-headless`) |
 | KiCad interface | reads/writes `.kicad_pcb` directly | KiCad pcbnew SWIG: `ExportSpecctraDSN(board, dsn)` / `ImportSpecctraSES(board, ses)` (`src/kicad_route/kicad/specctra.py`) |
 | Needs a running KiCad editor | no | no (the two-argument SWIG functions work headless) |
 | Net-name scope | `--nets` passed through | DSN rewrite: out-of-scope nets move to `<class>__skip` copies (same rules), ignored with `--router.autorouter.ignore_net_classes` |
@@ -277,19 +277,20 @@ make the candidate fail.
 
 ## Installation and updates
 
-Nothing here is pinned. The versions in use are recorded in every `result.json`,
+The routing engine is maintained in this repository; its source digest and build
+are recorded in every `result.json`,
 `OUT/doctor/doctor.json`, `OUT/update/update.json` and the state manifest for
 diagnosis; they are not install requirements. Installed state lives in this checkout
-(or `$KICAD_ROUTE_STATE`): `vendor/krt`, `vendor/freerouting`, `.venv-krt`, the
+(or `$KICAD_ROUTE_STATE`): `vendor/freerouting`, `.venv-krt`, the
 generated `vendor/skills` and `manifest.json`, all git-ignored.
 
 **State manifest** (`STATE/manifest.json`, schema `kicad-route/state/1`,
 `kicad_route/statemanifest.py`). `update` writes it atomically after installing;
 `kicad-route state-manifest` (`make state-manifest`) writes it for the install as it
 stands, downloading nothing. It records: the kicad-route checkout that wrote it;
-KRT tag, commit, clone URL, `VERSION`, grid_router version, the extension module's
-path and sha256, the prebuilt asset name and URL (from `build_router.py`'s log,
-`OUT/update/krt-build-router.log` or `--build-router-log`), `requirements.txt`'s
+owned routing source digest (`krt.source_sha256`), repository commit, upstream
+provenance, `VERSION`, grid_router version, the extension module's
+path and sha256, its source-build origin, `requirements.txt`'s
 sha256, the venv's Python version and package list (`name==version` from its
 dist-info, as `uv pip freeze` prints it) with its sha256; Freerouting tag, asset,
 URL, the jar's sha256 on disk and in `release.json`, build revision, `published_at`
@@ -301,29 +302,27 @@ while the build they hold for is unchanged). Paths under STATE are relative to i
 
 `doctor` reads it offline, without writing under STATE, recomputes the hashes on
 disk and reports drift (a replaced jar or extension module, a changed venv or
-requirements file, another KRT commit or kicad-cli) as a required FAIL; re-run
+requirements file, changed owned routing source or kicad-cli) as a required FAIL; re-run
 `kicad-route state-manifest` after a deliberate change. A missing manifest is
 NOT_RUN (not required); "KRT determinism verified for this build" is informational.
 Every `result.json` carries the manifest's sha256 (`tool_identity`).
 
-Pinning is not offered and is not planned (owner decision, 2026-10-18, closing
-KICADROUTE-57: versions are declared, never pinned). `update --krt-tag` and
-`--freerouting-tag` were proposed and rejected; the backends follow their latest
-release, and the manifest, `doctor` and every `result.json` declare exactly what
-ran. A caller that needs one exact build captures the manifest (or
-`tool_identity`) and refuses runs whose identity differs; it does not ask
-kicad-route to hold a version.
+The owner-authorized engine migration of 2026-10-20 supersedes the external-KRT
+acquisition policy. KRT's fork commit is provenance for the included source,
+not a runtime version selector. Freerouting still follows its current release.
+The manifest, `doctor` and every `result.json` declare what ran. See
+[routing-engine-migration.md](routing-engine-migration.md) for the frozen baseline
+and acceptance requirements.
 
 - `scripts/install.sh` links `~/.local/bin/kicad-route` and the `kicad-route` skill
   (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`), then runs `update`
   (`--no-update` skips it). A stale link (another checkout) is repointed; a real file
   or directory at a link path is never replaced.
 - `kicad-route update`:
-  - KRT: `git fetch --tags`, check out the latest GitHub release tag, create
+  - Owned routing engine: create
     `.venv-krt` if needed (on the Python running kicad-route, or
     `$KICAD_ROUTE_KRT_PYTHON`; KRT does not use pcbnew), `uv pip install --upgrade -r requirements.txt`,
-    `build_router.py --tag <tag>` (downloads the release's prebuilt Rust module; KRT
-    builds from source with cargo only when no prebuilt matches), KRT's
+    build the included Rust crate with Cargo's locked dependencies, then run
     `startup_checks.py`.
   - Freerouting: download the latest stable release's `freerouting-<v>.jar` (a
     pre-release-suffixed jar such as `-rc1` only when the release has no plain one),
@@ -332,7 +331,7 @@ kicad-route to hold a version.
     `current`, remove the previous version.
   - GitHub API calls send `$GITHUB_TOKEN` (else `$GH_TOKEN`) when set, to avoid the
     unauthenticated rate limit.
-  - Regenerate the `krt-*` skills from the new KRT (`vendor/skills/`, linked into the same
+  - Regenerate the `krt-*` skills from the included source (`vendor/skills/`, linked into the same
     skill directories), then run `kicad-route smoke` (round trips, constraint
     preservation, native validation, failure reporting). Compatibility problems surface
     there and in `kicad-route doctor` ("KRT controls used by the adapter" fails if a
@@ -346,10 +345,8 @@ kicad-route to hold a version.
   `apt upgrade`. The system default `java` stays where it was (here 21:
   `sudo update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java`
   after installing 25, which apt otherwise makes the default).
-- Following KRT `main` instead of releases: `git -C vendor/krt checkout origin/main &&
-  .venv-krt/bin/python vendor/krt/build_router.py` (needs a Rust toolchain when `main`'s
-  crate is ahead of the latest release); then `kicad-route smoke`.
-- Fresh clone: `scripts/install.sh` installs everything except the JVM and KiCad.
+- Fresh clone: `scripts/install.sh` installs the Python dependencies and builds
+  the router. KiCad, the JVM, Rust/Cargo, C build tools and `uv` must already be available.
 
 ### Observed at setup (2026-10-17)
 
@@ -388,8 +385,9 @@ rules remain unchanged.
 - **Java 25 from apt.** The 2.5.0 jar is built for Java 25 (class file 69) and fails on
   the installed Java 21. apt's `openjdk-25-jre-headless` gets normal security updates;
   the system default `java` was left at 21.
-- **KRT latest release, not `main`.** Releases carry the matching prebuilt Rust module
-  (no Rust toolchain on this machine); `main` moves several times a day.
+- **Owned routing engine (2026-10-20).** The included source and locked Rust crate
+  replace runtime acquisition from KRT. Upstream releases no longer change routing
+  code during `update`.
 - **pcbnew SWIG for the Specctra bridge.** `kicad-cli` 10.0.7 has no DSN export or SES
   import (`kicad-cli pcb import` reads only foreign CAD formats). The one-argument SWIG
   functions need the PCB editor; the two-argument ones work headless. KiCad marks SWIG

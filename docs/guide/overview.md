@@ -66,7 +66,7 @@ These hold for every command and are enforced by the test suite:
 | **Never modify in place** | Every attempt routes a copy under an output directory (`--out`, default `./build/kicad-route`). The project directory is byte-identical afterwards. |
 | **Never relax a rule** | No option lowers a clearance, narrows a width, changes a severity or edits a keepout. Options can only tighten (for example `--default-clearance`). |
 | **KiCad decides** | The verdict comes from `kicad-cli pcb drc` under the input's own `.kicad_pro` and `.kicad_dru`. Backend self-reports are kept as diagnostics only. |
-| **Backends stay upstream and are declared, never pinned** | KRT and Freerouting are installed from their latest releases into a git-ignored state directory. Every result records exactly which build ran. |
+| **Builds are declared** | The owned engine is built from this repository; Freerouting is acquired separately. Every result records the build, source and runtime identity. |
 | **Fail closed** | Anything that cannot be checked counts as a failure. Anything wrong with the command or the input is refused before routing starts (exit 4). |
 | **Never interactive, never online during an attempt** | No prompts, no stdin. Only `update` and the online `doctor` checks use the network. |
 

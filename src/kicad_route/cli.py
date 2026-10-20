@@ -31,7 +31,7 @@ input's unchanged constraints.
                                           preview the collision keepouts `run --barrier-from RUN_DIR` injects
     kicad-route publish RUN_DIR [--to DIR]
                                           copy a run's structured evidence (not the board) for committing
-    kicad-route update                    move both backends to their latest upstream release, then smoke
+    kicad-route update                    build the owned engine, acquire Freerouting, then smoke
     kicad-route state-manifest            record what is installed under STATE in STATE/manifest.json
     kicad-route determinism [--backend krt] [--runs N] [--record]
                                           route one input repeatedly and compare the candidates
@@ -94,6 +94,7 @@ from . import blocked
 from . import common
 from . import contract
 from . import evidence
+from . import engine
 from . import diff_pairs
 from . import floor
 from . import provenance
@@ -115,7 +116,7 @@ COMPLETE, INCOMPLETE = "COMPLETE", "INCOMPLETE"
 
 TOOL_ROOT = common.TOOL_ROOT
 KRT_VENV = common.STATE / ".venv-krt"
-KRT_DIR = common.STATE / "vendor" / "krt"
+KRT_DIR = engine.ROOT
 FREEROUTING_DIR = common.STATE / "vendor" / "freerouting"
 FIXTURE = TOOL_ROOT / "fixtures" / "route_demo"
 KICAD_SCRIPTS = Path(__file__).resolve().parent / "kicad"  # run with KiCad's Python (pcbnew)
@@ -1335,9 +1336,7 @@ KRT_REQUIRED_FLAGS = KRT_FLAGS[::2] + KRT_PROTECT_EXISTING_FLAGS + ["--json-out"
 
 
 def krt_version():
-    v = {"version": (KRT_DIR / "VERSION").read_text().strip() if (KRT_DIR / "VERSION").exists() else None,
-         "build": common.git_describe(KRT_DIR),
-         "commit": common.git(KRT_DIR, "rev-parse", "HEAD"), "source": "https://github.com/drandyhaas/KiCadRoutingTools"}
+    v = engine.identity()
     v["rust_router"] = None
     if route_python().exists():
         r = subprocess.run([str(route_python()), "-c", "import sys; sys.path.insert(0, 'rust_router'); "
@@ -1724,25 +1723,22 @@ def krt_venv_python(env=None):
 
 
 def update_krt(steps):
-    """KRT: latest GitHub release (it ships the matching prebuilt Rust module), deps by their floors."""
-    tag = github_latest("drandyhaas/KiCadRoutingTools")["tag_name"]
-    KRT_DIR.parent.mkdir(parents=True, exist_ok=True)
-    if not (KRT_DIR / ".git").exists():
-        steps.append(common.run_cmd(["git", "clone", "https://github.com/drandyhaas/KiCadRoutingTools.git", KRT_DIR],
-                                 common.STATE, out_path("update") / "krt-clone.log"))
-    steps.append(common.run_cmd(["git", "fetch", "--tags", "--prune", "origin"], KRT_DIR,
-                             out_path("update") / "krt-fetch.log"))
-    steps.append(common.run_cmd(["git", "checkout", "--detach", tag], KRT_DIR, out_path("update") / "krt-checkout.log"))
+    """Install dependencies and build the routing source shipped by kicad-route."""
+    def checked(argv, cwd, log_name):
+        record = common.run_cmd(argv, cwd, out_path("update") / log_name)
+        steps.append(record)
+        if record.get("exit_code") != 0:
+            raise RuntimeError(f"router installation failed (see {record['log']})")
+
+    common.STATE.mkdir(parents=True, exist_ok=True)
     if not route_python().exists():
-        steps.append(common.run_cmd(["uv", "venv", KRT_VENV, "--python", krt_venv_python()], common.STATE,
-                                 out_path("update") / "venv.log"))
+        checked(["uv", "venv", KRT_VENV, "--python", krt_venv_python()], common.STATE, "venv.log")
     env_cmd = ["env", f"VIRTUAL_ENV={KRT_VENV}", "uv", "pip", "install", "--upgrade", "-r", KRT_DIR / "requirements.txt"]
-    steps.append(common.run_cmd(env_cmd, common.STATE, out_path("update") / "krt-deps.log"))
-    steps.append(common.run_cmd([route_python(), "build_router.py", "--tag", tag], KRT_DIR,
-                             out_path("update") / "krt-build-router.log"))
-    steps.append(common.run_cmd([route_python(), "py_router/startup_checks.py"], KRT_DIR,
-                             out_path("update") / "krt-startup-checks.log"))
-    return tag
+    checked(env_cmd, common.STATE, "krt-deps.log")
+    checked([route_python(), KRT_DIR / "build_router.py", "--target-dir",
+             common.STATE / "build" / "router-native"], common.STATE, "krt-build-router.log")
+    checked([route_python(), "py_router/startup_checks.py"], KRT_DIR, "krt-startup-checks.log")
+    return engine.identity()["build"]
 
 
 # The executable jar of a Freerouting release: freerouting-<version>.jar, optionally
@@ -1829,7 +1825,7 @@ def update():
     steps, errors = [], []
     for name, fn in (("krt", update_krt), ("freerouting", update_freerouting)):
         try:
-            log(f"[update] {name}: latest release {fn(steps)}")
+            log(f"[update] {name}: {fn(steps)}")
         except Exception as e:  # report and continue with the other backend
             errors.append(f"{name}: {e}")
             log(f"[update] {name}: FAILED: {e}")
@@ -1893,7 +1889,7 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
 
     # KRT
     v = krt_version() if KRT_DIR.exists() else {}
-    add("KRT checkout", PASS if v.get("version") else FAIL, f"{v.get('version')} {v.get('build')}")
+    add("owned routing source", PASS if v.get("version") else FAIL, f"{v.get('version')} {v.get('build')}")
     add("KRT routing venv", PASS if route_python().exists() else FAIL, str(KRT_VENV))
     add("KRT Rust router module", PASS if v.get("rust_router") and v.get("rust_router") == v.get("version") else FAIL,
         f"grid_router {v.get('rust_router')} (checkout {v.get('version')})")
@@ -1906,18 +1902,7 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
         missing = [f for f in KRT_REQUIRED_FLAGS if f not in r.stdout]
         add("KRT controls used by the adapter", PASS if not missing else FAIL,
             "all present" if not missing else f"missing: {missing} (upstream changed; update the adapter)")
-        latest = None
-        if offline:
-            add("KRT latest release", NOT_RUN, "--offline: not looked up", required=False)
-        else:
-            try:
-                latest = github_latest("drandyhaas/KiCadRoutingTools")["tag_name"]
-            except Exception as e:
-                add("KRT latest release", NOT_RUN, f"GitHub unreachable: {e}", required=False)
-        if latest:
-            add("KRT latest release", PASS if latest.lstrip("v") == v.get("version") else NOT_RUN,
-                f"latest {latest}, installed {v.get('version')}" +
-                ("" if latest.lstrip("v") == v.get("version") else ": run `kicad-route update`"), required=False)
+        add("KRT latest release", NOT_RUN, "owned source; upstream is provenance only", required=False)
 
     # Freerouting
     fv = freerouting_version()
@@ -2567,7 +2552,7 @@ def build_parser():
     decoupling.add_parser(sub)
     planes.add_parser(sub)
     barrier.add_parser(sub)
-    sub.add_parser("update", help="update both backends through their upstream channels, then smoke")
+    sub.add_parser("update", help="build the owned engine, acquire Freerouting, then smoke")
     statemanifest.add_parser(sub)
     from . import determinism
     determinism.add_parser(sub)
