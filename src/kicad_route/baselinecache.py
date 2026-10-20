@@ -27,7 +27,7 @@ def read(cache, expected):
     try:
         pointer = json.loads((cache / "current.json").read_text())
         name = pointer["generation"]
-        if not isinstance(name, str) or Path(name).name != name:
+        if not isinstance(name, str) or not name.startswith("generation-") or Path(name).name != name:
             return None
         directory = cache / name
         receipt = json.loads((directory / "generation.json").read_text())

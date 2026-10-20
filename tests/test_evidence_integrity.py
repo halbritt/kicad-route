@@ -256,3 +256,12 @@ def test_execution_identity_tracks_installed_bytes_without_git(tmp_path, monkeyp
     assert third["extension_module_sha256"] != second["extension_module_sha256"]
     metadata.write_text("Name: numpy\nVersion: 2\n")
     assert identity()["venv_packages_sha256"] != third["venv_packages_sha256"]
+
+
+@pytest.mark.parametrize('generation', ['.', '..', '../generation-other', '/generation-other'])
+def test_baseline_pointer_cannot_select_outside_a_generation(fake_baseline, generation):
+    get, calls, _, _, _ = fake_baseline
+    _, first = get()
+    pointer = Path(first['report']).parent.parent / 'current.json'
+    common.write_json(pointer, {'generation': generation})
+    assert not get()[1]['cached'] and len(calls) == 2
