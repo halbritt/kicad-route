@@ -17,8 +17,8 @@ def destination(path, kind, protected=()):
     path = Path(os.path.abspath(path))
     if any(p.is_symlink() for p in (path, *path.parents)):
         contract.refuse("input", f"publication destination has a symlink: {path}")
-    for root in (Path.home(), Path('/'), common.TOOL_ROOT, *protected):
-        root = Path(root).resolve()
+    protected = tuple(Path(root).resolve() for root in protected)
+    for root in (Path.home(), Path('/'), common.TOOL_ROOT.resolve(), *protected):
         if path == root or path in root.parents or (root in protected and root in path.parents):
             contract.refuse("input", f"publication overlaps protected path {root}: {path}")
     if path.exists():
@@ -28,7 +28,9 @@ def destination(path, kind, protected=()):
             contract.refuse("input", f"publication contains project data or symlinks: {path}")
         if any(path.iterdir()):
             manifest = common.load_json(path / MANIFEST) or {}
-            expected = set(manifest.get('files', {})) | {MANIFEST}
+            if not isinstance(manifest.get('files'), dict):
+                contract.refuse('input', f'refusing publication without an ownership inventory: {path}')
+            expected = set(manifest['files']) | {MANIFEST}
             expected |= {str(parent) for name in manifest.get('files', {})
                          for parent in Path(name).parents if str(parent) != '.'}
             actual = {str(p.relative_to(path)) for p in path.rglob('*')}
@@ -80,7 +82,7 @@ def staging(dest, kind, protected=()):
 
 
 def receipts(directory):
-    if not directory.is_dir() or directory.is_symlink():
+    if not directory.is_dir() or any(p.is_symlink() for p in (directory, *directory.parents)):
         return []
     return sorted(p for p in directory.iterdir() if p.is_file() and not p.is_symlink()
                   and (p.suffix == '.json' or p.name == 'RESULT.md'))
@@ -93,6 +95,8 @@ def copy_run(run, stage):
     for sub in ('', 'validate', 'facts', 'spokes'):
         for source in receipts(run / sub):
             target = Path(source.name) if sub in ('', 'validate') else Path(sub) / source.name
+            if target == Path(MANIFEST):
+                target = Path('receipts') / MANIFEST
             if (stage / target).exists():
                 target = Path(sub) / source.name
             selected.append((source, target))

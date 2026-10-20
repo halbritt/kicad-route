@@ -107,3 +107,27 @@ def test_failed_smoke_preserves_successful_publication(tmp_path, monkeypatch):
         publication.seal(stage, 'smoke')
     assert cli.smoke(dest) == 1
     assert (dest / 'summary.json').read_text() == 'successful prior run'
+
+
+def test_bundle_manifest_does_not_overwrite_same_named_source_receipt(tmp_path):
+    run = tmp_path / 'run'
+    run.mkdir()
+    (run / 'publication.json').write_text('{"source_receipt": true}')
+    (run / 'result.json').write_text('{}')
+    dest = tmp_path / 'dest'
+    cli.publish_run(run, dest)
+    manifest = publication.verify(dest)
+    assert (dest / manifest['locators']['publication.json']).read_bytes() == (run / 'publication.json').read_bytes()
+
+
+def test_source_directory_aliases_cannot_publish_external_receipts(tmp_path):
+    run = tmp_path / 'run'
+    run.mkdir()
+    outside = tmp_path / 'outside'
+    (outside / '20261020').mkdir(parents=True)
+    (outside / '20261020' / 'secret.json').write_text('private')
+    (run / 'revalidate').symlink_to(outside)
+    (run / 'result.json').write_text('{}')
+    dest = tmp_path / 'dest'
+    cli.publish_run(run, dest)
+    assert not list(dest.rglob('secret.json'))
