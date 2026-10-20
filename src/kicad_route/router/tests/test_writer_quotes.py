@@ -6,6 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'py_router'))
 from kicad_writer import add_tracks_to_pcb, add_tracks_and_vias_to_pcb
+from sexpr import copper_text_signature
 
 
 class WriterQuoteTests(unittest.TestCase):
@@ -23,6 +24,15 @@ class WriterQuoteTests(unittest.TestCase):
                             self.assertTrue(writer(str(source), str(dest), []))
                             self.assertIn(f'"{value}"', dest.read_text())
                             self.assertEqual(dest.read_text().count('(gr_text'), board.count('(gr_text'))
+
+    def test_native_text_signature_binds_footprint_pose(self):
+        board = ('(kicad_pcb (footprint "local" (layer "F.Cu") (at 4 5 90) '
+                 '(fp_text user "literal ((" (at 1 2) (layer "F.Cu")) '
+                 '(pad "1" smd rect (at 0 0) (size 1 1) (layers "F.Cu"))))')
+        signature = copper_text_signature(board)
+        self.assertEqual(copper_text_signature(board.replace(') (', ')\n  (')), signature)
+        self.assertNotEqual(copper_text_signature(board.replace('(at 4 5 90)', '(at 5 5 90)')), signature)
+        self.assertNotEqual(copper_text_signature(board.replace('(layer "F.Cu") (at 4', '(layer "B.Cu") (at 4')), signature)
 
     def test_both_writers_reject_malformed_boards_without_partial_output(self):
         for writer in (add_tracks_to_pcb, add_tracks_and_vias_to_pcb):
