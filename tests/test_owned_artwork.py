@@ -37,6 +37,28 @@ def artwork_project(directory):
         pad.SetPosition(xy(x, 112))
         pad.SetNet(net)
         fp.Add(pad)
+        if ref == 'J1':
+            # A land-pattern tab belongs to the pad-bearing footprint. It must
+            # stay copper, including the part touching its own pad edge.
+            tab = pcbnew.PCB_SHAPE(fp)
+            tab.SetShape(pcbnew.SHAPE_T_RECT)
+            tab.SetStart(xy(109.5, 112.5))
+            tab.SetEnd(xy(110.5, 114))
+            tab.SetLayer(pcbnew.F_Cu)
+            tab.SetWidth(pcbnew.FromMM(.1))
+            tab.SetFilled(True)
+            fp.Add(tab)
+    guard = pcbnew.NETINFO_ITEM(board, '/GUARD')
+    board.Add(guard)
+    tagged = pcbnew.PCB_SHAPE(board)
+    tagged.SetShape(pcbnew.SHAPE_T_RECT)
+    tagged.SetStart(xy(118, 111.8))
+    tagged.SetEnd(xy(120, 112.2))
+    tagged.SetLayer(pcbnew.F_Cu)
+    tagged.SetWidth(pcbnew.FromMM(.1))
+    tagged.SetFilled(True)
+    tagged.SetNet(guard)
+    board.Add(tagged)
     for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
         for low, high in ((100.5, 110.5), (113.5, 129.5)):
             shape = pcbnew.PCB_SHAPE(board)
@@ -69,8 +91,28 @@ def test_native_copper_artwork_survives_routing_through_its_passage(tmp_path):
     assert result['process']['status'] == 'PASS', result['process']
     assert result['validation']['status'] == 'PASS', result['validation']
     assert result['validation']['preservation']['copper_graphics'] == 'PASS'
+    assert result['validation']['drc']['new_violations']['count'] == 0
     assert result['routing']['status'] == 'COMPLETE', result['routing']
     facts = json.loads((run_dir / 'validate/candidate-facts.json').read_text())
+    tagged = [row for row in facts['copper_graphics'] if row.get('net') == '/GUARD']
+    assert len(tagged) == 1 and tagged[0]['layer'] == 'F.Cu', tagged
+
+    def footprint_copper(board):
+        rows = []
+        for fp in board.GetFootprints():
+            for item in fp.GraphicalItems():
+                if isinstance(item, pcbnew.PCB_SHAPE) and item.IsOnCopperLayer():
+                    start, end = item.GetStart(), item.GetEnd()
+                    rows.append((fp.GetReference(), item.GetLayer(), int(item.GetShape()),
+                                 item.GetWidth(), item.IsFilled(),
+                                 (start.x, start.y), (end.x, end.y)))
+        return sorted(rows)
+
+    reference = pcbnew.LoadBoard(str(directory / 'artwork.kicad_pcb'))
+    delivered = pcbnew.LoadBoard(str(run_dir / 'candidate/project/artwork.kicad_pcb'))
+    reference_copper = footprint_copper(reference)
+    assert len(reference_copper) == 1 and reference_copper[0][0] == 'J1', reference_copper
+    assert footprint_copper(delivered) == reference_copper
     assert {row['layer'] for row in facts['routing_copper_text']} == {'F.Cu', 'B.Cu'}
     assert {row['text'] for row in facts['routing_copper_text']} == {'((', ')'}
     # It had to go around retained text, not just preserve it after a straight
