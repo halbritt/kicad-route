@@ -299,3 +299,13 @@ and every other process detail, `routing.stats`, the `routing.blocked_by` summar
 - **1** (2026-10-17): first versioned contract: `schema` ids on every record; refusal
   records with exit 4 for every pre-routing failure, usage errors included; `--json`;
   `--out` after the subcommand; `run --run-dir`; no option abbreviations.
+
+## Planned planes
+
+`planes --board B.kicad_pcb --plan PLAN.json --run-dir NEW_DIR [--json]`
+emits `kicad-route/planes/1` (`schemas/planes-1.json`). It has a separate
+production contract: exit 0 successful planned zones and preservation checks;
+3 produced candidate failing validation; 1 missing native/sandbox evidence, no
+published candidate; 4 existing refusal interface. `planes.pour_integrity` holds
+refilled before/after facts, the check and delta. Production success does not
+certify completed routing or schematic parity. See [planes.md](planes.md).
