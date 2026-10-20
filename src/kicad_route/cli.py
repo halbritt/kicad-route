@@ -942,6 +942,7 @@ def ledger_path(args):
     return Path(given).expanduser().resolve() if given else out_path("ledger.jsonl")
 
 
+@common.tool_environment_scope()
 def run_attempt(args):
     engine.require_runtime()
     readonly = sandbox.require_readonly_state(getattr(args, "require_readonly_state", False))

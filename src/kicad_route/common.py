@@ -10,6 +10,8 @@ Two locations matter:
   `kicad-route --out DIR` or KICAD_ROUTE_OUT). It holds runs/, the baseline cache
   and a hermetic KiCad configuration, and never touches the routed project.
 """
+import contextlib
+from contextvars import ContextVar
 import datetime as dt
 import hashlib
 import json
@@ -226,9 +228,44 @@ def ensure_kicad_config():
     return cfg
 
 
+_TOOL_ENV_MAJOR = ContextVar("tool_environment_major", default=None)
+
+
+@contextlib.contextmanager
+def tool_environment_scope():
+    """Reuse only environment-key selection within one routing attempt."""
+    token = _TOOL_ENV_MAJOR.set(())
+    try:
+        yield
+    finally:
+        _TOOL_ENV_MAJOR.reset(token)
+
+
+def _tool_kicad_major():
+    cache = _TOOL_ENV_MAJOR.get()
+    key = None
+    if cache is not None:
+        executable = shutil.which("kicad-cli")
+        if executable:
+            try:
+                real = Path(executable).resolve()
+                stat = real.stat()
+                key = (str(real), stat.st_dev, stat.st_ino, stat.st_size,
+                       stat.st_mtime_ns, stat.st_ctime_ns)
+            except (OSError, RuntimeError):
+                pass  # No usable fingerprint: preserve the fresh-probe behavior.
+        if key is not None and cache and cache[0] == key:
+            return cache[1]
+    version = kicad_version()
+    major = (version or "10").split(".")[0]
+    if cache is not None and key is not None and version:
+        _TOOL_ENV_MAJOR.set((key, major))
+    return major
+
+
 def tool_env():
     env = dict(os.environ)
-    major = (kicad_version() or "10").split(".")[0]
+    major = _tool_kicad_major()
     env.update(home_env())  # nothing under HOME: config, cache and data stay in OUT
     env[f"KICAD{major}_SYMBOL_DIR"] = str(KICAD_SHARE / "symbols")
     env[f"KICAD{major}_FOOTPRINT_DIR"] = str(KICAD_SHARE / "footprints")
