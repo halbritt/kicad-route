@@ -7,12 +7,24 @@ from . import common
 
 
 SOURCE_ROOT = Path(__file__).resolve().parent / "router"
-GENERATION = common.router_generation()
-ROOT = GENERATION / "router" if GENERATION else SOURCE_ROOT
+SELECTION_ERROR = None
+try:
+    GENERATION = common.router_generation()
+except common.RouterSelectionError as error:
+    GENERATION, ROOT, SELECTION_ERROR = None, None, error
+else:
+    ROOT = GENERATION / "router" if GENERATION else SOURCE_ROOT
+
+
+def require_runtime():
+    if SELECTION_ERROR is not None:
+        raise SELECTION_ERROR
 
 
 def source_sha256(root=None):
-    root = Path(root or ROOT)
+    if root is None:
+        require_runtime()
+    root = Path(ROOT if root is None else root)
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*")):
         if path.is_file() and "__pycache__" not in path.parts:
@@ -22,7 +34,9 @@ def source_sha256(root=None):
 
 
 def identity(root=None):
-    root = Path(root or ROOT)
+    if root is None:
+        require_runtime()
+    root = Path(ROOT if root is None else root)
     checksum = source_sha256(root)
     return {
         "version": (root / "VERSION").read_text().strip(),

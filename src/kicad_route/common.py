@@ -117,18 +117,57 @@ def count_by(items, key):
 
 # --------------------------------------------------------------------------- env
 
+class RouterSelectionError(RuntimeError):
+    """The selected state cannot identify a usable routing generation."""
+
+
+def state_manifest(state=None):
+    """Read selection metadata without treating malformed state as a cold install."""
+    state = Path(state or STATE).resolve()
+    path = state / "manifest.json"
+    try:
+        manifest = load_json(path)
+        if manifest is None and not path.exists():
+            return None
+    except (OSError, UnicodeError) as error:
+        raise RouterSelectionError(f"cannot read state manifest {path}: {error}") from error
+    if not isinstance(manifest, dict):
+        raise RouterSelectionError(f"state manifest {path} is malformed or is not a JSON object")
+    described = manifest.get("state_dir")
+    if described is not None:
+        if not isinstance(described, str) or not described:
+            raise RouterSelectionError(f"state manifest {path} has an invalid state_dir")
+        try:
+            owner = Path(described).expanduser().resolve()
+        except (OSError, RuntimeError, ValueError) as error:
+            raise RouterSelectionError(f"state manifest {path} has an invalid state_dir: {error}") from error
+        if owner != state:
+            raise RouterSelectionError(f"state manifest {path} describes {owner}, not {state}")
+    if manifest.get("krt") is not None and not isinstance(manifest["krt"], dict):
+        raise RouterSelectionError(f"state manifest {path} has a non-object krt record")
+    return manifest
+
+
 def router_generation(state=None):
-    """The generation selected by the atomically published state manifest."""
-    state = Path(state or STATE)
-    manifest = load_json(state / "manifest.json") or {}
+    """Resolve one complete selection; invalid selections never select legacy paths."""
+    state = Path(state or STATE).resolve()
+    manifest = state_manifest(state) or {}
     generation = (manifest.get("krt") or {}).get("generation")
     if generation is None:
         return None
-    path = (state / generation).resolve()
-    if not path.is_relative_to((state / ".router-generations").resolve()):
-        raise RuntimeError("router generation escapes STATE/.router-generations")
-    if not (path / "installation.json").is_file():
-        raise RuntimeError(f"selected router generation is incomplete: {path}")
+    if not isinstance(generation, str) or not generation:
+        raise RouterSelectionError("krt.generation must be a nonempty path string")
+    try:
+        path = (state / generation).resolve()
+        container = (state / ".router-generations").resolve()
+    except (OSError, RuntimeError, ValueError) as error:
+        raise RouterSelectionError(f"invalid router generation path: {error}") from error
+    if path == container or not path.is_relative_to(container):
+        raise RouterSelectionError("router generation escapes STATE/.router-generations")
+    required = (path / "installation.json", path / "router" / "VERSION",
+                path / "router" / "UPSTREAM.json", path / "venv" / "bin" / "python")
+    if not all(item.is_file() for item in required):
+        raise RouterSelectionError(f"selected router generation is incomplete: {path}")
     return path
 
 
