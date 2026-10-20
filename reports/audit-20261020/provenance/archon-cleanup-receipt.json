@@ -1,0 +1,40 @@
+{
+  "schema": "kicad-route/scoped-archon-cleanup-summary/1",
+  "status": "PASS",
+  "host": "archon",
+  "started_utc": "2026-10-20T23:04:11.724619+00:00",
+  "finished_utc": "2026-10-20T23:04:17.943821+00:00",
+  "authority": "Parent explicitly authorized cleanup after report994ef95ce3a62a787dfa7235fe125424e7a255fa was pushed and imported standalone proof verified",
+  "scope": {
+    "task_root": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon",
+    "container": "kicadroute-agent497-archon",
+    "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+    "image_tag": "kicadroute-agent497-archon:20261020",
+    "image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8"
+  },
+  "before": {
+    "labels": {
+      "org.harm.agent": "agent-497",
+      "org.harm.project": "kicad-route",
+      "org.harm.task": "agent497-archon-20261020"
+    },
+    "active_exec_ids": null,
+    "only_process": "sleep infinity",
+    "matrix_status": "PASS",
+    "completed_samples": 48,
+    "externally_verified_index_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e"
+  },
+  "outcomes": {
+    "named_container_stopped_and_removed": true,
+    "task_image_tag_removed": true,
+    "exact_task_root_removed": true,
+    "container_inspect_exit_code": 1,
+    "image_tag_inspect_exit_code": 1,
+    "global_prune_or_unrelated_mutations": false
+  },
+  "remaining_cache_caveat": "Shared Ubuntu24.04 base image and Docker BuildKit cache may remain. No global Docker prune, shared layer/base removal, unrelated image/container/workload, or host package/config change was performed.",
+  "raw_receipt": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-cleanup-raw.json",
+    "sha256": "9ed696d2c6e8e98b2ea3a2f1fb602a854705eec5585ee83f795c276ba8f03ec9"
+  }
+}

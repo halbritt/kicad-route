@@ -1,0 +1,140 @@
+{
+  "schema": "kicad-route/scoped-archon-cleanup/1",
+  "started_utc": "2026-10-20T23:04:11.724619+00:00",
+  "host": "archon",
+  "authority": "Parent explicitly authorized cleanup after report994ef95ce3a62a787dfa7235fe125424e7a255fa was pushed and imported standalone proof verified",
+  "scope": {
+    "task_root": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon",
+    "container": "kicadroute-agent497-archon",
+    "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+    "image_tag": "kicadroute-agent497-archon:20261020",
+    "image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8"
+  },
+  "operations": [
+    {
+      "argv": [
+        "sudo",
+        "-n",
+        "docker",
+        "inspect",
+        "kicadroute-agent497-archon"
+      ],
+      "exit_code": 0,
+      "stdout": "[\n    {\n        \"Id\": \"0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba\",\n        \"Created\": \"2026-10-20T22:29:37.814150187Z\",\n        \"Path\": \"sleep\",\n        \"Args\": [\n            \"infinity\"\n        ],\n        \"State\": {\n            \"Status\": \"running\",\n            \"Running\": true,\n            \"Paused\": false,\n            \"Restarting\": false,\n            \"OOMKilled\": false,\n            \"Dead\": false,\n            \"Pid\": 37124,\n            \"ExitCode\": 0,\n            \"Error\": \"\",\n            \"StartedAt\": \"2026-10-20T22:29:38.032831093Z\",\n            \"FinishedAt\": \"0001-01-01T00:00:00Z\"\n        },\n        \"Image\": \"sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8\",\n        \"ResolvConfPath\": \"/var/lib/docker/containers/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba/resolv.conf\",\n        \"HostnamePath\": \"/var/lib/docker/containers/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba/hostname\",\n        \"HostsPath\": \"/var/lib/docker/containers/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba/hosts\",\n        \"LogPath\": \"/var/lib/docker/containers/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba-json.log\",\n        \"Name\": \"/kicadroute-agent497-archon\",\n        \"RestartCount\": 0,\n        \"Driver\": \"overlayfs\",\n        \"Platform\": \"linux\",\n        \"MountLabel\": \"\",\n        \"ProcessLabel\": \"\",\n        \"AppArmorProfile\": \"\",\n        \"ExecIDs\": null,\n        \"HostConfig\": {\n            \"Binds\": null,\n            \"ContainerIDFile\": \"\",\n            \"LogConfig\": {\n                \"Type\": \"json-file\",\n                \"Config\": {\n                    \"max-file\": \"5\",\n                    \"max-size\": \"10m\"\n                }\n            },\n            \"NetworkMode\": \"bridge\",\n            \"PortBindings\": {},\n            \"RestartPolicy\": {\n                \"Name\": \"no\",\n                \"MaximumRetryCount\": 0\n            },\n            \"AutoRemove\": false,\n            \"VolumeDriver\": \"\",\n            \"VolumesFrom\": null,\n            \"ConsoleSize\": [\n                0,\n                0\n            ],\n            \"CapAdd\": null,\n            \"CapDrop\": null,\n            \"CgroupnsMode\": \"private\",\n            \"Dns\": null,\n            \"DnsOptions\": [],\n            \"DnsSearch\": [],\n            \"ExtraHosts\": null,\n            \"GroupAdd\": null,\n            \"IpcMode\": \"private\",\n            \"Cgroup\": \"\",\n            \"Links\": null,\n            \"OomScoreAdj\": 0,\n            \"PidMode\": \"\",\n            \"Privileged\": false,\n            \"PublishAllPorts\": false,\n            \"ReadonlyRootfs\": false,\n            \"SecurityOpt\": null,\n            \"UTSMode\": \"\",\n            \"UsernsMode\": \"\",\n            \"ShmSize\": 67108864,\n            \"Runtime\": \"runc\",\n            \"Isolation\": \"\",\n            \"CpuShares\": 0,\n            \"Memory\": 0,\n            \"NanoCpus\": 0,\n            \"CgroupParent\": \"\",\n            \"BlkioWeight\": 0,\n            \"BlkioWeightDevice\": [],\n            \"BlkioDeviceReadBps\": [],\n            \"BlkioDeviceWriteBps\": [],\n            \"BlkioDeviceReadIOps\": [],\n            \"BlkioDeviceWriteIOps\": [],\n            \"CpuPeriod\": 0,\n            \"CpuQuota\": 0,\n            \"CpuRealtimePeriod\": 0,\n            \"CpuRealtimeRuntime\": 0,\n            \"CpusetCpus\": \"\",\n            \"CpusetMems\": \"\",\n            \"Devices\": [],\n            \"DeviceCgroupRules\": null,\n            \"DeviceRequests\": null,\n            \"MemoryReservation\": 0,\n            \"MemorySwap\": 0,\n            \"MemorySwappiness\": null,\n            \"OomKillDisable\": null,\n            \"PidsLimit\": null,\n            \"Ulimits\": [],\n            \"CpuCount\": 0,\n            \"CpuPercent\": 0,\n            \"IOMaximumIOps\": 0,\n            \"IOMaximumBandwidth\": 0,\n            \"Mounts\": [\n                {\n                    \"Type\": \"bind\",\n                    \"Source\": \"/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/work\",\n                    \"Target\": \"/work\"\n                },\n                {\n                    \"Type\": \"bind\",\n                    \"Source\": \"/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/evidence\",\n                    \"Target\": \"/evidence\"\n                },\n                {\n                    \"Type\": \"bind\",\n                    \"Source\": \"/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/setup\",\n                    \"Target\": \"/tools\",\n                    \"ReadOnly\": true\n                }\n            ],\n            \"MaskedPaths\": [\n                \"/proc/acpi\",\n                \"/proc/asound\",\n                \"/proc/interrupts\",\n                \"/proc/kcore\",\n                \"/proc/keys\",\n                \"/proc/latency_stats\",\n                \"/proc/sched_debug\",\n                \"/proc/scsi\",\n                \"/proc/timer_list\",\n                \"/proc/timer_stats\",\n                \"/sys/devices/virtual/powercap\",\n                \"/sys/firmware\",\n                \"/sys/devices/system/cpu/cpu0/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu1/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu2/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu3/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu4/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu5/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu6/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu7/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu8/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu9/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu10/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu11/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu12/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu13/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu14/thermal_throttle\",\n                \"/sys/devices/system/cpu/cpu15/thermal_throttle\"\n            ],\n            \"ReadonlyPaths\": [\n                \"/proc/bus\",\n                \"/proc/fs\",\n                \"/proc/irq\",\n                \"/proc/sys\",\n                \"/proc/sysrq-trigger\"\n            ]\n        },\n        \"Storage\": {\n            \"RootFS\": {\n                \"Snapshot\": {\n                    \"Name\": \"overlayfs\"\n                }\n            }\n        },\n        \"Mounts\": [\n            {\n                \"Type\": \"bind\",\n                \"Source\": \"/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/work\",\n                \"Destination\": \"/work\",\n                \"Mode\": \"\",\n                \"RW\": true,\n                \"Propagation\": \"rprivate\"\n            },\n            {\n                \"Type\": \"bind\",\n                \"Source\": \"/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/evidence\",\n                \"Destination\": \"/evidence\",\n                \"Mode\": \"\",\n                \"RW\": true,\n                \"Propagation\": \"rprivate\"\n            },\n            {\n                \"Type\": \"bind\",\n                \"Source\": \"/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/setup\",\n                \"Destination\": \"/tools\",\n                \"Mode\": \"\",\n                \"RW\": false,\n                \"Propagation\": \"rprivate\"\n            }\n        ],\n        \"Config\": {\n            \"Hostname\": \"0748eb5cfe62\",\n            \"Domainname\": \"\",\n            \"User\": \"1000:1000\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"HOME=/work/home\",\n                \"CARGO_HOME=/work/cargo-home\",\n                \"PATH=/opt/cargo/bin:/usr/local/bin:/usr/bin:/bin\",\n                \"RUSTUP_HOME=/opt/rustup\",\n                \"PYTHONDONTWRITEBYTECODE=1\"\n            ],\n            \"Cmd\": [\n                \"sleep\",\n                \"infinity\"\n            ],\n            \"Image\": \"kicadroute-agent497-archon:20261020\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/work\",\n            \"Entrypoint\": null,\n            \"Labels\": {\n                \"org.harm.agent\": \"agent-497\",\n                \"org.harm.project\": \"kicad-route\",\n                \"org.harm.task\": \"agent497-archon-20261020\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"NetworkSettings\": {\n            \"SandboxID\": \"1445953af9ca14a057bc22063d59988448176f890ceb07c1c65d602d909abc8b\",\n            \"SandboxKey\": \"/var/run/docker/netns/1445953af9ca\",\n            \"Ports\": {},\n            \"Networks\": {\n                \"bridge\": {\n                    \"IPAMConfig\": null,\n                    \"Links\": null,\n                    \"Aliases\": null,\n                    \"DriverOpts\": null,\n                    \"GwPriority\": 0,\n                    \"NetworkID\": \"1c32e95399bbe211abff593633c7d14c50c181d71097917dcf737400f24cbffe\",\n                    \"EndpointID\": \"62d488f4fbd677865ee03b58e2b695ee95dc7cb55d816c316e073d403aef7a32\",\n                    \"Gateway\": \"172.17.0.1\",\n                    \"IPAddress\": \"172.17.0.2\",\n                    \"MacAddress\": \"3a:05:de:ea:48:7d\",\n                    \"IPPrefixLen\": 16,\n                    \"IPv6Gateway\": \"\",\n                    \"GlobalIPv6Address\": \"\",\n                    \"GlobalIPv6PrefixLen\": 0,\n                    \"DNSNames\": null\n                }\n            }\n        },\n        \"ImageManifestDescriptor\": {\n            \"mediaType\": \"application/vnd.oci.image.manifest.v1+json\",\n            \"digest\": \"sha256:f9fb70f65a79817da85a440da398a9109a076ef19a7f077233b5d1386c3eb131\",\n            \"size\": 1824,\n            \"platform\": {\n                \"architecture\": \"amd64\",\n                \"os\": \"linux\"\n            }\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "sudo",
+        "-n",
+        "docker",
+        "top",
+        "kicadroute-agent497-archon",
+        "-eo",
+        "pid,ppid,comm,args"
+      ],
+      "exit_code": 0,
+      "stdout": "PID                 PPID                COMMAND             COMMAND\n37124               37098               sleep               sleep infinity\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "sudo",
+        "-n",
+        "docker",
+        "stop",
+        "--time",
+        "5",
+        "kicadroute-agent497-archon"
+      ],
+      "exit_code": 0,
+      "stdout": "Flag --time has been deprecated, use --timeout instead\nkicadroute-agent497-archon\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "sudo",
+        "-n",
+        "docker",
+        "rm",
+        "kicadroute-agent497-archon"
+      ],
+      "exit_code": 0,
+      "stdout": "kicadroute-agent497-archon\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "sudo",
+        "-n",
+        "docker",
+        "ps",
+        "-a",
+        "--no-trunc",
+        "--filter",
+        "ancestor=sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+        "--format",
+        "{{.ID}} {{.Names}}"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "sudo",
+        "-n",
+        "docker",
+        "image",
+        "inspect",
+        "kicadroute-agent497-archon:20261020"
+      ],
+      "exit_code": 0,
+      "stdout": "[\n    {\n        \"Id\": \"sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8\",\n        \"RepoTags\": [\n            \"kicadroute-agent497-archon:20261020\"\n        ],\n        \"RepoDigests\": [\n            \"kicadroute-agent497-archon@sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8\"\n        ],\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-10-20T15:28:51.143519339-07:00\",\n        \"Config\": {\n            \"Env\": [\n                \"PATH=/opt/cargo/bin:/usr/local/bin:/usr/bin:/bin\",\n                \"RUSTUP_HOME=/opt/rustup\",\n                \"CARGO_HOME=/opt/cargo\",\n                \"PYTHONDONTWRITEBYTECODE=1\"\n            ],\n            \"Cmd\": [\n                \"/bin/bash\"\n            ],\n            \"WorkingDir\": \"/work\",\n            \"Labels\": {\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"Architecture\": \"amd64\",\n        \"Os\": \"linux\",\n        \"Size\": 739952821,\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:32ab39660fd51c6dc3aae486b42d42bbe8fe4c1db78eaf57bb9c21198de48a16\",\n                \"sha256:06f6986009408f06259a875795138ec8a766c8c89c5737afc6f8f6eda1ed0986\",\n                \"sha256:67d65f7a934acf24426143c737ed44fee85b4b61330f28f6589f5ce879ec1fbc\",\n                \"sha256:a5e0acb993d9d3bf5ba2c55f6e07e2d5f014889d412dc1e9a22756d1966bef07\",\n                \"sha256:dc73000b790928353d6c43bf149e97be3bef2b51de3c7c134a868e8c84d77c9a\",\n                \"sha256:ebced28bf08be194b7813e60f17f519f69b14f795d1a19b7004044e41871b29c\",\n                \"sha256:4d04ac1a069c8c39dd2048cea8f0f2cbb3e2b283f7c6d0aa2600c900f809c8b9\",\n                \"sha256:e5f949208e114ad6988f8c10ab23f2c70b6b32071ac6f260ede47e9997977b1a\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"2026-10-20T22:29:17.753225267Z\"\n        },\n        \"Descriptor\": {\n            \"mediaType\": \"application/vnd.oci.image.index.v1+json\",\n            \"digest\": \"sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8\",\n            \"size\": 856\n        },\n        \"Identity\": {\n            \"Build\": [\n                {\n                    \"Ref\": \"ssxwn3wppceqagaoeqadkgkli\",\n                    \"CreatedAt\": \"2026-10-20T15:29:27.892756181-07:00\"\n                }\n            ]\n        }\n    }\n]\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "sudo",
+        "-n",
+        "docker",
+        "image",
+        "rm",
+        "kicadroute-agent497-archon:20261020"
+      ],
+      "exit_code": 0,
+      "stdout": "Untagged: kicadroute-agent497-archon:20261020\nDeleted: sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8\n",
+      "stderr": ""
+    },
+    {
+      "operation": "shutil.rmtree",
+      "exact_path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon",
+      "completed": true
+    }
+  ],
+  "status": "PASS",
+  "before": {
+    "labels": {
+      "org.harm.agent": "agent-497",
+      "org.harm.project": "kicad-route",
+      "org.harm.task": "agent497-archon-20261020",
+      "org.opencontainers.image.version": "24.04"
+    },
+    "exec_ids": null,
+    "processes": "PID                 PPID                COMMAND             COMMAND\n37124               37098               sleep               sleep infinity\n",
+    "matrix_status": "PASS",
+    "completed_samples": 48,
+    "index_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+    "root_uid": 1000
+  },
+  "task_image_tag_removed": true,
+  "after": {
+    "container_inspect_exit_code": 1,
+    "container_inspect_stderr": "Error response from daemon: No such container: kicadroute-agent497-archon\n",
+    "image_inspect_exit_code": 1,
+    "image_inspect_stderr": "Error response from daemon: No such image: kicadroute-agent497-archon:20261020\n",
+    "task_root_absent": true
+  },
+  "remaining_cache_caveat": "Shared Ubuntu24.04 base image and Docker BuildKit cache may remain. No global Docker prune, shared layer/base removal, unrelated image/container/workload, or host package/config change was performed.",
+  "finished_utc": "2026-10-20T23:04:17.943821+00:00"
+}

@@ -1,0 +1,117 @@
+{
+  "schema": "kicad-route/final-operational-verification/1",
+  "observed_utc": "2026-10-20T23:04:31.863074+00:00",
+  "method": "Read-only production statemanifest.verify/current_identity/current_build_id/reproducibility, retained determinism result reconstruction using pure layer_record/compare, and current Git refs/diffs. No routing, DRC, test, doctor, build, activation, tracker, report write, new gather or commit/push. Only this ignoredQ receipt is written.",
+  "git": {
+    "head": "994ef95ce3a62a787dfa7235fe125424e7a255fa",
+    "origin_main_tracking_head": "994ef95ce3a62a787dfa7235fe125424e7a255fa",
+    "qualified_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+    "differing_paths_count": 9209,
+    "all_differences_under": "reports/audit-20261020/",
+    "outside_audit_paths": [],
+    "qualified_non_audit_content_identical": true,
+    "status_porcelain": "",
+    "owned_secondary_worktrees": 0
+  },
+  "selected_runtime": {
+    "generation": "/home/halbritt/git/kicad-route/.router-generations/f23025e1b26d406d83e2167aa0c0da9f",
+    "manifest_path": "/home/halbritt/git/kicad-route/manifest.json",
+    "manifest_sha256_before": "87ae9cf328c50c1f3275a480dab2b4a9a951f09d2b2b9c6d91bfac9296221bfd",
+    "manifest_sha256_after": "87ae9cf328c50c1f3275a480dab2b4a9a951f09d2b2b9c6d91bfac9296221bfd",
+    "manifest_unchanged": true,
+    "schema_problems": [],
+    "drift": [],
+    "current_identity": {
+      "krt.source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+      "krt.extension_module.sha256": "e9a0c7939e87e414f6ce441d57ef51d729336fa2bcb49d84841cf19ff93e2425",
+      "krt.requirements.sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43",
+      "krt.venv.packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+      "krt.venv.python_version": "3.12.3",
+      "freerouting.jar.sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
+      "kicad.kicad_cli.sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "current_build_id": "4d77b660a29ce3519e1252b066c2f6cfa1f1ea38e430f25586990a171dd20374",
+    "recorded_build_id": "4d77b660a29ce3519e1252b066c2f6cfa1f1ea38e430f25586990a171dd20374",
+    "recorded_build_commit": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+    "documentation_commit_does_not_change_build_id": true
+  },
+  "recorded_repeat_verification": {
+    "verified_utc": "2026-10-20T22:53:29.293454+00:00",
+    "runs": [
+      {
+        "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/out/runs/route_demo/determinism-krt-1/20261020T225110.378785Z/result.json",
+        "result_sha256": "2e3eb9661f3545c03139b75e83cf4ac776d28ad4c26ce7490c73400324c6e56f",
+        "layer": {
+          "run_dir": "build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/out/runs/route_demo/determinism-krt-1/20261020T225110.378785Z",
+          "exit_code": 0,
+          "outcome": {
+            "process": "PASS",
+            "routing": "COMPLETE",
+            "validation": "PASS",
+            "unconnected_in_scope": 0
+          },
+          "wall_clock_stop": false,
+          "backend_output_bytes": "2a13cbbb0ce962941dfb86ca3f4a2093a5ee02f00f0736dd1c538716d557a988",
+          "candidate_bytes": "2a13cbbb0ce962941dfb86ca3f4a2093a5ee02f00f0736dd1c538716d557a988",
+          "copper_geometry": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+          "copper_items": {
+            "tracks": 21,
+            "vias": 3
+          }
+        },
+        "execution_build_id": "4d77b660a29ce3519e1252b066c2f6cfa1f1ea38e430f25586990a171dd20374",
+        "manifest_drift": []
+      },
+      {
+        "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/out/runs/route_demo/determinism-krt-2/20261020T225233.960657Z/result.json",
+        "result_sha256": "e1506f27e2d0f57b105ac9bb03108a5b1691d91cabd41fd50b4b16c095b0d59e",
+        "layer": {
+          "run_dir": "build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/out/runs/route_demo/determinism-krt-2/20261020T225233.960657Z",
+          "exit_code": 0,
+          "outcome": {
+            "process": "PASS",
+            "routing": "COMPLETE",
+            "validation": "PASS",
+            "unconnected_in_scope": 0
+          },
+          "wall_clock_stop": false,
+          "backend_output_bytes": "e58235226cfbad7cf562cea71f526e6e302f0c3ba00813f2bf5e392e59febd26",
+          "candidate_bytes": "e58235226cfbad7cf562cea71f526e6e302f0c3ba00813f2bf5e392e59febd26",
+          "copper_geometry": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+          "copper_items": {
+            "tracks": 21,
+            "vias": 3
+          }
+        },
+        "execution_build_id": "4d77b660a29ce3519e1252b066c2f6cfa1f1ea38e430f25586990a171dd20374",
+        "manifest_drift": []
+      }
+    ],
+    "pure_reconstructed_comparison": {
+      "reproducible": true,
+      "reasons": [],
+      "same": {
+        "outcome": true,
+        "copper_geometry": true,
+        "candidate_bytes": false,
+        "backend_output_bytes": false
+      },
+      "differs_at": "candidate_bytes",
+      "bytes_note": "candidate bytes differ while geometry is compared: KiCad UUIDs and item order"
+    },
+    "execution_builds_equal_current_selected_build": true,
+    "installed_build_reproducibility": {
+      "reproducible": true,
+      "measurement": true,
+      "basis": "determinism check 2026-10-20T22:53:29.293454+00:00: identical copper geometry on repeat"
+    },
+    "scope": "Two retained bounded route_demo runs establish equal copper geometry/outcomes for this installed build. Candidate/backend bytes differ due to UUID/order; byte determinism is not claimed. Build repeat qualification does not guarantee every future attempt or physical PCB behavior."
+  },
+  "immutable_decision_artifacts": {
+    "packet_id": "pkt-7f7cc3fede0d7721",
+    "receipt_sha256": "d3143a19fcf0460e3ee38142aa735c4ea20dfdf5006281b56b1da3108668ec2d",
+    "note": "Final verified readiness packet/receipt unchanged; this is later operational provenance only."
+  },
+  "state_or_report_mutations": false,
+  "tests_or_routing_rerun": false
+}

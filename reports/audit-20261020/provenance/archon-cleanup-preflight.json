@@ -1,0 +1,23 @@
+{
+  "schema": "kicad-route/archon-cleanup-preflight/1",
+  "observed_utc": "2026-10-20T23:03:36.686938+00:00",
+  "host": "archon",
+  "task_root": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon",
+  "root_uid": 1000,
+  "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+  "container_name": "kicadroute-agent497-archon",
+  "image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+  "image_tag": "kicadroute-agent497-archon:20261020",
+  "labels": {
+    "org.harm.agent": "agent-497",
+    "org.harm.project": "kicad-route",
+    "org.harm.task": "agent497-archon-20261020",
+    "org.opencontainers.image.version": "24.04"
+  },
+  "container_exec_ids": null,
+  "container_processes": "PID                 PPID                COMMAND             COMMAND\n37124               37098               sleep               sleep infinity\n",
+  "matrix_status": "PASS",
+  "completed_samples": 48,
+  "using_containers": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba kicadroute-agent497-archon\n",
+  "approved_scope_checks_passed": true
+}

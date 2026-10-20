@@ -1,0 +1,39 @@
+{
+  "files": 9207,
+  "bytes": 72769268,
+  "all_file_hashes": true,
+  "publication_inventories": true,
+  "coverage_sources": true,
+  "raw_sample_results_and_timing": true,
+  "inline_sample_quality": true,
+  "external_candidate": true,
+  "runtime_proof": {
+    "availability": "retained",
+    "receipt": "runtime/landed-main-20261020T224951.985950Z-2835650/receipt.json",
+    "doctor_records": [
+      "runtime/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json"
+    ]
+  },
+  "archon_matrix_authority": {
+    "status": "PASS",
+    "completed_samples": 48,
+    "matrix_session": "8896",
+    "index_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+    "full_independent_raw_and_resource_verification": true
+  }
+}
+KICADROUTE-68 Done verified
+KICADROUTE-69 Done verified
+KICADROUTE-70 Done verified
+KICADROUTE-71 Done verified
+KICADROUTE-72 Done verified
+KICADROUTE-73 Done verified
+KICADROUTE-74 Done verified
+KICADROUTE-75 Done verified
+KICADROUTE-76 Done verified
+KICADROUTE-77 Done verified
+KICADROUTE-78 Done verified
+KICADROUTE-79 Done verified
+KICADROUTE-80 Done verified
+KICADROUTE-81 Done verified
+/home/halbritt/git/kicad-route/build/agent497-qualification/tracker-closure.json

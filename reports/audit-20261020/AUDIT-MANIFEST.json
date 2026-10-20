@@ -6,6 +6,12 @@
   "observed_matrix_exit_code": 0,
   "files": [
     {
+      "source": "/home/halbritt/git/kicad-route/reports/audit-20261020/COMPLETION.md",
+      "retained": "COMPLETION.md",
+      "bytes": 1679,
+      "sha256": "43a1271d57d25a5977f7021fe7dc18dc52d184c959a609c5130cf61e2b14210a"
+    },
+    {
       "source": "/home/halbritt/git/kicad-route/reports/audit-20261020/README.md",
       "retained": "README.md",
       "bytes": 5188,
@@ -66944,6 +66950,33 @@
       "sha256": "bc966fb014809567ae6a65d186990fc92586dd375dc10a57c31e850383d07ff9"
     },
     {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-cleanup-preflight.json",
+      "retained": "provenance/archon-cleanup-preflight.json",
+      "bytes": 1121,
+      "sha256": "09441bb0941ba9742e0ab6b030eabad92c0eb5e2fe87ed48535f8d232d3035e9",
+      "original_sources": [
+        "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/archon-cleanup-preflight.json"
+      ]
+    },
+    {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-cleanup-raw.json",
+      "retained": "provenance/archon-cleanup-raw.json",
+      "bytes": 17445,
+      "sha256": "9ed696d2c6e8e98b2ea3a2f1fb602a854705eec5585ee83f795c276ba8f03ec9",
+      "original_sources": [
+        "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/archon-cleanup-raw.json"
+      ]
+    },
+    {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-cleanup-receipt.json",
+      "retained": "provenance/archon-cleanup-receipt.json",
+      "bytes": 1857,
+      "sha256": "fb780a7d140accf70090b6f1b6195823986452daf9505a3d70f4a04ebfbf7976",
+      "original_sources": [
+        "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/archon-cleanup-receipt.json"
+      ]
+    },
+    {
       "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-export-receipt.json",
       "retained": "provenance/archon-export-receipt.json",
       "bytes": 278,
@@ -67770,6 +67803,15 @@
       "sha256": "ce1c71b066add46e14298cccd348a5c311f65fdc1f02abee23edede9a57c06c5"
     },
     {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-operational-verification.json",
+      "retained": "provenance/final-operational-verification.json",
+      "bytes": 6300,
+      "sha256": "f5212419a8dc7bfcd085ed6a5b41b1b37f3bb6038ccd4ea0b280c20f4b268cfa",
+      "original_sources": [
+        "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/final-operational-verification.json"
+      ]
+    },
+    {
       "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-output-review-before-doctor-count-correction.json",
       "retained": "provenance/final-output-review-before-doctor-count-correction.json",
       "bytes": 1955,
@@ -67865,6 +67907,12 @@
       "retained": "provenance/inventory-history/3477fc007f2ab310c86b6d56b626d703a5e8590b3f78e1ee45ada6f56286ad85.json",
       "bytes": 6436023,
       "sha256": "3477fc007f2ab310c86b6d56b626d703a5e8590b3f78e1ee45ada6f56286ad85"
+    },
+    {
+      "source": "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/inventory-history/35bd89d542e34a571868ba1d6e8f6216f5dd3f5dbae782bf94b329c359b25d64.json",
+      "retained": "provenance/inventory-history/35bd89d542e34a571868ba1d6e8f6216f5dd3f5dbae782bf94b329c359b25d64.json",
+      "bytes": 6437669,
+      "sha256": "35bd89d542e34a571868ba1d6e8f6216f5dd3f5dbae782bf94b329c359b25d64"
     },
     {
       "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/land-integration.json",
@@ -69531,9 +69579,28 @@
       "bytes": 16848,
       "original_sources": [],
       "sha256": "906a860dab4e0dd53b850a764b6f337d8116690d50396c36de7bffe9d1203897"
+    },
+    {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/tracker-closure.json",
+      "retained": "tracker/closure-verification.json",
+      "bytes": 144053,
+      "sha256": "6445e9697e7747bd1bd2b82271b092ac3a6413e056ae07c1f4d2aaa2980dd9a7",
+      "original_sources": [
+        "/home/halbritt/git/kicad-route/reports/audit-20261020/tracker/closure-verification.json"
+      ]
+    },
+    {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/tracker-closure.log",
+      "retained": "tracker/closure.log",
+      "bytes": 1229,
+      "sha256": "d3944037980b32699d7fb0ff52587c5ae2974c6e850ac9b2e04825b36a7b56ab",
+      "original_sources": [
+        "/home/halbritt/git/kicad-route/reports/audit-20261020/tracker/closure.log"
+      ]
     }
   ],
   "original_to_retained": {
+    "/home/halbritt/git/kicad-route/reports/audit-20261020/COMPLETION.md": "COMPLETION.md",
     "/home/halbritt/git/kicad-route/reports/audit-20261020/README.md": "README.md",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/acceptance.json": "acceptance/acceptance.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/audit-readme-draft.md": "acceptance/drafts/audit-readme-draft.md",
@@ -80912,6 +80979,12 @@
     "/home/halbritt/git/kicad-route/build/agent497-qualification/acceptance-profile-tests.log": "provenance/acceptance-profile-tests.log",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/acceptance_profile.py": "provenance/acceptance_profile.py",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-adapter-tests.log": "provenance/archon-adapter-tests.log",
+    "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-cleanup-preflight.json": "provenance/archon-cleanup-preflight.json",
+    "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/archon-cleanup-preflight.json": "provenance/archon-cleanup-preflight.json",
+    "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-cleanup-raw.json": "provenance/archon-cleanup-raw.json",
+    "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/archon-cleanup-raw.json": "provenance/archon-cleanup-raw.json",
+    "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-cleanup-receipt.json": "provenance/archon-cleanup-receipt.json",
+    "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/archon-cleanup-receipt.json": "provenance/archon-cleanup-receipt.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-export-receipt.json": "provenance/archon-export-receipt.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json": "provenance/archon-final-verification.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-finalizer-readiness.json": "provenance/archon-finalizer-readiness.json",
@@ -81029,6 +81102,8 @@
     "/tmp/kicad-route-agent497-source.json": "provenance/doctrine/typed/kicad-route-agent497-source.json",
     "/tmp/kicad-route-agent497-tests.json": "provenance/doctrine/typed/kicad-route-agent497-tests.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/update-cpu-rate-doctrine.py": "provenance/doctrine/update-cpu-rate-doctrine.py",
+    "/home/halbritt/git/kicad-route/build/agent497-qualification/final-operational-verification.json": "provenance/final-operational-verification.json",
+    "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/final-operational-verification.json": "provenance/final-operational-verification.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/final-output-review-before-doctor-count-correction.json": "provenance/final-output-review-before-doctor-count-correction.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/final-output-review-doctor-count-erratum.json": "provenance/final-output-review-doctor-count-erratum.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/final-output-review.json": "provenance/final-output-review.json",
@@ -81043,6 +81118,7 @@
     "/home/halbritt/git/kicad-route/build/agent497-qualification/install-helper-review.json": "provenance/install-helper-review.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/install-landed-main.py": "provenance/install-landed-main.py",
     "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/inventory-history/3477fc007f2ab310c86b6d56b626d703a5e8590b3f78e1ee45ada6f56286ad85.json": "provenance/inventory-history/3477fc007f2ab310c86b6d56b626d703a5e8590b3f78e1ee45ada6f56286ad85.json",
+    "/home/halbritt/git/kicad-route/reports/audit-20261020/provenance/inventory-history/35bd89d542e34a571868ba1d6e8f6216f5dd3f5dbae782bf94b329c359b25d64.json": "provenance/inventory-history/35bd89d542e34a571868ba1d6e8f6216f5dd3f5dbae782bf94b329c359b25d64.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/land-integration.json": "provenance/land-integration.json",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-doctor.log": "provenance/landed-main-doctor.log",
     "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-install.log": "provenance/landed-main-install.log",
@@ -81280,13 +81356,17 @@
     "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/junit.xml": "tests/original-smoke/junit.xml",
     "/home/halbritt/git/kicad-route/build/agent497-smoke.log": "tests/original-smoke/smoke.log",
     "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/summary.json": "tests/original-smoke/summary.json",
-    "/home/halbritt/git/kicad-route/build/agent497-qualification/closure-comments-final.json": "tracker/closure-comments-final.json"
+    "/home/halbritt/git/kicad-route/build/agent497-qualification/closure-comments-final.json": "tracker/closure-comments-final.json",
+    "/home/halbritt/git/kicad-route/build/agent497-qualification/tracker-closure.json": "tracker/closure-verification.json",
+    "/home/halbritt/git/kicad-route/reports/audit-20261020/tracker/closure-verification.json": "tracker/closure-verification.json",
+    "/home/halbritt/git/kicad-route/build/agent497-qualification/tracker-closure.log": "tracker/closure.log",
+    "/home/halbritt/git/kicad-route/reports/audit-20261020/tracker/closure.log": "tracker/closure.log"
   },
   "limitations": [
     "Absolute locators in original receipts are historical; resolve using original_to_retained.",
     "This is retained test evidence; no claim of a single all-green full-suite invocation.",
     "Whole runtime environments and task HOME/download caches are deliberately omitted; indexed baseline grading cache and ledger evidence remains. Selected hash-bound extension bytes are retained as audit artifacts only. Runtime identities remain in receipts."
   ],
-  "previous_inventory_sha256": "3477fc007f2ab310c86b6d56b626d703a5e8590b3f78e1ee45ada6f56286ad85",
-  "extended_utc": "2026-10-20T22:59:51.133115+00:00"
+  "previous_inventory_sha256": "35bd89d542e34a571868ba1d6e8f6216f5dd3f5dbae782bf94b329c359b25d64",
+  "extended_utc": "2026-10-20T23:06:19.347194+00:00"
 }
