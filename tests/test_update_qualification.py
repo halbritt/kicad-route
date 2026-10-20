@@ -8,6 +8,7 @@ from kicad_route import cli, common, corpus, determinism, statemanifest
     (True, None, 3, 3), (False, None, 1, 1)])
 def test_update_propagates_repeat_and_preserves_earlier_failure(
         tmp_path, monkeypatch, reproducible, record_error, earlier, want):
+    monkeypatch.setattr(common, 'STATE', tmp_path / 'state')
     monkeypatch.setattr(cli, 'out_path', lambda *p: tmp_path.joinpath(*p))
     monkeypatch.setattr(cli, 'krt_version', lambda: {'version': 'owned'})
     monkeypatch.setattr(cli, 'freerouting_version', lambda: {})
