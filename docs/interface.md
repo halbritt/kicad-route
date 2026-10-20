@@ -137,6 +137,26 @@ The emitted `route/1` top-level key set is unchanged: `schema`, `kind`, `backend
 pair evidence, including evidence accumulated through `--against` chains.
 The pair field definitions are in [diff-pairs.md](diff-pairs.md).
 
+New route and revalidation evidence declares `candidate_hash_basis: "post-refill"`.
+`evidence.candidate_board_sha256` identifies the bytes at `candidate.board` after
+native refill/save and equals `validation.candidate_board_sha256`.
+`evidence.pre_refill_board_sha256` preserves `validation.delivered_board_sha256`;
+`backend_output_board_sha256` remains the backend's original output digest.
+These meanings apply to both `/1` and `/2`. Historical receipts without the basis
+marker may have used the pre-refill digest in the evidence candidate field;
+consumers reconstruct their final digest from `validation.candidate_board_sha256`,
+or report the final digest unknown if that validation field is absent. Existing
+receipt bytes are not rewritten.
+
+`input.baseline.identity` identifies the input snapshot, selected board, native
+KiCad tools, pour schema, result schemas and grading source content.
+`input.baseline.generation` identifies the immutable cached DRC/info/pour generation
+used by this run, or is null when no complete generation could be published.
+Cached generations include `generation.json` with hashes of all three records.
+Only a complete, hash-verified generation selected by an atomic pointer is reused;
+legacy, missing and malformed entries cause recomputation in writable OUT.
+
+
 ## Exit codes
 
 Exit codes 0 to 3 of `run` and `validate` come from one function, `overall_exit`,

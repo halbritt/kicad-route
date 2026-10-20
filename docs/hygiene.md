@@ -148,9 +148,19 @@ The two keys:
   - `None` values are dropped, so a new optional setting left unset keeps old
     keys valid.
   - Net patterns and classes are order-free. Backend args are not.
-- **fingerprint**: a hash of the attempt key and the backend version identity
-  (version, commit, Rust router, jar sha256). `result.json` carries it in
+- **fingerprint**: a hash of the attempt key and `backend.execution_identity`.
+  KRT includes owned source, compiled extension, Python and package environment
+  content identities. Freerouting includes its jar and Java runtime identity.
+  Repository commits remain readable provenance and do not invalidate unchanged
+  engine content. `result.json` carries the fingerprint in
   `ledger.fingerprint` / `ledger.short`.
+
+Historical results without `execution_identity` retain their original version /
+commit / Rust-version / jar key when reconstructed. Their ledger rows do not
+refuse new content-identified attempts. Identical new failures still refuse;
+`--force` keeps its existing behavior. Human-copper protection is resolved before
+fingerprinting; its effective settings and designated-copper hash are retained so
+reconstruction from `result.json` agrees with the original gate.
 
 `run` computes both before the baseline DRC.
 
@@ -350,3 +360,13 @@ fixture's KRT and Freerouting round trips and `doctor --json --offline` with `HO
 set to an empty read-only directory, traced with `strace` when it is available. The
 runs must pass, the directory must not change, and no process may try to write under
 it, under the real home or anywhere else outside OUT and `/tmp` (KICADROUTE-60).
+
+
+Corpus comparison fails when known validation PASS or routing COMPLETE is lost,
+including a COMPLETE-to-INCOMPLETE pair result with unchanged open counts. Losing
+a previously recorded counter or preservation check is missing evidence and
+fails the gate. Unchanged deliberately incomplete or invalid baselines remain
+comparable, while improvements to their status or counts are reported. Older
+entries without a preservation-check inventory cannot identify individual removed
+checks; re-add them to establish that stronger inventory. A lost validation PASS
+still fails for those historical entries.

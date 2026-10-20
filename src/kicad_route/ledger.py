@@ -4,8 +4,8 @@ An attempt's fingerprint covers what decides its outcome:
 
     attempt key   input fingerprint + backend name + normalized settings (scope,
                   budget, protection, tightening controls, backend args/env, stall)
-    fingerprint   attempt key + backend version identity (version, commit,
-                  Rust router, jar sha256)
+    fingerprint   attempt key + content execution identity (owned source,
+                  extension and environment, or jar and Java runtime)
 
 Before routing, an attempt whose fingerprint already finished with a failing
 outcome class (process FAIL, validation FAIL, routing INCOMPLETE) is refused
@@ -49,6 +49,10 @@ def normalize_settings(settings):
 
 
 def backend_identity(version):
+    # Legacy receipts keep their historical key. New runs carry a complete
+    # content identity and never use the checkout commit as execution identity.
+    if version.get("execution_identity") is not None:
+        return {"execution_identity": version["execution_identity"]}
     return {k: version.get(k) for k in VERSION_KEYS if version.get(k) is not None}
 
 

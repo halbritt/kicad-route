@@ -62,7 +62,8 @@ def reference_facts(baseline_report, ref_dir, board_name, work, drc):
     if report is None:
         return None, {"source": None, "reasons": info["reasons"]}
     facts, rec = extract(board, work / FACTS_NAME)
-    if facts is not None and cached is not None and cached.parent.is_dir():
+    if (facts is not None and cached is not None and cached.parent.is_dir()
+            and not (cached.parent / "generation.json").exists()):
         common.write_json(cached, facts)
     shutil.rmtree(work / Path(ref_dir).name, ignore_errors=True)
     return facts, {"source": str(cached) if cached else str(work / FACTS_NAME), "cached": False,

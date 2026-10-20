@@ -395,6 +395,9 @@
           "items": {
             "$ref": "#/$defs/differential-pair"
           }
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
         }
       },
       "allOf": [
@@ -671,6 +674,9 @@
           "items": {
             "$ref": "#/$defs/differential-pair"
           }
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
         }
       },
       "allOf": [
@@ -1236,6 +1242,39 @@
         "gap_mm": {
           "type": "number",
           "exclusiveMinimum": 0
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "description": "New receipts identify post-refill candidate bytes; older receipts without candidate_hash_basis may identify pre-refill bytes. Use validation.candidate_board_sha256 to reconstruct their final candidate digest.",
+      "properties": {
+        "candidate_hash_basis": {
+          "const": "post-refill"
+        },
+        "candidate_board_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Bytes at candidate.board after native refill/save, also validation.candidate_board_sha256."
+        },
+        "pre_refill_board_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Candidate bytes before native refill/save; validation.delivered_board_sha256."
+        },
+        "backend_output_board_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Original backend output bytes, before candidate preparation and native grading."
         }
       }
     }

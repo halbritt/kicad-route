@@ -39,6 +39,11 @@ def layer_record(result):
     ev = result.get("evidence") or {}
     sig = ev.get("candidate_copper_signature") or {}
     proc = result.get("process") or {}
+    # Legacy evidence may name pre-refill bytes. Validation has carried the
+    # final candidate digest since /1; prefer it when reconstructing old runs.
+    final_hash = (result.get("validation") or {}).get("candidate_board_sha256")
+    if final_hash is None and ev.get("candidate_hash_basis") == "post-refill":
+        final_hash = ev.get("candidate_board_sha256")
     return {
         "run_dir": result.get("run_dir"), "exit_code": result.get("exit_code"),
         "outcome": {"process": proc.get("status"), "routing": (result.get("routing") or {}).get("status"),
@@ -46,7 +51,7 @@ def layer_record(result):
                     "unconnected_in_scope": (result.get("routing") or {}).get("unconnected_in_scope")},
         "wall_clock_stop": bool(wall_clock_stops(proc)),
         "backend_output_bytes": ev.get("backend_output_board_sha256"),
-        "candidate_bytes": ev.get("candidate_board_sha256"),
+        "candidate_bytes": final_hash,
         "copper_geometry": sig.get("sha256"),
         "copper_items": {"tracks": sig.get("tracks"), "vias": sig.get("vias")} if sig else None,
     }

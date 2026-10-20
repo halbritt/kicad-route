@@ -90,6 +90,7 @@ import time
 from pathlib import Path
 
 from . import barrier  # run --barrier-from / `kicad-route barrier` (docs/barrier.md)
+from . import baselinecache
 from . import blocked
 from . import common
 from . import contract
@@ -345,26 +346,9 @@ def summarize_findings(items):
 
 def baseline_drc(reference, board_name, fingerprint):
     """Native DRC of the untouched input, graded exactly like candidates (refill first).
-    Cached by input fingerprint: the same input always has the same baseline."""
-    cache = out_path(".cache", "baseline", fingerprint)
-    report = load_json(cache / "baseline-drc.json")
-    info = load_json(cache / "baseline-info.json")
-    if report and info:
-        info.update(cached=True, report=str(cache / "baseline-drc.json"))
-        return report, info
-    work = out_path(".cache", "tmp", f"{fingerprint}-{os.getpid()}")
-    shutil.rmtree(work, ignore_errors=True)
-    copy_project(reference, work / reference.name)
-    report, info = kicad_drc(work / reference.name / board_name, work / "drc", "baseline", refill_and_save=True)
-    if report is not None:
-        cache.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(work / "drc" / "baseline-drc.json", cache / "baseline-drc.json")
-        info["report"] = str(cache / "baseline-drc.json")
-        common.write_json(cache / "baseline-info.json", info)
-        pour.extract(work / reference.name / board_name, cache / pour.FACTS_NAME)  # same refill as graded
-    shutil.rmtree(work, ignore_errors=True)
-    info["cached"] = False
-    return report, info
+    Cached by input, selected board and native grading content identity."""
+    return baselinecache.get(reference, board_name, fingerprint,
+                             out_path(".cache", "baseline"), kicad_drc, copy_project)
 
 
 # ---------------------------------------------------------------- preservation
@@ -1048,7 +1032,19 @@ def run_attempt(args):
     barrier_rec = barrier.prepare(getattr(args, "barrier_from", None), getattr(args, "barrier_size", None),
                                   run_dir, fingerprint)
     settings["barrier"] = barrier.settings_of(barrier_rec)
+    if args.protect == "human":
+        protection_attempt = {"board": board_name, "settings": settings,
+                              "reference_dir": str(ref_dir.relative_to(run_dir)),
+                              "reference_facts": "facts/reference-facts.json",
+                              "source": {k: manifest.get(k) for k in
+                                         ("source_dir", "source", "source_git_head", "source_dirty_files")}}
+        prov = provenance.prepare(run_dir, protection_attempt, resolve_origin(run_dir, protection_attempt))
+        if settings.get("protect_only"):
+            settings["protect_only_sha256"] = common.sha256(run_dir / settings["protect_only"])
+        log(f"[route] provenance: {prov.get('detail') or prov['reason']}")
     backend_version = backend["version"]()
+    backend_version["execution_identity"] = evidence.backend_identity(args.backend, backend_version)
+    backend_version["execution_identity"].pop("commit", None)
     gate = ledger.check(ledger_path(args), fingerprint, args.backend, backend_version, settings,
                         force=getattr(args, "force", False))
     if gate["refuse"]:
@@ -1077,7 +1073,8 @@ def run_attempt(args):
         "reference_facts": "facts/reference-facts.json",
         "rules_files": {k: rules[k] for k in ("project", "custom_rules", "not_loaded")},
         "baseline": {"report": os.path.relpath(base_info["report"], run_dir) if base else None,
-                     "cached": base_info.get("cached"), "reasons": base_info["reasons"]},
+                     "cached": base_info.get("cached"), "reasons": base_info["reasons"],
+                     "identity": base_info.get("identity"), "generation": base_info.get("generation")},
         "scope": {"nets": scope, **scope_info},
         "settings": settings,
         "floor": floor_rec,
@@ -1085,10 +1082,6 @@ def run_attempt(args):
     if pairs is not None:
         attempt["pairs"] = pairs
     common.write_json(run_dir / "attempt.json", attempt)
-    if args.protect == "human":  # lock only the design's own copper (provenance.py, docs/provenance.md)
-        prov = provenance.prepare(run_dir, attempt, resolve_origin(run_dir, attempt))
-        log(f"[route] provenance: {prov.get('detail') or prov['reason']}")
-        common.write_json(run_dir / "attempt.json", attempt)
 
     unsupported = backend["unsupported"](ref_facts, ref_dir, settings)
     work = run_dir / "work"

@@ -255,7 +255,7 @@ def test_krt_repeat_is_deterministic_and_results_carry_evidence():
         assert ev["input_board_sha256"] == common.sha256(FIXTURE / "route_demo.kicad_pcb")
         assert set(ev["rules_files"]) == {"route_demo.kicad_pro", "route_demo.kicad_dru"}
         assert ev["candidate_board_sha256"] == common.sha256(OUT / res["candidate"]["board"]) \
-            == res["validation"]["delivered_board_sha256"]
+            == res["validation"]["candidate_board_sha256"]
         for name, digest in ev["records"].items():
             assert common.sha256(run_dir / name) == digest, name
         facts = json.loads((run_dir / "validate" / "candidate-facts.json").read_text())

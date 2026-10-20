@@ -8,7 +8,8 @@ evidence (what was graded, by hash):
     rule_floor_sha256        the declared rule floor (settings.rule_floor_sha256)
     backend_output_board_sha256   the board the backend handed back (work/krt-out or
                              work/freerouting-out), before KiCad refilled and saved it
-    candidate_board_sha256   the delivered candidate (validation.delivered_board_sha256)
+    candidate_board_sha256   the final candidate (validation.candidate_board_sha256)
+    pre_refill_board_sha256  the candidate before native refill/save
     candidate_copper_signature    copper_signature() of the candidate's facts
     records                  sha256 of attempt.json and the grading records
 
@@ -81,18 +82,21 @@ def block(run_dir, attempt, grade_dir, validation, backend_output_sha256=None, r
     facts = common.load_json(grade_dir / "candidate-facts.json")
     records = {}
     if (run_dir / "attempt.json").exists():
-        records["attempt.json"] = _sha(run_dir / "attempt.json")
+        records[os.path.relpath(run_dir / "attempt.json", base)] = _sha(run_dir / "attempt.json")
     for name in RECORD_FILES[1:]:
         if (grade_dir / name).exists():
             records[os.path.relpath(grade_dir / name, base)] = _sha(grade_dir / name)
     return {
         "input_board_sha256": files.get(attempt["board"]),
         "input_fingerprint": attempt.get("input_fingerprint"),
+        "baseline": {k: (attempt.get("baseline") or {}).get(k) for k in ("identity", "generation")},
         "reference_files": files,
         "rules_files": {k: v for k, v in files.items() if k.endswith((".kicad_pro", ".kicad_dru"))},
         "rule_floor_sha256": (attempt.get("settings") or {}).get("rule_floor_sha256"),
         "backend_output_board_sha256": backend_output_sha256,
-        "candidate_board_sha256": (validation or {}).get("delivered_board_sha256"),
+        "candidate_hash_basis": "post-refill",
+        "candidate_board_sha256": (validation or {}).get("candidate_board_sha256"),
+        "pre_refill_board_sha256": (validation or {}).get("delivered_board_sha256"),
         "candidate_copper_signature": copper_signature(facts),
         "records": records,
     }
@@ -107,6 +111,7 @@ def backend_identity(name, version, state=None):
                 "commit": version.get("commit"), "grid_router_version": version.get("rust_router"),
                 "source_sha256": version.get("source_sha256"),
                 "extension_module_sha256": _sha(module) if module else None,
+                "venv_python_version": statemanifest.venv_python_version(statemanifest.layout(state)["venv"]),
                 "venv_packages_sha256": statemanifest.packages_sha256(
                     statemanifest.venv_packages(statemanifest.layout(state)["venv"]))}
     java = (version.get("java") or "").split(" (")[0] or None

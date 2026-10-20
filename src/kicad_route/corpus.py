@@ -69,14 +69,15 @@ def outcome(result):
     if result.get("refused"):
         return {"refused": result["refused"], "exit_code": result["exit_code"]}
     drc = result["validation"].get("drc") or {}
-    return {"exit_code": result["exit_code"], "process": result["process"]["status"],
+    return {"exit_code": result["exit_code"], "process": result["process"].get("status"),
             "process_reasons": result["process"].get("reasons", []),
-            "routing": result["routing"]["status"],
+            "routing": result["routing"].get("status"),
             "unconnected_in_scope": result["routing"].get("unconnected_in_scope"),
             "unconnected_total": result["routing"].get("unconnected_total"),
-            "validation": result["validation"]["status"],
+            "validation": result["validation"].get("status"),
             "new_violations": (drc.get("new_violations") or {}).get("count"),
             "new_parity": (drc.get("new_parity") or {}).get("count"),
+            "preservation_checks": sorted((result["validation"].get("preservation") or {})),
             "preservation_fail": sorted(k for k, v in (result["validation"].get("preservation") or {}).items()
                                         if v != PASS),
             "backend": {k: result["backend"].get(k) for k in ("name", "version", "commit", "sha256")
@@ -149,19 +150,36 @@ def compare(base, now):
     reg, imp = [], []
     if now.get("refused"):
         return [f"attempt refused: {now['refused']}"], imp
-    if now["process"] != PASS:
+    if now.get("process") != PASS:
         reg.append("process FAIL" + (" (baseline also FAIL)" if base.get("process") != PASS else "")
                    + (f": {'; '.join(now['process_reasons'][:2])}" if now.get("process_reasons") else ""))
     elif base.get("process") != PASS:
         imp.append("process now PASS")
 
+    for key, good in (("validation", PASS), ("routing", "COMPLETE")):
+        before, after = base.get(key), now.get(key)
+        if before == good and after != good:
+            reg.append(f"{key} {before} -> {after or 'missing evidence'}")
+        elif before is not None and after in (None, "NOT_RUN") and before != after:
+            reg.append(f"missing {key} evidence (baseline {before})")
+        elif after == good and before != good:
+            imp.append(f"{key} now {good}")
+    if base.get("exit_code") == 0 and now.get("exit_code") != 0:
+        reg.append(f"exit status 0 -> {now.get('exit_code')}")
+    missing_checks = sorted(set(base.get("preservation_checks", [])) -
+                            set(now.get("preservation_checks", [])))
+    if missing_checks:
+        reg.append(f"missing preservation evidence: {', '.join(missing_checks)}")
+
     def num(o, k):
         v = o.get(k)
-        return v if isinstance(v, int) else None
+        return v if type(v) is int and v >= 0 else None
 
     for key, label in (("unconnected_in_scope", "unconnected in scope"), ("new_violations", "new DRC violations"),
                        ("new_parity", "new parity issues")):
         b, n = num(base, key), num(now, key)
+        if b is not None and n is None:
+            reg.append(f"missing evidence: {label}")
         if b is None or n is None:
             continue
         if n > b:
