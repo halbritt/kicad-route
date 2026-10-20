@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kicad-route/planes/1",
+  "title": "Explicit plane-plan production",
+  "type": "object",
+  "required": [
+    "schema",
+    "kind",
+    "exit_code",
+    "run_dir",
+    "input",
+    "process",
+    "validation",
+    "planes",
+    "candidate",
+    "sandbox",
+    "limitation"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kicad-route/planes/1"
+    },
+    "kind": {
+      "const": "planes"
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        3
+      ]
+    },
+    "run_dir": {
+      "type": "string"
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "files",
+        "plan_sha256"
+      ],
+      "properties": {
+        "files": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "plan_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "candidate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "limitation": {
+      "type": "string"
+    },
+    "sandbox": {
+      "type": "object"
+    },
+    "process": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "NOT_RUN"
+          ]
+        }
+      }
+    },
+    "planes": {
+      "type": "object",
+      "required": [
+        "zones_created",
+        "zones",
+        "pour_integrity"
+      ],
+      "properties": {
+        "zones_created": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "uuid",
+              "net",
+              "layer",
+              "filled_area_mm2",
+              "fill_polygons"
+            ],
+            "properties": {
+              "uuid": {
+                "type": "string"
+              },
+              "net": {
+                "type": "string"
+              },
+              "layer": {
+                "type": "string"
+              },
+              "filled_area_mm2": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "fill_polygons": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "pour_integrity": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "check",
+            "before",
+            "after",
+            "delta"
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "exit_code": {
+            "enum": [
+              0,
+              3
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "candidate": {
+            "type": "string"
+          },
+          "process": {
+            "properties": {
+              "status": {
+                "const": "PASS"
+              }
+            }
+          },
+          "planes": {
+            "properties": {
+              "zones_created": {
+                "type": "integer"
+              },
+              "zones": {
+                "minItems": 1
+              },
+              "pour_integrity": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "exit_code": {
+            "const": 0
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "validation": {
+            "properties": {
+              "status": {
+                "const": "PASS"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "exit_code": {
+            "const": 3
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "validation": {
+            "properties": {
+              "status": {
+                "const": "FAIL"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "exit_code": {
+            "const": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "candidate": {
+            "type": "null"
+          },
+          "process": {
+            "properties": {
+              "status": {
+                "const": "FAIL"
+              }
+            }
+          },
+          "validation": {
+            "properties": {
+              "status": {
+                "const": "NOT_RUN"
+              }
+            }
+          },
+          "planes": {
+            "properties": {
+              "pour_integrity": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

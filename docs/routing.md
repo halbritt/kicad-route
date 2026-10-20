@@ -367,6 +367,16 @@ outcome, different candidate bytes).
 | Freerouting | v2.5.0 jar, sha256 `f6f51bb0…5de3c7`, build revision `b647a2f` |
 | Java for Freerouting | OpenJDK 25.0.4.1 (`openjdk-25-jre-headless 25.0.4.1+1-1~24.04.4`) |
 
+## Planned planes
+
+`kicad-route planes --board B.kicad_pcb --plan PLAN.json --run-dir NEW_DIR`
+creates or repairs explicit `agent-ee.plane-plan/1` zones with native refill,
+saved-setting verification and before/after pour integrity. It uses its own
+`kicad-route/planes/1` production result; successful plane production still needs
+routing and final electrical checks. See [planes.md](planes.md) for the exact
+plan, refusal and exit contracts. The `run` and `validate` zone-preservation
+rules remain unchanged.
+
 ## Decisions
 
 - **Freerouting jar, not the native CLI.** v2.5.0 introduced

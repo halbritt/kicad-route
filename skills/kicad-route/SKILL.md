@@ -29,6 +29,9 @@ first.
   - Never lower clearances, narrow net-class widths or vias, add layers, change
     connectivity, move footprints, edit zones or keepouts, or relax DRC severities to
     make an attempt pass.
+  - `planes` is a separate, explicit plan producer: it may create/repair only
+    the zones in `agent-ee.plane-plan/1`; its production success still needs final
+    electrical checks. See `docs/planes.md`.
   - Tightening is fine, for example `--default-clearance`.
 - **The verdict is the run's `result.json`.**
   - It comes from KiCad's own DRC: zones refilled, schematic parity, the input's own
@@ -44,6 +47,7 @@ first.
 | `kicad-route doctor` | Readiness, versions and capabilities of both backends (`OUT/doctor/doctor.json`) |
 | `kicad-route doctor --json --offline [--no-canary]` | The same record on stdout (schema `kicad-route/doctor/1`, logs on stderr), with no network; its `sandbox` block lists the read-only mounts, writable OUT, environment and network a sandbox must provide (`docs/sandbox.md`) |
 | `kicad-route run --backend krt\|freerouting [options]` | One attempt; prints the run directory and exits with its verdict |
+| `kicad-route planes --board B.kicad_pcb --plan PLAN.json --run-dir NEW_DIR [--json]` | Create/refill exactly `agent-ee.plane-plan/1` zones on a copy; planned settings, fill areas and before/after pour evidence (`docs/planes.md`). Separate production contract; full routing acceptance remains required |
 | `kicad-route validate <run_dir>` | Re-grade a candidate (e.g. after hand edits) into `<run_dir>/revalidate/<stamp>/` |
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
 | `kicad-route campaign --backend krt\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`). `--total-budget` cuts each run's `--budget` to the time left and stops a step still running past its grace (`timeouts` in campaign.json) |

@@ -138,3 +138,10 @@ Each test starts from a clean KRT candidate of the fixture routed with
 - Pads are matched by `<ref>.<number>@<layer>`. Candidates that move footprints
   already fail `footprints`.
 - `audit` does not run this check yet.
+
+## Explicit plane production
+
+[`kicad-route planes`](planes.md) also uses this comparison. Its `result.json`
+records `planes.pour_integrity.before`, `.after`, `.check` and `.delta` from
+the native refilled input and planned candidate. Missing facts fail production.
+A before/after preservation pass is not proof of every new plane connection.

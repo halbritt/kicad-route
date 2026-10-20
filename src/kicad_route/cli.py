@@ -23,6 +23,8 @@ input's unchanged constraints.
                                           rule high-water mark of the history and the declared floor
     kicad-route spokes RUN_DIR | --board B.kicad_pcb
                                           thermal-spoke corridors: which new copper starved which pad
+    kicad-route planes --board B.kicad_pcb --plan PLAN.json --run-dir PATH
+                                          explicit native planes with refill and pour evidence
     kicad-route decoupling RUN_DIR | --board B.kicad_pcb [--radius MM]
                                           read-only: bypass capacitors between IC pins and the plane?
     kicad-route barrier RUN_DIR [--size MM]
@@ -38,7 +40,7 @@ input's unchanged constraints.
     kicad-route corpus add|check|list     real-board regression gate (`update` runs check)
 
 --out DIR and --json go before or after the subcommand. --json (run, validate,
-campaign, blocked, audit, floor, doctor, decoupling, barrier) prints exactly one
+campaign, blocked, audit, floor, doctor, decoupling, barrier, planes) prints exactly one
 JSON record on stdout and sends progress to stderr (docs/interface.md, schemas/).
 
 Every attempt gets a fresh run directory OUT/runs/<project>/<label>/<stamp>/
@@ -97,6 +99,7 @@ from . import floor
 from . import provenance
 from . import sandbox  # --require-readonly-state, doctor's sandbox block (docs/sandbox.md)
 from . import pour
+from . import planes
 from . import skills
 from . import spokes  # --reserve-spokes / `kicad-route spokes` (docs/spokes.md)
 from . import decoupling  # `kicad-route decoupling` (docs/decoupling.md)
@@ -2509,7 +2512,7 @@ def route_argv(args, skip=SCOPE_DESTS):
     return argv
 
 
-JSON_COMMANDS = ("run", "validate", "campaign", "blocked", "audit", "floor", "doctor", "decoupling", "barrier")
+JSON_COMMANDS = ("run", "validate", "campaign", "blocked", "audit", "floor", "doctor", "decoupling", "barrier", "planes")
 
 
 def build_parser():
@@ -2562,6 +2565,7 @@ def build_parser():
                                                             "evidence goes to <to>/<project>/<label>/")
     spokes.add_parser(sub)
     decoupling.add_parser(sub)
+    planes.add_parser(sub)
     barrier.add_parser(sub)
     sub.add_parser("update", help="update both backends through their upstream channels, then smoke")
     statemanifest.add_parser(sub)
@@ -2628,6 +2632,8 @@ def dispatch(a):
         rec = doctor(a.offline, a.canary, a.require_readonly_state)
     elif a.cmd == "spokes":
         return spokes.cmd(a), None
+    elif a.cmd == "planes":
+        return planes.cmd(a)
     elif a.cmd == "decoupling":
         return decoupling.cmd(a)
     elif a.cmd == "barrier":
