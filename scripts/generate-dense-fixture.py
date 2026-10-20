@@ -8,8 +8,8 @@ proof that every run enters a rescue pass; the run report establishes that.
 """
 import argparse
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 import uuid
 
 import pcbnew
@@ -83,13 +83,25 @@ def generate(destination):
     for x, y in ((124, 109), (126, 109), (126, 120), (124, 120)):
         outline.Append(pcbnew.FromMM(x), pcbnew.FromMM(y))
     board.Add(wall)
+    # KiCad sorts footprints by UUID on save. Assign identities before save,
+    # including child fields/pads, so both ordering and bytes are reproducible.
+    def identity(label):
+        return pcbnew.KIID(str(uuid.uuid5(NAMESPACE, label)))
+    for fp in board.GetFootprints():
+        ref = fp.GetReference()
+        fp.SetUuid(identity(ref))
+        fp.Reference().SetUuid(identity(ref + '/reference'))
+        fp.Value().SetUuid(identity(ref + '/value'))
+        for pad in fp.Pads():
+            pad.SetUuid(identity(ref + '/pad/' + pad.GetNumber()))
+    wall.SetUuid(identity('wall'))
     path = destination / 'dense.kicad_pcb'
     board.Save(str(path))
-    # Every generated identity is stable; rerunning yields identical source.
+    # Save may synthesize empty description/datasheet fields. Their order is
+    # stable now that owner identities are fixed; normalize their IDs too.
     count = iter(range(10000))
-    text = re.sub(r'\(uuid "[^"]+"\)',
-                  lambda _: f'(uuid "{uuid.uuid5(NAMESPACE, str(next(count)))}")', path.read_text())
-    path.write_text(text)
+    path.write_text(re.sub(r'\(uuid "[^"]+"\)',
+        lambda _: f'(uuid "{uuid.uuid5(NAMESPACE, str(next(count)))}")', path.read_text()))
     project = json.loads((fixture / 'route_demo.kicad_pro').read_text())
     project['net_settings']['netclass_patterns'] = []
     (destination / 'dense.kicad_pro').write_text(json.dumps(project, indent=2) + '\n')
