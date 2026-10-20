@@ -1,8 +1,9 @@
 # Owned routing kernel checks
 
 Run `make kernel` after installing the routing environment. In a secondary
-worktree, point `KICAD_ROUTE_STATE` at its installed state, or pass
-`KERNEL_PYTHON=/path/to/.venv-krt/bin/python` to make. The gate builds this
+worktree, point `KICAD_ROUTE_STATE` at its installed state. The default Python
+is selected by `cli.route_python()`, including an active staged generation.
+An explicit `KERNEL_PYTHON=/path/to/routing/python` override is also supported. The gate builds this
 checkout's locked Rust source offline into `build/kernel`, loads that exact
 extension, and runs without KiCad, a board corpus, `vendor/krt`, or network
 acquisition. The first build needs the crate versions from `Cargo.lock` already
@@ -25,10 +26,10 @@ The fast gate covers:
 - Both public board writers with literal parentheses, escaped quotes and
   backslashes, fake expression text, and malformed input.
 
-Run the mutation proof with the same routing Python:
+Run the mutation proof with the same selected routing environment:
 
 ```
-.venv-krt/bin/python scripts/check-kernel-mutants.py
+make kernel-mutants
 ```
 
 It builds disposable source copies under `build/`, breaks bitmap clearing,

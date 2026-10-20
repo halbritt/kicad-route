@@ -22,7 +22,9 @@ fixture:             ## regenerate the fixture board
 	/usr/bin/python3 fixtures/route_demo/generate.py
 
 # Needs only the installed numeric routing environment and cached locked crates.
-KERNEL_PYTHON ?= $(if $(KICAD_ROUTE_STATE),$(KICAD_ROUTE_STATE),.)/.venv-krt/bin/python
-.PHONY: kernel
+KERNEL_PYTHON ?= $(shell /usr/bin/python3 -c 'import sys; sys.path.insert(0, "src"); from kicad_route.cli import route_python; print(route_python())')
+.PHONY: kernel kernel-mutants
 kernel:
 	$(KERNEL_PYTHON) scripts/kernel-tests.py
+kernel-mutants:
+	$(KERNEL_PYTHON) scripts/check-kernel-mutants.py
