@@ -165,7 +165,13 @@ def test_doctor_json_offline_record(doctor_record):
     checks = {c["check"]: c for c in rec["checks"]}
     for name in ("KRT latest release", "Freerouting latest release", "canary (awkward net names)"):
         assert checks[name]["status"] == "NOT_RUN" and not checks[name]["required"], checks[name]
+    assert checks['bwrap (planes)']['status'] == ('PASS' if BWRAP else 'FAIL')
+    assert checks['bwrap (planes)']['required'] is False
+    assert rec['capabilities']['planes']['bwrap_ready'] is BWRAP
     sb = rec["sandbox"]
+    assert sb['network']['planes'] == []
+    if shutil.which('bwrap'):
+        assert str(Path(shutil.which('bwrap')).resolve()) in {e['path'] for e in sb['ro_paths']}
     ro = {e["path"] for e in sb["ro_paths"]}
     java = rec["versions"]["freerouting"]["java"].split(" (")[0]
     for need in (str(STATE), str(ROOT), str(Path(java).resolve().parents[1]),

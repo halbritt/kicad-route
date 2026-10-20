@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 import shutil
 import sys
+import uuid
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -23,6 +24,54 @@ def sandbox_command(work, argv):
             '--chdir', str(work), '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin',
             '--setenv', 'HOME', str(work / 'home'), '--setenv', 'PYTHONDONTWRITEBYTECODE', '1',
             '--setenv', 'KICAD_ROUTE_OUT', str(work / 'tools'), *map(str, argv)]
+
+
+def bwrap_check(work):
+    """Probe planes namespace support without staging a private filesystem."""
+    work.mkdir(parents=True, exist_ok=True)
+    argv = ['bwrap', '--die-with-parent', '--unshare-all', '--ro-bind', '/', '/',
+            '--clearenv', '--', '/usr/bin/true']
+    rec = common.run_cmd(argv, work, work / 'bwrap.log', timeout=10)
+    ready = rec['exit_code'] == 0
+    return dict(check='bwrap (planes)', status=common.PASS if ready else common.FAIL,
+                required=False, detail=f'planes namespaces {"ready" if ready else "unavailable"}; see {rec["log"]}')
+
+
+def _isolated_copper_errors(report, always_ids):
+    """Incomplete native evidence cannot establish an isolated-copper pass."""
+    if not isinstance(report, dict):
+        raise ValueError('native plane DRC report is malformed')
+    severities = report.get('included_severities')
+    if (not isinstance(severities, list) or
+            any(s not in ('error', 'warning', 'exclusion') for s in severities) or
+            set(severities) != {'error', 'warning', 'exclusion'}):
+        raise ValueError('native plane DRC report lacks complete severity coverage')
+    violations = report.get('violations')
+    if not isinstance(violations, list):
+        raise ValueError('native plane DRC report is malformed')
+    errors = []
+    for violation in violations:
+        if (not isinstance(violation, dict) or
+                violation.get('severity') not in ('error', 'warning', 'exclusion') or
+                not isinstance(violation.get('type'), str) or not violation['type'].strip() or
+                not isinstance(violation.get('items'), list)):
+            raise ValueError('native plane DRC violation metadata is malformed')
+        items = violation['items']
+        isolated_always = violation['type'] == 'isolated_copper' and bool(always_ids)
+        if (violation['severity'] == 'error' or isolated_always) and not items:
+            raise ValueError('native plane DRC violation has no item attribution')
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get('uuid'), str):
+                raise ValueError('native plane DRC item attribution is malformed')
+            try:
+                valid = str(uuid.UUID(item['uuid'])) == item['uuid']
+            except ValueError:
+                valid = False
+            if not valid:
+                raise ValueError('native plane DRC item attribution is malformed')
+        if isolated_always and any(item['uuid'] in always_ids for item in items):
+            errors.append(violation)
+    return errors
 
 
 def _native(command, board, plan, output):
@@ -51,13 +100,18 @@ def _grade(board, directory):
 
 
 def _restore_siblings(reference, board):
+    restored = []
     for suffix in SIBLINGS:
         source = (reference / board.name).with_suffix(suffix)
         target = board.with_suffix(suffix)
         if source.is_file():
-            shutil.copyfile(source, target)
-        else:
-            target.unlink(missing_ok=True)
+            if not target.is_file() or common.sha256(source) != common.sha256(target):
+                restored.append(target.name)
+                shutil.copyfile(source, target)
+        elif target.exists():
+            restored.append(target.name)
+            target.unlink()
+    return restored
 
 
 def worker(reference, plan_path, work):
@@ -73,12 +127,12 @@ def worker(reference, plan_path, work):
     before, before_pour, before_commands = _facts(boards['before'], work / 'before-facts')
     applied, apply_command = _native('apply', boards['candidate'], plan_path, work / 'applied.json')
     # KiCad may rewrite project sidecars. Restore captured rules before grading.
-    _restore_siblings(reference, boards['candidate'])
+    restored = set(_restore_siblings(reference, boards['candidate']))
     after_drc, after_grade = _grade(boards['candidate'], work / 'candidate-drc')
     inspected, inspect_command = _native('inspect', boards['candidate'], plan_path, work / 'inspected.json')
     after, after_pour, after_commands = _facts(boards['candidate'], work / 'candidate-facts')
-    for board in boards.values():
-        _restore_siblings(reference, board)
+    _restore_siblings(reference, boards['before'])
+    restored.update(_restore_siblings(reference, boards['candidate']))
     # Reuse existing preservation checks; zone inventory and settings are checked
     # against the explicit plan above.
     checks, _ = cli.preservation(before, after, boards['before'].parent, boards['candidate'].parent,
@@ -90,17 +144,19 @@ def worker(reference, plan_path, work):
                        detail='plane-plan/1 permits no new or altered tracks/vias', differences=[]))
     integrity, delta = pour.compare(before_pour, after_pour)
     checks.append(integrity)
+    # Validate attribution before the permissive delta identity helper reads it.
+    _isolated_copper_errors(before_drc, set())
+    always_ids = {uid for uid, spec in zip(zone_ids(plan), plan['zones']) if spec['island_removal'] == 'always'}
+    isolated = _isolated_copper_errors(after_drc, always_ids)
     new, resolved = cli.drc_delta(before_drc, after_drc, 'violations')
     errors = [v for v in new if v['severity'] == 'error']
-    # Like agent-ee's producer, island-removal=always must not leave isolated copper.
-    always_ids = {uid for uid, spec in zip(zone_ids(plan), plan['zones']) if spec['island_removal'] == 'always'}
-    errors += [v for v in after_drc['violations'] if v['type'] == 'isolated_copper' and
-               any(i.get('uuid') in always_ids for i in v.get('items', [])) and v not in errors]
+    errors += [v for v in isolated if v not in errors]
     checks.append(dict(check='native_drc', status=common.FAIL if errors else common.PASS,
                        detail='new errors and planned always-remove isolated copper', differences=errors))
     valid = all(c['status'] == common.PASS for c in checks)
     report = dict(exit_code=0 if valid else 3, process=dict(status=common.PASS),
-                  validation=dict(status=common.PASS if valid else common.FAIL, checks=checks),
+                  validation=dict(status=common.PASS if valid else common.FAIL, checks=checks,
+                                  restored_project_files=sorted(restored)),
                   planes=dict(zones_created=applied['zones_created'], zones=inspected['zones'],
                               pour_integrity=dict(check=integrity, before=before_pour, after=after_pour, delta=delta)),
                   evidence=dict(before_drc=before_grade, after_drc=after_grade,
@@ -133,7 +189,7 @@ def produce(board, plan_path, run_dir):
     captured = {p.name: common.sha256(p) for p in reference.iterdir()}
     record = dict(schema=contract.schema_id('planes'), kind='planes', exit_code=1,
                   run_dir=str(run_dir), input=dict(files=captured, plan_sha256=common.sha256(run_dir / 'plan.json')),
-                  process=dict(status=common.FAIL), validation=dict(status=common.NOT_RUN),
+                  process=dict(status=common.FAIL), validation=dict(status=common.NOT_RUN, restored_project_files=[]),
                   planes=dict(zones_created=None, zones=[], pour_integrity=None), candidate=None,
                   limitation='Plane production only; full post-routing DRC, parity and connectivity acceptance remain required.')
     argv = [common.PCBNEW_PYTHON, '-B', Path(__file__).resolve(), reference, run_dir / 'plan.json', work]
@@ -149,7 +205,7 @@ def produce(board, plan_path, run_dir):
         record['process']['reason'] = 'sandbox/native production failed or report missing; see sandbox.log'
     if captured != {p.name: common.sha256(p) for p in reference.iterdir()}:
         record.update(exit_code=1, process=dict(status=common.FAIL, reason='immutable reference changed'),
-                      validation=dict(status=common.NOT_RUN), candidate=None)
+                      validation=dict(status=common.NOT_RUN, restored_project_files=[]), candidate=None)
     common.write_json(run_dir / 'result.json', record)
     print(f'[planes] result: {run_dir / "result.json"}')
     return record['exit_code'], record

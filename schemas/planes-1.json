@@ -91,6 +91,13 @@
             "FAIL",
             "NOT_RUN"
           ]
+        },
+        "restored_project_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
         }
       }
     },

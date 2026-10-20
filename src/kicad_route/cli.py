@@ -1887,6 +1887,9 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
     add("pcbnew SWIG (facts, Specctra bridge)", PASS if r.returncode == 0 and lines[-1:] == ["True"] else FAIL,
         " ".join(lines[:1]) or r.stderr[-200:])
 
+    planes_bwrap = planes.bwrap_check(out_path("doctor", "planes-bwrap"))
+    checks.append(planes_bwrap)
+
     # KRT
     v = krt_version() if KRT_DIR.exists() else {}
     add("owned routing source", PASS if v.get("version") else FAIL, f"{v.get('version')} {v.get('build')}")
@@ -1948,6 +1951,8 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
         required=require_readonly)
 
     capabilities = {
+        "planes": {"interface": "native pcbnew, agent-ee.plane-plan/1",
+                   "bwrap_ready": planes_bwrap["status"] == PASS},
         "krt": {"interface": "CLI (py_router/route.py), headless, no KiCad editor needed",
                 "net_selection": "names (fnmatch, !exclude); classes expanded by the wrapper",
                 "budget": "wall clock via KICAD_STOP_FILE + kill; --max-iterations",

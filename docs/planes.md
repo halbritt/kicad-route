@@ -15,6 +15,8 @@ are captured before production. The source files stay untouched. Production,
 refill, DRC and fact extraction run in bwrap with a private network namespace,
 a read-only host filesystem, private temporary storage and writable attempt work.
 Missing bwrap, KiCad, evidence or native output fails the process.
+`doctor --json --offline` probes namespace support as `bwrap (planes)` and reports
+`capabilities.planes.bwrap_ready`; see [sandbox.md](sandbox.md).
 
 ## Plan contract
 
@@ -72,8 +74,24 @@ settings and outline are checked against the plan after native refill. Every
 planned zone must have positive native filled copper. Existing preservation
 checks apply, with exact-plan zone inspection replacing zone equality. No trace
 routing behavior or verdict changes. Captured project sidecars are restored
-before grading and delivery. New native DRC errors fail validation; planned
-`always` zones must also have no isolated-copper findings.
+before grading and delivery. `validation.restored_project_files` is a sorted,
+deduplicated list of candidate sidecar basenames actually changed by restoration
+(`.kicad_pro`, `.kicad_dru`, `.kicad_prl`). It includes generated files removed
+because they were absent from the input, and files restored after either native
+apply or grading. Unchanged copies and baseline-only restorations are omitted.
+The list is empty if no completed worker report is available (`NOT_RUN`). This
+is evidence of native side effects; restoring captured sidecars does not itself
+fail plane validation. `project_files` still checks the restored bytes.
+
+New native DRC errors fail validation; planned `always` zones must also have no
+isolated-copper findings, including warnings and exclusions. Both DRC reports
+must declare full error/warning/exclusion coverage and well-formed violation
+metadata and item UUIDs. Error findings and isolated-copper findings when any
+`always` zone is planned require nonempty item attribution. Incomplete coverage,
+unattributed findings or malformed records fail production (exit 1, no published
+candidate), rather than being filtered into a pass. An attributed isolated-copper
+finding on an `always` zone fails validation (exit 3); one attributed only to a
+`never` zone does not trigger this additional check.
 
 Exit 0 means production and its preservation/DRC-delta checks succeeded; exit 3
 means a candidate was produced but failed validation. Both retain
@@ -93,3 +111,9 @@ In1 GND and In2 power zones independently. It covers exact settings, positive fi
 reapplication, locked track/via and keepout preservation, unplanned zones/nets,
 disabled layers, invalid/unfillable polygons,
 strict plan parsing, missing tools, source immutability and sandbox isolation.
+
+## Stitching-via follow-up
+
+Stitching is a separate proposed contract; see the
+[plane-plan/2 design note](plane-plan-2-design.md). This implementation continues
+to accept only `agent-ee.plane-plan/1` and adds no vias.

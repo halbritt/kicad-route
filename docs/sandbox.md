@@ -21,17 +21,29 @@ kicad-route --out OUT doctor --json --offline [--no-canary] [--require-readonly-
   The canary runs by default.
 - `--require-readonly-state` (or `KICAD_ROUTE_REQUIRE_READONLY_STATE=1`) makes the
   "state read-only" check required. Without it the check is informational.
+- `bwrap (planes)` probes planes namespace support (`--unshare-all`) with a
+  read-only root and a bounded ten-second `/usr/bin/true` child, without network
+  access. It reports `PASS` only when the namespaces start successfully; missing
+  bwrap, namespace/root-mount denial,
+  timeout or nonzero exit reports `FAIL`. Its log is `OUT/doctor/planes-bwrap/bwrap.log`.
+  This check is informational (`required: false`), so an unavailable planes sandbox
+  does not change readiness for trace routing. `capabilities.planes.interface`
+  identifies the native plan backend; `capabilities.planes.bwrap_ready` is the
+  Boolean namespace probe result. Production mounts, native tools, board and
+  plan validity remain checked by `planes`.
+  The probe creates no private `/dev` or temporary mounts. In an outer sandbox
+  the result measures whether nested namespaces can start.
 
 The record holds `status`, `required_failed`, `checks`, `versions`, `capabilities`,
 `state` (STATE's path, installed parts and writability) and a `sandbox` block:
 
 | Key | Contents |
 |---|---|
-| `ro_paths` | each read-only path with its purpose: `/usr`, `/etc`, the checkout (TOOL_ROOT), its git common dir when it is a worktree, STATE, resolved runtime directories when the venv or Freerouting is a symlink outside STATE, the KRT venv's interpreter target, the pcbnew Python and module, `/usr/share/kicad`, `kicad-cli`, `git`, and the JVM directory `find_java` chose. Paths are resolved and absolute. Bind them at the same path: the venv stores absolute paths |
+| `ro_paths` | each read-only path with its purpose: `/usr`, `/etc`, the checkout (TOOL_ROOT), its git common dir when it is a worktree, STATE, resolved runtime directories when the venv or Freerouting is a symlink outside STATE, the KRT venv's interpreter target, the pcbnew Python and module, `/usr/share/kicad`, `kicad-cli`, `git`, `bwrap` when installed, and the JVM directory `find_java` chose. Paths are resolved and absolute. Bind them at the same path: the venv stores absolute paths |
 | `ro_binds` | the smallest subset of `ro_paths` whose binds cover all of them |
 | `rw_paths` | OUT, the only writable path a run needs |
-| `env` | variables to set, with values: `KICAD_ROUTE_STATE`, `PATH` (`kicad-cli`, `git`), and the optional `HOME` (`required: false`; it need not be writable, see [HOME](#home) below), `KICAD_ROUTE_PCBNEW_PYTHON`, `KICAD_ROUTE_OUT`, `KICAD_ROUTE_REQUIRE_READONLY_STATE` |
-| `network` | hosts per command. `run`, `campaign`, `validate`, `blocked` and `doctor --offline` need none. `doctor` needs `api.github.com`. `update` needs GitHub release assets, PyPI and the Cargo registry |
+| `env` | variables to set, with values: `KICAD_ROUTE_STATE`, `PATH` (`kicad-cli`, `git`, `bwrap`), and the optional `HOME` (`required: false`; it need not be writable, see [HOME](#home) below), `KICAD_ROUTE_PCBNEW_PYTHON`, `KICAD_ROUTE_OUT`, `KICAD_ROUTE_REQUIRE_READONLY_STATE` |
+| `network` | hosts per command. `run`, `campaign`, `validate`, `blocked`, `planes` and `doctor --offline` need none. `doctor` needs `api.github.com`. `update` needs GitHub release assets, PyPI and the Cargo registry |
 | `writes_state` | the commands that write STATE: `update` and `corpus add` |
 | `observed` | what the doctor process itself saw (the same facts a run records, below) |
 

@@ -2,6 +2,7 @@
 import copy
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -151,6 +152,14 @@ def test_four_layer_exact_plan_and_pour_integrity(tmp_path, project):
     _, report, run_dir = invoke(tmp_path, project)
     assert_created(report, run_dir)
     assert report['planes']['zones_created'] == 2
+    assert report['validation']['restored_project_files'] == ['probe.kicad_prl', 'probe.kicad_pro']
+    for suffix in planes.SIBLINGS:
+        source = project[0].with_suffix(suffix)
+        candidate = Path(report['candidate']).with_suffix(suffix)
+        if source.exists():
+            assert candidate.read_bytes() == source.read_bytes()
+        else:
+            assert not candidate.exists()
     assert report['input']['files']['probe.kicad_pcb']
     assert '--unshare-all' in report['sandbox']['argv']
     assert report['sandbox']['exit_code'] == 0
@@ -316,3 +325,116 @@ def test_native_defect_fails_validation(tmp_path, project):
     check = next(c for c in report['validation']['checks'] if c['check'] == 'native_drc')
     assert check['status'] == 'FAIL'
     assert any(v['type'] == 'isolated_copper' for v in check['differences'])
+
+
+def test_repeat_same_input_has_identical_candidate_bytes(tmp_path, project):
+    _, first, _ = invoke(tmp_path, project, 'first')
+    _, second, _ = invoke(tmp_path, project, 'repeat')
+    assert first['exit_code'] == 0
+    assert second['exit_code'] == 0
+    assert Path(first['candidate']).read_bytes() == Path(second['candidate']).read_bytes()
+
+
+def test_restoration_records_changes_and_removals(tmp_path):
+    reference = tmp_path / 'reference'
+    candidate = tmp_path / 'candidate'
+    reference.mkdir()
+    candidate.mkdir()
+    board = candidate / 'probe.kicad_pcb'
+    (reference / 'probe.kicad_pro').write_text('rules')
+    (candidate / 'probe.kicad_pro').write_text('rewritten rules')
+    (reference / 'probe.kicad_dru').write_text('unchanged')
+    (candidate / 'probe.kicad_dru').write_text('unchanged')
+    (candidate / 'probe.kicad_prl').write_text('generated')
+    assert planes._restore_siblings(reference, board) == ['probe.kicad_pro', 'probe.kicad_prl']
+    assert (candidate / 'probe.kicad_pro').read_text() == 'rules'
+    assert not (candidate / 'probe.kicad_prl').exists()
+    assert planes._restore_siblings(reference, board) == []
+    (candidate / 'probe.kicad_dru').unlink()
+    assert planes._restore_siblings(reference, board) == ['probe.kicad_dru']
+    assert (candidate / 'probe.kicad_dru').read_text() == 'unchanged'
+
+
+def drc_report(violations):
+    return dict(included_severities=['error', 'warning', 'exclusion'], violations=violations)
+
+
+def isolated_warning(uid=None):
+    return dict(type='isolated_copper', severity='warning', items=[dict(uuid=uid or plane_plan.zone_ids(plan())[0])])
+
+
+@pytest.mark.parametrize('change', [
+    lambda r: r.pop('included_severities'),
+    lambda r: r.update(included_severities=['error']),
+    lambda r: r.update(included_severities=['error', 'warning', 'exclusion', {}]),
+    lambda r: r.update(violations=None),
+    lambda r: r.update(violations=[None]),
+    lambda r: r['violations'][0].pop('type'),
+    lambda r: r['violations'][0].update(type=' '),
+    lambda r: r['violations'][0].update(severity='unknown'),
+    lambda r: r['violations'][0].pop('items'),
+    lambda r: r['violations'][0].update(items=None),
+    lambda r: r['violations'][0].update(items=[]),
+    lambda r: r['violations'][0].update(items=[None]),
+    lambda r: r['violations'][0].update(items=[{}]),
+    lambda r: r['violations'][0].update(items=[dict(uuid=42)]),
+    lambda r: r['violations'][0].update(items=[dict(uuid='')]),
+    lambda r: r['violations'][0].update(items=[dict(uuid='not-a-uuid')]),
+])
+def test_malformed_native_drc_refused(change):
+    report = drc_report([isolated_warning()])
+    change(report)
+    with pytest.raises(ValueError, match='native plane DRC'):
+        planes._isolated_copper_errors(report, set(plane_plan.zone_ids(plan())))
+
+
+def test_isolated_copper_attribution_and_severity():
+    always, never = plane_plan.zone_ids(plan())
+    for severity in ('warning', 'error', 'exclusion'):
+        violation = isolated_warning(always)
+        violation['severity'] = severity
+        assert planes._isolated_copper_errors(drc_report([violation]), {always}) == [violation]
+    assert planes._isolated_copper_errors(drc_report([isolated_warning(never)]), {always}) == []
+    assert planes._isolated_copper_errors(drc_report([isolated_warning(always)]), set()) == []
+    assert planes._isolated_copper_errors(drc_report([]), {always}) == []
+
+
+def test_unattributed_warning_prevents_worker_report(tmp_path, project, monkeypatch):
+    reference, work = tmp_path / 'reference', tmp_path / 'work'
+    reference.mkdir()
+    work.mkdir()
+    for source in project[0].parent.glob('probe.*'):
+        shutil.copyfile(source, reference / source.name)
+    grade = planes._grade
+
+    def with_unattributed_warning(board, directory):
+        report, rec = grade(board, directory)
+        if directory.name == 'candidate-drc':
+            warning = isolated_warning()
+            warning['items'] = []
+            report['violations'].append(warning)
+        return report, rec
+
+    monkeypatch.setattr(planes, '_grade', with_unattributed_warning)
+    from kicad_route import common
+    monkeypatch.setattr(common, '_out', work / 'tools')
+    with pytest.raises(ValueError, match='no item attribution'):
+        planes.worker(reference, project[1], work)
+    assert not (work / 'report.json').exists()
+
+
+@pytest.mark.parametrize('failure', ['missing', 'namespace-denied'])
+def test_bwrap_readiness_fails_closed(tmp_path, monkeypatch, failure):
+    from kicad_route import common
+    if failure == 'missing':
+        monkeypatch.setenv('PATH', str(tmp_path))
+    else:
+        executable = tmp_path / 'bwrap'
+        executable.write_text('#!/bin/sh\necho namespace denied >&2\nexit 1\n')
+        executable.chmod(0o755)
+        monkeypatch.setenv('PATH', str(tmp_path))
+    check = planes.bwrap_check(tmp_path / 'probe')
+    assert check['status'] == common.FAIL
+    assert check['required'] is False
+    assert 'unavailable' in check['detail']
+    assert (tmp_path / 'probe' / 'bwrap.log').exists()

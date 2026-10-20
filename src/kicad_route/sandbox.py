@@ -219,13 +219,13 @@ def requirements(*, venv_python, pcbnew_python, pcbnew_module=None, java=None, o
     if pcbnew_module:
         add(Path(pcbnew_module).resolve().parent, "the pcbnew module")
     add(common.KICAD_SHARE, "KiCad stock libraries and templates (hermetic config, DRC)")
-    for exe in ("kicad-cli", "git"):
+    for exe in ("kicad-cli", "git", "bwrap"):
         found = shutil.which(exe)
         add(Path(found).resolve() if found else None, f"{exe} executable")
     if java:
         add(Path(java).resolve().parents[1], "JVM for Freerouting (newest under /usr/lib/jvm meeting the jar)")
     out = common.out_dir()
-    exe_dirs = [str(Path(shutil.which(e)).parent) for e in ("kicad-cli", "git") if shutil.which(e)]
+    exe_dirs = [str(Path(shutil.which(e)).parent) for e in ("kicad-cli", "git", "bwrap") if shutil.which(e)]
     path_value = ":".join(dict.fromkeys([*exe_dirs, "/usr/local/bin", "/usr/bin", "/bin"]))
     env = [
         {"name": "KICAD_ROUTE_STATE", "value": str(common.STATE), "required": True,
@@ -233,7 +233,7 @@ def requirements(*, venv_python, pcbnew_python, pcbnew_module=None, java=None, o
         {"name": "HOME", "value": str(out / "home"), "required": False,
          "purpose": "optional, need not be writable: KiCad's config, cache and data, fontconfig's cache "
                     "and the Freerouting JVM's user.home are kept under OUT (OUT/.kicad-config, OUT/.home)"},
-        {"name": "PATH", "value": path_value, "required": True, "purpose": "kicad-cli and git"},
+        {"name": "PATH", "value": path_value, "required": True, "purpose": "kicad-cli, git and bwrap (planes)"},
         {"name": "KICAD_ROUTE_PCBNEW_PYTHON", "value": str(pcbnew_python), "required": False,
          "purpose": "only when it is not /usr/bin/python3"},
         {"name": "KICAD_ROUTE_OUT", "value": str(out), "required": False, "purpose": "or pass --out"},
@@ -248,7 +248,7 @@ def requirements(*, venv_python, pcbnew_python, pcbnew_module=None, java=None, o
                                                    "doctor output, the ledger (unless --ledger)"}],
         "tmp": "/tmp may be a private tmpfs",
         "env": env,
-        "network": {"run": [], "campaign": [], "validate": [], "blocked": [], "doctor --offline": [],
+        "network": {"run": [], "campaign": [], "validate": [], "blocked": [], "planes": [], "doctor --offline": [],
                     "doctor": ["api.github.com:443"], "update": UPDATE_HOSTS,
                     "note": "routing needs no network; Freerouting additionally gets a dead HTTPS proxy"},
         "writes_state": ["update", "corpus add"],
