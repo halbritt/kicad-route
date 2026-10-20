@@ -2064,23 +2064,6 @@ def compare(run_dirs):
 
 # --------------------------------------------------------------------- smoke
 
-# What `publish` copies: kicad-route's structured receipts (JSON, plus the RESULT.md
-# summary) and never a board, project file, log or the backend's work/ tree.
-# The run root and validate/ are published flat (the long-standing layout:
-# DEST/result.json, DEST/preservation.json, ...); facts/ and spokes/ keep their
-# directory; the latest revalidate*/<stamp> is published as a subdirectory.
-PUBLISH_FLAT = ("", "validate")
-PUBLISH_NESTED = ("facts", "spokes")
-PUBLISH_LATEST = {"revalidate-origin": "against-origin", "revalidate": "revalidate"}
-
-
-def receipts(d):
-    """The structured receipts directly in d: JSON files and RESULT.md, nothing else."""
-    if not d.is_dir():
-        return []
-    return sorted(p for p in d.iterdir()
-                  if p.is_file() and not p.is_symlink() and (p.suffix == ".json" or p.name == "RESULT.md"))
-
 
 def publish_run(run_dir, dest):
     from . import publication
