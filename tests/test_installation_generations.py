@@ -26,6 +26,7 @@ def installer(tmp_path, monkeypatch):
     monkeypatch.setattr(engine, "ROOT", source)
     commands = []
     failure = [None]
+    process_command = common.run_cmd
 
     def run(argv, cwd, log):
         commands.append((argv, Path(cwd), Path(log)))
@@ -42,6 +43,8 @@ def installer(tmp_path, monkeypatch):
             package.mkdir()
             (package / "METADATA").write_text(f"Name: synthetic\nVersion: {version}\n")
         failed = Path(log).name == failure[0]
+        if Path(log).name == "krt-bytecode.log" and not failed:
+            return process_command(argv, cwd, log)
         Path(log).write_text("failure" if failed else "ok")
         return {"exit_code": 1 if failed else 0, "argv": list(map(str, argv)), "log": str(log)}
 
@@ -49,7 +52,7 @@ def installer(tmp_path, monkeypatch):
     return state, source, commands, failure
 
 
-@pytest.mark.parametrize("stage", ["venv.log", "krt-deps.log", "krt-build-router.log",
+@pytest.mark.parametrize("stage", ["venv.log", "krt-deps.log", "krt-bytecode.log", "krt-build-router.log",
                                    "krt-startup-checks.log", "krt-route-help.log"])
 def test_failed_preparation_preserves_active_manifest_and_generation(installer, stage):
     state, source, commands, failure = installer
@@ -263,3 +266,48 @@ def test_update_reports_install_failure_without_refreshing_prior_manifest(instal
     report = common.load_json(state / "out/update/update.json")
     assert any("router installation failed" in error for error in report["errors"])
     assert report["state_manifest"]["sha256"] == common.sha256(state / "manifest.json")
+
+
+
+def test_preparation_builds_local_bytecode_and_runtime_leaves_generation_untouched(installer, monkeypatch):
+    import importlib.util
+    import os
+    state, source, commands, failure = installer
+    external_cache = state.parent / "unrelated-python-cache"
+    monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(external_cache))
+    monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", "1")
+    active, _ = installation.install([], state / "logs", sys.executable)
+    module = next((active / "venv").glob("lib/python*/site-packages/grid_router.py"))
+    cache = Path(importlib.util.cache_from_source(str(module)))
+    assert cache.is_file() and not external_cache.exists()
+    assert list((active / "router").rglob("*.pyc")) == []
+    before = {str(path.relative_to(active)): (path.stat().st_size, path.stat().st_mtime_ns)
+              for path in active.rglob("*") if path.is_file()}
+    env = dict(os.environ)
+    env.pop("PYTHONPYCACHEPREFIX", None)
+    output = subprocess.check_output([active / "venv/bin/python", "-B", "-c",
+                                      "import grid_router; print(grid_router.__version__)"],
+                                     env=env, text=True)
+    after = {str(path.relative_to(active)): (path.stat().st_size, path.stat().st_mtime_ns)
+             for path in active.rglob("*") if path.is_file()}
+    assert output.strip() == "1.0" and before == after
+
+
+def test_dependency_bytecode_failure_preserves_previous_active_generation(installer, monkeypatch):
+    state, source, commands, failure = installer
+    active, _ = installation.install([], state / "logs", sys.executable)
+    before = (state / "manifest.json").read_bytes()
+    run = common.run_cmd
+    def broken_dependency(argv, cwd, log):
+        record = run(argv, cwd, log)
+        if Path(log).name == "venv.log":
+            site = next(Path(argv[2]).glob("lib/python*/site-packages"))
+            (site / "broken_dependency.py").write_text("def invalid(:\n")
+        return record
+    monkeypatch.setattr(common, "run_cmd", broken_dependency)
+    with pytest.raises(RuntimeError, match="installation failed"):
+        installation.install([], state / "logs", sys.executable)
+    assert (state / "manifest.json").read_bytes() == before
+    assert common.router_generation() == active
+    records = [common.load_json(path) for path in state.glob(".router-generations/*/preparation.json")]
+    assert sorted(row["status"] for row in records) == ["failed", "validated"]

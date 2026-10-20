@@ -30,8 +30,11 @@ They are initially preserved to keep source extraction separate from cleanup.
 
 `kicad-route update` prepares a complete generation under
 `STATE/.router-generations/<unique-id>/`: a frozen copy of the owned routing source,
-a fresh `venv`, and Cargo output in `build`. It installs dependencies and compiles
-with `cargo build --release --locked`, verifies extension import, startup checks
+a fresh `venv`, and Cargo output in `build`. It installs dependencies and prepares
+site-packages bytecode inside the unselected generation, so read-only routing
+can read cached numerical imports without writing runtime caches. The checked
+compilation ignores an external `PYTHONPYCACHEPREFIX`; a failure preserves the
+previous selection. It compiles the native extension with `cargo build --release --locked`, verifies extension import, startup checks
 and route help, then collects the source/module/package manifest. Atomically
 replacing `STATE/manifest.json` activates the generation recorded in
 `krt.generation`. Overlapping updates hold `STATE/.router-update.lock` for the

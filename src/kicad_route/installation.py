@@ -69,6 +69,14 @@ def install(steps, log_dir, python):
             checked(["uv", "venv", venv, "--python", python], state, "venv.log")
             checked(["uv", "pip", "install", "--python", route_python, "-r", source / "requirements.txt"],
                     state, "krt-deps.log")
+            # Build local caches before activation: routing keeps STATE read-only.
+            # Isolation ignores an inherited PYTHONPYCACHEPREFIX; -B prevents
+            # incidental writes while compileall explicitly compiles this venv.
+            checked([route_python, "-I", "-B", "-c",
+                     "import compileall,sys,sysconfig; "
+                     "paths=dict.fromkeys(sysconfig.get_paths()[key] for key in ('purelib','platlib')); "
+                     "sys.exit(not all(compileall.compile_dir(path,quiet=1,workers=1) for path in paths))"],
+                    state, "krt-bytecode.log")
             checked([route_python, source / "build_router.py", "--target-dir", generation / "build"],
                     state, "krt-build-router.log")
             checked([route_python, "py_router/startup_checks.py"], source, "krt-startup-checks.log")
