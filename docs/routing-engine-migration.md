@@ -41,9 +41,12 @@ already running workers keep their old generation across activation.
 Preparation failures leave the selected environment and manifest unchanged.
 `preparation.json` and logs identify failed or interrupted preparations; retrying
 always starts a fresh generation. A cold failure leaves no active manifest.
-Validated prior generations remain available; to recover, stop updates, preserve
-the current manifest, and atomically restore a prior generation's `manifest.json`
-to `STATE/manifest.json`. Later determinism records can be regenerated. Update
+Validated prior generations remain available; to recover, stop updates and preserve
+the current manifest. Replace its `krt` object with the one from a prior generation's
+`manifest.json`, clear the `krt` determinism record, and atomically write the merged
+manifest to `STATE/manifest.json` (`statemanifest.write` uses temporary-file rename).
+Retain current facts for the other backend: older Freerouting jars may have been
+removed. Later determinism records can be regenerated. Update
 never removes a generation automatically, and corpus regressions continue to be
 reported without rollback. Legacy checkout environments at `STATE/.venv-krt`
 remain readable until a successful generation activation.

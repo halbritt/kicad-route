@@ -86,10 +86,16 @@ def test_success_pins_existing_process_and_new_selection(installer):
     assert manifest == json.loads((new / "manifest.json").read_text())
     assert (old / "venv/bin/python").exists()
     assert manifest["krt"]["source_sha256"] == engine.source_sha256(new / "router")
-    # Documented recovery restores the old generation's full manifest selector.
-    statemanifest.write(json.loads((old / "manifest.json").read_text()), state)
+    # Recover the router selector while retaining current other-tool facts.
+    current = statemanifest.read(state)
+    current["kicad_route"]["version"] = "current wrapper metadata"
+    current["krt"] = json.loads((old / "manifest.json").read_text())["krt"]
+    current["determinism"].pop("krt", None)
+    statemanifest.write(current, state)
     assert common.router_generation() == old
-    assert statemanifest.verify(statemanifest.read(state), state) == []
+    restored = statemanifest.read(state)
+    assert restored["kicad_route"]["version"] == "current wrapper metadata"
+    assert statemanifest.verify(restored, state) == []
 
 
 def test_cold_failure_and_interrupted_preparation_are_never_selected(installer):
