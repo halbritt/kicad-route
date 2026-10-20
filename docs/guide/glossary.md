@@ -144,7 +144,8 @@ source installs or `${XDG_STATE_HOME:-~/.local/state}/kicad-route` for wheels):
 `vendor/freerouting`, `.router-generations`, legacy `.venv-krt`, `corpus/`,
 `manifest.json`. The owned routing
 source is included in the kicad-route package.
-Only `update` and `corpus add` write it.
+Routing reads this state. Writers include `update`, `corpus add`, `state-manifest`
+and `determinism --record`.
 
 **state manifest** — `STATE/manifest.json`: what is installed, with hashes.
 `doctor` reports drift from it; every result records its sha256.

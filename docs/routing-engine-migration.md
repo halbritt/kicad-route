@@ -34,8 +34,9 @@ a fresh `venv`, and Cargo output in `build`. It installs dependencies and prepar
 site-packages bytecode inside the unselected generation, so read-only routing
 can read cached numerical imports without writing runtime caches. The checked
 compilation ignores an external `PYTHONPYCACHEPREFIX`; a failure preserves the
-previous selection. It compiles the native extension with `cargo build --release --locked`, verifies extension import, startup checks
-and route help, then collects the source/module/package manifest. Atomically
+previous selection. It compiles the native extension with
+`cargo build --release --locked`, verifies extension import, startup checks and
+route help, then collects the source/module/package manifest. Atomically
 replacing `STATE/manifest.json` activates the generation recorded in
 `krt.generation`. Overlapping updates hold `STATE/.router-update.lock` for the
 whole update. Routing pins the source and environment paths when its CLI starts;

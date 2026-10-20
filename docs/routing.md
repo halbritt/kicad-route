@@ -414,8 +414,9 @@ rules remain unchanged.
   settings and KRT build should give the same candidate, so a result can be
   reproduced and a repeat of a failed attempt changes nothing. `kicad-route
   determinism` checks this per KRT build (geometric equivalence, below) and records
-  the verdict in the state manifest; `reports/determinism/` holds the committed
-  check for the current build. A Freerouting run can
+  the verdict in the state manifest; `reports/determinism/` retains historical
+  repeat checks. A current attempt also needs to finish without a wall-clock stop
+  to qualify as a measurement. A Freerouting run can
   be graded and adopted like any candidate, but its outcome is not evidence of what
   a board, a scope or a setting can achieve.
 - **Placement is not kicad-route's job** (agent-ee decision 4). kicad-route preserves
@@ -429,11 +430,14 @@ rules remain unchanged.
   already runs in its sandbox. kicad-route contributes routability evidence: the
   placement stage consumes `kicad-route blocked` receipts ([blocked.md](blocked.md))
   as a check input.
-- **Backends stay upstream; versions are recorded per run** (agent-ee decision 6). KRT
-  and Freerouting are installed from their upstream releases into the git-ignored
-  state directory (`vendor/`, `.router-generations/`, legacy `.venv-krt`), never committed or modified here, and
-  every `result.json` records the backend version and build. Freerouting (GPL-3.0) and
-  KRT run only as separate processes; kicad-route does not import or link either.
+- **Owned KRT and external Freerouting; identities are recorded per run.** The
+  owner's 2026-10-20 routing-engine ownership decision supersedes agent-ee
+  decision 6 for KRT. Its maintained source is included in this repository and
+  updates compile immutable generations under `STATE/.router-generations/`.
+  Freerouting remains a separately acquired GPL-3.0 program under `STATE/vendor/`;
+  kicad-route does not import or link it. Both backends run as subprocesses, and
+  every `result.json` records their content and build identities. See
+  [routing engine ownership](routing-engine-migration.md).
 - **MIT license for kicad-route** (2026-10-17, [`LICENSE`](../LICENSE)). It covers this
   repository only; KRT (MIT) and Freerouting (GPL-3.0) keep their own licenses.
 
