@@ -148,3 +148,17 @@ def test_smoke_workspaces_preserve_unrelated_previous_files(tmp_path, monkeypatc
     assert cli.smoke() == 1
     assert sentinel.read_text() == 'owner data'
     assert len(list(root.glob('*/summary.json'))) == 1
+
+
+@pytest.mark.parametrize("manifest", [["unowned"], "unowned", 1, True, None, [], 0, False, "", {"files": []}])
+def test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke(tmp_path, monkeypatch, manifest):
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    sentinel = dest / "owner-data.txt"
+    sentinel.write_bytes(b"unrelated owner data")
+    (dest / publication.MANIFEST).write_text(json.dumps(manifest))
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: pytest.fail("pytest must not run"))
+    with pytest.raises(contract.Refusal) as refusal:
+        cli.smoke(dest)
+    assert refusal.value.code == 4
+    assert sentinel.read_bytes() == b"unrelated owner data"

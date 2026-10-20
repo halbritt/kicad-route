@@ -6,7 +6,7 @@ import pytest
 
 from helpers import FIXTURE
 from kicad_route import baselinecache, campaign, cli, common
-from test_evidence_integrity import fake_baseline
+from test_evidence_integrity import fake_baseline as fake_baseline
 
 
 class CacheMiss(Exception):

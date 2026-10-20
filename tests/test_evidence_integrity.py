@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from helpers import ROOT
+from helpers import ROOT  # noqa: F401 (puts src/ on sys.path)
 from kicad_route import baselinecache, cli, common, corpus, determinism, evidence, ledger, pour
 
 
@@ -209,7 +209,7 @@ def test_native_refill_and_human_ledger_reconstruction(tmp_path):
     routed = command("--json", "run", "--backend", "krt", "--dir", str(FIXTURE),
                      "--run-dir", str(run), "--nets", "/SIG_A*", "--protect", "human",
                      "--default-clearance", "0.4", "--budget", "120")
-    assert routed.returncode in (0, 2, 3), routed.stdout + routed.stderr
+    assert routed.returncode == 0, routed.stdout + routed.stderr
     result = json.loads(routed.stdout)
     assert ledger.from_result(result)[0] == result["ledger"]["fingerprint"]
     board = Path(result["candidate"]["board"])
@@ -218,7 +218,7 @@ def test_native_refill_and_human_ledger_reconstruction(tmp_path):
     board.write_bytes(board.read_bytes() + b"\n\n")
     pre = common.sha256(board)
     validated = command("--json", "validate", str(run))
-    assert validated.returncode in (0, 2, 3), validated.stdout + validated.stderr
+    assert validated.returncode == 0, validated.stdout + validated.stderr
     regraded = json.loads(validated.stdout)
     assert regraded["validation"]["delivered_board_sha256"] == pre
     assert pre != common.sha256(board), "native refill must save changed bytes for this regression"

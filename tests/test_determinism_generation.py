@@ -137,7 +137,8 @@ def test_manifest_read_modify_write_serializes_with_activation(builds, monkeypat
             assert release.wait(5)
             return old
         monkeypatch.setattr(statemanifest, "collect", collect)
-        write_record = lambda: statemanifest.refresh(state=state)
+        def write_record():
+            return statemanifest.refresh(state=state)
     else:
         def paused_read(*args, **kwargs):
             old = read(*args, **kwargs)
@@ -147,7 +148,8 @@ def test_manifest_read_modify_write_serializes_with_activation(builds, monkeypat
             return old
         monkeypatch.setattr(statemanifest, "read", paused_read)
         rec = {"backend": "krt", "build_id": statemanifest.build_id(manifests["A"])}
-        write_record = lambda: statemanifest.record_determinism(rec, state)
+        def write_record():
+            return statemanifest.record_determinism(rec, state)
     def writer():
         try:
             write_record()

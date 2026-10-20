@@ -27,8 +27,8 @@ def destination(path, kind, protected=()):
         if list(path.glob('*.kicad_pcb')) or any(p.is_symlink() for p in path.rglob('*')):
             contract.refuse("input", f"publication contains project data or symlinks: {path}")
         if any(path.iterdir()):
-            manifest = common.load_json(path / MANIFEST) or {}
-            if not isinstance(manifest.get('files'), dict):
+            manifest = common.load_json(path / MANIFEST)
+            if not isinstance(manifest, dict) or not isinstance(manifest.get('files'), dict):
                 contract.refuse('input', f'refusing publication without an ownership inventory: {path}')
             expected = set(manifest['files']) | {MANIFEST}
             expected |= {str(parent) for name in manifest.get('files', {})
