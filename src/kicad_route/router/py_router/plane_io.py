@@ -12,8 +12,7 @@ from typing import List, Dict, Tuple, Optional
 from kicad_parser import (PCBData, parse_kicad_pcb, _unescape_kicad_string,
                           layer_list_tokens)
 from kicad_writer import (generate_via_sexpr, generate_segment_sexpr, via_net_name,
-                          move_copper_text_to_silkscreen,
-                          move_copper_graphics_to_silkscreen, add_teardrops_to_pads,
+                          add_teardrops_to_pads,
                           add_teardrops_to_vias,
     strip_zero_length_edge_cuts)
 # E3: the one guarded squared-distance kernel (length_sq < 1e-10 degenerate guard).
@@ -511,9 +510,8 @@ def write_plane_output(
             print(f"  Stripped {_nrs} in-memory-removed input segment(s) "
                   f"from the output")
 
-    # Move text from copper layers to silkscreen (prevents routing interference)
-    content = move_copper_text_to_silkscreen(content)
-    content = move_copper_graphics_to_silkscreen(content)
+    from sexpr import expression_spans
+    expression_spans(content, set())
     content = strip_zero_length_edge_cuts(content)
 
     # Add teardrops to all pads if requested. Pads are never ADDED by a routing

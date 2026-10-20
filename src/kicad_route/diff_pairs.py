@@ -167,6 +167,7 @@ def route(work, board, scope, facts, settings, api):
             argv += ["--clearance", str(max(default, settings["default_clearance_mm"]))]
         argv += ["--nets", *netnames.krt_patterns([p, n], facts["nets"])]
         env = {**api.KRT_ENV, **api.KRT_PROTECT_EXISTING_ENV, **settings["backend_env"]}
+        env.update(api.krt_artwork_environment(directory, source, facts))
         log = directory / "route.log"
         rec = api.run_budgeted(argv, directory, log, remaining, env,
                                monitor=stall.Monitor("krt", log, settings.get("stall_s")))

@@ -17,7 +17,6 @@ from kicad_writer import (
     generate_segment_sexpr, generate_via_sexpr, generate_gr_line_sexpr, via_net_name,
     generate_gr_text_sexpr, swap_segment_nets_at_positions,
     swap_via_nets_at_positions, swap_pad_nets_in_content, modify_segment_layers,
-    move_copper_text_to_silkscreen, move_copper_graphics_to_silkscreen,
     add_teardrops_to_pads, remove_segments_from_content,
     strip_zero_length_edge_cuts)
 from connectivity import find_connected_segment_positions
@@ -81,9 +80,8 @@ def write_routed_output(
     from kicad_parser import read_board_text
     content = read_board_text(input_file, quiet=True)
 
-    # Move text from copper layers to silkscreen (prevents routing interference)
-    content = move_copper_text_to_silkscreen(content)
-    content = move_copper_graphics_to_silkscreen(content)
+    from sexpr import expression_spans
+    expression_spans(content, set())
     content = strip_zero_length_edge_cuts(content)
 
     # Add teardrops to all pads if requested. Pads are never ADDED by a routing

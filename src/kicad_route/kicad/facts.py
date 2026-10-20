@@ -189,6 +189,20 @@ def main(board_path, out_path):
     facts["copper_graphics"] = sorted(copper_graphics, key=lambda r: json.dumps(r, sort_keys=True))
     facts["footprints"] = dict(sorted(footprints.items()))
 
+    # Conservative routing obstacles for text; these come from KiCad's font
+    # renderer, including rotation, alignment, mirroring and knockout.
+    text_items = list(board.GetDrawings())
+    for fp in board.GetFootprints():
+        text_items.extend(fp.GraphicalItems())
+        text_items.extend((fp.Reference(), fp.Value()))
+    routing_text = {}
+    for item in text_items:
+        if isinstance(item, pcbnew.EDA_TEXT) and item.IsOnCopperLayer():
+            rec = item_record(item)
+            rec['uuid'] = item.m_Uuid.AsString()
+            routing_text[rec['uuid']] = rec
+    facts['routing_copper_text'] = sorted(routing_text.values(), key=lambda r: r['uuid'])
+
     nets = {}
     net_settings = board.GetDesignSettings().m_NetSettings
     for name, net in board.GetNetsByName().items():

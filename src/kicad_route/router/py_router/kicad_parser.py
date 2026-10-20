@@ -6158,11 +6158,6 @@ def extract_segments(content: str, name_to_id: Dict[str, int] = None) -> List[Se
             fp_text = _gcontent[_fstart:_fend]
             if not _FP_SHAPE_RE.search(fp_text):
                 continue
-            # A pad-LESS footprint is a logo the writer relocates to silk
-            # (#146); modelling copper that is about to leave copper would
-            # cost routing area for nothing. See footprint_copper_is_functional.
-            if not footprint_copper_is_functional(footprint_pad_count(fp_text)):
-                continue
             _pose = footprint_pose(fp_text)
             if _pose is None:
                 # Copper dropped in silence is the failure mode this whole
@@ -6992,6 +6987,45 @@ def extract_keepouts(content: str) -> List[dict]:
     return keepouts
 
 
+def _copper_text_obstacles(content):
+    """Use native conservative text bounds, bound to the exact input text.
+
+    Fonts, justification, rotation and knockout belong to KiCad. The wrapper
+    supplies native bounds from its isolated snapshot instead of approximating
+    glyph geometry in this parser. Direct engine callers must supply the same
+    evidence or receive a limitation before search begins.
+    """
+    from sexpr import copper_text_blocks, copper_text_signature
+    blocks = copper_text_blocks(content)
+    if not blocks:
+        return []
+    evidence_path = os.environ.get('KICAD_ROUTE_COPPER_TEXT')
+    if not evidence_path:
+        raise ValueError('Copper text requires native bounding-box evidence; run through kicad-route')
+    evidence = json.loads(Path(evidence_path).read_text())
+    if evidence.get('signature') != copper_text_signature(content):
+        raise ValueError('Copper text changed since native bounding-box preflight')
+    texts = evidence.get('texts', [])
+    if len(texts) != len(blocks):
+        raise ValueError('Native copper-text evidence does not cover every input text object')
+    segments = []
+    for text in texts:
+        x, y, width, height = [float(n) / IU_PER_MM for n in text['bbox']]
+        layer = text['layer']
+        if not layer.endswith('.Cu') or width < 0 or height < 0:
+            raise ValueError('Invalid native copper-text bounds')
+        if width == 0 or height == 0:
+            continue
+        ring = ((x, y), (x+width, y), (x+width, y+height), (x, y+height))
+        # The bounding rectangle is intentionally conservative: its interior
+        # stays unavailable even between letters and in enclosed glyph holes.
+        for a, b in zip(ring, ring[1:] + ring[:1]):
+            segments.append(Segment(*a, *b, 0.0, layer, 0,
+                uuid=text['uuid'], graphic=True, drawn_width=0.0,
+                graphic_kind='rect', graphic_filled=True, graphic_ring=ring))
+    return segments
+
+
 def parse_kicad_pcb(filepath: str, guide_layer: str = "User.1",
                     keepout_layer: str = "User.2") -> PCBData:
     """
@@ -7006,6 +7040,10 @@ def parse_kicad_pcb(filepath: str, guide_layer: str = "User.1",
         PCBData object containing all parsed data
     """
     content = read_board_text(filepath)
+    from sexpr import unsupported_copper
+    limitation = unsupported_copper(content)
+    if limitation:
+        raise ValueError(limitation)
 
     kicad_version = detect_kicad_version(content)
     if 0 < kicad_version < FIRST_SUPPORTED_BOARD_VERSION:
@@ -7058,6 +7096,7 @@ def parse_kicad_pcb(filepath: str, guide_layer: str = "User.1",
             _fp.owns_board_outline = _structural
     vias = extract_vias(content, name_to_id)
     segments = extract_segments(content, name_to_id)
+    segments.extend(_copper_text_obstacles(content))
     zones = extract_zones(content, name_to_id)
     propagate_via_cluster_nets(content, vias, segments, footprints, zones,
                                board_info.copper_layers)

@@ -1352,8 +1352,6 @@ def krt_unsupported(facts, ref_dir, settings):
         notes.append("existing arc tracks are kept as obstacles; KRT routes octilinear segments")
     if settings.get("clearance_margin_mm"):
         notes.append("--clearance-margin is not supported by KRT and was not applied (use --default-clearance)")
-    notes.append("KRT moves copper gr_text and net-less copper graphics to silkscreen (not switchable on the CLI); "
-                 "the copper_graphics preservation check reports it")
     notes.append("KRT's cleanup may neck wide new segments near foreign pads without a flag; the "
                  "new_copper_netclass_geometry check reports any new copper below its net class")
     return notes
@@ -1370,6 +1368,28 @@ KRT_RULE_SUBJECT = re.compile(r"\.kicad_dru\b|\brule\s+['\"`]", re.I)
 KRT_RULE_NOT_APPLIED = re.compile(
     r"\bskip(?:ped|ping|s)?\b|\bnot\s+(?:honou?red|evaluated|enforced|applied|supported|modell?ed|translated)\b"
     r"|\bunsupported\b|\bno\s+consumer\b|\bignored\b|\bunknown\s+constraint\b", re.I)
+
+
+def krt_preflight(board, facts, run_dir):
+    """Refuse unmodelled copper before the owned router starts."""
+    from .router.py_router.sexpr import unsupported_copper
+    try:
+        return unsupported_copper(Path(board).read_text())
+    except ValueError as error:
+        return str(error)
+
+
+def krt_artwork_environment(work, board, facts):
+    from .router.py_router.sexpr import copper_text_blocks, copper_text_signature
+    content = Path(board).read_text()
+    if not copper_text_blocks(content):
+        return {}
+    texts = facts.get('routing_copper_text')
+    if texts is None:
+        raise ValueError('Native facts lack copper-text bounding-box evidence')
+    path = Path(work) / 'copper-text.json'
+    common.write_json(path, {'signature': copper_text_signature(content), 'texts': texts})
+    return {'KICAD_ROUTE_COPPER_TEXT': str(path.resolve())}
 
 
 def krt_unsupported_rules(text):
@@ -1418,6 +1438,7 @@ def krt_route(work, board, scope, facts, settings):
         if lr["exit_code"] != 0:
             return {"status": FAIL, "reasons": [f"could not lock existing copper (see {lr['log']})"],
                     "commands": [common.public(lr)], "exit_code": None, "output_board": None}
+    env.update(krt_artwork_environment(work, board, facts))
     rec = run_budgeted(argv, work, work / "krt.log", settings["budget_s"], env, stop_file=stop,
                        monitor=stall.Monitor("krt", work / "krt.log", settings.get("stall_s")))
     text = Path(work / "krt.log").read_text(errors="replace")
@@ -2262,7 +2283,8 @@ def audit(args):
 # ------------------------------------------------------------------------ CLI
 
 BACKENDS = {
-    "krt": {"route": krt_route, "version": krt_version, "unsupported": krt_unsupported},
+    "krt": {"route": krt_route, "version": krt_version, "unsupported": krt_unsupported,
+            "preflight": krt_preflight},
     "freerouting": {"route": freerouting_route, "version": freerouting_version,
                     "unsupported": freerouting_unsupported, "preflight": freerouting_preflight},
 }

@@ -9,6 +9,7 @@ from typing import List, Dict, Tuple, Optional
 
 from kicad_parser import Pad, is_kicad_10, _unescape_kicad_string
 from routing_utils import pos_key, POSITION_DECIMALS
+from sexpr import expression_spans as _sexpr_spans
 
 
 def _escape_net_name(name: Optional[str]) -> Optional[str]:
@@ -30,105 +31,10 @@ def _escape_net_name(name: Optional[str]) -> Optional[str]:
     return name.replace('\\', '\\\\').replace('"', '\\"')
 
 
-def _sexpr_spans(content: str, tags):
-    """Find real expression tokens, validating nesting and quoted strings.
-
-    One lexical pass avoids interpreting text such as "(gr_text" as syntax.
-    Yielded spans include the closing parenthesis; malformed input fails before
-    a writer can emit a partial board.
-    """
-    stack = []
-    spans = []
-    quoted = escaped = False
-    token = re.compile(r'([^\s()]+)')
-    for i, ch in enumerate(content):
-        if quoted:
-            if escaped:
-                escaped = False
-            elif ch == '\\':
-                escaped = True
-            elif ch == '"':
-                quoted = False
-        elif ch == '"':
-            quoted = True
-        elif ch == '(':
-            match = token.match(content, i + 1)
-            stack.append((i, match.group(1) if match else ''))
-        elif ch == ')':
-            if not stack:
-                raise ValueError(f"Unexpected closing parenthesis at offset {i}")
-            start, tag = stack.pop()
-            if tag in tags:
-                spans.append((start, i + 1, tag))
-    if quoted or stack:
-        raise ValueError("Truncated PCB S-expression: unterminated " +
-                         ("quoted string" if quoted else f"block at offset {stack[-1][0]}"))
-    return sorted(spans)
-
-
 def move_copper_text_to_silkscreen(content: str) -> str:
-    """
-    Move gr_text elements from copper layers to silkscreen layers.
-
-    Text on F.Cu is moved to F.SilkS, text on B.Cu is moved to B.SilkS.
-    This prevents text from interfering with routing while preserving it visually.
-
-    Args:
-        content: Raw PCB file content
-
-    Returns:
-        Modified content with text layers changed
-    """
-    count = 0
-
-    result_parts = []
-    last_end = 0
-    for start, end, _tag in _sexpr_spans(content, {'gr_text'}):
-        # Extract the gr_text block
-        block = content[start:end]
-
-        # Check if it's on F.Cu or B.Cu
-        layer_match = re.search(r'\(layer\s+"(F\.Cu|B\.Cu)"\)', block)
-        if layer_match:
-            layer = layer_match.group(1)
-            new_layer = 'F.SilkS' if layer == 'F.Cu' else 'B.SilkS'
-            new_block = block.replace(f'(layer "{layer}")', f'(layer "{new_layer}")')
-
-            # Add content before this block, then the modified block
-            result_parts.append(content[last_end:start])
-            result_parts.append(new_block)
-            last_end = end
-            count += 1
-
-    # Add remaining content
-    result_parts.append(content[last_end:])
-
-    if count > 0:
-        print(f"  Moved {count} text element(s) from copper layers to silkscreen")
-
-    return ''.join(result_parts)
-
-
-# Graphic primitives that make up copper logos/artwork (no net). Functional copper
-# is zones / segments / vias / pads — never standalone graphics — so moving these
-# off copper is safe and only affects decoration.
-#
-# ...with ONE exception, #908: a footprint's own `fp_*` copper (a SOT89 tab, a
-# PCB antenna, a solder-jumper bridge) IS functional, and the net guard below
-# cannot see that, because a footprint shape cannot carry a `(net ...)` in
-# KiCad at all. The tags stay listed -- they are still handled -- but the
-# DECISION is now owner-aware: see `footprint_copper_is_functional`.
-#: The footprint tags the PARSER models as copper (kicad_parser._FP_SHAPE_TAGS).
-#: The keep decision below is scoped to exactly these: `fp_curve` is in the tag
-#: list above but the parser emits nothing for it, so keeping one on copper
-#: would leave it UNMODELLED there -- strictly worse than #146's relocation,
-#: and reported to the user as successfully "kept". Keep the two lists in step.
-_FP_MODELLED_TAGS = ('fp_poly', 'fp_line', 'fp_arc', 'fp_rect', 'fp_circle')
-
-_COPPER_GRAPHIC_TAGS = (
-    'fp_poly', 'gr_poly', 'fp_line', 'gr_line', 'fp_circle', 'gr_circle',
-    'fp_arc', 'gr_arc', 'fp_rect', 'gr_rect', 'fp_curve', 'gr_curve',
-)
+    """Compatibility entry point: retained input copper is never relocated."""
+    _sexpr_spans(content, set())
+    return content
 
 
 def strip_zero_length_edge_cuts(content: str) -> str:
@@ -148,7 +54,7 @@ def strip_zero_length_edge_cuts(content: str) -> str:
     and every other violation is byte-identical (shorting_items 8->8,
     solder_mask_bridge 16->16, unconnected 101->101).
 
-    Applied on WRITE, beside move_copper_*_to_silkscreen, because our writers
+    Applied on WRITE because our writers
     copy the input file's text: without this, garbage in the user's source
     passes straight through into the routed board we hand back, and THEIR KiCad
     DRC pays the same cost. The read side already tolerates these (see the
@@ -196,119 +102,9 @@ def strip_zero_length_edge_cuts(content: str) -> str:
     return ''.join(out)
 
 
-def _functional_footprint_spans(content: str):
-    """`[(start, end)]` of every footprint block whose copper this tool must
-    not relocate -- i.e. every footprint that has pads (#908).
-
-    Byte spans rather than references, because the caller works on raw text
-    offsets and a reference cannot say WHICH block on a board that spells one
-    reference twice.
-    """
-    if '(fp_' not in content:
-        return []
-    from kicad_parser import (_footprint_blocks_by_key, footprint_pad_count,
-                              footprint_copper_is_functional)
-    spans = []
-    for start, end, _key in _footprint_blocks_by_key(content):
-        if footprint_copper_is_functional(
-                footprint_pad_count(content[start:end])):
-            spans.append((start, end))
-    return spans
-
-
-def _in_any_span(pos: int, spans) -> bool:
-    """Is `pos` inside one of `spans`? Linear; the list is one entry per
-    pad-bearing footprint and the caller asks once per graphic primitive."""
-    for a, b in spans:
-        if a <= pos < b:
-            return True
-    return False
-
-
 def move_copper_graphics_to_silkscreen(content: str) -> str:
-    """Move graphic primitives (logos / artwork drawn as polys, lines, arcs, ...)
-    from copper layers to silkscreen, mirroring move_copper_text_to_silkscreen:
-    F.Cu -> F.SilkS, B.Cu -> B.SilkS.
-
-    Only NET-LESS copper graphics (e.g. a copper OSHW logo, net 0 / no net) are
-    moved: unmodelled by the router, plane pours and routed copper run straight
-    over them and short (orangecrab: one F.Cu logo shorted ~30 plane traces/vias);
-    relocating to silkscreen preserves them visually while taking them out of
-    copper. A NET-TIED copper graphic is real functional copper (#337 models it
-    as an immutable obstacle and DRC treats it as copper) and is LEFT IN PLACE --
-    moving it would delete a real connection.
-
-    #908: that net guard is a NO-OP for footprint shapes, because a footprint
-    shape cannot carry a `(net ...)` in KiCad -- so until now EVERY `fp_*`
-    copper shape was relocated, and the corpus says what that costs: esp_prog
-    1, watchy 12, tigard 1, ulx3s 6, orangecrab_ext_pll 4 shapes moved off
-    copper on every single write. watchy's is a PCB antenna; esp_prog's is the
-    SOT89 tab under U2. Deleting a component's own land-pattern copper from a
-    board this tool was asked to route is not a routing decision to make.
-
-    The owner decides instead (`footprint_copper_is_functional`): a footprint
-    WITH pads owns functional copper, which stays and is now modelled by the
-    parser; a footprint with NO pads is a logo, which keeps #146's treatment
-    exactly. Board-level `gr_*` is untouched by this change.
-    """
-    kept = 0
-    count = 0
-    for tag in _COPPER_GRAPHIC_TAGS:
-        # RECOMPUTED per tag pass, not hoisted: this loop rewrites `content`
-        # at the end of every iteration and each relocation grows the text by
-        # 3 bytes (F.Cu -> F.SilkS), so spans taken once from the original
-        # text drift out of alignment from the second tag onward. Measured:
-        # past ~33 relocated board-level logos a pad-bearing footprint's own
-        # land-pattern copper was relocated anyway -- the exact deletion this
-        # gate exists to stop, and silently, because the "Kept ..." line
-        # drifts away with it.
-        _keep_spans = _functional_footprint_spans(content)
-        result_parts = []
-        last_end = 0
-        for start, end, _tag in _sexpr_spans(content, {tag}):
-            block = content[start:end]
-            layer_match = re.search(r'\(layer\s+"(F\.Cu|B\.Cu)"\)', block)
-            # #337: a NET-TIED copper graphic is FUNCTIONAL copper (the router
-            # models it as an immutable obstacle and check_drc treats it as
-            # copper) -- relocating it to silk would DELETE a real connection and
-            # re-expose the shorts #337 catches. Only net-less decoration (a
-            # copper logo, net 0 / no net) is safe to move off copper.
-            net_match = re.search(r'\(net\s+(\d+)(?:\s+"([^"]*)")?\)', block)
-            net_tied = net_match and (int(net_match.group(1)) != 0
-                                      or (net_match.group(2) or '') != '')
-            # #369 A6: KiCad 10 boards reference nets by NAME only -- the
-            # numeric-first regex missed (net "GND") entirely, classing real
-            # net-tied copper as decoration and deleting the connection the
-            # router still models (#337 immutable-copper class).
-            if not net_tied:
-                name_match = re.search(r'\(net\s+"((?:[^"\\]|\\.)*)"\)', block)
-                net_tied = bool(name_match and name_match.group(1) != '')
-            if (layer_match and not net_tied and tag in _FP_MODELLED_TAGS
-                    and _in_any_span(start, _keep_spans)):
-                # #908: this footprint has pads, so its copper is the part's
-                # own land pattern, not decoration. Leave it on copper -- the
-                # parser models it, so nothing routes over it any more.
-                kept += 1
-                layer_match = None
-            if layer_match and not net_tied:
-                layer = layer_match.group(1)
-                new_layer = 'F.SilkS' if layer == 'F.Cu' else 'B.SilkS'
-                block = block.replace(f'(layer "{layer}")', f'(layer "{new_layer}")')
-                count += 1
-            result_parts.append(content[last_end:start])
-            result_parts.append(block)
-            last_end = end
-        result_parts.append(content[last_end:])
-        content = ''.join(result_parts)
-
-    if count > 0:
-        print(f"  Moved {count} copper graphic(s)/logo(s) to silkscreen")
-    if kept > 0:
-        # Disclose what was KEPT, not only what was moved: this copper used to
-        # disappear from the deliverable silently (#908).
-        print(f"  Kept {kept} footprint copper shape(s) on copper "
-              f"(a part's own land pattern, not decoration)")
-
+    """Compatibility entry point: retained input copper is never relocated."""
+    _sexpr_spans(content, set())
     return content
 
 
@@ -1016,11 +812,9 @@ def add_tracks_to_pcb(input_path: str, output_path: str, tracks: List[Dict],
     else:
         net_id_to_name = None
 
-    # Move text from copper layers to silkscreen (prevents routing interference)
-    content = move_copper_text_to_silkscreen(content)
-    # Move copper logos/artwork to silkscreen too (net-less copper graphics would
-    # otherwise short against routed/poured copper).
-    content = move_copper_graphics_to_silkscreen(content)
+    # Artwork is immutable input copper, modelled by the parser as obstacles.
+    # Validate before writing, even when the caller has no tracks to insert.
+    _sexpr_spans(content, set())
     content = strip_zero_length_edge_cuts(content)
 
     # Generate segment S-expressions
@@ -1113,11 +907,9 @@ def add_tracks_and_vias_to_pcb(input_path: str, output_path: str,
     else:
         net_id_to_name = None
 
-    # Move text from copper layers to silkscreen (prevents routing interference)
-    content = move_copper_text_to_silkscreen(content)
-    # Move copper logos/artwork to silkscreen too (net-less copper graphics would
-    # otherwise short against routed/poured copper).
-    content = move_copper_graphics_to_silkscreen(content)
+    # Artwork is immutable input copper, modelled by the parser as obstacles.
+    # Validate before writing, even when the caller has no tracks to insert.
+    _sexpr_spans(content, set())
     content = strip_zero_length_edge_cuts(content)
 
     # Remove existing vias if specified
