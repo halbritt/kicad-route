@@ -118,7 +118,8 @@ COMPLETE, INCOMPLETE = "COMPLETE", "INCOMPLETE"
 
 TOOL_ROOT = common.TOOL_ROOT
 _ROUTER_GENERATION = engine.GENERATION
-KRT_VENV = _ROUTER_GENERATION / "venv" if _ROUTER_GENERATION else common.STATE / ".venv-krt"
+KRT_VENV = (_ROUTER_GENERATION / "venv" if _ROUTER_GENERATION else common.STATE / ".venv-krt") \
+    if engine.SELECTION_ERROR is None else None
 KRT_DIR = engine.ROOT
 FREEROUTING_DIR = common.STATE / "vendor" / "freerouting"
 FIXTURE = common.RESOURCE_ROOT / "fixtures" / "route_demo"
@@ -135,6 +136,7 @@ def pcbnew_python():
 
 
 def route_python():
+    engine.require_runtime()
     return KRT_VENV / "bin" / "python"
 
 
@@ -941,6 +943,7 @@ def ledger_path(args):
 
 
 def run_attempt(args):
+    engine.require_runtime()
     readonly = sandbox.require_readonly_state(getattr(args, "require_readonly_state", False))
     if readonly:  # the very first step: nothing is written unless STATE is present and read-only
         refusal = sandbox.state_refusal("run")
@@ -1749,7 +1752,7 @@ def update_krt(steps):
     global KRT_DIR, KRT_VENV
     generation, manifest = installation.install(steps, out_path("update"), krt_venv_python())
     KRT_DIR, KRT_VENV = generation / "router", generation / "venv"
-    engine.ROOT, engine.GENERATION = KRT_DIR, generation
+    engine.ROOT, engine.GENERATION, engine.SELECTION_ERROR = KRT_DIR, generation, None
     return manifest["krt"]["describe"]
 
 
@@ -1832,6 +1835,7 @@ def update_freerouting(steps):
 
 
 def update():
+    engine.require_runtime()
     from . import installation
     with installation.update_lock():
         return _update_locked()
@@ -1894,6 +1898,7 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
     """Readiness checks; returns the kicad-route/doctor/1 record. offline: no
     latest-release lookups (NOT_RUN, not required) and no socket; canary_check=False
     skips the canary; require_readonly makes "state read-only" required."""
+    engine.require_runtime()
     checks = []
     require_readonly = sandbox.require_readonly_state(require_readonly)
 
@@ -2681,7 +2686,13 @@ def main(argv=None):
             a = build_parser().parse_args(argv)
             if a.out:
                 common.set_out(a.out)
-            rc, rec = dispatch(a)
+            try:
+                engine.require_runtime()
+                rc, rec = dispatch(a)
+            except common.RouterSelectionError as error:
+                prefix = "--require-readonly-state: " if sandbox.require_readonly_state(
+                    getattr(a, "require_readonly_state", False)) else ""
+                contract.refuse("state", prefix + str(error))
         except contract.Refusal as r:
             rec = contract.write_refusal(r, argv, getattr(a, "cmd", None) or command_named(argv))
             contract.report_refusal(r, rec, json_mode)

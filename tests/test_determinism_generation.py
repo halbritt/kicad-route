@@ -2,6 +2,7 @@
 import copy
 from pathlib import Path
 from types import SimpleNamespace
+import sys
 import threading
 
 import pytest
@@ -24,8 +25,12 @@ def builds(tmp_path, monkeypatch):
         source.mkdir(parents=True)
         (generation / "installation.json").write_text("{}")
         (source / "implementation.py").write_text(name)
+        (source / "VERSION").write_text("1.0")
+        (source / "UPSTREAM.json").write_text("{}")
         site = generation / "venv/lib/python3.12/site-packages"
         site.mkdir(parents=True)
+        (generation / "venv/bin").mkdir()
+        (generation / "venv/bin/python").symlink_to(sys.executable)
         (generation / "venv/pyvenv.cfg").write_text("version = 3.12.0\n")
         module = site / "grid_router.so"
         module.write_text("extension " + name)

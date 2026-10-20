@@ -49,6 +49,8 @@ def manifest_path(state=None):
 def layout(state, generation=None):
     state = Path(state)
     generation = Path(generation) if generation else common.router_generation(state)
+    if generation is None:
+        engine.require_runtime()
     return {"generation": generation, "krt": generation / "router" if generation else engine.ROOT,
             "venv": generation / "venv" if generation else state / ".venv-krt",
             "freerouting": state / "vendor" / "freerouting"}
@@ -282,7 +284,7 @@ def write(manifest, state=None):
 
 
 def read(state=None):
-    return common.load_json(manifest_path(state))
+    return common.state_manifest(state)
 
 
 def file_sha256(state=None):
