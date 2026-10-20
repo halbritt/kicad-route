@@ -336,6 +336,31 @@
               "items": {
                 "type": "string"
               }
+            },
+            "measurement_qualification": {
+              "type": "object",
+              "required": [
+                "measurement",
+                "build_reproducible",
+                "reasons"
+              ],
+              "properties": {
+                "measurement": {
+                  "type": "boolean"
+                },
+                "build_reproducible": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           }
         },
@@ -647,6 +672,31 @@
               "type": "array",
               "items": {
                 "type": "string"
+              }
+            },
+            "measurement_qualification": {
+              "type": "object",
+              "required": [
+                "measurement",
+                "build_reproducible",
+                "reasons"
+              ],
+              "properties": {
+                "measurement": {
+                  "type": "boolean"
+                },
+                "build_reproducible": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }

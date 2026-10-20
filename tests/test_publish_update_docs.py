@@ -51,7 +51,7 @@ def test_publish_copies_every_receipt_and_never_a_board(tmp_path):
     got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
     assert got == sorted([
         "RESULT.md", "attempt.json", "provenance.json", "result.json", "snapshot.json", "spokes.json",
-        "blocked-by.json", "candidate-drc.json", "candidate-facts.json", "candidate-pour.json",
+        "publication.json", "blocked-by.json", "candidate-drc.json", "candidate-facts.json", "candidate-pour.json",
         "candidate-refill.json", "new-findings.json", "pour-integrity.json", "preservation.json",
         "facts/human-keys.json", "facts/reference-facts.json", "spokes/reference-plan.json",
         "against-origin/blocked-by.json", "against-origin/result.json",

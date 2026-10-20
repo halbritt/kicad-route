@@ -407,6 +407,17 @@ def reproducibility(backend, state=None):
                         f"repeat differed ({rec.get('differs_at') or 'see the record'})")}
 
 
+def attempt_qualification(repeat, process):
+    """Keep installed-build repeat evidence separate from this attempt's stop."""
+    from .determinism import wall_clock_stops
+    stops = wall_clock_stops(process)
+    reasons = [f"wall-clock stop: {flag}" for flag in stops]
+    if not repeat.get("measurement"):
+        reasons.append(repeat["basis"])
+    return {"measurement": bool(repeat.get("measurement") and not stops),
+            "build_reproducible": repeat.get("reproducible"), "reasons": reasons}
+
+
 def record_determinism(rec, state=None):
     """Store a determinism record in the manifest (rewritten atomically)."""
     m = read(state)

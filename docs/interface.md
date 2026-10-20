@@ -309,3 +309,33 @@ production contract: exit 0 successful planned zones and preservation checks;
 published candidate; 4 existing refusal interface. `planes.pour_integrity` holds
 refilled before/after facts, the check and delta. Production success does not
 certify completed routing or schematic parity. See [planes.md](planes.md).
+
+Publication bundles include `publication.json` (`kicad-route/publication/1`). The
+legacy flat receipt layout is retained. `locators` maps original run-relative
+receipt paths to bundle paths, and `files` hashes every included file. Each
+published result's `evidence.records` has an included path/hash or an explicit
+external designation in the manifest. Board, input, rule and backend-output
+hashes remain external evidence; these private artifacts are never copied.
+Original receipts are copied byte-for-byte. Consumers can call
+`kicad_route.publication.verify(directory)` without access to the original run.
+
+Publication accepts a fresh/empty directory or an intact bundle of the same kind
+(`run` or `smoke`). Unowned nonempty destinations, changed bundles, symlinks,
+project roots and paths overlapping active evidence are refused with exit 4.
+Older publications without a manifest must be archived by their owner or given a
+new destination. Successful publications replace the complete directory using
+Linux `renameat2(RENAME_EXCHANGE)`; failed smoke runs preserve prior publications.
+
+`backend.reproducible` describes the installed build's repeat evidence.
+`measurement` qualifies this particular attempt: any command with
+`budget_reached`, `stalled`, or `killed` makes it false, including intermediate
+pair-routing passes. `process.measurement_qualification` records the build's
+repeat flag and the current attempt's qualification reasons. A stopped candidate
+still receives its independent process, routing and native-validation grades.
+Revalidation retains the original attempt's qualification in its process block;
+it does not rerun or upgrade that attempt. Freerouting remains an attempt.
+
+`update.json` includes the required determinism outcome, reasons, record locator
+and any `record_error`. Failed repeat qualification or recording makes update
+nonzero; a later passing gate cannot erase an earlier failure. The manifest hash
+in the final receipt includes the recorded repeat check.

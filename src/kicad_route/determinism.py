@@ -29,6 +29,11 @@ SCHEMA = "kicad-route/determinism/1"
 LAYERS = ("outcome", "copper_geometry", "candidate_bytes", "backend_output_bytes")
 
 
+def wall_clock_stops(process):
+    return sorted({flag for command in [process, *(process.get("commands") or [])]
+                   for flag in ("budget_reached", "stalled", "killed") if command.get(flag)})
+
+
 def layer_record(result):
     """The comparable layers of one finished run's result.json."""
     ev = result.get("evidence") or {}
@@ -39,8 +44,7 @@ def layer_record(result):
         "outcome": {"process": proc.get("status"), "routing": (result.get("routing") or {}).get("status"),
                     "validation": (result.get("validation") or {}).get("status"),
                     "unconnected_in_scope": (result.get("routing") or {}).get("unconnected_in_scope")},
-        "wall_clock_stop": bool(any(c.get("budget_reached") or c.get("stalled") or c.get("killed")
-                                    for c in proc.get("commands") or [])),
+        "wall_clock_stop": bool(wall_clock_stops(proc)),
         "backend_output_bytes": ev.get("backend_output_board_sha256"),
         "candidate_bytes": ev.get("candidate_board_sha256"),
         "copper_geometry": sig.get("sha256"),

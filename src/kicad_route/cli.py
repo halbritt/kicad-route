@@ -1126,12 +1126,14 @@ def run_attempt(args):
         validation = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
         routing = {"status": NOT_RUN, "reasons": ["backend produced no candidate"]}
     repro = statemanifest.reproducibility(args.backend)  # KICADROUTE-7: attempt or measurement
+    qualification = statemanifest.attempt_qualification(repro, proc)
+    proc["measurement_qualification"] = qualification
     result = {
         "schema": contract.schema_id("route", 2) if pairs is not None else contract.schema_id("route"),
         "kind": "route",
         "backend": {"name": args.backend, **backend_version, "reproducible": repro["reproducible"],
                     "reproducible_basis": repro["basis"]},
-        "measurement": repro["measurement"],
+        "measurement": qualification["measurement"],
         "input": {"project": project, "board": board_name, "fingerprint": fingerprint,
                   **attempt["source"], "baseline": attempt["baseline"], "rules_files": attempt["rules_files"]},
         "settings": settings,
@@ -1857,7 +1859,14 @@ def update():
     det, det_path = determinism.check(sys.modules[__name__], "krt", record=True)
     log(f"[update] KRT determinism: {'reproducible' if det['reproducible'] else 'NOT reproducible'}"
         + (f" ({'; '.join(det['reasons'])})" if det["reasons"] else "") + f" -> {common.rel(det_path)}")
-    return rc
+    record = load_json(out_path("update") / "update.json")
+    record["determinism"] = {**det, "record_path": str(det_path)}
+    record["state_manifest"] = {"path": str(statemanifest.manifest_path()),
+                                "sha256": statemanifest.file_sha256()}
+    record["exit_code"] = rc or (1 if det.get("record_error") else
+                                3 if not det["reproducible"] else 0)
+    common.write_json(out_path("update") / "update.json", record)
+    return record["exit_code"]
 
 
 # ------------------------------------------------------------------- doctor
@@ -2056,32 +2065,17 @@ def receipts(d):
 
 
 def publish_run(run_dir, dest):
-    dest.mkdir(parents=True, exist_ok=True)
-    for sub in PUBLISH_FLAT:
-        for src in receipts(run_dir / sub):
-            target = dest / src.name
-            if target.exists():  # never let a validate/ receipt overwrite a run-root one
-                target = dest / sub / src.name
-                target.parent.mkdir(exist_ok=True)
-            target.write_bytes(src.read_bytes())
-    for sub in PUBLISH_NESTED:
-        for src in receipts(run_dir / sub):
-            (dest / sub).mkdir(exist_ok=True)
-            (dest / sub / src.name).write_bytes(src.read_bytes())
-    # the latest re-grading: of a --dir chain against its origin (validate --against),
-    # and of the candidate itself (validate)
-    for sub, name in PUBLISH_LATEST.items():
-        stamps = sorted(p for p in (run_dir / sub).glob("2*") if p.is_dir())
-        if stamps:
-            (dest / name).mkdir(exist_ok=True)
-            for src in receipts(stamps[-1]):
-                (dest / name / src.name).write_bytes(src.read_bytes())
+    from . import publication
+    publication.publish_run(run_dir, dest)
 
 
 def smoke(publish=None):
     """The integration tests on the bundled fixture, run under OUT/smoke. With
     publish, the structured evidence (not the boards) is copied there for committing."""
+    from . import publication
     out = out_path("smoke")
+    protected = (common.out_dir().resolve(), FIXTURE.resolve())
+    dest = publication.destination(publish, 'smoke', protected) if publish else None
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     junit = out / "junit.xml"
@@ -2097,16 +2091,18 @@ def smoke(publish=None):
                             **common.tool_versions()},
                "junit": junit.name, "tests": sorted(records)}
     common.write_json(out / "summary.json", summary)
-    if publish:
-        dest = Path(publish).resolve()
-        shutil.rmtree(dest, ignore_errors=True)
-        dest.mkdir(parents=True)
-        for p in [*out.glob("*.json"), junit]:
-            (dest / p.name).write_bytes(p.read_bytes())
-        for rec in records.values():
-            run_dir = (rec or {}).get("run_dir")
-            if run_dir:
-                publish_run(out / run_dir, dest / "runs" / Path(run_dir).parent.name)
+    if dest and status == PASS:
+        with publication.staging(dest, 'smoke', protected) as stage:
+            for p in [*out.glob("*.json"), junit]:
+                if p.is_file() and not p.is_symlink():
+                    (stage / p.name).write_bytes(p.read_bytes())
+            for rec in records.values():
+                run_dir = (rec or {}).get("run_dir")
+                if run_dir:
+                    target = stage / "runs" / Path(run_dir).parent.name
+                    target.mkdir(parents=True, exist_ok=True)
+                    publication.copy_run(out / run_dir, target)
+            publication.seal(stage, 'smoke')
     log(f"kicad-route smoke: {status} -> {common.rel(Path(publish) if publish else out)}")
     return 0 if status == PASS else 1
 
@@ -2293,6 +2289,11 @@ def validate_record(args):
         {"status": PASS, "reasons": []}
     if validation["status"] == NOT_RUN and proc["status"] == PASS:  # nothing to grade is a process failure
         proc = {"status": FAIL, "reasons": validation["reasons"]}
+    build = result.get("backend") or {}
+    proc["measurement_qualification"] = statemanifest.attempt_qualification(
+        {"reproducible": build.get("reproducible"), "measurement": result.get("measurement", False),
+         "basis": build.get("reproducible_basis", "historical attempt has no repeat evidence")},
+        result.get("process") or {})
     graded = origin or run_dir  # whose input the candidate was graded against
     graded_attempt = load_json(graded / "attempt.json")
     rec = {"schema": contract.schema_id("route-validate"), "kind": "route-validate",
