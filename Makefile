@@ -20,3 +20,9 @@ evidence:            ## smoke, then copy the structured evidence to reports/fixt
 	$(KR) smoke --publish reports/fixture
 fixture:             ## regenerate the fixture board
 	/usr/bin/python3 fixtures/route_demo/generate.py
+
+# Needs only the installed numeric routing environment and cached locked crates.
+KERNEL_PYTHON ?= $(if $(KICAD_ROUTE_STATE),$(KICAD_ROUTE_STATE),.)/.venv-krt/bin/python
+.PHONY: kernel
+kernel:
+	$(KERNEL_PYTHON) scripts/kernel-tests.py

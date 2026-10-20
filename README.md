@@ -152,3 +152,7 @@ process, using a Rust extension built from the included source.
 [Freerouting](https://github.com/freerouting/freerouting) is GPL-3.0 and remains a
 separate program, acquired into the git-ignored `STATE/vendor/freerouting` directory.
 It is not redistributed, imported or linked by kicad-route.
+
+The owned routing kernels have a separate fast gate: `make kernel`. See
+[`docs/kernel-testing.md`](docs/kernel-testing.md) for its dependencies, mutation
+proof, upstream test inventory and boundaries; native `make smoke` remains required.
