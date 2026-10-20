@@ -1,0 +1,244 @@
+{
+  "schema": "kicad-route/final-source-parity/1",
+  "created_utc": "2026-10-20T20:58:30.698567+00:00",
+  "scope": "Read-only filesystem/Git/JUnit/receipt inspection. No test collection/execution, routing, DRC, source edits, builds or tracker changes.",
+  "worktrees": {
+    "primary": {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary",
+      "head": "b2bea77af69587b572b409190f18ed674abd0006",
+      "status_porcelain": ""
+    },
+    "benchmark_candidate": {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-bytecode",
+      "head": "3bc90405be40a42c1e5ff48787e35238ea994ab8",
+      "status_porcelain": ""
+    }
+  },
+  "production_parity": {
+    "files_compared": 283,
+    "differing_files": [
+      "publication.py"
+    ],
+    "benchmark_run_code_identical": true,
+    "important_module_sha256": {
+      "cli.py": {
+        "primary": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2",
+        "candidate": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2",
+        "equal": true
+      },
+      "common.py": {
+        "primary": "df47e9868ad61538abd4f6e39c9987e2d70d058a23ed6e6aa32354d9e358dce4",
+        "candidate": "df47e9868ad61538abd4f6e39c9987e2d70d058a23ed6e6aa32354d9e358dce4",
+        "equal": true
+      },
+      "engine.py": {
+        "primary": "4f4451f6356a9b5ba63b01d4e1d97f7490b80deb0a1518e28b29e9ae13c9d1c1",
+        "candidate": "4f4451f6356a9b5ba63b01d4e1d97f7490b80deb0a1518e28b29e9ae13c9d1c1",
+        "equal": true
+      },
+      "baselinecache.py": {
+        "primary": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13",
+        "candidate": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13",
+        "equal": true
+      },
+      "installation.py": {
+        "primary": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7",
+        "candidate": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7",
+        "equal": true
+      },
+      "evidence.py": {
+        "primary": "c5d89a302c2694d71711d8d7576f7a38892f017c949becacf946dacc05d4946a",
+        "candidate": "c5d89a302c2694d71711d8d7576f7a38892f017c949becacf946dacc05d4946a",
+        "equal": true
+      },
+      "statemanifest.py": {
+        "primary": "f78bd5903dc328494264436ddb42c42d54f308cf30fad571186308f86c0cea37",
+        "candidate": "f78bd5903dc328494264436ddb42c42d54f308cf30fad571186308f86c0cea37",
+        "equal": true
+      },
+      "ledger.py": {
+        "primary": "675608321fe695541e3d304864ee786367d1911cb7bd38701a872c72a22428c8",
+        "candidate": "675608321fe695541e3d304864ee786367d1911cb7bd38701a872c72a22428c8",
+        "equal": true
+      },
+      "diff_pairs.py": {
+        "primary": "6a9025e0d547eb22fe645cb3da5b6887ae650f884238992ca6c568c5477fb708",
+        "candidate": "6a9025e0d547eb22fe645cb3da5b6887ae650f884238992ca6c568c5477fb708",
+        "equal": true
+      },
+      "campaign.py": {
+        "primary": "9fdc717e0312a196c0575eabd50d185580171651d430a90f4f78a8359d2b11c0",
+        "candidate": "9fdc717e0312a196c0575eabd50d185580171651d430a90f4f78a8359d2b11c0",
+        "equal": true
+      },
+      "kicad/facts.py": {
+        "primary": "fe58caec4d6210e69923dee65c079ebf01c2d2bcf81c96746205f3076f6f62c9",
+        "candidate": "fe58caec4d6210e69923dee65c079ebf01c2d2bcf81c96746205f3076f6f62c9",
+        "equal": true
+      },
+      "kicad/pour.py": {
+        "primary": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+        "candidate": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+        "equal": true
+      },
+      "pour.py": {
+        "primary": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+        "candidate": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+        "equal": true
+      }
+    },
+    "publication_difference": {
+      "description": "Primary guards non-dict publication.json roots before reading files inventory; candidate checks only manifest.files shape.",
+      "invoked_by_benchmark_run": false,
+      "evidence": "cli.py imports publication lazily inside publish_run and smoke only; run_attempt dispatch does not call either. There is no publication module-level import in cli.py.",
+      "diff": "diff --git a/src/kicad_route/publication.py b/src/kicad_route/publication.py\nindex 259df3b..c730d00 100644\n--- a/src/kicad_route/publication.py\n+++ b/src/kicad_route/publication.py\n@@ -27,8 +27,8 @@ def destination(path, kind, protected=()):\n         if list(path.glob('*.kicad_pcb')) or any(p.is_symlink() for p in path.rglob('*')):\n             contract.refuse(\"input\", f\"publication contains project data or symlinks: {path}\")\n         if any(path.iterdir()):\n-            manifest = common.load_json(path / MANIFEST) or {}\n-            if not isinstance(manifest.get('files'), dict):\n+            manifest = common.load_json(path / MANIFEST)\n+            if not isinstance(manifest, dict) or not isinstance(manifest.get('files'), dict):\n                 contract.refuse('input', f'refusing publication without an ownership inventory: {path}')\n             expected = set(manifest['files']) | {MANIFEST}\n             expected |= {str(parent) for name in manifest.get('files', {})"
+    },
+    "other_repository_differences": [
+      "docs/guide/glossary.md",
+      "docs/routing-engine-migration.md",
+      "docs/routing.md",
+      "src/kicad_route/publication.py",
+      "tests/test_baseline_identity_reuse.py",
+      "tests/test_determinism_generation.py",
+      "tests/test_evidence_integrity.py",
+      "tests/test_publication_safety.py"
+    ],
+    "nonproduction_differences": "Three docs files and four test files only: baseline-identity import re-export, deterministic-thread helper style, tighter native evidence exit assertions, and publication malformed-root cases. They do not execute during benchmark run.",
+    "driver_parity": {
+      "bin/kicad-route": true,
+      "scripts/compare_router.py": true
+    },
+    "metadata_note": "Git commit strings differ in diagnostic result metadata by design; engine execution identities use content hashes and exclude unrelated repository commits."
+  },
+  "owned_source_parity": {
+    "roots": {
+      "primary": {
+        "sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "files": 241,
+        "root": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router",
+        "pyc_count": 19
+      },
+      "bytecode_worktree": {
+        "sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "files": 241,
+        "root": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-bytecode/src/kicad_route/router",
+        "pyc_count": 0
+      },
+      "prepared_generation": {
+        "sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "files": 241,
+        "root": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+        "pyc_count": 0
+      }
+    },
+    "all_equal": true,
+    "manifest_recorded_source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+    "matches_manifest": true,
+    "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5",
+    "expected_generation": "60310b2b2bc14f9e9efcddcb57e650e5",
+    "generation_name_matches": true
+  },
+  "coverage_observation_audit": {
+    "artifact": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+    "artifact_sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603",
+    "current_collected": 726,
+    "claimed_current_cases": 726,
+    "collection_exactly_matches_claimed": true,
+    "all_current_cases_have_passing_junit_observation": true,
+    "invalid_passing_evidence_links": [],
+    "current_test_file_hashes_verified": 46,
+    "test_file_hash_mismatches": [],
+    "runs": [
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/junit.xml",
+        "sha256_matches": true,
+        "cases": 688,
+        "passed": 686,
+        "failed_or_skipped": [
+          "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[other_manifest]",
+          "tests/test_test_suite.py::test_exit_codes_are_pinned"
+        ]
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-focused.xml",
+        "sha256_matches": true,
+        "cases": 193,
+        "passed": 193,
+        "failed_or_skipped": []
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-selector.xml",
+        "sha256_matches": true,
+        "cases": 25,
+        "passed": 25,
+        "failed_or_skipped": []
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-merged-generation.xml",
+        "sha256_matches": true,
+        "cases": 24,
+        "passed": 24,
+        "failed_or_skipped": []
+      }
+    ],
+    "current_broad_passes": 685,
+    "corrected_original_failures": {
+      "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[other_manifest]": [
+        2
+      ],
+      "tests/test_test_suite.py::test_exit_codes_are_pinned": [
+        1,
+        2
+      ]
+    },
+    "gross_new_current_nodeids": 39,
+    "obsolete_broad_nodeids": [
+      "tests/test_engine_acceptance.py::test_process_tree_memory_counts_concurrent_child_in_separate_session"
+    ],
+    "net_collection_increase": 38,
+    "explanation": "Current726case observations =685 current broad passing nodes +2 originally failed nodes later passing +39 new nodeIDs. One obsolete unparametrized process-tree test became[False]/[True], so net collected increase is38. Retained broad invocation remains686PASS/2FAIL; this union is not one green full-suite invocation and does not erase those failures.",
+    "status": "Passing-node accounting and current test hashes are consistent; no material observation gap."
+  },
+  "performance_evidence_at_observation": {
+    "multipoint-prepared": {
+      "terminal_comparison_exists": true,
+      "passed": true,
+      "measured_repetitions": {
+        "reference": 5,
+        "candidate": 5
+      },
+      "metrics": {
+        "wall_s": {
+          "reference_median": 28.91,
+          "candidate_median": 25.83,
+          "ratio": 0.8934624697336561,
+          "limit": 1.1
+        },
+        "max_rss_kib": {
+          "reference_median": 1600016,
+          "candidate_median": 1603408,
+          "ratio": 1.002119978800212,
+          "limit": 1.1
+        },
+        "process_tree_peak_rss_kib": {
+          "reference_median": 1616628,
+          "candidate_median": 1625724,
+          "ratio": 1.0056265263251658,
+          "limit": 1.1
+        }
+      },
+      "failures": []
+    },
+    "route-demo-prepared": {
+      "terminal_comparison_exists": false
+    },
+    "four-layer-prepared": {
+      "terminal_comparison_exists": false
+    },
+    "diff-pair-prepared": {
+      "terminal_comparison_exists": false
+    }
+  },
+  "completion_boundary": "Source parity permits transferring benchmark observations from candidate3bc9040 to primaryb2bea77 for the unchanged run path. It does not complete performance acceptance: all four planned boards must have final five-repetition PASS comparisons with unchanged1.10limits. Retain failed historical matrices; pending matrix is not qualified.",
+  "material_gaps": []
+}

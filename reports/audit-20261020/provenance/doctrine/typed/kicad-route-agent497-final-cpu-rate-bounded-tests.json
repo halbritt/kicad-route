@@ -1,0 +1,30 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "cpu-rate-bounded-tests",
+  "evidence_class": "evidence-tests",
+  "summary": "Seven standalone bounded CPU-rate harness checks passed with fake driver/resources and own/proc inspection only: exact quota/period/burst/weight/affinity/normalpriority controls; originalRSSreturn/cadence with once-perbirth membership; escape versus explicit exitrace; no drop/retry across all48/all4 ordinary failed samples; postcompletion scope mismatch retaining samples and blockingPASS; drivererror retaining prior completions/currenttelemetry; exact three-trial2then1 selector that cannot skip a ready2CPUprofile. These7checks are separate from production741node observations. The separate calibration harness also has11syntheticchecks as retained by its own immutable plan; no aggregate one-green-fullsuite claim is made.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_cpu_rate_matrix.py",
+      "method": "Read standalone bounded tests",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "842fe6f21a3526b72606533fd1b2e3d4bec5bd2bb7469ca6cf0c48e3579ffab4"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-tests.log",
+      "method": "Read retained7PASS result",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "1e90f5bdb82e88d1efce7f926a7d041e19ca952a1673d8be59244ab4acbbbf0c"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+      "method": "Read frozen test/hash binding",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225"
+    }
+  ],
+  "satisfies": [
+    "tests, characterization, probes, or explicit residual risk",
+    "checkpoint verification"
+  ]
+}

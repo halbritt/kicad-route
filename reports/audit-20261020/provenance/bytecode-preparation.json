@@ -1,0 +1,92 @@
+{
+  "schema": "kicad-route/bytecode-preparation/1",
+  "observed_utc": "2026-10-20T20:28:08.482124+00:00",
+  "commit": "07f9be0",
+  "base_commit": "e950577",
+  "worktree": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-bytecode",
+  "new_state": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+  "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5",
+  "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+  "source_matches_previous_generation": true,
+  "extension_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+  "extension_matches_previous_generation": false,
+  "package_versions": [
+    "numpy==2.5.4",
+    "pillow==13.0.0",
+    "scipy==1.18.1",
+    "shapely==2.2.0"
+  ],
+  "package_versions_match_previous_generation": true,
+  "package_versions_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+  "site_packages_bytecode": {
+    "count": 1619,
+    "valid_timestamp_headers": 1619,
+    "other_headers": [],
+    "packages": {
+      "numpy": {
+        "pyc": 407,
+        "bytes": 12042306
+      },
+      "scipy": {
+        "pyc": 988,
+        "bytes": 27164272
+      },
+      "shapely": {
+        "pyc": 126,
+        "bytes": 1411177
+      },
+      "PIL": {
+        "pyc": 97,
+        "bytes": 1406716
+      }
+    }
+  },
+  "router_source_pyc": 0,
+  "before": {
+    "legacy_venv": {
+      "count": 455,
+      "bytes": 9760624,
+      "valid_timestamp_headers": 455
+    },
+    "old_staged_venv": {
+      "count": 83,
+      "bytes": 2098227,
+      "valid_timestamp_headers": 83
+    },
+    "per_package_ref_vs_old_staged": {
+      "numpy": [
+        132,
+        82
+      ],
+      "scipy": [
+        286,
+        0
+      ],
+      "shapely": [
+        36,
+        0
+      ]
+    },
+    "both_router_source_pyc": 0
+  },
+  "verification": {
+    "focused_command": "PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m pytest tests/test_installation_generations.py tests/test_determinism_generation.py tests/test_update_qualification.py -q -p no:cacheprovider",
+    "focused_result": "55passed in34.67s",
+    "focused_session": "23300",
+    "new_cases": [
+      "test_failed_preparation_preserves_active_manifest_and_generation[krt-bytecode.log]",
+      "test_preparation_builds_local_bytecode_and_runtime_leaves_generation_untouched",
+      "test_dependency_bytecode_failure_preserves_previous_active_generation"
+    ],
+    "collection": "55 focused tests collected in0.86s",
+    "native_build_receipt": "/home/halbritt/git/kicad-route/build/agent497-qualification/bytecode-native-build.json",
+    "native_prep_result": "all6steps passed: venv/dependencies/bytecode/Cargo+module import/startup/routehelp",
+    "manifest_drift": [],
+    "full_collection_log": "/home/halbritt/git/kicad-route/build/agent497-qualification/bytecode-collection.log",
+    "full_collection_result": "Unscoped pytest also discovered standalone owned kernel harness and failed for missing KERNEL_EXTENSION; not the smoke entrypoint.",
+    "smoke_collection_log": "/home/halbritt/git/kicad-route/build/agent497-qualification/bytecode-smoke-collection.log",
+    "smoke_collection_result": "699 tests collected in 4.33s"
+  },
+  "policy": "Compilation writes only inside the not-yet-active venv via isolated -I -B explicit compileall. Inherited PYTHONPYCACHEPREFIX is ignored, runtime PYTHONDONTWRITEBYTECODE stays enabled, existing generations and legacy source/environments remain unchanged. All package versions and Rust lock remain unchanged.",
+  "performance_claim": "Not made; root benchmark must determine impact under unchanged owner gates."
+}

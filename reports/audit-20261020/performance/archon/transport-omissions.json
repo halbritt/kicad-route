@@ -1,0 +1,93 @@
+{
+  "schema": "kicad-route/transport-omissions/1",
+  "policy_sha256": "8e30d7b302bba9856a127e1a04159f2efb8571ed59c5ad3e8f4fd27027aab3e1",
+  "omissions": [
+    {
+      "source": "/evidence/preparation-reference/out/.home",
+      "relative_prefix": "preparation-reference/out/.home",
+      "files": 2665,
+      "bytes": 203060569,
+      "symlinks": 4,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/preparation-candidate/out/.home",
+      "relative_prefix": "preparation-candidate/out/.home",
+      "files": 2665,
+      "bytes": 203061146,
+      "symlinks": 4,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/diff-pair-archon/reference-out/.home",
+      "relative_prefix": "diff-pair-archon/reference-out/.home",
+      "files": 0,
+      "bytes": 0,
+      "symlinks": 0,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/diff-pair-archon/candidate-out/.home",
+      "relative_prefix": "diff-pair-archon/candidate-out/.home",
+      "files": 0,
+      "bytes": 0,
+      "symlinks": 0,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/four-layer-archon/reference-out/.home",
+      "relative_prefix": "four-layer-archon/reference-out/.home",
+      "files": 0,
+      "bytes": 0,
+      "symlinks": 0,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/four-layer-archon/candidate-out/.home",
+      "relative_prefix": "four-layer-archon/candidate-out/.home",
+      "files": 0,
+      "bytes": 0,
+      "symlinks": 0,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/multipoint-archon/reference-out/.home",
+      "relative_prefix": "multipoint-archon/reference-out/.home",
+      "files": 0,
+      "bytes": 0,
+      "symlinks": 0,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/multipoint-archon/candidate-out/.home",
+      "relative_prefix": "multipoint-archon/candidate-out/.home",
+      "files": 0,
+      "bytes": 0,
+      "symlinks": 0,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/route-demo-archon/reference-out/.home",
+      "relative_prefix": "route-demo-archon/reference-out/.home",
+      "files": 0,
+      "bytes": 0,
+      "symlinks": 0,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    },
+    {
+      "source": "/evidence/route-demo-archon/candidate-out/.home",
+      "relative_prefix": "route-demo-archon/candidate-out/.home",
+      "files": 0,
+      "bytes": 0,
+      "symlinks": 0,
+      "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+    }
+  ],
+  "totals": {
+    "files": 5330,
+    "bytes": 406121715,
+    "symlinks": 8
+  },
+  "required_regular_file_json_locators_checked": true,
+  "native_results_timing_metadata_boards_work_baselinecache_ledger_buildlogs_retained": true
+}

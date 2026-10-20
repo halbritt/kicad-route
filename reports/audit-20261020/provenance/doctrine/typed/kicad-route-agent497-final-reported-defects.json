@@ -1,0 +1,89 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "reported-defects",
+  "evidence_class": "evidence-incidents",
+  "summary": "The original issues draft records14 exact defect/scope contracts.68/69/72 explicitly identify static source-traced failures rather than destructive/hang runtime reproductions. Observed final broad smoke originally had686PASS/2FAIL (readonly other_manifest and loose test exitcode assertion); those failures are retained and have later passing corrected observations. Historical multipoint stable performance failure1.458wall and cache-reuse failure1.171wall are retained; no gate or numeric1.10limit was waived. Installation75 initially introduced missing SciPy bytecode; read-only3alternating import probes measured medianCPU1.86oldcandidate versus1.12reference/newcandidate while all cache metadata stayed unchanged. These establish bounded incidents/measurements, not universal causal or performance claims. The later prepared-bytecode matrix finished exit1: diff-pair measured5per side had medianwall30.07reference versus33.39candidate, ratio1.1104090455603592 above1.10; individualRSS1.0245997371521112 and sampledprocess-treeRSS1.0287731350884464 passed. Copper equivalence and native correctness passed. This is retained performance failure, not qualification, and does not by itself prove a cause. Root authorized a bounded attempt-local major-version reuse repair before the new env-reuse matrix; that repair is not yet asserted complete. The authorized local environment-major repair is now committed as f0f73da86835ec583f2a2c9128e6893fa59c03b7 with113 focused PASS observations. The final env-reuse matrix is running; the prior diff-pair failure remains historical and no full-route performance recovery is inferred from the microprobe. The later env-reuse diff-pair comparison also finished FAIL: median full-CLI wall19.11reference/23.64candidate, ratio1.2370486656200943 above1.10, despite all native/copper checks passing and median(totalCPU)33.08reference/31.73candidate. Candidate31.41 is sum of marginal user/system medians, not median totalCPU. Host scheduling is a supported hypothesis, not established sole cause. Root selected one prespecified quiet-admission experiment without further production edits; historical failure remains failure. Quiet18111 expired resource-inconclusive with0native attempts; no old failure or missing run was relabeled. Before any new router result, root ran independent fixed CPU-service calibration74830:2CPU trials had service fractions.907065/.950893/.750054, so2failed the all-three rule;1CPU trials passed at1.001374/.998535/1.000359. The predefined selector chose1. Root launched one new fixed CPU-rate matrix94696, which is still running. No further production optimization was introduced.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/deep-analysis-20261020-agent486/issues-draft.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "bf616a12cfdf66b1e3b93b3ac2ccb07896dfc19ea1019237d3b662f707796133"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "method": "Read retained artifact or current source; no gate execution; historical bytes retained explicitly after environment-reuse update (original observation time unchanged).",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/comparison.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "4459b1205766b120fd0831a9a72168f0edeacdbfbe4d7dcd909aa7020331a84a"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cache-reuse/comparison.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "77505248c622347a2947a948cf9baebb2793ef6fef4750403dfc4e300b1508f5"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/bytecode-import-probe/comparison.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "4b5fc097e8b009bd0d8013d47654e2493e941a6d4ca7f03b0fb0a71e8764e25c"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-comparison.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c6542b8adeac31d973ef07a9428f1a463c6dd9a1fe50e638f612b00f388eaa91"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/comparison.json",
+      "method": "Read terminal five-repetition comparison; no native job",
+      "observed_at": "2026-10-20T21:11:55.915408+00:00",
+      "content_sha256": "56c1d07471f22493b5f215f164cf9fab6f23ad09691dbbe31b4594ceee810789"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-env-reuse.xml",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "4e291b06e910c28e84318791b0c9f36b18cac4cebb1bef8b9c21b9dc55601f9f"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-env-reuse/comparison.json",
+      "method": "Read retained terminal failed comparison; no new native process",
+      "observed_at": "2026-10-20T21:32:27.147066+00:00",
+      "content_sha256": "3cd02d450753d4444d81a82a9f98ca6ee0827a44f8f0961be3154e8dc7bd1245"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/quiet-admission-metadata/matrix.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "0712b18337ff919d7d896ed44d92080009527040eb407b5f47c2fd0abcb1565b"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-root-review.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "e5100f91ff192d13fc6770a1898787d746f1c8cce96c50c76f2cc94339c6c0b6"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

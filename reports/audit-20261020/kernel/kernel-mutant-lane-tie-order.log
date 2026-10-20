@@ -1,0 +1,273 @@
+   Compiling grid_router v0.23.1 (/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/build/kernel-mutant-f2l63gl3/source)
+    Finished `release` profile [optimized] target(s) in 21.26s
+..FFFF.FF
+======================================================================
+FAIL: test_deterministic_obstacle_paths_match_exhaustive_pose_oracle (__main__.SearchTests.test_deterministic_obstacle_paths_match_exhaustive_pose_oracle) (paired=False, hole=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/tests/test_kernel.py", line 156, in test_deterministic_obstacle_paths_match_exhaustive_pose_oracle
+    self.assertEqual(actual, None if expected is None else
+AssertionError: Lists differ: [(0, 3, 0, 0), (1, 3, 0, 0), (2, 2, 7, 0), (3, 1, 7, 0), (4,[33 chars], 0)] != [(0, 3, 0, 0), (1, 2, 7, 0), (2, 1, 7, 0), (3, 1, 0, 0), (4,[33 chars], 0)]
+
+First differing element 1:
+(1, 3, 0, 0)
+(1, 2, 7, 0)
+
+  [(0, 3, 0, 0),
+-  (1, 3, 0, 0),
+?      ^  ^
+
++  (1, 2, 7, 0),
+?      ^  ^
+
+-  (2, 2, 7, 0),
+?      ^
+
++  (2, 1, 7, 0),
+?      ^
+
+-  (3, 1, 7, 0),
+?         ^
+
++  (3, 1, 0, 0),
+?         ^
+
+-  (4, 1, 0, 0),
+-  (5, 2, 1, 0),
+?   ^
+
++  (4, 2, 1, 0),
+?   ^
+
++  (5, 3, 1, 0),
+-  (6, 3, 1, 0)]
+?         ^
+
++  (6, 3, 0, 0)]
+?         ^
+
+
+======================================================================
+FAIL: test_deterministic_obstacle_paths_match_exhaustive_pose_oracle (__main__.SearchTests.test_deterministic_obstacle_paths_match_exhaustive_pose_oracle) (paired=False, hole=2)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/tests/test_kernel.py", line 156, in test_deterministic_obstacle_paths_match_exhaustive_pose_oracle
+    self.assertEqual(actual, None if expected is None else
+AssertionError: Lists differ: [(0, 3, 0, 0), (1, 4, 1, 0), (2, 3, 7, 0), (3, 2, 7, 0), (4,[33 chars], 0)] != [(0, 3, 0, 0), (1, 2, 7, 0), (2, 2, 0, 0), (3, 2, 0, 0), (4,[33 chars], 0)]
+
+First differing element 1:
+(1, 4, 1, 0)
+(1, 2, 7, 0)
+
+  [(0, 3, 0, 0),
+-  (1, 4, 1, 0),
+-  (2, 3, 7, 0),
+-  (3, 2, 7, 0),
+?   ^
+
++  (1, 2, 7, 0),
+?   ^
+
++  (2, 2, 0, 0),
++  (3, 2, 0, 0),
+   (4, 3, 1, 0),
+-  (5, 4, 1, 0),
+?      ^  ^
+
++  (5, 3, 0, 0),
+?      ^  ^
+
+-  (6, 3, 7, 0)]
+?         ^
+
++  (6, 3, 0, 0)]
+?         ^
+
+
+======================================================================
+FAIL: test_deterministic_obstacle_paths_match_exhaustive_pose_oracle (__main__.SearchTests.test_deterministic_obstacle_paths_match_exhaustive_pose_oracle) (paired=False, hole=4)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/tests/test_kernel.py", line 156, in test_deterministic_obstacle_paths_match_exhaustive_pose_oracle
+    self.assertEqual(actual, None if expected is None else
+AssertionError: Lists differ: [(0, [23 chars] (2, 5, 1, 0), (3, 4, 7, 0), (4, 5, 1, 0), (5,[19 chars], 0)] != [(0, [23 chars] (2, 4, 0, 0), (3, 4, 0, 0), (4, 3, 7, 0), (5,[19 chars], 0)]
+
+First differing element 2:
+(2, 5, 1, 0)
+(2, 4, 0, 0)
+
+  [(0, 3, 0, 0),
+   (1, 4, 1, 0),
+-  (2, 5, 1, 0),
+?      ^  ^
+
++  (2, 4, 0, 0),
+?      ^  ^
+
+-  (3, 4, 7, 0),
+?         ^
+
++  (3, 4, 0, 0),
+?         ^
+
+-  (4, 5, 1, 0),
+?      ^  ^
+
++  (4, 3, 7, 0),
+?      ^  ^
+
+-  (5, 4, 7, 0),
+?      ^  ^
+
++  (5, 3, 0, 0),
+?      ^  ^
+
+-  (6, 3, 7, 0)]
+?         ^
+
++  (6, 3, 0, 0)]
+?         ^
+
+
+======================================================================
+FAIL: test_deterministic_obstacle_paths_match_exhaustive_pose_oracle (__main__.SearchTests.test_deterministic_obstacle_paths_match_exhaustive_pose_oracle) (paired=False, hole=5)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/tests/test_kernel.py", line 156, in test_deterministic_obstacle_paths_match_exhaustive_pose_oracle
+    self.assertEqual(actual, None if expected is None else
+AssertionError: Lists differ: [(0, 3, 0, 0), (1, 3, 0, 0), (2, 4, 1, 0), (3, 5, 1, 0), (4,[33 chars], 0)] != [(0, 3, 0, 0), (1, 4, 1, 0), (2, 5, 1, 0), (3, 5, 0, 0), (4,[33 chars], 0)]
+
+First differing element 1:
+(1, 3, 0, 0)
+(1, 4, 1, 0)
+
+  [(0, 3, 0, 0),
+-  (1, 3, 0, 0),
+-  (2, 4, 1, 0),
+?   ^
+
++  (1, 4, 1, 0),
+?   ^
+
+-  (3, 5, 1, 0),
+?   ^
+
++  (2, 5, 1, 0),
+?   ^
+
+-  (4, 5, 0, 0),
+?   ^
+
++  (3, 5, 0, 0),
+?   ^
+
++  (4, 4, 7, 0),
+-  (5, 4, 7, 0),
+?      ^
+
++  (5, 3, 7, 0),
+?      ^
+
+-  (6, 3, 7, 0)]
+?         ^
+
++  (6, 3, 0, 0)]
+?         ^
+
+
+======================================================================
+FAIL: test_permitted_layer_and_pair_turn_debt_match_oracle (__main__.SearchTests.test_permitted_layer_and_pair_turn_debt_match_oracle)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/tests/test_kernel.py", line 170, in test_permitted_layer_and_pair_turn_debt_match_oracle
+    self.assertEqual(path, None if expected is None else
+AssertionError: Lists differ: [(0, 3, 0, 0), (1, 4, 1, 0), (2, 3, 7, 0), (3, 2, 7, 0), (4,[33 chars], 0)] != [(0, 3, 0, 0), (1, 2, 7, 0), (2, 2, 0, 0), (3, 2, 0, 0), (4,[33 chars], 0)]
+
+First differing element 1:
+(1, 4, 1, 0)
+(1, 2, 7, 0)
+
+  [(0, 3, 0, 0),
+-  (1, 4, 1, 0),
+-  (2, 3, 7, 0),
+-  (3, 2, 7, 0),
+?   ^
+
++  (1, 2, 7, 0),
+?   ^
+
++  (2, 2, 0, 0),
++  (3, 2, 0, 0),
+   (4, 3, 1, 0),
+-  (5, 4, 1, 0),
+?      ^  ^
+
++  (5, 3, 0, 0),
+?      ^  ^
+
+-  (6, 3, 7, 0)]
+?         ^
+
++  (6, 3, 0, 0)]
+?         ^
+
+
+======================================================================
+FAIL: test_required_layers_via_heading_and_straight_constraints (__main__.SearchTests.test_required_layers_via_heading_and_straight_constraints)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/tests/test_kernel.py", line 194, in test_required_layers_via_heading_and_straight_constraints
+    self.assertEqual(path, [s if paired else s[:4] for s in expected])
+AssertionError: Lists differ: [(0, [23 chars] (2, 4, 1, 0), (3, 3, 7, 0), (3, 3, 7, 1), (4,[33 chars], 1)] != [(0, [23 chars] (2, 3, 0, 0), (3, 3, 0, 0), (3, 3, 0, 1), (4,[33 chars], 1)]
+
+First differing element 2:
+(2, 4, 1, 0)
+(2, 3, 0, 0)
+
+  [(0, 3, 0, 0),
+   (1, 3, 0, 0),
+-  (2, 4, 1, 0),
+?      ^  ^
+
++  (2, 3, 0, 0),
+?      ^  ^
+
+-  (3, 3, 7, 0),
+?         ^
+
++  (3, 3, 0, 0),
+?         ^
+
+-  (3, 3, 7, 1),
+?         ^
+
++  (3, 3, 0, 1),
+?         ^
+
+   (4, 3, 0, 1),
+-  (5, 4, 1, 1),
+?      ^  ^
+
++  (5, 3, 0, 1),
+?      ^  ^
+
+-  (6, 3, 7, 1)]
+?         ^
+
++  (6, 3, 0, 1)]
+?         ^
+
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.026s
+
+FAILED (failures=6)
+Traceback (most recent call last):
+  File "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/scripts/kernel-tests.py", line 35, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/scripts/kernel-tests.py", line 29, in main
+    subprocess.run([sys.executable, '-c', bootstrap, str(ROUTER / 'tests' / name)],
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python', '-c', "import importlib.util,os,runpy,sys; s=importlib.util.spec_from_file_location('grid_router',os.environ['KERNEL_EXTENSION']); m=importlib.util.module_from_spec(s);s.loader.exec_module(m);sys.modules['grid_router']=m; sys.argv=sys.argv[1:];runpy.run_path(sys.argv[0],run_name='__main__')", '/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/tests/test_kernel.py']' returned non-zero exit status 1.

@@ -1,0 +1,57 @@
+{
+  "schema": "kicad-route/attempt/1",
+  "backend": "krt",
+  "project": "four-layer-plane",
+  "board": "four-layer-plane.kicad_pcb",
+  "schematic": null,
+  "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+  "source": {
+    "source_dir": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/four-layer-plane",
+    "source": "working tree",
+    "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source_dirty_files": null
+  },
+  "reference_dir": "reference/four-layer-plane",
+  "candidate_dir": "candidate/four-layer-plane",
+  "reference_facts": "facts/reference-facts.json",
+  "rules_files": {
+    "project": "four-layer-plane.kicad_pro",
+    "custom_rules": null,
+    "not_loaded": []
+  },
+  "baseline": {
+    "report": "../../reference-out/.cache/baseline/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291/baseline-drc.json",
+    "cached": true,
+    "reasons": []
+  },
+  "scope": {
+    "nets": [
+      "GND",
+      "SIG"
+    ],
+    "mode": "all"
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [
+      "--layers",
+      "F.Cu",
+      "B.Cu"
+    ],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "floor": null
+}

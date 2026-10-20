@@ -1,0 +1,16 @@
+{
+  "check": "pour_integrity",
+  "status": "PASS",
+  "min_spokes": 2,
+  "project_min_resolved_spokes": 2,
+  "area_loss_limit_pct": null,
+  "reference_islands_off_main": 0,
+  "layers": [],
+  "failures": [],
+  "informational": [],
+  "pads": [],
+  "reference_source": {
+    "source": "/evidence/multipoint-archon/reference-3/run/../../reference-out/.cache/baseline/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760/baseline-pour.json",
+    "cached": true
+  }
+}

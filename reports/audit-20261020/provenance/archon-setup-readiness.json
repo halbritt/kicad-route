@@ -1,0 +1,58 @@
+{
+  "schema": "kicad-route/archon-setup-readiness/1",
+  "observed_utc": "2026-10-20T22:34:56.773012+00:00",
+  "status": "PREPARATION_PASS_PROFILE_UPLOADED",
+  "benchmark_status": "Not launched by installation lane; parent owns preflight and sole matrix launch",
+  "target_bindings": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-target-bindings.json",
+    "sha256": "50b98e1c5ff4f683d01e47ec3b748d83c41fe9889df0cb5e83a205daddd04d10"
+  },
+  "ownership_manifest": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-task-ownership.json",
+  "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+  "image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+  "container_hostname": "0748eb5cfe62",
+  "sides": {
+    "reference": {
+      "status": "PASS",
+      "source_commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+      "module_sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915",
+      "generation": "None",
+      "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+      "dependency_pyc_count": 1619,
+      "selected_manifest": {
+        "path": "/work/state-reference/manifest.json",
+        "sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012"
+      }
+    },
+    "candidate": {
+      "status": "PASS",
+      "source_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+      "module_sha256": "b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957",
+      "generation": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9",
+      "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+      "dependency_pyc_count": 1619,
+      "selected_manifest": {
+        "path": "/work/state-candidate/manifest.json",
+        "sha256": "06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b"
+      }
+    }
+  },
+  "frozen_profile_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+  "frozen_harness_sha256": "ebfd140540a7ac794ea6efb00c292da1ffe8ea77e8512b6981f2148ae72842e1",
+  "retained_setup_evidence": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-setup/retained-setup/evidence",
+  "limitations": [
+    "Whole environments and caches stay target-local; two hash-bound extension artifacts may be indexed for audit only",
+    "Source bundle contains this repository history only; no secrets/cross-project data transferred",
+    "No owner host package/config/workload changed; only task-scoped Docker resources created",
+    "Docker29containerd inspect imageID67b6 differs from separately recorded OCI config digestca10; identity fields are not equated"
+  ],
+  "updated_utc": "2026-10-20T22:36:47.220873+00:00",
+  "profile_correction": {
+    "previous_protocol_sha256": "3ef49615904131b58e7c061f9f5f12e46fa5419a180d129322282b855ab5afdf",
+    "current_protocol_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+    "reason": "Remove absent ignored GUI .kicad_prl prerequisite after actual zero-native preflight refusal; no routing input/source/runtime/harness/gate changes",
+    "history_protocol": "archon-protocol-before-gui-prl-correction.json",
+    "refusal_receipt": "archon-root-preflight-refusal.json",
+    "count_wording_correction": "All remaining prerequisites and host attestation matched; factual count wording only after GUI prerequisite removal."
+  }
+}

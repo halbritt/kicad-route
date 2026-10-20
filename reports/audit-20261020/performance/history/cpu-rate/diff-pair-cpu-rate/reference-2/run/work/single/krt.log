@@ -1,0 +1,59 @@
+CMD: python /home/halbritt/git/kicad-route/src/kicad_route/router/py_router/route.py /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/diff-000/accepted/pair.kicad_pcb --output /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/single/krt-out/pair.kicad_pcb --escalation off --fab-tier standard --strict-sizes --no-power-tap-neckdown --no-fix-drc-settings --json-out /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/single/krt-out/summary.json --keep-input-copper --no-stub-layer-swap --nets /AUX
+ENV KNOBS: KICAD_CACHE_HOME=/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-out/.home/cache KICAD_CLI=/usr/bin/kicad-cli KICAD_DYNAMIC_ITERATIONS=0 KICAD_FINALIZE_RIP=0 KICAD_IMPEDANCE_NECKDOWN=0 KICAD_INRUN_FLOOR_SYNC=0 KICAD_RESCUE_CAP_MOVE=0 KICAD_RIP_PREEXISTING=0 KICAD_ROUTE_LEDGER=off KICAD_ROUTE_STATE=/home/halbritt/git/kicad-route KICAD_STOP_FILE=/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/single/STOP KICAD_TERMINAL_ESCALATION=0
+--track-width not given; using the board Default net-class 0.2mm.
+--via-size not given; using the board Default net-class 0.6mm.
+--via-drill not given; using the board Default net-class 0.3mm.
+--clearance not given; honoring net classes with base = the board Default net-class clearance 0.2mm.
+--hole-to-hole-clearance not given; using 0.25mm [board constraint].
+--board-edge-clearance not given; using 0.3mm [board constraint].
+Loading /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/diff-000/accepted/pair.kicad_pcb to expand net patterns...
+Routing 1 nets: ['/AUX']
+Netclass clearances for 2 net(s), honored in full (--clearance omitted) (mm: [0.2]); cross-class max(A,B) respected.
+Loading /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/diff-000/accepted/pair.kicad_pcb...
+Auto-read netclass track widths for 2 non-Default net(s) (#435 single-ended companion).
+Using 2 routing layers: ['F.Cu', 'B.Cu']
+  Layer costs: F.Cu=1.0x, B.Cu=3.0x
+No BGA components detected - no exclusion zones needed
+
+Using MPS ordering strategy...
+MPS: Using segment intersection method (no nets on BGA chips)
+MPS: 1 nets with 0 crossing conflicts detected
+MPS Round 1: 1 units: /AUX
+
+Routing 1 single-ended net(s)...
+============================================================
+Building base obstacle map...
+Copper-to-hole 0.25mm for NPTH holes (from the board's own min_hole_clearance, above the 0.2mm fab floor); plated holes and vias: copper clearance
+Base obstacle map built in 0.02s
+Found 3 unrouted nets in PCB for stub proximity
+Pre-computing net obstacle cache...
+Net obstacle cache built in 0.00s (3 nets)
+History congestion (#590) armed: +0.1mm-equiv per contest, cap 0.5, escalate 0.0, rip weight 1.0 (radius +0.25mm), frontier weight 0.25
+
+[1/1] Routing /AUX (id=3)
+  SUCCESS: 1 segments, 0 vias, 301 iterations, length=30.00mm (stubs=0.00mm) (0.47s)
+
+Sync pcb_data: 3 -> 2 (kept stubs) -> 3 (after adding 1)
+
+============================================================
+Routing complete
+============================================================
+  Single-ended:  1/1 routed
+  Total vias:    0
+  Total time:    0.47s
+  Iterations:    301
+JSON_SUMMARY: {"routed_single": ["/AUX"], "failed_single": [], "open_single": [], "failed_multipoint": [], "multipoint_nets": 0, "multipoint_pads_connected": 0, "multipoint_pads_total": 0, "multipoint_edges_routed": 0, "multipoint_edges_failed": 0, "ripup_success_pairs": [], "rerouted_pairs": [], "single_ended_target_swaps": [], "layer_swaps": 0, "successful": 1, "failed": 0, "total_time": 0.47, "total_iterations": 301, "total_vias": 0, "cleanup_disconnected": [], "min_clearance_used": 0.2, "design_rules": {"escalation_policy": "off", "fab_tier": "standard", "board_floors": {"clearance": 0.15, "track_width": 0.15, "via_diameter": 0.5, "via_drill": 0.25, "hole_to_hole": 0.25, "annular": 0.1, "board_edge": 0.3}, "count": 0, "nets": [], "narrowed": [], "min_delivered": {}, "fab_tier_escalations": 0, "fab_tier_contexts": [], "fab_tier_target": "advanced", "unsupported_rules": []}, "plane_fragility": {"source": "none", "islands": 0, "refill_status": null, "why": "the board has no zones", "machine_dependent": false}, "oracle_check": "disabled", "pad_pairs_connected": 1, "pad_pairs_total": 1, "scope": "run", "env_knobs": {"KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-out/.home/cache", "KICAD_CLI": "/usr/bin/kicad-cli", "KICAD_DYNAMIC_ITERATIONS": "0", "KICAD_FINALIZE_RIP": "0", "KICAD_IMPEDANCE_NECKDOWN": "0", "KICAD_INRUN_FLOOR_SYNC": "0", "KICAD_RESCUE_CAP_MOVE": "0", "KICAD_RIP_PREEXISTING": "0", "KICAD_ROUTE_LEDGER": "off", "KICAD_ROUTE_STATE": "/home/halbritt/git/kicad-route", "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/single/STOP", "KICAD_TERMINAL_ESCALATION": "0"}}
+
+Writing output to /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/single/krt-out/pair.kicad_pcb...
+Successfully wrote /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/single/krt-out/pair.kicad_pcb
+VIA_IN_PAD_JSON: {"count": 0, "sites": [], "stamped": 0, "restored": 0, "protected": 0, "unstampable": 0, "site_created": 0, "unprotected": [], "note": "via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel"}
+JSON_REGRADE: {"board": "file", "graded_nets": 1, "seconds": 0.0, "routed_single": ["/AUX"], "failed_single": [], "open_single": [], "failed_multipoint": [], "multipoint_pads_total": 0, "multipoint_pads_connected": 0, "successful": 1, "failed": 0, "unowned_broken": [], "recovered": [], "broken_by_run": []}
+
+============================================================
+Run complete -- whole run, re-graded on the written board (1 net(s), 0.0s)
+============================================================
+  Single-ended:  1/1 routed
+  route summary written to /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-2/run/work/single/krt-out/summary.json
+JSON_IMPROVEMENT_GATE: {"lost": [], "gained": ["/AUX"], "worsened": [], "disconnected_pads_before": 1, "disconnected_pads_after": 0, "nets_compared": 3, "verdict": "accept"}
+JSON_SUMMARY_MIN: {"escalations": 0, "failed": 0, "failed_single": [], "main_loop_time_s": 0.47, "min_clearance_used": 0.2, "multipoint_deficit": 0, "open_single": [], "pad_pairs_open": {"count": 0, "nets": []}, "regraded_nets": 1, "routed": 1, "scope": "merged", "terminal_restores_broken": [], "vias": 0}
+EXIT=0

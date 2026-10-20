@@ -1,0 +1,52 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--refill-zones",
+        "--save-board",
+        "--format",
+        "json",
+        "-o",
+        "/evidence/multipoint-archon/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-13323/drc/baseline-refill.json",
+        "/evidence/multipoint-archon/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-13323/multipoint-tap/multipoint-tap.kicad_pcb"
+      ],
+      "cwd": "/evidence/multipoint-archon/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-13323/multipoint-tap",
+      "log": "/evidence/multipoint-archon/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-13323/drc/baseline-refill.log",
+      "exit_code": 0,
+      "duration_s": 0.598
+    },
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--format",
+        "json",
+        "--severity-all",
+        "--schematic-parity",
+        "--units",
+        "mm",
+        "-o",
+        "/evidence/multipoint-archon/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-13323/drc/baseline-drc.json",
+        "/evidence/multipoint-archon/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-13323/multipoint-tap/multipoint-tap.kicad_pcb"
+      ],
+      "cwd": "/evidence/multipoint-archon/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-13323/multipoint-tap",
+      "log": "/evidence/multipoint-archon/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-13323/drc/baseline-drc.log",
+      "exit_code": 0,
+      "duration_s": 0.555
+    }
+  ],
+  "reasons": [],
+  "refill": {
+    "board_sha256_before": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+    "board_sha256_after": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7"
+  },
+  "board_sha256_graded": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+  "board_sha256_checked": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+  "parity_performed": false,
+  "parity_skip_message": "Failed to fetch schematic netlist for parity tests.",
+  "report": "/evidence/multipoint-archon/reference-out/.cache/baseline/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760/baseline-drc.json"
+}

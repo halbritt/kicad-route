@@ -1,0 +1,1035 @@
+{
+  "label": "multipoint-reference-0",
+  "before": {
+    "utc": "2026-10-20T22:28:27Z",
+    "monotonic_s": 1197829.060369546,
+    "proc_self_cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope\n",
+    "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+    "mount": "/sys/fs/cgroup",
+    "leaf": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+    "ancestors": [
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "controls": {
+          "cpu.max": {
+            "text": "100000 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope/cpuset.cpus.effective'"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 981354652\nuser_usec 849072984\nsystem_usec 132281668\ncore_sched.force_idle_usec 0\nnr_periods 10584\nnr_throttled 7010\nthrottled_usec 1662583347\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 1662583347\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=54.34 avg60=46.12 avg300=40.69 total=415013364\nfull avg10=47.84 avg60=39.33 avg300=34.49 total=350883859\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=524626\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=459762\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.01 avg300=0.05 total=1951115\nfull avg10=0.00 avg60=0.01 avg300=0.05 total=1859655\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/cpuset.cpus.effective'"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 4886909976462\nuser_usec 4651884882920\nsystem_usec 235025093541\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=45.89 avg60=39.89 avg300=39.22 total=82630724920\nfull avg10=39.32 avg60=30.62 avg300=27.64 total=28965792687\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.19 avg60=0.93 avg300=0.57 total=4806697971\nfull avg10=0.12 avg60=0.56 avg300=0.24 total=3796286592\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.20 avg60=0.64 avg300=0.21 total=159782656\nfull avg10=0.12 avg60=0.43 avg300=0.14 total=118248000\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/cpuset.cpus.effective'"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 4942944600516\nuser_usec 4699767879265\nsystem_usec 243176721250\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=39.96 avg60=38.87 avg300=38.94 total=82397618662\nfull avg10=34.26 avg60=29.88 avg300=27.47 total=28759073123\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.15 avg60=0.87 avg300=0.55 total=4787249035\nfull avg10=0.09 avg60=0.51 avg300=0.23 total=3780068790\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.18 avg60=0.64 avg300=0.21 total=159012150\nfull avg10=0.11 avg60=0.44 avg300=0.14 total=117722756\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/cpuset.cpus.effective'"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 7057364544946\nuser_usec 6517207732346\nsystem_usec 540156812599\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=71.79 avg60=72.70 avg300=70.82 total=156106439718\nfull avg10=1.65 avg60=1.69 avg300=1.71 total=11008518634\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.18 avg60=0.80 avg300=1.16 total=12942648171\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=4493778915\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.09 avg60=0.35 avg300=0.15 total=806250860\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=327584628\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "text": "0-11\n"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 7057364546123\nuser_usec 6517207733433\nsystem_usec 540156812690\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=71.86 avg60=72.78 avg300=70.84 total=156107073547\nfull avg10=1.63 avg60=1.71 avg300=1.72 total=11008348325\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.18 avg60=0.82 avg300=1.16 total=12943939732\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=4494449141\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.09 avg60=0.34 avg300=0.13 total=806513003\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=327919796\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup",
+        "controls": {
+          "cpu.max": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.max'"
+          },
+          "cpu.max.burst": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.max.burst'"
+          },
+          "cpu.weight": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.weight'"
+          },
+          "cpu.idle": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.idle'"
+          },
+          "cpuset.cpus.effective": {
+            "text": "0-11\n"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 7427626257000\nuser_usec 6756404438000\nsystem_usec 671221819000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=72.36 avg60=72.95 avg300=71.03 total=161247878856\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=5.27 avg60=6.57 avg300=8.24 total=52520318249\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=26252976842\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.16 avg60=0.49 avg300=0.20 total=1412815338\nfull avg10=0.06 avg60=0.11 avg300=0.02 total=909820331\n"
+          }
+        }
+      }
+    ],
+    "cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "nice": 0,
+    "scheduler": 0,
+    "host_resources": {
+      "/proc/stat": {
+        "text": "cpu  646858116 28782327 66633461 660609731 27161655 0 488720 0 0 0\ncpu0 50041429 2352589 5409781 58468454 2330881 0 11771 0 0 0\ncpu1 52398711 2304035 5416501 56697460 2285000 0 9348 0 0 0\ncpu2 53275788 2315167 5457321 55893205 2273674 0 8427 0 0 0\ncpu3 53276554 2332520 5546043 55798023 2294294 0 7816 0 0 0\ncpu4 54100881 2313193 5544716 55022066 2298453 0 7155 0 0 0\ncpu5 52134730 2703696 5890997 55771930 2299084 0 386371 0 0 0\ncpu6 56504805 2442749 5577901 52600518 2176025 0 7070 0 0 0\ncpu7 56758747 2397803 5587422 52401005 2170645 0 6827 0 0 0\ncpu8 55736486 2387078 5604571 53372744 2207278 0 9247 0 0 0\ncpu9 55321067 2443777 5570177 53709664 2247369 0 21200 0 0 0\ncpu10 53819371 2359852 5518368 55296997 2297420 0 6990 0 0 0\ncpu11 53489543 2429862 5509659 55577662 2281528 0 6492 0 0 0\nintr 27997257751 53 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 14 307 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2119513 13723751 372046516 750327 83648454 85234268 86186836 86929880 87767382 89929839 84316151 85755475 87045935 84229920 87492114 86510991 188 10 0 0 0 0 0 0 0 0 0 0 0 0 2 1214 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nctxt 33089358686\nbtime 1791337478\nprocesses 86368862\nprocs_running 36\nprocs_blocked 1\nsoftirq 8756620520 1875824 383128984 22711252 606331655 15830166 0 67791643 1900112871 2047489 1461823340\n"
+      },
+      "/proc/pressure/cpu": {
+        "text": "some avg10=72.36 avg60=72.95 avg300=71.03 total=161247878856\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+      },
+      "/proc/pressure/io": {
+        "text": "some avg10=5.27 avg60=6.57 avg300=8.24 total=52520318249\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=26252976842\n"
+      },
+      "/proc/pressure/memory": {
+        "text": "some avg10=0.16 avg60=0.49 avg300=0.20 total=1412815338\nfull avg10=0.06 avg60=0.11 avg300=0.02 total=909820331\n"
+      }
+    }
+  },
+  "driver_call_wall_s": 53.1264004309196,
+  "after": {
+    "utc": "2026-10-20T22:29:20Z",
+    "monotonic_s": 1197882.192708439,
+    "proc_self_cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope\n",
+    "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+    "mount": "/sys/fs/cgroup",
+    "leaf": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+    "ancestors": [
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "controls": {
+          "cpu.max": {
+            "text": "100000 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope/cpuset.cpus.effective'"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 1032049766\nuser_usec 893206757\nsystem_usec 138843008\ncore_sched.force_idle_usec 0\nnr_periods 11115\nnr_throttled 7424\nthrottled_usec 1779974747\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 1779974747\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=45.79 avg60=46.17 avg300=41.57 total=440044440\nfull avg10=39.07 avg60=39.05 avg300=35.15 total=371862327\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=527189\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=461096\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.00 avg300=0.04 total=1951115\nfull avg10=0.00 avg60=0.00 avg300=0.03 total=1859655\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/cpuset.cpus.effective'"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 4887052846635\nuser_usec 4652018002111\nsystem_usec 235034844523\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=36.51 avg60=38.91 avg300=39.04 total=82651471493\nfull avg10=28.66 avg60=30.27 avg300=28.03 total=28982144592\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.00 avg60=0.37 avg300=0.47 total=4806704679\nfull avg10=0.00 avg60=0.22 avg300=0.19 total=3796289054\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.25 avg300=0.17 total=159782656\nfull avg10=0.00 avg60=0.17 avg300=0.11 total=118248000\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/cpuset.cpus.effective'"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 4943087474473\nuser_usec 4699900999014\nsystem_usec 243186475459\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=38.93 avg60=39.27 avg300=39.05 total=82418436799\nfull avg10=30.27 avg60=30.52 avg300=28.05 total=28775470044\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.00 avg60=0.36 avg300=0.45 total=4787255374\nfull avg10=0.00 avg60=0.21 avg300=0.19 total=3780071204\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.26 avg300=0.17 total=159012150\nfull avg10=0.00 avg60=0.18 avg300=0.12 total=117722756\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/cpuset.cpus.effective'"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 7057978498090\nuser_usec 6517756007101\nsystem_usec 540222490989\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=75.54 avg60=75.20 avg300=71.86 total=156147532975\nfull avg10=1.53 avg60=1.68 avg300=1.71 total=11009719215\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.00 avg60=0.33 avg300=0.96 total=12942822372\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=4493779910\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.14 avg300=0.12 total=806274042\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=327584887\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "text": "0-11\n"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 7057978533648\nuser_usec 6517756040616\nsystem_usec 540222493031\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=76.04 avg60=75.34 avg300=71.90 total=156148161658\nfull avg10=1.54 avg60=1.68 avg300=1.72 total=11009548712\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.00 avg60=0.34 avg300=0.96 total=12944113872\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=4494450132\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.14 avg300=0.10 total=806536181\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=327920055\n"
+          }
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup",
+        "controls": {
+          "cpu.max": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.max'"
+          },
+          "cpu.max.burst": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.max.burst'"
+          },
+          "cpu.weight": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.weight'"
+          },
+          "cpu.idle": {
+            "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.idle'"
+          },
+          "cpuset.cpus.effective": {
+            "text": "0-11\n"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 7428263189000\nuser_usec 6756963190000\nsystem_usec 671299999000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=73.82 avg60=74.91 avg300=71.95 total=161288874963\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=5.19 avg60=5.45 avg300=7.62 total=52523051651\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=26252980723\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.19 avg300=0.16 total=1412839569\nfull avg10=0.00 avg60=0.04 avg300=0.01 total=909820634\n"
+          }
+        }
+      }
+    ],
+    "cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "nice": 0,
+    "scheduler": 0,
+    "host_resources": {
+      "/proc/stat": {
+        "text": "cpu  646901042 28795276 66641249 660609773 27161663 0 488750 0 0 0\ncpu0 50045161 2353527 5410420 58468455 2330881 0 11772 0 0 0\ncpu1 52401946 2305428 5417181 56697463 2285000 0 9348 0 0 0\ncpu2 53279425 2316243 5457918 55893207 2273675 0 8428 0 0 0\ncpu3 53281049 2333062 5546316 55798025 2294294 0 7816 0 0 0\ncpu4 54104570 2314241 5545288 55022069 2298453 0 7155 0 0 0\ncpu5 52137669 2704811 5892224 55771934 2299085 0 386397 0 0 0\ncpu6 56508468 2443821 5578472 52600521 2176026 0 7070 0 0 0\ncpu7 56761942 2399276 5588056 52401013 2170646 0 6828 0 0 0\ncpu8 55740007 2388221 5605214 53372746 2207279 0 9247 0 0 0\ncpu9 55324723 2444793 5570811 53709669 2247371 0 21201 0 0 0\ncpu10 53823223 2360803 5518874 55297000 2297421 0 6990 0 0 0\ncpu11 53492854 2431046 5510470 55577666 2281528 0 6492 0 0 0\nintr 27998612056 53 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 14 307 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2119603 13723843 372061099 750357 83650171 85235898 86188571 86930870 87768785 89930943 84317563 85757613 87049002 84232369 87494075 86513340 188 10 0 0 0 0 0 0 0 0 0 0 0 0 2 1214 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nctxt 33091103590\nbtime 1791337478\nprocesses 86381130\nprocs_running 24\nprocs_blocked 1\nsoftirq 8757230220 1875902 383153048 22711666 606356667 15830301 0 67791872 1900129692 2047489 1462366287\n"
+      },
+      "/proc/pressure/cpu": {
+        "text": "some avg10=73.82 avg60=74.91 avg300=71.95 total=161288874963\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+      },
+      "/proc/pressure/io": {
+        "text": "some avg10=5.19 avg60=5.45 avg300=7.62 total=52523051651\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=26252980723\n"
+      },
+      "/proc/pressure/memory": {
+        "text": "some avg10=0.00 avg60=0.19 avg300=0.16 total=1412839569\nfull avg10=0.00 avg60=0.04 avg300=0.01 total=909820634\n"
+      }
+    }
+  },
+  "membership_monitor": {
+    "sampler_calls": 843,
+    "observed_births": 30,
+    "members": [
+      {
+        "pid": 2560698,
+        "birth_ticks": 119782906,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197829.06540629,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/time",
+          "-q",
+          "-f",
+          "{\"wall_s\":%e,\"user_s\":%U,\"system_s\":%S,\"max_rss_kib\":%M}",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/time.json",
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/bin/kicad-route",
+          "--out",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-out",
+          "run",
+          "--backend",
+          "krt",
+          "--dir",
+          "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap",
+          "--run-dir",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run",
+          "--json",
+          "--budget",
+          "180"
+        ]
+      },
+      {
+        "pid": 2560699,
+        "birth_ticks": 119782906,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197829.065541164,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/bin/kicad-route",
+          "--out",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-out",
+          "run",
+          "--backend",
+          "krt",
+          "--dir",
+          "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap",
+          "--run-dir",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run",
+          "--json",
+          "--budget",
+          "180"
+        ]
+      },
+      {
+        "pid": 2560732,
+        "birth_ticks": 119782918,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197829.217084605,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2560784,
+        "birth_ticks": 119782945,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197829.471359722,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2560831,
+        "birth_ticks": 119782965,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197829.675714811,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/src/kicad_route/kicad/facts.py",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/reference/multipoint-tap/multipoint-tap.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/validate/reference-facts.json"
+        ]
+      },
+      {
+        "pid": 2560908,
+        "birth_ticks": 119783008,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197830.081459329,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "git",
+          "-C",
+          "/home/halbritt/git/kicad-route",
+          "show",
+          "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d:reports/routing-engine/inputs/multipoint-tap/multipoint-tap.rules-floor.json"
+        ]
+      },
+      {
+        "pid": 2560918,
+        "birth_ticks": 119783012,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197830.132246468,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": []
+      },
+      {
+        "pid": 2560919,
+        "birth_ticks": 119783013,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197830.183097418,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2560974,
+        "birth_ticks": 119783038,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197830.387919259,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2561039,
+        "birth_ticks": 119783059,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197830.64261975,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-2560699/drc/baseline-refill.json",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-2560699/multipoint-tap/multipoint-tap.kicad_pcb"
+        ]
+      },
+      {
+        "pid": 2564052,
+        "birth_ticks": 119784194,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197841.976850527,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2564090,
+        "birth_ticks": 119784218,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197842.184209971,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-2560699/drc/baseline-drc.json",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-out/.cache/tmp/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760-2560699/multipoint-tap/multipoint-tap.kicad_pcb"
+        ]
+      },
+      {
+        "pid": 2566606,
+        "birth_ticks": 119785302,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197853.058831708,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2566649,
+        "birth_ticks": 119785326,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197853.263375409,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/bin/kicad-route",
+          "--out",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-out",
+          "run",
+          "--backend",
+          "krt",
+          "--dir",
+          "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap",
+          "--run-dir",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run",
+          "--json",
+          "--budget",
+          "180"
+        ]
+      },
+      {
+        "pid": 2566701,
+        "birth_ticks": 119785367,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197853.722407072,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2566771,
+        "birth_ticks": 119785390,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197853.927127421,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/src/kicad_route/kicad/locks.py",
+          "lock",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/work/input/multipoint-tap/multipoint-tap.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/work/locks.json"
+        ]
+      },
+      {
+        "pid": 2566869,
+        "birth_ticks": 119785440,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197854.440906709,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2566905,
+        "birth_ticks": 119785466,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197854.706976926,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
+          "/home/halbritt/git/kicad-route/src/kicad_route/router/py_router/route.py",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/work/input/multipoint-tap/multipoint-tap.kicad_pcb",
+          "--output",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/work/krt-out/multipoint-tap.kicad_pcb",
+          "--escalation",
+          "off",
+          "--fab-tier",
+          "standard",
+          "--strict-sizes",
+          "--no-power-tap-neckdown",
+          "--no-fix-drc-settings",
+          "--json-out",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/work/krt-out/summary.json",
+          "--keep-input-copper",
+          "--no-stub-layer-swap",
+          "--nets",
+          "*"
+        ]
+      },
+      {
+        "pid": 2567173,
+        "birth_ticks": 119785701,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197857.021830916,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2567232,
+        "birth_ticks": 119785724,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197857.277744417,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/src/kicad_route/kicad/locks.py",
+          "restore",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/work/krt-out/multipoint-tap.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/work/locks.json"
+        ]
+      },
+      {
+        "pid": 2567285,
+        "birth_ticks": 119785773,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197857.756411636,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2567327,
+        "birth_ticks": 119785795,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197857.961999239,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+        ]
+      },
+      {
+        "pid": 2569046,
+        "birth_ticks": 119786892,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197868.943552744,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2569063,
+        "birth_ticks": 119786917,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197869.203327036,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+        ]
+      },
+      {
+        "pid": 2572442,
+        "birth_ticks": 119788014,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197880.169494088,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2572518,
+        "birth_ticks": 119788041,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197880.429732289,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/src/kicad_route/kicad/facts.py",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/validate/candidate-facts.json"
+        ]
+      },
+      {
+        "pid": 2572680,
+        "birth_ticks": 119788084,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197880.892432244,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2572727,
+        "birth_ticks": 119788109,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197881.102619753,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/git/kicad-route/src/kicad_route/kicad/pour.py",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate/reference-0/run/validate/candidate-pour.json"
+        ]
+      },
+      {
+        "pid": 2572856,
+        "birth_ticks": 119788154,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197881.563636135,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 2572908,
+        "birth_ticks": 119788180,
+        "gnu_time_root_pid": 2560698,
+        "observed_monotonic_s": 1197881.820288251,
+        "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      }
+    ],
+    "outside_scope": [],
+    "read_errors": [],
+    "exit_races": [],
+    "limitation": "Each birth from the frozen RSS tracked map is checked once. Reaped/reused races are explicit; this is not continuous cgroup-migration tracing."
+  },
+  "resource_violations": []
+}

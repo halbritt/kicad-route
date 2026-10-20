@@ -1,0 +1,28 @@
+{
+  "schema": "kicad-route/resource-availability-summary/1",
+  "updated_utc": "2026-10-20T21:54:39.902985+00:00",
+  "scope": "Existing resource information only; no workload changes, remote execution or runtime/source transfer requested or authorized.",
+  "requests": [
+    {
+      "purpose": "Existing quiet window or known authorized KiCad 10.0.7 capacity",
+      "request_event_id": "eb059090-8ead-4284-86a7-bdfb91e8fcc7",
+      "request_created_at": "2026-10-20T14:46:26.525152-07:00",
+      "handling": "handled",
+      "response_event_id": "c8046059-a220-4141-a639-18c0c89e45bf",
+      "response_created_at": "2026-10-20T14:47:20.589555-07:00",
+      "reported_observed_utc": "2026-10-20T21:46:57Z",
+      "relevant_capacity_result": "No existing planned quiet window reported within approximately three hours; no known authorized alternate KiCad 10.0.7 environment attested.",
+      "uncertainty": "Scheduling forecast is an estimate, not a commitment or availability guarantee; other workload schedules were unknown."
+    },
+    {
+      "purpose": "Known existing authorized CPU runner capability and resource-policy information",
+      "request_event_id": "be802e02-698b-4910-9a87-48aeec01a0f8",
+      "request_created_at": "2026-10-20T14:51:23.346143-07:00",
+      "handling": "handled",
+      "relevant_capacity_result": "No already-authorized suitable alternate Linux CPU runner or attested KiCad 10.0.7 installation/image was known to the responder.",
+      "uncertainty": "Based on historical observations, not fresh environment checks. Docker availability, required KiCad version and alternate-runner permission remain unverified; no capacity or authorization inferred.",
+      "response_event_id": "89a8547f-30c7-4879-ac34-675348beae5b",
+      "response_created_at": "2026-10-20T14:52:52.018734-07:00"
+    }
+  ]
+}

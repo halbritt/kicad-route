@@ -1,0 +1,107 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-20T22:37:05",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.7",
+    "schematic_parity": [],
+    "source": "pair.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 1 [/CAN+] of J1 on F.Cu",
+                    "pos": {
+                        "x": 110.0,
+                        "y": 112.0
+                    },
+                    "uuid": "55c57dda-b6c4-43f3-8135-af52a169b091"
+                },
+                {
+                    "description": "Pad 1 [/CAN+] of J2 on F.Cu",
+                    "pos": {
+                        "x": 140.0,
+                        "y": 112.0
+                    },
+                    "uuid": "32a910db-4dc9-4b77-8e12-06a3ebe9ce0d"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 2 [/CAN-] of J1 on F.Cu",
+                    "pos": {
+                        "x": 110.0,
+                        "y": 112.6
+                    },
+                    "uuid": "95c0de39-355f-4b30-b076-fb67a20c4325"
+                },
+                {
+                    "description": "Pad 2 [/CAN-] of J2 on F.Cu",
+                    "pos": {
+                        "x": 140.0,
+                        "y": 112.6
+                    },
+                    "uuid": "745568fa-de8b-4c01-9d40-97d3e26c9997"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 3 [/AUX] of J1 on F.Cu",
+                    "pos": {
+                        "x": 110.0,
+                        "y": 117.0
+                    },
+                    "uuid": "8e0c1206-5a06-4c7a-aa48-fc086fa0d003"
+                },
+                {
+                    "description": "Pad 3 [/AUX] of J2 on F.Cu",
+                    "pos": {
+                        "x": 140.0,
+                        "y": 117.0
+                    },
+                    "uuid": "0b830e99-17ab-48c1-af74-c1c9dc3904b6"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": []
+}

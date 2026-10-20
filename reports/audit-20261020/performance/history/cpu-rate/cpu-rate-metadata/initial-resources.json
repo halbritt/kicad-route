@@ -1,0 +1,262 @@
+{
+  "utc": "2026-10-20T22:10:49Z",
+  "monotonic_s": 1196770.770051955,
+  "proc_self_cgroup": "0::/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope\n",
+  "group": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+  "mount": "/sys/fs/cgroup",
+  "leaf": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+  "ancestors": [
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope",
+      "controls": {
+        "cpu.max": {
+          "text": "100000 100000\n"
+        },
+        "cpu.max.burst": {
+          "text": "0\n"
+        },
+        "cpu.weight": {
+          "text": "100\n"
+        },
+        "cpu.idle": {
+          "text": "0\n"
+        },
+        "cpuset.cpus.effective": {
+          "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-cpu-rate-matrix.scope/cpuset.cpus.effective'"
+        }
+      },
+      "observations": {
+        "cpu.stat": {
+          "text": "usage_usec 73238\nuser_usec 56637\nsystem_usec 16600\ncore_sched.force_idle_usec 0\nnr_periods 1\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+        },
+        "cpu.stat.local": {
+          "text": "throttled_usec 0\n"
+        },
+        "cpu.pressure": {
+          "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=8873\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=3554\n"
+        },
+        "io.pressure": {
+          "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=706\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=706\n"
+        },
+        "memory.pressure": {
+          "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+        }
+      }
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice",
+      "controls": {
+        "cpu.max": {
+          "text": "max 100000\n"
+        },
+        "cpu.max.burst": {
+          "text": "0\n"
+        },
+        "cpu.weight": {
+          "text": "100\n"
+        },
+        "cpu.idle": {
+          "text": "0\n"
+        },
+        "cpuset.cpus.effective": {
+          "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/cpuset.cpus.effective'"
+        }
+      },
+      "observations": {
+        "cpu.stat": {
+          "text": "usage_usec 4883055548196\nuser_usec 4648364469624\nsystem_usec 234691078572\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+        },
+        "cpu.stat.local": {
+          "text": "throttled_usec 0\n"
+        },
+        "cpu.pressure": {
+          "text": "some avg10=6.17 avg60=13.85 avg300=15.27 total=82183865393\nfull avg10=2.02 avg60=7.60 avg300=8.52 total=28669636827\n"
+        },
+        "io.pressure": {
+          "text": "some avg10=0.00 avg60=0.14 avg300=0.59 total=4798707056\nfull avg10=0.00 avg60=0.11 avg300=0.43 total=3792264860\n"
+        },
+        "memory.pressure": {
+          "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=158124870\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=116921604\n"
+        }
+      }
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+      "controls": {
+        "cpu.max": {
+          "text": "max 100000\n"
+        },
+        "cpu.max.burst": {
+          "text": "0\n"
+        },
+        "cpu.weight": {
+          "text": "100\n"
+        },
+        "cpu.idle": {
+          "text": "0\n"
+        },
+        "cpuset.cpus.effective": {
+          "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/cpuset.cpus.effective'"
+        }
+      },
+      "observations": {
+        "cpu.stat": {
+          "text": "usage_usec 4939055858370\nuser_usec 4696218983244\nsystem_usec 242836875125\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+        },
+        "cpu.stat.local": {
+          "text": "throttled_usec 0\n"
+        },
+        "cpu.pressure": {
+          "text": "some avg10=6.50 avg60=14.04 avg300=15.37 total=81952549947\nfull avg10=2.00 avg60=7.59 avg300=8.53 total=28464559764\n"
+        },
+        "io.pressure": {
+          "text": "some avg10=0.00 avg60=0.14 avg300=0.60 total=4779255109\nfull avg10=0.00 avg60=0.12 avg300=0.45 total=3776050939\n"
+        },
+        "memory.pressure": {
+          "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=157315782\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=116363016\n"
+        }
+      }
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice",
+      "controls": {
+        "cpu.max": {
+          "text": "max 100000\n"
+        },
+        "cpu.max.burst": {
+          "text": "0\n"
+        },
+        "cpu.weight": {
+          "text": "100\n"
+        },
+        "cpu.idle": {
+          "text": "0\n"
+        },
+        "cpuset.cpus.effective": {
+          "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/user.slice/user-1000.slice/cpuset.cpus.effective'"
+        }
+      },
+      "observations": {
+        "cpu.stat": {
+          "text": "usage_usec 7045053585501\nuser_usec 6506332713938\nsystem_usec 538720871562\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+        },
+        "cpu.stat.local": {
+          "text": "throttled_usec 0\n"
+        },
+        "cpu.pressure": {
+          "text": "some avg10=47.02 avg60=54.40 avg300=52.04 total=155341508615\nfull avg10=1.30 avg60=1.46 avg300=1.44 total=10984820132\n"
+        },
+        "io.pressure": {
+          "text": "some avg10=0.60 avg60=0.62 avg300=1.18 total=12923808132\nfull avg10=0.00 avg60=0.00 avg300=0.12 total=4493592612\n"
+        },
+        "memory.pressure": {
+          "text": "some avg10=0.36 avg60=0.14 avg300=0.07 total=804357079\nfull avg10=0.18 avg60=0.03 avg300=0.00 total=326739405\n"
+        }
+      }
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice",
+      "controls": {
+        "cpu.max": {
+          "text": "max 100000\n"
+        },
+        "cpu.max.burst": {
+          "text": "0\n"
+        },
+        "cpu.weight": {
+          "text": "100\n"
+        },
+        "cpu.idle": {
+          "text": "0\n"
+        },
+        "cpuset.cpus.effective": {
+          "text": "0-11\n"
+        }
+      },
+      "observations": {
+        "cpu.stat": {
+          "text": "usage_usec 7045053598477\nuser_usec 6506332724839\nsystem_usec 538720873638\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+        },
+        "cpu.stat.local": {
+          "text": "throttled_usec 0\n"
+        },
+        "cpu.pressure": {
+          "text": "some avg10=46.82 avg60=54.42 avg300=52.07 total=155342134350\nfull avg10=1.20 avg60=1.41 avg300=1.42 total=10984648028\n"
+        },
+        "io.pressure": {
+          "text": "some avg10=0.67 avg60=0.62 avg300=1.16 total=12925098671\nfull avg10=0.00 avg60=0.00 avg300=0.12 total=4494263211\n"
+        },
+        "memory.pressure": {
+          "text": "some avg10=0.14 avg60=0.11 avg300=0.07 total=804618375\nfull avg10=0.14 avg60=0.03 avg300=0.00 total=327074368\n"
+        }
+      }
+    },
+    {
+      "path": "/sys/fs/cgroup",
+      "controls": {
+        "cpu.max": {
+          "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.max'"
+        },
+        "cpu.max.burst": {
+          "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.max.burst'"
+        },
+        "cpu.weight": {
+          "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.weight'"
+        },
+        "cpu.idle": {
+          "error": "[Errno 2] No such file or directory: '/sys/fs/cgroup/cpu.idle'"
+        },
+        "cpuset.cpus.effective": {
+          "text": "0-11\n"
+        }
+      },
+      "observations": {
+        "cpu.stat": {
+          "text": "usage_usec 7414963728000\nuser_usec 6745317611000\nsystem_usec 669646117000\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+        },
+        "cpu.stat.local": {
+          "text": "throttled_usec 0\n"
+        },
+        "cpu.pressure": {
+          "text": "some avg10=47.54 avg60=54.87 avg300=52.47 total=160481330822\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+        },
+        "io.pressure": {
+          "text": "some avg10=8.32 avg60=7.97 avg300=8.56 total=52425280505\nfull avg10=0.00 avg60=0.00 avg300=0.78 total=26252580510\n"
+        },
+        "memory.pressure": {
+          "text": "some avg10=0.36 avg60=0.15 avg300=0.11 total=1410239465\nfull avg10=0.18 avg60=0.04 avg300=0.00 total=908309295\n"
+        }
+      }
+    }
+  ],
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "nice": 0,
+  "scheduler": 0,
+  "host_resources": {
+    "/proc/stat": {
+      "text": "cpu  645885192 28646570 66476612 660607480 27160939 0 487999 0 0 0\ncpu0 49961169 2340796 5396322 58468273 2330822 0 11757 0 0 0\ncpu1 52317331 2292627 5403781 56697271 2284938 0 9340 0 0 0\ncpu2 53194059 2304150 5444530 55893032 2273620 0 8420 0 0 0\ncpu3 53195751 2321297 5532536 55797843 2294240 0 7809 0 0 0\ncpu4 54018967 2302645 5531670 55021875 2298394 0 7142 0 0 0\ncpu5 52056705 2691020 5876829 55771727 2299026 0 385740 0 0 0\ncpu6 56423700 2431268 5564995 52600318 2175955 0 7063 0 0 0\ncpu7 56678030 2386500 5573903 52400836 2170586 0 6820 0 0 0\ncpu8 55654786 2375838 5592017 53372539 2207215 0 9239 0 0 0\ncpu9 55239182 2432882 5557479 53709447 2247309 0 21194 0 0 0\ncpu10 53736741 2349487 5505841 55296818 2297361 0 6985 0 0 0\ncpu11 53408765 2418054 5496703 55577494 2281468 0 6485 0 0 0\nintr 27971020752 53 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 14 307 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2117503 13722592 371677739 749605 83560099 85132627 86091004 86837769 87668360 89858716 84217293 85652423 86947203 84150995 87389771 86433799 188 10 0 0 0 0 0 0 0 0 0 0 0 0 2 1214 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nctxt 33048593684\nbtime 1791337478\nprocesses 86118624\nprocs_running 19\nprocs_blocked 1\nsoftirq 8743334384 1874018 382630865 22690670 605727284 15828054 0 67753326 1899744350 2045085 1450073436\n"
+    },
+    "/proc/pressure/cpu": {
+      "text": "some avg10=47.54 avg60=54.87 avg300=52.47 total=160481330822\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+    },
+    "/proc/pressure/io": {
+      "text": "some avg10=8.32 avg60=7.97 avg300=8.56 total=52425280505\nfull avg10=0.00 avg60=0.00 avg300=0.78 total=26252580510\n"
+    },
+    "/proc/pressure/memory": {
+      "text": "some avg10=0.36 avg60=0.15 avg300=0.11 total=1410239465\nfull avg10=0.18 avg60=0.04 avg300=0.00 total=908309295\n"
+    }
+  }
+}

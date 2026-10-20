@@ -1,0 +1,425 @@
+{
+ "board": "multipoint-tap.kicad_pcb",
+ "copper_graphics": [],
+ "copper_layer_count": 2,
+ "copper_layers": [
+  {
+   "name": "F.Cu",
+   "type": 0
+  },
+  {
+   "name": "B.Cu",
+   "type": 0
+  }
+ ],
+ "enabled_layers": [
+  "B.Adhesive",
+  "B.Courtyard",
+  "B.Cu",
+  "B.Fab",
+  "B.Mask",
+  "B.Paste",
+  "B.Silkscreen",
+  "Edge.Cuts",
+  "F.Adhesive",
+  "F.Courtyard",
+  "F.Cu",
+  "F.Fab",
+  "F.Mask",
+  "F.Paste",
+  "F.Silkscreen",
+  "Margin",
+  "User.1",
+  "User.2",
+  "User.3",
+  "User.4",
+  "User.Comments",
+  "User.Drawings",
+  "User.Eco1",
+  "User.Eco2"
+ ],
+ "footprints": {
+  "TP1": {
+   "fpid": "kr64:Pad",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/T",
+     "position": [
+      3000000,
+      3000000
+     ],
+     "size": [
+      400000,
+      400000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    3000000,
+    3000000
+   ],
+   "value": ""
+  },
+  "TP2": {
+   "fpid": "kr64:Pad",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/T",
+     "position": [
+      9000000,
+      9000000
+     ],
+     "size": [
+      400000,
+      400000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    9000000,
+    9000000
+   ],
+   "value": ""
+  },
+  "TP3": {
+   "fpid": "kr64:Pad",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/T",
+     "position": [
+      7300000,
+      5500000
+     ],
+     "size": [
+      400000,
+      400000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    7300000,
+    5500000
+   ],
+   "value": ""
+  },
+  "TP4": {
+   "fpid": "kr64:Pad",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/T",
+     "position": [
+      5200000,
+      7900000
+     ],
+     "size": [
+      400000,
+      400000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    5200000,
+    7900000
+   ],
+   "value": ""
+  },
+  "TP5": {
+   "fpid": "kr64:Pad",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask",
+      "F.Paste"
+     ],
+     "net": "/T",
+     "position": [
+      10500000,
+      4000000
+     ],
+     "size": [
+      400000,
+      400000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    10500000,
+    4000000
+   ],
+   "value": ""
+  }
+ },
+ "kicad_version": "10.0.7-10.0.7~ubuntu24.04.1",
+ "netclass_count": 1,
+ "nets": {
+  "/T": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  }
+ },
+ "outline": [
+  {
+   "end": [
+    0,
+    15000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    0,
+    0
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    20000000,
+    0
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    0,
+    0
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    20000000,
+    15000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    0,
+    15000000
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    20000000,
+    15000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    20000000,
+    0
+   ],
+   "width": 100000
+  }
+ ],
+ "routing_copper_text": [],
+ "rule_areas": [],
+ "setup": [
+  "setup",
+  [
+   "pad_to_mask_clearance",
+   "0"
+  ],
+  [
+   "allow_soldermask_bridges_in_footprints",
+   "no"
+  ],
+  [
+   "tenting",
+   [
+    "front",
+    "yes"
+   ],
+   [
+    "back",
+    "yes"
+   ]
+  ],
+  [
+   "covering",
+   [
+    "front",
+    "no"
+   ],
+   [
+    "back",
+    "no"
+   ]
+  ],
+  [
+   "plugging",
+   [
+    "front",
+    "no"
+   ],
+   [
+    "back",
+    "no"
+   ]
+  ],
+  [
+   "capping",
+   "no"
+  ],
+  [
+   "filling",
+   "no"
+  ]
+ ],
+ "sha256": "8aadd66c547ab862e65f799b4bdf304fec60771911a8d76ed4d433923229a892",
+ "stackup": null,
+ "tracks": [
+  {
+   "end": [
+    7300000,
+    5500000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/T",
+   "start": [
+    6400000,
+    6400000
+   ],
+   "uuid": "88cbf259-3b22-46e2-bfd5-6c2e2fc9061f",
+   "width": 200000
+  },
+  {
+   "end": [
+    9000000,
+    9000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/T",
+   "start": [
+    3000000,
+    3000000
+   ],
+   "uuid": "b9e28816-9ea1-5690-8edf-0c9c52b7e8a6",
+   "width": 200000
+  },
+  {
+   "end": [
+    10500000,
+    4000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/T",
+   "start": [
+    8800000,
+    4000000
+   ],
+   "uuid": "d19c6e1c-48a8-4f8f-9357-cace04426463",
+   "width": 200000
+  },
+  {
+   "end": [
+    6600000,
+    6600000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/T",
+   "start": [
+    5300000,
+    7900000
+   ],
+   "uuid": "f9c7a080-78ac-4abd-aaaf-4ed0236bd683",
+   "width": 200000
+  },
+  {
+   "end": [
+    8800000,
+    4000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/T",
+   "start": [
+    7300000,
+    5500000
+   ],
+   "uuid": "fc08b779-67b8-4589-935c-fe8d44dbdcea",
+   "width": 200000
+  }
+ ],
+ "vias": [],
+ "zones": []
+}

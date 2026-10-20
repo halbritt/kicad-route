@@ -1,0 +1,20 @@
+Abstraction SHA256: 99b1078290d27f13401adbac060ac1b6758bcfc60dcd1f2fe68f7acd4feef3e7
+PASS synthetic remote12attempt raw/native/wall/dualRSS gates without opening remote paths
+PASS declared16CPU Archon profile; no local12CPU assumption
+PASS rejection: unindexed existing local file is never fallback
+PASS rejection: wrong final host
+PASS rejection: wrong index transport hash
+PASS rejection: local final host declaration
+PASS rejection: relaxed1.11gate
+PASS rejection: changed captured bytes
+PASS rejection: duplicate original/retained identity
+PASS byte-identical retained aliases preserve distinct original identities
+PASS rejection: retained path escape
+PASS rejection: original path traversal
+PASS rejection: summary/raw GNU timing mismatch despite valid transfer hash
+PASS rejection: dropped native attempt
+PASS rejection: extra native attempt
+PASS rejection: different declared affinity
+PASS rejection: different board settings
+PASS rejection: wrong frozen adjudicator SHA
+18 bounded portable-profile checks PASS; synthetic fixtures only, no remote or native jobs.

@@ -1,0 +1,334 @@
+{
+  "schema": "kicad-route/multipoint-performance-diagnosis/1",
+  "audited_utc": "2026-10-20T20:16:06.762233+00:00",
+  "primary_head": "bd4660d9602f30deab9909d2e66499614f8fb38e",
+  "comparison": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/comparison.json",
+  "scope": "Read-only receipt/source inspection. No routing, native, build or profiling jobs; no source or limit changes.",
+  "verdict": "Recorded wall gate remains FAIL. Receipts do not establish a routing-search regression; they show large native-phase/elapsed-time variation plus real modest additional aggregate CPU work.",
+  "observations": [
+    {
+      "claim": "Only wall gate failed; correctness, copper equivalence and both memory gates passed.",
+      "evidence": {
+        "passed": false,
+        "failures": [
+          "wall_s exceeds 10% regression limit"
+        ],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 25.4,
+            "candidate_median": 37.04,
+            "ratio": 1.4582677165354332,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1598732,
+            "candidate_median": 1613204,
+            "ratio": 1.0090521738477745,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 1615088,
+            "candidate_median": 1629512,
+            "ratio": 1.0089307827189602,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      }
+    },
+    {
+      "claim": "Most observed median elapsed increase is in unchanged native candidate refill/DRC commands.",
+      "evidence": {
+        "native_drc_sum_reference_s": 16.51,
+        "native_drc_sum_candidate_s": 26.261,
+        "native_drc_sum_delta_s": 9.751,
+        "full_cli_median_delta_s": 11.64,
+        "caution": "These are separate medians and are not an additive causal decomposition. No per-command CPU receipts exist."
+      }
+    },
+    {
+      "claim": "Candidate wall times vary strongly while candidate aggregate CPU stays nearly constant; same-side candidate wall decreases across measured repetitions.",
+      "evidence": {
+        "reference_wall_s": [
+          25.4,
+          29.79,
+          24.12
+        ],
+        "candidate_wall_s": [
+          41.04,
+          37.04,
+          29.66
+        ],
+        "reference_cpu_s": [
+          27.78,
+          27.7,
+          27.81
+        ],
+        "candidate_cpu_s": [
+          29.87,
+          29.84,
+          29.91
+        ],
+        "cpu_median_ratio": 1.075234
+      }
+    },
+    {
+      "claim": "Search work/output is identical in all measured runs, and Rust/search implementation source is unchanged from reference.",
+      "evidence": {
+        "iterations_all": [
+          1016,
+          1016,
+          1016,
+          1016,
+          1016,
+          1016
+        ],
+        "new_tracks": 4,
+        "new_vias": 0,
+        "copper_signature": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+        "rust_diff": "",
+        "changed_engine_runtime_files": [
+          "src/kicad_route/router/py_router/kicad_parser.py",
+          "src/kicad_route/router/py_router/kicad_writer.py",
+          "src/kicad_route/router/py_router/output_writer.py",
+          "src/kicad_route/router/py_router/plane_io.py",
+          "src/kicad_route/router/py_router/sexpr.py"
+        ]
+      }
+    },
+    {
+      "claim": "All measured baselines are cache hits; cold baseline recomputation does not explain measured candidate slowdown.",
+      "evidence": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "claim": "This fixture has no retained copper artwork, so its slowdown cannot be caused by extra artwork obstacles/rasterization.",
+      "evidence": {
+        "input": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap/multipoint-tap.kicad_pcb",
+        "input_bytes": 8142,
+        "footprints": 5,
+        "board_graphics": [
+          "gr_line",
+          "gr_line",
+          "gr_line",
+          "gr_line"
+        ],
+        "candidate_native_routing_copper_text": [],
+        "native_board_copper_graphics": []
+      }
+    }
+  ],
+  "inferences": [
+    {
+      "claim": "Host scheduling/native elapsed-time variability is a substantial plausible contributor.",
+      "basis": "Unchanged native command/tool identities and equal final copper accompany native DRC median16.510\u219226.261s; candidate CPU29.84\u201329.91s accompanies wall29.66\u201341.04s.",
+      "limit": "Receipts do not record host scheduling, competing workloads or per-command CPU, so contention itself is not proved and cannot waive the failed1.10gate."
+    },
+    {
+      "claim": "There is real additional candidate work beyond elapsed-time noise; redundant pcbnew-version import is a supported contributor.",
+      "basis": "Median aggregate CPU27.780\u219229.870s (+7.52%). baselinecache.identity calls pcbnew_build_version, whose source launches a fresh Python importing pcbnew, even on warm cache hits; reference cache had no such call.",
+      "limit": "The current receipts do not time that subprocess separately. Reuse patch is another agent's work; this audit neither predicts the saved seconds nor qualifies its result."
+    },
+    {
+      "claim": "No engine-specific search/solver structural regression is identified on this input.",
+      "basis": "Only parser/writer/lexical boundary runtime files changed; same1016iterations, same4tracks/0vias, identical copper, unchanged Rust modules. Worker wall and engine-reported loop time are wall clocks, not CPU profiles.",
+      "limit": "Different compiled extension hashes mean machine-code performance equivalence is not established solely by source equality."
+    }
+  ],
+  "engine_scaling_risks_not_measured_here": [
+    {
+      "observation": "Parser now runs unsupported_copper and copper_text_blocks on every parse; both perform full Python lexical scans even on boards with no copper artwork. The writer adds another strict lexical scan.",
+      "source": [
+        "src/kicad_route/router/py_router/kicad_parser.py:parse_kicad_pcb",
+        "src/kicad_route/router/py_router/kicad_parser.py:_copper_text_obstacles",
+        "src/kicad_route/router/py_router/sexpr.py:expression_spans",
+        "src/kicad_route/router/py_router/sexpr.py:copper_text_blocks",
+        "src/kicad_route/router/py_router/output_writer.py:write_routed_output"
+      ],
+      "inference": "Real O(board text size) added work per parse/write can become visible on larger boards or repeated parse paths; the8142-byte fixture cannot establish its magnitude. No evidence here establishes a >10%engine cost."
+    },
+    {
+      "observation": "Native facts eagerly materializes all board/footprint graphic objects and reference/value fields to discover copper text; retained text uses filled native bounding rectangles in the existing obstacle rasterizer.",
+      "source": [
+        "src/kicad_route/kicad/facts.py:routing_copper_text",
+        "src/kicad_route/router/py_router/kicad_parser.py:_copper_text_obstacles",
+        "src/kicad_route/router/py_router/obstacle_map.py:filled_graphic_interior_cells"
+      ],
+      "inference": "Large glyph bounds, many logo/text objects and dense repeated geometry may add object traversal, blocked cells and memory not present in this no-artwork fixture. This is expected feature work requiring representative qualification, not a demonstrated regression in this comparison."
+    }
+  ],
+  "medians": {
+    "reference": {
+      "full_cli_wall_s": 25.4,
+      "cpu_s": 27.78,
+      "backend_adapter_wall_s": 5.206,
+      "route_worker_wall_s": 2.75,
+      "refill_wall_s": 8.105,
+      "final_drc_wall_s": 8.405,
+      "native_drc_sum_wall_s": 16.51,
+      "engine_reported_routing_wall_s": 0.48
+    },
+    "candidate": {
+      "full_cli_wall_s": 37.04,
+      "cpu_s": 29.87,
+      "backend_adapter_wall_s": 5.926,
+      "route_worker_wall_s": 4.053,
+      "refill_wall_s": 13.995,
+      "final_drc_wall_s": 10.45,
+      "native_drc_sum_wall_s": 26.261,
+      "engine_reported_routing_wall_s": 0.94
+    }
+  },
+  "samples": {
+    "reference": [
+      {
+        "sample": "reference-1",
+        "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/reference-1/run/result.json",
+        "full_cli_wall_s": 25.4,
+        "cpu_s": 27.78,
+        "backend_adapter_wall_s": 4.843,
+        "route_worker_wall_s": 2.739,
+        "refill_wall_s": 8.105,
+        "final_drc_wall_s": 8.405,
+        "native_drc_sum_wall_s": 16.51,
+        "baseline_cached": true,
+        "iterations": 1016,
+        "engine_reported_routing_wall_s": 0.37,
+        "finished_utc": "2026-10-20T20:08:42.260928+00:00",
+        "quality": {
+          "process": "PASS",
+          "routing": "COMPLETE",
+          "validation": "PASS",
+          "new_violations": 0,
+          "copper": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+          "wall_clock_stop": false
+        }
+      },
+      {
+        "sample": "reference-2",
+        "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/reference-2/run/result.json",
+        "full_cli_wall_s": 29.79,
+        "cpu_s": 27.7,
+        "backend_adapter_wall_s": 6.693,
+        "route_worker_wall_s": 3.844,
+        "refill_wall_s": 9.126,
+        "final_drc_wall_s": 9.683,
+        "native_drc_sum_wall_s": 18.809,
+        "baseline_cached": true,
+        "iterations": 1016,
+        "engine_reported_routing_wall_s": 0.56,
+        "finished_utc": "2026-10-20T20:09:12.066364+00:00",
+        "quality": {
+          "process": "PASS",
+          "routing": "COMPLETE",
+          "validation": "PASS",
+          "new_violations": 0,
+          "copper": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+          "wall_clock_stop": false
+        }
+      },
+      {
+        "sample": "reference-3",
+        "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/reference-3/run/result.json",
+        "full_cli_wall_s": 24.12,
+        "cpu_s": 27.81,
+        "backend_adapter_wall_s": 5.206,
+        "route_worker_wall_s": 2.75,
+        "refill_wall_s": 7.51,
+        "final_drc_wall_s": 7.104,
+        "native_drc_sum_wall_s": 14.614,
+        "baseline_cached": true,
+        "iterations": 1016,
+        "engine_reported_routing_wall_s": 0.48,
+        "finished_utc": "2026-10-20T20:10:42.926297+00:00",
+        "quality": {
+          "process": "PASS",
+          "routing": "COMPLETE",
+          "validation": "PASS",
+          "new_violations": 0,
+          "copper": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+          "wall_clock_stop": false
+        }
+      }
+    ],
+    "candidate": [
+      {
+        "sample": "candidate-1",
+        "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/candidate-1/run/result.json",
+        "full_cli_wall_s": 41.04,
+        "cpu_s": 29.87,
+        "backend_adapter_wall_s": 8.097,
+        "route_worker_wall_s": 5.492,
+        "refill_wall_s": 16.141,
+        "final_drc_wall_s": 10.45,
+        "native_drc_sum_wall_s": 26.591,
+        "baseline_cached": true,
+        "iterations": 1016,
+        "engine_reported_routing_wall_s": 1.2,
+        "finished_utc": "2026-10-20T20:08:16.827656+00:00",
+        "quality": {
+          "process": "PASS",
+          "routing": "COMPLETE",
+          "validation": "PASS",
+          "new_violations": 0,
+          "copper": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+          "wall_clock_stop": false
+        }
+      },
+      {
+        "sample": "candidate-2",
+        "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/candidate-2/run/result.json",
+        "full_cli_wall_s": 37.04,
+        "cpu_s": 29.84,
+        "backend_adapter_wall_s": 5.513,
+        "route_worker_wall_s": 3.665,
+        "refill_wall_s": 13.995,
+        "final_drc_wall_s": 12.266,
+        "native_drc_sum_wall_s": 26.261,
+        "baseline_cached": true,
+        "iterations": 1016,
+        "engine_reported_routing_wall_s": 0.72,
+        "finished_utc": "2026-10-20T20:09:49.094136+00:00",
+        "quality": {
+          "process": "PASS",
+          "routing": "COMPLETE",
+          "validation": "PASS",
+          "new_violations": 0,
+          "copper": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+          "wall_clock_stop": false
+        }
+      },
+      {
+        "sample": "candidate-3",
+        "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/candidate-3/run/result.json",
+        "full_cli_wall_s": 29.66,
+        "cpu_s": 29.91,
+        "backend_adapter_wall_s": 5.926,
+        "route_worker_wall_s": 4.053,
+        "refill_wall_s": 9.171,
+        "final_drc_wall_s": 9.04,
+        "native_drc_sum_wall_s": 18.211,
+        "baseline_cached": true,
+        "iterations": 1016,
+        "engine_reported_routing_wall_s": 0.94,
+        "finished_utc": "2026-10-20T20:10:18.797557+00:00",
+        "quality": {
+          "process": "PASS",
+          "routing": "COMPLETE",
+          "validation": "PASS",
+          "new_violations": 0,
+          "copper": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+          "wall_clock_stop": false
+        }
+      }
+    ]
+  },
+  "next_evidence": "Use the planned5-repetition full4-board rerun after the tested duplicate-import reuse; retain the original failed report and unchanged1.10limits. If it still fails, per-phase CPU/elapsed profiling is needed before attributing the residue to engine algorithms."
+}

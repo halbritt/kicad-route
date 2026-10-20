@@ -1,0 +1,264 @@
+[
+    {
+        "Id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+        "Created": "2026-10-20T22:29:37.814150187Z",
+        "Path": "sleep",
+        "Args": [
+            "infinity"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 37124,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-10-20T22:29:38.032831093Z",
+            "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "Image": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+        "ResolvConfPath": "/var/lib/docker/containers/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba/hostname",
+        "HostsPath": "/var/lib/docker/containers/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba/hosts",
+        "LogPath": "/var/lib/docker/containers/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba/0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba-json.log",
+        "Name": "/kicadroute-agent497-archon",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {
+                    "max-file": "5",
+                    "max-size": "10m"
+                }
+            },
+            "NetworkMode": "bridge",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": [],
+            "BlkioDeviceWriteBps": [],
+            "BlkioDeviceReadIOps": [],
+            "BlkioDeviceWriteIOps": [],
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": [],
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "Mounts": [
+                {
+                    "Type": "bind",
+                    "Source": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/work",
+                    "Target": "/work"
+                },
+                {
+                    "Type": "bind",
+                    "Source": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/evidence",
+                    "Target": "/evidence"
+                },
+                {
+                    "Type": "bind",
+                    "Source": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/setup",
+                    "Target": "/tools",
+                    "ReadOnly": true
+                }
+            ],
+            "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware",
+                "/sys/devices/system/cpu/cpu0/thermal_throttle",
+                "/sys/devices/system/cpu/cpu1/thermal_throttle",
+                "/sys/devices/system/cpu/cpu2/thermal_throttle",
+                "/sys/devices/system/cpu/cpu3/thermal_throttle",
+                "/sys/devices/system/cpu/cpu4/thermal_throttle",
+                "/sys/devices/system/cpu/cpu5/thermal_throttle",
+                "/sys/devices/system/cpu/cpu6/thermal_throttle",
+                "/sys/devices/system/cpu/cpu7/thermal_throttle",
+                "/sys/devices/system/cpu/cpu8/thermal_throttle",
+                "/sys/devices/system/cpu/cpu9/thermal_throttle",
+                "/sys/devices/system/cpu/cpu10/thermal_throttle",
+                "/sys/devices/system/cpu/cpu11/thermal_throttle",
+                "/sys/devices/system/cpu/cpu12/thermal_throttle",
+                "/sys/devices/system/cpu/cpu13/thermal_throttle",
+                "/sys/devices/system/cpu/cpu14/thermal_throttle",
+                "/sys/devices/system/cpu/cpu15/thermal_throttle"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/setup",
+                "Destination": "/tools",
+                "Mode": "",
+                "RW": false,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/work",
+                "Destination": "/work",
+                "Mode": "",
+                "RW": true,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/evidence",
+                "Destination": "/evidence",
+                "Mode": "",
+                "RW": true,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+            "Hostname": "0748eb5cfe62",
+            "Domainname": "",
+            "User": "1000:1000",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "HOME=/work/home",
+                "CARGO_HOME=/work/cargo-home",
+                "PATH=/opt/cargo/bin:/usr/local/bin:/usr/bin:/bin",
+                "RUSTUP_HOME=/opt/rustup",
+                "PYTHONDONTWRITEBYTECODE=1"
+            ],
+            "Cmd": [
+                "sleep",
+                "infinity"
+            ],
+            "Image": "kicadroute-agent497-archon:20261020",
+            "Volumes": null,
+            "WorkingDir": "/work",
+            "Entrypoint": null,
+            "Labels": {
+                "org.harm.agent": "agent-497",
+                "org.harm.project": "kicad-route",
+                "org.harm.task": "agent497-archon-20261020",
+                "org.opencontainers.image.version": "24.04"
+            }
+        },
+        "NetworkSettings": {
+            "SandboxID": "1445953af9ca14a057bc22063d59988448176f890ceb07c1c65d602d909abc8b",
+            "SandboxKey": "/var/run/docker/netns/1445953af9ca",
+            "Ports": {},
+            "Networks": {
+                "bridge": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "1c32e95399bbe211abff593633c7d14c50c181d71097917dcf737400f24cbffe",
+                    "EndpointID": "62d488f4fbd677865ee03b58e2b695ee95dc7cb55d816c316e073d403aef7a32",
+                    "Gateway": "172.17.0.1",
+                    "IPAddress": "172.17.0.2",
+                    "MacAddress": "3a:05:de:ea:48:7d",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": null
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:f9fb70f65a79817da85a440da398a9109a076ef19a7f077233b5d1386c3eb131",
+            "size": 1824,
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        }
+    }
+]

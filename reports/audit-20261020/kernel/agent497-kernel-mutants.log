@@ -1,0 +1,4 @@
+/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python scripts/check-kernel-mutants.py
+bitmap-clear: rejected by invariant assertion
+lane-tie-order: rejected by invariant assertion
+pair-via-clearance: rejected by invariant assertion

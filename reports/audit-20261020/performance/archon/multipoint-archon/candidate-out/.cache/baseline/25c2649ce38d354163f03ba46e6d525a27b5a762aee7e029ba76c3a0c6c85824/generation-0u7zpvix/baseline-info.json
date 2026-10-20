@@ -1,0 +1,77 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--refill-zones",
+        "--save-board",
+        "--format",
+        "json",
+        "-o",
+        "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/drc/baseline-refill.json",
+        "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/project/multipoint-tap/multipoint-tap.kicad_pcb"
+      ],
+      "cwd": "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/project/multipoint-tap",
+      "log": "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/drc/baseline-refill.log",
+      "exit_code": 0,
+      "duration_s": 0.539
+    },
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--format",
+        "json",
+        "--severity-all",
+        "--schematic-parity",
+        "--units",
+        "mm",
+        "-o",
+        "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/drc/baseline-drc.json",
+        "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/project/multipoint-tap/multipoint-tap.kicad_pcb"
+      ],
+      "cwd": "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/project/multipoint-tap",
+      "log": "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/drc/baseline-drc.log",
+      "exit_code": 0,
+      "duration_s": 0.452
+    }
+  ],
+  "reasons": [],
+  "refill": {
+    "board_sha256_before": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+    "board_sha256_after": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7"
+  },
+  "board_sha256_graded": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+  "board_sha256_checked": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+  "parity_performed": false,
+  "parity_skip_message": "Failed to fetch schematic netlist for parity tests.",
+  "report": "/evidence/multipoint-archon/candidate-out/.cache/baseline/25c2649ce38d354163f03ba46e6d525a27b5a762aee7e029ba76c3a0c6c85824/.building-o07gh4lq/drc/baseline-drc.json",
+  "cached": false,
+  "identity": {
+    "schema": 1,
+    "input": "ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760",
+    "board": "multipoint-tap.kicad_pcb",
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+    "pour_schema": 1,
+    "grading": {
+      "baselinecache.py": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13",
+      "cli.py": "61aff3300f1f784a9e8a778e45430e3f5cb8041f820b7feea80423566bf60a4e",
+      "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+      "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+      "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+    },
+    "result_schemas": {
+      "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+      "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+    }
+  },
+  "generation": null
+}

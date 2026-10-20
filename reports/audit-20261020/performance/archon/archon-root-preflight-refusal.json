@@ -1,0 +1,13 @@
+{
+  "schema": "kicad-route/archon-root-preflight-refusal/1",
+  "observed_utc": "2026-10-20T22:35:25.988871+00:00",
+  "protocol_sha256": "3ef49615904131b58e7c061f9f5f12e46fa5419a180d129322282b855ab5afdf",
+  "harness_sha256": "ebfd140540a7ac794ea6efb00c292da1ffe8ea77e8512b6981f2148ae72842e1",
+  "preflight_exit_code": 1,
+  "error": "FileNotFoundError: /work/reference/fixtures/route_demo/route_demo.kicad_prl",
+  "independent_scan": "Only this missing prerequisite; all other protocol prerequisite bytes and host attestation match.",
+  "benchmark_metadata_exists": false,
+  "native_attempts_launched": 0,
+  "reason": "Protocol inventory copied ignored local GUI state; fresh exact source clone correctly lacks that untracked GUI file. It is excluded from native project snapshot inputs.",
+  "correction_requested": "Remove only ignored GUI .kicad_prl from prerequisites before any router result. Preserve prior protocol and this refusal; keep boards/settings/driver/native and all 1.10 gates unchanged."
+}

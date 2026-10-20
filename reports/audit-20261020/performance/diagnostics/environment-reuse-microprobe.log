@@ -1,0 +1,17 @@
+{
+  "receipt": "/home/halbritt/git/kicad-route/build/agent497-qualification/environment-reuse-microprobe.json",
+  "medians": {
+    "fresh_each_environment": {
+      "wall_s": 1.5582603090442717,
+      "wrapper_cpu_s": 0.008368999999999994,
+      "child_cpu_s": 1.3474890000000004,
+      "native_version_probes": 9
+    },
+    "attempt_scoped_major": {
+      "wall_s": 0.22457011486403644,
+      "wrapper_cpu_s": 0.0026680000000000037,
+      "child_cpu_s": 0.1442350000000001,
+      "native_version_probes": 1
+    }
+  }
+}

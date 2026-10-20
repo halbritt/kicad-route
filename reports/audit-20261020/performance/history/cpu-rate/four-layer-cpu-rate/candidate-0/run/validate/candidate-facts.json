@@ -1,0 +1,703 @@
+{
+ "board": "four-layer-plane.kicad_pcb",
+ "copper_graphics": [],
+ "copper_layer_count": 4,
+ "copper_layers": [
+  {
+   "name": "F.Cu",
+   "type": 0
+  },
+  {
+   "name": "In1.Cu",
+   "type": 0
+  },
+  {
+   "name": "In2.Cu",
+   "type": 0
+  },
+  {
+   "name": "B.Cu",
+   "type": 0
+  }
+ ],
+ "enabled_layers": [
+  "B.Courtyard",
+  "B.Cu",
+  "B.Mask",
+  "Edge.Cuts",
+  "F.Courtyard",
+  "F.Cu",
+  "F.Mask",
+  "In1.Cu",
+  "In2.Cu",
+  "Margin"
+ ],
+ "footprints": {
+  "J1": {
+   "fpid": "test:TP",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 0,
+     "drill": [
+      1000000,
+      1000000
+     ],
+     "layers": [
+      "B.Cu",
+      "B.Mask",
+      "F.Cu",
+      "F.Mask",
+      "In1.Cu",
+      "In10.Cu",
+      "In11.Cu",
+      "In12.Cu",
+      "In13.Cu",
+      "In14.Cu",
+      "In15.Cu",
+      "In16.Cu",
+      "In17.Cu",
+      "In18.Cu",
+      "In19.Cu",
+      "In2.Cu",
+      "In20.Cu",
+      "In21.Cu",
+      "In22.Cu",
+      "In23.Cu",
+      "In24.Cu",
+      "In25.Cu",
+      "In26.Cu",
+      "In27.Cu",
+      "In28.Cu",
+      "In29.Cu",
+      "In3.Cu",
+      "In30.Cu",
+      "In4.Cu",
+      "In5.Cu",
+      "In6.Cu",
+      "In7.Cu",
+      "In8.Cu",
+      "In9.Cu"
+     ],
+     "net": "GND",
+     "position": [
+      3000000,
+      3000000
+     ],
+     "size": [
+      1700000,
+      1700000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    3000000,
+    3000000
+   ],
+   "value": ""
+  },
+  "R1": {
+   "fpid": "test:R_0402",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask"
+     ],
+     "net": "GND",
+     "position": [
+      11500000,
+      6000000
+     ],
+     "size": [
+      600000,
+      600000
+     ]
+    },
+    "2": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask"
+     ],
+     "net": "SIG",
+     "position": [
+      12500000,
+      6000000
+     ],
+     "size": [
+      600000,
+      600000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    12000000,
+    6000000
+   ],
+   "value": ""
+  },
+  "R2": {
+   "fpid": "test:R_0402",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask"
+     ],
+     "net": "GND",
+     "position": [
+      14500000,
+      11000000
+     ],
+     "size": [
+      600000,
+      600000
+     ]
+    },
+    "2": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask"
+     ],
+     "net": "SIG",
+     "position": [
+      15500000,
+      11000000
+     ],
+     "size": [
+      600000,
+      600000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    15000000,
+    11000000
+   ],
+   "value": ""
+  },
+  "R3": {
+   "fpid": "test:R_0402",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask"
+     ],
+     "net": "GND",
+     "position": [
+      7500000,
+      12000000
+     ],
+     "size": [
+      600000,
+      600000
+     ]
+    },
+    "2": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu",
+      "F.Mask"
+     ],
+     "net": "SIG",
+     "position": [
+      8500000,
+      12000000
+     ],
+     "size": [
+      600000,
+      600000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    8000000,
+    12000000
+   ],
+   "value": ""
+  }
+ },
+ "kicad_version": "10.0.7-10.0.7~ubuntu24.04.1",
+ "netclass_count": 1,
+ "nets": {
+  "GND": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  },
+  "SIG": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  }
+ },
+ "outline": [
+  {
+   "end": [
+    20000000,
+    16000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Rect",
+   "start": [
+    0,
+    0
+   ],
+   "width": 50000
+  }
+ ],
+ "routing_copper_text": [],
+ "rule_areas": [],
+ "setup": [
+  "setup",
+  [
+   "pad_to_mask_clearance",
+   "0"
+  ],
+  [
+   "allow_soldermask_bridges_in_footprints",
+   "no"
+  ],
+  [
+   "tenting",
+   [
+    "front",
+    "yes"
+   ],
+   [
+    "back",
+    "yes"
+   ]
+  ],
+  [
+   "covering",
+   [
+    "front",
+    "no"
+   ],
+   [
+    "back",
+    "no"
+   ]
+  ],
+  [
+   "plugging",
+   [
+    "front",
+    "no"
+   ],
+   [
+    "back",
+    "no"
+   ]
+  ],
+  [
+   "capping",
+   "no"
+  ],
+  [
+   "filling",
+   "no"
+  ]
+ ],
+ "sha256": "108d237eb6dd6b99db407e870eeccdd12ef6e47313a4e39dc084cb1055e2b100",
+ "stackup": null,
+ "tracks": [
+  {
+   "end": [
+    14500000,
+    11100000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    14500000,
+    11000000
+   ],
+   "uuid": "117127c5-6062-46d0-b117-ac65f4ed41d5",
+   "width": 200000
+  },
+  {
+   "end": [
+    13000000,
+    12600000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    8000000,
+    12600000
+   ],
+   "uuid": "18cb04f4-3a6f-454e-b17c-9eae76a05784",
+   "width": 200000
+  },
+  {
+   "end": [
+    7500000,
+    12100000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    7500000,
+    12000000
+   ],
+   "uuid": "36b5d096-0885-4456-8585-122cab627861",
+   "width": 200000
+  },
+  {
+   "end": [
+    16200000,
+    11300000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    16200000,
+    8600000
+   ],
+   "uuid": "398f7709-5c45-4c1c-8460-a8c4257552f4",
+   "width": 200000
+  },
+  {
+   "end": [
+    14500000,
+    11100000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    13000000,
+    12600000
+   ],
+   "uuid": "4cde9c37-dd6f-4cb1-98f6-dfcbe383dda2",
+   "width": 200000
+  },
+  {
+   "end": [
+    8000000,
+    12600000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    7500000,
+    12100000
+   ],
+   "uuid": "50a8c356-8599-4a0c-b508-927271bb58d2",
+   "width": 200000
+  },
+  {
+   "end": [
+    15000000,
+    11600000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    14500000,
+    11100000
+   ],
+   "uuid": "612d504d-3f94-4e86-aca7-5f0669dacc3b",
+   "width": 200000
+  },
+  {
+   "end": [
+    16200000,
+    8600000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    13000000,
+    5400000
+   ],
+   "uuid": "74a6b15c-c6ff-4cf9-a54e-1d4be853e27c",
+   "width": 200000
+  },
+  {
+   "end": [
+    13000000,
+    5400000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    12100000,
+    5400000
+   ],
+   "uuid": "9e65f64e-2423-4044-a952-d270388cbff3",
+   "width": 200000
+  },
+  {
+   "end": [
+    16200000,
+    11300000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    15900000,
+    11600000
+   ],
+   "uuid": "ae22b022-c8bc-474b-8566-8a1a18a7b043",
+   "width": 200000
+  },
+  {
+   "end": [
+    12100000,
+    5400000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    11500000,
+    6000000
+   ],
+   "uuid": "c4050a67-de5e-4f74-8a15-487da17936b9",
+   "width": 200000
+  },
+  {
+   "end": [
+    15900000,
+    11600000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "GND",
+   "start": [
+    15000000,
+    11600000
+   ],
+   "uuid": "ec4ba49f-3b37-4e5a-95b6-b2a1b6b25764",
+   "width": 200000
+  },
+  {
+   "end": [
+    15500000,
+    10900000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "SIG",
+   "start": [
+    15000000,
+    10400000
+   ],
+   "uuid": "2a21ab26-fa71-4eb7-b6f8-8415be1c83bd",
+   "width": 200000
+  },
+  {
+   "end": [
+    14000000,
+    10400000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "SIG",
+   "start": [
+    13400000,
+    11000000
+   ],
+   "uuid": "58f1f66d-4d6d-446f-aa6b-041914734b58",
+   "width": 200000
+  },
+  {
+   "end": [
+    9500000,
+    11000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "SIG",
+   "start": [
+    8500000,
+    12000000
+   ],
+   "uuid": "63974d3d-ab7e-4ed0-a8c7-8768a28cd2c8",
+   "width": 200000
+  },
+  {
+   "end": [
+    12500000,
+    11000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "SIG",
+   "start": [
+    12500000,
+    6000000
+   ],
+   "uuid": "8011b74c-62cf-49ff-af90-2018f4ad3100",
+   "width": 200000
+  },
+  {
+   "end": [
+    15000000,
+    10400000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "SIG",
+   "start": [
+    14000000,
+    10400000
+   ],
+   "uuid": "8831eca7-db2b-4857-bbf0-4a182219fc48",
+   "width": 200000
+  },
+  {
+   "end": [
+    13400000,
+    11000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "SIG",
+   "start": [
+    9500000,
+    11000000
+   ],
+   "uuid": "ad6bf5af-b72e-4f58-b10d-0ee570b4c922",
+   "width": 200000
+  }
+ ],
+ "vias": [
+  {
+   "diameter": 600000,
+   "drill": 300000,
+   "layers": [
+    "F.Cu",
+    "B.Cu"
+   ],
+   "locked": false,
+   "net": "GND",
+   "position": [
+    11500000,
+    6000000
+   ],
+   "uuid": "97b9fcb0-61de-4d9c-a3c6-0c6a19136760",
+   "via_type": "through"
+  }
+ ],
+ "zones": [
+  {
+   "clearance": 200000,
+   "fill_mode": 0,
+   "filled": true,
+   "island_removal": 0,
+   "layers": [
+    "In1.Cu"
+   ],
+   "locked": false,
+   "min_thickness": 160000,
+   "name": "",
+   "net": "GND",
+   "outline": [
+    [
+     300000,
+     300000
+    ],
+    [
+     19700000,
+     300000
+    ],
+    [
+     19700000,
+     15700000
+    ],
+    [
+     300000,
+     15700000
+    ]
+   ],
+   "pad_connection": 2,
+   "priority": 0,
+   "thermal_gap": 500000,
+   "thermal_spoke": 500000
+  }
+ ]
+}

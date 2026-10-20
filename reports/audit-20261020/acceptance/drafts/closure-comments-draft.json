@@ -1,0 +1,149 @@
+{
+  "schema": "kicad-route/closure-comments-draft/1",
+  "source_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+  "tracker_writes": false,
+  "intended_report_root": "reports/audit-20261020",
+  "finalization_required": [
+    "Preserve all66original clauses and original/corrective741-node coverage union honesty.",
+    "Require quiet session18111 terminalmatrixPASS for4boards/48attempts, independently verified admission journal/streaks/affinities/native raw evidence and unchanged1.10gates.",
+    "Complete landed-default runtime/doctor; verify actual durable archive paths; commit/push report before tracker closure."
+  ],
+  "comments": {
+    "KICADROUTE-68": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 4,
+      "draft_acceptance": "met",
+      "body": "Implemented: Ownership/type/overlap/symlink refusal precedes pytest; atomic fresh/owned refresh preserves prior successful publications on failure.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-68, 4 original clauses). Ticket proofs: reports/audit-20261020/publication/verification-original.json.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/publication/verification-original.json"
+      ]
+    },
+    "KICADROUTE-69": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 5,
+      "draft_acceptance": "met",
+      "body": "Implemented: Corpus comparison rejects lost validation, routing completion, counters and preservation evidence; the exact process-PASS/validation-FAIL case fails check and after_update.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-69, 5 original clauses). Ticket proofs: reports/audit-20261020/tests/coverage-union.json.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/coverage-union.json"
+      ]
+    },
+    "KICADROUTE-70": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 4,
+      "draft_acceptance": "met",
+      "body": "Implemented: Final candidate evidence and determinism bind the post-refill file; pre-refill/backend digests remain separate. Strict native changed-refill/revalidation receipts pass.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-70, 4 original clauses). Ticket proofs: reports/audit-20261020/tests/final-focused.xml.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/final-focused.xml"
+      ]
+    },
+    "KICADROUTE-71": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 5,
+      "draft_acceptance": "met",
+      "body": "Implemented: Cache keys retain board, native CLI/pcbnew and grader/schema content identities. Immutable complete generations activate via atomic pointer; corrupt/interrupted/concurrent entries cannot yield mixed hits. Fresh native facts safely replace one redundant probe.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-71, 5 original clauses). Ticket proofs: reports/audit-20261020/performance/diagnostics/performance-native-cache-identity.json, reports/audit-20261020/tests/final-focused.xml.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/performance/diagnostics/performance-native-cache-identity.json",
+        "reports/audit-20261020/tests/final-focused.xml"
+      ]
+    },
+    "KICADROUTE-72": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 4,
+      "draft_acceptance": "met",
+      "body": "Implemented: Shared quote-aware scanning protects both public writers. Quoted text and malformed-input cases pass the owned fast gate; native literal-parenthesis artwork routes without loss.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-72, 4 original clauses). Ticket proofs: reports/audit-20261020/kernel/agent497-kernel.log, reports/audit-20261020/tests/coverage-union.json.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/kernel/agent497-kernel.log",
+        "reports/audit-20261020/tests/coverage-union.json"
+      ]
+    },
+    "KICADROUTE-73": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 5,
+      "draft_acceptance": "pending_final_matrix",
+      "body": "Implemented: Retained text/netless/net-tied/footprint copper and narrow-passage native clearance tests pass; unsupported shapes explicitly refuse. FINAL PERFORMANCE MATRIX PENDING: do not close until all four current five-repeat comparisons pass the unchanged 1.10 wall and dual-memory gates.\n\nUser selected Archon for the final unchanged1.10 fullCLI wall/dual-memory/native/copper comparison. Archon same-container setup and frozen four-board48sample protocol remain pending. Local94696 remains supporting history only and cannot close73. Prior timing failures remain failed; quiet-host study expired inconclusively before any native attempt. No completed sample is retried or dropped.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-73, 5 original clauses). Ticket proofs: reports/audit-20261020/performance/archon/diff-pair-archon/comparison.json, reports/audit-20261020/performance/archon/four-layer-archon/comparison.json, reports/audit-20261020/performance/archon/multipoint-archon/comparison.json, reports/audit-20261020/performance/archon/route-demo-archon/comparison.json.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/performance/archon/diff-pair-archon/comparison.json",
+        "reports/audit-20261020/performance/archon/four-layer-archon/comparison.json",
+        "reports/audit-20261020/performance/archon/multipoint-archon/comparison.json",
+        "reports/audit-20261020/performance/archon/route-demo-archon/comparison.json"
+      ]
+    },
+    "KICADROUTE-74": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 5,
+      "draft_acceptance": "met",
+      "body": "Implemented: Run fingerprints use executed source/extension/Python/dependency content rather than unrelated Git commits; same failed attempt refusal, force/legacy handling and protect-human reconstruction pass.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-74, 5 original clauses). Ticket proofs: reports/audit-20261020/tests/final-focused.xml.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/final-focused.xml"
+      ]
+    },
+    "KICADROUTE-75": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 5,
+      "draft_acceptance": "met",
+      "body": "Implemented: Preparation builds/validates a disjoint immutable runtime before atomic selection. Failure, cold recovery, old-worker pinning and concurrent writer tests pass, including bytecode preparation and repeat-proof build identity.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-75, 5 original clauses). Ticket proofs: reports/audit-20261020/provenance/bytecode-preparation.json, reports/audit-20261020/provenance/bytecode-native-build.json, reports/audit-20261020/tests/final-merged-generation.xml.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/provenance/bytecode-preparation.json",
+        "reports/audit-20261020/provenance/bytecode-native-build.json",
+        "reports/audit-20261020/tests/final-merged-generation.xml"
+      ]
+    },
+    "KICADROUTE-76": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 4,
+      "draft_acceptance": "met",
+      "body": "Implemented: Required repeat failure and record_error make update nonzero with machine-readable evidence; all gates passing returns 0 and preservation of earlier failures are controlled-tested.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-76, 4 original clauses). Ticket proofs: reports/audit-20261020/tests/final-focused.xml.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/final-focused.xml"
+      ]
+    },
+    "KICADROUTE-77": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 4,
+      "draft_acceptance": "met",
+      "body": "Implemented: Any budget/stall/kill flag in the relevant command chain prevents measurement qualification while preserving public process/routing/native grades and candidate bytes. Native single/pair and revalidation cases pass.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-77, 4 original clauses). Ticket proofs: reports/audit-20261020/tests/final-focused.xml, reports/audit-20261020/tests/final-merged-generation.xml.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/final-focused.xml",
+        "reports/audit-20261020/tests/final-merged-generation.xml"
+      ]
+    },
+    "KICADROUTE-78": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 5,
+      "draft_acceptance": "met",
+      "body": "Implemented: Published bundles contain a bounded receipt inventory with included hashes and explicit external board/input artifacts; stale-file refresh and symlink refusal tests pass. Nativebundle with 12 files and 6 included record bindings verifies without source receipt mutation.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-78, 5 original clauses). Ticket proofs: reports/audit-20261020/publication/verification-original.json.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/publication/verification-original.json"
+      ]
+    },
+    "KICADROUTE-79": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 5,
+      "draft_acceptance": "met",
+      "body": "Implemented: Fresh built-wheel environment passes packaged fixture/schema, XDG state, doctor/help, native bounded route and campaign, with checkout resolution removed. Installed smoke refuses explicitly; checkout symlink installation remains covered.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-79, 5 original clauses). Ticket proofs: reports/audit-20261020/tests/coverage-union.json.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/coverage-union.json"
+      ]
+    },
+    "KICADROUTE-80": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 5,
+      "draft_acceptance": "met",
+      "body": "Implemented: Owned offline kernel tests compare bitmap/search behavior with independent oracles. Three invariant-breaking mutants fail assertions. Inventory distinguishes retained and excluded upstream tests; native integration remains separate.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-80, 5 original clauses). Ticket proofs: reports/audit-20261020/kernel/agent497-kernel.log, reports/audit-20261020/kernel/agent497-kernel-mutants.log.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/kernel/agent497-kernel.log",
+        "reports/audit-20261020/kernel/agent497-kernel-mutants.log"
+      ]
+    },
+    "KICADROUTE-81": {
+      "status": "draft_do_not_post_until_parent_gates_pass",
+      "acceptance_clauses": 6,
+      "draft_acceptance": "met",
+      "body": "Implemented: Comparison harness rejects missing/failed/censored warmups or samples, enforces native/preservation/completion/pair evidence and mode-specific copper rules, and gates wall/GNU RSS/sampled process-tree RSS at1.10. Boundary/invalid-metric tests pass.\n\nAcceptance mapping: reports/audit-20261020/final-acceptance.json (KICADROUTE-81, 6 original clauses). Ticket proofs: reports/audit-20261020/performance/final/multipoint-quiet-admission/comparison.json, reports/audit-20261020/tests/final-focused.xml.\n\nTest evidence is a coverage union: original full invocation: 686 passed, 2 failed; corrective 193/193, selector 25/25, generation 24/24 and environment-reuse 113/113 provide passing observations for all 741 current node IDs. This is not a claim of one green final full-suite invocation. See reports/audit-20261020/tests/coverage-union.json and retained JUnit receipts.\n\nFinal trunk/runtime/report gates remain parent-owned. This text is a draft; no tracker closure has been performed.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/performance/archon/multipoint-archon/comparison.json",
+        "reports/audit-20261020/tests/final-focused.xml"
+      ]
+    }
+  }
+}

@@ -1,0 +1,208 @@
+........diffpair/reference-0: waiting for prespecified admission
+diffpair/reference-0: running warmup
+diffpair/candidate-0: waiting for prespecified admission
+.diffpair/reference-0: waiting for prespecified admission
+diffpair/reference-0: running warmup
+diffpair/candidate-0: waiting for prespecified admission
+diffpair/candidate-0: running warmup
+diffpair/candidate-1: waiting for prespecified admission
+diffpair/candidate-1: running measured
+diffpair/reference-1: waiting for prespecified admission
+diffpair/reference-1: running measured
+diffpair/reference-2: waiting for prespecified admission
+diffpair/reference-2: running measured
+diffpair/candidate-2: waiting for prespecified admission
+diffpair/candidate-2: running measured
+diffpair/candidate-3: waiting for prespecified admission
+diffpair/candidate-3: running measured
+diffpair/reference-3: waiting for prespecified admission
+diffpair/reference-3: running measured
+diffpair/reference-4: waiting for prespecified admission
+diffpair/reference-4: running measured
+diffpair/candidate-4: waiting for prespecified admission
+diffpair/candidate-4: running measured
+diffpair/candidate-5: waiting for prespecified admission
+diffpair/candidate-5: running measured
+diffpair/reference-5: waiting for prespecified admission
+diffpair/reference-5: running measured
+diffpair: FAIL
+fourlayer/reference-0: waiting for prespecified admission
+fourlayer/reference-0: running warmup
+fourlayer/candidate-0: waiting for prespecified admission
+fourlayer/candidate-0: running warmup
+fourlayer/candidate-1: waiting for prespecified admission
+fourlayer/candidate-1: running measured
+fourlayer/reference-1: waiting for prespecified admission
+fourlayer/reference-1: running measured
+fourlayer/reference-2: waiting for prespecified admission
+fourlayer/reference-2: running measured
+fourlayer/candidate-2: waiting for prespecified admission
+fourlayer/candidate-2: running measured
+fourlayer/candidate-3: waiting for prespecified admission
+fourlayer/candidate-3: running measured
+fourlayer/reference-3: waiting for prespecified admission
+fourlayer/reference-3: running measured
+fourlayer/reference-4: waiting for prespecified admission
+fourlayer/reference-4: running measured
+fourlayer/candidate-4: waiting for prespecified admission
+fourlayer/candidate-4: running measured
+fourlayer/candidate-5: waiting for prespecified admission
+fourlayer/candidate-5: running measured
+fourlayer/reference-5: waiting for prespecified admission
+fourlayer/reference-5: running measured
+fourlayer: FAIL
+multipoint/reference-0: waiting for prespecified admission
+multipoint/reference-0: running warmup
+multipoint/candidate-0: waiting for prespecified admission
+multipoint/candidate-0: running warmup
+multipoint/candidate-1: waiting for prespecified admission
+multipoint/candidate-1: running measured
+multipoint/reference-1: waiting for prespecified admission
+multipoint/reference-1: running measured
+multipoint/reference-2: waiting for prespecified admission
+multipoint/reference-2: running measured
+multipoint/candidate-2: waiting for prespecified admission
+multipoint/candidate-2: running measured
+multipoint/candidate-3: waiting for prespecified admission
+multipoint/candidate-3: running measured
+multipoint/reference-3: waiting for prespecified admission
+multipoint/reference-3: running measured
+multipoint/reference-4: waiting for prespecified admission
+multipoint/reference-4: running measured
+multipoint/candidate-4: waiting for prespecified admission
+multipoint/candidate-4: running measured
+multipoint/candidate-5: waiting for prespecified admission
+multipoint/candidate-5: running measured
+multipoint/reference-5: waiting for prespecified admission
+multipoint/reference-5: running measured
+multipoint: FAIL
+route/reference-0: waiting for prespecified admission
+route/reference-0: running warmup
+route/candidate-0: waiting for prespecified admission
+route/candidate-0: running warmup
+route/candidate-1: waiting for prespecified admission
+route/candidate-1: running measured
+route/reference-1: waiting for prespecified admission
+route/reference-1: running measured
+route/reference-2: waiting for prespecified admission
+route/reference-2: running measured
+route/candidate-2: waiting for prespecified admission
+route/candidate-2: running measured
+route/candidate-3: waiting for prespecified admission
+route/candidate-3: running measured
+route/reference-3: waiting for prespecified admission
+route/reference-3: running measured
+route/reference-4: waiting for prespecified admission
+route/reference-4: running measured
+route/candidate-4: waiting for prespecified admission
+route/candidate-4: running measured
+route/candidate-5: waiting for prespecified admission
+route/candidate-5: running measured
+route/reference-5: waiting for prespecified admission
+route/reference-5: running measured
+route: FAIL
+.diffpair/reference-0: waiting for prespecified admission
+diffpair/reference-0: running warmup
+diffpair/candidate-0: waiting for prespecified admission
+diffpair/candidate-0: running warmup
+diffpair/candidate-1: waiting for prespecified admission
+diffpair/candidate-1: running measured
+diffpair/reference-1: waiting for prespecified admission
+diffpair/reference-1: running measured
+diffpair/reference-2: waiting for prespecified admission
+diffpair/reference-2: running measured
+diffpair/candidate-2: waiting for prespecified admission
+diffpair/candidate-2: running measured
+diffpair/candidate-3: waiting for prespecified admission
+diffpair/candidate-3: running measured
+diffpair/reference-3: waiting for prespecified admission
+diffpair/reference-3: running measured
+diffpair/reference-4: waiting for prespecified admission
+diffpair/reference-4: running measured
+diffpair/candidate-4: waiting for prespecified admission
+diffpair/candidate-4: running measured
+diffpair/candidate-5: waiting for prespecified admission
+diffpair/candidate-5: running measured
+diffpair/reference-5: waiting for prespecified admission
+diffpair/reference-5: running measured
+diffpair: PASS
+fourlayer/reference-0: waiting for prespecified admission
+fourlayer/reference-0: running warmup
+fourlayer/candidate-0: waiting for prespecified admission
+fourlayer/candidate-0: running warmup
+fourlayer/candidate-1: waiting for prespecified admission
+fourlayer/candidate-1: running measured
+fourlayer/reference-1: waiting for prespecified admission
+fourlayer/reference-1: running measured
+fourlayer/reference-2: waiting for prespecified admission
+fourlayer/reference-2: running measured
+fourlayer/candidate-2: waiting for prespecified admission
+fourlayer/candidate-2: running measured
+fourlayer/candidate-3: waiting for prespecified admission
+fourlayer/candidate-3: running measured
+fourlayer/reference-3: waiting for prespecified admission
+fourlayer/reference-3: running measured
+fourlayer/reference-4: waiting for prespecified admission
+fourlayer/reference-4: running measured
+fourlayer/candidate-4: waiting for prespecified admission
+fourlayer/candidate-4: running measured
+fourlayer/candidate-5: waiting for prespecified admission
+fourlayer/candidate-5: running measured
+fourlayer/reference-5: waiting for prespecified admission
+fourlayer/reference-5: running measured
+fourlayer: PASS
+multipoint/reference-0: waiting for prespecified admission
+multipoint/reference-0: running warmup
+multipoint/candidate-0: waiting for prespecified admission
+multipoint/candidate-0: running warmup
+multipoint/candidate-1: waiting for prespecified admission
+multipoint/candidate-1: running measured
+multipoint/reference-1: waiting for prespecified admission
+multipoint/reference-1: running measured
+multipoint/reference-2: waiting for prespecified admission
+multipoint/reference-2: running measured
+multipoint/candidate-2: waiting for prespecified admission
+multipoint/candidate-2: running measured
+multipoint/candidate-3: waiting for prespecified admission
+multipoint/candidate-3: running measured
+multipoint/reference-3: waiting for prespecified admission
+multipoint/reference-3: running measured
+multipoint/reference-4: waiting for prespecified admission
+multipoint/reference-4: running measured
+multipoint/candidate-4: waiting for prespecified admission
+multipoint/candidate-4: running measured
+multipoint/candidate-5: waiting for prespecified admission
+multipoint/candidate-5: running measured
+multipoint/reference-5: waiting for prespecified admission
+multipoint/reference-5: running measured
+multipoint: PASS
+route/reference-0: waiting for prespecified admission
+route/reference-0: running warmup
+route/candidate-0: waiting for prespecified admission
+route/candidate-0: running warmup
+route/candidate-1: waiting for prespecified admission
+route/candidate-1: running measured
+route/reference-1: waiting for prespecified admission
+route/reference-1: running measured
+route/reference-2: waiting for prespecified admission
+route/reference-2: running measured
+route/candidate-2: waiting for prespecified admission
+route/candidate-2: running measured
+route/candidate-3: waiting for prespecified admission
+route/candidate-3: running measured
+route/reference-3: waiting for prespecified admission
+route/reference-3: running measured
+route/reference-4: waiting for prespecified admission
+route/reference-4: running measured
+route/candidate-4: waiting for prespecified admission
+route/candidate-4: running measured
+route/candidate-5: waiting for prespecified admission
+route/candidate-5: running measured
+route/reference-5: waiting for prespecified admission
+route/reference-5: running measured
+route: PASS
+.
+----------------------------------------------------------------------
+Ran 11 tests in 0.105s
+
+OK

@@ -1,0 +1,448 @@
+{
+  "label": "multipoint-candidate-1",
+  "before": {
+    "utc": "2026-10-20T22:39:03Z",
+    "monotonic_s": 46095.059397239,
+    "proc_self_cgroup": "0::/\n",
+    "group": "/",
+    "mount": "/sys/fs/cgroup",
+    "leaf": "/sys/fs/cgroup",
+    "ancestors": [
+      {
+        "path": "/sys/fs/cgroup",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "text": "0-15\n"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 294380972\nuser_usec 273320900\nsystem_usec 21060072\nnice_usec 242223\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=0.12 avg60=0.13 avg300=0.06 total=931285\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=518569\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.60 avg60=0.46 avg300=0.15 total=1194194\nfull avg10=0.60 avg60=0.46 avg300=0.15 total=1188927\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+          }
+        }
+      }
+    ],
+    "cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "nice": 0,
+    "scheduler": 0,
+    "host_resources": {
+      "/proc/stat": {
+        "text": "cpu  8945634 341 2084238 62483572 165603 254913 150288 0 7858586 0\ncpu0 914010 39 195545 3449270 6466 14419 27678 0 808905 0\ncpu1 1094815 15 208873 3312978 3424 8257 6351 0 978831 0\ncpu2 1158696 110 240682 3191934 8166 13656 16430 0 1026941 0\ncpu3 967773 1 179737 3471987 3070 6933 4548 0 867928 0\ncpu4 1260610 59 265868 3084872 8701 12835 11069 0 1113018 0\ncpu5 966991 5 179659 3477681 2687 5979 3161 0 867076 0\ncpu6 1307196 5 271012 3043264 8829 11977 7214 0 1156708 0\ncpu7 915888 1 169905 3539253 2542 5896 2248 0 821059 0\ncpu8 154954 30 77294 4331525 20459 29902 15881 0 128495 0\ncpu9 46790 19 53368 4457444 17993 34054 13746 0 27417 0\ncpu10 22838 14 29502 4530635 21934 17057 5606 0 9758 0\ncpu11 16600 9 21373 4560823 14732 11910 3665 0 6105 0\ncpu12 40694 5 49528 4494293 12406 20408 8624 0 22390 0\ncpu13 27650 5 51225 4503471 11920 22725 9004 0 8446 0\ncpu14 25746 8 47470 4512643 11469 20527 7962 0 7681 0\ncpu15 24377 7 43189 4521492 10796 18371 7094 0 7819 0\nintr 338981449 0 0 0 0 0 0 0 0 0 1090 0 0 0 0 0 0 21 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 3 0 1 957 955 0 0 1272 0 0 0 0 0 0 0 30711 0 0 0 0 0 0 0 3591 3614 0 0 0 0 0 0 0 0 0 0 0 0 0 0 357 307319 88092 351542 56629 244396 109271 337009 63103 1153080 1221732 1516597 1072847 735501 690631 661225 626010 0 0 0 0 0 0 0 0 0 0 0 0 0 86816 47 653309 41347 34765 48595 49149 48722 68550 82803 26406 55316 44192 44315 83111 54612 35309 3 0 0 0 0 0 2512 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nctxt 389957127\nbtime 1792489848\nprocesses 4299045\nprocs_running 2\nprocs_blocked 0\nsoftirq 201436215 13727 16024288 160 1523463 364 0 31904 82813707 477 101028125\n"
+      },
+      "/proc/pressure/cpu": {
+        "text": "some avg10=0.43 avg60=0.41 avg300=0.18 total=83463499\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+      },
+      "/proc/pressure/io": {
+        "text": "some avg10=0.29 avg60=0.23 avg300=0.25 total=72534770\nfull avg10=0.25 avg60=0.18 avg300=0.21 total=66924892\n"
+      },
+      "/proc/pressure/memory": {
+        "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=27\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=27\n"
+      }
+    }
+  },
+  "driver_call_wall_s": 2.991474932001438,
+  "after": {
+    "utc": "2026-10-20T22:39:06Z",
+    "monotonic_s": 46098.051364819,
+    "proc_self_cgroup": "0::/\n",
+    "group": "/",
+    "mount": "/sys/fs/cgroup",
+    "leaf": "/sys/fs/cgroup",
+    "ancestors": [
+      {
+        "path": "/sys/fs/cgroup",
+        "controls": {
+          "cpu.max": {
+            "text": "max 100000\n"
+          },
+          "cpu.max.burst": {
+            "text": "0\n"
+          },
+          "cpu.weight": {
+            "text": "100\n"
+          },
+          "cpu.idle": {
+            "text": "0\n"
+          },
+          "cpuset.cpus.effective": {
+            "text": "0-15\n"
+          }
+        },
+        "observations": {
+          "cpu.stat": {
+            "text": "usage_usec 299569184\nuser_usec 278182361\nsystem_usec 21386822\nnice_usec 245156\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+          },
+          "cpu.stat.local": {
+            "text": "throttled_usec 0\n"
+          },
+          "cpu.pressure": {
+            "text": "some avg10=0.08 avg60=0.12 avg300=0.06 total=958756\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=534029\n"
+          },
+          "io.pressure": {
+            "text": "some avg10=0.55 avg60=0.46 avg300=0.16 total=1215803\nfull avg10=0.55 avg60=0.46 avg300=0.16 total=1210432\n"
+          },
+          "memory.pressure": {
+            "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+          }
+        }
+      }
+    ],
+    "cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "nice": 0,
+    "scheduler": 0,
+    "host_resources": {
+      "/proc/stat": {
+        "text": "cpu  8946338 341 2084380 62487472 165618 254939 150299 0 7858737 0\ncpu0 914094 39 195566 3449457 6467 14421 27680 0 808928 0\ncpu1 1094842 15 208876 3313246 3424 8258 6352 0 978834 0\ncpu2 1158768 110 240695 3192139 8169 13659 16432 0 1026956 0\ncpu3 967795 1 179738 3472263 3070 6934 4549 0 867928 0\ncpu4 1260733 59 265883 3085027 8706 12837 11070 0 1113033 0\ncpu5 967035 5 179670 3477922 2690 5980 3161 0 867089 0\ncpu6 1307271 5 271041 3043456 8831 11978 7214 0 1156753 0\ncpu7 915958 1 169927 3539462 2542 5896 2248 0 821091 0\ncpu8 154981 30 77301 4331790 20459 29904 15881 0 128499 0\ncpu9 46814 19 53374 4457712 17993 34056 13747 0 27419 0\ncpu10 22859 14 29504 4530908 21934 17059 5606 0 9758 0\ncpu11 16621 9 21375 4561099 14732 11912 3666 0 6105 0\ncpu12 40715 5 49530 4494569 12406 20409 8624 0 22390 0\ncpu13 27674 5 51227 4503741 11920 22727 9004 0 8446 0\ncpu14 25770 8 47474 4512911 11469 20528 7962 0 7681 0\ncpu15 24401 7 43192 4521762 10796 18373 7094 0 7819 0\nintr 339016372 0 0 0 0 0 0 0 0 0 1090 0 0 0 0 0 0 21 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 3 0 1 957 955 0 0 1272 0 0 0 0 0 0 0 30711 0 0 0 0 0 0 0 3591 3614 0 0 0 0 0 0 0 0 0 0 0 0 0 0 357 307325 88092 351546 56629 244398 109272 337016 63109 1153080 1221732 1516612 1073024 735501 690631 661225 626010 0 0 0 0 0 0 0 0 0 0 0 0 0 86816 47 653327 41348 34765 48596 49149 48722 68553 82806 26406 55318 44192 44315 83115 54612 35309 3 0 0 0 0 0 2512 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nctxt 389973211\nbtime 1792489848\nprocesses 4299567\nprocs_running 2\nprocs_blocked 0\nsoftirq 201450277 13727 16025387 160 1523499 364 0 31904 82818635 477 101036124\n"
+      },
+      "/proc/pressure/cpu": {
+        "text": "some avg10=0.47 avg60=0.42 avg300=0.18 total=83498755\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+      },
+      "/proc/pressure/io": {
+        "text": "some avg10=0.34 avg60=0.25 avg300=0.25 total=72556767\nfull avg10=0.31 avg60=0.20 avg300=0.22 total=66946499\n"
+      },
+      "/proc/pressure/memory": {
+        "text": "some avg10=0.00 avg60=0.00 avg300=0.00 total=27\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=27\n"
+      }
+    }
+  },
+  "membership_monitor": {
+    "sampler_calls": 59,
+    "observed_births": 15,
+    "members": [
+      {
+        "pid": 14100,
+        "birth_ticks": 4609505,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46095.060023996,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/time",
+          "-q",
+          "-f",
+          "{\"wall_s\":%e,\"user_s\":%U,\"system_s\":%S,\"max_rss_kib\":%M}",
+          "-o",
+          "/evidence/multipoint-archon/candidate-1/time.json",
+          "/usr/bin/python3",
+          "/work/candidate/bin/kicad-route",
+          "--out",
+          "/evidence/multipoint-archon/candidate-out",
+          "run",
+          "--backend",
+          "krt",
+          "--dir",
+          "/work/reference/reports/routing-engine/inputs/multipoint-tap",
+          "--run-dir",
+          "/evidence/multipoint-archon/candidate-1/run",
+          "--json",
+          "--budget",
+          "180"
+        ]
+      },
+      {
+        "pid": 14101,
+        "birth_ticks": 4609506,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46095.110358093,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/work/candidate/bin/kicad-route",
+          "--out",
+          "/evidence/multipoint-archon/candidate-out",
+          "run",
+          "--backend",
+          "krt",
+          "--dir",
+          "/work/reference/reports/routing-engine/inputs/multipoint-tap",
+          "--run-dir",
+          "/evidence/multipoint-archon/candidate-1/run",
+          "--json",
+          "--budget",
+          "180"
+        ]
+      },
+      {
+        "pid": 14102,
+        "birth_ticks": 4609515,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46095.160808203,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 14120,
+        "birth_ticks": 4609523,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46095.261932596,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 14137,
+        "birth_ticks": 4609532,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46095.363066988,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/work/candidate/src/kicad_route/kicad/facts.py",
+          "/evidence/multipoint-archon/candidate-1/run/reference/multipoint-tap/multipoint-tap.kicad_pcb",
+          "/evidence/multipoint-archon/candidate-1/run/validate/reference-facts.json"
+        ]
+      },
+      {
+        "pid": 14160,
+        "birth_ticks": 4609544,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46095.46391329,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 14177,
+        "birth_ticks": 4609552,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46095.565087288,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/work/candidate/src/kicad_route/kicad/locks.py",
+          "lock",
+          "/evidence/multipoint-archon/candidate-1/run/work/input/multipoint-tap/multipoint-tap.kicad_pcb",
+          "/evidence/multipoint-archon/candidate-1/run/work/locks.json"
+        ]
+      },
+      {
+        "pid": 14194,
+        "birth_ticks": 4609564,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46095.666135853,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv/bin/python",
+          "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/router/py_router/route.py",
+          "/evidence/multipoint-archon/candidate-1/run/work/input/multipoint-tap/multipoint-tap.kicad_pcb",
+          "--output",
+          "/evidence/multipoint-archon/candidate-1/run/work/krt-out/multipoint-tap.kicad_pcb",
+          "--escalation",
+          "off",
+          "--fab-tier",
+          "standard",
+          "--strict-sizes",
+          "--no-power-tap-neckdown",
+          "--no-fix-drc-settings",
+          "--json-out",
+          "/evidence/multipoint-archon/candidate-1/run/work/krt-out/summary.json",
+          "--keep-input-copper",
+          "--no-stub-layer-swap",
+          "--nets",
+          "*"
+        ]
+      },
+      {
+        "pid": 14225,
+        "birth_ticks": 4609661,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46096.631341671,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/work/candidate/src/kicad_route/kicad/locks.py",
+          "restore",
+          "/evidence/multipoint-archon/candidate-1/run/work/krt-out/multipoint-tap.kicad_pcb",
+          "/evidence/multipoint-archon/candidate-1/run/work/locks.json"
+        ]
+      },
+      {
+        "pid": 14242,
+        "birth_ticks": 4609671,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46096.732760016,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/evidence/multipoint-archon/candidate-1/run/validate/candidate-refill.json",
+          "/evidence/multipoint-archon/candidate-1/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+        ]
+      },
+      {
+        "pid": 14259,
+        "birth_ticks": 4609720,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46097.24189703,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/evidence/multipoint-archon/candidate-1/run/validate/candidate-drc.json",
+          "/evidence/multipoint-archon/candidate-1/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+        ]
+      },
+      {
+        "pid": 14276,
+        "birth_ticks": 4609765,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46097.697127243,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/work/candidate/src/kicad_route/kicad/facts.py",
+          "/evidence/multipoint-archon/candidate-1/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb",
+          "/evidence/multipoint-archon/candidate-1/run/validate/candidate-facts.json"
+        ]
+      },
+      {
+        "pid": 14293,
+        "birth_ticks": 4609774,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46097.747539484,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "/usr/bin/python3",
+          "/work/candidate/src/kicad_route/kicad/pour.py",
+          "/evidence/multipoint-archon/candidate-1/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb",
+          "/evidence/multipoint-archon/candidate-1/run/validate/candidate-pour.json"
+        ]
+      },
+      {
+        "pid": 14310,
+        "birth_ticks": 4609782,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46097.848627466,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      },
+      {
+        "pid": 14333,
+        "birth_ticks": 4609794,
+        "gnu_time_root_pid": 14100,
+        "observed_monotonic_s": 46097.949810364,
+        "group": "/",
+        "status": "observed",
+        "in_scope": true,
+        "argv": [
+          "kicad-cli",
+          "version"
+        ]
+      }
+    ],
+    "outside_scope": [],
+    "read_errors": [],
+    "exit_races": [],
+    "limitation": "Each birth from the frozen RSS tracked map is checked once. Reaped/reused races are explicit; this is not continuous cgroup-migration tracing."
+  },
+  "resource_violations": []
+}

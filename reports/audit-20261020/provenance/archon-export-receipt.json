@@ -1,0 +1,11 @@
+{
+  "index": "/evidence/archon-filtered-export/archon-evidence-index.json",
+  "sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+  "files": 2540,
+  "bytes": 17822127,
+  "omissions": {
+    "files": 5330,
+    "bytes": 406121715,
+    "symlinks": 8
+  }
+}

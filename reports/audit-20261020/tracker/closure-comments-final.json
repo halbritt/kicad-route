@@ -1,0 +1,169 @@
+{
+  "schema": "kicad-route/closure-comments/1",
+  "source_commit": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+  "tracker_writes": false,
+  "intended_report_root": "reports/audit-20261020",
+  "finalization_required": [
+    "Commit and push the verified durable report before posting."
+  ],
+  "comments": {
+    "KICADROUTE-68": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 4,
+      "body": "Ownership/type/overlap/symlink refusal precedes pytest; atomic fresh/owned refresh preserves prior successful publications on failure.\n\nProof: reports/audit-20261020/publication/verification-original.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/publication/verification-original.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-69": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 5,
+      "body": "Corpus comparison rejects lost validation, routing completion, counters and preservation evidence; the exact process-PASS/validation-FAIL case fails check and after_update.\n\nProof: reports/audit-20261020/tests/coverage-union.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/coverage-union.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-70": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 4,
+      "body": "Final candidate evidence and determinism bind the post-refill file; pre-refill/backend digests remain separate. Strict native changed-refill/revalidation receipts pass.\n\nProof: reports/audit-20261020/tests/final-focused.xml, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/final-focused.xml",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-71": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 5,
+      "body": "Cache keys retain board, native CLI/pcbnew and grader/schema content identities. Immutable complete generations activate via atomic pointer; corrupt/interrupted/concurrent entries cannot yield mixed hits. Fresh native facts safely replace one redundant probe.\n\nProof: reports/audit-20261020/performance/diagnostics/performance-native-cache-identity.json, reports/audit-20261020/tests/final-focused.xml, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/performance/diagnostics/performance-native-cache-identity.json",
+        "reports/audit-20261020/tests/final-focused.xml",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-72": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 4,
+      "body": "Shared quote-aware scanning protects both public writers. Quoted text and malformed-input cases pass the owned fast gate; native literal-parenthesis artwork routes without loss.\n\nProof: reports/audit-20261020/kernel/agent497-kernel.log, reports/audit-20261020/tests/coverage-union.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/kernel/agent497-kernel.log",
+        "reports/audit-20261020/tests/coverage-union.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-73": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 5,
+      "body": "Preserves text, netless/net-tied graphics and footprint copper, respects native clearance in the narrow passage, and explicitly refuses unsupported shapes. On user-selected Archon, all four boards and 48 native attempts pass copper/native quality and the unchanged 1.10 full-CLI wall and dual-memory limits.\n\nProof: reports/audit-20261020/performance/archon/diff-pair-archon/comparison.json, reports/audit-20261020/performance/archon/four-layer-archon/comparison.json, reports/audit-20261020/performance/archon/multipoint-archon/comparison.json, reports/audit-20261020/performance/archon/route-demo-archon/comparison.json, reports/audit-20261020/provenance/archon-final-verification.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/performance/archon/diff-pair-archon/comparison.json",
+        "reports/audit-20261020/performance/archon/four-layer-archon/comparison.json",
+        "reports/audit-20261020/performance/archon/multipoint-archon/comparison.json",
+        "reports/audit-20261020/performance/archon/route-demo-archon/comparison.json",
+        "reports/audit-20261020/provenance/archon-final-verification.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-74": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 5,
+      "body": "Run fingerprints use executed source/extension/Python/dependency content rather than unrelated Git commits; same failed attempt refusal, force/legacy handling and protect-human reconstruction pass.\n\nProof: reports/audit-20261020/tests/final-focused.xml, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/final-focused.xml",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-75": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 5,
+      "body": "Preparation builds/validates a disjoint immutable runtime before atomic selection. Failure, cold recovery, old-worker pinning and concurrent writer tests pass, including bytecode preparation and repeat-proof build identity. The landed default runtime passed two native repeats with its executed build recorded, followed by doctor.\n\nProof: reports/audit-20261020/provenance/bytecode-preparation.json, reports/audit-20261020/provenance/bytecode-native-build.json, reports/audit-20261020/tests/final-merged-generation.xml, reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/receipt.json, reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/provenance/bytecode-preparation.json",
+        "reports/audit-20261020/provenance/bytecode-native-build.json",
+        "reports/audit-20261020/tests/final-merged-generation.xml",
+        "reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/receipt.json",
+        "reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-76": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 4,
+      "body": "Required repeat failure and record_error make update nonzero with machine-readable evidence; all gates passing returns 0 and preservation of earlier failures are controlled-tested. The landed default runtime passed two native repeats with its executed build recorded, followed by doctor.\n\nProof: reports/audit-20261020/tests/final-focused.xml, reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/receipt.json, reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/final-focused.xml",
+        "reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/receipt.json",
+        "reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-77": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 4,
+      "body": "Any budget/stall/kill flag in the relevant command chain prevents measurement qualification while preserving public process/routing/native grades and candidate bytes. Native single/pair and revalidation cases pass.\n\nProof: reports/audit-20261020/tests/final-focused.xml, reports/audit-20261020/tests/final-merged-generation.xml, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/final-focused.xml",
+        "reports/audit-20261020/tests/final-merged-generation.xml",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-78": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 5,
+      "body": "Published bundles contain a bounded receipt inventory with included hashes and explicit external board/input artifacts; stale-file refresh and symlink refusal tests pass. Native bundle with 12 files and 6 included record bindings verifies without source receipt mutation.\n\nProof: reports/audit-20261020/publication/verification-original.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/publication/verification-original.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-79": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 5,
+      "body": "Fresh built-wheel environment passes packaged fixture/schema, XDG state, doctor/help, native bounded route and campaign, with checkout resolution removed. Installed smoke refuses explicitly; checkout symlink installation remains covered. The landed default runtime passed two native repeats with its executed build recorded, followed by doctor.\n\nProof: reports/audit-20261020/tests/coverage-union.json, reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/receipt.json, reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/tests/coverage-union.json",
+        "reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/receipt.json",
+        "reports/audit-20261020/runtime/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-80": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 5,
+      "body": "Owned offline kernel tests compare bitmap/search behavior with independent oracles. Three invariant-breaking mutants fail assertions. Inventory distinguishes retained and excluded upstream tests; native integration remains separate.\n\nProof: reports/audit-20261020/kernel/agent497-kernel.log, reports/audit-20261020/kernel/agent497-kernel-mutants.log, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/kernel/agent497-kernel.log",
+        "reports/audit-20261020/kernel/agent497-kernel-mutants.log",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    },
+    "KICADROUTE-81": {
+      "status": "ready_after_durable_report_commit",
+      "acceptance_clauses": 6,
+      "body": "Comparison harness rejects missing/failed/censored warmups or samples, enforces native/preservation/completion/pair evidence and mode-specific copper rules, and gates wall/GNU RSS/sampled process-tree RSS at 1.10. Boundary/invalid-metric tests pass.\n\nProof: reports/audit-20261020/performance/archon/multipoint-archon/comparison.json, reports/audit-20261020/tests/final-focused.xml, reports/audit-20261020/provenance/archon-final-verification.json, reports/audit-20261020/final-acceptance.json.\n\nSource: b4bd511d782e87efcefd9d7be2494fff7461a5e4. Passing observations cover all 741 current test nodes across five invocations. The original broad invocation had 686 passed and 2 failed; corrective receipts passed 193/193, 25/25, 24/24 and 113/113. This is not one green final full-suite invocation.",
+      "intended_proof_paths": [
+        "reports/audit-20261020/performance/archon/multipoint-archon/comparison.json",
+        "reports/audit-20261020/tests/final-focused.xml",
+        "reports/audit-20261020/provenance/archon-final-verification.json",
+        "reports/audit-20261020/final-acceptance.json"
+      ],
+      "acceptance": "met"
+    }
+  }
+}

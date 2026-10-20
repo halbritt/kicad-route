@@ -1,0 +1,499 @@
+{
+ "board": "pair.kicad_pcb",
+ "copper_graphics": [],
+ "copper_layer_count": 2,
+ "copper_layers": [
+  {
+   "name": "F.Cu",
+   "type": 0
+  },
+  {
+   "name": "B.Cu",
+   "type": 0
+  }
+ ],
+ "enabled_layers": [
+  "B.Adhesive",
+  "B.Courtyard",
+  "B.Cu",
+  "B.Fab",
+  "B.Mask",
+  "B.Paste",
+  "B.Silkscreen",
+  "Edge.Cuts",
+  "F.Adhesive",
+  "F.Courtyard",
+  "F.Cu",
+  "F.Fab",
+  "F.Mask",
+  "F.Paste",
+  "F.Silkscreen",
+  "Margin",
+  "User.1",
+  "User.2",
+  "User.3",
+  "User.4",
+  "User.Comments",
+  "User.Drawings",
+  "User.Eco1",
+  "User.Eco2"
+ ],
+ "footprints": {
+  "J1": {
+   "fpid": "",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu"
+     ],
+     "net": "/CAN+",
+     "position": [
+      110000000,
+      112000000
+     ],
+     "size": [
+      250000,
+      250000
+     ]
+    },
+    "2": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu"
+     ],
+     "net": "/CAN-",
+     "position": [
+      110000000,
+      112600000
+     ],
+     "size": [
+      250000,
+      250000
+     ]
+    },
+    "3": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu"
+     ],
+     "net": "/AUX",
+     "position": [
+      110000000,
+      117000000
+     ],
+     "size": [
+      250000,
+      250000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    110000000,
+    112000000
+   ],
+   "value": ""
+  },
+  "J2": {
+   "fpid": "",
+   "layer": "F.Cu",
+   "locked": false,
+   "orientation": 0.0,
+   "pads": {
+    "1": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu"
+     ],
+     "net": "/CAN+",
+     "position": [
+      140000000,
+      112000000
+     ],
+     "size": [
+      250000,
+      250000
+     ]
+    },
+    "2": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu"
+     ],
+     "net": "/CAN-",
+     "position": [
+      140000000,
+      112600000
+     ],
+     "size": [
+      250000,
+      250000
+     ]
+    },
+    "3": {
+     "attribute": 1,
+     "drill": [
+      0,
+      0
+     ],
+     "layers": [
+      "F.Cu"
+     ],
+     "net": "/AUX",
+     "position": [
+      140000000,
+      117000000
+     ],
+     "size": [
+      250000,
+      250000
+     ]
+    }
+   },
+   "path": "",
+   "position": [
+    140000000,
+    112000000
+   ],
+   "value": ""
+  }
+ },
+ "kicad_version": "10.0.7-10.0.7~ubuntu24.04.1",
+ "netclass_count": 2,
+ "nets": {
+  "/AUX": {
+   "clearance": 200000,
+   "netclass": "Default",
+   "track_width": 200000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  },
+  "/CAN+": {
+   "clearance": 200000,
+   "netclass": "CAN",
+   "track_width": 300000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  },
+  "/CAN-": {
+   "clearance": 200000,
+   "netclass": "CAN",
+   "track_width": 300000,
+   "uvia_diameter": 300000,
+   "uvia_drill": 100000,
+   "via_diameter": 600000,
+   "via_drill": 300000
+  }
+ },
+ "outline": [
+  {
+   "end": [
+    100000000,
+    130000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    100000000,
+    100000000
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    150000000,
+    100000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    100000000,
+    100000000
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    150000000,
+    130000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    100000000,
+    130000000
+   ],
+   "width": 100000
+  },
+  {
+   "end": [
+    150000000,
+    130000000
+   ],
+   "layer": "Edge.Cuts",
+   "shape": "Line",
+   "start": [
+    150000000,
+    100000000
+   ],
+   "width": 100000
+  }
+ ],
+ "rule_areas": [],
+ "setup": [
+  "setup",
+  [
+   "pad_to_mask_clearance",
+   "0"
+  ],
+  [
+   "allow_soldermask_bridges_in_footprints",
+   "no"
+  ],
+  [
+   "tenting",
+   [
+    "front",
+    "yes"
+   ],
+   [
+    "back",
+    "yes"
+   ]
+  ],
+  [
+   "covering",
+   [
+    "front",
+    "no"
+   ],
+   [
+    "back",
+    "no"
+   ]
+  ],
+  [
+   "plugging",
+   [
+    "front",
+    "no"
+   ],
+   [
+    "back",
+    "no"
+   ]
+  ],
+  [
+   "capping",
+   "no"
+  ],
+  [
+   "filling",
+   "no"
+  ]
+ ],
+ "sha256": "b71c911018e5f267f7327e2f164f50465de1d84faed6576b61b77b989c96a9f6",
+ "stackup": [
+  "stackup",
+  [
+   "layer",
+   "F.SilkS",
+   [
+    "type",
+    "Top Silk Screen"
+   ]
+  ],
+  [
+   "layer",
+   "F.Paste",
+   [
+    "type",
+    "Top Solder Paste"
+   ]
+  ],
+  [
+   "layer",
+   "F.Mask",
+   [
+    "type",
+    "Top Solder Mask"
+   ],
+   [
+    "color",
+    "Green"
+   ],
+   [
+    "thickness",
+    "0.01"
+   ]
+  ],
+  [
+   "layer",
+   "F.Cu",
+   [
+    "type",
+    "copper"
+   ],
+   [
+    "thickness",
+    "0.035"
+   ]
+  ],
+  [
+   "layer",
+   "dielectric 1",
+   [
+    "type",
+    "core"
+   ],
+   [
+    "thickness",
+    "1.51"
+   ],
+   [
+    "material",
+    "FR4"
+   ],
+   [
+    "epsilon_r",
+    "4.5"
+   ],
+   [
+    "loss_tangent",
+    "0.02"
+   ]
+  ],
+  [
+   "layer",
+   "B.Cu",
+   [
+    "type",
+    "copper"
+   ],
+   [
+    "thickness",
+    "0.035"
+   ]
+  ],
+  [
+   "layer",
+   "B.Mask",
+   [
+    "type",
+    "Bottom Solder Mask"
+   ],
+   [
+    "color",
+    "Green"
+   ],
+   [
+    "thickness",
+    "0.01"
+   ]
+  ],
+  [
+   "layer",
+   "B.Paste",
+   [
+    "type",
+    "Bottom Solder Paste"
+   ]
+  ],
+  [
+   "layer",
+   "B.SilkS",
+   [
+    "type",
+    "Bottom Silk Screen"
+   ]
+  ],
+  [
+   "copper_finish",
+   "None"
+  ],
+  [
+   "dielectric_constraints",
+   "no"
+  ]
+ ],
+ "tracks": [
+  {
+   "end": [
+    139906250,
+    112000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/CAN+",
+   "start": [
+    110093750,
+    112000000
+   ],
+   "uuid": "773722e2-f52b-4ebf-88b4-eefbab8697d8",
+   "width": 250000
+  },
+  {
+   "end": [
+    139906250,
+    112600000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/CAN-",
+   "start": [
+    110093750,
+    112600000
+   ],
+   "uuid": "9a80dace-ee86-4795-b271-4371834e6917",
+   "width": 250000
+  },
+  {
+   "end": [
+    140000000,
+    117000000
+   ],
+   "kind": "segment",
+   "layer": "F.Cu",
+   "locked": false,
+   "net": "/AUX",
+   "start": [
+    110000000,
+    117000000
+   ],
+   "uuid": "399d647d-ccde-4dc3-b44b-daf4d40c55b4",
+   "width": 200000
+  }
+ ],
+ "vias": [],
+ "zones": []
+}

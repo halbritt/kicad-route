@@ -1,0 +1,154 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "local-toolchain",
+  "evidence_class": "evidence-repository-contracts",
+  "summary": "Current pyproject declares Python>=3.12, setuptools>=68, no base Python dependencies and test extra pytest/jsonschema>=4.18. Supported platform remains Linux with native KiCad required. Router requirements retain NumPy>=1.22, SciPy>=1.7, Shapely>=2.0, Pillow>=9.2; prepared603 receipts record Python3.12.3, NumPy2.5.4/SciPy1.18.1/Shapely2.2.0/Pillow13.0.0. Rust crate0.23.1 is edition2021, PyO3/numpy0.23, releaseLTO with one codegen unit. Makefile preserves make smoke native integration and separate kernel/kernel-mutants commands; kernel builds locked/offline owned Rust source. Tracked tool configuration inspection found pyproject only: no configured formatter/linter/type-checker, CI Python matrix, tox or pytest.ini; no broader runtime/version qualification is claimed. Adjacent wrapper modules continue pathlib/common.run_cmd/common.write_json conventions; public interface schemas and pytest tests define serialized/API behavior. The final primary patch f0f73da uses Python standard-library ContextVar/contextlib only, retaining the supported Python floor and all package versions. The exact current source is verified clean; 113 focused observations exercise environment scope, baseline identity, installation/generation and update qualification.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/pyproject.toml",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "53f1ef393cee09b813b6cc54e0c17ecbffbcfbb151d87b14160dcef1b4361ecb"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/Makefile",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "8ae3c60faca53cff270bf1fe9d3f718c323989f0d6a1fbf2e70f910e26b6b914"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/requirements.txt",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/rust_router/Cargo.toml",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "b75f1a594d1933a7b539f123e356014f6af8c621864e01f6f0746d31330acf89"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-source-snapshots/common-before-env-reuse.py",
+      "method": "Read retained artifact or current source; no gate execution; historical bytes retained explicitly after environment-reuse update (original observation time unchanged).",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "df47e9868ad61538abd4f6e39c9987e2d70d058a23ed6e6aa32354d9e358dce4"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/installation.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/docs/interface.md",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "4902a964258310c3554258196240eefedada05563901c22488281a813cb91e2b"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/tests/test_interface_contract.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "b58a1f56c99a10783ad0d92fbdace79d1b8bb54c7f83e9a2c374236b633d2cf1"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/bytecode-native-build.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "bcc5ff9d7d6437af8a8f5facb56ca296f1620655fc03dbcd95b6e4edbe4695a3"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:pyproject.toml",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "53f1ef393cee09b813b6cc54e0c17ecbffbcfbb151d87b14160dcef1b4361ecb"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:Makefile",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "8ae3c60faca53cff270bf1fe9d3f718c323989f0d6a1fbf2e70f910e26b6b914"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/router/requirements.txt",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/router/rust_router/Cargo.toml",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "b75f1a594d1933a7b539f123e356014f6af8c621864e01f6f0746d31330acf89"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/common.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "df47e9868ad61538abd4f6e39c9987e2d70d058a23ed6e6aa32354d9e358dce4"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/installation.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:docs/interface.md",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "4902a964258310c3554258196240eefedada05563901c22488281a813cb91e2b"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:tests/test_interface_contract.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "b58a1f56c99a10783ad0d92fbdace79d1b8bb54c7f83e9a2c374236b633d2cf1"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/common.py",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "4fd09eef7547c947700067975a54e08c8e6b3ed8d3c5ac94cf8ae77e4a593038"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@f0f73da86835ec583f2a2c9128e6893fa59c03b7:src/kicad_route/common.py",
+      "method": "Hash-bound source at frozen final primary commit",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "4fd09eef7547c947700067975a54e08c8e6b3ed8d3c5ac94cf8ae77e4a593038"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/cli.py",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "61aff3300f1f784a9e8a778e45430e3f5cb8041f820b7feea80423566bf60a4e"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@f0f73da86835ec583f2a2c9128e6893fa59c03b7:src/kicad_route/cli.py",
+      "method": "Hash-bound source at frozen final primary commit",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "61aff3300f1f784a9e8a778e45430e3f5cb8041f820b7feea80423566bf60a4e"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-env-reuse.xml",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "4e291b06e910c28e84318791b0c9f36b18cac4cebb1bef8b9c21b9dc55601f9f"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe"
+    }
+  ],
+  "satisfies": [
+    "Python and dependency version matrix",
+    "formatter linter and type-checker configuration",
+    "adjacent code",
+    "public API and tests",
+    "repository toolchain inspection",
+    "accepted ADR, RFC, API, compatibility, generation, build, and test contracts"
+  ]
+}

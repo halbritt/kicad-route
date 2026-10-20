@@ -1,0 +1,10 @@
+{
+  "project": "multipoint-tap",
+  "source_dir": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap",
+  "source": "working tree",
+  "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+  "files": {
+    "multipoint-tap.kicad_pcb": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+    "multipoint-tap.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+  }
+}

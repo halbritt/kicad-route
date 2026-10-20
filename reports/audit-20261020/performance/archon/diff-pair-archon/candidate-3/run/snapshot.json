@@ -1,0 +1,11 @@
+{
+  "project": "diff-pair",
+  "source_dir": "/work/reference/reports/routing-engine/inputs/diff-pair",
+  "source": "working tree",
+  "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+  "files": {
+    "pair.kicad_dru": "89aef9fe89d90d5d5df5c34afd637c521dc983cfbcd61b0f540641cd13605586",
+    "pair.kicad_pcb": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+    "pair.kicad_pro": "3e37285b31dcfbcf53b3af34d7616a5a8b8364d8ae5406382b67c2146146936c"
+  }
+}

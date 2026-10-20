@@ -1,0 +1,1500 @@
+{
+  "schema": "kicad-route/engine-comparison/2",
+  "project": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/four-layer-plane",
+  "args": [
+    "--budget",
+    "180",
+    "--backend-arg=--layers",
+    "--backend-arg=F.Cu",
+    "--backend-arg=B.Cu"
+  ],
+  "reference": [
+    {
+      "wall_s": 43.54,
+      "user_s": 34.44,
+      "system_s": 5.24,
+      "max_rss_kib": 1591964,
+      "process_tree_peak_rss_kib": 1716208,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 710,
+        "max_interval_s": 0.1489921121392399
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c2ac657d5617",
+        "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "rust_router": "0.23.1",
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0c09ac",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c2ac657d5617",
+          "version": "0.23.1",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "extension_module_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/reference-1/run/result.json",
+      "backend_runtime_s": 17.195
+    },
+    {
+      "wall_s": 43.38,
+      "user_s": 34.7,
+      "system_s": 5.11,
+      "max_rss_kib": 1584028,
+      "process_tree_peak_rss_kib": 1719800,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 641,
+        "max_interval_s": 0.15400135586969554
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c2ac657d5617",
+        "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "rust_router": "0.23.1",
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0c09ac",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c2ac657d5617",
+          "version": "0.23.1",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "extension_module_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/reference-2/run/result.json",
+      "backend_runtime_s": 16.865
+    },
+    {
+      "wall_s": 43.42,
+      "user_s": 34.41,
+      "system_s": 5.92,
+      "max_rss_kib": 1595120,
+      "process_tree_peak_rss_kib": 1733480,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 666,
+        "max_interval_s": 0.15230536088347435
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c2ac657d5617",
+        "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "rust_router": "0.23.1",
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0c09ac",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c2ac657d5617",
+          "version": "0.23.1",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "extension_module_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/reference-3/run/result.json",
+      "backend_runtime_s": 17.148
+    },
+    {
+      "wall_s": 43.72,
+      "user_s": 34.36,
+      "system_s": 5.38,
+      "max_rss_kib": 1600672,
+      "process_tree_peak_rss_kib": 1654192,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 676,
+        "max_interval_s": 0.15067586209625006
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c2ac657d5617",
+        "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "rust_router": "0.23.1",
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0c09ac",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c2ac657d5617",
+          "version": "0.23.1",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "extension_module_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/reference-4/run/result.json",
+      "backend_runtime_s": 17.025
+    },
+    {
+      "wall_s": 42.22,
+      "user_s": 34.32,
+      "system_s": 5.1,
+      "max_rss_kib": 1592400,
+      "process_tree_peak_rss_kib": 1726756,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 635,
+        "max_interval_s": 0.1513937460258603
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c2ac657d5617",
+        "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "rust_router": "0.23.1",
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0c09ac",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c2ac657d5617",
+          "version": "0.23.1",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "extension_module_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/reference-5/run/result.json",
+      "backend_runtime_s": 16.906
+    }
+  ],
+  "candidate": [
+    {
+      "wall_s": 41.98,
+      "user_s": 33.84,
+      "system_s": 5.37,
+      "max_rss_kib": 1603332,
+      "process_tree_peak_rss_kib": 1705136,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 644,
+        "max_interval_s": 0.1519008248578757
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c6c09054f684",
+        "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "runtime": {
+          "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+          "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+          "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+        },
+        "rust_router": "0.23.1",
+        "execution_identity": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0f73da",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/candidate-1/run/result.json",
+      "backend_runtime_s": 16.738
+    },
+    {
+      "wall_s": 42.98,
+      "user_s": 33.91,
+      "system_s": 5.0,
+      "max_rss_kib": 1604780,
+      "process_tree_peak_rss_kib": 1729916,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 694,
+        "max_interval_s": 0.1494755819439888
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c6c09054f684",
+        "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "runtime": {
+          "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+          "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+          "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+        },
+        "rust_router": "0.23.1",
+        "execution_identity": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0f73da",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/candidate-2/run/result.json",
+      "backend_runtime_s": 16.715
+    },
+    {
+      "wall_s": 41.67,
+      "user_s": 33.61,
+      "system_s": 5.03,
+      "max_rss_kib": 1588224,
+      "process_tree_peak_rss_kib": 1730560,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 628,
+        "max_interval_s": 0.15286962897516787
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c6c09054f684",
+        "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "runtime": {
+          "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+          "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+          "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+        },
+        "rust_router": "0.23.1",
+        "execution_identity": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0f73da",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/candidate-3/run/result.json",
+      "backend_runtime_s": 16.341
+    },
+    {
+      "wall_s": 40.6,
+      "user_s": 33.12,
+      "system_s": 4.91,
+      "max_rss_kib": 1603676,
+      "process_tree_peak_rss_kib": 1707976,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 633,
+        "max_interval_s": 0.15643698815256357
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c6c09054f684",
+        "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "runtime": {
+          "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+          "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+          "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+        },
+        "rust_router": "0.23.1",
+        "execution_identity": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0f73da",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/candidate-4/run/result.json",
+      "backend_runtime_s": 15.733
+    },
+    {
+      "wall_s": 41.82,
+      "user_s": 33.56,
+      "system_s": 5.05,
+      "max_rss_kib": 1585612,
+      "process_tree_peak_rss_kib": 1732804,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 659,
+        "max_interval_s": 0.15659877588041127
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c6c09054f684",
+        "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "runtime": {
+          "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+          "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+          "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+        },
+        "rust_router": "0.23.1",
+        "execution_identity": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0f73da",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/candidate-5/run/result.json",
+      "backend_runtime_s": 16.078
+    }
+  ],
+  "warmup": {
+    "reference": {
+      "wall_s": 66.68,
+      "user_s": 53.85,
+      "system_s": 8.39,
+      "max_rss_kib": 1593632,
+      "process_tree_peak_rss_kib": 1730756,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 981,
+        "max_interval_s": 0.15349218109622598
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c2ac657d5617",
+        "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "rust_router": "0.23.1",
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0c09ac",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c2ac657d5617",
+          "version": "0.23.1",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "extension_module_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/reference-0/run/result.json",
+      "backend_runtime_s": 17.111
+    },
+    "candidate": {
+      "wall_s": 65.74,
+      "user_s": 53.1,
+      "system_s": 7.81,
+      "max_rss_kib": 1589868,
+      "process_tree_peak_rss_kib": 1732572,
+      "memory_sampling": {
+        "poll_wait_s": 0.05,
+        "samples": 1045,
+        "max_interval_s": 0.1514183150138706
+      },
+      "cli_sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "reference_files": {
+        "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+        "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      },
+      "exit_code": 0,
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected": 0,
+        "open_nets": [],
+        "preservation": {
+          "project_files": "PASS",
+          "board_outline": "PASS",
+          "layers": "PASS",
+          "stackup": "PASS",
+          "board_setup": "PASS",
+          "nets_and_netclasses": "PASS",
+          "pad_connectivity": "PASS",
+          "footprints": "PASS",
+          "zones": "PASS",
+          "keepouts": "PASS",
+          "copper_graphics": "PASS",
+          "protected_copper": "PASS",
+          "new_copper_netclass_geometry": "PASS",
+          "routing_scope": "PASS",
+          "net_completion": "PASS",
+          "pour_integrity": "PASS"
+        },
+        "new_violations": 0,
+        "input_fingerprint": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+        "copper": "cd9e0eec2bac94c94019d0c197dfdfc16b258fd731c14370998190e715b22ef8",
+        "pairs": [],
+        "wall_clock_stop": false
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c6c09054f684",
+        "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "runtime": {
+          "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+          "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+          "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+        },
+        "rust_router": "0.23.1",
+        "execution_identity": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      },
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0f73da",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+        "state_manifest_drift": []
+      },
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/candidate-0/run/result.json",
+      "backend_runtime_s": 17.106
+    }
+  },
+  "mode": "migration-equivalence",
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "measurement": "medians: full-CLI wall time, GNU-time largest individual-process RSS, and sampled concurrent process-tree summed RSS (50 ms polling wait, actual intervals retained); all three gates enforce 1.10. Sampled RSS is a lower bound on peak.",
+  "cpu_rate_protocol": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-metadata/protocol.json",
+  "verdict": {
+    "passed": true,
+    "failures": [],
+    "metrics": {
+      "wall_s": {
+        "reference_median": 43.42,
+        "candidate_median": 41.82,
+        "ratio": 0.9631506218332565,
+        "limit": 1.1
+      },
+      "max_rss_kib": {
+        "reference_median": 1592400,
+        "candidate_median": 1603332,
+        "ratio": 1.006865109269028,
+        "limit": 1.1
+      },
+      "process_tree_peak_rss_kib": {
+        "reference_median": 1719800,
+        "candidate_median": 1729916,
+        "ratio": 1.005882079311548,
+        "limit": 1.1
+      }
+    },
+    "copper_geometry_equal": true,
+    "mode": "migration-equivalence"
+  }
+}

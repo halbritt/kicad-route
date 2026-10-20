@@ -1,0 +1,77 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--refill-zones",
+        "--save-board",
+        "--format",
+        "json",
+        "-o",
+        "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/drc/baseline-refill.json",
+        "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/project/diff-pair/pair.kicad_pcb"
+      ],
+      "cwd": "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/project/diff-pair",
+      "log": "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/drc/baseline-refill.log",
+      "exit_code": 0,
+      "duration_s": 0.265
+    },
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--format",
+        "json",
+        "--severity-all",
+        "--schematic-parity",
+        "--units",
+        "mm",
+        "-o",
+        "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/drc/baseline-drc.json",
+        "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/project/diff-pair/pair.kicad_pcb"
+      ],
+      "cwd": "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/project/diff-pair",
+      "log": "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/drc/baseline-drc.log",
+      "exit_code": 0,
+      "duration_s": 0.19
+    }
+  ],
+  "reasons": [],
+  "refill": {
+    "board_sha256_before": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+    "board_sha256_after": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568"
+  },
+  "board_sha256_graded": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+  "board_sha256_checked": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+  "parity_performed": false,
+  "parity_skip_message": "Failed to fetch schematic netlist for parity tests.",
+  "report": "/evidence/diff-pair-archon/candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/.building-1i0_j6zy/drc/baseline-drc.json",
+  "cached": false,
+  "identity": {
+    "schema": 1,
+    "input": "a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967",
+    "board": "pair.kicad_pcb",
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+    "pour_schema": 1,
+    "grading": {
+      "baselinecache.py": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13",
+      "cli.py": "61aff3300f1f784a9e8a778e45430e3f5cb8041f820b7feea80423566bf60a4e",
+      "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+      "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+      "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+    },
+    "result_schemas": {
+      "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+      "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+    }
+  },
+  "generation": null
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "kicad-route/root-calibration-review/1",
+  "observed_utc": "2026-10-20T22:09:45.402990+00:00",
+  "calibration_session": "74830",
+  "observed_exit_code": 0,
+  "selected_cap_cpus": 1,
+  "verification": "Root independently recomputed all six verdicts and selector using frozen script; verified before/after controls, ready/finished worker membership and accounting for each trial. Three cap1 trials PASS; cap2 trial3 insufficient. No router results observed in this selection.",
+  "artifacts": [
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/calibrate-cpu-service.py",
+      "sha256": "50973ba0e9f32012e65cef2ac2888f20cd34f43b4c191e22c31a6c96b8da0bf9"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-plan.json",
+      "sha256": "51cf52ccad99977ebeea11a22e6b033c34f9a311c46023e91c13e9b81fb80aa0"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+      "sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_cpu_service_calibration.py",
+      "sha256": "3989cb7bc09b312247a01371b4854e352605247dd1383e2991488d70701f11fc"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-tests.log",
+      "sha256": "114966e987fe2f6cebb4ca2d09b2f1df476f953a2f3881f5263c3ac36a650c1e"
+    }
+  ]
+}

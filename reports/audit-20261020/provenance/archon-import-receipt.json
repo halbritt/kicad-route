@@ -1,0 +1,37 @@
+{
+  "schema": "kicad-route/archon-evidence-import/1",
+  "status": "PASS",
+  "observed_utc": "2026-10-20T22:43:00.719605+00:00",
+  "source_host": "archon",
+  "source_root": "/evidence/archon-filtered-export",
+  "index_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/archon-evidence-index.json",
+  "index_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+  "externally_observed_remote_index_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+  "files": 2540,
+  "bytes": 17822127,
+  "all_indexed_file_sizes_and_sha256_verified": true,
+  "original_absolute_locator_mapping_preserved": true,
+  "transport": {
+    "schema": "kicad-route/filtered-evidence-transport/1",
+    "helper": {
+      "source": "/evidence/export-archon-evidence.py",
+      "sha256": "af2899d658b36ffb8c0aa7f62cee6f65c8ba5f159ecc829d64f3b7ea4f2d390a"
+    },
+    "policy": {
+      "source": "/evidence/archon-export-policy.json",
+      "sha256": "8e30d7b302bba9856a127e1a04159f2efb8571ed59c5ad3e8f4fd27027aab3e1"
+    },
+    "omissions": {
+      "source": "/evidence/archon-filtered-export/transport-omissions.json",
+      "sha256": "0487955293ba17059dcbb0319fb622e77b1cb4c8b34c009b58490329c4d7f14c"
+    },
+    "original_indexer": {
+      "source": "/evidence/index-archon-evidence.py",
+      "sha256": "ba35e6ef203839f235af3b8d853ca6d5a8bdc8e9f6e3958fcd5a5d5083425e64"
+    },
+    "original_indexer_executed": false
+  },
+  "matrix_session": "8896",
+  "observed_matrix_exit_code": 0,
+  "benchmark_acceptance": "Independent adapter verification remains separate; import hash verification alone does not qualifyPASS"
+}

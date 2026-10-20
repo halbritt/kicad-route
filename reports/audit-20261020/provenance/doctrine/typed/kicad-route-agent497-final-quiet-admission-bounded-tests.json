@@ -1,0 +1,30 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "quiet-admission-bounded-tests",
+  "evidence_class": "evidence-tests",
+  "summary": "Eleven standalone bounded tests passed without real waits or native jobs. They verify fresh three-interval admission per sample, reset after failure, one global budget excluding simulated native time, malformed/NaN/missing/reset/duplicate telemetry refusal, selected-CPU idle arithmetic excluding iowait/guest double-counting, all48samples/all4boards retained after native-quality failures with no retry, explicit inconclusive expiry retaining completed attempts, post-completion telemetry failure never dropping a completed sample, and no vacuous PASS for empty/partial matrix. Read-only actual preflight also passed before root launch. These11 cases are separate from the production741-node observation union, not a full-suite result.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_quiet_matrix.py",
+      "method": "Read standalone synthetic test source",
+      "observed_at": "2026-10-20T21:32:27.147066+00:00",
+      "content_sha256": "c6a0d672a6e2bf1974c80df46656cdeca93f11b1e72ea0afc5070333a9699cd5"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/quiet-admission-tests.log",
+      "method": "Read retained11PASS output",
+      "observed_at": "2026-10-20T21:32:27.147066+00:00",
+      "content_sha256": "e90a21f6115ddeba7b9561dbdd88253fac6176d62d01460bc9dec14f75fb5b37"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/quiet-admission-protocol.json",
+      "method": "Read frozen test/hash binding",
+      "observed_at": "2026-10-20T21:32:27.147066+00:00",
+      "content_sha256": "546568312807eb4f4bd230c74c61e1da6c61f628f82286841a483ec842ad7aef"
+    }
+  ],
+  "satisfies": [
+    "tests, characterization, probes, or explicit residual risk",
+    "checkpoint verification"
+  ]
+}

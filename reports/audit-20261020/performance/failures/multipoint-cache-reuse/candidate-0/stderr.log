@@ -1,0 +1,10 @@
+[route] krt on multipoint-tap -> /home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cache-reuse/candidate-0/run
+[route] scope: all (1 of 1 nets)
+[route] baseline: native DRC of the untouched input (refilled)
+[route] routing with krt (budget 180s)
+[route] process: PASS
+[route] validating the candidate (refill, DRC + parity, preservation)
+[route] routing: COMPLETE
+[route] validation: PASS
+[route] candidate: /home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cache-reuse/candidate-0/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb
+[route] result: /home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cache-reuse/candidate-0/run/result.json  (exit 0)

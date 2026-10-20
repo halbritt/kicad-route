@@ -1,0 +1,630 @@
+{
+  "schema": "kicad-route/route/1",
+  "kind": "route",
+  "backend": {
+    "name": "krt",
+    "version": "0.23.1",
+    "build": "owned-c6c09054f684",
+    "commit": "3bc90405be40a42c1e5ff48787e35238ea994ab8",
+    "source": "https://github.com/halbritt/kicad-route",
+    "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+    "upstream": {
+      "project": "KiCadRoutingTools",
+      "license": "MIT",
+      "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+      "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+      "upstream_release": "v0.23.1",
+      "fork": "https://github.com/halbritt/KiCadRoutingTools",
+      "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+      "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+      "fixes": {
+        "KICADROUTE-64": "4b316ba",
+        "KICADROUTE-63": "0494a05"
+      },
+      "source_inventory": "reports/routing-engine/source-closure.json",
+      "additional_license_notices": [
+        "py_router/stage3d/vendor/three/LICENSE"
+      ],
+      "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+    },
+    "runtime": {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+      "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+      "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+    },
+    "rust_router": "0.23.1",
+    "execution_identity": {
+      "name": "krt",
+      "tag": "owned-c6c09054f684",
+      "version": "0.23.1",
+      "grid_router_version": "0.23.1",
+      "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+      "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+      "venv_python_version": "3.12.3",
+      "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+    },
+    "reproducible": null,
+    "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+  },
+  "measurement": false,
+  "input": {
+    "project": "multipoint-tap",
+    "board": "multipoint-tap.kicad_pcb",
+    "fingerprint": "ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760",
+    "source_dir": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap",
+    "source": "working tree",
+    "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source_dirty_files": null,
+    "baseline": {
+      "report": "../../candidate-out/.cache/baseline/dce49466722524615e8c983a20278fbe5b9ccdc75305df5818705d2ff9fd4f5d/generation-9hqh_7fg/baseline-drc.json",
+      "cached": true,
+      "reasons": [],
+      "identity": {
+        "schema": 1,
+        "input": "ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760",
+        "board": "multipoint-tap.kicad_pcb",
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+        "pour_schema": 1,
+        "grading": {
+          "baselinecache.py": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13",
+          "cli.py": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2",
+          "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+          "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+          "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+        },
+        "result_schemas": {
+          "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+          "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+        }
+      },
+      "generation": "generation-9hqh_7fg"
+    },
+    "rules_files": {
+      "project": "multipoint-tap.kicad_pro",
+      "custom_rules": null,
+      "not_loaded": []
+    }
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "scope": {
+    "mode": "all",
+    "nets": 1,
+    "nets_list": [
+      "/T"
+    ]
+  },
+  "unsupported": [
+    "KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class"
+  ],
+  "floor": null,
+  "process": {
+    "status": "PASS",
+    "reasons": [],
+    "exit_code": 0,
+    "commands": [
+      {
+        "argv": [
+          "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv/bin/python",
+          "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router/py_router/route.py",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/input/multipoint-tap/multipoint-tap.kicad_pcb",
+          "--output",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt-out/multipoint-tap.kicad_pcb",
+          "--escalation",
+          "off",
+          "--fab-tier",
+          "standard",
+          "--strict-sizes",
+          "--no-power-tap-neckdown",
+          "--no-fix-drc-settings",
+          "--json-out",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt-out/summary.json",
+          "--keep-input-copper",
+          "--no-stub-layer-swap",
+          "--nets",
+          "*"
+        ],
+        "cwd": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work",
+        "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt.log",
+        "env": {
+          "KICAD_INRUN_FLOOR_SYNC": "0",
+          "KICAD_TERMINAL_ESCALATION": "0",
+          "KICAD_IMPEDANCE_NECKDOWN": "0",
+          "KICAD_RESCUE_CAP_MOVE": "0",
+          "KICAD_DYNAMIC_ITERATIONS": "0",
+          "KICAD_CLI": "/usr/bin/kicad-cli",
+          "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/STOP",
+          "KICAD_RIP_PREEXISTING": "0",
+          "KICAD_FINALIZE_RIP": "0"
+        },
+        "budget_s": 180,
+        "last_phase": "improvement gate",
+        "last_metric": {
+          "disconnected_pads_before": 3
+        },
+        "heartbeats": {
+          "count": 14,
+          "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/heartbeat.jsonl",
+          "stall_s": null,
+          "since_last_progress_s": 0.3,
+          "tail": [
+            {
+              "t_s": 4.268,
+              "utc": "2026-10-20T20:49:03.306070+00:00",
+              "phase": "summary",
+              "metric": {},
+              "line": "JSON_SUMMARY: {\"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_nets\": 1, \"multipoint_pads_connected\": 5..."
+            },
+            {
+              "t_s": 4.268,
+              "utc": "2026-10-20T20:49:03.306214+00:00",
+              "phase": "writing output",
+              "metric": {},
+              "line": "Writing output to /home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt-out/multipoint-tap.kicad_pcb..."
+            },
+            {
+              "t_s": 4.768,
+              "utc": "2026-10-20T20:49:03.806708+00:00",
+              "phase": "regrade",
+              "metric": {},
+              "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 1, \"seconds\": 0.03, \"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], ..."
+            },
+            {
+              "t_s": 4.768,
+              "utc": "2026-10-20T20:49:03.806846+00:00",
+              "phase": "Run complete -- whole run, re-graded on the written board (1 net(s), 0.0s)",
+              "metric": {},
+              "line": "============================================================"
+            },
+            {
+              "t_s": 4.768,
+              "utc": "2026-10-20T20:49:03.806960+00:00",
+              "phase": "improvement gate",
+              "metric": {
+                "disconnected_pads_before": 3
+              },
+              "line": "JSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/T\"], \"worsened\": [], \"disconnected_pads_before\": 3, \"disconnected_pads_after\": 0, \"nets_compared\": 1, \"verdi..."
+            }
+          ]
+        },
+        "stalled": false,
+        "exit_code": 0,
+        "duration_s": 5.078,
+        "output_tail": "p vias\n  (seam re-ask skipped: /T is protected)\n  Net total time: 0.01s, 1059 iterations\n\n============================================================\nRouting complete\n============================================================\n  Single-ended:  1/1 routed\n  Multi-point:   5/5 pads connected (1 nets)\n  Total vias:    0\n  Total time:    0.51s\n  Iterations:    1,016\nJSON_SUMMARY: {\"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_nets\": 1, \"multipoint_pads_connected\": 5, \"multipoint_pads_total\": 5, \"multipoint_edges_routed\": 3, \"multipoint_edges_failed\": 0, \"ripup_success_pairs\": [], \"rerouted_pairs\": [], \"single_ended_target_swaps\": [], \"layer_swaps\": 0, \"successful\": 1, \"failed\": 0, \"total_time\": 0.51, \"total_iterations\": 1016, \"total_vias\": 0, \"cleanup_disconnected\": [], \"min_clearance_used\": 0.2, \"design_rules\": {\"escalation_policy\": \"off\", \"fab_tier\": \"standard\", \"board_floors\": {\"clearance\": 0.15, \"track_width\": 0.15, \"via_diameter\": 0.5, \"via_drill\": 0.25, \"hole_to_hole\": 0.25, \"annular\": 0.1, \"board_edge\": 0.3}, \"count\": 0, \"nets\": [], \"narrowed\": [], \"min_delivered\": {}, \"fab_tier_escalations\": 0, \"fab_tier_contexts\": [], \"fab_tier_target\": \"advanced\", \"unsupported_rules\": []}, \"plane_fragility\": {\"source\": \"none\", \"islands\": 0, \"refill_status\": null, \"why\": \"the board has no zones\", \"machine_dependent\": false}, \"oracle_check\": \"disabled\", \"pad_pairs_connected\": 4, \"pad_pairs_total\": 4, \"scope\": \"run\", \"env_knobs\": {\"KICAD_CACHE_HOME\": \"/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/cache\", \"KICAD_CLI\": \"/usr/bin/kicad-cli\", \"KICAD_DYNAMIC_ITERATIONS\": \"0\", \"KICAD_FINALIZE_RIP\": \"0\", \"KICAD_IMPEDANCE_NECKDOWN\": \"0\", \"KICAD_INRUN_FLOOR_SYNC\": \"0\", \"KICAD_RESCUE_CAP_MOVE\": \"0\", \"KICAD_RIP_PREEXISTING\": \"0\", \"KICAD_ROUTE_LEDGER\": \"off\", \"KICAD_ROUTE_STATE\": \"/home/halbritt/git/kicad-route/build/agent497-bytecode-state\", \"KICAD_STOP_FILE\": \"/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/STOP\", \"KICAD_TERMINAL_ESCALATION\": \"0\"}}\n\nWriting output to /home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt-out/multipoint-tap.kicad_pcb...\nSuccessfully wrote /home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt-out/multipoint-tap.kicad_pcb\n  Strict collapse (#1063, end of run): removed 1 redundant segment(s) on 1 net(s)\nVIA_IN_PAD_JSON: {\"count\": 0, \"sites\": [], \"stamped\": 0, \"restored\": 0, \"protected\": 0, \"unstampable\": 0, \"site_created\": 0, \"unprotected\": [], \"note\": \"via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel\"}\nJSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 1, \"seconds\": 0.03, \"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_pads_total\": 5, \"multipoint_pads_connected\": 5, \"successful\": 1, \"failed\": 0, \"unowned_broken\": [], \"recovered\": [], \"broken_by_run\": []}\n\n============================================================\nRun complete -- whole run, re-graded on the written board (1 net(s), 0.0s)\n============================================================\n  Single-ended:  1/1 routed\n  Multi-point:   5/5 pads connected\n  route summary written to /home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt-out/summary.json\nJSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/T\"], \"worsened\": [], \"disconnected_pads_before\": 3, \"disconnected_pads_after\": 0, \"nets_compared\": 1, \"verdict\": \"accept\"}\nJSON_SUMMARY_MIN: {\"escalations\": 0, \"failed\": 0, \"failed_single\": [], \"main_loop_time_s\": 0.51, \"min_clearance_used\": 0.2, \"multipoint_deficit\": 0, \"open_single\": [], \"pad_pairs_open\": {\"count\": 0, \"nets\": []}, \"regraded_nets\": 1, \"routed\": 1, \"scope\": \"merged\", \"terminal_restores_broken\": [], \"vias\": 0}\nEXIT=0\n"
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-bytecode/src/kicad_route/kicad/locks.py",
+          "restore",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt-out/multipoint-tap.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/locks.json"
+        ],
+        "cwd": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work",
+        "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/restore-locks.log",
+        "exit_code": 0,
+        "duration_s": 1.086
+      }
+    ],
+    "backend_report": {
+      "successful": 1,
+      "failed": 0,
+      "failed_single": [],
+      "open_single": [],
+      "failed_multipoint": [],
+      "multipoint_deficit": null,
+      "pad_pairs_connected": 4,
+      "pad_pairs_total": 4,
+      "total_vias": 0,
+      "total_iterations": 1016,
+      "total_time": 0.51,
+      "protected_skipped": null,
+      "scope": "merged",
+      "relaxations": {
+        "escalation_policy": "off",
+        "fab_tier": "standard",
+        "narrowed": [],
+        "fab_tier_escalations": 0,
+        "min_delivered": {},
+        "unsupported_rules": []
+      },
+      "improvement_gate": {
+        "lost": [],
+        "gained": [
+          "/T"
+        ],
+        "worsened": [],
+        "disconnected_pads_before": 3,
+        "disconnected_pads_after": 0,
+        "nets_compared": 1,
+        "verdict": "accept"
+      },
+      "project_writes": null
+    },
+    "existing_copper_locks": {
+      "lock": {
+        "locked": 1
+      },
+      "lock_exit": 0,
+      "restore": {
+        "restored": 1,
+        "not_found": 0
+      }
+    },
+    "project_writeback": [
+      {
+        "file": "multipoint-tap.kicad_prl",
+        "identical_to_input": true
+      },
+      {
+        "file": "multipoint-tap.kicad_pro",
+        "identical_to_input": true
+      }
+    ],
+    "runtime_s": 8.004,
+    "last_phase": "improvement gate",
+    "heartbeats": {
+      "count": 14,
+      "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/heartbeat.jsonl",
+      "stall_s": null,
+      "since_last_progress_s": 0.3,
+      "tail": [
+        {
+          "t_s": 4.268,
+          "utc": "2026-10-20T20:49:03.306070+00:00",
+          "phase": "summary",
+          "metric": {},
+          "line": "JSON_SUMMARY: {\"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_nets\": 1, \"multipoint_pads_connected\": 5..."
+        },
+        {
+          "t_s": 4.268,
+          "utc": "2026-10-20T20:49:03.306214+00:00",
+          "phase": "writing output",
+          "metric": {},
+          "line": "Writing output to /home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/work/krt-out/multipoint-tap.kicad_pcb..."
+        },
+        {
+          "t_s": 4.768,
+          "utc": "2026-10-20T20:49:03.806708+00:00",
+          "phase": "regrade",
+          "metric": {},
+          "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 1, \"seconds\": 0.03, \"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], ..."
+        },
+        {
+          "t_s": 4.768,
+          "utc": "2026-10-20T20:49:03.806846+00:00",
+          "phase": "Run complete -- whole run, re-graded on the written board (1 net(s), 0.0s)",
+          "metric": {},
+          "line": "============================================================"
+        },
+        {
+          "t_s": 4.768,
+          "utc": "2026-10-20T20:49:03.806960+00:00",
+          "phase": "improvement gate",
+          "metric": {
+            "disconnected_pads_before": 3
+          },
+          "line": "JSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/T\"], \"worsened\": [], \"disconnected_pads_before\": 3, \"disconnected_pads_after\": 0, \"nets_compared\": 1, \"verdi..."
+        }
+      ]
+    },
+    "stalled": false,
+    "measurement_qualification": {
+      "measurement": false,
+      "build_reproducible": null,
+      "reasons": [
+        "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      ]
+    }
+  },
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 0,
+    "baseline_unconnected_total": 3,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 4,
+      "new_vias": 0,
+      "new_track_length_mm": 6.933,
+      "new_track_length_mm_by_layer": {
+        "F.Cu": 6.933
+      },
+      "new_copper_nets": 1,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    }
+  },
+  "validation": {
+    "status": "PASS",
+    "reasons": [],
+    "dir": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/validate",
+    "rules_files": {
+      "project": "multipoint-tap.kicad_pro",
+      "custom_rules": null,
+      "not_loaded": []
+    },
+    "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "a85ea0f15401bed63aefe94683a2f28f58250eafee1db51456b98e0d28825739",
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+        ],
+        "cwd": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/candidate/multipoint-tap",
+        "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/validate/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 8.983
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+        ],
+        "cwd": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/candidate/multipoint-tap",
+        "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/validate/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 8.587
+      }
+    ],
+    "validated_board_sha256": "a85ea0f15401bed63aefe94683a2f28f58250eafee1db51456b98e0d28825739",
+    "candidate_board_sha256": "a85ea0f15401bed63aefe94683a2f28f58250eafee1db51456b98e0d28825739",
+    "refill_modified_board": false,
+    "parity_performed": null,
+    "drc": {
+      "violations_total": 5,
+      "parity_total": 0,
+      "new_violations": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "preexisting_violations": 5,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 0,
+      "nets_lost": []
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    }
+  },
+  "candidate": {
+    "dir": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/candidate/multipoint-tap",
+    "board": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+  },
+  "run_dir": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-3/run",
+  "runtime_s": 28.848,
+  "tool_versions": {
+    "kicad-cli": "10.0.7"
+  },
+  "evidence": {
+    "input_board_sha256": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+    "input_fingerprint": "ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760",
+    "baseline": {
+      "identity": {
+        "schema": 1,
+        "input": "ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760",
+        "board": "multipoint-tap.kicad_pcb",
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+        "pour_schema": 1,
+        "grading": {
+          "baselinecache.py": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13",
+          "cli.py": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2",
+          "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+          "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+          "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+        },
+        "result_schemas": {
+          "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+          "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+        }
+      },
+      "generation": "generation-9hqh_7fg"
+    },
+    "reference_files": {
+      "multipoint-tap.kicad_pcb": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+      "multipoint-tap.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    "rules_files": {
+      "multipoint-tap.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    "rule_floor_sha256": null,
+    "backend_output_board_sha256": "a85ea0f15401bed63aefe94683a2f28f58250eafee1db51456b98e0d28825739",
+    "candidate_hash_basis": "post-refill",
+    "candidate_board_sha256": "a85ea0f15401bed63aefe94683a2f28f58250eafee1db51456b98e0d28825739",
+    "pre_refill_board_sha256": "a85ea0f15401bed63aefe94683a2f28f58250eafee1db51456b98e0d28825739",
+    "candidate_copper_signature": {
+      "sha256": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+      "tracks": 5,
+      "vias": 0
+    },
+    "records": {
+      "attempt.json": "486a8cbf04ce390ee49e9d7d0581ec755ebd2075eddc420efc87454c9c82e1e0",
+      "validate/preservation.json": "ffeb74af1e9a78136c1d36a15d6ba6666d5efc45872be3af3e4247768453ca97",
+      "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+      "validate/candidate-drc.json": "9ec149f585d81e4a790219245a1f95927f3b54a5e8379a4a934639f14b4934de",
+      "validate/candidate-facts.json": "f152ccb9f1f4ca81c0c32cb1edf9c56c614ca33690a8b353747c5d55d67aff99",
+      "validate/pour-integrity.json": "f46a8581ffa6fe5cf641ddceebef3667eadf3a70fc13a19ce550c1b73fa84ffa"
+    }
+  },
+  "tool_identity": {
+    "kicad_route": {
+      "version": "3bc9040",
+      "commit": "3bc90405be40a42c1e5ff48787e35238ea994ab8",
+      "dirty": false
+    },
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew": {
+      "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+      "python": "/usr/bin/python3"
+    },
+    "python": {
+      "version": "3.12.3",
+      "executable": "/usr/bin/python3"
+    },
+    "backend": {
+      "name": "krt",
+      "tag": "owned-c6c09054f684",
+      "version": "0.23.1",
+      "commit": "3bc90405be40a42c1e5ff48787e35238ea994ab8",
+      "grid_router_version": "0.23.1",
+      "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+      "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+      "venv_python_version": "3.12.3",
+      "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+    },
+    "state_manifest_sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+    "state_manifest_drift": []
+  },
+  "finished_utc": "2026-10-20T20:49:24.774466+00:00",
+  "exit_code": 0,
+  "ledger": {
+    "fingerprint": "b4ff55a507ddb3577b1bd0313349a39b40f5f68d63ced405de974b429b266638",
+    "short": "b4ff55a507dd",
+    "forced": false,
+    "forced_over": null,
+    "upstream_changed_since": null,
+    "previous_runs": [
+      "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-0/run",
+      "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-1/run",
+      "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-2/run"
+    ],
+    "notes": [],
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/ledger.jsonl"
+  },
+  "sandbox": {
+    "require_readonly_state": false,
+    "state": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+      "exists": true,
+      "installed": [
+        ".router-generations",
+        "vendor/freerouting"
+      ],
+      "writable": true,
+      "writable_parts": [
+        ".router-generations",
+        "vendor/freerouting"
+      ],
+      "readonly_mount": false
+    },
+    "tool_root": {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-bytecode",
+      "writable": true
+    },
+    "out": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out"
+    },
+    "home": {
+      "HOME": "/home/halbritt",
+      "required": false,
+      "tool_home": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.kicad-config",
+        "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/data",
+        "XDG_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/config",
+        "XDG_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/cache",
+        "XDG_DATA_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/data",
+        "XDG_STATE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/java",
+        "-Djava.util.prefs.userRoot=/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-prepared/candidate-out/.home/java/prefs"
+      ]
+    },
+    "network": {
+      "interfaces": 38,
+      "non_loopback_interfaces": 37,
+      "non_loopback_examples": [
+        "br-08ee9a52996a",
+        "br-1b6d28c3e778",
+        "br-24c8c1a867af",
+        "br-2fd0323456d7",
+        "br-8d6dd9da25b3"
+      ],
+      "non_loopback_routes": 109,
+      "namespace": "net:[4026531840]",
+      "connect_probe": {
+        "target": "192.0.2.1:9/udp",
+        "sends_packet": false,
+        "result": "routable"
+      },
+      "isolated": false
+    }
+  }
+}

@@ -1,0 +1,36 @@
+reference: warmup
+candidate: warmup
+candidate: 1
+reference: 1
+reference: 2
+candidate: 2
+candidate: 3
+reference: 3
+{
+  "passed": false,
+  "failures": [
+    "wall_s exceeds 10% regression limit"
+  ],
+  "metrics": {
+    "wall_s": {
+      "reference_median": 33.74,
+      "candidate_median": 56.77,
+      "ratio": 1.6825726141078838,
+      "limit": 1.1
+    },
+    "max_rss_kib": {
+      "reference_median": 1634568,
+      "candidate_median": 1644980,
+      "ratio": 1.0063698787691917,
+      "limit": 1.1
+    },
+    "process_tree_peak_rss_kib": {
+      "reference_median": 1732028,
+      "candidate_median": 1790440,
+      "ratio": 1.0337246280083232,
+      "limit": 1.1
+    }
+  },
+  "copper_geometry_equal": true,
+  "mode": "migration-equivalence"
+}

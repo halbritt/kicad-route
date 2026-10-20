@@ -1,0 +1,10 @@
+[route] krt on route_demo -> /evidence/route-demo-archon/candidate-4/run
+[route] scope: all (6 of 6 nets)
+[route] baseline: native DRC of the untouched input (refilled)
+[route] routing with krt (budget 180s)
+[route] process: PASS
+[route] validating the candidate (refill, DRC + parity, preservation)
+[route] routing: COMPLETE
+[route] validation: PASS
+[route] candidate: /evidence/route-demo-archon/candidate-4/run/candidate/route_demo/route_demo.kicad_pcb
+[route] result: /evidence/route-demo-archon/candidate-4/run/result.json  (exit 0)

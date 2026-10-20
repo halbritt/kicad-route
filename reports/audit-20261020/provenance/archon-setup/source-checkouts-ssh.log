@@ -1,0 +1,12 @@
+error: need a repository to verify a bundle
+Cloning into '/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/work/reference'...
+The bundle contains these 2 refs:
+f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d refs/heads/main
+f0f73da86835ec583f2a2c9128e6893fa59c03b7 refs/heads/wt/agent497-primary
+The bundle records a complete history.
+The bundle uses this hash algorithm: sha1
+/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/setup/source.bundle is okay
+HEAD is now at f0c09ac Merge 50afe32 (KICADROUTE-66 planes follow-up: result.json records restored project files, doctor reports bwrap readiness for planes (informational; production fails closed), isolated_copper evidence refuses unattributed or malformed DRC records, plane-plan/2 stitching design note only; docs/sandbox.md resolved against the owned-engine main as the union of both rows; independently reviewed READY-WITH-GAPS by an Opus review worker)
+Cloning into '/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/work/candidate'...
+HEAD is now at f0f73da perf: reuse environment version major within routing attempts
+5c3d3b3e134c5f465fd9f7dead6a970df80eebd6c70a36ce308c4fae243be8ad  /home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/setup/source.bundle

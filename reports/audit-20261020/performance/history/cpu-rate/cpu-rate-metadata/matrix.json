@@ -1,0 +1,139 @@
+{
+  "schema": "kicad-route/cpu-rate-matrix/1",
+  "status": "PASS",
+  "protocol_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225",
+  "cpu_cap": 1,
+  "boards": [
+    {
+      "name": "diff-pair",
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate",
+      "status": "PASS",
+      "completed_samples": 12,
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 38.95,
+            "candidate_median": 36.17,
+            "ratio": 0.9286264441591784,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1593392,
+            "candidate_median": 1602576,
+            "ratio": 1.0057638045126371,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 1608416,
+            "candidate_median": 1626380,
+            "ratio": 1.011168752362573,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      }
+    },
+    {
+      "name": "four-layer",
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate",
+      "status": "PASS",
+      "completed_samples": 12,
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 43.42,
+            "candidate_median": 41.82,
+            "ratio": 0.9631506218332565,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1592400,
+            "candidate_median": 1603332,
+            "ratio": 1.006865109269028,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 1719800,
+            "candidate_median": 1729916,
+            "ratio": 1.005882079311548,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      }
+    },
+    {
+      "name": "multipoint",
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate",
+      "status": "PASS",
+      "completed_samples": 12,
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 29.33,
+            "candidate_median": 28.61,
+            "ratio": 0.9754517558813501,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1590208,
+            "candidate_median": 1587964,
+            "ratio": 0.9985888638467421,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 1605256,
+            "candidate_median": 1610700,
+            "ratio": 1.0033913593844221,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      }
+    },
+    {
+      "name": "route-demo",
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-cpu-rate",
+      "status": "PASS",
+      "completed_samples": 12,
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 41.89,
+            "candidate_median": 40.28,
+            "ratio": 0.9615660062067319,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 1611872,
+            "candidate_median": 1635608,
+            "ratio": 1.014725735045959,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 1750644,
+            "candidate_median": 1760256,
+            "ratio": 1.005490550905838,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      }
+    }
+  ],
+  "completed_samples": 48,
+  "all_comparisons_passed": true,
+  "resource_violations": []
+}

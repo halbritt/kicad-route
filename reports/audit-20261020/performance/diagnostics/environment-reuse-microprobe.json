@@ -1,0 +1,360 @@
+{
+  "schema": "kicad-route/environment-major-reuse-diagnostic/1",
+  "scope": "Three alternating samples per mode, nine actual tool_env calls per sample; no routing/DRC.",
+  "limitation": "Version-probe reduction is measured; no guaranteed route-matrix saving is claimed.",
+  "common_source": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/common.py",
+  "common_sha256": "4fd09eef7547c947700067975a54e08c8e6b3ed8d3c5ac94cf8ae77e4a593038",
+  "selected_state": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+  "samples": [
+    {
+      "mode": "fresh_each_environment",
+      "repetition": 1,
+      "environment_calls": 9,
+      "native_version_probes": 9,
+      "wall_s": 1.7419158050324768,
+      "wrapper_cpu_s": 0.008368999999999994,
+      "child_cpu_s": 1.406718,
+      "probes": [
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.28775824210606515,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.22836181591264904,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.20924990507774055,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.21986044896766543,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.19603792717680335,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.18769887695088983,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.13391877291724086,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.1439961139112711,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.13121975702233613,
+          "exit_code": 0,
+          "version": "10.0.7"
+        }
+      ]
+    },
+    {
+      "mode": "attempt_scoped_major",
+      "repetition": 1,
+      "environment_calls": 9,
+      "native_version_probes": 1,
+      "wall_s": 0.20710607198998332,
+      "wrapper_cpu_s": 0.0025670000000000068,
+      "child_cpu_s": 0.1322270000000001,
+      "probes": [
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.20490203518420458,
+          "exit_code": 0,
+          "version": "10.0.7"
+        }
+      ]
+    },
+    {
+      "mode": "fresh_each_environment",
+      "repetition": 2,
+      "environment_calls": 9,
+      "native_version_probes": 9,
+      "wall_s": 1.5582603090442717,
+      "wrapper_cpu_s": 0.008783,
+      "child_cpu_s": 1.3474890000000004,
+      "probes": [
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.2104984070174396,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.17644567717798054,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.1983632780611515,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.1500976081006229,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.1802872947882861,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.14685347094200552,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.19702972215600312,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.14204957778565586,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.15270388103090227,
+          "exit_code": 0,
+          "version": "10.0.7"
+        }
+      ]
+    },
+    {
+      "mode": "attempt_scoped_major",
+      "repetition": 2,
+      "environment_calls": 9,
+      "native_version_probes": 1,
+      "wall_s": 0.22946094209328294,
+      "wrapper_cpu_s": 0.0026680000000000037,
+      "child_cpu_s": 0.15521599999999935,
+      "probes": [
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.22731976700015366,
+          "exit_code": 0,
+          "version": "10.0.7"
+        }
+      ]
+    },
+    {
+      "mode": "fresh_each_environment",
+      "repetition": 3,
+      "environment_calls": 9,
+      "native_version_probes": 9,
+      "wall_s": 1.5090239059645683,
+      "wrapper_cpu_s": 0.007158999999999999,
+      "child_cpu_s": 1.3100630000000004,
+      "probes": [
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.18906133295968175,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.1375366379506886,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.1776088229380548,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.16778836608864367,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.13602306903339922,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.17174545512534678,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.19091352610848844,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.14542566402815282,
+          "exit_code": 0,
+          "version": "10.0.7"
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.18989800103008747,
+          "exit_code": 0,
+          "version": "10.0.7"
+        }
+      ]
+    },
+    {
+      "mode": "attempt_scoped_major",
+      "repetition": 3,
+      "environment_calls": 9,
+      "native_version_probes": 1,
+      "wall_s": 0.22457011486403644,
+      "wrapper_cpu_s": 0.003689999999999985,
+      "child_cpu_s": 0.1442350000000001,
+      "probes": [
+        {
+          "argv": [
+            "kicad-cli",
+            "version"
+          ],
+          "wall_s": 0.2213849271647632,
+          "exit_code": 0,
+          "version": "10.0.7"
+        }
+      ]
+    }
+  ],
+  "medians": {
+    "fresh_each_environment": {
+      "wall_s": 1.5582603090442717,
+      "wrapper_cpu_s": 0.008368999999999994,
+      "child_cpu_s": 1.3474890000000004,
+      "native_version_probes": 9
+    },
+    "attempt_scoped_major": {
+      "wall_s": 0.22457011486403644,
+      "wrapper_cpu_s": 0.0026680000000000037,
+      "child_cpu_s": 0.1442350000000001,
+      "native_version_probes": 1
+    }
+  }
+}

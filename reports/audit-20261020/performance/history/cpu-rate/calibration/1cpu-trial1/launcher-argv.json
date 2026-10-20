@@ -1,0 +1,15 @@
+[
+  "systemd-run",
+  "--user",
+  "--scope",
+  "--collect",
+  "--unit=kicadroute-agent497-calibration-1cpu-1-322c2c79",
+  "--property=CPUQuota=100%",
+  "--property=CPUQuotaPeriodSec=100ms",
+  "/usr/bin/python3",
+  "/home/halbritt/git/kicad-route/build/agent497-qualification/calibrate-cpu-service.py",
+  "--trial",
+  "1",
+  "--output",
+  "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial1/trial.json"
+]

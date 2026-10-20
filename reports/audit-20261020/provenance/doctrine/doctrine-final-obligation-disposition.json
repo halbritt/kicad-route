@@ -1,0 +1,280 @@
+{
+  "schema": "kicad-route/doctrine-final-obligation-disposition/1",
+  "observed_utc": "2026-10-20T22:48:13.131557+00:00",
+  "packet_id": "pkt-7f7cc3fede0d7721",
+  "packet_content_sha256": "7f7cc3fede0d77218ee4b43b51bc70309fb18f8a8f4559426fdaaa72de896847",
+  "packet_file_sha256": "d94ba9a4307083c50f66610b86b25309ba5a451fa12a73c7d735fc22eec856d2",
+  "packet_unmet_tags": 23,
+  "generic_nonmaterial_tags": 19,
+  "software_external_capability_tags_manually_assessed": 4,
+  "mechanical_packet_status": "All23 tags remain missing in the immutable packet. This disposition does not amend or mechanically discharge that packet. No third gather.",
+  "narrow_decision": "Current code and observed software verification are ready for explicitly authorized mechanical release gates. This is not physical-board, future-default-runtime, publication or tracker acceptance.",
+  "dispositions": [
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-79ca08bed8844a25",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "an enumeration of lifecycle phases with a designed state for each",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No async UI or rendering/layout change is in this CLI repair scope.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-cbe2d532269e88e9",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "content lifecycle phases enumerated",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No async UI or rendering/layout change is in this CLI repair scope.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a6efab71031db341",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "explicit handlers where platform defaults were overridden",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No async UI or rendering/layout change is in this CLI repair scope.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-44706d6d596a492d",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "geometry reserved independent of the async payload",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No async UI or rendering/layout change is in this CLI repair scope.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-21dbd360ff3b90b7",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "a prioritization key tied to the consumer's decision",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-984d7130ad01736c",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "proof canonical data is unchanged by presentation",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-83a38fa945c9ef21",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the bound stated and enforced",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-477d260ba84eaf0e",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the consumer and budget named",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-94f3707ab1ca403d",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the consumer and their budget named",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-bee4873549539a2e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a load-time or gate check resolving every reference against them",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No general config identifier registry introduced; actual build/generation/cache/publication references are verified by targeted gates, not an unrelated registry requirement.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-aebc722e27fd332e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a named-identifier failure on mismatch",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No general config identifier registry introduced; actual build/generation/cache/publication references are verified by targeted gates, not an unrelated registry requirement.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-60e11fd14335b2fa",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "the consumer's defined identifier and enum sets",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No general config identifier registry introduced; actual build/generation/cache/publication references are verified by targeted gates, not an unrelated registry requirement.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-93c171b4a8964e37",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the match-text composition enumerated field by field",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No ranking/search-topN selection implementation changed.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-5cac0cd10a85dbb8",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the scan shown to score the full bounded set before truncation",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No ranking/search-topN selection implementation changed.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-895e1060f7bb5f86",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No ranking/search-topN selection implementation changed.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-78d89cb5f8e6192c",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated - relevance-ordered top-N versus first-N",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No ranking/search-topN selection implementation changed.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-b39c8b4fb6a38a6d",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "access to the real device or endpoint",
+      "status": "missing",
+      "classification": "Material for actual software capability; manually evidenced within scope",
+      "manual_disposition": "Root authorized and actually accessed Archon; actual host/container attestations, PID/cgroup membership and all48 native KiCad CLI attempts demonstrate access to the real software execution system. No physical PCB, connected instrument, fabricated board or hardware endpoint was accessed or claimed.",
+      "existing_evidence": [
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/container-tools.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/before-host-attestation.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/after-host-attestation.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-reference-evidence-fix-closure.json"
+      ],
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-4e1dfd2c915fe674",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "an end-to-end verification artifact against the actual device or endpoint",
+      "status": "missing",
+      "classification": "Material for actual software capability; manually evidenced within scope",
+      "manual_disposition": "Independent Archon report binds all48 actual native process/routing/validation runs, raw GNU timing, exact inputs, real KiCad10.0.7/Python3.12.3/runtime identities, final board hashes, actual resource/membership observations and unchanged comparator gates. This verifies the routing software/container integration. It does not verify physical hardware or future landed default installation.",
+      "existing_evidence": [
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/container-tools.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/before-host-attestation.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/after-host-attestation.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-reference-evidence-fix-closure.json"
+      ],
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-dc786532677f8ca1",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "or an explicit record that verification is provisional",
+      "status": "missing",
+      "classification": "Nonmaterial as an alternative to actual in-scope end-to-end verification; retained scope limitation",
+      "manual_disposition": "The requirement is an alternative branch. Actual software end-to-end artifacts exist, so they are not provisional substitutes. Readiness remains conditional on later mechanical landing, default-generation installation, two native repeats, doctor and durable report checks; no future success or physical PCB verification is asserted.",
+      "existing_evidence": [
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/container-tools.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/before-host-attestation.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/after-host-attestation.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-reference-evidence-fix-closure.json"
+      ],
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-27a2b6e1eadab2c7",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "the real system's own statement of its capability - device configuration output wire capture or endpoint self-description",
+      "status": "missing",
+      "classification": "Material for actual software capability; manually evidenced within scope",
+      "manual_disposition": "Actual retained container-tools/native version logs, both target preparation manifests and per-attempt authoritative tool identities describe the real software system and are hash-bound by independent verification. Host Docker inspect/initPID/cgroup controls state actual execution capabilities. No wire capture or physical-device configuration exists or is needed for this software-only claim.",
+      "existing_evidence": [
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/container-tools.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/before-host-attestation.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/after-host-attestation.json",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-reference-evidence-fix-closure.json"
+      ],
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-80432417005eb207",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "current page inventory classified symptom-versus-cause",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No productionservice/pages/SLOmonitoring change; observed CLI failures and gate signals are explicitly inventoried.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-8c2d798754f29f02",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "golden-signal coverage with the error definition stated",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No productionservice/pages/SLOmonitoring change; observed CLI failures and gate signals are explicitly inventoried.",
+      "packet_status_unchanged": true
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-63abf1a71b4719e2",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "the service's user-visible failure modes",
+      "status": "missing",
+      "classification": "nonmaterial for this narrow CLI repair/readiness decision",
+      "manual_disposition": "No productionservice/pages/SLOmonitoring change; observed CLI failures and gate signals are explicitly inventoried.",
+      "packet_status_unchanged": true
+    }
+  ],
+  "remaining_material_gaps_for_narrow_decision": [],
+  "pending_release_gates": [
+    "Land exact candidate source while preserving f0f73 and b27/3bc ancestry; stop on unexplained production/source/test drift.",
+    "Install selected default runtime through supported normal preparation; stop on manifest/source/module/package/Python/native drift, active generation mismatch or failed step.",
+    "Obtain two fresh bounded actual default native repeats and offline/no-canary doctor PASS; stop on any failure, mismatch or new DRC/preservation/routing issue.",
+    "Verify durable report/index resolves all required retained evidence byte-for-byte, commit/push main, retain original failures, normal cleanup only after origin/main contains required ancestry.",
+    "Finalize acceptance/tracker only within existing owner authorization after required mechanical release proofs exist. No future result is inferred."
+  ]
+}

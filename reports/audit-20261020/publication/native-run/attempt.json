@@ -1,0 +1,81 @@
+{
+  "schema": "kicad-route/attempt/1",
+  "backend": "krt",
+  "project": "route_demo",
+  "board": "route_demo.kicad_pcb",
+  "schematic": "route_demo.kicad_sch",
+  "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+  "source": {
+    "source_dir": "/home/halbritt/git/kicad-route/fixtures/route_demo",
+    "source": "working tree",
+    "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source_dirty_files": []
+  },
+  "reference_dir": "reference/route_demo",
+  "candidate_dir": "candidate/route_demo",
+  "reference_facts": "facts/reference-facts.json",
+  "rules_files": {
+    "project": "route_demo.kicad_pro",
+    "custom_rules": "route_demo.kicad_dru",
+    "not_loaded": []
+  },
+  "baseline": {
+    "report": "../../candidate-out/.cache/baseline/18946416f498973cbd573f04d90875ef27835bebbab0fe987b84896d1e04c11d/generation-h2sf_opc/baseline-drc.json",
+    "cached": true,
+    "reasons": [],
+    "identity": {
+      "schema": 1,
+      "input": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+      "board": "route_demo.kicad_pcb",
+      "kicad_cli": {
+        "path": "/usr/bin/kicad-cli",
+        "version": "10.0.7",
+        "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+      },
+      "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+      "pour_schema": 1,
+      "grading": {
+        "baselinecache.py": "aa2f321ed3e7f9fadf2262d341a5ab29446c2cdcc522cab5c2bf6abc3a343881",
+        "cli.py": "8620842aae01c519dde270a93e5c6fbaf75de4a60133cd0415d30c02a3b0c21e",
+        "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+        "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+        "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+      },
+      "result_schemas": {
+        "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+        "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+      }
+    },
+    "generation": "generation-h2sf_opc"
+  },
+  "scope": {
+    "nets": [
+      "/SIG_A",
+      "/SIG_A_OUT",
+      "/SIG_B",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND"
+    ],
+    "mode": "all"
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": 0.4,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "floor": null
+}

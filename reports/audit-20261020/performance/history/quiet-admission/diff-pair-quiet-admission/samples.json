@@ -1,0 +1,30 @@
+{
+  "schema": "kicad-route/engine-comparison/2",
+  "project": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair",
+  "args": [
+    "--budget",
+    "180",
+    "--diff-pairs",
+    "auto"
+  ],
+  "reference": [],
+  "candidate": [],
+  "warmup": {},
+  "mode": "migration-equivalence",
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "measurement": "medians: full-CLI wall time, GNU-time largest individual-process RSS, and sampled concurrent process-tree summed RSS (50 ms polling wait, actual intervals retained); all three gates enforce 1.10. Sampled RSS is a lower bound on peak.",
+  "quiet_admission_protocol": "/home/halbritt/git/kicad-route/build/agent497-qualification/quiet-admission-metadata/protocol.json"
+}

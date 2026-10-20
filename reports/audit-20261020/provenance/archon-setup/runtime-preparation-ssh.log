@@ -1,0 +1,3 @@
+reference_exit=0 candidate_exit=0
+{"status": "PASS", "receipt": "/evidence/preparation-reference/preparation.json"}
+{"status": "PASS", "receipt": "/evidence/preparation-candidate/preparation.json"}

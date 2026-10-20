@@ -1,0 +1,34 @@
+{
+  "schema": "kicad-route/archon-artifact-transport-policy/1",
+  "decision": "Separate post-terminal filtered export; retain frozen original indexer and all native profile bytes unchanged",
+  "profile_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+  "original_indexer_sha256": "ba35e6ef203839f235af3b8d853ca6d5a8bdc8e9f6e3958fcd5a5d5083425e64",
+  "allowed_omission_relative_prefixes": [
+    "preparation-reference/out/.home",
+    "preparation-candidate/out/.home",
+    "diff-pair-archon/reference-out/.home",
+    "diff-pair-archon/candidate-out/.home",
+    "four-layer-archon/reference-out/.home",
+    "four-layer-archon/candidate-out/.home",
+    "multipoint-archon/reference-out/.home",
+    "multipoint-archon/candidate-out/.home",
+    "route-demo-archon/reference-out/.home",
+    "route-demo-archon/candidate-out/.home"
+  ],
+  "forbidden_omissions": [
+    "raw result/GNU time/stdout/stderr",
+    "resource snapshots and host attestations",
+    "source boards and native work",
+    "baseline cache and ledger",
+    "preparation manifests and build logs",
+    "explicit frozen prerequisites",
+    "any regular-file absolute locator in retained JSON"
+  ],
+  "required_conditions": [
+    "Only after parent-observed terminal8896 and host-after capture",
+    "Every omitted prefix reports path/count/bytes/reason",
+    "Every original required locator resolves exactly in new index or independent verification fails",
+    "Index binds helper/policy/omissions/original indexer SHA; no invented unexecuted original full-index hash"
+  ],
+  "execution_status": "Prepared only; no remote mutation/export while matrix live"
+}

@@ -1,0 +1,25 @@
+{
+  "schema": "kicad-route/archon-verifier-independent-review/1",
+  "observed_utc": "2026-10-20T22:47:32.057619+00:00",
+  "adapter_sha256": "1a6af758a3995ef47c38d203dd1eb922f1dab022a3331ba18a1d19c244aa992f",
+  "index_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+  "matrix_session": "8896",
+  "observed_exit_code": 0,
+  "result": "No remaining material verifier defect found",
+  "method": "Independent read-only code/delta review plus actual retained-data verifier invocation through archive authority check; no native/remote execution or source changes",
+  "reviewed_dimensions": [
+    "Frozen protocol/harness/source/runtime/Python/package/native grading and exact input population",
+    "Actual Docker/host/container identity and ancestor-control parity before/after all48 attempts",
+    "Raw GNU timing, exact5+5+2 populations, unchanged native/copper/fullwall/dualRSS gates",
+    "RSS birth membership including separately observed CLI child and GNU-time root, explicit exit/reuse races",
+    "Pinned filtered exporter/policy/original indexer, exact10HOME omission prefixes/counts/bytes/totals, required original locator resolution",
+    "All actual final-validation board hashes and312grading record hashes; all24 owned final evidence hashes required;6known legacy-reference stale evidence hashes explicitly retained"
+  ],
+  "actual_checks": "Full actual Archon authority recheckPASS; all2540 original remote identities map to byte-preserved durable audit targets; no missing required inventory files",
+  "limitations": [
+    "Qualification applies to declared user-selected Archon same-host16CPU profile; local results remain separate history",
+    "No continuous cgroup migration tracing claimed; exit/reuse races remain explicit",
+    "Task HOME omission counts/bytes are helper-observed metadata; omitted download cache contents are not qualification evidence",
+    "Landed default-runtime proof and final tracker acceptance remain separate parent-owned gates"
+  ]
+}

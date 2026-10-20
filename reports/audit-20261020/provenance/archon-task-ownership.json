@@ -1,0 +1,89 @@
+{
+  "schema": "kicad-route/task-resource-ownership/1",
+  "created_utc": "2026-10-20T22:29:28.314725+00:00",
+  "owner": "agent-497",
+  "project": "kicad-route",
+  "host_alias": "archon",
+  "task_root": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon",
+  "status": "PREPARATION_PASS_FROZEN_PROFILE_UPLOADED_NO_ROUTING",
+  "authority": "User explicitly selected Archon; parent authorized task-scoped reversible Docker/source/runtime preparation, no routing until protocol review",
+  "paths_created": [
+    "setup",
+    "work/reference",
+    "work/candidate",
+    "work/home",
+    "work/cargo-home",
+    "evidence",
+    "work/state-reference",
+    "work/state-candidate",
+    "evidence/preparation-reference",
+    "evidence/preparation-candidate"
+  ],
+  "all_paths_relative_to_task_root": true,
+  "standalone_source_checkouts": {
+    "reference": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "candidate": "f0f73da86835ec583f2a2c9128e6893fa59c03b7"
+  },
+  "source_bundle_sha256": "5c3d3b3e134c5f465fd9f7dead6a970df80eebd6c70a36ce308c4fae243be8ad",
+  "docker": {
+    "image_tag": "kicadroute-agent497-archon:20261020",
+    "image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+    "base": "ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac",
+    "container": "kicadroute-agent497-archon",
+    "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+    "labels_planned": {
+      "org.harm.agent": "agent-497",
+      "org.harm.project": "kicad-route",
+      "org.harm.task": "agent497-archon-20261020"
+    },
+    "image_manifest_list_digest": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+    "labels": {
+      "org.harm.agent": "agent-497",
+      "org.harm.project": "kicad-route",
+      "org.harm.task": "agent497-archon-20261020"
+    },
+    "image_config_digest": "sha256:ca10eb115bcb78234d552fd38fac2ddf4d28246d74cf529fdd98fbb9c6eea853",
+    "identity_semantics": "Docker29containerd inspect.Id and container.Image identify OCI index digest67b6; build-export config digestca10 is separately retained and not equated with imageID."
+  },
+  "cleanup": "Not authorized to execute yet. After parent verifies imported raw proof, remove only named task container, exact task image if unused, and exact task_root. No global prune, unrelated images/containers/workloads or host package/config changes. Two standalone clones create no linked-worktree registrations.",
+  "updated_utc": "2026-10-20T22:36:47.221198+00:00",
+  "actual_target_bindings": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-target-bindings.json",
+    "sha256": "50b98e1c5ff4f683d01e47ec3b748d83c41fe9889df0cb5e83a205daddd04d10"
+  },
+  "runtime_preparation_sessions": {
+    "image_build": 17385,
+    "runtime_preparation": 40222,
+    "exit_codes": [
+      0,
+      0
+    ]
+  },
+  "profile": {
+    "protocol_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+    "harness_sha256": "ebfd140540a7ac794ea6efb00c292da1ffe8ea77e8512b6981f2148ae72842e1",
+    "uploaded_to": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-archon/evidence",
+    "files": [
+      "run-archon-matrix.py",
+      "archon-protocol.json",
+      "test_archon_matrix.py",
+      "archon-tests.log",
+      "index-archon-evidence.py",
+      "test_archon_index.py",
+      "archon-index-tests.log"
+    ],
+    "launch_owner": "parent/root; no routing executed by installation lane",
+    "historical_correction_files": [
+      "archon-protocol-before-gui-prl-correction.json",
+      "archon-root-preflight-refusal.json"
+    ]
+  },
+  "profile_correction": {
+    "previous_protocol_sha256": "3ef49615904131b58e7c061f9f5f12e46fa5419a180d129322282b855ab5afdf",
+    "current_protocol_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+    "reason": "Remove absent ignored GUI .kicad_prl prerequisite after actual zero-native preflight refusal; no routing input/source/runtime/harness/gate changes",
+    "history_protocol": "archon-protocol-before-gui-prl-correction.json",
+    "refusal_receipt": "archon-root-preflight-refusal.json",
+    "count_wording_correction": "All remaining prerequisites and host attestation matched; factual count wording only after GUI prerequisite removal."
+  }
+}

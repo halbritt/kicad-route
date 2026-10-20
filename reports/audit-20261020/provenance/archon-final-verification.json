@@ -1,0 +1,697 @@
+{
+  "schema": "kicad-route/archon-final-verification/1",
+  "status": "PASS",
+  "host": "archon",
+  "matrix_session": "8896",
+  "observed_matrix_exit_code": 0,
+  "completed_boards": 4,
+  "complete_qualified_attempts": 48,
+  "all_comparisons_passed": true,
+  "gate_limit": 1.1,
+  "measured_repetitions_per_side": 5,
+  "separate_warmups_per_board": 2,
+  "mode": "migration-equivalence",
+  "protocol": {
+    "source": "/evidence/archon-protocol.json",
+    "retained": "archon-protocol.json",
+    "sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b"
+  },
+  "harness": {
+    "source": "/evidence/run-archon-matrix.py",
+    "retained": "run-archon-matrix.py",
+    "sha256": "ebfd140540a7ac794ea6efb00c292da1ffe8ea77e8512b6981f2148ae72842e1"
+  },
+  "matrix_terminal": {
+    "source": "/evidence/archon-metadata/matrix.json",
+    "retained": "archon-metadata/matrix.json",
+    "sha256": "be5b522800f61eb28398ab6e406af98aa77cb54c555dd0a6c996ba8c4020f8ed"
+  },
+  "evidence_index": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/archon-evidence-index.json",
+    "sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e"
+  },
+  "transport": {
+    "status": "verified",
+    "artifacts": {
+      "helper": {
+        "source": "/evidence/export-archon-evidence.py",
+        "retained": "export-archon-evidence.py",
+        "sha256": "af2899d658b36ffb8c0aa7f62cee6f65c8ba5f159ecc829d64f3b7ea4f2d390a"
+      },
+      "policy": {
+        "source": "/evidence/archon-export-policy.json",
+        "retained": "archon-export-policy.json",
+        "sha256": "8e30d7b302bba9856a127e1a04159f2efb8571ed59c5ad3e8f4fd27027aab3e1"
+      },
+      "omissions": {
+        "source": "/evidence/archon-filtered-export/transport-omissions.json",
+        "retained": "transport-omissions.json",
+        "sha256": "0487955293ba17059dcbb0319fb622e77b1cb4c8b34c009b58490329c4d7f14c"
+      },
+      "original_indexer": {
+        "source": "/evidence/index-archon-evidence.py",
+        "retained": "index-archon-evidence.py",
+        "sha256": "ba35e6ef203839f235af3b8d853ca6d5a8bdc8e9f6e3958fcd5a5d5083425e64"
+      }
+    },
+    "omitted_prefixes": [
+      {
+        "source": "/evidence/preparation-reference/out/.home",
+        "relative_prefix": "preparation-reference/out/.home",
+        "files": 2665,
+        "bytes": 203060569,
+        "symlinks": 4,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/preparation-candidate/out/.home",
+        "relative_prefix": "preparation-candidate/out/.home",
+        "files": 2665,
+        "bytes": 203061146,
+        "symlinks": 4,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/diff-pair-archon/reference-out/.home",
+        "relative_prefix": "diff-pair-archon/reference-out/.home",
+        "files": 0,
+        "bytes": 0,
+        "symlinks": 0,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/diff-pair-archon/candidate-out/.home",
+        "relative_prefix": "diff-pair-archon/candidate-out/.home",
+        "files": 0,
+        "bytes": 0,
+        "symlinks": 0,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/four-layer-archon/reference-out/.home",
+        "relative_prefix": "four-layer-archon/reference-out/.home",
+        "files": 0,
+        "bytes": 0,
+        "symlinks": 0,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/four-layer-archon/candidate-out/.home",
+        "relative_prefix": "four-layer-archon/candidate-out/.home",
+        "files": 0,
+        "bytes": 0,
+        "symlinks": 0,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/multipoint-archon/reference-out/.home",
+        "relative_prefix": "multipoint-archon/reference-out/.home",
+        "files": 0,
+        "bytes": 0,
+        "symlinks": 0,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/multipoint-archon/candidate-out/.home",
+        "relative_prefix": "multipoint-archon/candidate-out/.home",
+        "files": 0,
+        "bytes": 0,
+        "symlinks": 0,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/route-demo-archon/reference-out/.home",
+        "relative_prefix": "route-demo-archon/reference-out/.home",
+        "files": 0,
+        "bytes": 0,
+        "symlinks": 0,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      },
+      {
+        "source": "/evidence/route-demo-archon/candidate-out/.home",
+        "relative_prefix": "route-demo-archon/candidate-out/.home",
+        "files": 0,
+        "bytes": 0,
+        "symlinks": 0,
+        "reason": "Task HOME/download cache only; no required regular-file JSON locator may point inside"
+      }
+    ],
+    "omitted_totals": {
+      "files": 5330,
+      "bytes": 406121715,
+      "symlinks": 8
+    },
+    "required_locator_resolution": "Every native/raw/resource/runtime proof locator independently required below; no missing-file fallback",
+    "scope": "Separate post-terminal transport only. HOME omission metadata is helper-observed; cache contents are deliberately not qualification evidence."
+  },
+  "slots": [
+    {
+      "board": "diff-pair",
+      "report": {
+        "source": "/evidence/diff-pair-archon/comparison.json",
+        "retained": "diff-pair-archon/comparison.json",
+        "sha256": "936f5ea5c90d563bcc4260df7b05a7294a862e266fb28384b1dfd46145fee310"
+      },
+      "raw_samples": {
+        "source": "/evidence/diff-pair-archon/samples.json",
+        "retained": "diff-pair-archon/samples.json",
+        "sha256": "bcd7d226101b6d461d3f33c2168ca5a256b279e1ab82f760dd3f530a10f083c5"
+      },
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 5.58,
+            "candidate_median": 4.34,
+            "ratio": 0.7777777777777778,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 228152,
+            "candidate_median": 227920,
+            "ratio": 0.9989831340509836,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 247180,
+            "candidate_median": 249148,
+            "ratio": 1.0079618092078648,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      },
+      "native_attempts": 12,
+      "raw_native_and_GNU_time_recomputed": true,
+      "additional_required_profile_gates": "Frozen host/container/tool/build/input identity, terminal48sample authority and per-attempt resource/membership verification remain mandatory",
+      "status": "passed"
+    },
+    {
+      "board": "four-layer",
+      "report": {
+        "source": "/evidence/four-layer-archon/comparison.json",
+        "retained": "four-layer-archon/comparison.json",
+        "sha256": "c925c4367c3ee3b79738936ecd401a2201550156ea3849e532b42f5df7be48d4"
+      },
+      "raw_samples": {
+        "source": "/evidence/four-layer-archon/samples.json",
+        "retained": "four-layer-archon/samples.json",
+        "sha256": "401f28cfc93338886ab407fd294f3158680184b100a0ee9407e511fd53de2504"
+      },
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 4.23,
+            "candidate_median": 3.66,
+            "ratio": 0.8652482269503545,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 228760,
+            "candidate_median": 228356,
+            "ratio": 0.998233956985487,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 381348,
+            "candidate_median": 382092,
+            "ratio": 1.0019509739135908,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      },
+      "native_attempts": 12,
+      "raw_native_and_GNU_time_recomputed": true,
+      "additional_required_profile_gates": "Frozen host/container/tool/build/input identity, terminal48sample authority and per-attempt resource/membership verification remain mandatory",
+      "status": "passed"
+    },
+    {
+      "board": "multipoint",
+      "report": {
+        "source": "/evidence/multipoint-archon/comparison.json",
+        "retained": "multipoint-archon/comparison.json",
+        "sha256": "f28c531c71e580c6ae1743b89454114c1e68a5475a8e48d0857fe2fc359d3729"
+      },
+      "raw_samples": {
+        "source": "/evidence/multipoint-archon/samples.json",
+        "retained": "multipoint-archon/samples.json",
+        "sha256": "f3c5a4d0f77cdca2fae270d7505b74f6573fd09eae6f27bd00318617c7fc33c7"
+      },
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 3.51,
+            "candidate_median": 2.97,
+            "ratio": 0.8461538461538463,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 228256,
+            "candidate_median": 228016,
+            "ratio": 0.9989485489976168,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 247376,
+            "candidate_median": 249984,
+            "ratio": 1.0105426557143782,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      },
+      "native_attempts": 12,
+      "raw_native_and_GNU_time_recomputed": true,
+      "additional_required_profile_gates": "Frozen host/container/tool/build/input identity, terminal48sample authority and per-attempt resource/membership verification remain mandatory",
+      "status": "passed"
+    },
+    {
+      "board": "route-demo",
+      "report": {
+        "source": "/evidence/route-demo-archon/comparison.json",
+        "retained": "route-demo-archon/comparison.json",
+        "sha256": "119d4669b3fd1f4e18b059bd4454b34216a6bb95f2c4339b2c62de2bf837a7de"
+      },
+      "raw_samples": {
+        "source": "/evidence/route-demo-archon/samples.json",
+        "retained": "route-demo-archon/samples.json",
+        "sha256": "9f828bade1ea49cda7418a61fd4faac37ebde7b171072d83f052500492402fe1"
+      },
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "metrics": {
+          "wall_s": {
+            "reference_median": 4.67,
+            "candidate_median": 4.13,
+            "ratio": 0.8843683083511777,
+            "limit": 1.1
+          },
+          "max_rss_kib": {
+            "reference_median": 266008,
+            "candidate_median": 266056,
+            "ratio": 1.0001804457008812,
+            "limit": 1.1
+          },
+          "process_tree_peak_rss_kib": {
+            "reference_median": 411000,
+            "candidate_median": 412900,
+            "ratio": 1.0046228710462286,
+            "limit": 1.1
+          }
+        },
+        "copper_geometry_equal": true,
+        "mode": "migration-equivalence"
+      },
+      "native_attempts": 12,
+      "raw_native_and_GNU_time_recomputed": true,
+      "additional_required_profile_gates": "Frozen host/container/tool/build/input identity, terminal48sample authority and per-attempt resource/membership verification remain mandatory",
+      "status": "passed"
+    }
+  ],
+  "resources": {
+    "status": "verified",
+    "host_before": {
+      "source": "/evidence/before-host-attestation.json",
+      "retained": "before-host-attestation.json",
+      "sha256": "aa8ba7303c5385339404914358cdec3436a1181f75fbb57d436ae22ea9d6e510"
+    },
+    "host_after": {
+      "source": "/evidence/after-host-attestation.json",
+      "retained": "after-host-attestation.json",
+      "sha256": "af17d0d19fd3d52779c99e82882cdae57f8e1bee174a621c16baf3ce701ceb81"
+    },
+    "initial": {
+      "source": "/evidence/archon-metadata/initial-resources.json",
+      "retained": "archon-metadata/initial-resources.json",
+      "sha256": "2725f448ae761e3c9809fd6e60c42ad0820bc0f236769edbe2463b3cb5fbb01a"
+    },
+    "sample_metadata": [
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-reference-0.json",
+        "retained": "archon-metadata/samples/diff-pair-reference-0.json",
+        "sha256": "8b2e30d116484587d117f24951280307c44c987e1b4b453f4ed0bbfcbf2ec505"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-candidate-0.json",
+        "retained": "archon-metadata/samples/diff-pair-candidate-0.json",
+        "sha256": "ecd5c8bcb213faf838151004944f1ed92c07e9a826754dcb1c259b7a0a1a063e"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-candidate-1.json",
+        "retained": "archon-metadata/samples/diff-pair-candidate-1.json",
+        "sha256": "2b15e95c686e3487ff50e07abe02fcdddce851696bff9d8649d63e8ee28cef61"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-reference-1.json",
+        "retained": "archon-metadata/samples/diff-pair-reference-1.json",
+        "sha256": "f2e189f9145589dddb337236840a2ff580c2e682f7cb3a29c47001abb2123d5e"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-reference-2.json",
+        "retained": "archon-metadata/samples/diff-pair-reference-2.json",
+        "sha256": "940dc77371e2aa4d5829d77803e80350e3718637ca3529fd13175cf6bca19d5c"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-candidate-2.json",
+        "retained": "archon-metadata/samples/diff-pair-candidate-2.json",
+        "sha256": "5203508b5055bcb9c00b73a8d5c169b48fd9934013b3575709c9f4cbd10ef061"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-candidate-3.json",
+        "retained": "archon-metadata/samples/diff-pair-candidate-3.json",
+        "sha256": "31d6d8d9649f94d53d12eb65760c26a06295f05b50005b75fdb7af1840c2c796"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-reference-3.json",
+        "retained": "archon-metadata/samples/diff-pair-reference-3.json",
+        "sha256": "c39f4c4457f5f802a235f42122c73bb7251c06d57eaa836e2b072dbd92af0fe1"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-reference-4.json",
+        "retained": "archon-metadata/samples/diff-pair-reference-4.json",
+        "sha256": "a089b460cfc0e18630f8a3fc8065f9cdc3ebd03b32174b9dc481feac4011e781"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-candidate-4.json",
+        "retained": "archon-metadata/samples/diff-pair-candidate-4.json",
+        "sha256": "624b763ad5a7b8f6c4eb3ff862371d5fdfad30c0715bce95195297c6fba8d218"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-candidate-5.json",
+        "retained": "archon-metadata/samples/diff-pair-candidate-5.json",
+        "sha256": "6a193809c01e2f1d2693ec032b235321d40ce128f009e65076dcf3c303feaf07"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/diff-pair-reference-5.json",
+        "retained": "archon-metadata/samples/diff-pair-reference-5.json",
+        "sha256": "0097d73e7d670d7477b5ce735987243ab029d6742b4a35ac34ca41f98026d5fe"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-reference-0.json",
+        "retained": "archon-metadata/samples/four-layer-reference-0.json",
+        "sha256": "6ba31a0464fef23785111446f3a18e125c1f089d26b1c67dc06cd1cd72c54a46"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-candidate-0.json",
+        "retained": "archon-metadata/samples/four-layer-candidate-0.json",
+        "sha256": "f805dbf58057398904e0c1c38fa64a9bf8459ddea23564f9ffe873daf0a7379a"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-candidate-1.json",
+        "retained": "archon-metadata/samples/four-layer-candidate-1.json",
+        "sha256": "e0ee883923a682cc683ce07137752f1d9199dad04adc5a38cb9e3e326c63f44c"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-reference-1.json",
+        "retained": "archon-metadata/samples/four-layer-reference-1.json",
+        "sha256": "be0b8556098dd16a75ba592f0b438a9157190b0937c4093a9eb2ab7ba5693bf9"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-reference-2.json",
+        "retained": "archon-metadata/samples/four-layer-reference-2.json",
+        "sha256": "198744ee119b4324624793f17433ff1cd0606c22a0a1cd7056058bc165e80403"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-candidate-2.json",
+        "retained": "archon-metadata/samples/four-layer-candidate-2.json",
+        "sha256": "ad06199c3ded2cfc654938e700172f3093a4aba69974875a3fadce8ba1adb09b"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-candidate-3.json",
+        "retained": "archon-metadata/samples/four-layer-candidate-3.json",
+        "sha256": "2de8075d0069ca7900e9368eb93fb6dd33ce8eea5fd14783c8000cf6486d6bd7"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-reference-3.json",
+        "retained": "archon-metadata/samples/four-layer-reference-3.json",
+        "sha256": "a26339eba60c656ecc12209b4b143042d4afb594b245e0bfdcecc6fa737e8c81"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-reference-4.json",
+        "retained": "archon-metadata/samples/four-layer-reference-4.json",
+        "sha256": "8ba73d0326fd8d9d8f2a5be9ff3c559a77b72784d02e68dbdee94b8cabfd0633"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-candidate-4.json",
+        "retained": "archon-metadata/samples/four-layer-candidate-4.json",
+        "sha256": "c17f764a13aad3234cd243a11d5c6c49cd87cdcf6053e2c259807f1afa6a518f"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-candidate-5.json",
+        "retained": "archon-metadata/samples/four-layer-candidate-5.json",
+        "sha256": "e3c91f3c20f7369aa8103d71284a0f51eaeb137f4683c7dd6ac5b2bd65706709"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/four-layer-reference-5.json",
+        "retained": "archon-metadata/samples/four-layer-reference-5.json",
+        "sha256": "ab55ee188aa0d52b99f9c0118a4bcf7708d9adc0816d1fb190007ae8009cf218"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-reference-0.json",
+        "retained": "archon-metadata/samples/multipoint-reference-0.json",
+        "sha256": "9181f099a4e94e7eecf328836d76d46931bb1853208426c8539aae395d4ed875"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-candidate-0.json",
+        "retained": "archon-metadata/samples/multipoint-candidate-0.json",
+        "sha256": "6e5a4392953a7d8607b01ca92b4ec506a165f544184fb69e5c33014934f0cc75"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-candidate-1.json",
+        "retained": "archon-metadata/samples/multipoint-candidate-1.json",
+        "sha256": "3741d2a11cfda3acf9ffb29f370f8aef2f0e4ba3a33266cf3a9776a66cf7d1e3"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-reference-1.json",
+        "retained": "archon-metadata/samples/multipoint-reference-1.json",
+        "sha256": "ca8d61274f9d55ae14aa3292ada1ff5a73df5175aaf5c73d658c918034a31812"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-reference-2.json",
+        "retained": "archon-metadata/samples/multipoint-reference-2.json",
+        "sha256": "1f51bab1a5897c8c1d8526cb87425b58282e30896b9c91e96ce713ac738c0df2"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-candidate-2.json",
+        "retained": "archon-metadata/samples/multipoint-candidate-2.json",
+        "sha256": "aa68678513df96d256c957931fe0a4849c0e5d126e11adde5ed0f2c2ccb6728e"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-candidate-3.json",
+        "retained": "archon-metadata/samples/multipoint-candidate-3.json",
+        "sha256": "d17849e22dd979730699316c49b4eca7618f4f5ebabe53c8ed594d829f7eacf2"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-reference-3.json",
+        "retained": "archon-metadata/samples/multipoint-reference-3.json",
+        "sha256": "b2610a50d4ba4310fe8eb2aa5d6a9830dda4f17eb4db29a240ce3e58f6e6d2e2"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-reference-4.json",
+        "retained": "archon-metadata/samples/multipoint-reference-4.json",
+        "sha256": "f1fd3eff29614b6b619f7cc976958369d2fb5a7c2d227beda05c3e38054689b3"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-candidate-4.json",
+        "retained": "archon-metadata/samples/multipoint-candidate-4.json",
+        "sha256": "acafda409c2ca1c67a41e65a9b3cdc80f5b49bde25d3d6accbbff5a08fc2e441"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-candidate-5.json",
+        "retained": "archon-metadata/samples/multipoint-candidate-5.json",
+        "sha256": "b593cbababd82872a7d4e8637f8ab9206b5fddf1f0bffd6c640ebf526690b624"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/multipoint-reference-5.json",
+        "retained": "archon-metadata/samples/multipoint-reference-5.json",
+        "sha256": "37049fa4974952843dde0e55d246020f4e37167ee1ee54b586214914c792ec0c"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-reference-0.json",
+        "retained": "archon-metadata/samples/route-demo-reference-0.json",
+        "sha256": "7492be66a6bb45a76d67f689f9250cf9c455af3d7060c216629355509279bb07"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-candidate-0.json",
+        "retained": "archon-metadata/samples/route-demo-candidate-0.json",
+        "sha256": "16a7a2193096118c6bfcaf8e057c502d0259654e8a88421122043b7f72299ddc"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-candidate-1.json",
+        "retained": "archon-metadata/samples/route-demo-candidate-1.json",
+        "sha256": "84e89ac143299b04072478688332a822b2c3a0f257fe6cd4068fb8887bbbafe0"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-reference-1.json",
+        "retained": "archon-metadata/samples/route-demo-reference-1.json",
+        "sha256": "63ce1122d8206980230db0ce106ac00c052febe79959f124a675190b3343b7b9"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-reference-2.json",
+        "retained": "archon-metadata/samples/route-demo-reference-2.json",
+        "sha256": "ea0b13e8de05fbcc1b3ffdd781f50d0bcfd60ae7e2c4540d69a363a1c80fe54f"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-candidate-2.json",
+        "retained": "archon-metadata/samples/route-demo-candidate-2.json",
+        "sha256": "5ef2385ec08d3d6e59368eb7c54165c9c34a8ea1b42d7858e72f450cb6efcf73"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-candidate-3.json",
+        "retained": "archon-metadata/samples/route-demo-candidate-3.json",
+        "sha256": "d36f3c7ed5a8505e425a862ab132fc0d1c63c4511d51e352f0364aa35234d09a"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-reference-3.json",
+        "retained": "archon-metadata/samples/route-demo-reference-3.json",
+        "sha256": "1e115a31e95a26d495d25c02891bea4e4efb0db0cb6f703fc368a58e7b35624a"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-reference-4.json",
+        "retained": "archon-metadata/samples/route-demo-reference-4.json",
+        "sha256": "8dea1c7bb686ba43e3b4cc9a814646a49157ff0fa5bdc469178d616da104103a"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-candidate-4.json",
+        "retained": "archon-metadata/samples/route-demo-candidate-4.json",
+        "sha256": "2bfbd60c0cd29c44899960d045fa9232ce78e25ad90db76994de0cdaf3c3e7ee"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-candidate-5.json",
+        "retained": "archon-metadata/samples/route-demo-candidate-5.json",
+        "sha256": "3b2403b64ac53ef0f75d2ffe93c83a2a256be72ba87989c980097cefef25f977"
+      },
+      {
+        "source": "/evidence/archon-metadata/samples/route-demo-reference-5.json",
+        "retained": "archon-metadata/samples/route-demo-reference-5.json",
+        "sha256": "434bcbdaba8d76d3b0d0fc8b88d9d389c2e7eeb98947486fb58464f1ce7e2436"
+      }
+    ],
+    "observed_in_scope_births": 1191,
+    "explicit_birth_races": 0,
+    "actual_cli_child_and_gnu_time_root_membership_verified": true,
+    "host_and_container_ancestor_parity_verified": true,
+    "limitation": "Once per frozenRSS tracked birth. Reap/reuse races explicit; no continuous migration tracing. Pressure/CPU times diagnostic only; no sample exclusion."
+  },
+  "tool_identity_verification": {
+    "status": "verified",
+    "attempts": 48,
+    "actual_builds": {
+      "reference": {
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c2ac657d5617",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "extension_module_sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "native": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "wrapper_python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        }
+      },
+      "candidate": {
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+          "venv_python_version": "3.12.3"
+        },
+        "native": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "wrapper_python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        }
+      }
+    },
+    "prepared_runtimes": {
+      "reference": {
+        "manifest": {
+          "source": "/work/state-reference/manifest.json",
+          "retained": "prerequisite-by-sha/980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012/manifest.json",
+          "sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012"
+        },
+        "module": {
+          "source": "/work/state-reference/.venv-krt/lib/python3.12/site-packages/grid_router.so",
+          "retained": "prerequisite-by-sha/712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915/grid_router.so",
+          "sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915"
+        },
+        "preparation": {
+          "source": "/evidence/preparation-reference/preparation.json",
+          "retained": "preparation-reference/preparation.json",
+          "sha256": "9ca2e963ceb1ad7c63c76706c2f3baf52d29544f9f3c9a20914b7f4cfb2af5d5"
+        },
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "extension_sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915",
+        "python_version": "3.12.3",
+        "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+        "dependency_pyc_count": 1619
+      },
+      "candidate": {
+        "manifest": {
+          "source": "/work/state-candidate/manifest.json",
+          "retained": "prerequisite-by-sha/06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b/manifest.json",
+          "sha256": "06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b"
+        },
+        "module": {
+          "source": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv/lib/python3.12/site-packages/grid_router.so",
+          "retained": "prerequisite-by-sha/b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957/grid_router.so",
+          "sha256": "b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957"
+        },
+        "preparation": {
+          "source": "/evidence/preparation-candidate/preparation.json",
+          "retained": "preparation-candidate/preparation.json",
+          "sha256": "05472a1b933f379da68d6cbfbbba61de9f4d7931aff1ea09dbc7ab4cbe4f6248"
+        },
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "extension_sha256": "b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957",
+        "python_version": "3.12.3",
+        "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+        "dependency_pyc_count": 1619
+      }
+    },
+    "all_native_inputs_and_settings_bound": true
+  },
+  "scope": "User-selected Archon same-container full available16CPU normal-priority unmodified quota profile. Prior local outcomes remain supporting history; no cross-host binary equality claim.",
+  "native_record_verification": {
+    "final_validation_hashes_verified": 48,
+    "owned_final_evidence_hashes_verified": 24,
+    "grading_record_hashes_verified": 312,
+    "legacy_reference_stale_evidence_hashes": 6,
+    "legacy_reference_scope": "Frozen old reference may retain pre-refill evidence hashes; actual native validation hashes bind all retained final reference boards. Owned candidate hashes must match final bytes."
+  },
+  "tracker_writes": false
+}

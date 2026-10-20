@@ -1,0 +1,47 @@
+Finalizer SHA256: 24c6027ef343e9384f379fedb13e99e3aaecb3498ea31009b94f46e70bbbffd1
+PASS actual calibration: all6 trials independently recomputed; selected1CPU
+PASS rejection: too-fast work under claimed cap
+PASS rejection: escaped completed worker
+PASS rejection: escaped parent-observed worker
+PASS rejection: missing worker
+PASS rejection: forged service verdict
+PASS rejection: forged cgroup CPU delta
+PASS rejection: inadequate delivered CPU work
+PASS rejection: wrong actual CPU quota
+PASS rejection: calibration control error
+PASS actual scope: quota/period/burst/weight/priority/affinity/ancestors
+PASS rejection: changed own quota
+PASS rejection: lower ancestor quota
+PASS rejection: missing ancestor
+PASS rejection: mismatched raw membership
+PASS rejection: changed affinity
+PASS rejection: duplicate CPU accounting
+PASS exact population:48 controls/96 birth observations/raw RSS sample count
+PASS rejection: escaped raw descendant despite empty summary
+PASS rejection: missing actual CLI observation
+PASS rejection: missing GNUtime root observation
+PASS rejection: RSS/membership count mismatch
+PASS rejection: duplicate observed birth
+PASS rejection: unrecorded membership read error
+PASS rejection: resource record overlaps next attempt
+PASS rejection: resource clock shorter than driver execution
+PASS rejection: postexecution ancestor controls changed
+PASS rejection: dropped one of48 resource records
+PASS rejection: extra resource record
+PASS actual completed candidate: raw tool/build/input/CLI bindings
+PASS rejection: forged captured build identity
+PASS rejection: raw result build differs from summary
+PASS rejection: raw candidate execution differs from tool evidence
+PASS rejection: wrong CLI bytes
+PASS rejection: missing input file
+PASS rejection: edited raw input hash
+PASS rejection: extra input file
+PASS route-demo native population excludes GUI/generator files while all prerequisites stay pinned
+PASS frozen adjudicator/prerequisites load from retained snapshots without live source paths
+PASS rejection: edited captured prerequisite bytes
+PASS rejection: misbound original prerequisite path
+PASS rejection: missing captured prerequisite
+PASS rejection: escaping captured prerequisite path
+PASS rejection: RUNNING cannot finalize with claimed exit0
+PASS rejection: old matrix session cannot qualify
+45 bounded CPU-rate verifier checks PASS; no native jobs or real waits.

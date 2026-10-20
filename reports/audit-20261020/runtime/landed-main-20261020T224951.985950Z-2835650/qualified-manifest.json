@@ -1,0 +1,104 @@
+{
+  "schema": "kicad-route/state/1",
+  "state_dir": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+  "written_by": "bytecode-preparation-validation",
+  "updated_utc": "2026-10-20T20:27:05.751999+00:00",
+  "pinned": false,
+  "kicad_route": {
+    "version": "07f9be0",
+    "commit": "07f9be0d38a9b45970a01ab85251a12a56ca6f45",
+    "dirty": false
+  },
+  "python": {
+    "version": "3.12.3",
+    "executable": "/usr/bin/python3"
+  },
+  "krt": {
+    "generation": ".router-generations/60310b2b2bc14f9e9efcddcb57e650e5",
+    "tag": null,
+    "describe": "owned-c6c09054f684",
+    "commit": "07f9be0d38a9b45970a01ab85251a12a56ca6f45",
+    "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+    "source_path": ".router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+    "source": "https://github.com/halbritt/kicad-route",
+    "clone_url": null,
+    "upstream": {
+      "project": "KiCadRoutingTools",
+      "license": "MIT",
+      "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+      "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+      "upstream_release": "v0.23.1",
+      "fork": "https://github.com/halbritt/KiCadRoutingTools",
+      "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+      "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+      "fixes": {
+        "KICADROUTE-64": "4b316ba",
+        "KICADROUTE-63": "0494a05"
+      },
+      "source_inventory": "reports/routing-engine/source-closure.json",
+      "additional_license_notices": [
+        "py_router/stage3d/vendor/three/LICENSE"
+      ],
+      "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+    },
+    "version": "0.23.1",
+    "grid_router_version": "0.23.1",
+    "extension_module": {
+      "path": ".router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv/lib/python3.12/site-packages/grid_router.so",
+      "sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59"
+    },
+    "prebuilt": {
+      "asset": null,
+      "url": null,
+      "release": null,
+      "from_source": true
+    },
+    "requirements": {
+      "path": ".router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router/requirements.txt",
+      "sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43"
+    },
+    "venv": {
+      "path": ".router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+      "python": "/usr/bin/python3.12",
+      "python_version": "3.12.3",
+      "packages": [
+        "numpy==2.5.4",
+        "pillow==13.0.0",
+        "scipy==1.18.1",
+        "shapely==2.2.0"
+      ],
+      "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+    }
+  },
+  "freerouting": {
+    "tag": "v2.5.0",
+    "asset": "freerouting-2.5.0.jar",
+    "url": "https://github.com/freerouting/freerouting/releases/download/v2.5.0/freerouting-2.5.0.jar",
+    "jar": {
+      "path": "vendor/freerouting/current/freerouting-2.5.0.jar",
+      "sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7"
+    },
+    "release_sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
+    "sha256_matches_release": true,
+    "github_digest_match": null,
+    "build_revision": "b647a2f824cfbc54bc4dcaee71b03b7cd945eb76",
+    "published_at": "2026-10-05T15:58:39Z",
+    "java_required": 25
+  },
+  "java": {
+    "path": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java",
+    "major": 25,
+    "version": "25.0.4.1 (build 25.0.4.1+1-1-24.04.4-Ubuntu)",
+    "required": 25
+  },
+  "kicad": {
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew_build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+    "pcbnew_python": "/usr/bin/python3"
+  },
+  "determinism": {}
+}

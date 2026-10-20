@@ -1,0 +1,92 @@
+{
+  "schema": "kicad-route/doctrine-final-provenance/1",
+  "observed_utc": "2026-10-20T22:49:06.112211+00:00",
+  "packet_id": "pkt-7f7cc3fede0d7721",
+  "packet_content_sha256": "7f7cc3fede0d77218ee4b43b51bc70309fb18f8a8f4559426fdaaa72de896847",
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+  "retriever_version": "retriever-ec995ecdd083b2c8",
+  "release_commit": "d3e0c0d4ccd1920b2e045c156f1cf0db4fc5f04f",
+  "retrieval_gate": "Fresh mechanical gate exit0 before final second gather: index checksum verified, ce9bd74fa3a711c9354726a64f6c9da2427c4475a85e60c062ba8d0dce449fe0 source fingerprint matched, retrieval-relevant paths committed.",
+  "gathering_passes": "Exactly two evidence passes; final second successful once. No retry or third gather.",
+  "typed_records": 27,
+  "schema_validation": "decision-receipt/2 plus nested evidence-record/1 and assertion-artifact/2 passed Draft202012 validation; citations classifier exit0.",
+  "consumption": "PINCITE_TRACE_DIR=/home/halbritt/.local/share/pincite/trace enabled for final gather and citation classification; nine observed activated concepts classify valid-packet-citation. Receipt repository evidence locators correctly classify foreign to doctrine corpus; their retained bytes are separately indexed.",
+  "packet_missing_tags": "Immutable packet still reports23UNMET; explicit disposition retains19nonmaterial and4manual existing-software-evidence assessments. No physical device claim; no mechanical packet discharge.",
+  "files": [
+    {
+      "path": "/tmp/kicad-route-agent497-doctrine-second-final.json",
+      "sha256": "d94ba9a4307083c50f66610b86b25309ba5a451fa12a73c7d735fc22eec856d2",
+      "bytes": 200186
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-second-final.md",
+      "sha256": "3f1f5fcde1a6bcf4a363313c7003816a2e9d839d1a3f5377926c988db857393a",
+      "bytes": 16433
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-final-decision-receipt.json",
+      "sha256": "d3143a19fcf0460e3ee38142aa735c4ea20dfdf5006281b56b1da3108668ec2d",
+      "bytes": 129825
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-final-obligation-disposition.json",
+      "sha256": "eaf1faa512acd8bc91edc2a780a535c6326f1309f62a999acbf693ff3dc94c9b",
+      "bytes": 17105
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-citation-observations.json",
+      "sha256": "6dcbce52a1415670c3724cc342c8658fbaa172c1aa23f4a021abdb412e71a193",
+      "bytes": 981
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-citation-classification.json",
+      "sha256": "b03d7acbe7518aee3a529fe4d0b8cd98ed324924841151340f716e3b2d1d5212",
+      "bytes": 3925
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+      "sha256": "8c5e7b8fa6983546441cdd21ac005f9feccda84d1a2fec6b2e4db365668a82b3",
+      "bytes": 30998
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/archon-evidence-index.json",
+      "sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+      "bytes": 743746
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon_acceptance.py",
+      "sha256": "1a6af758a3995ef47c38d203dd1eb922f1dab022a3331ba18a1d19c244aa992f",
+      "bytes": 28097
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/acceptance_profile.py",
+      "sha256": "99b1078290d27f13401adbac060ac1b6758bcfc60dcd1f2fe68f7acd4feef3e7",
+      "bytes": 8302
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/export-archon-evidence.py",
+      "sha256": "af2899d658b36ffb8c0aa7f62cee6f65c8ba5f159ecc829d64f3b7ea4f2d390a",
+      "bytes": 10643
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-export-policy.json",
+      "sha256": "8e30d7b302bba9856a127e1a04159f2efb8571ed59c5ad3e8f4fd27027aab3e1",
+      "bytes": 1649
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-historical-locator-corrections.json",
+      "sha256": "d9399c87bb41c321f404642c659621904b93998ece84c1b0ceb2f3ab492480b0",
+      "bytes": 3279
+    }
+  ],
+  "retention": "Retain these packets/typed records as workflow provenance. Archive all27/tmp records named by doctrine-preparation.json, plus all three original/final packet files and historical source snapshots; do not delete scratch before durable report manifest verification.",
+  "release_gate_status": "Current code+verification only, statusverified. Landing/default-generation/twoactualnative repeats/doctor/durable report verification+commit/push/trackeracceptance pending parent execution; stop on required check failure or unexplained source/runtime/evidence drift.",
+  "consumption_trace": {
+    "original_daily_trace": "/home/halbritt/.local/share/pincite/trace/2026-10-20.jsonl",
+    "retained_packet_only_trace": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-consumption-trace.jsonl",
+    "sha256": "9ecbcc3fbe20c8d9524d04b6320008457e03c849e8ee5da551b354e0c638c664",
+    "events": 2,
+    "filter": "Only exact final packet ID events; other sessions omitted."
+  }
+}

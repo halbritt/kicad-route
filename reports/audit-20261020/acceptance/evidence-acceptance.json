@@ -1,0 +1,821 @@
+{
+  "schema": "kicad-route/acceptance-audit/1",
+  "observed_utc": "2026-10-20T19:45:09.438625+00:00",
+  "scope": [
+    "KICADROUTE-68",
+    "KICADROUTE-69",
+    "KICADROUTE-70",
+    "KICADROUTE-71",
+    "KICADROUTE-74",
+    "KICADROUTE-78",
+    "KICADROUTE-81"
+  ],
+  "primary_root": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary",
+  "primary_commit": "bd4660d9602f30deab9909d2e66499614f8fb38e",
+  "original_requirements": {
+    "path": "/home/halbritt/git/kicad-route/build/deep-analysis-20261020-agent486/issues-draft.json",
+    "sha256": "bf616a12cfdf66b1e3b93b3ac2ccb07896dfc19ea1019237d3b662f707796133"
+  },
+  "authority": "Read-only audit plus this local build receipt; no source changes, ticket closure, native job or completion claim.",
+  "source_hashes": {
+    "src/kicad_route/cli.py": "8620842aae01c519dde270a93e5c6fbaf75de4a60133cd0415d30c02a3b0c21e",
+    "src/kicad_route/corpus.py": "428733c9eca172e936575a24906be71f9883d32f5aee704be977a6dc912b4aae",
+    "src/kicad_route/evidence.py": "c5d89a302c2694d71711d8d7576f7a38892f017c949becacf946dacc05d4946a",
+    "src/kicad_route/ledger.py": "675608321fe695541e3d304864ee786367d1911cb7bd38701a872c72a22428c8",
+    "src/kicad_route/baselinecache.py": "aa2f321ed3e7f9fadf2262d341a5ab29446c2cdcc522cab5c2bf6abc3a343881",
+    "src/kicad_route/publication.py": "3b9aad89597d386887390cf7b552a4820b7a32238942e168d5547463484ac320",
+    "src/kicad_route/determinism.py": "54c559c41467be93b464aab7c48805cc83becb369cb4754d18e71bb0a7deaf19",
+    "src/kicad_route/statemanifest.py": "f99b522ea63b264ede636d8af5270602caa3caf3d8735d492d4ccfc0b014d619",
+    "src/kicad_route/campaign.py": "02038e1e22950e42cf6c398bd5c90ab2fa2d85d278ee5035f4d795f77b5d0deb",
+    "src/kicad_route/pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+    "src/kicad_route/common.py": "7dc0c33acb629eb174917950607d9f48ae28454b67ab79772c5eb672c7ba9ea3",
+    "scripts/compare_router.py": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad",
+    "scripts/generate-dense-fixture.py": "b09eafdf75aacbc3cc509d2675cd96fe4d855430642f446cccac54eb80a5851c",
+    "tests/test_evidence_integrity.py": "24d97272dc7e986ba5ce6c9aaff9f5b6b3def7cd39142367bd33c4e7d0f9dfde",
+    "tests/test_publication_safety.py": "9e7a7950033c15905277c23e264f1489f5d162fe6096783f583213703139cb7e",
+    "tests/test_publish_update_docs.py": "fdf717f4844e4d203a6bc3a77245178e15cdb26a5961402f22813ad6f96a7a8a",
+    "tests/test_engine_acceptance.py": "a6d35b1fc46ec3b1a44770205d4ef143882c24041ded6245ea9d15e3fae6720f",
+    "tests/test_determinism_generation.py": "376e1b6e6a3e5d6f05797afdbd29d16dc65010309277f31b653dbd00290fd6e8",
+    "tests/test_hygiene.py": "b2275092329240e80d5a1805353cf5a5cf4fa28a489523fe2ea9a64ee812ced6",
+    "tests/test_doctor_sandbox.py": "acab520b2c0b0b5e24c3b1da96b18e47dc758cefdcfffb9b2f37eb0ac6c88ee4",
+    "docs/interface.md": "4902a964258310c3554258196240eefedada05563901c22488281a813cb91e2b",
+    "docs/hygiene.md": "a5b9a308cc7cd6f850859d4469378b554708f6775b6806697a710f1ab30e4ed0",
+    "docs/routing-engine-migration.md": "a285de77a416a020e30a28610570ea4c1fe398b71598e604b09046fb5ff1204b",
+    "schemas/result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+    "schemas/result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+  },
+  "tickets": [
+    {
+      "identifier": "KICADROUTE-68",
+      "name": "Refuse unsafe smoke publication destinations before deleting any files",
+      "criteria": [
+        {
+          "criterion": 1,
+          "requirement": "Tests using disposable sentinels reject checkout roots, source projects, filesystem/home roots, OUT itself, ancestors/descendants that would delete active evidence, and symlink aliases to those targets.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/publication.py:16 (destination)",
+            "tests/test_publication_safety.py::test_protected_destinations_are_refused",
+            "tests/test_publication_safety.py::test_unowned_destination_is_refused_before_smoke"
+          ],
+          "assessment": "Protected ancestors/descendants and symlink path components are checked before smoke starts."
+        },
+        {
+          "criterion": 2,
+          "requirement": "An existing unowned nonempty destination is refused with exit 4 before pytest or any deletion; all sentinels remain byte-identical.",
+          "status": "blocked_pending_patch",
+          "evidence": [
+            "src/kicad_route/publication.py:16 (destination)",
+            "build/agent497-publication-shape.patch"
+          ],
+          "assessment": "Truthy non-object ownership JSON currently raises AttributeError instead of Refusal(code=4). Patch adds a type guard; 26 publication cases passed in an isolated worktree, but patch is not in frozen primary."
+        },
+        {
+          "criterion": 3,
+          "requirement": "A failed test run cannot delete an existing publication.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/cli.py:2073 (smoke)",
+            "tests/test_publication_safety.py::test_failed_smoke_preserves_successful_publication"
+          ],
+          "assessment": "Failed pytest does not enter publication staging. Smoke itself now creates a fresh invocation directory rather than deleting prior files."
+        },
+        {
+          "criterion": 4,
+          "requirement": "Fresh publication and a clearly defined owned-directory refresh still work; interruption cannot expose a half-replaced successful publication.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/publication.py:60 (staging)",
+            "tests/test_publication_safety.py::test_interrupted_refresh_preserves_previous_success"
+          ],
+          "assessment": "Fresh/empty or intact same-kind bundles activate by rename or Linux rename exchange under parent-directory flock. Interruption before activation preserves prior bundle."
+        }
+      ],
+      "closure_ready": false,
+      "closure_notes": [
+        "Final frozen suite has not completed.",
+        "Apply and verify ownership-shape refusal patch."
+      ]
+    },
+    {
+      "identifier": "KICADROUTE-69",
+      "name": "Make the corpus regression gate fail on lost validation and missing evidence",
+      "criteria": [
+        {
+          "criterion": 1,
+          "requirement": "A valid baseline followed by process PASS / validation FAIL / routing NOT_RUN / missing DRC and preservation evidence fails corpus check and after_update.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/corpus.py:148 (compare)",
+            "tests/test_evidence_integrity.py::test_failed_validation_fails_corpus_and_update"
+          ],
+          "assessment": "The exact process-PASS/validation-FAIL/routing-NOT_RUN case fails both check and after_update."
+        },
+        {
+          "criterion": 2,
+          "requirement": "Validation PASS to FAIL fails even when all numeric counts are unchanged.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence"
+          ],
+          "assessment": "PASS-to-FAIL status transition is independent of numeric counters."
+        },
+        {
+          "criterion": 3,
+          "requirement": "COMPLETE to INCOMPLETE fails even if pair evidence changes without increasing unconnected_in_scope.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence"
+          ],
+          "assessment": "COMPLETE-to-INCOMPLETE fails with unchanged open count."
+        },
+        {
+          "criterion": 4,
+          "requirement": "Removal of a required preservation check or counter is reported as missing evidence, not an improvement.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/corpus.py:67 (outcome)",
+            "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence"
+          ],
+          "assessment": "Preservation check inventory and known nonnegative counters cannot disappear silently."
+        },
+        {
+          "criterion": 5,
+          "requirement": "Unchanged valid runs pass; legitimate improvements remain reported; existing refusal and incomplete-baseline behavior is tested explicitly.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_evidence_integrity.py::test_corpus_unchanged_invalid_and_improving_baselines",
+            "tests/test_hygiene.py::test_corpus_add_check_round_trip"
+          ],
+          "assessment": "Valid, deliberately incomplete, invalid-validation and refusal cases have explicit comparisons. Existing unconditional process-failure policy is unchanged."
+        }
+      ],
+      "closure_ready": false,
+      "closure_notes": [
+        "Final frozen suite has not completed."
+      ]
+    },
+    {
+      "identifier": "KICADROUTE-70",
+      "name": "Bind the result evidence hash to the final graded candidate board",
+      "criteria": [
+        {
+          "criterion": 1,
+          "requirement": "A fixture whose refill changes board bytes proves evidence.candidate_board_sha256 equals the bytes at candidate.board and validation.candidate_board_sha256.",
+          "status": "retained_native_evidence",
+          "evidence": [
+            "tests/test_evidence_integrity.py::test_native_refill_and_human_ledger_reconstruction",
+            "src/kicad_route/evidence.py:75 (block)"
+          ],
+          "assessment": "Completed native smoke records with refill_modified_board=true were checked against actual final board bytes; see retained_native_checks."
+        },
+        {
+          "criterion": 2,
+          "requirement": "The pre-refill digest remains separately available and differs in that fixture.",
+          "status": "retained_native_evidence",
+          "evidence": [
+            "src/kicad_route/evidence.py:75 (block)"
+          ],
+          "assessment": "Distinct pre_refill_board_sha256 remains equal to validation.delivered_board_sha256 and differs from final candidate digest in retained changed-refill records."
+        },
+        {
+          "criterion": 3,
+          "requirement": "Determinism's candidate_bytes layer compares post-refill delivered artifacts; backend-output comparison remains independent.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/determinism.py:37 (layer_record)",
+            "tests/test_evidence_integrity.py::test_legacy_determinism_uses_validation_final_hash"
+          ],
+          "assessment": "candidate_bytes uses validation final digest or explicitly marked post-refill evidence. Backend-output comparison remains separate."
+        },
+        {
+          "criterion": 4,
+          "requirement": "Both route schemas and revalidation receipts retain explicit compatibility behavior, with tests for unchanged and changed refills.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "schemas/result-1.json ($defs.evidence)",
+            "schemas/result-2.json ($defs.evidence)",
+            "docs/interface.md:140",
+            "tests/test_evidence_integrity.py::test_candidate_evidence_identifies_final_refilled_artifact"
+          ],
+          "assessment": "Both schemas and shared route/revalidation evidence describe basis and legacy compatibility. Four changed/unchanged x initial/revalidation unit cases also resolve every receipt locator."
+        }
+      ],
+      "closure_ready": false,
+      "closure_notes": [
+        "Final frozen suite has not completed."
+      ]
+    },
+    {
+      "identifier": "KICADROUTE-71",
+      "name": "Key baseline DRC caches by grading identity and publish complete cache entries",
+      "criteria": [
+        {
+          "criterion": 1,
+          "requirement": "Unchanged input and grader hit the cache; changing the selected board, kicad-cli identity or grading schema causes a miss.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/baselinecache.py:14 (identity)",
+            "tests/test_evidence_integrity.py::test_baseline_identity_invalidates_board_tools_and_schema"
+          ],
+          "assessment": "Key includes selected board, native identities and grader/schema content; existing input/grader hits and changed dimensions miss."
+        },
+        {
+          "criterion": 2,
+          "requirement": "No old-tool baseline is silently reused after a tool change; the result identifies the actual baseline generation.",
+          "status": "retained_native_evidence",
+          "evidence": [
+            "src/kicad_route/cli.py:349 (baseline_drc)",
+            "src/kicad_route/evidence.py:75 (block)"
+          ],
+          "assessment": "Retained measured candidate identifies cache generation and identity. Generation payload hashes and actual identity were verified from disk."
+        },
+        {
+          "criterion": 3,
+          "requirement": "Concurrent writers/readers and interruption between each cache write cannot yield a mixed-generation hit.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/baselinecache.py:25 (read)",
+            "src/kicad_route/baselinecache.py:59 (get)",
+            "tests/test_evidence_integrity.py::test_concurrent_cache_publications_are_complete",
+            "tests/test_evidence_integrity.py::test_interrupted_publication_is_never_a_hit"
+          ],
+          "assessment": "Unique immutable generation directories plus atomic current.json selection; readers verify all payload hashes and structure."
+        },
+        {
+          "criterion": 4,
+          "requirement": "Missing or malformed report/info/pour evidence triggers safe recomputation without modifying the source project.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute",
+            "tests/test_evidence_integrity.py::test_baseline_pointer_cannot_select_outside_a_generation"
+          ],
+          "assessment": "Missing/malformed report, info, pour, receipt or pointer recomputes; pointer path escapes miss; source bytes remain unchanged."
+        },
+        {
+          "criterion": 5,
+          "requirement": "Sandbox and campaign cache reuse remain supported with writable OUT and read-only tools.",
+          "status": "pending_final_native_suite",
+          "evidence": [
+            "src/kicad_route/campaign.py:469 (prepare_race)",
+            "tests/test_doctor_sandbox.py::test_sandboxed_round_trip_matches_unsandboxed",
+            "tests/test_campaign_corpus.py"
+          ],
+          "assessment": "Cache writes are confined to OUT and source grading uses a copy. Frozen-suite confirmation of native sandbox/campaign reuse remains pending; no new native job was launched for this audit."
+        }
+      ],
+      "closure_ready": false,
+      "closure_notes": [
+        "Final frozen suite has not completed."
+      ]
+    },
+    {
+      "identifier": "KICADROUTE-74",
+      "name": "Use owned source and installed build hashes in run-ledger fingerprints",
+      "criteria": [
+        {
+          "criterion": 1,
+          "requirement": "Changing source bytes, compiled extension bytes or the relevant dependency environment permits a new attempt despite unchanged semantic versions.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/ledger.py:51 (backend_identity)",
+            "src/kicad_route/evidence.py:105 (backend_identity)",
+            "tests/test_evidence_integrity.py::test_content_execution_identity_and_legacy_rows"
+          ],
+          "assessment": "Source/module/dependency content changes permit a new attempt; execution identity is recorded in result.backend."
+        },
+        {
+          "criterion": 2,
+          "requirement": "An unrelated documentation commit does not change the engine identity.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_evidence_integrity.py::test_content_execution_identity_and_legacy_rows"
+          ],
+          "assessment": "Changing informational repository commit does not alter new execution identity/fingerprint."
+        },
+        {
+          "criterion": 3,
+          "requirement": "Installed packages without Git metadata still get distinct content-based identities.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_evidence_integrity.py::test_execution_identity_tracks_installed_bytes_without_git"
+          ],
+          "assessment": "Actual fake installed source/module/METADATA byte changes remain distinguishable with Git unavailable."
+        },
+        {
+          "criterion": 4,
+          "requirement": "An actually identical failed attempt is refused; --force and old-row handling remain deterministic.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_hygiene.py::test_ledger_gate_unit",
+            "tests/test_hygiene.py::test_ledger_refuses_repeat_of_failed_attempt",
+            "tests/test_evidence_integrity.py::test_content_execution_identity_and_legacy_rows"
+          ],
+          "assessment": "Identical failures refuse, --force remains explicit, and historical rows/results retain deterministic legacy identity reconstruction."
+        },
+        {
+          "criterion": 5,
+          "requirement": "Fingerprint reconstruction from result.json agrees with the stored ledger fingerprint, including protect-human settings.",
+          "status": "retained_native_and_targeted_evidence",
+          "evidence": [
+            "tests/test_evidence_integrity.py::test_native_refill_and_human_ledger_reconstruction",
+            "src/kicad_route/cli.py:943 (run_attempt)"
+          ],
+          "assessment": "Human designation is resolved before fingerprinting and its key hash is stored. Earlier native human test passed; current retained normal-run fingerprints reconstruct, with final frozen human case pending live full suite."
+        }
+      ],
+      "closure_ready": false,
+      "closure_notes": [
+        "Final frozen suite has not completed."
+      ]
+    },
+    {
+      "identifier": "KICADROUTE-78",
+      "name": "Publish self-verifiable receipt bundles without stale files or destination-symlink writes",
+      "criteria": [
+        {
+          "criterion": 1,
+          "requirement": "A verifier can resolve and hash every included evidence record using only the publication directory.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/publication.py:91 (copy_run)",
+            "src/kicad_route/publication.py:140 (verify)",
+            "tests/test_publication_safety.py::test_published_receipts_resolve_without_source_and_refresh_drops_stale"
+          ],
+          "assessment": "Manifest maps original locators to included paths and hashes; verifier needs only publication directory."
+        },
+        {
+          "criterion": 2,
+          "requirement": "Excluded board/input artifacts are explicitly external, not presented as included or verifiable from the bundle.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "docs/interface.md:333",
+            "tests/test_publication_safety.py::test_published_receipts_resolve_without_source_and_refresh_drops_stale",
+            "tests/test_publish_update_docs.py::test_publish_copies_every_receipt_and_never_a_board"
+          ],
+          "assessment": "Boards/input/rules/backend output are explicitly external, and private work/log/board directories are excluded."
+        },
+        {
+          "criterion": 3,
+          "requirement": "Publishing twice, or publishing a new run with fewer receipts, cannot retain misleading stale evidence.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/publication.py:60 (staging)",
+            "tests/test_publication_safety.py::test_published_receipts_resolve_without_source_and_refresh_drops_stale"
+          ],
+          "assessment": "Every publication is built fresh, so fewer receipts cannot leave obsolete files."
+        },
+        {
+          "criterion": 4,
+          "requirement": "Destination file/directory symlink sentinels outside the publication remain untouched.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "src/kicad_route/publication.py:16 (destination)",
+            "tests/test_publication_safety.py::test_destination_symlinks_never_write_outside_bundle",
+            "tests/test_publication_safety.py::test_source_directory_aliases_cannot_publish_external_receipts"
+          ],
+          "assessment": "Destination symlink paths and contents are refused before writing; aliased source directories/receipts are skipped."
+        },
+        {
+          "criterion": 5,
+          "requirement": "The original run and its signed/hashed receipt bytes remain unchanged; layout/schema changes have a documented compatibility path.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "docs/interface.md:333",
+            "tests/test_publication_safety.py::test_published_receipts_resolve_without_source_and_refresh_drops_stale"
+          ],
+          "assessment": "Original result bytes are preserved; manifest is an additive compatibility path for legacy flat locators. Old unmarked destinations require archive or a fresh destination."
+        }
+      ],
+      "closure_ready": false,
+      "closure_notes": [
+        "Final frozen suite has not completed."
+      ]
+    },
+    {
+      "identifier": "KICADROUTE-81",
+      "name": "Strengthen the router benchmark's quality gate and resource measurements",
+      "criteria": [
+        {
+          "criterion": 1,
+          "requirement": "A failed warmup, missing quality evidence, routing COMPLETE-to-INCOMPLETE transition, failed pair, or wall-clock-censored sample cannot produce a clean qualification.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "scripts/compare_router.py:57 (compare)",
+            "scripts/compare_router.py:106 (quality)",
+            "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates",
+            "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed"
+          ],
+          "assessment": "Warmups and measured attempts must supply valid process/routing/native/preservation/pair/stop evidence. Missing command evidence yields unknown stop status and rejects."
+        },
+        {
+          "criterion": 2,
+          "requirement": "Migration-equivalence mode fails changed copper geometry; an intentional algorithm-change mode documents its independent acceptance criteria.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_engine_acceptance.py::test_algorithm_change_mode_keeps_independent_native_and_completion_gates",
+            "docs/routing-engine-migration.md (engine-comparison/2)"
+          ],
+          "assessment": "Migration requires copper equivalence; algorithm-change still requires independent native, preservation, pair and connection acceptance."
+        },
+        {
+          "criterion": 3,
+          "requirement": "At least three measured repetitions, separate warmup, raw samples and tool/input identities remain recorded per board; time and memory limits stay at 1.10 unless the owner changes them.",
+          "status": "retained_native_evidence",
+          "evidence": [
+            "build/agent497-qualification/multipoint/comparison.json",
+            "tests/test_engine_acceptance.py::test_minimum_repeats_and_warmup_are_required"
+          ],
+          "assessment": "Retained multipoint receipt has three measured samples per side plus separate warmups, input/tool identities and 1.10 gates. Live five-sample matrix is not treated as complete."
+        },
+        {
+          "criterion": 4,
+          "requirement": "The report distinguishes legacy GNU-time RSS from concurrent process-tree peak memory and states which metric each gate enforces.",
+          "status": "implemented_and_retained_evidence",
+          "evidence": [
+            "scripts/compare_router.py:124 (process_tree_rss)",
+            "tests/test_engine_acceptance.py::test_process_tree_memory_counts_concurrent_child_in_separate_session",
+            "docs/routing-engine-migration.md (sampled memory semantics)"
+          ],
+          "assessment": "GNU-time RSS and sampled simultaneous descendant RSS are separate gated metrics. Current sampler records actual maximum intervals and documents lower-bound/shared-page limitations."
+        },
+        {
+          "criterion": 5,
+          "requirement": "Include an authorized dense/multipoint/rescue workload or a sanitized representative fixture, preserving native correctness and no-rule-relaxation checks.",
+          "status": "implemented_and_retained_evidence",
+          "evidence": [
+            "reports/routing-engine/inputs/multipoint-tap",
+            "scripts/generate-dense-fixture.py",
+            "build/agent497-qualification/multipoint/comparison.json"
+          ],
+          "assessment": "Sanitized Git-pinned multipoint/rescue fixture is qualified in retained receipt. Deterministic public twelve-net/three-multipoint dense generator and generated input are also present; no dense/rescue speedup claim is made."
+        },
+        {
+          "criterion": 6,
+          "requirement": "Unit cases exercise exactly 1.10, above-limit ratios, absent/invalid metrics and every quality rejection without running real benchmarks.",
+          "status": "implemented_targeted_tests",
+          "evidence": [
+            "tests/test_engine_acceptance.py::test_each_resource_metric_enforces_exact_owner_boundary",
+            "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify",
+            "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates"
+          ],
+          "assessment": "Tests cover exact 1.10, over-limit, absent/invalid metrics and all named quality rejection paths without real benchmark execution."
+        }
+      ],
+      "closure_ready": false,
+      "closure_notes": [
+        "Final frozen suite has not completed."
+      ]
+    }
+  ],
+  "retained_native_checks": [
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/runs/route_demo/campaign-blocked-r0/20261020T194228.324571Z/result.json",
+      "sha256": "27fb4500869b8339fa9f7a386a3be4a28558d5bbfd30926ad7c6e5f6893dfd81",
+      "kind": "route",
+      "board_path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/runs/route_demo/campaign-blocked-r0/20261020T194228.324571Z/candidate/route_demo/route_demo.kicad_pcb",
+      "actual_board_sha256": "8e15f51b85ed009d3c745b4b4177f21652410d8ddbebbf5cb0874b67e27a777d",
+      "evidence_candidate_sha256": "8e15f51b85ed009d3c745b4b4177f21652410d8ddbebbf5cb0874b67e27a777d",
+      "validation_candidate_sha256": "8e15f51b85ed009d3c745b4b4177f21652410d8ddbebbf5cb0874b67e27a777d",
+      "pre_refill_sha256": "021c8322973066eb0a73139773a1e7349ea0b52379034a5e01c3f93ed7b4888f",
+      "pre_differs_from_final": true,
+      "final_hashes_match": true
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/runs/route_demo/blocked-receipts-krt/20261020T193552.559998Z/result.json",
+      "sha256": "adbd08aed6de82eeadd1665148f4b9777fd0200c592b19df438d45177aa0f552",
+      "kind": "route",
+      "board_path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/runs/route_demo/blocked-receipts-krt/20261020T193552.559998Z/candidate/route_demo/route_demo.kicad_pcb",
+      "actual_board_sha256": "5da7deb92fb821e19984b105a35ff208607ea74b7489049e18db012833776e79",
+      "evidence_candidate_sha256": "5da7deb92fb821e19984b105a35ff208607ea74b7489049e18db012833776e79",
+      "validation_candidate_sha256": "5da7deb92fb821e19984b105a35ff208607ea74b7489049e18db012833776e79",
+      "pre_refill_sha256": "65b9a9fb563da6e0be13e6720990b337d93013bc33ca1f170c13be4a5673f890",
+      "pre_differs_from_final": true,
+      "final_hashes_match": true
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/runs/route_demo/blocked-schema-krt/20261020T193911.391814Z/result.json",
+      "sha256": "bdc5e96283aa66de614b4ea8590f0bcafd866a79db4e43d8df5552feecdb4ed7",
+      "kind": "route",
+      "board_path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/runs/route_demo/blocked-schema-krt/20261020T193911.391814Z/candidate/route_demo/route_demo.kicad_pcb",
+      "actual_board_sha256": "6a3cb6fd376ecc095387741a634d13320bf7ac24c8c8b6afb287d4cc5528094f",
+      "evidence_candidate_sha256": "6a3cb6fd376ecc095387741a634d13320bf7ac24c8c8b6afb287d4cc5528094f",
+      "validation_candidate_sha256": "6a3cb6fd376ecc095387741a634d13320bf7ac24c8c8b6afb287d4cc5528094f",
+      "pre_refill_sha256": "a5c44dacf7386b453852bcda009c07ec0cf5bc854349cfeac04dd7cfc5c8be0a",
+      "pre_differs_from_final": true,
+      "final_hashes_match": true
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/runs/route_demo/campaign-blocked-r1-backlog/20261020T194345.176962Z/result.json",
+      "sha256": "d97d9e40815e2c0eabbdb1c4b146c242451fce6dc323e8efcb41442ec32f46cc",
+      "kind": "route",
+      "board_path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/runs/route_demo/campaign-blocked-r1-backlog/20261020T194345.176962Z/candidate/route_demo/route_demo.kicad_pcb",
+      "actual_board_sha256": "305f57820473ec6128a254f4d2650f715d7d29f70cac3f6d2742ae85a145c198",
+      "evidence_candidate_sha256": "305f57820473ec6128a254f4d2650f715d7d29f70cac3f6d2742ae85a145c198",
+      "validation_candidate_sha256": "305f57820473ec6128a254f4d2650f715d7d29f70cac3f6d2742ae85a145c198",
+      "pre_refill_sha256": "9f675d0fe5c9133053fb396cdf0676801b8da5e21e0d6da9a4eb3f5c343c1147",
+      "pre_differs_from_final": true,
+      "final_hashes_match": true
+    }
+  ],
+  "retained_benchmark": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint/comparison.json",
+    "sha256": "eb6ed5ee33e72e7996dacf459d9764f585894c42c97163db52ee76d081891aa0",
+    "reference_measured": 3,
+    "candidate_measured": 3,
+    "warmup_count": 2,
+    "verdict": {
+      "passed": true,
+      "failures": [],
+      "metrics": {
+        "wall_s": {
+          "reference_median": 16.47,
+          "candidate_median": 15.52,
+          "ratio": 0.9423193685488768,
+          "limit": 1.1
+        },
+        "max_rss_kib": {
+          "reference_median": 1600960,
+          "candidate_median": 1621244,
+          "ratio": 1.0126698980611633,
+          "limit": 1.1
+        },
+        "process_tree_peak_rss_kib": {
+          "reference_median": 1617116,
+          "candidate_median": 1636932,
+          "ratio": 1.0122539137575783,
+          "limit": 1.1
+        }
+      },
+      "copper_geometry_equal": true,
+      "mode": "migration-equivalence"
+    },
+    "scope_note": "This prior completed receipt qualifies its recorded commits and observer. It does not replace the live stable final matrix or close the engine performance requirement.",
+    "input_file_hashes": {
+      "multipoint-tap.kicad_pcb": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+      "multipoint-tap.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    "input_hashes_match_retained_project": {
+      "multipoint-tap.kicad_pcb": true,
+      "multipoint-tap.kicad_pro": true
+    }
+  },
+  "observed_cache_generation": {
+    "run_result": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint/candidate-1/run/result.json",
+    "run_result_sha256": "feb5f97a4d76c803f440425bb1c53e63bc8e374fc533353352a5972287fbf071",
+    "identity": {
+      "schema": 1,
+      "input": "ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760",
+      "board": "multipoint-tap.kicad_pcb",
+      "kicad_cli": {
+        "path": "/usr/bin/kicad-cli",
+        "version": "10.0.7",
+        "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+      },
+      "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+      "pour_schema": 1,
+      "grading": {
+        "baselinecache.py": "aa2f321ed3e7f9fadf2262d341a5ab29446c2cdcc522cab5c2bf6abc3a343881",
+        "cli.py": "8620842aae01c519dde270a93e5c6fbaf75de4a60133cd0415d30c02a3b0c21e",
+        "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+        "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+        "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+      },
+      "result_schemas": {
+        "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+        "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+      }
+    },
+    "generation": "generation-locll4ax",
+    "receipt_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint/candidate-out/.cache/baseline/bd8abbfdb31449d7c06d00be2bee5043556e60984e543093be28eed7c2baf086/generation-locll4ax/generation.json",
+    "receipt_sha256": "ba7dc18669cedce771466c1b591b03caafc2257fe8e7e17c3496562bc05eb5e8",
+    "identity_matches": true,
+    "payload_hashes_verified": {
+      "baseline-drc.json": true,
+      "baseline-info.json": true,
+      "baseline-pour.json": true
+    }
+  },
+  "observed_ledger_reconstruction": {
+    "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint/candidate-1/run/result.json",
+    "execution_identity": {
+      "name": "krt",
+      "tag": "owned-c6c09054f684",
+      "version": "0.23.1",
+      "grid_router_version": "0.23.1",
+      "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+      "extension_module_sha256": "653c0f8ed3e0724c91d397dc819da77e555de90e3bcb66a7df7af01749892c8b",
+      "venv_python_version": "3.12.3",
+      "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+    },
+    "normalized_settings_keys": [
+      "backend",
+      "backend_args",
+      "budget_s",
+      "mode",
+      "protect"
+    ],
+    "computed_fingerprint": "9029b65dbb8a2c69334c284af00d56a34a55ea3d503f626f24db8a13a90cb19f",
+    "recorded_fingerprint": "9029b65dbb8a2c69334c284af00d56a34a55ea3d503f626f24db8a13a90cb19f",
+    "matches": true,
+    "human_scope_note": "This retained artifact uses its recorded normal protection; native human reconstruction is a distinct test whose final frozen rerun is pending."
+  },
+  "identity_contracts": {
+    "baseline_cache": {
+      "logical_identity": "SHA256 of canonical JSON cache identity; independent unique generations for each construction.",
+      "fields": [
+        "schema",
+        "input snapshot fingerprint",
+        "selected board filename",
+        "kicad_cli.path",
+        "kicad_cli.version",
+        "kicad_cli.sha256",
+        "pcbnew build version",
+        "pour_schema",
+        "grading content hashes: baselinecache.py, cli.py, pour.py, kicad/pour.py, contract.py",
+        "result-*.json schema content hashes"
+      ],
+      "conflicts": "Concurrent same-key builders use disjoint directories; last complete atomic current.json publication wins. Readers snapshot that pointer and verify DRC/info/pour hashes plus generation identity. Legacy or incomplete entries miss. Previously referenced generations remain intact.",
+      "selected_generation_expected_files": [
+        "baseline-drc.json",
+        "baseline-info.json",
+        "baseline-pour.json",
+        "generation.json"
+      ],
+      "selection_pointer": "current.json",
+      "source": "src/kicad_route/baselinecache.py:59 (get)"
+    },
+    "run_ledger": {
+      "logical_attempt_identity": "SHA256(input fingerprint + backend name + normalized settings). None settings and empty backend_env are omitted; net_patterns/netclasses sorted; backend_args retain order.",
+      "fingerprint": "SHA256(attempt_key + backend execution_identity).",
+      "krt_execution_fields": [
+        "name",
+        "tag (owned source build)",
+        "version",
+        "grid_router_version",
+        "source_sha256",
+        "extension_module_sha256",
+        "venv_python_version",
+        "venv_packages_sha256"
+      ],
+      "freerouting_execution_fields": [
+        "name",
+        "tag",
+        "jar_sha256",
+        "build_revision",
+        "java_path",
+        "java_version"
+      ],
+      "informational_provenance_excluded": "Repository commit is preserved separately but removed from new execution identity.",
+      "legacy_fields": [
+        "version",
+        "commit",
+        "rust_router",
+        "sha256"
+      ],
+      "conflicts": "Any existing identical failed fingerprint refuses unless --force or explicit ledger-off. Different execution fingerprint permits new attempt and records changed-build note. Ledger append is not an execution lock or exactly-once guarantee.",
+      "scope_limit": "Native grader and wrapper identities are separately recorded in baseline/tool evidence; this ticket changes backend execution identity, not the repeat-refusal policy.",
+      "source": "src/kicad_route/ledger.py:98 (check)"
+    },
+    "repeat_proof": {
+      "fields": [
+        "owned source SHA",
+        "extension SHA",
+        "package environment SHA",
+        "routing Python version",
+        "native kicad-cli SHA"
+      ],
+      "conflicts": "All repeated executed builds must agree; record checks active build and drift under shared reentrant update_lock. refresh and record_determinism serialize with activation.",
+      "source": "src/kicad_route/statemanifest.py:377 (execution_build_id)"
+    },
+    "publication": {
+      "logical_identity": "Absolute non-symlink destination path plus manifest schema/kind and exact included-path/hash inventory.",
+      "conflicts": "Fresh/empty destination or intact same-kind owned inventory accepted; differing kind, changed inventory, symlinks or overlapping protected paths refuse. Parent-directory flock serializes cooperating replacement; atomic rename exchange retains the previous bundle until activation. Non-object ownership shape currently needs pending patch.",
+      "source": "src/kicad_route/publication.py:16 (destination)"
+    }
+  },
+  "discovery_populations": {
+    "corpus": {
+      "predicate": "Sorted immediate root/*/entry.json paths; successful truthy JSON values become entries. --name filters loaded entries and explicitly missing names fail. No independent authoritative expected-entry registry exists.",
+      "observed_roots": [
+        {
+          "root": "/home/halbritt/git/kicad-route/corpus",
+          "exists": false,
+          "discovered_entry_paths": 0,
+          "expected_count_for_this_observed_root": 0
+        },
+        {
+          "root": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/corpus",
+          "exists": false,
+          "discovered_entry_paths": 0,
+          "expected_count_for_this_observed_root": 0
+        },
+        {
+          "root": "/home/halbritt/git/kicad-route/build/agent497-state/corpus",
+          "exists": false,
+          "discovered_entry_paths": 0,
+          "expected_count_for_this_observed_root": 0
+        }
+      ],
+      "test_population": {
+        "fixture_gate_entries": 1,
+        "source": "tests/test_evidence_integrity.py::test_failed_validation_fails_corpus_and_update"
+      },
+      "residual": "Invalid JSON/falsey entry contents can disappear from unnamed discovery; after_update skips an empty discovered corpus. This catalog risk is outside ticket69 exact per-outcome comparison acceptance. No claim that all owner boards or an external custom KICAD_ROUTE_CORPUS were exercised."
+    },
+    "publication": {
+      "predicate": "Non-symlink immediate *.json and RESULT.md from run root, validate/, facts/, spokes/; then the latest lexically sorted non-symlink 2* directory under each revalidate/ and revalidate-origin/. Symlink files and aliased directories excluded. Private candidate/reference/work trees and logs excluded.",
+      "compatibility_fixture_expected_files": 21,
+      "compatibility_fixture_copied_receipts": 20,
+      "compatibility_fixture_manifest_files": 1,
+      "source": "tests/test_publish_update_docs.py::test_publish_copies_every_receipt_and_never_a_board",
+      "collision_policy": "Run-root receipt wins normal flat name; conflicting validate receipt nests under validate/. Source publication.json moves under receipts/. Revalidation copies keep distinct names.",
+      "scope": "Population is explicitly this receipt contract; no whole-run or whole-directory completeness claim."
+    },
+    "benchmark": {
+      "minimum_per_board": {
+        "reference_measured": 3,
+        "candidate_measured": 3,
+        "separate_warmups": 2
+      },
+      "complete_retained_multipoint_population": {
+        "reference_measured": 3,
+        "candidate_measured": 3,
+        "separate_warmups": 2
+      },
+      "full_suite_collected_cases": 688,
+      "full_suite_status": "Reported live; log has collected count and partial PASS lines, no terminal summary yet."
+    }
+  },
+  "pending_patches": [
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-publication-shape.patch",
+      "sha256": "7ee6c1d76ca2458f2fca4b7644ffddd1c36b3f32e46d0d16f2e039486aa29f3f",
+      "applies_cleanly_at_audit": true,
+      "test_evidence": "Isolated patched publication safety module: 26 passed in 0.39s (tool session b48ed8). Not applied to frozen primary.",
+      "blocking_ticket": "KICADROUTE-68"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-cache-version.patch",
+      "sha256": "4004c9b582285a81c8ae52c08be15d33afa2e4c79186138fd7beeb820f7d27c9",
+      "test_evidence": "44 passed, 1 deselected in 0.51s in disposable worktree; optional per-attempt version reuse optimization, not a requirement omission.",
+      "blocking_ticket": null
+    }
+  ],
+  "live_gate_observation": {
+    "log": "/home/halbritt/git/kicad-route/build/agent497-smoke.log",
+    "snapshot_sha256": "7e42a49081da92a25571ce7ac6766c240802b17c58f069e66f4ca3ef8a6e039f",
+    "snapshot_bytes": 11123,
+    "terminal_summary_present": false,
+    "reported_handles": {
+      "frozen_full_suite": "96123",
+      "stable_matrix": "21209"
+    },
+    "limitations": "Handles reported by coordinating parent; this audit did not consume their tool output, restart them, or equate a partial log with completion."
+  },
+  "observed_terminal_checks": [
+    {
+      "command": "/usr/bin/python3 -m pytest -q tests/test_determinism_generation.py tests/test_update_qualification.py tests/test_evidence_manifest.py::test_determinism_compare_judges_geometry_not_bytes tests/test_evidence_manifest.py::test_krt_reproducible_follows_the_record_for_the_build_on_disk",
+      "result": "41 passed in 4.13s",
+      "tool_session": "59370",
+      "provenance": "Observed stdout only; no separate retained raw log; source delta then committed as61e4850."
+    },
+    {
+      "command": "pytest tests/test_publication_safety.py tests/test_update_qualification.py tests/test_engine_acceptance.py -q",
+      "result": "94 passed in 0.84s",
+      "tool_session": "80530",
+      "provenance": "Earlier independent targeted check before later observer/generation refinements; not final frozen-suite evidence."
+    }
+  ],
+  "overall": {
+    "closure_decision": "not_claimed",
+    "static_blocker": "KICADROUTE-68 malformed truthy non-object ownership manifests violate required exit4; isolated tested patch prepared.",
+    "other_static_blockers_found": [],
+    "pending_validation": [
+      "Completion/readback of frozen 688-case suite",
+      "Final stable native matrix for engine performance remains open; failed and superseded diagnostics retained",
+      "Apply and verify publication ownership-shape patch after frozen run"
+    ],
+    "corpus_catalog_residual_is_not_redefined_ticket69_scope": true
+  },
+  "workload_inventory": {
+    "sanitized_multipoint": {
+      "path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap",
+      "expected_input_files": 2,
+      "input_file_hashes": {
+        "multipoint-tap.kicad_pcb": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+        "multipoint-tap.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+      }
+    },
+    "deterministic_dense_generated": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/dense-project",
+      "expected_input_files": 2,
+      "file_hashes": {
+        "dense.kicad_pcb": "48e603513a7b1bd0b3dbf4f16ae7108b13bc2416fb399ca598d757008256cf7b",
+        "dense.kicad_prl": "14d462c4bd36ca8d38103f044d42c859fb82215fead4171440c00598a7a3dba8",
+        "dense.kicad_pro": "f90d96082217ebc121dc09fa1cd436b1cf8c0143f892d66b5b51161dcf016779"
+      },
+      "scope": "Generated artifacts are local, with committed deterministic generator. No complete dense performance result is claimed."
+    }
+  }
+}

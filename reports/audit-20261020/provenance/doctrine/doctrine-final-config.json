@@ -1,0 +1,128 @@
+{
+  "schema": "kicad-route/doctrine-final-config/1",
+  "updated_utc": "2026-10-20T22:39:18.038995+00:00",
+  "comparisons": [
+    "diff-pair-archon",
+    "four-layer-archon",
+    "multipoint-archon",
+    "route-demo-archon"
+  ],
+  "matrix_log": "/evidence/archon-matrix.log",
+  "candidate_checkout": "/work/candidate",
+  "candidate_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+  "candidate_ready": true,
+  "candidate_source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+  "candidate_generation": "412913c359a8459ca40e4143b925e9d9",
+  "source_parity_artifact": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+  "hold": "Root explicitly authorized final second gather after reading independent report SHA8c5e7b8f and both actual terminal matrices. Bind current code and verification only; future landing/default runtime/report publication/tracker acceptance remain pending mechanical release gates.",
+  "historical_matrix": {
+    "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/prepared-bytecode-matrix.log",
+    "terminal_exit": 1,
+    "diff_pair_comparison": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/comparison.json",
+    "diff_pair_wall_ratio": 1.1104090455603592,
+    "limits": 1.1,
+    "status": "Retained failure, all correctness/copper checks passed; no waiver."
+  },
+  "retained_merge": {
+    "head": "b27a004bc23d0d92330ab4aa9192619a1667b811",
+    "parents": [
+      "b2bea77af69587b572b409190f18ed674abd0006",
+      "3bc90405be40a42c1e5ff48787e35238ea994ab8"
+    ],
+    "tree_equals": "b2bea77af69587b572b409190f18ed674abd0006",
+    "purpose": "Retain exact benchmark candidate commit as ancestor without changing primary source tree."
+  },
+  "source_parity_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe",
+  "focused_tests": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-env-reuse.xml",
+    "sha256": "4e291b06e910c28e84318791b0c9f36b18cac4cebb1bef8b9c21b9dc55601f9f",
+    "passed": 113
+  },
+  "current_coverage_union": {
+    "cases": 741,
+    "files": 47,
+    "junit_sources": 5,
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+    "sha256": "2a92ad749cdfbf51f20ade1e33d7be2382b5e442f856186f77f1a6bc62436d2f",
+    "claim": "Union of passing observations, not one green full-suite."
+  },
+  "terminal_authority": "/evidence/archon-metadata/matrix.json",
+  "preregistered_protocol": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-protocol.json",
+  "preregistered_protocol_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+  "sample_resources": "/evidence/archon-metadata/samples",
+  "study_kind": "archon-same-container-all-available-cpus",
+  "matrix_session": "8896",
+  "historical_local_cpu_rate": {
+    "comparisons": [
+      "diff-pair-cpu-rate",
+      "four-layer-cpu-rate",
+      "multipoint-cpu-rate",
+      "route-demo-cpu-rate"
+    ],
+    "terminal_authority": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-metadata/matrix.json",
+    "preregistered_protocol": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+    "preregistered_protocol_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225",
+    "sample_resources": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-metadata/samples",
+    "cpu_cap": 1,
+    "calibration_session": "74830",
+    "matrix_session": "94696",
+    "calibration_selection": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+      "sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137"
+    },
+    "calibration_root_review": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-root-review.json",
+      "sha256": "e5100f91ff192d13fc6770a1898787d746f1c8cce96c50c76f2cc94339c6c0b6"
+    },
+    "terminal_status": "PASS",
+    "terminal_authority_sha256": "81d7fd710b9ebaf2bf712441fbf687096f3ac6eae274d9e0f0856bb40ebd5b34",
+    "acceptance_role": "Supporting retained conditional1CPU-rate study; user-selected Archon remains final qualification authority."
+  },
+  "host": "archon",
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "container_image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+  "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+  "source_local_checkout_unchanged": true,
+  "source_remote_commits": [
+    {
+      "path": "/work/reference",
+      "head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d"
+    },
+    {
+      "path": "/work/candidate",
+      "head": "f0f73da86835ec583f2a2c9128e6893fa59c03b7"
+    }
+  ],
+  "verification_report": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+  "verification_report_sha256": "8c5e7b8fa6983546441cdd21ac005f9feccda84d1a2fec6b2e4db365668a82b3",
+  "retained_index": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/archon-evidence-index.json",
+  "retained_index_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+  "independent_verifier": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon_acceptance.py",
+    "sha256": "1a6af758a3995ef47c38d203dd1eb922f1dab022a3331ba18a1d19c244aa992f"
+  },
+  "independent_verifier_dependencies": [
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/acceptance_profile.py",
+      "sha256": "99b1078290d27f13401adbac060ac1b6758bcfc60dcd1f2fe68f7acd4feef3e7"
+    }
+  ],
+  "final_gather_authorized": true
+}

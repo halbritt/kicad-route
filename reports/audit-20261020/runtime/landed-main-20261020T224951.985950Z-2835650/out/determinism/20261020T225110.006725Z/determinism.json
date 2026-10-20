@@ -1,0 +1,78 @@
+{
+  "schema": "kicad-route/determinism/1",
+  "backend": "krt",
+  "verified_utc": "2026-10-20T22:53:29.293454+00:00",
+  "build_id": "4d77b660a29ce3519e1252b066c2f6cfa1f1ea38e430f25586990a171dd20374",
+  "build": {
+    "name": "krt",
+    "tag": "owned-c6c09054f684",
+    "version": "0.23.1",
+    "commit": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+    "grid_router_version": "0.23.1",
+    "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+    "extension_module_sha256": "e9a0c7939e87e414f6ce441d57ef51d729336fa2bcb49d84841cf19ff93e2425",
+    "venv_python_version": "3.12.3",
+    "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+  },
+  "kicad_cli": "10.0.7",
+  "input": {
+    "dir": "fixtures/route_demo",
+    "fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732"
+  },
+  "settings": {
+    "runs": 2,
+    "budget_s": 180,
+    "backend_env": [],
+    "default_clearance_mm": 0.4
+  },
+  "reproducible": true,
+  "reasons": [],
+  "same": {
+    "outcome": true,
+    "copper_geometry": true,
+    "candidate_bytes": false,
+    "backend_output_bytes": false,
+    "execution_build": true
+  },
+  "differs_at": "candidate_bytes",
+  "bytes_note": "candidate bytes differ while geometry is compared: KiCad UUIDs and item order",
+  "runs": [
+    {
+      "run_dir": "build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/out/runs/route_demo/determinism-krt-1/20261020T225110.378785Z",
+      "exit_code": 0,
+      "outcome": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected_in_scope": 0
+      },
+      "wall_clock_stop": false,
+      "backend_output_bytes": "2a13cbbb0ce962941dfb86ca3f4a2093a5ee02f00f0736dd1c538716d557a988",
+      "candidate_bytes": "2a13cbbb0ce962941dfb86ca3f4a2093a5ee02f00f0736dd1c538716d557a988",
+      "copper_geometry": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+      "copper_items": {
+        "tracks": 21,
+        "vias": 3
+      }
+    },
+    {
+      "run_dir": "build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/out/runs/route_demo/determinism-krt-2/20261020T225233.960657Z",
+      "exit_code": 0,
+      "outcome": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "unconnected_in_scope": 0
+      },
+      "wall_clock_stop": false,
+      "backend_output_bytes": "e58235226cfbad7cf562cea71f526e6e302f0c3ba00813f2bf5e392e59febd26",
+      "candidate_bytes": "e58235226cfbad7cf562cea71f526e6e302f0c3ba00813f2bf5e392e59febd26",
+      "copper_geometry": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+      "copper_items": {
+        "tracks": 21,
+        "vias": 3
+      }
+    }
+  ],
+  "recorded_in": "/home/halbritt/git/kicad-route/manifest.json"
+}

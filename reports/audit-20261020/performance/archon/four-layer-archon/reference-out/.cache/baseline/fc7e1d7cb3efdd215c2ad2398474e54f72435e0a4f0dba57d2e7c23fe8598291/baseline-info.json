@@ -1,0 +1,52 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--refill-zones",
+        "--save-board",
+        "--format",
+        "json",
+        "-o",
+        "/evidence/four-layer-archon/reference-out/.cache/tmp/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291-8820/drc/baseline-refill.json",
+        "/evidence/four-layer-archon/reference-out/.cache/tmp/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291-8820/four-layer-plane/four-layer-plane.kicad_pcb"
+      ],
+      "cwd": "/evidence/four-layer-archon/reference-out/.cache/tmp/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291-8820/four-layer-plane",
+      "log": "/evidence/four-layer-archon/reference-out/.cache/tmp/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291-8820/drc/baseline-refill.log",
+      "exit_code": 0,
+      "duration_s": 0.379
+    },
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--format",
+        "json",
+        "--severity-all",
+        "--schematic-parity",
+        "--units",
+        "mm",
+        "-o",
+        "/evidence/four-layer-archon/reference-out/.cache/tmp/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291-8820/drc/baseline-drc.json",
+        "/evidence/four-layer-archon/reference-out/.cache/tmp/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291-8820/four-layer-plane/four-layer-plane.kicad_pcb"
+      ],
+      "cwd": "/evidence/four-layer-archon/reference-out/.cache/tmp/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291-8820/four-layer-plane",
+      "log": "/evidence/four-layer-archon/reference-out/.cache/tmp/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291-8820/drc/baseline-drc.log",
+      "exit_code": 0,
+      "duration_s": 0.305
+    }
+  ],
+  "reasons": [],
+  "refill": {
+    "board_sha256_before": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+    "board_sha256_after": "9f96df9b03aa8feadf94e98cf4f1b4aa19ab6329d766574716e2c09cd213cfc1"
+  },
+  "board_sha256_graded": "9f96df9b03aa8feadf94e98cf4f1b4aa19ab6329d766574716e2c09cd213cfc1",
+  "board_sha256_checked": "9f96df9b03aa8feadf94e98cf4f1b4aa19ab6329d766574716e2c09cd213cfc1",
+  "parity_performed": false,
+  "parity_skip_message": "Failed to fetch schematic netlist for parity tests.",
+  "report": "/evidence/four-layer-archon/reference-out/.cache/baseline/fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291/baseline-drc.json"
+}

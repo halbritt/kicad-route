@@ -1,0 +1,55 @@
+{
+  "kind": "route-smoke",
+  "status": "PASS",
+  "pytest_exit_code": 0,
+  "time_utc": "2026-10-20T20:41:06.922206+00:00",
+  "versions": {
+    "krt": {
+      "version": "0.23.1",
+      "build": "owned-c6c09054f684",
+      "commit": "688bd27487f3a060397b0300f2143faae0171977",
+      "source": "https://github.com/halbritt/kicad-route",
+      "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+      "upstream": {
+        "project": "KiCadRoutingTools",
+        "license": "MIT",
+        "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+        "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+        "upstream_release": "v0.23.1",
+        "fork": "https://github.com/halbritt/KiCadRoutingTools",
+        "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+        "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+        "fixes": {
+          "KICADROUTE-64": "4b316ba",
+          "KICADROUTE-63": "0494a05"
+        },
+        "source_inventory": "reports/routing-engine/source-closure.json",
+        "additional_license_notices": [
+          "py_router/stage3d/vendor/three/LICENSE"
+        ],
+        "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+      },
+      "runtime": {
+        "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+        "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+        "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+      },
+      "rust_router": "0.23.1"
+    },
+    "freerouting": {
+      "version": "v2.5.0",
+      "build": "freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76",
+      "sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
+      "java": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java (25)",
+      "java_required": 25,
+      "source": "https://github.com/freerouting/freerouting"
+    },
+    "kicad-cli": "10.0.7",
+    "python": "3.12.3",
+    "kicad-route": "688bd27"
+  },
+  "junit": "junit.xml",
+  "tests": [
+    "source_untouched"
+  ]
+}

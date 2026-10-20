@@ -1,0 +1,43 @@
+{
+  "schema": "kicad-route/final-output-review/1",
+  "status": "PASS",
+  "observed_utc": "2026-10-20T22:55:48.609048+00:00",
+  "acceptance": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-acceptance.json",
+    "sha256": "0c9c20a847501b28bae6085f381bc3ec22372e8fe79a2300e5bb7b11c466778e"
+  },
+  "report": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-acceptance.md",
+    "sha256": "14b0596bcbd1322be28171a4faae3b8940c234ec8069e4df789655cacb89e4ba"
+  },
+  "comments": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/closure-comments-final.json",
+    "sha256": "906a860dab4e0dd53b850a764b6f337d8116690d50396c36de7bffe9d1203897"
+  },
+  "source_head": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+  "exact_original_tickets": 14,
+  "exact_original_acceptance_clauses": 66,
+  "all_acceptance_statuses": "met",
+  "comment_proof_references": 46,
+  "unique_comment_proof_files": 17,
+  "all_comment_paths_backed_by_actual_stage_inventory": true,
+  "missing_required_stage_artifacts": [],
+  "artifact_hash_mismatches": [],
+  "all_comment_bodies_free_of_pending_draft_owner_obsolete_profile_markers": true,
+  "default_runtime_generation": "f23025e1b26d406d83e2167aa0c0da9f",
+  "default_runtime_module_sha256": "e9a0c7939e87e414f6ce441d57ef51d729336fa2bcb49d84841cf19ff93e2425",
+  "default_native_repeats": 2,
+  "actual_archon_boards": 4,
+  "actual_archon_native_attempts": 48,
+  "source_test_coverage": "741 current node IDs via passing observations across5 invocations; original broad686passed/2failed retained; no single-final-full-green claim",
+  "markdown_post_review": "Spacing normalized for CPU count, tool versions and prepared bytecode count only; acceptance semantics and source helper unchanged.",
+  "tracker_writes": false,
+  "remaining": "Root must stage/verify, commit and push durable report before posting closure comments.",
+  "doctor_status": "PASS",
+  "doctor_checks_total": 24,
+  "doctor_check_status_counts": {
+    "PASS": 19,
+    "UNSUPPORTED": 1,
+    "NOT_RUN": 4
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "project": "route_demo",
+  "source_dir": "/home/halbritt/git/kicad-route/fixtures/route_demo",
+  "source": "working tree",
+  "source_git_head": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+  "source_dirty_files": [],
+  "schematic": "route_demo.kicad_sch",
+  "pcb": "route_demo.kicad_pcb",
+  "schematic_files": [
+    "route_demo.kicad_sch"
+  ],
+  "sheet_instances": 1,
+  "sheet_case_aliases": [],
+  "missing_sheets": [],
+  "library_links": [],
+  "revision_export": null,
+  "library_issues": [],
+  "files": {
+    "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+    "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+    "route_demo.kicad_pcb": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+    "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+    "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+    "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "bounded-options",
+  "evidence_class": "evidence-explicit-user-requirements",
+  "summary": "No-change is not selected for the14 accepted defect requirements because it leaves recorded unsafe publication, false quality, wrong hashes, stale/incomplete cache/install, artwork loss/hang and misleading measurement contracts unmet. Local causal repairs plus bounded protection remain selected within owner scope; broad parser replacement, routing-algorithm rewrite, new database, cross-platform port and automatic post-corpus rollback remain outside it. After a retained final diff-pair runtime ratio1.110409 exceeded unchanged1.10, primary explicitly authorized f0f73da attempt-local major selection reuse; global tool identity caching remains rejected. This is a bounded wrapper optimization with measured probe reduction, not an asserted route speedup or universal causal explanation of host-dependent wall time. The prepared bytecode fix remains a separate measured startup correction. Future changes are limited to accepted tickets and bounded performance acceptance. Risks remain sampled RSS gaps, host variation, untested runtime versions, weighted/crossover/long-rescue behavior and no complete owner-corpus inventory. Revisit only on failed original criteria, new accepted behavior, manifest drift or reproduced runtime/resource regression. The selected follow-up after resource-inconclusive quiet waiting is one predeclared CPU-rate experiment, not more speculative production changes or indefinite repeated batches. The exact2then1 non-router calibration rejected2and selected1before routing. It caps own demand without reserving service. FullCLIwall includes native work/throttling/waiting, with original1.10limits and no result-based retries or exclusions. All previous wall failures remain failures; any new pass is limited to the declared rate context.",
+  "provenance": [
+    {
+      "locator": "conversation:active-user-goal-and-root-performance-instructions",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/deep-analysis-20261020-agent486/issues-draft.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "bf616a12cfdf66b1e3b93b3ac2ccb07896dfc19ea1019237d3b662f707796133"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-comparison.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c6542b8adeac31d973ef07a9428f1a463c6dd9a1fe50e638f612b00f388eaa91"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/bytecode-import-probe/comparison.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "4b5fc097e8b009bd0d8013d47654e2493e941a6d4ca7f03b0fb0a71e8764e25c"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-diagnosis.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "92588e4676acc8278a9d3db0f8235b0ffc8172b1f48238c0225092146ef176e3"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/environment-reuse-microprobe.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "8d62366afd3ec6372a0e2f498c83518c049dfc3beefbdf7693ae586c3a68157a"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/comparison.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "56c1d07471f22493b5f215f164cf9fab6f23ad09691dbbe31b4594ceee810789"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137"
+    }
+  ],
+  "satisfies": [
+    "actual current cost/risk or absence within a stated interval",
+    "expected future change from accepted plans",
+    "intervention cost and uncertainty",
+    "latent security, safety, data, durability, and compatibility check",
+    "proc-decide-leave-code-alone"
+  ]
+}

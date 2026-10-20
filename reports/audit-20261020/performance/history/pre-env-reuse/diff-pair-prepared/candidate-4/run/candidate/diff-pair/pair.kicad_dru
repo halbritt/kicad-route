@@ -1,0 +1,2 @@
+(version 1)
+(rule "CAN pair gap" (constraint diff_pair_gap (min 0.34mm) (max 0.36mm)))

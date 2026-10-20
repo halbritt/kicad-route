@@ -1,0 +1,1701 @@
+{
+  "schema": "kicad-route/wrapper-profile-diagnosis/1",
+  "created_utc": "2026-10-20T20:23:21.008292+00:00",
+  "scope": "One sequential warm-cache cProfile CLI attempt each, reference main/bin+STATE main, candidate performance/bin+STATE agent497-state, CPUs0-11. No source edits. Diagnostic, not performance qualification.",
+  "timing_semantics": "cProfile default timer records wrapper elapsed wall time. subprocess cumulative time, select.poll and time.sleep measure waiting, not wrapper CPU. GNU-time user/system includes child CPU and is not a per-function CPU profile. Inclusive cumulative times overlap and must not be summed.",
+  "verdict": "No seconds-scale wrapper hashing regression identified. Repeated CLI-version probes are longstanding serial wrapper work (nine environment probes on both sides), while the newly confirmed generation bytecode mismatch is the immediate installation-regression repair target.",
+  "evidence": [
+    {
+      "observation": "kicad_version is invoked12times reference and13times candidate.",
+      "reference_cumulative_wall_s": 1.73426,
+      "candidate_cumulative_wall_s": 2.42612,
+      "source": "common.tool_env derives only major-version environment keys but calls kicad_version every time."
+    },
+    {
+      "observation": "Nine version probes on each side are solely environment construction.",
+      "reference_tool_env_version_wait_s": 1.3583,
+      "candidate_tool_env_version_wait_s": 1.6826,
+      "callers": [
+        "common.run_cmd:7",
+        "cli.krt_version:1",
+        "cli.run_budgeted:1"
+      ],
+      "qualification": "These are serial child elapsed times including their scheduling. They are not measurements of wrapper CPU."
+    },
+    {
+      "observation": "The new baseline-cache identity has one additional serial CLI-version identity probe.",
+      "candidate_cumulative_wall_s": 0.2159,
+      "other_identity_probe_cumulative_wall_s": 0.2189,
+      "source": "baselinecache.identity calls kicad_cli_identity; evidence.tool_identity calls it again later."
+    },
+    {
+      "observation": "Existing pcbnew-version reuse works: no pcbnew_build_version call appears in either profile.",
+      "source": "Candidate baselinecache.identity receives native facts kicad_version from the attempt."
+    },
+    {
+      "observation": "Identity hashing is below the seconds-scale delay.",
+      "evidence": {
+        "source_hash_calls_each": 2,
+        "source_hash_wall_s_reference": 0.10255,
+        "source_hash_wall_s_candidate": 0.17528,
+        "HASH_update_self_wall_s_reference": 0.058786,
+        "HASH_update_self_wall_s_candidate": 0.069108,
+        "backend_identity_reference_calls": 1,
+        "backend_identity_candidate_calls": 2,
+        "backend_identity_candidate_cumulative_wall_s": 0.01191,
+        "candidate_venv_packages_calls": 3,
+        "candidate_venv_packages_cumulative_wall_s": 0.00384
+      },
+      "source": "Candidate execution identity is captured before routing and again for final evidence; package metadata is read locally, not via pip subprocess."
+    }
+  ],
+  "recommended_reduction": {
+    "action": "Reuse a freshly observed CLI major version solely for tool_env environment construction within the current attempt. Keep a fresh observation on entering each attempt.",
+    "why_supported": "These nine calls repeat a serial external probe to choose identical KICAD10_SYMBOL_DIR/FOOTPRINT_DIR/TEMPLATE_DIR keys. The full command/tool version and drift evidence can continue to be collected at their existing authority boundaries.",
+    "preservation_constraints": [
+      "No global tool-identity cache across attempts.",
+      "Do not replace source/module/package hashing or suppress manifest drift checks.",
+      "Do not remove required candidate/native DRC commands.",
+      "A second attempt, including one in the same process after a tool replacement, must perform a fresh observation.",
+      "Preserve fallback behavior for tool_env callers outside an attempt."
+    ],
+    "not_supported": "Do not present summed call times as guaranteed wall savings or claim1.10qualification from this one profiled pair. No evidence here justifies optimizing Rust/search or weakening gates.",
+    "status": "Deferred possible later optimization; do not broaden scope before bytecode-preparation fix and matrix evidence."
+  },
+  "profiles": {
+    "reference": {
+      "profile": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/profile.pstats",
+      "stdout": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/stdout.log",
+      "stderr": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/stderr.log",
+      "time": {
+        "wall_s": 9.73,
+        "user_s": 21.85,
+        "system_s": 3.17,
+        "max_rss_kib": 1602756
+      },
+      "profile_total_wall_s": 9.683079,
+      "baseline_cached": true,
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/result.json",
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "copper": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42"
+      },
+      "functions": [
+        {
+          "function": "run",
+          "file": "/usr/lib/python3.12/subprocess.py",
+          "line": 506,
+          "calls": 32,
+          "primitive_calls": 32,
+          "self_wall_s": 0.000359,
+          "cumulative_wall_s": 7.641388,
+          "callers": [
+            {
+              "function": "krt_version",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 1338,
+              "calls": 1,
+              "cumulative_wall_s": 0.01734
+            },
+            {
+              "function": "run_cmd",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 182,
+              "calls": 7,
+              "cumulative_wall_s": 5.872143
+            },
+            {
+              "function": "kicad_version",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 112,
+              "calls": 12,
+              "cumulative_wall_s": 1.728725
+            },
+            {
+              "function": "git",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 86,
+              "calls": 11,
+              "cumulative_wall_s": 0.021624
+            },
+            {
+              "function": "show",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/floor.py",
+              "line": 294,
+              "calls": 1,
+              "cumulative_wall_s": 0.001555
+            }
+          ]
+        },
+        {
+          "function": "communicate",
+          "file": "/usr/lib/python3.12/subprocess.py",
+          "line": 1165,
+          "calls": 32,
+          "primitive_calls": 32,
+          "self_wall_s": 0.000169,
+          "cumulative_wall_s": 7.617387,
+          "callers": [
+            {
+              "function": "run",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 506,
+              "calls": 32,
+              "cumulative_wall_s": 7.617387
+            }
+          ]
+        },
+        {
+          "function": "<method 'poll' of 'select.poll' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 69,
+          "primitive_calls": 69,
+          "self_wall_s": 7.606527,
+          "cumulative_wall_s": 7.606527,
+          "callers": [
+            {
+              "function": "select",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 402,
+              "calls": 69,
+              "cumulative_wall_s": 7.606527
+            }
+          ]
+        },
+        {
+          "function": "run_cmd",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+          "line": 182,
+          "calls": 7,
+          "primitive_calls": 7,
+          "self_wall_s": 0.000274,
+          "cumulative_wall_s": 6.970442,
+          "callers": [
+            {
+              "function": "kicad_drc",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 272,
+              "calls": 2,
+              "cumulative_wall_s": 4.728484
+            },
+            {
+              "function": "krt_route",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 1385,
+              "calls": 2,
+              "cumulative_wall_s": 1.09098
+            },
+            {
+              "function": "extract",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/pour.py",
+              "line": 36,
+              "calls": 1,
+              "cumulative_wall_s": 0.361175
+            },
+            {
+              "function": "board_facts",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 216,
+              "calls": 2,
+              "cumulative_wall_s": 0.789803
+            }
+          ]
+        },
+        {
+          "function": "krt_route",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+          "line": 1385,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 0.000227,
+          "cumulative_wall_s": 3.035125,
+          "callers": [
+            {
+              "function": "<lambda>",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 1104,
+              "calls": 1,
+              "cumulative_wall_s": 3.035125
+            }
+          ]
+        },
+        {
+          "function": "run_budgeted",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+          "line": 1219,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 8e-05,
+          "cumulative_wall_s": 1.939607,
+          "callers": [
+            {
+              "function": "krt_route",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 1385,
+              "calls": 1,
+              "cumulative_wall_s": 1.939607
+            }
+          ]
+        },
+        {
+          "function": "kicad_version",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+          "line": 112,
+          "calls": 12,
+          "primitive_calls": 12,
+          "self_wall_s": 0.000709,
+          "cumulative_wall_s": 1.734261,
+          "callers": [
+            {
+              "function": "tool_env",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 167,
+              "calls": 9,
+              "cumulative_wall_s": 1.358327
+            },
+            {
+              "function": "ensure_kicad_config",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 154,
+              "calls": 1,
+              "cumulative_wall_s": 0.152328
+            },
+            {
+              "function": "kicad_cli_identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+              "line": 151,
+              "calls": 1,
+              "cumulative_wall_s": 0.124809
+            },
+            {
+              "function": "tool_versions",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 212,
+              "calls": 1,
+              "cumulative_wall_s": 0.098797
+            }
+          ]
+        },
+        {
+          "function": "wait",
+          "file": "/usr/lib/python3.12/subprocess.py",
+          "line": 1259,
+          "calls": 103,
+          "primitive_calls": 103,
+          "self_wall_s": 0.000116,
+          "cumulative_wall_s": 1.721417,
+          "callers": [
+            {
+              "function": "__exit__",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 1092,
+              "calls": 32,
+              "cumulative_wall_s": 1.7e-05
+            },
+            {
+              "function": "communicate",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 1165,
+              "calls": 32,
+              "cumulative_wall_s": 2.4e-05
+            },
+            {
+              "function": "_communicate",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 2062,
+              "calls": 32,
+              "cumulative_wall_s": 0.006256
+            },
+            {
+              "function": "wait",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/stall.py",
+              "line": 217,
+              "calls": 7,
+              "cumulative_wall_s": 1.71512
+            }
+          ]
+        },
+        {
+          "function": "<built-in method time.sleep>",
+          "file": "~",
+          "line": 0,
+          "calls": 74,
+          "primitive_calls": 74,
+          "self_wall_s": 1.718354,
+          "cumulative_wall_s": 1.718354,
+          "callers": [
+            {
+              "function": "_wait",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 2021,
+              "calls": 74,
+              "cumulative_wall_s": 1.718354
+            }
+          ]
+        },
+        {
+          "function": "tool_env",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+          "line": 167,
+          "calls": 9,
+          "primitive_calls": 9,
+          "self_wall_s": 0.000504,
+          "cumulative_wall_s": 1.363532,
+          "callers": [
+            {
+              "function": "krt_version",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 1338,
+              "calls": 1,
+              "cumulative_wall_s": 0.11477
+            },
+            {
+              "function": "run_budgeted",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 1219,
+              "calls": 1,
+              "cumulative_wall_s": 0.15654
+            },
+            {
+              "function": "run_cmd",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 182,
+              "calls": 7,
+              "cumulative_wall_s": 1.092221
+            }
+          ]
+        },
+        {
+          "function": "board_facts",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+          "line": 216,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 2.6e-05,
+          "cumulative_wall_s": 0.790205,
+          "callers": [
+            {
+              "function": "validate",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 722,
+              "calls": 1,
+              "cumulative_wall_s": 0.415035
+            },
+            {
+              "function": "run_attempt",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 957,
+              "calls": 1,
+              "cumulative_wall_s": 0.37517
+            }
+          ]
+        },
+        {
+          "function": "tool_identity",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+          "line": 119,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 3.5e-05,
+          "cumulative_wall_s": 0.23525,
+          "callers": [
+            {
+              "function": "run_attempt",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 957,
+              "calls": 1,
+              "cumulative_wall_s": 0.23525
+            }
+          ]
+        },
+        {
+          "function": "kicad_cli_identity",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+          "line": 151,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 2.1e-05,
+          "cumulative_wall_s": 0.125701,
+          "callers": [
+            {
+              "function": "tool_identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+              "line": 119,
+              "calls": 1,
+              "cumulative_wall_s": 0.125701
+            }
+          ]
+        },
+        {
+          "function": "tool_versions",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+          "line": 212,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 1e-05,
+          "cumulative_wall_s": 0.104231,
+          "callers": [
+            {
+              "function": "run_attempt",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 957,
+              "calls": 1,
+              "cumulative_wall_s": 0.104231
+            }
+          ]
+        },
+        {
+          "function": "source_sha256",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/engine.py",
+          "line": 12,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 0.002018,
+          "cumulative_wall_s": 0.10255,
+          "callers": [
+            {
+              "function": "current_identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+              "line": 317,
+              "calls": 1,
+              "cumulative_wall_s": 0.049392
+            },
+            {
+              "function": "identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/engine.py",
+              "line": 21,
+              "calls": 1,
+              "cumulative_wall_s": 0.053158
+            }
+          ]
+        },
+        {
+          "function": "verify",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+          "line": 347,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 1.5e-05,
+          "cumulative_wall_s": 0.097702,
+          "callers": [
+            {
+              "function": "tool_identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+              "line": 119,
+              "calls": 1,
+              "cumulative_wall_s": 0.097702
+            }
+          ]
+        },
+        {
+          "function": "current_identity",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+          "line": 317,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 3.2e-05,
+          "cumulative_wall_s": 0.097666,
+          "callers": [
+            {
+              "function": "verify",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+              "line": 347,
+              "calls": 1,
+              "cumulative_wall_s": 0.097666
+            }
+          ]
+        },
+        {
+          "function": "<method 'update' of '_hashlib.HASH' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 1039,
+          "primitive_calls": 1039,
+          "self_wall_s": 0.058786,
+          "cumulative_wall_s": 0.058786,
+          "callers": [
+            {
+              "function": "source_sha256",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/engine.py",
+              "line": 12,
+              "calls": 948,
+              "cumulative_wall_s": 0.018496
+            },
+            {
+              "function": "sha256",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 48,
+              "calls": 89,
+              "cumulative_wall_s": 0.040289
+            },
+            {
+              "function": "input_fingerprint",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 191,
+              "calls": 2,
+              "cumulative_wall_s": 1e-06
+            }
+          ]
+        },
+        {
+          "function": "identity",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/engine.py",
+          "line": 21,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 2e-05,
+          "cumulative_wall_s": 0.055281,
+          "callers": [
+            {
+              "function": "krt_version",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 1338,
+              "calls": 1,
+              "cumulative_wall_s": 0.055281
+            }
+          ]
+        },
+        {
+          "function": "backend_identity",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+          "line": 101,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 2.8e-05,
+          "cumulative_wall_s": 0.003365,
+          "callers": [
+            {
+              "function": "tool_identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+              "line": 119,
+              "calls": 1,
+              "cumulative_wall_s": 0.003365
+            }
+          ]
+        },
+        {
+          "function": "venv_packages",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+          "line": 78,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 0.000191,
+          "cumulative_wall_s": 0.001688,
+          "callers": [
+            {
+              "function": "backend_identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+              "line": 101,
+              "calls": 1,
+              "cumulative_wall_s": 0.001012
+            },
+            {
+              "function": "current_identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+              "line": 317,
+              "calls": 1,
+              "cumulative_wall_s": 0.000676
+            }
+          ]
+        },
+        {
+          "function": "extension_module",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+          "line": 71,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 6e-06,
+          "cumulative_wall_s": 0.001052,
+          "callers": [
+            {
+              "function": "backend_identity",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+              "line": 101,
+              "calls": 1,
+              "cumulative_wall_s": 0.001052
+            }
+          ]
+        },
+        {
+          "function": "<method 'hexdigest' of '_hashlib.HASH' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 35,
+          "primitive_calls": 35,
+          "self_wall_s": 7e-05,
+          "cumulative_wall_s": 7e-05,
+          "callers": [
+            {
+              "function": "copper_signature",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+              "line": 44,
+              "calls": 1,
+              "cumulative_wall_s": 1e-06
+            },
+            {
+              "function": "source_sha256",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/engine.py",
+              "line": 12,
+              "calls": 2,
+              "cumulative_wall_s": 7e-06
+            },
+            {
+              "function": "sha256",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+              "line": 48,
+              "calls": 26,
+              "cumulative_wall_s": 5.3e-05
+            },
+            {
+              "function": "_h",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/ledger.py",
+              "line": 33,
+              "calls": 3,
+              "cumulative_wall_s": 4e-06
+            },
+            {
+              "function": "packages_sha256",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/statemanifest.py",
+              "line": 99,
+              "calls": 2,
+              "cumulative_wall_s": 3e-06
+            },
+            {
+              "function": "input_fingerprint",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+              "line": 191,
+              "calls": 1,
+              "cumulative_wall_s": 1e-06
+            }
+          ]
+        },
+        {
+          "function": "<method 'unregister' of 'select.poll' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 57,
+          "primitive_calls": 57,
+          "self_wall_s": 2.8e-05,
+          "cumulative_wall_s": 2.8e-05,
+          "callers": [
+            {
+              "function": "unregister",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 365,
+              "calls": 57,
+              "cumulative_wall_s": 2.8e-05
+            }
+          ]
+        },
+        {
+          "function": "<method 'register' of 'select.poll' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 57,
+          "primitive_calls": 57,
+          "self_wall_s": 2.7e-05,
+          "cumulative_wall_s": 2.7e-05,
+          "callers": [
+            {
+              "function": "register",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 351,
+              "calls": 57,
+              "cumulative_wall_s": 2.7e-05
+            }
+          ]
+        },
+        {
+          "function": "<built-in method select.poll>",
+          "file": "~",
+          "line": 0,
+          "calls": 32,
+          "primitive_calls": 32,
+          "self_wall_s": 2.2e-05,
+          "cumulative_wall_s": 2.2e-05,
+          "callers": [
+            {
+              "function": "__init__",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 347,
+              "calls": 32,
+              "cumulative_wall_s": 2.2e-05
+            }
+          ]
+        },
+        {
+          "function": "backend_identity",
+          "file": "/home/halbritt/git/kicad-route/src/kicad_route/ledger.py",
+          "line": 51,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 5e-06,
+          "cumulative_wall_s": 8e-06,
+          "callers": [
+            {
+              "function": "append",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/ledger.py",
+              "line": 129,
+              "calls": 1,
+              "cumulative_wall_s": 3e-06
+            },
+            {
+              "function": "fingerprint",
+              "file": "/home/halbritt/git/kicad-route/src/kicad_route/ledger.py",
+              "line": 59,
+              "calls": 1,
+              "cumulative_wall_s": 5e-06
+            }
+          ]
+        },
+        {
+          "function": "<method 'close' of 'select.epoll' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 3e-06,
+          "cumulative_wall_s": 3e-06,
+          "callers": [
+            {
+              "function": "_can_use",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 588,
+              "calls": 1,
+              "cumulative_wall_s": 3e-06
+            }
+          ]
+        }
+      ],
+      "phase_commands": [
+        {
+          "argv": [
+            "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
+            "/home/halbritt/git/kicad-route/src/kicad_route/router/py_router/route.py",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/work/input/multipoint-tap/multipoint-tap.kicad_pcb",
+            "--output",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/work/krt-out/multipoint-tap.kicad_pcb",
+            "--escalation",
+            "off",
+            "--fab-tier",
+            "standard",
+            "--strict-sizes",
+            "--no-power-tap-neckdown",
+            "--no-fix-drc-settings",
+            "--json-out",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/work/krt-out/summary.json",
+            "--keep-input-copper",
+            "--no-stub-layer-swap",
+            "--nets",
+            "*"
+          ],
+          "duration_s": 1.782
+        },
+        {
+          "argv": [
+            "/usr/bin/python3",
+            "/home/halbritt/git/kicad-route/src/kicad_route/kicad/locks.py",
+            "restore",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/work/krt-out/multipoint-tap.kicad_pcb",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/work/locks.json"
+          ],
+          "duration_s": 0.44
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "pcb",
+            "drc",
+            "--refill-zones",
+            "--save-board",
+            "--format",
+            "json",
+            "-o",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/validate/candidate-refill.json",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+          ],
+          "duration_s": 2.313
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "pcb",
+            "drc",
+            "--format",
+            "json",
+            "--severity-all",
+            "--schematic-parity",
+            "--units",
+            "mm",
+            "-o",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/validate/candidate-drc.json",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-reference/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+          ],
+          "duration_s": 2.415
+        }
+      ]
+    },
+    "candidate": {
+      "profile": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/profile.pstats",
+      "stdout": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/stdout.log",
+      "stderr": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/stderr.log",
+      "time": {
+        "wall_s": 13.95,
+        "user_s": 24.72,
+        "system_s": 3.44,
+        "max_rss_kib": 1600568
+      },
+      "profile_total_wall_s": 13.892661,
+      "baseline_cached": true,
+      "result": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/result.json",
+      "quality": {
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "copper": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42"
+      },
+      "functions": [
+        {
+          "function": "run",
+          "file": "/usr/lib/python3.12/subprocess.py",
+          "line": 506,
+          "calls": 33,
+          "primitive_calls": 33,
+          "self_wall_s": 0.000522,
+          "cumulative_wall_s": 10.742272,
+          "callers": [
+            {
+              "function": "krt_version",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 1336,
+              "calls": 1,
+              "cumulative_wall_s": 0.03325
+            },
+            {
+              "function": "run_cmd",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 205,
+              "calls": 7,
+              "cumulative_wall_s": 8.247609
+            },
+            {
+              "function": "kicad_version",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 135,
+              "calls": 13,
+              "cumulative_wall_s": 2.41865
+            },
+            {
+              "function": "git",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 94,
+              "calls": 11,
+              "cumulative_wall_s": 0.039524
+            },
+            {
+              "function": "show",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/floor.py",
+              "line": 294,
+              "calls": 1,
+              "cumulative_wall_s": 0.00324
+            }
+          ]
+        },
+        {
+          "function": "communicate",
+          "file": "/usr/lib/python3.12/subprocess.py",
+          "line": 1165,
+          "calls": 33,
+          "primitive_calls": 33,
+          "self_wall_s": 0.000224,
+          "cumulative_wall_s": 10.687712,
+          "callers": [
+            {
+              "function": "run",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 506,
+              "calls": 33,
+              "cumulative_wall_s": 10.687712
+            }
+          ]
+        },
+        {
+          "function": "<method 'poll' of 'select.poll' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 76,
+          "primitive_calls": 76,
+          "self_wall_s": 10.673986,
+          "cumulative_wall_s": 10.673986,
+          "callers": [
+            {
+              "function": "select",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 402,
+              "calls": 76,
+              "cumulative_wall_s": 10.673986
+            }
+          ]
+        },
+        {
+          "function": "run_cmd",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+          "line": 205,
+          "calls": 7,
+          "primitive_calls": 7,
+          "self_wall_s": 0.00035,
+          "cumulative_wall_s": 9.525435,
+          "callers": [
+            {
+              "function": "kicad_drc",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 275,
+              "calls": 2,
+              "cumulative_wall_s": 6.46904
+            },
+            {
+              "function": "krt_route",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 1405,
+              "calls": 2,
+              "cumulative_wall_s": 1.436389
+            },
+            {
+              "function": "extract",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/pour.py",
+              "line": 36,
+              "calls": 1,
+              "cumulative_wall_s": 0.499342
+            },
+            {
+              "function": "board_facts",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 219,
+              "calls": 2,
+              "cumulative_wall_s": 1.120664
+            }
+          ]
+        },
+        {
+          "function": "krt_route",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+          "line": 1405,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 0.000195,
+          "cumulative_wall_s": 4.416034,
+          "callers": [
+            {
+              "function": "<lambda>",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 1100,
+              "calls": 1,
+              "cumulative_wall_s": 4.416034
+            }
+          ]
+        },
+        {
+          "function": "run_budgeted",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+          "line": 1217,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 8.5e-05,
+          "cumulative_wall_s": 2.974702,
+          "callers": [
+            {
+              "function": "krt_route",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 1405,
+              "calls": 1,
+              "cumulative_wall_s": 2.974702
+            }
+          ]
+        },
+        {
+          "function": "wait",
+          "file": "/usr/lib/python3.12/subprocess.py",
+          "line": 1259,
+          "calls": 110,
+          "primitive_calls": 110,
+          "self_wall_s": 0.000173,
+          "cumulative_wall_s": 2.681355,
+          "callers": [
+            {
+              "function": "__exit__",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 1092,
+              "calls": 33,
+              "cumulative_wall_s": 4e-05
+            },
+            {
+              "function": "communicate",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 1165,
+              "calls": 33,
+              "cumulative_wall_s": 3e-05
+            },
+            {
+              "function": "_communicate",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 2062,
+              "calls": 33,
+              "cumulative_wall_s": 0.007556
+            },
+            {
+              "function": "wait",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/stall.py",
+              "line": 217,
+              "calls": 11,
+              "cumulative_wall_s": 2.673729
+            }
+          ]
+        },
+        {
+          "function": "<built-in method time.sleep>",
+          "file": "~",
+          "line": 0,
+          "calls": 113,
+          "primitive_calls": 113,
+          "self_wall_s": 2.676332,
+          "cumulative_wall_s": 2.676332,
+          "callers": [
+            {
+              "function": "_wait",
+              "file": "/usr/lib/python3.12/subprocess.py",
+              "line": 2021,
+              "calls": 113,
+              "cumulative_wall_s": 2.676332
+            }
+          ]
+        },
+        {
+          "function": "kicad_version",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+          "line": 135,
+          "calls": 13,
+          "primitive_calls": 13,
+          "self_wall_s": 0.000973,
+          "cumulative_wall_s": 2.42612,
+          "callers": [
+            {
+              "function": "ensure_kicad_config",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 177,
+              "calls": 1,
+              "cumulative_wall_s": 0.155122
+            },
+            {
+              "function": "tool_env",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 190,
+              "calls": 9,
+              "cumulative_wall_s": 1.682558
+            },
+            {
+              "function": "kicad_cli_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+              "line": 153,
+              "calls": 2,
+              "cumulative_wall_s": 0.432657
+            },
+            {
+              "function": "tool_versions",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 235,
+              "calls": 1,
+              "cumulative_wall_s": 0.155783
+            }
+          ]
+        },
+        {
+          "function": "tool_env",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+          "line": 190,
+          "calls": 9,
+          "primitive_calls": 9,
+          "self_wall_s": 0.000621,
+          "cumulative_wall_s": 1.688905,
+          "callers": [
+            {
+              "function": "run_budgeted",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 1217,
+              "calls": 1,
+              "cumulative_wall_s": 0.204646
+            },
+            {
+              "function": "krt_version",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 1336,
+              "calls": 1,
+              "cumulative_wall_s": 0.215146
+            },
+            {
+              "function": "run_cmd",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 205,
+              "calls": 7,
+              "cumulative_wall_s": 1.269113
+            }
+          ]
+        },
+        {
+          "function": "board_facts",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+          "line": 219,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 3.3e-05,
+          "cumulative_wall_s": 1.12123,
+          "callers": [
+            {
+              "function": "validate",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 708,
+              "calls": 1,
+              "cumulative_wall_s": 0.55498
+            },
+            {
+              "function": "run_attempt",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 943,
+              "calls": 1,
+              "cumulative_wall_s": 0.56625
+            }
+          ]
+        },
+        {
+          "function": "kicad_cli_identity",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+          "line": 153,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 4.6e-05,
+          "cumulative_wall_s": 0.434837,
+          "callers": [
+            {
+              "function": "identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/baselinecache.py",
+              "line": 14,
+              "calls": 1,
+              "cumulative_wall_s": 0.215905
+            },
+            {
+              "function": "tool_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+              "line": 125,
+              "calls": 1,
+              "cumulative_wall_s": 0.218932
+            }
+          ]
+        },
+        {
+          "function": "tool_identity",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+          "line": 125,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 5.5e-05,
+          "cumulative_wall_s": 0.356332,
+          "callers": [
+            {
+              "function": "run_attempt",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 943,
+              "calls": 1,
+              "cumulative_wall_s": 0.356332
+            }
+          ]
+        },
+        {
+          "function": "identity",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/baselinecache.py",
+          "line": 14,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 5.9e-05,
+          "cumulative_wall_s": 0.217984,
+          "callers": [
+            {
+              "function": "get",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/baselinecache.py",
+              "line": 60,
+              "calls": 1,
+              "cumulative_wall_s": 0.217984
+            }
+          ]
+        },
+        {
+          "function": "source_sha256",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/engine.py",
+          "line": 14,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 0.003017,
+          "cumulative_wall_s": 0.175278,
+          "callers": [
+            {
+              "function": "current_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+              "line": 321,
+              "calls": 1,
+              "cumulative_wall_s": 0.064823
+            },
+            {
+              "function": "identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/engine.py",
+              "line": 24,
+              "calls": 1,
+              "cumulative_wall_s": 0.110455
+            }
+          ]
+        },
+        {
+          "function": "tool_versions",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+          "line": 235,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 1.2e-05,
+          "cumulative_wall_s": 0.164528,
+          "callers": [
+            {
+              "function": "run_attempt",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 943,
+              "calls": 1,
+              "cumulative_wall_s": 0.164528
+            }
+          ]
+        },
+        {
+          "function": "verify",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+          "line": 355,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 1.9e-05,
+          "cumulative_wall_s": 0.118752,
+          "callers": [
+            {
+              "function": "tool_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+              "line": 125,
+              "calls": 1,
+              "cumulative_wall_s": 0.118752
+            }
+          ]
+        },
+        {
+          "function": "current_identity",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+          "line": 321,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 4.6e-05,
+          "cumulative_wall_s": 0.118698,
+          "callers": [
+            {
+              "function": "verify",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+              "line": 355,
+              "calls": 1,
+              "cumulative_wall_s": 0.118698
+            }
+          ]
+        },
+        {
+          "function": "identity",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/engine.py",
+          "line": 24,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 2.9e-05,
+          "cumulative_wall_s": 0.113062,
+          "callers": [
+            {
+              "function": "krt_version",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 1336,
+              "calls": 1,
+              "cumulative_wall_s": 0.113062
+            }
+          ]
+        },
+        {
+          "function": "<method 'update' of '_hashlib.HASH' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 1068,
+          "primitive_calls": 1068,
+          "self_wall_s": 0.069108,
+          "cumulative_wall_s": 0.069108,
+          "callers": [
+            {
+              "function": "source_sha256",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/engine.py",
+              "line": 14,
+              "calls": 964,
+              "cumulative_wall_s": 0.022722
+            },
+            {
+              "function": "sha256",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 56,
+              "calls": 102,
+              "cumulative_wall_s": 0.046385
+            },
+            {
+              "function": "input_fingerprint",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 194,
+              "calls": 2,
+              "cumulative_wall_s": 1e-06
+            }
+          ]
+        },
+        {
+          "function": "backend_identity",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+          "line": 105,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 6.5e-05,
+          "cumulative_wall_s": 0.011908,
+          "callers": [
+            {
+              "function": "run_attempt",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 943,
+              "calls": 1,
+              "cumulative_wall_s": 0.008904
+            },
+            {
+              "function": "tool_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+              "line": 125,
+              "calls": 1,
+              "cumulative_wall_s": 0.003004
+            }
+          ]
+        },
+        {
+          "function": "venv_packages",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+          "line": 80,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_wall_s": 0.000489,
+          "cumulative_wall_s": 0.003845,
+          "callers": [
+            {
+              "function": "current_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+              "line": 321,
+              "calls": 1,
+              "cumulative_wall_s": 0.001051
+            },
+            {
+              "function": "backend_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+              "line": 105,
+              "calls": 2,
+              "cumulative_wall_s": 0.002794
+            }
+          ]
+        },
+        {
+          "function": "extension_module",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+          "line": 73,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 1.7e-05,
+          "cumulative_wall_s": 0.002005,
+          "callers": [
+            {
+              "function": "backend_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+              "line": 105,
+              "calls": 2,
+              "cumulative_wall_s": 0.002005
+            }
+          ]
+        },
+        {
+          "function": "venv_python_version",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+          "line": 106,
+          "calls": 3,
+          "primitive_calls": 3,
+          "self_wall_s": 4.2e-05,
+          "cumulative_wall_s": 0.000375,
+          "callers": [
+            {
+              "function": "current_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+              "line": 321,
+              "calls": 1,
+              "cumulative_wall_s": 7e-05
+            },
+            {
+              "function": "backend_identity",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+              "line": 105,
+              "calls": 2,
+              "cumulative_wall_s": 0.000305
+            }
+          ]
+        },
+        {
+          "function": "<method 'hexdigest' of '_hashlib.HASH' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 49,
+          "primitive_calls": 49,
+          "self_wall_s": 0.000113,
+          "cumulative_wall_s": 0.000113,
+          "callers": [
+            {
+              "function": "copper_signature",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/evidence.py",
+              "line": 45,
+              "calls": 1,
+              "cumulative_wall_s": 1e-06
+            },
+            {
+              "function": "source_sha256",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/engine.py",
+              "line": 14,
+              "calls": 2,
+              "cumulative_wall_s": 1.1e-05
+            },
+            {
+              "function": "_h",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/ledger.py",
+              "line": 33,
+              "calls": 3,
+              "cumulative_wall_s": 3e-06
+            },
+            {
+              "function": "packages_sha256",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/statemanifest.py",
+              "line": 101,
+              "calls": 3,
+              "cumulative_wall_s": 9e-06
+            },
+            {
+              "function": "sha256_of",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 64,
+              "calls": 1,
+              "cumulative_wall_s": 1e-06
+            },
+            {
+              "function": "sha256",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/common.py",
+              "line": 56,
+              "calls": 38,
+              "cumulative_wall_s": 8.7e-05
+            },
+            {
+              "function": "input_fingerprint",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/cli.py",
+              "line": 194,
+              "calls": 1,
+              "cumulative_wall_s": 1e-06
+            }
+          ]
+        },
+        {
+          "function": "<method 'register' of 'select.poll' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 59,
+          "primitive_calls": 59,
+          "self_wall_s": 3.9e-05,
+          "cumulative_wall_s": 3.9e-05,
+          "callers": [
+            {
+              "function": "register",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 351,
+              "calls": 59,
+              "cumulative_wall_s": 3.9e-05
+            }
+          ]
+        },
+        {
+          "function": "<built-in method select.poll>",
+          "file": "~",
+          "line": 0,
+          "calls": 33,
+          "primitive_calls": 33,
+          "self_wall_s": 3.5e-05,
+          "cumulative_wall_s": 3.5e-05,
+          "callers": [
+            {
+              "function": "__init__",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 347,
+              "calls": 33,
+              "cumulative_wall_s": 3.5e-05
+            }
+          ]
+        },
+        {
+          "function": "<method 'unregister' of 'select.poll' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 59,
+          "primitive_calls": 59,
+          "self_wall_s": 3.5e-05,
+          "cumulative_wall_s": 3.5e-05,
+          "callers": [
+            {
+              "function": "unregister",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 365,
+              "calls": 59,
+              "cumulative_wall_s": 3.5e-05
+            }
+          ]
+        },
+        {
+          "function": "backend_identity",
+          "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/ledger.py",
+          "line": 51,
+          "calls": 2,
+          "primitive_calls": 2,
+          "self_wall_s": 3e-06,
+          "cumulative_wall_s": 4e-06,
+          "callers": [
+            {
+              "function": "append",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/ledger.py",
+              "line": 133,
+              "calls": 1,
+              "cumulative_wall_s": 2e-06
+            },
+            {
+              "function": "fingerprint",
+              "file": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/ledger.py",
+              "line": 63,
+              "calls": 1,
+              "cumulative_wall_s": 2e-06
+            }
+          ]
+        },
+        {
+          "function": "<method 'close' of 'select.epoll' objects>",
+          "file": "~",
+          "line": 0,
+          "calls": 1,
+          "primitive_calls": 1,
+          "self_wall_s": 4e-06,
+          "cumulative_wall_s": 4e-06,
+          "callers": [
+            {
+              "function": "_can_use",
+              "file": "/usr/lib/python3.12/selectors.py",
+              "line": 588,
+              "calls": 1,
+              "cumulative_wall_s": 4e-06
+            }
+          ]
+        }
+      ],
+      "phase_commands": [
+        {
+          "argv": [
+            "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python",
+            "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/router/py_router/route.py",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/work/input/multipoint-tap/multipoint-tap.kicad_pcb",
+            "--output",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/work/krt-out/multipoint-tap.kicad_pcb",
+            "--escalation",
+            "off",
+            "--fab-tier",
+            "standard",
+            "--strict-sizes",
+            "--no-power-tap-neckdown",
+            "--no-fix-drc-settings",
+            "--json-out",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/work/krt-out/summary.json",
+            "--keep-input-copper",
+            "--no-stub-layer-swap",
+            "--nets",
+            "*"
+          ],
+          "duration_s": 2.769
+        },
+        {
+          "argv": [
+            "/usr/bin/python3",
+            "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/kicad/locks.py",
+            "restore",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/work/krt-out/multipoint-tap.kicad_pcb",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/work/locks.json"
+          ],
+          "duration_s": 0.649
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "pcb",
+            "drc",
+            "--refill-zones",
+            "--save-board",
+            "--format",
+            "json",
+            "-o",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/validate/candidate-refill.json",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+          ],
+          "duration_s": 3.316
+        },
+        {
+          "argv": [
+            "kicad-cli",
+            "pcb",
+            "drc",
+            "--format",
+            "json",
+            "--severity-all",
+            "--schematic-parity",
+            "--units",
+            "mm",
+            "-o",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/validate/candidate-drc.json",
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-profile-candidate/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+          ],
+          "duration_s": 3.153
+        }
+      ]
+    }
+  },
+  "child_startup_boundary": {
+    "startup_artifact": "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-startup/comparison.json",
+    "observation": "Reference has NumPy132/SciPy286/Shapely36cached bytecode files; candidate82/0/0. Missing caches are recompiled in numerical-routing child processes, which the wrapper cProfile cannot attribute to Python functions.",
+    "bounded_help_cpu_medians_s": {
+      "reference": 1.5,
+      "candidate": 1.63
+    },
+    "limit": "--help loads only part of SciPy; it does not quantify full routing-time lazy-import compilation. Full matrix after checked preparation-time compilation is required.",
+    "lazy_import_probe": {
+      "artifact": "/home/halbritt/git/kicad-route/build/agent497-qualification/bytecode-import-probe/comparison.json",
+      "median_cpu_s": {
+        "reference": 1.12,
+        "old_candidate": 1.86,
+        "new_candidate": 1.12
+      },
+      "old_minus_new_cpu_s": 0.74,
+      "cache_metadata_unchanged": true,
+      "scope": "import-onlydiagnostic; fullrouting qualification remains pending"
+    }
+  }
+}

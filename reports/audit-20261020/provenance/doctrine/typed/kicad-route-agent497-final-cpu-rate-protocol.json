@@ -1,0 +1,30 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "cpu-rate-protocol",
+  "evidence_class": "evidence-repository-contracts",
+  "summary": "Root reviewed and launched single matrix94696 with frozen harness1542b947ac50ee2cbe632f36bfed3a1ab735bb379aa10a8fdf389c8fa897ac2a/protocolb830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225. Selected1CPU aggregate maximum, full0\u201311affinity,100msperiod/burst0/weight100/nice0/SCHED_OTHER in one normal own user scope for both sides. Four fixed boards,5measured+separatewarmups per side=48, no admission, drops or retries; ordinary failed verdicts continue all4. Exact frozenrun_sample/compare preserve fullpublicCLIwall, allnative/stop/connection/pair/preservation/copper checks and three1.10median gates. Setup is outside individualCLI timers. Own+ancestor controls/CPUstats/globalPSI before/after eachCLI and each first-seen(pid,birth) from the existing RSSsampler are retained; originalRSS/cadence are preserved. Explicit reap/reuse races are allowed and disclosed; observed escapes/readerrors/resource mismatch preventcleanqualification while retaining native data. Terminal authority requiresPASS/fourPASSrows/48samples/noresourceviolations. Matrix is running; no acceptance or unrestricted12CPU performance claim.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+      "method": "Read frozen predeclared conditional profile",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/run-cpu-rate-matrix.py",
+      "method": "Read immutable ignored orchestration harness",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "1542b947ac50ee2cbe632f36bfed3a1ab735bb379aa10a8fdf389c8fa897ac2a"
+    },
+    {
+      "locator": "conversation:root-launched-cpu-rate-matrix94696",
+      "method": "Explicit primary review/launch report",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00"
+    }
+  ],
+  "satisfies": [
+    "inventory of gates and the signals they observe",
+    "the authoritative signal named for each gate",
+    "eval-versus-serving configuration parity"
+  ]
+}

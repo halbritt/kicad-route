@@ -1,0 +1,90 @@
+{
+  "source": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-bytecode/src/kicad_route/router",
+  "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5",
+  "manifest": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/manifest.json",
+  "commands": [
+    {
+      "argv": [
+        "uv",
+        "venv",
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+        "--python",
+        "/usr/bin/python3"
+      ],
+      "cwd": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+      "log": "/home/halbritt/git/kicad-route/build/agent497-bytecode-build/update/60310b2b2bc14f9e9efcddcb57e650e5/venv.log",
+      "exit_code": 0,
+      "duration_s": 0.586
+    },
+    {
+      "argv": [
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv/bin/python",
+        "-r",
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router/requirements.txt"
+      ],
+      "cwd": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+      "log": "/home/halbritt/git/kicad-route/build/agent497-bytecode-build/update/60310b2b2bc14f9e9efcddcb57e650e5/krt-deps.log",
+      "exit_code": 0,
+      "duration_s": 3.714
+    },
+    {
+      "argv": [
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv/bin/python",
+        "-I",
+        "-B",
+        "-c",
+        "import compileall,sys,sysconfig; paths=dict.fromkeys(sysconfig.get_paths()[key] for key in ('purelib','platlib')); sys.exit(not all(compileall.compile_dir(path,quiet=1,workers=1) for path in paths))"
+      ],
+      "cwd": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+      "log": "/home/halbritt/git/kicad-route/build/agent497-bytecode-build/update/60310b2b2bc14f9e9efcddcb57e650e5/krt-bytecode.log",
+      "exit_code": 0,
+      "duration_s": 13.62
+    },
+    {
+      "argv": [
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv/bin/python",
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router/build_router.py",
+        "--target-dir",
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/build"
+      ],
+      "cwd": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+      "log": "/home/halbritt/git/kicad-route/build/agent497-bytecode-build/update/60310b2b2bc14f9e9efcddcb57e650e5/krt-build-router.log",
+      "exit_code": 0,
+      "duration_s": 57.001
+    },
+    {
+      "argv": [
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv/bin/python",
+        "py_router/startup_checks.py"
+      ],
+      "cwd": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+      "log": "/home/halbritt/git/kicad-route/build/agent497-bytecode-build/update/60310b2b2bc14f9e9efcddcb57e650e5/krt-startup-checks.log",
+      "exit_code": 0,
+      "duration_s": 1.066
+    },
+    {
+      "argv": [
+        "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv/bin/python",
+        "py_router/route.py",
+        "--help"
+      ],
+      "cwd": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+      "log": "/home/halbritt/git/kicad-route/build/agent497-bytecode-build/update/60310b2b2bc14f9e9efcddcb57e650e5/krt-route-help.log",
+      "exit_code": 0,
+      "duration_s": 2.997
+    }
+  ],
+  "packages": [
+    "numpy==2.5.4",
+    "pillow==13.0.0",
+    "scipy==1.18.1",
+    "shapely==2.2.0"
+  ],
+  "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+  "extension_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+  "drift": []
+}

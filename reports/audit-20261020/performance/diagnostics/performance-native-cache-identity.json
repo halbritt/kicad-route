@@ -1,0 +1,41 @@
+{
+  "scope": "Native board-facts extraction and baseline identity equivalence only; no routing or native DRC",
+  "pcbnew_version": "10.0.7-10.0.7~ubuntu24.04.1",
+  "captured_equals_probe_identity": true,
+  "source_board_unchanged": true,
+  "identity": {
+    "schema": 1,
+    "input": "native-input",
+    "board": "route_demo.kicad_pcb",
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+    "pour_schema": 1,
+    "grading": {
+      "baselinecache.py": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13",
+      "cli.py": "d5224f863160b04b2ec439aaae5e27847bf7ad4609574adc2a8032f3357437b5",
+      "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+      "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+      "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+    },
+    "result_schemas": {
+      "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+      "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+    }
+  },
+  "facts_process": {
+    "argv": [
+      "/usr/bin/python3",
+      "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/src/kicad_route/kicad/facts.py",
+      "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-performance/fixtures/route_demo/route_demo.kicad_pcb",
+      "/tmp/kicad-cache-native-version-lpz012cy/facts.json"
+    ],
+    "cwd": "fixtures/route_demo",
+    "log": "/tmp/kicad-cache-native-version-lpz012cy/facts.log",
+    "exit_code": 0,
+    "duration_s": 1.046
+  }
+}

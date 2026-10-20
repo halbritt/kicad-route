@@ -1,0 +1,10 @@
+[route] krt on four-layer-plane -> build/agent497-qualification/four-layer-cpu-rate/candidate-1/run
+[route] scope: all (2 of 2 nets)
+[route] baseline: native DRC of the untouched input (refilled)
+[route] routing with krt (budget 180s)
+[route] process: PASS
+[route] validating the candidate (refill, DRC + parity, preservation)
+[route] routing: COMPLETE
+[route] validation: PASS
+[route] candidate: build/agent497-qualification/four-layer-cpu-rate/candidate-1/run/candidate/four-layer-plane/four-layer-plane.kicad_pcb
+[route] result: build/agent497-qualification/four-layer-cpu-rate/candidate-1/run/result.json  (exit 0)

@@ -1,0 +1,10 @@
+{
+  "project": "four-layer-plane",
+  "source_dir": "/work/reference/reports/routing-engine/inputs/four-layer-plane",
+  "source": "working tree",
+  "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+  "files": {
+    "four-layer-plane.kicad_pcb": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+    "four-layer-plane.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+  }
+}

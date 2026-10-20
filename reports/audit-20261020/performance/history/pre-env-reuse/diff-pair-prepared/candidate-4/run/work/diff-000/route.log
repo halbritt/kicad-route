@@ -1,0 +1,56 @@
+CMD: python /home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router/py_router/route_diff.py /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/candidate-4/run/work/diff-000/input/pair.kicad_pcb --output /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/candidate-4/run/work/diff-000/pair.kicad_pcb --track-width 0.25 --diff-pair-gap 0.35 --no-fix-drc-settings --keep-input-copper --no-stub-layer-swap --no-gnd-vias --nets /CAN+ /CAN-
+ENV KNOBS: KICAD_CACHE_HOME=/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/candidate-out/.home/cache KICAD_CLI=/usr/bin/kicad-cli KICAD_DYNAMIC_ITERATIONS=0 KICAD_FINALIZE_RIP=0 KICAD_IMPEDANCE_NECKDOWN=0 KICAD_INRUN_FLOOR_SYNC=0 KICAD_RESCUE_CAP_MOVE=0 KICAD_RIP_PREEXISTING=0 KICAD_ROUTE_LEDGER=off KICAD_ROUTE_STATE=/home/halbritt/git/kicad-route/build/agent497-bytecode-state KICAD_TERMINAL_ESCALATION=0
+--via-size not given; using the board Default net-class 0.6mm.
+--via-drill not given; using the board Default net-class 0.3mm.
+--clearance not given; honoring net classes with base = the board Default net-class clearance 0.2mm.
+--hole-to-hole-clearance not given; using 0.25mm [board constraint].
+--board-edge-clearance not given; using 0.3mm [board constraint].
+Loading /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/candidate-4/run/work/diff-000/input/pair.kicad_pcb to expand net patterns...
+Routing 2 nets as differential pairs: ['/CAN+', '/CAN-']
+Netclass clearances for 2 net(s), honored in full (--clearance omitted) (mm: [0.2]); diff-pair routing respects cross-class max(A,B). Override with --net-clearances.
+Loading /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/candidate-4/run/work/diff-000/input/pair.kicad_pcb...
+Using 2 routing layers: ['F.Cu', 'B.Cu']
+No BGA components detected - no exclusion zones needed
+Found 1 differential pair(s)
+  Polarity swaps disabled (no --polarity-swap-nets; pass '*' to allow all pairs)
+
+Using MPS ordering strategy...
+MPS: Using segment intersection method (no nets on BGA chips)
+MPS: 1 diff pairs + 0 single nets = 1 units with 0 crossing conflicts
+MPS Round 1: 1 units: /CAN
+
+Routing 1 differential pair(s)...
+============================================================
+Building base obstacle map...
+Copper-to-hole 0.25mm for NPTH holes (from the board's own min_hole_clearance, above the 0.2mm fab floor); plated holes and vias: copper clearance
+Base obstacle map built in 0.00s
+Building diff pair obstacle map (extra clearance: 0.300mm)...
+Diff pair obstacle map built in 0.00s
+Blocking connector regions for 1 diff pair(s)...
+Found 3 unrouted nets in PCB for stub proximity
+Pre-computing net obstacle cache...
+Net obstacle cache built in 0.00s (3 nets)
+History congestion (#590) armed: +0.1mm-equiv per contest, cap 0.5, escalate 0.0, rip weight 1.0 (radius +0.25mm), frontier weight 0.25
+
+[1/1] Routing diff pair /CAN
+  P: /CAN+ (id=1)
+  N: /CAN- (id=2)
+Route found in 277 iterations, path: 277 poses -> 277 points -> 2 simplified
+  SUCCESS: 6 segments, 0 vias, 277 iterations (0.02s)
+    Centerline length: 29.812mm, stub length: 0.000mm, total: 29.812mm
+
+Sync pcb_data: 6 -> 0 (kept stubs) -> 6 (after adding 6)
+Diff-pair Merged 4 collinear joint(s) on 2 net(s): -4 redundant segment(s) (#811)
+
+============================================================
+Routing complete
+============================================================
+  Diff pairs:    1/1 routed
+  Total vias:    0
+  Total time:    0.02s
+  Iterations:    277
+JSON_SUMMARY: {"routed_diff_pairs": ["/CAN"], "failed_diff_pairs": [], "partial_diff_pairs": [], "member_incomplete_pairs": [], "single_ended_diff_pairs": [], "ripup_success_pairs": [], "rerouted_pairs": [], "polarity_swapped_pairs": [], "polarity_swap_denied_pairs": [], "single_ended_followup_nets": [], "skipped_bad_fanout": [], "target_swaps": [], "layer_swaps": 0, "intra_pair_matching": [], "successful": 1, "failed": 0, "total_time": 0.02, "total_iterations": 277, "total_vias": 0, "min_clearance_used": 0.2, "pair_reports": [{"pair": "/CAN", "p_net": "/CAN+", "n_net": "/CAN-", "outcome": "coupled", "failure_reason": null, "failure_stage": null, "incomplete_members": [], "member_audit_mismatch": false, "no_coupled_trunk": false}], "casualty_reconcile": {"attempted": 0, "restored": [], "rerouted": [], "partial": [], "unrecovered": []}, "single_ended_fallback": {"attempted": [], "routed": [], "partial": [], "failed": []}, "plane_fragility": {"source": "none", "islands": 0, "refill_status": null, "why": "the board has no zones", "machine_dependent": false}, "env_knobs": {"KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/candidate-out/.home/cache", "KICAD_CLI": "/usr/bin/kicad-cli", "KICAD_DYNAMIC_ITERATIONS": "0", "KICAD_FINALIZE_RIP": "0", "KICAD_IMPEDANCE_NECKDOWN": "0", "KICAD_INRUN_FLOOR_SYNC": "0", "KICAD_RESCUE_CAP_MOVE": "0", "KICAD_RIP_PREEXISTING": "0", "KICAD_ROUTE_LEDGER": "off", "KICAD_ROUTE_STATE": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state", "KICAD_TERMINAL_ESCALATION": "0"}}
+
+Writing output to /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/candidate-4/run/work/diff-000/pair.kicad_pcb...
+Successfully wrote /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/candidate-4/run/work/diff-000/pair.kicad_pcb
+EXIT=0

@@ -1,0 +1,1 @@
+retrieval state clean: index checksum verified; source fingerprint ce9bd74fa3a711c9354726a64f6c9da2427c4475a85e60c062ba8d0dce449fe0 matches the compiled index; retrieval-relevant paths match committed state (corpus corpus-2026-07-12-a11702cc9217, doctrine doctrine-f6bbb5196a3f8bf9)

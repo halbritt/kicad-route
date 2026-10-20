@@ -1,0 +1,17 @@
+{
+  "schema": "kicad-route/quiet-admission-matrix/1",
+  "status": "INCONCLUSIVE_ADMISSION_EXPIRED",
+  "protocol_sha256": "546568312807eb4f4bd230c74c61e1da6c61f628f82286841a483ec842ad7aef",
+  "boards": [
+    {
+      "name": "diff-pair",
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-quiet-admission",
+      "status": "RUNNING",
+      "completed_samples": 0
+    }
+  ],
+  "completed_samples": 0,
+  "admission_wait_s": 1800.0001311008818,
+  "all_comparisons_passed": false,
+  "error": "Global admission waiting budget exhausted"
+}

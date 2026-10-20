@@ -1,0 +1,21 @@
+Finalizer SHA256: 1cc94d20f7ae9b4c34e8247f0120f5f79b0650a164606844637cdb627d59ec36
+PASS parser: exact thresholds
+PASS parser: idle below80
+PASS parser: CPU pressure above5
+PASS parser: IO pressure above1
+PASS parser: short interval
+PASS parser: missing selected CPU
+PASS parser: duplicate selected CPU
+PASS parser: NaN pressure
+PASS parser: duplicate pressure field
+PASS parser: missing pressure
+PASS parser: counter reset
+PASS population:48 admissions/144 intervals/720s wait, native time excluded
+PASS rejection: forged eligible flag
+PASS rejection: dropped admission record
+PASS rejection: reused terminal admission event
+PASS rejection: misbound terminal waiting budget
+PASS rejection: raw snapshot span exceeds claimed budget
+PASS rejection: summary differs from raw GNU time
+PASS rejection: nonterminal RUNNING matrix cannot finalize
+19 bounded verifier checks PASS; synthetic data only, no native execution or real waiting.

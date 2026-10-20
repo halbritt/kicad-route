@@ -1,0 +1,234 @@
+{
+  "schema": "kicad-route/engine-acceptance-audit/1",
+  "audited_utc": "2026-10-20T19:41:43.782205+00:00",
+  "primary": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary",
+  "head": "bd4660d9602f30deab9909d2e66499614f8fb38e",
+  "scope": "Original exact acceptance criteria72,73,77,80; read-only source/proof audit. No source edits, routing/build jobs, commits or tracker writes.",
+  "overall": "73performance pending; whole-goal completion not asserted. Full smoke handle96123reported live by primary; its overall result was not inferred from partial progress.",
+  "native_artwork_proof": {
+    "result": "/home/halbritt/git/kicad-route/build/agent497-artwork-check/runs/project/retained-artwork/20261020T192121.361126Z/result.json",
+    "process": "PASS",
+    "routing": "COMPLETE",
+    "validation": "PASS",
+    "new_drc": 0,
+    "backend_source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1"
+  },
+  "source_sha256": {
+    "src/kicad_route/router/py_router/sexpr.py": "35568aef68b724b4e256cc427b9dd7f522d4297d399e3c4c918b212ea4a2d84b",
+    "src/kicad_route/router/py_router/kicad_writer.py": "e06a7875a181cab8fdaec442fc1f023724f086ceaaa141f8802ac20c35a7a449",
+    "src/kicad_route/router/py_router/kicad_parser.py": "6f3ae9cdafaf0dd9a95d690989cf5e36c847c3865ebd3b2afaac93ba5188c7df",
+    "src/kicad_route/statemanifest.py": "f99b522ea63b264ede636d8af5270602caa3caf3d8735d492d4ccfc0b014d619",
+    "src/kicad_route/determinism.py": "54c559c41467be93b464aab7c48805cc83becb369cb4754d18e71bb0a7deaf19",
+    "tests/test_attempt_measurement.py": "318d0a052f51fe82f79ac231c169009270bd8e2c7bc9cc68eafe31a17fd9c76a",
+    "tests/test_owned_artwork.py": "f888c790613500f1efa8e834077fba4a05d540b02ee61b66bbd6e8418ce5a369",
+    "src/kicad_route/router/tests/test_kernel.py": "0dee4f21f4f6b33fedbc0546bad952718ad7f29d4e1240dc91483dd79f4adade",
+    "src/kicad_route/router/tests/test_writer_quotes.py": "95822e7e080513f51aa2e9df1edd61d1fdbf536194bef84abc52bdb68c6f98c0",
+    "schemas/result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+    "schemas/result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+  },
+  "tickets": [
+    {
+      "identifier": "KICADROUTE-72",
+      "status": "acceptance-proven",
+      "criteria": [
+        {
+          "requirement": "Valid gr_text containing '((', ')', escaped quotes, escaped backslashes and embedded '(gr_text' terminates and round-trips correctly on copper and non-copper layers.",
+          "status": "proven",
+          "evidence": [
+            "src/kicad_route/router/py_router/sexpr.py:expression_spans",
+            "src/kicad_route/router/tests/test_writer_quotes.py:test_both_writers_preserve_quoted_contents"
+          ],
+          "finding": "24 payload/layer/writer subcases retain literal text exactly, including escaped quotes/backslashes and fake gr_text tokens."
+        },
+        {
+          "requirement": "Tests exercise both add_tracks_to_pcb and add_tracks_and_vias_to_pcb with those inputs.",
+          "status": "proven",
+          "evidence": [
+            "src/kicad_route/router/tests/test_writer_quotes.py:test_both_writers_preserve_quoted_contents"
+          ],
+          "finding": "Both public writers are exercised on F.Cu, B.Cu and F.SilkS."
+        },
+        {
+          "requirement": "Truncated or malformed blocks raise a useful error instead of hanging or rewriting the rest of the board.",
+          "status": "proven",
+          "evidence": [
+            "src/kicad_route/router/tests/test_writer_quotes.py:test_both_writers_reject_malformed_boards_without_partial_output",
+            "src/kicad_route/router/py_router/sexpr.py:expression_spans"
+          ],
+          "finding": "Unterminated string/block and stray closing parenthesis raise ValueError; no output board is written."
+        },
+        {
+          "requirement": "A small native KiCad fixture with literal-parenthesis text routes or returns a normal graded failure within budget, without text loss.",
+          "status": "proven",
+          "evidence": [
+            "tests/test_owned_artwork.py:test_native_copper_artwork_survives_routing_through_its_passage",
+            "/home/halbritt/git/kicad-route/build/agent497-artwork-check/runs/project/retained-artwork/20261020T192121.361126Z/result.json"
+          ],
+          "finding": "Native F.Cu (( / B.Cu ) fixture completed with PASS preservation/validation. Routing command duration3.466s under60s; no budget/stall/kill stop; text values retained."
+        }
+      ],
+      "material_gaps": []
+    },
+    {
+      "identifier": "KICADROUTE-73",
+      "status": "pending-performance",
+      "criteria": [
+        {
+          "requirement": "Boards with F.Cu/B.Cu text and net-less board graphics retain those objects and pass copper_graphics preservation after routing.",
+          "status": "proven",
+          "evidence": [
+            "tests/test_owned_artwork.py:test_native_copper_artwork_survives_routing_through_its_passage",
+            "/home/halbritt/git/kicad-route/build/agent497-artwork-check/runs/project/retained-artwork/20261020T192121.361126Z/validate/candidate-facts.json"
+          ],
+          "finding": "Native candidate retains F/B text plus netless filled board rectangles; copper_graphics preservation PASS."
+        },
+        {
+          "requirement": "New routes respect native clearances to retained copper; tests include a narrow passage affected by the artwork.",
+          "status": "proven",
+          "evidence": [
+            "tests/test_owned_artwork.py:artwork_project",
+            "/home/halbritt/git/kicad-route/build/agent497-artwork-check/runs/project/retained-artwork/20261020T192121.361126Z/result.json"
+          ],
+          "finding": "Retained rectangles/text constrict a passage. Native DRC reports0new violations and COMPLETE routing; source tree hash unchanged."
+        },
+        {
+          "requirement": "Net-tied graphics and functional footprint copper retain their existing protection.",
+          "status": "proven",
+          "evidence": [
+            "tests/test_owned_artwork.py:artwork_project",
+            "tests/test_owned_artwork.py:test_native_copper_artwork_survives_routing_through_its_passage",
+            "/home/halbritt/git/kicad-route/build/agent497-artwork-check.log"
+          ],
+          "finding": "Fixture includes /GUARD net-tagged board rectangle and pad-bearing J1 copper tab. Native test asserts nonempty guard copper, exact native before/after footprint shape layer/type/width/fill/global geometry, native clearance and preservation."
+        },
+        {
+          "requirement": "Unsupported shapes produce an explicit preflight limitation/refusal without moving them or relaxing DRC.",
+          "status": "proven",
+          "evidence": [
+            "src/kicad_route/cli.py:krt_preflight",
+            "src/kicad_route/router/py_router/sexpr.py:unsupported_copper",
+            "tests/test_owned_artwork.py:test_unsupported_copper_is_refused_without_relocation",
+            "tests/test_owned_artwork.py:test_direct_parser_refuses_missing_or_changed_native_text_evidence"
+          ],
+          "finding": "Unsupported copper curve test returns explicit preflight limitation without source mutation; direct text parsing refuses absent/stale native bounds. Router escalation remains off and native DRC is retained."
+        },
+        {
+          "requirement": "Existing simple-board completion and the owner's 10 percent runtime/memory limits are rechecked for this semantic engine change.",
+          "status": "pending",
+          "evidence": [
+            "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-stable"
+          ],
+          "finding": "Simple fixture correctness has retained native evidence, but the owner1.10 runtime/memory comparison is not qualified. Primary reports stable benchmark handle21209live; this audit did not restart or poll that handle."
+        }
+      ],
+      "material_gaps": [
+        "Owner1.10runtime and aggregate-memory qualification remains pending stable benchmark."
+      ]
+    },
+    {
+      "identifier": "KICADROUTE-77",
+      "status": "acceptance-proven",
+      "criteria": [
+        {
+          "requirement": "With a reproducible installed build, budget_reached, stalled or killed in any relevant command makes the current result measurement=false.",
+          "status": "proven",
+          "evidence": [
+            "src/kicad_route/determinism.py:wall_clock_stops",
+            "src/kicad_route/statemanifest.py:attempt_qualification",
+            "tests/test_update_qualification.py:test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt"
+          ],
+          "finding": "Budget/stall/kill flags at multiple command positions disqualify current measurement despite positive installed-build repeat evidence; process-level flags are included by source."
+        },
+        {
+          "requirement": "A graceful stop may still produce a valid/incomplete candidate; its process/routing/validation meanings are unchanged.",
+          "status": "proven",
+          "evidence": [
+            "tests/test_attempt_measurement.py:test_native_attempt_stop_disqualifies_measurement_and_survives_revalidation",
+            "/home/halbritt/git/kicad-route/build/agent497-smoke.log"
+          ],
+          "finding": "Real native candidates are routed/reaped before timing metadata injection. Single-budget and intermediate pair-stall runs keep process PASS/routing COMPLETE/validation PASS/candidate bytes and measurement false; revalidation preserves the distinction. Both cases passed current smoke log lines50-51."
+        },
+        {
+          "requirement": "Normal unstopped deterministic runs retain the existing positive qualification; Freerouting remains an attempt.",
+          "status": "proven",
+          "evidence": [
+            "tests/test_update_qualification.py:test_unstopped_repeat_and_freerouting_qualification",
+            "tests/test_evidence_manifest.py:test_freerouting_results_are_attempts_not_measurements",
+            "src/kicad_route/statemanifest.py:attempt_qualification"
+          ],
+          "finding": "Unstopped positively qualified build remains measurement true; Freerouting remains false."
+        },
+        {
+          "requirement": "Single-ended and multi-pass differential routing, revalidation and schemas document/test the distinction.",
+          "status": "proven",
+          "evidence": [
+            "tests/test_attempt_measurement.py",
+            "src/kicad_route/cli.py:run_attempt",
+            "src/kicad_route/cli.py:validate_record",
+            "src/kicad_route/diff_pairs.py:route",
+            "schemas/result-1.json",
+            "schemas/result-2.json",
+            "docs/interface.md:350"
+          ],
+          "finding": "Native test covers real single pass, pair pass stopped before an unstopped single-ended tail, both schema versions, and validate_record. The v2 schema permits additional process fields; v1 explicitly types the optional qualification field. Central interface docs define both record versions; optional description-only v2 clarification is supplied separately, not a compatibility defect."
+        }
+      ],
+      "material_gaps": []
+    },
+    {
+      "identifier": "KICADROUTE-80",
+      "status": "acceptance-proven",
+      "criteria": [
+        {
+          "requirement": "Add/remove/merge/overlap sequences assert bitmap and authoritative blocked-cell membership agree, including growth and overflow windows.",
+          "status": "proven",
+          "evidence": [
+            "src/kicad_route/router/tests/test_kernel.py:ObstacleStateTests.test_refcounts_merge_overlap_growth_and_overflow",
+            "src/kicad_route/router/tests/test_kernel.py:ObstacleStateTests.test_static_copper_survives_dynamic_removal_and_clone"
+          ],
+          "finding": "Independent Counter oracle checks public bitmap membership after duplicate add, batch add/remove, merge, overlap and final removal, with left/up/right/down growth and million-cell capped-window overflow. Static/clone/layer cases supplement membership protection."
+        },
+        {
+          "requirement": "Search cases assert obstacle avoidance, permitted layers, deterministic tie ordering, empty/no-path cases and pair heading/via constraints against a small independent oracle or retained reference.",
+          "status": "proven",
+          "evidence": [
+            "src/kicad_route/router/tests/test_kernel.py:oracle",
+            "src/kicad_route/router/tests/test_kernel.py:SearchTests"
+          ],
+          "finding": "Independent finite unit-cost Dijkstra compares exact lane/pair paths, deterministic ties, blocked cells, allowed layer1 versus free layer0, empty/no-path, pair heading/turn debt and required via stages. Weighted-search/crossover equivalence remains explicitly outside the fast gate."
+        },
+        {
+          "requirement": "Tests run against the owned extension/source without vendor/krt or network acquisition.",
+          "status": "proven",
+          "evidence": [
+            "scripts/kernel-tests.py",
+            "/home/halbritt/git/kicad-route/build/agent497-kernel.log"
+          ],
+          "finding": "Cargo builds owned source with --locked --offline; loader imports the just-built library by absolute path. Kernel/parity/writer tests require numeric runtime only; no vendor/krt or network acquisition at execution."
+        },
+        {
+          "requirement": "A documented fast command fails on deliberate invariant-breaking mutants; native KiCad integration remains a separate required gate.",
+          "status": "proven",
+          "evidence": [
+            "Makefile:kernel",
+            "Makefile:kernel-mutants",
+            "scripts/check-kernel-mutants.py",
+            "docs/kernel-testing.md",
+            "/home/halbritt/git/kicad-route/build/agent497-kernel-mutants.log"
+          ],
+          "finding": "make kernel passed6kernel tests+3writer tests+retained upstream parity. Three separately compiled mutations (stale bitmap clear, reversed lane tie ordering, ignored pair-via clearance) each failed an assertion; compile/import failures do not count. Native make smoke remains a separate required gate."
+        },
+        {
+          "requirement": "Inventory retained, replaced and excluded upstream tests with reasons; do not count unrelated tool-registry failures as routing coverage.",
+          "status": "proven",
+          "evidence": [
+            "reports/routing-engine/kernel-test-inventory.json",
+            "docs/kernel-testing.md"
+          ],
+          "finding": "Inventory pins upstream295f9ee..., retains one byte-identical obstacle parity entrypoint, lists973excluded fast-gate entrypoints with hashes/imports/reasons, names new tests and the two retained native regressions, and explicitly declines full-route churn/weighted-search/GUI/registry coverage. No upstream tests claimed replaced one-for-one; new bounded oracle protection is distinguished from excluded churn."
+        }
+      ],
+      "material_gaps": []
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+multipoint-prepared
+multipoint-prepared exit 0
+route-demo-prepared
+route-demo-prepared exit 0
+diff-pair-prepared
+diff-pair-prepared exit 1

@@ -1,0 +1,16 @@
+Using Python 3.12.3 environment at: .venv-krt
+Resolved 4 packages in 200ms
+Downloading pillow (6.8MiB)
+Downloading scipy (33.7MiB)
+Downloading numpy (16.0MiB)
+Downloading shapely (2.2MiB)
+ Downloaded shapely
+ Downloaded pillow
+ Downloaded numpy
+ Downloaded scipy
+Prepared 4 packages in 2.08s
+Installed 4 packages in 83ms
+ + numpy==2.5.4
+ + pillow==13.0.0
+ + scipy==1.18.1
+ + shapely==2.2.0

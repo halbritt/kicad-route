@@ -1,0 +1,569 @@
+{
+  "schema": "kicad-route/route/1",
+  "kind": "route",
+  "backend": {
+    "name": "krt",
+    "version": "0.23.1",
+    "build": "owned-c2ac657d5617",
+    "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source": "https://github.com/halbritt/kicad-route",
+    "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+    "upstream": {
+      "project": "KiCadRoutingTools",
+      "license": "MIT",
+      "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+      "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+      "upstream_release": "v0.23.1",
+      "fork": "https://github.com/halbritt/KiCadRoutingTools",
+      "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+      "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+      "fixes": {
+        "KICADROUTE-64": "4b316ba",
+        "KICADROUTE-63": "0494a05"
+      },
+      "source_inventory": "reports/routing-engine/source-closure.json",
+      "additional_license_notices": [
+        "py_router/stage3d/vendor/three/LICENSE"
+      ],
+      "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+    },
+    "rust_router": "0.23.1",
+    "reproducible": null,
+    "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+  },
+  "measurement": false,
+  "input": {
+    "project": "route_demo",
+    "board": "route_demo.kicad_pcb",
+    "fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+    "source_dir": "/work/reference/fixtures/route_demo",
+    "source": "working tree",
+    "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source_dirty_files": [],
+    "baseline": {
+      "report": "../../reference-out/.cache/baseline/ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732/baseline-drc.json",
+      "cached": true,
+      "reasons": []
+    },
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    }
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": 0.4,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "scope": {
+    "mode": "all",
+    "nets": 6,
+    "nets_list": [
+      "/SIG_A",
+      "/SIG_A_OUT",
+      "/SIG_B",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND"
+    ]
+  },
+  "unsupported": [
+    "KRT reads only a subset of .kicad_dru custom rules; every rule is still graded by KiCad DRC",
+    "KRT moves copper gr_text and net-less copper graphics to silkscreen (not switchable on the CLI); the copper_graphics preservation check reports it",
+    "KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class",
+    "backend reported: .kicad_dru: rule 'power_to_signal_clearance': clearance 0.4mm has a non-layer scope (netclass/area/... condition) -- skipped, KiCad will still enforce it"
+  ],
+  "floor": null,
+  "process": {
+    "status": "PASS",
+    "reasons": [],
+    "exit_code": 0,
+    "commands": [
+      {
+        "argv": [
+          "/work/state-reference/.venv-krt/bin/python",
+          "/work/reference/src/kicad_route/router/py_router/route.py",
+          "/evidence/route-demo-archon/reference-3/run/work/input/route_demo/route_demo.kicad_pcb",
+          "--output",
+          "/evidence/route-demo-archon/reference-3/run/work/krt-out/route_demo.kicad_pcb",
+          "--escalation",
+          "off",
+          "--fab-tier",
+          "standard",
+          "--strict-sizes",
+          "--no-power-tap-neckdown",
+          "--no-fix-drc-settings",
+          "--json-out",
+          "/evidence/route-demo-archon/reference-3/run/work/krt-out/summary.json",
+          "--keep-input-copper",
+          "--no-stub-layer-swap",
+          "--clearance",
+          "0.4",
+          "--nets",
+          "*"
+        ],
+        "cwd": "/evidence/route-demo-archon/reference-3/run/work",
+        "log": "/evidence/route-demo-archon/reference-3/run/work/krt.log",
+        "env": {
+          "KICAD_INRUN_FLOOR_SYNC": "0",
+          "KICAD_TERMINAL_ESCALATION": "0",
+          "KICAD_IMPEDANCE_NECKDOWN": "0",
+          "KICAD_RESCUE_CAP_MOVE": "0",
+          "KICAD_DYNAMIC_ITERATIONS": "0",
+          "KICAD_CLI": "/usr/bin/kicad-cli",
+          "KICAD_STOP_FILE": "/evidence/route-demo-archon/reference-3/run/work/STOP",
+          "KICAD_RIP_PREEXISTING": "0",
+          "KICAD_FINALIZE_RIP": "0"
+        },
+        "budget_s": 180,
+        "last_phase": "improvement gate",
+        "last_metric": {
+          "disconnected_pads_before": 6
+        },
+        "heartbeats": {
+          "count": 25,
+          "log": "/evidence/route-demo-archon/reference-3/run/work/heartbeat.jsonl",
+          "stall_s": null,
+          "since_last_progress_s": 0.0,
+          "tail": [
+            {
+              "t_s": 1.504,
+              "utc": "2026-10-20T22:40:11.495133+00:00",
+              "phase": "plane finalize",
+              "metric": {},
+              "line": "Plane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies"
+            },
+            {
+              "t_s": 1.754,
+              "utc": "2026-10-20T22:40:11.745489+00:00",
+              "phase": "oracle recheck",
+              "metric": {},
+              "line": "KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)"
+            },
+            {
+              "t_s": 1.918,
+              "utc": "2026-10-20T22:40:11.909861+00:00",
+              "phase": "regrade",
+              "metric": {},
+              "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 5, \"seconds\": 0.02, \"routed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [..."
+            },
+            {
+              "t_s": 1.919,
+              "utc": "2026-10-20T22:40:11.909985+00:00",
+              "phase": "Run complete -- whole run, re-graded on the written board (5 net(s), 0.0s)",
+              "metric": {},
+              "line": "============================================================"
+            },
+            {
+              "t_s": 1.919,
+              "utc": "2026-10-20T22:40:11.910084+00:00",
+              "phase": "improvement gate",
+              "metric": {
+                "disconnected_pads_before": 6
+              },
+              "line": "JSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/SIG_A\", \"/SIG_A_OUT\", \"/SIG_B_OUT\", \"/VIN\", \"GND\"], \"worsened\": [], \"disconnected_pads_before\": 6, \"disconne..."
+            }
+          ]
+        },
+        "stalled": false,
+        "exit_code": 0,
+        "duration_s": 1.92,
+        "output_tail": "[], \"rerouted_pairs\": [], \"single_ended_target_swaps\": [], \"layer_swaps\": 0, \"successful\": 5, \"failed\": 0, \"total_time\": 0.01, \"total_iterations\": 1639, \"total_vias\": 1, \"cleanup_disconnected\": [], \"min_clearance_used\": 0.4, \"design_rules\": {\"escalation_policy\": \"off\", \"fab_tier\": \"standard\", \"board_floors\": {\"clearance\": 0.15, \"track_width\": 0.15, \"via_diameter\": 0.5, \"via_drill\": 0.25, \"hole_to_hole\": 0.25, \"annular\": 0.1, \"board_edge\": 0.3}, \"count\": 0, \"nets\": [], \"narrowed\": [], \"min_delivered\": {}, \"fab_tier_escalations\": 0, \"fab_tier_contexts\": [], \"fab_tier_target\": \"advanced\", \"unsupported_rules\": []}, \"plane_fragility\": {\"source\": \"kicad_refill\", \"islands\": 1, \"refill_status\": \"ok\", \"why\": \"the KiCad refill succeeded\", \"machine_dependent\": false}, \"oracle_check\": \"disabled\", \"pad_pairs_connected\": 7, \"pad_pairs_total\": 7, \"scope\": \"run\", \"env_knobs\": {\"KICAD_CACHE_HOME\": \"/evidence/route-demo-archon/reference-out/.home/cache\", \"KICAD_CLI\": \"/usr/bin/kicad-cli\", \"KICAD_DYNAMIC_ITERATIONS\": \"0\", \"KICAD_FINALIZE_RIP\": \"0\", \"KICAD_IMPEDANCE_NECKDOWN\": \"0\", \"KICAD_INRUN_FLOOR_SYNC\": \"0\", \"KICAD_RESCUE_CAP_MOVE\": \"0\", \"KICAD_RIP_PREEXISTING\": \"0\", \"KICAD_ROUTE_LEDGER\": \"off\", \"KICAD_ROUTE_STATE\": \"/work/state-reference\", \"KICAD_STOP_FILE\": \"/evidence/route-demo-archon/reference-3/run/work/STOP\", \"KICAD_TERMINAL_ESCALATION\": \"0\"}}\n\nWriting output to /evidence/route-demo-archon/reference-3/run/work/krt-out/route_demo.kicad_pcb...\nSuccessfully wrote /evidence/route-demo-archon/reference-3/run/work/krt-out/route_demo.kicad_pcb\n\nPlane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies\n  KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)\n  KiCad-oracle recheck: KiCad reports all processed nets complete\n  [finalize timing] oracle leg: 0.5s\nJSON_ORACLE: {\"available\": true, \"reason\": \"ok\", \"why\": \"the oracle ran\", \"rounds\": 0, \"links_routed\": 0, \"links_failed\": 0, \"remaining\": 0, \"collapsed_duplicate_links\": 0, \"remaining_links\": [], \"cross_board\": 0, \"removed_segments\": [], \"removed_vias\": []}\n  Strict collapse (#1063, end of run): removed 1 redundant segment(s) on 1 net(s)\n\n  FAB NOTE (route): 1 via(s) in a pad or paste opening [C1.2 F.Paste (pad)] -- 1 stamped (capping yes) (filling yes), 0 already filled+capped. via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel.\nVIA_IN_PAD_JSON: {\"count\": 1, \"sites\": [\"C1.2 F.Paste (pad)\"], \"stamped\": 1, \"restored\": 0, \"protected\": 0, \"unstampable\": 0, \"site_created\": 0, \"unprotected\": [], \"note\": \"via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel\"}\nJSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 5, \"seconds\": 0.02, \"routed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_pads_total\": 6, \"multipoint_pads_connected\": 6, \"successful\": 5, \"failed\": 0, \"unowned_broken\": [], \"recovered\": [], \"broken_by_run\": []}\n\n============================================================\nRun complete -- whole run, re-graded on the written board (5 net(s), 0.0s)\n============================================================\n  Single-ended:  5/5 routed\n  Multi-point:   6/6 pads connected\n  route summary written to /evidence/route-demo-archon/reference-3/run/work/krt-out/summary.json\nJSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/SIG_A\", \"/SIG_A_OUT\", \"/SIG_B_OUT\", \"/VIN\", \"GND\"], \"worsened\": [], \"disconnected_pads_before\": 6, \"disconnected_pads_after\": 0, \"nets_compared\": 6, \"verdict\": \"accept\"}\nJSON_SUMMARY_MIN: {\"escalations\": 0, \"failed\": 0, \"failed_single\": [], \"main_loop_time_s\": 0.01, \"min_clearance_used\": 0.4, \"multipoint_deficit\": 0, \"open_single\": [], \"pad_pairs_open\": {\"count\": 0, \"nets\": []}, \"regraded_nets\": 5, \"routed\": 5, \"scope\": \"merged\", \"terminal_restores_broken\": [], \"vias\": 1}\nEXIT=0\n"
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/work/reference/src/kicad_route/kicad/locks.py",
+          "restore",
+          "/evidence/route-demo-archon/reference-3/run/work/krt-out/route_demo.kicad_pcb",
+          "/evidence/route-demo-archon/reference-3/run/work/locks.json"
+        ],
+        "cwd": "/evidence/route-demo-archon/reference-3/run/work",
+        "log": "/evidence/route-demo-archon/reference-3/run/work/restore-locks.log",
+        "exit_code": 0,
+        "duration_s": 0.2
+      }
+    ],
+    "backend_report": {
+      "successful": 5,
+      "failed": 0,
+      "failed_single": [],
+      "open_single": [],
+      "failed_multipoint": [],
+      "multipoint_deficit": null,
+      "pad_pairs_connected": 7,
+      "pad_pairs_total": 7,
+      "total_vias": 1,
+      "total_iterations": 1639,
+      "total_time": 0.01,
+      "protected_skipped": null,
+      "scope": "merged",
+      "relaxations": {
+        "escalation_policy": "off",
+        "fab_tier": "standard",
+        "narrowed": [],
+        "fab_tier_escalations": 0,
+        "min_delivered": {},
+        "unsupported_rules": []
+      },
+      "improvement_gate": {
+        "lost": [],
+        "gained": [
+          "/SIG_A",
+          "/SIG_A_OUT",
+          "/SIG_B_OUT",
+          "/VIN",
+          "GND"
+        ],
+        "worsened": [],
+        "disconnected_pads_before": 6,
+        "disconnected_pads_after": 0,
+        "nets_compared": 6,
+        "verdict": "accept"
+      },
+      "project_writes": null
+    },
+    "existing_copper_locks": {
+      "lock": {
+        "locked": 0
+      },
+      "lock_exit": 0,
+      "restore": {
+        "restored": 0,
+        "not_found": 0
+      }
+    },
+    "project_writeback": [
+      {
+        "file": "route_demo.kicad_prl",
+        "identical_to_input": true
+      },
+      {
+        "file": "route_demo.kicad_pro",
+        "identical_to_input": true
+      }
+    ],
+    "runtime_s": 2.408,
+    "last_phase": "improvement gate",
+    "heartbeats": {
+      "count": 25,
+      "log": "/evidence/route-demo-archon/reference-3/run/work/heartbeat.jsonl",
+      "stall_s": null,
+      "since_last_progress_s": 0.0,
+      "tail": [
+        {
+          "t_s": 1.504,
+          "utc": "2026-10-20T22:40:11.495133+00:00",
+          "phase": "plane finalize",
+          "metric": {},
+          "line": "Plane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies"
+        },
+        {
+          "t_s": 1.754,
+          "utc": "2026-10-20T22:40:11.745489+00:00",
+          "phase": "oracle recheck",
+          "metric": {},
+          "line": "KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)"
+        },
+        {
+          "t_s": 1.918,
+          "utc": "2026-10-20T22:40:11.909861+00:00",
+          "phase": "regrade",
+          "metric": {},
+          "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 5, \"seconds\": 0.02, \"routed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [..."
+        },
+        {
+          "t_s": 1.919,
+          "utc": "2026-10-20T22:40:11.909985+00:00",
+          "phase": "Run complete -- whole run, re-graded on the written board (5 net(s), 0.0s)",
+          "metric": {},
+          "line": "============================================================"
+        },
+        {
+          "t_s": 1.919,
+          "utc": "2026-10-20T22:40:11.910084+00:00",
+          "phase": "improvement gate",
+          "metric": {
+            "disconnected_pads_before": 6
+          },
+          "line": "JSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/SIG_A\", \"/SIG_A_OUT\", \"/SIG_B_OUT\", \"/VIN\", \"GND\"], \"worsened\": [], \"disconnected_pads_before\": 6, \"disconne..."
+        }
+      ]
+    },
+    "stalled": false
+  },
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 0,
+    "baseline_unconnected_total": 6,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 16,
+      "new_vias": 1,
+      "new_track_length_mm": 117.987,
+      "new_track_length_mm_by_layer": {
+        "B.Cu": 0.028,
+        "F.Cu": 117.959
+      },
+      "new_copper_nets": 5,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    }
+  },
+  "validation": {
+    "status": "PASS",
+    "reasons": [],
+    "dir": "/evidence/route-demo-archon/reference-3/run/validate",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
+    "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "0b463de78b17f32d31732406420fe3d99198b05457f6f64912387d18f3b124ee",
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/evidence/route-demo-archon/reference-3/run/validate/candidate-refill.json",
+          "/evidence/route-demo-archon/reference-3/run/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "/evidence/route-demo-archon/reference-3/run/candidate/route_demo",
+        "log": "/evidence/route-demo-archon/reference-3/run/validate/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 0.597
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/evidence/route-demo-archon/reference-3/run/validate/candidate-drc.json",
+          "/evidence/route-demo-archon/reference-3/run/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "/evidence/route-demo-archon/reference-3/run/candidate/route_demo",
+        "log": "/evidence/route-demo-archon/reference-3/run/validate/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 0.585
+      }
+    ],
+    "validated_board_sha256": "0b463de78b17f32d31732406420fe3d99198b05457f6f64912387d18f3b124ee",
+    "candidate_board_sha256": "0b463de78b17f32d31732406420fe3d99198b05457f6f64912387d18f3b124ee",
+    "refill_modified_board": false,
+    "parity_performed": true,
+    "drc": {
+      "violations_total": 5,
+      "parity_total": 0,
+      "new_violations": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "preexisting_violations": 5,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 1,
+      "nets_lost": []
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    }
+  },
+  "candidate": {
+    "dir": "/evidence/route-demo-archon/reference-3/run/candidate/route_demo",
+    "board": "/evidence/route-demo-archon/reference-3/run/candidate/route_demo/route_demo.kicad_pcb"
+  },
+  "run_dir": "/evidence/route-demo-archon/reference-3/run",
+  "runtime_s": 4.24,
+  "tool_versions": {
+    "kicad-cli": "10.0.7"
+  },
+  "evidence": {
+    "input_board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+    "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+    "reference_files": {
+      "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "route_demo.kicad_pcb": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
+    },
+    "rules_files": {
+      "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550"
+    },
+    "rule_floor_sha256": null,
+    "backend_output_board_sha256": "0b463de78b17f32d31732406420fe3d99198b05457f6f64912387d18f3b124ee",
+    "candidate_board_sha256": "0b463de78b17f32d31732406420fe3d99198b05457f6f64912387d18f3b124ee",
+    "candidate_copper_signature": {
+      "sha256": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+      "tracks": 21,
+      "vias": 3
+    },
+    "records": {
+      "attempt.json": "149a6d9520e0d0ed0a9b21fc70b08aca9caf368c89380ad1bc96d3f77a29e492",
+      "validate/preservation.json": "31ced08bc9afb768835703eb4663d4a1cbc6f6d6daab9d238f9058558bdb18f6",
+      "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+      "validate/candidate-drc.json": "1f0eaddaab6d31d8608f2315520f73625435bf7b348b4341288f9dedc04bb265",
+      "validate/candidate-facts.json": "5a4ebbb94fda457dc622d825493066c217db07a3c2daafab8b6ac848bb889d76",
+      "validate/pour-integrity.json": "d9335fa461087bfe36b19e0bdc4f5fe73be1f208ce9f32bde6c2e2c16ee6faf2"
+    }
+  },
+  "tool_identity": {
+    "kicad_route": {
+      "version": "f0c09ac",
+      "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+      "dirty": false
+    },
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew": {
+      "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+      "python": "/usr/bin/python3"
+    },
+    "python": {
+      "version": "3.12.3",
+      "executable": "/usr/bin/python3"
+    },
+    "backend": {
+      "name": "krt",
+      "tag": "owned-c2ac657d5617",
+      "version": "0.23.1",
+      "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+      "grid_router_version": "0.23.1",
+      "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+      "extension_module_sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915",
+      "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+    },
+    "state_manifest_sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012",
+    "state_manifest_drift": []
+  },
+  "finished_utc": "2026-10-20T22:40:13.853508+00:00",
+  "exit_code": 0,
+  "ledger": {
+    "fingerprint": "143db76fb8b99510cc0fea0ac8d57cbc8257fdf39fae4e500de6cb034a7c77a1",
+    "short": "143db76fb8b9",
+    "forced": false,
+    "forced_over": null,
+    "upstream_changed_since": null,
+    "previous_runs": [
+      "/evidence/route-demo-archon/reference-0/run",
+      "/evidence/route-demo-archon/reference-1/run",
+      "/evidence/route-demo-archon/reference-2/run"
+    ],
+    "notes": [],
+    "path": "/evidence/route-demo-archon/reference-out/ledger.jsonl"
+  },
+  "sandbox": {
+    "require_readonly_state": false,
+    "state": {
+      "path": "/work/state-reference",
+      "exists": true,
+      "installed": [
+        ".venv-krt"
+      ],
+      "writable": true,
+      "writable_parts": [
+        ".venv-krt"
+      ],
+      "readonly_mount": false
+    },
+    "tool_root": {
+      "path": "/work/reference",
+      "writable": true
+    },
+    "out": {
+      "path": "/evidence/route-demo-archon/reference-out"
+    },
+    "home": {
+      "HOME": "/work/home",
+      "required": false,
+      "tool_home": "/evidence/route-demo-archon/reference-out/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/evidence/route-demo-archon/reference-out/.kicad-config",
+        "KICAD_CACHE_HOME": "/evidence/route-demo-archon/reference-out/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/evidence/route-demo-archon/reference-out/.home/data",
+        "XDG_CONFIG_HOME": "/evidence/route-demo-archon/reference-out/.home/config",
+        "XDG_CACHE_HOME": "/evidence/route-demo-archon/reference-out/.home/cache",
+        "XDG_DATA_HOME": "/evidence/route-demo-archon/reference-out/.home/data",
+        "XDG_STATE_HOME": "/evidence/route-demo-archon/reference-out/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/evidence/route-demo-archon/reference-out/.home/java",
+        "-Djava.util.prefs.userRoot=/evidence/route-demo-archon/reference-out/.home/java/prefs"
+      ]
+    },
+    "network": {
+      "interfaces": 2,
+      "non_loopback_interfaces": 1,
+      "non_loopback_examples": [
+        "eth0"
+      ],
+      "non_loopback_routes": 2,
+      "namespace": "net:[4026532901]",
+      "connect_probe": {
+        "target": "192.0.2.1:9/udp",
+        "sends_packet": false,
+        "result": "routable"
+      },
+      "isolated": false
+    }
+  }
+}

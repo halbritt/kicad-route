@@ -1,0 +1,86 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "bounded-populations",
+  "evidence_class": "evidence-generated-artifacts",
+  "summary": "Population inspection retained in evidence-acceptance: corpus discovers sorted immediate */entry.json, truthy parseable entries, explicit --name missing selection fails; observed main/primary/staged defaultcorpus roots absent with0expected/0discovered, one synthetic gateentry fixture. No independent authoritative owner-corpus registry exists and invalid/falsey unnamed entries can disappear: catalog completeness is an explicit residual outside69 per-outcome acceptance. Publication bounded population is immediate JSON/RESULT.md under runroot/validate/facts/spokes pluslatest nonsymlink revalidation/revalidate-origin2*dirs; collision mapping excludesboards/logs/privatework. Compatibility fixture expected21files=20receipts+manifest and asserts that contract. Sanitized source-pinned multipoint board+project hashes and deterministic generateddense12net3testpoint fixture retained; dense fullperformance/rescue campaign is not claimed. Current test population726 exact nodeIDs was reconciled to retained collection and JUnit hashes. Final benchmark contracted population is4named boards,1warmup+5measured per side for each; collection is pending until terminal comparisons exist. Current test population is now741 exact nodeIDs in47 files, reconciled independently against5 retained JUnit sources including113 focused PASS at final f0f73da. The old726 union is preserved explicitly as historical. New final performance population is four named *-env-reuse boards,1 warmup+5 measured per side, pending terminal comparisons. Current final performance population is explicitly the four cpu-rate boards in fixeddiff-pair/four-layer/multipoint/route-demo order,5measured per side plus2warmups per board=48attempts. All four ordinary failed verdicts are retained; no threshold or repetition selection depends on routing outcomes. Seven ignored CPU-rate harness checks and eleven calibration checks are separate from production741nodes and the earlier eleven quiet-harness cases.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/evidence-acceptance.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "85f5b6318dad3f2366b13f832871f1efa9b4eea56e125580d439995aa78abc67"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "method": "Read retained artifact or current source; no gate execution; historical bytes retained explicitly after environment-reuse update (original observation time unchanged).",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-source-parity.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "47d82a03dbf8bed181230df3db8cb7f582ee821e9e6c8fbb0eba8a37942a6de9"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/tests/test_publish_update_docs.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "fdf717f4844e4d203a6bc3a77245178e15cdb26a5961402f22813ad6f96a7a8a"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/scripts/compare_router.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:tests/test_publish_update_docs.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "fdf717f4844e4d203a6bc3a77245178e15cdb26a5961402f22813ad6f96a7a8a"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:scripts/compare_router.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "2a92ad749cdfbf51f20ade1e33d7be2382b5e442f856186f77f1a6bc62436d2f"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-tests.log",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "1e90f5bdb82e88d1efce7f926a7d041e19ca952a1673d8be59244ab4acbbbf0c"
+    }
+  ],
+  "satisfies": [
+    "a dry-run enumeration with counts compared against expectation",
+    "the discovery pattern shown to match the specification's depth and class constraints",
+    "the input population specification",
+    "the specified input population stated precisely"
+  ]
+}

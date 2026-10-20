@@ -1,0 +1,17 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "final-archon-reference-evidence-fix-closure",
+  "evidence_class": "evidence-runtime-observation",
+  "summary": "Independent retained-byte hash inspection confirms the expected pre-KICADROUTE-70 baseline evidence bug and its candidate repair: frozen reference route/1 has stale evidence.candidate_board_sha256 on all six four-layer receipts after native refill/save, while native validated_board_sha256 matches final board bytes on all24 reference attempts. Candidate evidence and native validation hashes both match final boards on24/24 attempts. Every result and board was resolved by exact original identity through retained SHA index, with byte hashes checked. Keep all48 samples and original baseline receipts unchanged; this discrepancy is fix-closure evidence, not sample removal, hash substitution or waiver of unchanged fullCLI/native/copper/resource gates. Full independent Archon verifier and root final-pass authorization remain pending.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-reference-evidence-fix-closure.json",
+      "method": "Read exact indexed raw result and final board bytes and independently compare hashes; no native work or gate change",
+      "observed_at": "2026-10-20T22:45:11.541164+00:00",
+      "content_sha256": "fcab279fc2df3dcf4b91ec7abeb8cf77facaeed4195ecf4f23e83fbeef7a2dea"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

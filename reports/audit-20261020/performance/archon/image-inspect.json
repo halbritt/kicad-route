@@ -1,0 +1,60 @@
+[
+    {
+        "Id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+        "RepoTags": [
+            "kicadroute-agent497-archon:20261020"
+        ],
+        "RepoDigests": [
+            "kicadroute-agent497-archon@sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8"
+        ],
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-10-20T15:28:51.143519339-07:00",
+        "Config": {
+            "Env": [
+                "PATH=/opt/cargo/bin:/usr/local/bin:/usr/bin:/bin",
+                "RUSTUP_HOME=/opt/rustup",
+                "CARGO_HOME=/opt/cargo",
+                "PYTHONDONTWRITEBYTECODE=1"
+            ],
+            "Cmd": [
+                "/bin/bash"
+            ],
+            "WorkingDir": "/work",
+            "Labels": {
+                "org.opencontainers.image.version": "24.04"
+            }
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 739952821,
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:32ab39660fd51c6dc3aae486b42d42bbe8fe4c1db78eaf57bb9c21198de48a16",
+                "sha256:06f6986009408f06259a875795138ec8a766c8c89c5737afc6f8f6eda1ed0986",
+                "sha256:67d65f7a934acf24426143c737ed44fee85b4b61330f28f6589f5ce879ec1fbc",
+                "sha256:a5e0acb993d9d3bf5ba2c55f6e07e2d5f014889d412dc1e9a22756d1966bef07",
+                "sha256:dc73000b790928353d6c43bf149e97be3bef2b51de3c7c134a868e8c84d77c9a",
+                "sha256:ebced28bf08be194b7813e60f17f519f69b14f795d1a19b7004044e41871b29c",
+                "sha256:4d04ac1a069c8c39dd2048cea8f0f2cbb3e2b283f7c6d0aa2600c900f809c8b9",
+                "sha256:e5f949208e114ad6988f8c10ab23f2c70b6b32071ac6f260ede47e9997977b1a"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-20T22:29:17.753225267Z"
+        },
+        "Descriptor": {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+            "size": 856
+        },
+        "Identity": {
+            "Build": [
+                {
+                    "Ref": "ssxwn3wppceqagaoeqadkgkli",
+                    "CreatedAt": "2026-10-20T15:29:27.892756181-07:00"
+                }
+            ]
+        }
+    }
+]

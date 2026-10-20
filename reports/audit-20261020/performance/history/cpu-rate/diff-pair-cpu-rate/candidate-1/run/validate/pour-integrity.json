@@ -1,0 +1,16 @@
+{
+  "check": "pour_integrity",
+  "status": "PASS",
+  "min_spokes": 2,
+  "project_min_resolved_spokes": 2,
+  "area_loss_limit_pct": null,
+  "reference_islands_off_main": 0,
+  "layers": [],
+  "failures": [],
+  "informational": [],
+  "pads": [],
+  "reference_source": {
+    "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/candidate-1/run/../../candidate-out/.cache/baseline/b7a4a8e991d8e30f86d6aa9efc3a32911bde5386209bd03a257bc69ad3329ebf/generation-mr6bw8eo/baseline-pour.json",
+    "cached": true
+  }
+}

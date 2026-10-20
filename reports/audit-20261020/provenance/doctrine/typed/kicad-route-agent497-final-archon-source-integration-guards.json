@@ -1,0 +1,17 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "final-archon-source-integration-guards",
+  "evidence_class": "evidence-static-source-structure",
+  "summary": "Read-only fresh inspection during Archon8896 confirms local baseline main f0c09ac and candidate primary f0f73da remain clean. Recomputed owned-source237files/C2 and241files/C6 equal target-preparation sourceIDs; all source/input protocol prerequisite hashes match local pinned commits; all47currenttestfile hashes match the741node passing-observation union. Main is candidateancestor and prior exactqualified selectorcommit3bc remains retainedancestor. Integration command guards preserve exactcandidate ancestry and permit only explicitly reviewed evidence/report changes before normal landed-default runtime/two native repeats/doctor and durable report verification/push. Archon matrix remains LIVE; this observation proves current source/provenance consistency and does not qualify performance or close acceptance. Oldlocalfailure histories remain preserved.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-integration-guard-review.json",
+      "method": "Read-only Git/hash inspection, no native jobs/SSH/source mutation",
+      "observed_at": "2026-10-20T22:41:19.486885+00:00",
+      "content_sha256": "02bdc7529d71a503bd5ae528f7b6e816c19896b8f81fe1b2541c18b0d3f9ba05"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

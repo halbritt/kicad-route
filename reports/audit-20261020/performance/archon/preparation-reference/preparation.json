@@ -1,0 +1,301 @@
+{
+  "schema": "kicad-route/archon-runtime-preparation/1",
+  "status": "PASS",
+  "side": "reference",
+  "checkout": "/work/reference",
+  "state": "/work/state-reference",
+  "source_commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+  "steps": [
+    {
+      "argv": [
+        "kicad-cli",
+        "--version"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/native-cli.log"
+    },
+    {
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "-c",
+        "import json,pcbnew,sys; print(json.dumps({\"python\":sys.version.split()[0],\"pcbnew\":pcbnew.GetBuildVersion()}))"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/native-pcbnew.log"
+    },
+    {
+      "argv": [
+        "rustc",
+        "-vV"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/rustc.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "--version"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/cargo.log"
+    },
+    {
+      "argv": [
+        "uv",
+        "--version"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/uv.log"
+    },
+    {
+      "argv": [
+        "gcc",
+        "--version"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/gcc.log"
+    },
+    {
+      "argv": [
+        "ldd",
+        "--version"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/glibc.log"
+    },
+    {
+      "argv": [
+        "uv",
+        "venv",
+        "/work/state-reference/.venv-krt",
+        "--python",
+        "/usr/bin/python3"
+      ],
+      "cwd": "state-reference",
+      "log": "/evidence/preparation-reference/out/update/venv.log",
+      "exit_code": 0,
+      "duration_s": 0.155,
+      "output": "Using CPython 3.12.3 interpreter at: /usr/bin/python3\nCreating virtual environment at: .venv-krt"
+    },
+    {
+      "argv": [
+        "env",
+        "VIRTUAL_ENV=/work/state-reference/.venv-krt",
+        "uv",
+        "pip",
+        "install",
+        "--upgrade",
+        "-r",
+        "/work/reference/src/kicad_route/router/requirements.txt"
+      ],
+      "cwd": "state-reference",
+      "log": "/evidence/preparation-reference/out/update/krt-deps.log",
+      "exit_code": 0,
+      "duration_s": 2.505,
+      "output": "Using Python 3.12.3 environment at: .venv-krt\nResolved 4 packages in 200ms\nDownloading pillow (6.8MiB)\nDownloading scipy (33.7MiB)\nDownloading numpy (16.0MiB)\nDownloading shapely (2.2MiB)\n Downloaded shapely\n Downloaded pillow\n Downloaded numpy\n Downloaded scipy\nPrepared 4 packages in 2.08s\nInstalled 4 packages in 83ms\n + numpy==2.5.4\n + pillow==13.0.0\n + scipy==1.18.1\n + shapely==2.2.0"
+    },
+    {
+      "argv": [
+        "/work/state-reference/.venv-krt/bin/python",
+        "/work/reference/src/kicad_route/router/build_router.py",
+        "--target-dir",
+        "/work/state-reference/build/router-native"
+      ],
+      "cwd": "state-reference",
+      "log": "/evidence/preparation-reference/out/update/krt-build-router.log",
+      "exit_code": 0,
+      "duration_s": 15.089,
+      "output": "    Updating crates.io index\n Downloading crates ...\n  Downloaded heck v0.5.0\n  Downloaded autocfg v1.5.0\n  Downloaded cfg-if v1.0.4\n  Downloaded find-msvc-tools v0.1.9\n  Downloaded cc v1.2.66\n  Downloaded mimalloc v0.1.52\n  Downloaded pyo3-ffi v0.23.5\n  Downloaded proc-macro2 v1.0.103\n  Downloaded rustc-hash v2.1.1\n  Downloaded unindent v0.2.4\n  Downloaded memoffset v0.9.1\n  Downloaded pyo3-macros v0.23.5\n  Downloaded rawpointer v0.2.1\n  Downloaded indoc v2.0.7\n  Downloaded rustversion v1.0.22\n  Downloaded target-lexicon v0.12.16\n  Downloaded num-complex v0.4.6\n  Downloaded quote v1.0.42\n  Downloaded shlex v2.0.1\n  Downloaded once_cell v1.21.3\n  Downloaded pyo3-build-config v0.23.5\n  Downloaded num-integer v0.1.46\n  Downloaded unicode-ident v1.0.22\n  Downloaded matrixmultiply v0.3.10\n  Downloaded num-traits v0.2.19\n  Downloaded pyo3-macros-backend v0.23.5\n  Downloaded numpy v0.23.0\n  Downloaded syn v2.0.111\n  Downloaded ndarray v0.16.1\n  Downloaded libmimalloc-sys v0.1.49\n  Downloaded libc v0.2.178\n  Downloaded pyo3 v0.23.5\n   Compiling target-lexicon v0.12.16\n   Compiling autocfg v1.5.0\n   Compiling once_cell v1.21.3\n   Compiling proc-macro2 v1.0.103\n   Compiling unicode-ident v1.0.22\n   Compiling quote v1.0.42\n   Compiling shlex v2.0.1\n   Compiling find-msvc-tools v0.1.9\n   Compiling libc v0.2.178\n   Compiling heck v0.5.0\n   Compiling rawpointer v0.2.1\n   Compiling indoc v2.0.7\n   Compiling cfg-if v1.0.4\n   Compiling unindent v0.2.4\n   Compiling rustc-hash v2.1.1\n   Compiling cc v1.2.66\n   Compiling num-traits v0.2.19\n   Compiling matrixmultiply v0.3.10\n   Compiling memoffset v0.9.1\n   Compiling pyo3-build-config v0.23.5\n   Compiling syn v2.0.111\n   Compiling num-complex v0.4.6\n   Compiling num-integer v0.1.46\n   Compiling libmimalloc-sys v0.1.49\n   Compiling pyo3-ffi v0.23.5\n   Compiling pyo3-macros-backend v0.23.5\n   Compiling pyo3 v0.23.5\n   Compiling ndarray v0.16.1\n   Compiling mimalloc v0.1.52\n   Compiling pyo3-macros v0.23.5\n   Compiling numpy v0.23.0\n   Compiling grid_router v0.23.1 (/work/reference/src/kicad_route/router/rust_router)\n    Finished `release` profile [optimized] target(s) in 14.94s\nBuilt owned grid_router 0.23.1: /work/state-reference/.venv-krt/lib/python3.12/site-packages/grid_router.so"
+    },
+    {
+      "argv": [
+        "/work/state-reference/.venv-krt/bin/python",
+        "py_router/startup_checks.py"
+      ],
+      "cwd": "reference/src/kicad_route/router",
+      "log": "/evidence/preparation-reference/out/update/krt-startup-checks.log",
+      "exit_code": 0,
+      "duration_s": 0.425,
+      "output": "All checks passed. Rust router v0.23.1"
+    },
+    {
+      "argv": [
+        "/work/state-reference/.venv-krt/bin/python",
+        "-I",
+        "-B",
+        "-c",
+        "import compileall,sys,sysconfig; paths=dict.fromkeys(sysconfig.get_paths()[key] for key in ('purelib','platlib')); sys.exit(not all(compileall.compile_dir(p,quiet=1,workers=1) for p in paths))"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/reference-dependency-bytecode.log"
+    },
+    {
+      "argv": [
+        "/work/state-reference/.venv-krt/bin/python",
+        "py_router/startup_checks.py"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/bounded-startup.log"
+    },
+    {
+      "argv": [
+        "/work/state-reference/.venv-krt/bin/python",
+        "py_router/route.py",
+        "--help"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/bounded-route-help.log"
+    },
+    {
+      "argv": [
+        "/work/state-reference/.venv-krt/bin/python",
+        "-I",
+        "-B",
+        "-c",
+        "import numpy,scipy.optimize,scipy.spatial,shapely.geometry,PIL,grid_router; print(\"native+lazy numerical imports PASS\")"
+      ],
+      "exit_code": 0,
+      "log": "/evidence/preparation-reference/bounded-lazy-import.log"
+    }
+  ],
+  "gates": [
+    {
+      "name": "selected source checkout and STATE",
+      "passed": true,
+      "observed": {
+        "module": "/work/reference/src/kicad_route/cli.py",
+        "STATE": "/work/state-reference"
+      }
+    },
+    {
+      "name": "owned routing source",
+      "passed": true,
+      "observed": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7"
+    },
+    {
+      "name": "Rust lock",
+      "passed": true,
+      "observed": "f14e7b0c06ae682e63f1b452862a72417cb69ee629f51ac49bac242a24d94203"
+    },
+    {
+      "name": "native KiCad10.0.7",
+      "passed": true,
+      "observed": "10.0.7"
+    },
+    {
+      "name": "Python3.12.3 and pcbnew10.0.7",
+      "passed": true,
+      "observed": {
+        "python": "3.12.3",
+        "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1"
+      }
+    },
+    {
+      "name": "installation steps passed",
+      "passed": true,
+      "observed": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "manifest drift",
+      "passed": true,
+      "observed": []
+    },
+    {
+      "name": "exact complete numerical package list",
+      "passed": true,
+      "observed": [
+        "numpy==2.5.4",
+        "pillow==13.0.0",
+        "scipy==1.18.1",
+        "shapely==2.2.0"
+      ]
+    },
+    {
+      "name": "prepared dependency bytecode exists",
+      "passed": true,
+      "observed": {
+        "count": 1619
+      }
+    },
+    {
+      "name": "bounded imports preserve immutable caches and manifest",
+      "passed": true,
+      "observed": {
+        "pyc_count": 1619
+      }
+    },
+    {
+      "name": "owned source has no incidental bytecode",
+      "passed": true,
+      "observed": "/work/reference/src/kicad_route/router"
+    }
+  ],
+  "started_utc": "2026-10-20T22:29:48.251801+00:00",
+  "helper_sha256": "862641689ceba409953199931710e80230cd8f9af35b320a5cfc2954c64a713b",
+  "host": [
+    "Linux",
+    "0748eb5cfe62",
+    "7.2.5-3-omarchy",
+    "#1 SMP PREEMPT_DYNAMIC Mon, 14 Sep 2026 19:55:01 +0000",
+    "x86_64"
+  ],
+  "runtime": {
+    "source": {
+      "version": "0.23.1",
+      "build": "owned-c2ac657d5617",
+      "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+      "source": "https://github.com/halbritt/kicad-route",
+      "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+      "upstream": {
+        "project": "KiCadRoutingTools",
+        "license": "MIT",
+        "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+        "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+        "upstream_release": "v0.23.1",
+        "fork": "https://github.com/halbritt/KiCadRoutingTools",
+        "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+        "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+        "fixes": {
+          "KICADROUTE-64": "4b316ba",
+          "KICADROUTE-63": "0494a05"
+        },
+        "source_inventory": "reports/routing-engine/source-closure.json",
+        "additional_license_notices": [
+          "py_router/stage3d/vendor/three/LICENSE"
+        ],
+        "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+      }
+    },
+    "venv": "/work/state-reference/.venv-krt",
+    "python": "/work/state-reference/.venv-krt/bin/python",
+    "generation": "None",
+    "module": "/work/state-reference/.venv-krt/lib/python3.12/site-packages/grid_router.so",
+    "module_sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915",
+    "packages": [
+      "numpy==2.5.4",
+      "pillow==13.0.0",
+      "scipy==1.18.1",
+      "shapely==2.2.0"
+    ],
+    "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+    "manifest_sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012",
+    "dependency_pyc_count": 1619
+  },
+  "finished_utc": "2026-10-20T22:30:12.562949+00:00"
+}

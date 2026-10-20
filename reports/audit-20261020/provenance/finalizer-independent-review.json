@@ -1,0 +1,24 @@
+{
+  "schema": "kicad-route/finalizer-independent-review/1",
+  "observed_utc": "2026-10-20T22:19:38.732983+00:00",
+  "reviewed_finalizer_sha256": "24c6027ef343e9384f379fedb13e99e3aaecb3498ea31009b94f46e70bbbffd1",
+  "method": "Read-only source/delta review; no native jobs, routing, imports of runtime, installations, test or benchmark reruns",
+  "result": "No remaining material verifier defect found in reviewed scope",
+  "corrected_findings": [
+    "Captured prerequisite snapshot index replaces mutable main/primary prerequisite paths across landing and default runtime activation",
+    "Native CLI digest comes from frozen prerequisite; deleted candidate worktree is not reread",
+    "Comparator loads exact captured hash-bound driver bytes",
+    "Route-demo native input population excludes generator and GUI sidecar while all project prerequisite bytes remain captured"
+  ],
+  "reviewed_dimensions": [
+    "Frozen2then1 calibration selection, actual4worker work/membership/control/accounting and per-trial service thresholds",
+    "Exact48resource records, before/after ancestor/control parity, raw process membership and explicit exit races",
+    "Raw GNU timing versus summaries, exact5+5+2 sample populations, unchanged comparison gates, tool/build/input identity bindings"
+  ],
+  "archive_support": [
+    "All34captured prerequisite files/index retained and hash-verified",
+    "ROOT/manifest.json additionally retained as runtime/selected-manifest.json after installation and matched to installed snapshot",
+    "Historical quiet verifier and all current verifier test/log evidence retained"
+  ],
+  "limitations": "Live CPU-rate matrix94696 remains pending; this review grants no acceptance PASS or runtime proof"
+}

@@ -1,0 +1,33 @@
+Adapter SHA256: 1a6af758a3995ef47c38d203dd1eb922f1dab022a3331ba18a1d19c244aa992f
+PASS synthetic complete48native/4board/96birth/resource/tool/input/rawGNU/strict gates
+PASS rejection: nonterminal RUNNING
+PASS rejection: one dropped resource record
+PASS rejection: extra resource record
+PASS rejection: wrong actual Docker image
+PASS rejection: host initPID changed
+PASS rejection: finite hidden host quota
+PASS rejection: host-after precedes completion
+PASS rejection: namespace root escape dotdot
+PASS rejection: namespace doubled slash
+PASS rejection: GNUtime argv cannot substitute actual CLI child
+PASS rejection: forged empty membership summary
+PASS rejection: missing native actual build
+PASS rejection: candidate manifest drift
+PASS rejection: captured interpreter changed
+PASS rejection: raw GNU differs from summary
+PASS rejection: captured result lost
+PASS rejection: changed container CPU affinity
+PASS rejection: postexecution ancestor weight changed
+PASS rejection: RSS/membership sampler mismatch
+PASS rejection: forged timing clock span
+PASS rejection: prepared runtime receipt failed
+PASS rejection: captured module bytes changed
+PASS rejection: wrong final validation digest
+PASS rejection: owned evidence final digest stale
+PASS rejection: native grading record missing
+PASS rejection: native grading record digest changed
+PASS rejection: omission policy bytes changed
+PASS rejection: omission totals changed
+PASS rejection: wrong launcher identity/exit ('94696', 0)
+PASS rejection: wrong launcher identity/exit ('8896', 1)
+31 bounded Archon adapter checks PASS; all native outcomes synthetic, no remote/native jobs.

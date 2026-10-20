@@ -1,0 +1,55 @@
+{
+  "schema": "kicad-route/cpu-rate-finalizer-readiness/1",
+  "status": "VERIFIER_READY_MATRIX_PENDING",
+  "observed_utc": "2026-10-20T22:19:45.905644+00:00",
+  "matrix_session": "94696",
+  "matrix_authority": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-metadata/matrix.json",
+  "measurement_scope": "Conditional preregistered aggregate1CPU quota/full affinity0..11, normal priority; no unrestricted performance claim",
+  "protocol": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+    "sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225"
+  },
+  "harness": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/run-cpu-rate-matrix.py",
+    "sha256": "1542b947ac50ee2cbe632f36bfed3a1ab735bb379aa10a8fdf389c8fa897ac2a"
+  },
+  "finalizer": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/finalize-acceptance.py",
+    "sha256": "24c6027ef343e9384f379fedb13e99e3aaecb3498ea31009b94f46e70bbbffd1"
+  },
+  "bounded_cpu_verifier_tests": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_finalize_cpu_rate.py",
+    "sha256": "e25db24e5654f429457a67bfe00ebb0089faa4dc816ce95a7c8d55f52317d1a5"
+  },
+  "bounded_cpu_verifier_log": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/finalizer-cpu-rate-tests.log",
+    "sha256": "4482272e66b074fefec62a0ef825854f65d2420f3de6f096d78a30aa06c255f2"
+  },
+  "bounded_cpu_verifier_cases_passed": 45,
+  "additional_historical_admission_and_raw_timing_cases_passed": 19,
+  "additional_test_log": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/finalizer-admission-tests-current.log",
+    "sha256": "3ae251e250366321cad267766d3900083116576c3ffd64e4267521578e286214"
+  },
+  "draft": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-acceptance-draft.json",
+    "sha256": "c28cd5c1e3c7a56e83fb4b476cf9a3b03a23e0c8971230eafb0afcd844bc55a1"
+  },
+  "prerequisite_index": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-prerequisite-snapshots/index.json",
+    "sha256": "d9616f7b80a38293a26abbe74cd12a7664b762f6a2956f5960be63acc53a310b"
+  },
+  "prerequisite_count": 34,
+  "exact_original_tickets": 14,
+  "exact_original_clauses": 66,
+  "tickets_met_at_snapshot": 13,
+  "pending": "KICADROUTE-73 clause5: all4 comparisons/48 raw native attempts, scoped-resource verification, unchanged1.10wall/dualRSS/native/copper gates; then landed runtime/default doctor and report publication",
+  "peer_review": {
+    "reviewer": "installation agent",
+    "finalizer_sha256": "24c6027ef343e9384f379fedb13e99e3aaecb3498ea31009b94f46e70bbbffd1",
+    "scope": "Read-only calibration/control/membership/raw tool-input bindings; frozen snapshot comparator/CLI paths survive integration/worktree removal",
+    "outcome": "No further material verifier defect found after two lifecycle corrections"
+  },
+  "native_jobs_or_source_changes_in_verifier_lane": false,
+  "tracker_writes": false
+}

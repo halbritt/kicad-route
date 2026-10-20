@@ -1,0 +1,328 @@
+{
+  "schema": "kicad-route/backend-startup-profile/1",
+  "created_utc": "2026-10-20T20:24:19.502255+00:00",
+  "scope": "Three bounded read-only route.py --help repetitions per environment; no route or DRC jobs. -X importtime, PYTHONDONTWRITEBYTECODE=1; existing caches remain readable. Diagnostics only.",
+  "settings": {
+    "reference": {
+      "python": "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
+      "router": "/home/halbritt/git/kicad-route/src/kicad_route/router",
+      "state": "/home/halbritt/git/kicad-route"
+    },
+    "candidate": {
+      "python": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python",
+      "router": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/router",
+      "state": "/home/halbritt/git/kicad-route/build/agent497-state"
+    }
+  },
+  "bytecode_before": {
+    "reference": {
+      "numpy": {
+        "count": 132,
+        "bytes": 3816947
+      },
+      "scipy": {
+        "count": 286,
+        "bytes": 5460580
+      },
+      "shapely": {
+        "count": 36,
+        "bytes": 478335
+      }
+    },
+    "candidate": {
+      "numpy": {
+        "count": 82,
+        "bytes": 2093396
+      },
+      "scipy": {
+        "count": 0,
+        "bytes": 0
+      },
+      "shapely": {
+        "count": 0,
+        "bytes": 0
+      }
+    }
+  },
+  "bytecode_after": {
+    "reference": {
+      "numpy": {
+        "count": 132,
+        "bytes": 3816947
+      },
+      "scipy": {
+        "count": 286,
+        "bytes": 5460580
+      },
+      "shapely": {
+        "count": 36,
+        "bytes": 478335
+      }
+    },
+    "candidate": {
+      "numpy": {
+        "count": 82,
+        "bytes": 2093396
+      },
+      "scipy": {
+        "count": 0,
+        "bytes": 0
+      },
+      "shapely": {
+        "count": 0,
+        "bytes": 0
+      }
+    }
+  },
+  "samples": [
+    {
+      "side": "reference",
+      "repetition": 1,
+      "exit_code": 0,
+      "argv": [
+        "/usr/bin/time",
+        "-q",
+        "-f",
+        "{\"wall_s\":%e,\"user_s\":%U,\"system_s\":%S,\"max_rss_kib\":%M}",
+        "-o",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-startup/reference-1.time.json",
+        "taskset",
+        "-c",
+        "0-11",
+        "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
+        "-X",
+        "importtime",
+        "/home/halbritt/git/kicad-route/src/kicad_route/router/py_router/route.py",
+        "--help"
+      ],
+      "wall_s": 1.93,
+      "user_s": 1.48,
+      "system_s": 0.12,
+      "max_rss_kib": 81792,
+      "package_self_wall_s": {
+        "numpy": 0.087902,
+        "scipy": 0.008797,
+        "shapely": 0.024977
+      },
+      "top_package_cumulative": [
+        {
+          "module": "shapely.geometry",
+          "self_us": 195,
+          "cum_us": 8128
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "repetition": 1,
+      "exit_code": 0,
+      "argv": [
+        "/usr/bin/time",
+        "-q",
+        "-f",
+        "{\"wall_s\":%e,\"user_s\":%U,\"system_s\":%S,\"max_rss_kib\":%M}",
+        "-o",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-startup/candidate-1.time.json",
+        "taskset",
+        "-c",
+        "0-11",
+        "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python",
+        "-X",
+        "importtime",
+        "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/router/py_router/route.py",
+        "--help"
+      ],
+      "wall_s": 2.34,
+      "user_s": 1.47,
+      "system_s": 0.14,
+      "max_rss_kib": 81996,
+      "package_self_wall_s": {
+        "numpy": 0.209505,
+        "scipy": 0.040482,
+        "shapely": 0.131416
+      },
+      "top_package_cumulative": [
+        {
+          "module": "shapely.geometry",
+          "self_us": 302,
+          "cum_us": 46870
+        }
+      ]
+    },
+    {
+      "side": "reference",
+      "repetition": 2,
+      "exit_code": 0,
+      "argv": [
+        "/usr/bin/time",
+        "-q",
+        "-f",
+        "{\"wall_s\":%e,\"user_s\":%U,\"system_s\":%S,\"max_rss_kib\":%M}",
+        "-o",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-startup/reference-2.time.json",
+        "taskset",
+        "-c",
+        "0-11",
+        "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
+        "-X",
+        "importtime",
+        "/home/halbritt/git/kicad-route/src/kicad_route/router/py_router/route.py",
+        "--help"
+      ],
+      "wall_s": 1.4,
+      "user_s": 1.33,
+      "system_s": 0.06,
+      "max_rss_kib": 81432,
+      "package_self_wall_s": {
+        "numpy": 0.111676,
+        "scipy": 0.006947,
+        "shapely": 0.016145
+      },
+      "top_package_cumulative": [
+        {
+          "module": "shapely.geometry",
+          "self_us": 167,
+          "cum_us": 3062
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "repetition": 2,
+      "exit_code": 0,
+      "argv": [
+        "/usr/bin/time",
+        "-q",
+        "-f",
+        "{\"wall_s\":%e,\"user_s\":%U,\"system_s\":%S,\"max_rss_kib\":%M}",
+        "-o",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-startup/candidate-2.time.json",
+        "taskset",
+        "-c",
+        "0-11",
+        "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python",
+        "-X",
+        "importtime",
+        "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/router/py_router/route.py",
+        "--help"
+      ],
+      "wall_s": 1.23,
+      "user_s": 1.59,
+      "system_s": 0.04,
+      "max_rss_kib": 81876,
+      "package_self_wall_s": {
+        "numpy": 0.098732,
+        "scipy": 0.014711,
+        "shapely": 0.046084
+      },
+      "top_package_cumulative": [
+        {
+          "module": "shapely.geometry",
+          "self_us": 406,
+          "cum_us": 11396
+        }
+      ]
+    },
+    {
+      "side": "reference",
+      "repetition": 3,
+      "exit_code": 0,
+      "argv": [
+        "/usr/bin/time",
+        "-q",
+        "-f",
+        "{\"wall_s\":%e,\"user_s\":%U,\"system_s\":%S,\"max_rss_kib\":%M}",
+        "-o",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-startup/reference-3.time.json",
+        "taskset",
+        "-c",
+        "0-11",
+        "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
+        "-X",
+        "importtime",
+        "/home/halbritt/git/kicad-route/src/kicad_route/router/py_router/route.py",
+        "--help"
+      ],
+      "wall_s": 1.14,
+      "user_s": 1.45,
+      "system_s": 0.05,
+      "max_rss_kib": 81448,
+      "package_self_wall_s": {
+        "numpy": 0.057468,
+        "scipy": 0.005842,
+        "shapely": 0.013194
+      },
+      "top_package_cumulative": [
+        {
+          "module": "shapely.geometry",
+          "self_us": 135,
+          "cum_us": 3150
+        }
+      ]
+    },
+    {
+      "side": "candidate",
+      "repetition": 3,
+      "exit_code": 0,
+      "argv": [
+        "/usr/bin/time",
+        "-q",
+        "-f",
+        "{\"wall_s\":%e,\"user_s\":%U,\"system_s\":%S,\"max_rss_kib\":%M}",
+        "-o",
+        "/home/halbritt/git/kicad-route/build/agent497-qualification/wrapper-startup/candidate-3.time.json",
+        "taskset",
+        "-c",
+        "0-11",
+        "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python",
+        "-X",
+        "importtime",
+        "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/router/py_router/route.py",
+        "--help"
+      ],
+      "wall_s": 1.28,
+      "user_s": 1.64,
+      "system_s": 0.04,
+      "max_rss_kib": 81640,
+      "package_self_wall_s": {
+        "numpy": 0.084741,
+        "scipy": 0.015605,
+        "shapely": 0.046555
+      },
+      "top_package_cumulative": [
+        {
+          "module": "shapely.geometry",
+          "self_us": 339,
+          "cum_us": 17968
+        }
+      ]
+    }
+  ],
+  "medians": {
+    "reference": {
+      "wall_s": 1.4,
+      "cpu_s": 1.5,
+      "package_self_wall_s": {
+        "numpy": 0.087902,
+        "scipy": 0.006947,
+        "shapely": 0.016145
+      }
+    },
+    "candidate": {
+      "wall_s": 1.28,
+      "cpu_s": 1.6300000000000001,
+      "package_self_wall_s": {
+        "numpy": 0.098732,
+        "scipy": 0.015605,
+        "shapely": 0.046555
+      }
+    }
+  },
+  "findings": [
+    "No bytecode files were created or altered in count/total bytes during these read-only samples.",
+    "Candidate startup medianCPU is1.63s versus1.50s reference (+0.13s,8.7%). These are whole --help process GNU-time CPU totals; no route/DRC was run.",
+    "Importtime package self values are elapsed wall-time observations, not CPU profiles. Wall medians1.28s candidate versus1.40s reference show host variability; no qualification is inferred.",
+    "The bytecode mismatch exists, but these six --help samples alone do not establish that it accounts for the full benchmark deficit. A compile-stage repair should be assessed by the planned full matrix.",
+    "--help startup checks locate dependencies without eagerly executing scipy.optimize routing-time imports; missing SciPy bytecode overhead during actual routing is outside these startup samples."
+  ]
+}

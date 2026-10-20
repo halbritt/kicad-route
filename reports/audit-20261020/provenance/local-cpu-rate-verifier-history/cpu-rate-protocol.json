@@ -1,0 +1,555 @@
+{
+  "schema": "kicad-route/cpu-rate-protocol/1",
+  "preregistered_utc": "2026-10-20T22:08:53.729796+00:00",
+  "status": "PREREGISTERED_READY_NOT_STARTED",
+  "driver": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/scripts/compare_router.py",
+  "driver_sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad",
+  "harness": "/home/halbritt/git/kicad-route/build/agent497-qualification/run-cpu-rate-matrix.py",
+  "harness_sha256": "1542b947ac50ee2cbe632f36bfed3a1ab735bb379aa10a8fdf389c8fa897ac2a",
+  "source_heads": [
+    {
+      "path": "/home/halbritt/git/kicad-route",
+      "head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d"
+    },
+    {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary",
+      "head": "f0f73da86835ec583f2a2c9128e6893fa59c03b7"
+    }
+  ],
+  "reference_cli": "/home/halbritt/git/kicad-route/bin/kicad-route",
+  "reference_state": "/home/halbritt/git/kicad-route",
+  "candidate_cli": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/bin/kicad-route",
+  "candidate_state": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+  "candidate_generation": "60310b2b2bc14f9e9efcddcb57e650e5",
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "topology": [
+    {
+      "cpu": 0,
+      "core_id": "0",
+      "physical_package_id": "0",
+      "thread_siblings_list": "0,6"
+    },
+    {
+      "cpu": 1,
+      "core_id": "1",
+      "physical_package_id": "0",
+      "thread_siblings_list": "1,7"
+    },
+    {
+      "cpu": 2,
+      "core_id": "2",
+      "physical_package_id": "0",
+      "thread_siblings_list": "2,8"
+    },
+    {
+      "cpu": 3,
+      "core_id": "3",
+      "physical_package_id": "0",
+      "thread_siblings_list": "3,9"
+    },
+    {
+      "cpu": 4,
+      "core_id": "4",
+      "physical_package_id": "0",
+      "thread_siblings_list": "4,10"
+    },
+    {
+      "cpu": 5,
+      "core_id": "5",
+      "physical_package_id": "0",
+      "thread_siblings_list": "5,11"
+    },
+    {
+      "cpu": 6,
+      "core_id": "0",
+      "physical_package_id": "0",
+      "thread_siblings_list": "0,6"
+    },
+    {
+      "cpu": 7,
+      "core_id": "1",
+      "physical_package_id": "0",
+      "thread_siblings_list": "1,7"
+    },
+    {
+      "cpu": 8,
+      "core_id": "2",
+      "physical_package_id": "0",
+      "thread_siblings_list": "2,8"
+    },
+    {
+      "cpu": 9,
+      "core_id": "3",
+      "physical_package_id": "0",
+      "thread_siblings_list": "3,9"
+    },
+    {
+      "cpu": 10,
+      "core_id": "4",
+      "physical_package_id": "0",
+      "thread_siblings_list": "4,10"
+    },
+    {
+      "cpu": 11,
+      "core_id": "5",
+      "physical_package_id": "0",
+      "thread_siblings_list": "5,11"
+    }
+  ],
+  "host": {
+    "hostname": "proximal",
+    "platform": "Linux-6.8.0-146-generic-x86_64-with-glibc2.39",
+    "python_version": "3.12.3",
+    "python_executable": "/usr/bin/python3"
+  },
+  "retained_tool_versions": {
+    "reference": {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-env-reuse/comparison.json",
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0c09ac",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c2ac657d5617",
+          "version": "0.23.1",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "extension_module_sha256": "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643",
+        "state_manifest_drift": []
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c2ac657d5617",
+        "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "rust_router": "0.23.1",
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      }
+    },
+    "candidate": {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-env-reuse/comparison.json",
+      "tool_identity": {
+        "kicad_route": {
+          "version": "f0f73da",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "dirty": false
+        },
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "backend": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "state_manifest_sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+        "state_manifest_drift": []
+      },
+      "backend": {
+        "name": "krt",
+        "version": "0.23.1",
+        "build": "owned-c6c09054f684",
+        "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        },
+        "runtime": {
+          "source": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/router",
+          "venv": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5/venv",
+          "generation": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/.router-generations/60310b2b2bc14f9e9efcddcb57e650e5"
+        },
+        "rust_router": "0.23.1",
+        "execution_identity": {
+          "name": "krt",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "96818d2c2a99591985872b49c6f7aa1e8852042cdab869a4148fdfa033af3f59",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "reproducible": null,
+        "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      }
+    }
+  },
+  "actual_tool_versions": "Every completed frozen run_sample returns its fresh authoritative tool_identity/backend and raw result locator; retained versions above are the preregistration observations, not new probes.",
+  "hash_prerequisites": [
+    {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/scripts/compare_router.py",
+      "sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/manifest.json",
+      "sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/manifest.json",
+      "sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/bin/kicad-route",
+      "sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9"
+    },
+    {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/bin/kicad-route",
+      "sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+      "sha256": "a42c0258052acc83004e921c139881bd0aa0ac4daa26f268348b04ee8dd2f923"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+      "sha256": "b71efe842b848d98ddb1e10eda090808667b92888d41f3d03e53ec3cca4d50b8"
+    },
+    {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/common.py",
+      "sha256": "4fd09eef7547c947700067975a54e08c8e6b3ed8d3c5ac94cf8ae77e4a593038"
+    },
+    {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/cli.py",
+      "sha256": "61aff3300f1f784a9e8a778e45430e3f5cb8041f820b7feea80423566bf60a4e"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair/pair.kicad_dru",
+      "sha256": "89aef9fe89d90d5d5df5c34afd637c521dc983cfbcd61b0f540641cd13605586"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair/pair.kicad_pcb",
+      "sha256": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair/pair.kicad_pro",
+      "sha256": "3e37285b31dcfbcf53b3af34d7616a5a8b8364d8ae5406382b67c2146146936c"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/four-layer-plane/four-layer-plane.kicad_pcb",
+      "sha256": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/four-layer-plane/four-layer-plane.kicad_pro",
+      "sha256": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap/multipoint-tap.kicad_pcb",
+      "sha256": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap/multipoint-tap.kicad_pro",
+      "sha256": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/fixtures/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/fixtures/route_demo/generate.py",
+      "sha256": "ff76b50cf4bf4bfd45cdf06917d94c95a43920a69dc3d7fb305f49228d9dd40d"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/fixtures/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/run-cpu-rate-matrix.py",
+      "sha256": "1542b947ac50ee2cbe632f36bfed3a1ab735bb379aa10a8fdf389c8fa897ac2a"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+      "sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-plan.json",
+      "sha256": "51cf52ccad99977ebeea11a22e6b033c34f9a311c46023e91c13e9b81fb80aa0"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/calibrate-cpu-service.py",
+      "sha256": "50973ba0e9f32012e65cef2ac2888f20cd34f43b4c191e22c31a6c96b8da0bf9"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial1/trial.json",
+      "sha256": "019a069212f54f9410a546e3ca168f0907186091894e7673b386858c8f2aa1e7"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial2/trial.json",
+      "sha256": "edf7a7b32a33dfc4e8310ab79785cb7f117df8fdacf8a69da4f281b40dc2777b"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial3/trial.json",
+      "sha256": "a206157c660d27a1046f546bdce5f13dd90934bbc1c5bd68ddafb401230a76bf"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial1/trial.json",
+      "sha256": "b8f945714b06d718af4b6bd91c17c315546e19e687fd92c642e49a3551902717"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial2/trial.json",
+      "sha256": "0e8af77022f738c20c6591baef97ec201f6548e2695a43de17e69c029780bfe5"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial3/trial.json",
+      "sha256": "8a838670ce96f57312ca26f5d3026a97fa24126b1f22edb3b35072e8dbb45987"
+    }
+  ],
+  "boards": [
+    {
+      "name": "diff-pair",
+      "project": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair",
+      "args": [
+        "--budget",
+        "180",
+        "--diff-pairs",
+        "auto"
+      ],
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate"
+    },
+    {
+      "name": "four-layer",
+      "project": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/four-layer-plane",
+      "args": [
+        "--budget",
+        "180",
+        "--backend-arg=--layers",
+        "--backend-arg=F.Cu",
+        "--backend-arg=B.Cu"
+      ],
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate"
+    },
+    {
+      "name": "multipoint",
+      "project": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap",
+      "args": [
+        "--budget",
+        "180"
+      ],
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cpu-rate"
+    },
+    {
+      "name": "route-demo",
+      "project": "/home/halbritt/git/kicad-route/fixtures/route_demo",
+      "args": [
+        "--budget",
+        "180",
+        "--default-clearance",
+        "0.4"
+      ],
+      "output": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-cpu-rate"
+    }
+  ],
+  "measured_repetitions": 5,
+  "warmups_per_side": 1,
+  "sample_order": "Fixed4boards in listedorder; eachwarmupreference/candidate, oddmeasuredindicescandidate/reference, evenreference/candidate;5measuredperside+2warmupsperboard=48total. No retries/drops or early stop on ordinaryFAIL.",
+  "cli_timeout_s": 900,
+  "measurement": "medians: full-CLI wall time, GNU-time largest individual-process RSS, and sampled concurrent process-tree summed RSS (50 ms polling wait, actual intervals retained); all three gates enforce 1.10. Sampled RSS is a lower bound on peak.",
+  "unchanged_quality_and_limits": "Use exact frozen driver.run_sample and driver.compare. Original native arguments/budgets, migration-equivalence copper gate, all warmup/measured quality checks and three1.10 median gates remain unchanged. CPU/phase times and resource snapshots are diagnostic only.",
+  "failure_policy": {
+    "ordinary_quality_or_metric_failure": "Keep sample, evaluate unchanged original comparison, continue allfourboards/all48 samples; finalFAILif any gate fails.",
+    "resource_violation": "Retain native completed sample/metadata; never qualifyPASS. Changed prelaunch controls mean declared execution is unavailable and cause explicitEXECUTION_ERROR; post-observation violations are retained and preventPASS, with no retry.",
+    "driver_exception": "Cannot obtain coherent sample: explicitEXECUTION_ERRORand stop, retaining prior completions/current telemetry.",
+    "interruption": "ExplicitINTERRUPTED, exit130, retain completed data."
+  },
+  "metadata_output": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-metadata",
+  "outer_log": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-matrix.log",
+  "immutability": "Refuse existing CPU-rate metadata or any CPU-rate board directory. Check frozen source HEADs/tracked cleanliness, manifests/inputs/driver/harness/calibration hashes before launch. No mutation of quiet-admission or historicalraw outputs.",
+  "bounded_tests": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_cpu_rate_matrix.py",
+    "sha256": "842fe6f21a3526b72606533fd1b2e3d4bec5bd2bb7469ca6cf0c48e3579ffab4",
+    "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-tests.log",
+    "cases": 7,
+    "result": "7PASS; no real scope/calibration/router jobs.",
+    "log_sha256": "1e90f5bdb82e88d1efce7f926a7d041e19ca952a1673d8be59244ab4acbbbf0c"
+  },
+  "authority": "Root chooses calibratedcap and reviews/fills exact selection receipt hash, then launches one whole matrix scope. This agent has started no router or calibration jobs.",
+  "primary_source": "https://docs.kernel.org/accounting/psi.html",
+  "cpu_cap": 1,
+  "calibration_selected": true,
+  "calibration_selection": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+    "sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137",
+    "required_status": "PASS",
+    "rule": "Installation lane calibration plan: choose2first if every one of3fixed CPU-bound trials meets readinessCPU/(cap*wall)>=.90 and accounting/membership checks; otherwise consider1under same fixed plan. No router result influences cap selection.",
+    "scope": "Calibration-only readiness; native CLI need not saturate its quota and is never excluded for low CPU utilization.",
+    "calibration_plan": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-plan.json",
+    "calibration_plan_sha256": "51cf52ccad99977ebeea11a22e6b033c34f9a311c46023e91c13e9b81fb80aa0",
+    "selected_cap_cpus": 1,
+    "terminal_status": "PASS",
+    "all_trial_and_source_hashes": [
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+        "sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137"
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-plan.json",
+        "sha256": "51cf52ccad99977ebeea11a22e6b033c34f9a311c46023e91c13e9b81fb80aa0"
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/calibrate-cpu-service.py",
+        "sha256": "50973ba0e9f32012e65cef2ac2888f20cd34f43b4c191e22c31a6c96b8da0bf9"
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial1/trial.json",
+        "sha256": "019a069212f54f9410a546e3ca168f0907186091894e7673b386858c8f2aa1e7"
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial2/trial.json",
+        "sha256": "edf7a7b32a33dfc4e8310ab79785cb7f117df8fdacf8a69da4f281b40dc2777b"
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial3/trial.json",
+        "sha256": "a206157c660d27a1046f546bdce5f13dd90934bbc1c5bd68ddafb401230a76bf"
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial1/trial.json",
+        "sha256": "b8f945714b06d718af4b6bd91c17c315546e19e687fd92c642e49a3551902717"
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial2/trial.json",
+        "sha256": "0e8af77022f738c20c6591baef97ec201f6548e2695a43de17e69c029780bfe5"
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial3/trial.json",
+        "sha256": "8a838670ce96f57312ca26f5d3026a97fa24126b1f22edb3b35072e8dbb45987"
+      }
+    ]
+  },
+  "scope_unit": "kicadroute-agent497-cpu-rate-matrix.scope",
+  "scope_settings": {
+    "CPUQuota": "100%",
+    "CPUQuotaPeriodSec": "100ms",
+    "cpu.max.burst": 0,
+    "CPUWeight": 100,
+    "Nice": 0,
+    "scheduler": "SCHED_OTHER",
+    "cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ]
+  },
+  "execution_model": "Root launches the ENTIRE matrix once in a normal-priority transient user scope. Scope setup is outside each timed public CLI invocation. Same actual quota/period/burst/weight/ancestors/fullaffinity for both sides; CPU quota is a maximum rate and does not reserve future service. No quiet admission or per-native utilization threshold.",
+  "measurement_scope": "Conditional declared CPU-rate profile only, not an unrestricted12CPU performance claim. Historical failed comparisons and quiet expiry remain unchanged.",
+  "membership_observation": "Harness piggybacks the frozen driver.process_tree_rss tracked PID/birth map and preserves exact RSS return/cadence. It checks each observed birth once, recording GNUtime rootPID, argv, verified cgroup, explicit reap/reuse races or unreadable/mismatching membership. No extra sampling thread/process or fullhostscan.",
+  "resource_observation": "Before/after EVERY CLI: actual /proc/self/cgroup, resolved cgroup2 mount, full ancestor controls cpu.max/cpu.max.burst/cpu.weight/cpu.idle/cpuset.cpus.effective and cpu.stat/cpu.stat.local/CPU+IO+memory pressure, plus global/proc/stat and/proc/pressure/{cpu,io,memory}, timestamps/affinity/nice/scheduler. Rootcpu.max omission may be legitimate.",
+  "resource_parity": "Initial own+ancestor controls are pinned inside the actual selected scope, checked before each CLI and compared after. Observed mismatch prevents clean resource qualification and completed native data are retained. Throttling itself is expected, never a sample exclusion. Own scope remains identical across all48attempts.",
+  "launch_command": "PYTHONDONTWRITEBYTECODE=1 taskset -c 0-11 systemd-run --user --scope --collect --unit=kicadroute-agent497-cpu-rate-matrix --property=CPUQuota=100% --property=CPUQuotaPeriodSec=100ms --property=CPUWeight=100 /usr/bin/python3 /home/halbritt/git/kicad-route/build/agent497-qualification/run-cpu-rate-matrix.py --protocol /home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json > /home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-matrix.log 2>&1"
+}

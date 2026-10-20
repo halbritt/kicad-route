@@ -1,0 +1,302 @@
+{
+  "schema": "kicad-route/archon-target-bindings/1",
+  "host": "archon",
+  "container": "kicadroute-agent497-archon",
+  "before_host_attestation": {
+    "path": "/evidence/before-host-attestation.json",
+    "sha256": "aa8ba7303c5385339404914358cdec3436a1181f75fbb57d436ae22ea9d6e510"
+  },
+  "container_tools": {
+    "path": "/evidence/container-tools.json",
+    "sha256": "b21411e861f1bb90994cb74c4e84922efe7f81a80505f7a752fade8ce31fd0c3"
+  },
+  "sides": {
+    "reference": {
+      "preparation": {
+        "path": "/evidence/preparation-reference/preparation.json",
+        "sha256": "9ca2e963ceb1ad7c63c76706c2f3baf52d29544f9f3c9a20914b7f4cfb2af5d5"
+      },
+      "manifest_snapshot": {
+        "path": "/evidence/preparation-reference/manifest.json",
+        "sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012"
+      },
+      "selected_manifest": {
+        "path": "/work/state-reference/manifest.json",
+        "sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012"
+      },
+      "status": "PASS",
+      "source_commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+      "runtime": {
+        "source": {
+          "version": "0.23.1",
+          "build": "owned-c2ac657d5617",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "source": "https://github.com/halbritt/kicad-route",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "upstream": {
+            "project": "KiCadRoutingTools",
+            "license": "MIT",
+            "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+            "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+            "upstream_release": "v0.23.1",
+            "fork": "https://github.com/halbritt/KiCadRoutingTools",
+            "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+            "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+            "fixes": {
+              "KICADROUTE-64": "4b316ba",
+              "KICADROUTE-63": "0494a05"
+            },
+            "source_inventory": "reports/routing-engine/source-closure.json",
+            "additional_license_notices": [
+              "py_router/stage3d/vendor/three/LICENSE"
+            ],
+            "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+          }
+        },
+        "venv": "/work/state-reference/.venv-krt",
+        "python": "/work/state-reference/.venv-krt/bin/python",
+        "generation": "None",
+        "module": "/work/state-reference/.venv-krt/lib/python3.12/site-packages/grid_router.so",
+        "module_sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915",
+        "packages": [
+          "numpy==2.5.4",
+          "pillow==13.0.0",
+          "scipy==1.18.1",
+          "shapely==2.2.0"
+        ],
+        "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+        "manifest_sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012",
+        "dependency_pyc_count": 1619
+      },
+      "manifest": {
+        "schema": "kicad-route/state/1",
+        "state_dir": "/work/state-reference",
+        "written_by": "archon-preparation",
+        "updated_utc": "2026-10-20T22:30:11.489201+00:00",
+        "pinned": false,
+        "kicad_route": {
+          "version": "f0c09ac",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "dirty": false
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "krt": {
+          "tag": null,
+          "describe": "owned-c2ac657d5617",
+          "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+          "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+          "source": "https://github.com/halbritt/kicad-route",
+          "clone_url": null,
+          "upstream": {
+            "project": "KiCadRoutingTools",
+            "license": "MIT",
+            "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+            "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+            "upstream_release": "v0.23.1",
+            "fork": "https://github.com/halbritt/KiCadRoutingTools",
+            "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+            "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+            "fixes": {
+              "KICADROUTE-64": "4b316ba",
+              "KICADROUTE-63": "0494a05"
+            },
+            "source_inventory": "reports/routing-engine/source-closure.json",
+            "additional_license_notices": [
+              "py_router/stage3d/vendor/three/LICENSE"
+            ],
+            "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+          },
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "extension_module": {
+            "path": ".venv-krt/lib/python3.12/site-packages/grid_router.so",
+            "sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915"
+          },
+          "prebuilt": {
+            "asset": null,
+            "url": null,
+            "release": null,
+            "from_source": true
+          },
+          "requirements": {
+            "path": "/work/reference/src/kicad_route/router/requirements.txt",
+            "sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43"
+          },
+          "venv": {
+            "path": ".venv-krt",
+            "python": "/usr/bin/python3.12",
+            "python_version": "3.12.3",
+            "packages": [
+              "numpy==2.5.4",
+              "pillow==13.0.0",
+              "scipy==1.18.1",
+              "shapely==2.2.0"
+            ],
+            "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+          }
+        },
+        "freerouting": null,
+        "java": null,
+        "kicad": {
+          "kicad_cli": {
+            "path": "/usr/bin/kicad-cli",
+            "version": "10.0.7",
+            "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+          },
+          "pcbnew_build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "pcbnew_python": "/usr/bin/python3"
+        },
+        "determinism": {}
+      }
+    },
+    "candidate": {
+      "preparation": {
+        "path": "/evidence/preparation-candidate/preparation.json",
+        "sha256": "05472a1b933f379da68d6cbfbbba61de9f4d7931aff1ea09dbc7ab4cbe4f6248"
+      },
+      "manifest_snapshot": {
+        "path": "/evidence/preparation-candidate/manifest.json",
+        "sha256": "06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b"
+      },
+      "selected_manifest": {
+        "path": "/work/state-candidate/manifest.json",
+        "sha256": "06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b"
+      },
+      "status": "PASS",
+      "source_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+      "runtime": {
+        "source": {
+          "version": "0.23.1",
+          "build": "owned-c6c09054f684",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "source": "https://github.com/halbritt/kicad-route",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "upstream": {
+            "project": "KiCadRoutingTools",
+            "license": "MIT",
+            "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+            "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+            "upstream_release": "v0.23.1",
+            "fork": "https://github.com/halbritt/KiCadRoutingTools",
+            "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+            "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+            "fixes": {
+              "KICADROUTE-64": "4b316ba",
+              "KICADROUTE-63": "0494a05"
+            },
+            "source_inventory": "reports/routing-engine/source-closure.json",
+            "additional_license_notices": [
+              "py_router/stage3d/vendor/three/LICENSE"
+            ],
+            "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+          }
+        },
+        "venv": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv",
+        "python": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv/bin/python",
+        "generation": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9",
+        "module": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv/lib/python3.12/site-packages/grid_router.so",
+        "module_sha256": "b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957",
+        "packages": [
+          "numpy==2.5.4",
+          "pillow==13.0.0",
+          "scipy==1.18.1",
+          "shapely==2.2.0"
+        ],
+        "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+        "manifest_sha256": "06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b",
+        "dependency_pyc_count": 1619
+      },
+      "manifest": {
+        "schema": "kicad-route/state/1",
+        "state_dir": "/work/state-candidate",
+        "written_by": "update",
+        "updated_utc": "2026-10-20T22:30:10.632665+00:00",
+        "pinned": false,
+        "kicad_route": {
+          "version": "f0f73da",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "dirty": false
+        },
+        "python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        },
+        "krt": {
+          "generation": ".router-generations/412913c359a8459ca40e4143b925e9d9",
+          "tag": null,
+          "describe": "owned-c6c09054f684",
+          "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "source_path": ".router-generations/412913c359a8459ca40e4143b925e9d9/router",
+          "source": "https://github.com/halbritt/kicad-route",
+          "clone_url": null,
+          "upstream": {
+            "project": "KiCadRoutingTools",
+            "license": "MIT",
+            "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+            "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+            "upstream_release": "v0.23.1",
+            "fork": "https://github.com/halbritt/KiCadRoutingTools",
+            "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+            "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+            "fixes": {
+              "KICADROUTE-64": "4b316ba",
+              "KICADROUTE-63": "0494a05"
+            },
+            "source_inventory": "reports/routing-engine/source-closure.json",
+            "additional_license_notices": [
+              "py_router/stage3d/vendor/three/LICENSE"
+            ],
+            "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+          },
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "extension_module": {
+            "path": ".router-generations/412913c359a8459ca40e4143b925e9d9/venv/lib/python3.12/site-packages/grid_router.so",
+            "sha256": "b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957"
+          },
+          "prebuilt": {
+            "asset": null,
+            "url": null,
+            "release": null,
+            "from_source": true
+          },
+          "requirements": {
+            "path": ".router-generations/412913c359a8459ca40e4143b925e9d9/router/requirements.txt",
+            "sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43"
+          },
+          "venv": {
+            "path": ".router-generations/412913c359a8459ca40e4143b925e9d9/venv",
+            "python": "/usr/bin/python3.12",
+            "python_version": "3.12.3",
+            "packages": [
+              "numpy==2.5.4",
+              "pillow==13.0.0",
+              "scipy==1.18.1",
+              "shapely==2.2.0"
+            ],
+            "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+          }
+        },
+        "freerouting": null,
+        "java": null,
+        "kicad": {
+          "kicad_cli": {
+            "path": "/usr/bin/kicad-cli",
+            "version": "10.0.7",
+            "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+          },
+          "pcbnew_build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "pcbnew_python": "/usr/bin/python3"
+        },
+        "determinism": {}
+      }
+    }
+  },
+  "container_hostname": "0748eb5cfe62",
+  "image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+  "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba"
+}

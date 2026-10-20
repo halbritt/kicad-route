@@ -1,0 +1,176 @@
+{
+  "schema": "kicad-route/frozen-matrix-prerequisites/1",
+  "protocol_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225",
+  "files": [
+    {
+      "original_path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/scripts/compare_router.py",
+      "sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad",
+      "snapshot": "00-compare_router.py"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/manifest.json",
+      "sha256": "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643",
+      "snapshot": "01-manifest.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state/manifest.json",
+      "sha256": "f08ea4a03c6d745353feaea7d6305c18f58698a0941f1e68832a7f90484abd19",
+      "snapshot": "02-manifest.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/bin/kicad-route",
+      "sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "snapshot": "03-kicad-route"
+    },
+    {
+      "original_path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/bin/kicad-route",
+      "sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9",
+      "snapshot": "04-kicad-route"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/src/kicad_route/common.py",
+      "sha256": "a42c0258052acc83004e921c139881bd0aa0ac4daa26f268348b04ee8dd2f923",
+      "snapshot": "05-common.py"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+      "sha256": "b71efe842b848d98ddb1e10eda090808667b92888d41f3d03e53ec3cca4d50b8",
+      "snapshot": "06-cli.py"
+    },
+    {
+      "original_path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/common.py",
+      "sha256": "4fd09eef7547c947700067975a54e08c8e6b3ed8d3c5ac94cf8ae77e4a593038",
+      "snapshot": "07-common.py"
+    },
+    {
+      "original_path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/cli.py",
+      "sha256": "61aff3300f1f784a9e8a778e45430e3f5cb8041f820b7feea80423566bf60a4e",
+      "snapshot": "08-cli.py"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair/pair.kicad_dru",
+      "sha256": "89aef9fe89d90d5d5df5c34afd637c521dc983cfbcd61b0f540641cd13605586",
+      "snapshot": "09-pair.kicad_dru"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair/pair.kicad_pcb",
+      "sha256": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+      "snapshot": "10-pair.kicad_pcb"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair/pair.kicad_pro",
+      "sha256": "3e37285b31dcfbcf53b3af34d7616a5a8b8364d8ae5406382b67c2146146936c",
+      "snapshot": "11-pair.kicad_pro"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/four-layer-plane/four-layer-plane.kicad_pcb",
+      "sha256": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+      "snapshot": "12-four-layer-plane.kicad_pcb"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/four-layer-plane/four-layer-plane.kicad_pro",
+      "sha256": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e",
+      "snapshot": "13-four-layer-plane.kicad_pro"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap/multipoint-tap.kicad_pcb",
+      "sha256": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+      "snapshot": "14-multipoint-tap.kicad_pcb"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/multipoint-tap/multipoint-tap.kicad_pro",
+      "sha256": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e",
+      "snapshot": "15-multipoint-tap.kicad_pro"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/fixtures/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "snapshot": "16-fp-lib-table"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/fixtures/route_demo/generate.py",
+      "sha256": "ff76b50cf4bf4bfd45cdf06917d94c95a43920a69dc3d7fb305f49228d9dd40d",
+      "snapshot": "17-generate.py"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "snapshot": "18-route_demo.kicad_dru"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "snapshot": "19-route_demo.kicad_pcb"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "snapshot": "20-route_demo.kicad_prl"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "snapshot": "21-route_demo.kicad_pro"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/fixtures/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "snapshot": "22-route_demo.kicad_sch"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/fixtures/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "snapshot": "23-sym-lib-table"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/run-cpu-rate-matrix.py",
+      "sha256": "1542b947ac50ee2cbe632f36bfed3a1ab735bb379aa10a8fdf389c8fa897ac2a",
+      "snapshot": "24-run-cpu-rate-matrix.py"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+      "sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137",
+      "snapshot": "25-selection.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-plan.json",
+      "sha256": "51cf52ccad99977ebeea11a22e6b033c34f9a311c46023e91c13e9b81fb80aa0",
+      "snapshot": "26-cpu-service-calibration-plan.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/calibrate-cpu-service.py",
+      "sha256": "50973ba0e9f32012e65cef2ac2888f20cd34f43b4c191e22c31a6c96b8da0bf9",
+      "snapshot": "27-calibrate-cpu-service.py"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial1/trial.json",
+      "sha256": "019a069212f54f9410a546e3ca168f0907186091894e7673b386858c8f2aa1e7",
+      "snapshot": "28-trial.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial2/trial.json",
+      "sha256": "edf7a7b32a33dfc4e8310ab79785cb7f117df8fdacf8a69da4f281b40dc2777b",
+      "snapshot": "29-trial.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/1cpu-trial3/trial.json",
+      "sha256": "a206157c660d27a1046f546bdce5f13dd90934bbc1c5bd68ddafb401230a76bf",
+      "snapshot": "30-trial.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial1/trial.json",
+      "sha256": "b8f945714b06d718af4b6bd91c17c315546e19e687fd92c642e49a3551902717",
+      "snapshot": "31-trial.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial2/trial.json",
+      "sha256": "0e8af77022f738c20c6591baef97ec201f6548e2695a43de17e69c029780bfe5",
+      "snapshot": "32-trial.json"
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/2cpu-trial3/trial.json",
+      "sha256": "8a838670ce96f57312ca26f5d3026a97fa24126b1f22edb3b35072e8dbb45987",
+      "snapshot": "33-trial.json"
+    }
+  ]
+}

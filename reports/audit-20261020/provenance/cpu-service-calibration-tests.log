@@ -1,0 +1,2 @@
+Synthetic-only: /usr/bin/python3 -m pytest -q -p no:cacheprovider --noconftest build/agent497-qualification/test_cpu_service_calibration.py
+11 passed (observed terminal session 46111; no CPU workers or systemd scopes launched)

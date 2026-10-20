@@ -1,0 +1,2632 @@
+{
+  "schema": "kicad-route/audit-test-observations/1",
+  "method": "Union of passing node observations across retained broad and corrective focused JUnit reports; original broad failures are preserved. Current741node IDs are represented across five invocations, not one green full-suite invocation at final HEAD.",
+  "current_source_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+  "current_collected_cases": 741,
+  "represented_by_passing_observations": 741,
+  "missing": [],
+  "runs": [
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/junit.xml",
+      "sha256": "dde9a13aa46c94d8f3981040b36eb79c4c29156d85bb1567342a7a9e8da0daed",
+      "cases": 688,
+      "passed": 686,
+      "failed_nodes": [
+        "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[other_manifest]",
+        "tests/test_test_suite.py::test_exit_codes_are_pinned"
+      ]
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-focused.xml",
+      "sha256": "b2bfe00926ace93534d4a9dbcf744fbbf83ddc0dd1728be0b9094ebc983f2393",
+      "cases": 193,
+      "passed": 193,
+      "failed_nodes": []
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-selector.xml",
+      "sha256": "510bd00dc7c055d00587f207cb6d3f609681dc46cefd091f1482c510583052c0",
+      "cases": 25,
+      "passed": 25,
+      "failed_nodes": []
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-merged-generation.xml",
+      "sha256": "8767e191b846c749463a512c35313658ee8b98f4aa1e9a4ad4ff4a2700891e2f",
+      "cases": 24,
+      "passed": 24,
+      "failed_nodes": []
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-env-reuse.xml",
+      "sha256": "4e291b06e910c28e84318791b0c9f36b18cac4cebb1bef8b9c21b9dc55601f9f",
+      "cases": 113,
+      "passed": 113,
+      "failed_nodes": [],
+      "source_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+      "scope": "Controlled environment scope, baseline identity reuse, generation/installation and update qualification; no single full-suite pass claimed."
+    }
+  ],
+  "passing_evidence_by_node": {
+    "tests/test_adhd_barrier.py::test_barrier_preview_command": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_geometry_helpers": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_inject_skips_a_barrier_on_existing_copper": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_inject_strip_round_trip": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_krt_rewind_routes_around_the_barrier": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_ledger_sees_the_barriers": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_plan_locates_the_collision": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_plan_without_a_collision_gives_reasons": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_run_refuses_without_a_collision": [
+      0
+    ],
+    "tests/test_adhd_barrier.py::test_select_keeps_collisions_made_by_new_copper": [
+      0
+    ],
+    "tests/test_adhd_decoupling.py::test_classifies_both_routing_styles": [
+      0
+    ],
+    "tests/test_adhd_decoupling.py::test_fails_closed": [
+      0
+    ],
+    "tests/test_adhd_decoupling.py::test_net_patterns_replace_the_name_rules": [
+      0
+    ],
+    "tests/test_adhd_decoupling.py::test_radius_is_configurable": [
+      0
+    ],
+    "tests/test_adhd_decoupling.py::test_run_dir_reports_cells_the_candidate_changed": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_candidate_kicad_cannot_load_is_refused": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_candidate_kicad_cannot_load_real_script": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_inject_failure_is_a_state_refusal": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_locate_failure_exits_1_with_a_record": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_nothing_injected_exits_1_with_a_record": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_on_a_non_run_directory_is_refused[human]": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_on_a_non_run_directory_is_refused[json]": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_preview_success_record": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_with_no_collision_to_barrier_is_refused[human]": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_barrier_with_no_collision_to_barrier_is_refused[json]": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_both_commands_have_machine_mode": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_decoupling_analysis_failure_exits_1_with_a_record": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_decoupling_board_changed_during_analysis_exits_1": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_decoupling_board_kicad_cannot_load_is_refused": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_decoupling_board_missing_is_refused[human]": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_decoupling_board_missing_is_refused[json]": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_decoupling_on_a_non_run_directory_is_refused[human]": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_decoupling_on_a_non_run_directory_is_refused[json]": [
+      0
+    ],
+    "tests/test_adhd_refusals.py::test_decoupling_run_without_a_candidate_is_refused": [
+      0
+    ],
+    "tests/test_adhd_spoke_keepout.py::test_adversaries_touch_the_corridor_edge": [
+      0
+    ],
+    "tests/test_adhd_spoke_keepout.py::test_cli_board_verify": [
+      0
+    ],
+    "tests/test_adhd_spoke_keepout.py::test_corridor_geometry_square_pad": [
+      0
+    ],
+    "tests/test_adhd_spoke_keepout.py::test_native_drc_agrees": [
+      0
+    ],
+    "tests/test_adhd_spoke_keepout.py::test_plan_carries_the_geometry": [
+      0
+    ],
+    "tests/test_adhd_spoke_keepout.py::test_ten_microns_inside_the_corridor_starves_the_spoke": [
+      0
+    ],
+    "tests/test_adhd_spoke_keepout.py::test_tracks_at_the_corridor_edge_leave_the_spoke_whole": [
+      0
+    ],
+    "tests/test_adhd_spoke_keepout.py::test_trench_around_the_corridor_is_not_held": [
+      0
+    ],
+    "tests/test_attempt_measurement.py::test_native_attempt_stop_disqualifies_measurement_and_survives_revalidation[pair-stall-before-tail]": [
+      0
+    ],
+    "tests/test_attempt_measurement.py::test_native_attempt_stop_disqualifies_measurement_and_survives_revalidation[single-budget]": [
+      0
+    ],
+    "tests/test_baseline_identity_reuse.py::test_baseline_adapter_forwards_captured_version": [
+      1,
+      4
+    ],
+    "tests/test_baseline_identity_reuse.py::test_campaign_cache_warming_forwards_this_reference_facts_version": [
+      1,
+      4
+    ],
+    "tests/test_baseline_identity_reuse.py::test_fresh_facts_identity_matches_probe_and_avoids_redundant_native_import": [
+      1,
+      4
+    ],
+    "tests/test_baseline_identity_reuse.py::test_fresh_version_or_tool_change_still_misses_existing_generation[native CLI]": [
+      1,
+      4
+    ],
+    "tests/test_baseline_identity_reuse.py::test_fresh_version_or_tool_change_still_misses_existing_generation[native version]": [
+      1,
+      4
+    ],
+    "tests/test_baseline_identity_reuse.py::test_legacy_and_explicit_unknown_versions_keep_the_probe_fallback": [
+      1,
+      4
+    ],
+    "tests/test_baseline_identity_reuse.py::test_run_attempt_forwards_this_reference_facts_version": [
+      1,
+      4
+    ],
+    "tests/test_blocked.py::test_analysis_lists_blockers_per_layer_with_origin_and_lock": [
+      0
+    ],
+    "tests/test_blocked.py::test_arc_and_rectangle_helpers": [
+      0
+    ],
+    "tests/test_blocked.py::test_blocked_receipts_name_the_wall": [
+      0
+    ],
+    "tests/test_blocked.py::test_complete_run_has_no_blocked_by": [
+      0
+    ],
+    "tests/test_blocked.py::test_corridor_paths_include_both_manhattan_routes": [
+      0
+    ],
+    "tests/test_blocked.py::test_footprint_pads_rank_by_connections_blocked": [
+      0
+    ],
+    "tests/test_blocked.py::test_manhattan_corridor_avoids_a_straight_line_blocker": [
+      0
+    ],
+    "tests/test_blocked.py::test_polygon_geometry": [
+      0
+    ],
+    "tests/test_blocked.py::test_render_and_errors": [
+      0
+    ],
+    "tests/test_blocked.py::test_segment_geometry": [
+      0
+    ],
+    "tests/test_blocked.py::test_zone_endpoint_lands_off_the_pads_own_island": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_board_mode_refuses_bad_arguments": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_board_mode_scores_an_unrouted_board_without_writing_it": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_committed_summaries_match_the_schema": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_endpoints_name_footprint_pad_and_layers": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_layer_lists_are_bounded_but_counts_exact": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_publish_carries_blocked_by": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_schema_is_a_valid_versioned_json_schema": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_summary_schema_rejects_drift": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_wall_run_report_is_schema_valid": [
+      0
+    ],
+    "tests/test_blocked_schema.py::test_zone_endpoint_target_names_the_pad": [
+      0
+    ],
+    "tests/test_campaign.py::test_campaign_complete_in_round_0_stops": [
+      0
+    ],
+    "tests/test_campaign.py::test_campaign_race_lane_is_a_two_pass_chain": [
+      0
+    ],
+    "tests/test_campaign.py::test_campaign_routes_backlog_first_on_original_input": [
+      0
+    ],
+    "tests/test_campaign.py::test_campaign_total_budget_stops_new_runs": [
+      0
+    ],
+    "tests/test_campaign.py::test_net_pattern_matches_exactly_one_name": [
+      0
+    ],
+    "tests/test_campaign.py::test_rank_prefers_complete_valid_then_fewer_unconnected": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_chained_step_snapshot_keeps_the_library_mapping": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_corpus_entry_keeps_library_dir": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_corpus_entry_without_library_dir_is_unchanged": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_invoke_timeout_stops_the_whole_step": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_invoke_without_timeout_runs_to_the_end": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_library_dir_reaches_every_step": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_step_limits_cut_to_total_budget": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_step_limits_without_total_budget": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_step_passes_cut_budget_and_timeout": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_stop_at_total_budget_after_timed_out_step": [
+      0
+    ],
+    "tests/test_campaign_corpus.py::test_timed_out_round0_is_recorded": [
+      0
+    ],
+    "tests/test_corpus_env_options.py::test_corpus_add_records_neither_environment_option": [
+      0
+    ],
+    "tests/test_corpus_env_options.py::test_corpus_check_honours_its_own_require_readonly_state": [
+      0
+    ],
+    "tests/test_corpus_env_options.py::test_corpus_check_uses_its_own_ledger_not_the_entrys": [
+      0
+    ],
+    "tests/test_corpus_env_options.py::test_environment_options_are_not_routing_options": [
+      0
+    ],
+    "tests/test_corpus_env_options.py::test_old_entry_carrying_environment_keys_is_replayed_without_them": [
+      0
+    ],
+    "tests/test_determinism_generation.py::test_collect_preserves_same_interpreter_proof_and_drops_changed_interpreter": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_direct_repeat_write_rejects_another_build_without_changing_manifest": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_each_execution_identity_field_changes_the_build[backend-extension_module_sha256]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_each_execution_identity_field_changes_the_build[backend-source_sha256]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_each_execution_identity_field_changes_the_build[backend-venv_packages_sha256]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_each_execution_identity_field_changes_the_build[backend-venv_python_version]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_each_execution_identity_field_changes_the_build[kicad_cli-sha256]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_empty_executed_python_identity_cannot_qualify[None]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_empty_executed_python_identity_cannot_qualify[]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_equal_geometry_from_different_builds_is_not_a_repeat_proof": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_first_valid_repeat_can_qualify_without_prior_measurement_proof": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_freerouting_execution_identity_matches_jar_runtime_and_native_build": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_manifest_read_modify_write_serializes_with_activation[record]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_manifest_read_modify_write_serializes_with_activation[refresh]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_manifest_updates_are_reentrant_within_update_lock": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_manifest_write_failure_is_retained_as_record_error": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_missing_execution_identity_never_uses_current_installation[backend-extension_module_sha256]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_missing_execution_identity_never_uses_current_installation[backend-source_sha256]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_missing_execution_identity_never_uses_current_installation[backend-venv_packages_sha256]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_missing_execution_identity_never_uses_current_installation[backend-venv_python_version]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_missing_execution_identity_never_uses_current_installation[kicad_cli-sha256]": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_old_python_proof_cannot_record_for_otherwise_identical_active_build": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_old_worker_proof_cannot_qualify_newly_activated_generation": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_determinism_generation.py::test_python_change_invalidates_current_identity_and_existing_proof": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "tests/test_diff_pairs.py::test_backend_fallback_is_discarded_and_missing_coverage_fails[None-extra4-fallback4]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_backend_fallback_is_discarded_and_missing_coverage_fails[coupled-extra2-fallback2]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_backend_fallback_is_discarded_and_missing_coverage_fails[coupled-extra3-fallback3]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_backend_fallback_is_discarded_and_missing_coverage_fails[deferred-extra0-fallback0]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_backend_fallback_is_discarded_and_missing_coverage_fails[partial-extra1-fallback1]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_connected_members_cannot_hide_failed_pair_routing[NOT_RUN]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_connected_members_cannot_hide_failed_pair_routing[PROCESS_FAILED]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_connected_members_cannot_hide_failed_pair_routing[REJECTED]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_detection_refuses_ambiguous_or_incompatible_pairs[class]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_detection_refuses_ambiguous_or_incompatible_pairs[clearance]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_detection_refuses_ambiguous_or_incompatible_pairs[gap]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_detection_refuses_ambiguous_or_incompatible_pairs[scope]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_detection_refuses_ambiguous_or_incompatible_pairs[unpaired]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_detection_refuses_ambiguous_or_incompatible_pairs[width]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_empty_pair_plan_still_uses_version_2": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_incompatible_pair_options_are_usage_refusals[args0]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_incompatible_pair_options_are_usage_refusals[args1]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_native_gap_violation_cannot_be_hidden": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_native_pair_routing_and_evidence": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_pair_detection_conventions_are_exact_and_sorted": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_pair_revalidation_measures_current_candidate": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_pair_schema_requires_version_and_pair_fields[pairs]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_pair_schema_requires_version_and_pair_fields[schema]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_pair_schema_requires_version_and_pair_fields[settings.diff_pairs]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_pair_schema_requires_version_and_pair_fields[settings.pairs]": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_unidentified_native_connection_cannot_establish_pair_completion": [
+      0
+    ],
+    "tests/test_diff_pairs.py::test_unroutable_pair_is_incomplete": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_campaign_passes_sandbox_flags_to_runs": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_campaign_refuses_writable_state": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_doctor_json_offline_record": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_doctor_json_offline_without_network": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_persistent_ledger": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[env_var]": [
+      0,
+      2,
+      4
+    ],
+    "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[missing]": [
+      0,
+      2,
+      4
+    ],
+    "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[no_backend]": [
+      0,
+      2,
+      4
+    ],
+    "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[no_manifest]": [
+      0,
+      2,
+      4
+    ],
+    "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[other_manifest]": [
+      2,
+      4
+    ],
+    "tests/test_doctor_sandbox.py::test_require_readonly_state_refuses[writable]": [
+      0,
+      2,
+      4
+    ],
+    "tests/test_doctor_sandbox.py::test_run_writes_nothing_under_state": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_sandbox_declares_runtime_symlink_targets": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_sandboxed_round_trip_matches_unsandboxed[freerouting]": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_sandboxed_round_trip_matches_unsandboxed[krt]": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_update_and_corpus_add_refuse_under_flag": [
+      0
+    ],
+    "tests/test_doctor_sandbox.py::test_without_flag_state_is_not_checked": [
+      0
+    ],
+    "tests/test_dsn_quoted_nets.py::test_colliding_names_are_refused": [
+      0
+    ],
+    "tests/test_dsn_quoted_nets.py::test_freerouting_round_trip": [
+      0
+    ],
+    "tests/test_dsn_quoted_nets.py::test_kicad_export_is_respelled": [
+      0
+    ],
+    "tests/test_dsn_quoted_nets.py::test_names_that_cannot_be_made_consistent_raise": [
+      0
+    ],
+    "tests/test_dsn_quoted_nets.py::test_references_are_respelled_and_nothing_else": [
+      0
+    ],
+    "tests/test_dsn_quoted_nets.py::test_split_then_respell": [
+      0
+    ],
+    "tests/test_dsn_quoted_nets.py::test_unreadable_names_are_refused": [
+      0
+    ],
+    "tests/test_engine_acceptance.py::test_algorithm_change_mode_keeps_independent_native_and_completion_gates": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_each_resource_metric_enforces_exact_owner_boundary[1.1-True-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_each_resource_metric_enforces_exact_owner_boundary[1.1-True-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_each_resource_metric_enforces_exact_owner_boundary[1.1-True-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_each_resource_metric_enforces_exact_owner_boundary[1.1001-False-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_each_resource_metric_enforces_exact_owner_boundary[1.1001-False-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_each_resource_metric_enforces_exact_owner_boundary[1.1001-False-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[-1-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[-1-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[-1-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[0-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[0-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[0-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[12-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[12-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[12-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[None-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[None-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[None-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[True-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[True-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[True-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[inf-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[inf-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[inf-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[nan-max_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[nan-process_tree_peak_rss_kib]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_invalid_metrics_cannot_qualify[nan-wall_s]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-copper-changed-copper geometry differs]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-input_fingerprint-different-inputs differ]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-new_violations-1-new native violations]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-open_nets-value3-routing completion regressed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-pairs-value5-pair routing failed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-preservation-value8-preservation failed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-process-FAIL-routing process failed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-routing-INCOMPLETE-routing completion regressed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-unconnected-1-routing completion regressed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-validation-FAIL-native validation failed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[False-wall_clock_stop-True-wall-clock-censored attempt]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-copper-changed-copper geometry differs]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-input_fingerprint-different-inputs differ]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-new_violations-1-new native violations]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-open_nets-value3-routing completion regressed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-pairs-value5-pair routing failed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-preservation-value8-preservation failed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-process-FAIL-routing process failed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-routing-INCOMPLETE-routing completion regressed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-unconnected-1-routing completion regressed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-validation-FAIL-native validation failed]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_measured_and_warmup_quality_gates[True-wall_clock_stop-True-wall-clock-censored attempt]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_minimum_repeats_and_warmup_are_required": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[copper]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[input_fingerprint]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[new_violations]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[open_nets]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[pairs]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[preservation]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[process]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[routing]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[unconnected]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[validation]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_missing_quality_evidence_fails_closed[wall_clock_stop]": [
+      0,
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_process_tree_memory_counts_concurrent_child_in_separate_session[False]": [
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_process_tree_memory_counts_concurrent_child_in_separate_session[True]": [
+      1
+    ],
+    "tests/test_engine_acceptance.py::test_quality_retains_pair_routing_and_any_intermediate_wall_clock_stop": [
+      0,
+      1
+    ],
+    "tests/test_engine_regressions.py::test_known_fork_regression_passes_with_owned_engine[test_krt64_tap_grid.py]": [
+      0
+    ],
+    "tests/test_engine_regressions.py::test_known_fork_regression_passes_with_owned_engine[test_pour_launch_forbidden_layer_welds.py]": [
+      0
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[malformed-baseline-drc.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[malformed-baseline-info.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[malformed-baseline-pour.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[malformed-current.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[malformed-generation.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[missing-baseline-drc.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[missing-baseline-info.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[missing-baseline-pour.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[missing-current.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_damaged_entries_recompute[missing-generation.json]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_identity_invalidates_board_tools_and_schema": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_pointer_cannot_select_outside_a_generation[../generation-other]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_pointer_cannot_select_outside_a_generation[..]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_pointer_cannot_select_outside_a_generation[.]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_baseline_pointer_cannot_select_outside_a_generation[/generation-other]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_candidate_evidence_identifies_final_refilled_artifact[False-False]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_candidate_evidence_identifies_final_refilled_artifact[False-True]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_candidate_evidence_identifies_final_refilled_artifact[True-False]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_candidate_evidence_identifies_final_refilled_artifact[True-True]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_concurrent_cache_publications_are_complete": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_content_execution_identity_and_legacy_rows": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence[change0-validation PASS -> FAIL]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence[change1-routing COMPLETE -> INCOMPLETE]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence[change2-missing evidence: new DRC]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence[change3-missing evidence: new parity]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence[change4-missing preservation evidence]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence[change5-exit status]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_corpus_rejects_lost_evidence[change6-validation PASS -> FAIL]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_corpus_unchanged_invalid_and_improving_baselines": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_execution_identity_tracks_installed_bytes_without_git": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_failed_validation_fails_corpus_and_update": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_interrupted_publication_is_never_a_hit[1]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_interrupted_publication_is_never_a_hit[2]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_interrupted_publication_is_never_a_hit[3]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_interrupted_publication_is_never_a_hit[4]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_interrupted_publication_is_never_a_hit[5]": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_legacy_determinism_uses_validation_final_hash": [
+      0,
+      1
+    ],
+    "tests/test_evidence_integrity.py::test_native_refill_and_human_ledger_reconstruction": [
+      0,
+      1
+    ],
+    "tests/test_evidence_manifest.py::test_copper_signature_ignores_uuids_and_order_but_not_geometry": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_determinism_compare_judges_geometry_not_bytes": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_drift_is_a_required_doctor_fail[jar]": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_drift_is_a_required_doctor_fail[module]": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_drift_is_a_required_doctor_fail[source]": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_drift_is_a_required_doctor_fail[venv]": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_freerouting_results_are_attempts_not_measurements": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_krt_repeat_is_deterministic_and_results_carry_evidence": [
+      0
+    ],
+    "tests/test_evidence_manifest.py::test_krt_reproducible_follows_the_record_for_the_build_on_disk": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_ledger_says_a_freerouting_repeat_may_differ": [
+      0
+    ],
+    "tests/test_evidence_manifest.py::test_manifest_records_the_install_and_validates": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_missing_manifest_is_reported_not_required": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_owned_manifest_does_not_require_wrapper_git_metadata": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_prebuilt_asset_from_build_router_log": [
+      0,
+      4
+    ],
+    "tests/test_evidence_manifest.py::test_reading_the_manifest_needs_no_write_access": [
+      0,
+      4
+    ],
+    "tests/test_floor.py::test_audit_reports_a_lowered_declared_floor": [
+      0
+    ],
+    "tests/test_floor.py::test_custom_rule_values_are_parsed_and_rewritten": [
+      0
+    ],
+    "tests/test_floor.py::test_declared_floor_for_a_working_tree_input_holds_the_committed_value": [
+      0
+    ],
+    "tests/test_floor.py::test_declared_floor_parsing_combining_and_lowering": [
+      0
+    ],
+    "tests/test_floor.py::test_declaring_a_value_below_the_high_water_mark_is_a_lowering": [
+      0
+    ],
+    "tests/test_floor.py::test_draft_declared_never_goes_below_the_declared_floor": [
+      0
+    ],
+    "tests/test_floor.py::test_drc_exclusions_fewer_is_stricter": [
+      0
+    ],
+    "tests/test_floor.py::test_floor_catches_a_rule_loosened_one_commit_before_it_is_used": [
+      0
+    ],
+    "tests/test_floor.py::test_high_water_keeps_the_strictest_value_and_its_commit": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[dru.length_match.length.max-50.0-60.0]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[dru.power_to_signal_clearance.clearance.min-0.4-0.3]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[dru.power_to_signal_clearance.severity-error-warning]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[dru.thermals.min_resolved_spokes.value-3-2]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[net_settings.classes.Power.clearance-0.3-0.2]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[net_settings.classes.Power.track_width-0.5-0.3]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rule_severities.clearance-warning-ignore]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rule_severities.starved_thermal-error-warning]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.allow_microvias-False-True]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.max_via_count-2-5]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.min_clearance-0.2-0.1]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.min_copper_edge_clearance-0.5-0.3]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.min_hole_clearance-0.25-0.2]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.min_microvia_drill-0.1-0.075]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.min_resolved_spokes-2-1]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.min_text_height-1.0-0.8]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.min_track_width-0.2-0.15]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_orders_each_family[rules.solder_mask_to_copper_clearance-0.05-0.0]": [
+      0
+    ],
+    "tests/test_floor.py::test_rule_tightness_rejects_values_of_the_wrong_kind": [
+      0
+    ],
+    "tests/test_floor.py::test_run_preflight_fails_validation_below_the_declared_floor": [
+      0
+    ],
+    "tests/test_floor.py::test_unordered_settings_are_never_ordered[dru.r.track_width.opt]": [
+      0
+    ],
+    "tests/test_floor.py::test_unordered_settings_are_never_ordered[net_settings.classes.Power.bus_width]": [
+      0
+    ],
+    "tests/test_floor.py::test_unordered_settings_are_never_ordered[net_settings.classes.Power.pcb_color]": [
+      0
+    ],
+    "tests/test_floor.py::test_unordered_settings_are_never_ordered[net_settings.netclass_patterns]": [
+      0
+    ],
+    "tests/test_floor.py::test_unordered_settings_are_never_ordered[route_demo.kicad_dru]": [
+      0
+    ],
+    "tests/test_floor.py::test_unordered_settings_are_never_ordered[rules.max_error]": [
+      0
+    ],
+    "tests/test_floor.py::test_unordered_settings_are_never_ordered[rules.use_height_for_length_calcs]": [
+      0
+    ],
+    "tests/test_floor.py::test_unordered_settings_are_never_ordered[teardrop_options]": [
+      0
+    ],
+    "tests/test_generation_refusals.py::test_absent_generation_keeps_explicit_legacy_layout[False]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_absent_generation_keeps_explicit_legacy_layout[True]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[absolute_escape-escapes]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[broken_json-malformed]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[empty_generation-path string]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[empty_state_dir-invalid state_dir]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[missing_generation-incomplete]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[missing_interpreter-incomplete]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[non_object-JSON object]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[non_object_krt-non-object krt]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[null-JSON object]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[numeric_generation-path string]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[numeric_state_dir-invalid state_dir]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[other_manifest-describes]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[receipt_only-incomplete]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[relative_escape-escapes]": [
+      2,
+      4
+    ],
+    "tests/test_generation_refusals.py::test_invalid_selection_has_json_refusal_and_never_uses_legacy[symlink_escape-escapes]": [
+      2,
+      4
+    ],
+    "tests/test_grading_scope.py::test_audit_refuses_board_without_its_project": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_board_changed_after_grading_fails": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_bus_net_losing_its_connection_fails_net_completion": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_cmd_validate_without_candidate_board_exits_1": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_hashes_bracket_the_refill": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_item_nets_keeps_bus_nets_whole": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_kicad_drc_reports_bracketed_nets_the_parser_reads": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_nets_in_description[PTH pad 3 [/X] y] of J1-known6-nets6]": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_nets_in_description[PTH pad 3 [/X]y] of J1-None-nets2]": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_nets_in_description[Pad 1 [/BUS[0]] of C1 on F.Cu-None-nets0]": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_nets_in_description[Pad 1 [<no net>] of R1 on F.Cu-None-nets5]": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_nets_in_description[Pad 2 [/Y[z] of R2 on F.Cu-None-nets3]": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_nets_in_description[Track [/D[7..0]] on F.Cu, length 1.0000 mm-None-nets1]": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_nets_in_description[Via [/A] on F.Cu - B.Cu; Pad 1 [/BUS[1]] of U1-known7-nets7]": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_nets_in_description[Zone 'pour' [GND] on F.Cu-None-nets4]": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_new_copper_on_scope_nets_passes_routing_scope": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_new_copper_without_a_net_fails_routing_scope": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_open_connection_outside_scope_is_complete": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_repeat_validate_gets_fresh_directories": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_restored_project_files_are_kept": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_rules_files": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_run_refuses_board_without_its_project": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_unidentified_open_connection_counts_in_scope": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_unrouted_bus_net_is_incomplete": [
+      0
+    ],
+    "tests/test_grading_scope.py::test_validate_without_project_file_fails": [
+      0
+    ],
+    "tests/test_home_containment.py::test_doctor_offline_lists_home_optional_and_leaves_it_untouched": [
+      0
+    ],
+    "tests/test_home_containment.py::test_round_trip_leaves_readonly_home_untouched[freerouting]": [
+      0
+    ],
+    "tests/test_home_containment.py::test_round_trip_leaves_readonly_home_untouched[krt]": [
+      0
+    ],
+    "tests/test_hygiene.py::test_canary_backends": [
+      0
+    ],
+    "tests/test_hygiene.py::test_canary_quick_bridge": [
+      0
+    ],
+    "tests/test_hygiene.py::test_canary_split_fails_without_quote_aware_spellings": [
+      0
+    ],
+    "tests/test_hygiene.py::test_canary_split_unit": [
+      0
+    ],
+    "tests/test_hygiene.py::test_corpus_add_check_round_trip": [
+      0
+    ],
+    "tests/test_hygiene.py::test_freerouting_progress_counts_only_improving_passes": [
+      0
+    ],
+    "tests/test_hygiene.py::test_krt_net_patterns_are_exact": [
+      0
+    ],
+    "tests/test_hygiene.py::test_krt_progress_markers": [
+      0
+    ],
+    "tests/test_hygiene.py::test_ledger_gate_unit": [
+      0
+    ],
+    "tests/test_hygiene.py::test_ledger_refuses_repeat_of_failed_attempt": [
+      0
+    ],
+    "tests/test_hygiene.py::test_monitor_stall_and_budget[2]": [
+      0
+    ],
+    "tests/test_hygiene.py::test_monitor_stall_and_budget[None]": [
+      0
+    ],
+    "tests/test_hygiene.py::test_run_canary_refusal": [
+      0
+    ],
+    "tests/test_hygiene.py::test_split_classes_moves_quote_named_net_in_definition_form": [
+      0
+    ],
+    "tests/test_hygiene.py::test_stall_on_blocked_fixture": [
+      0
+    ],
+    "tests/test_installation_generations.py::test_cli_pins_source_and_interpreter_from_one_activation_snapshot": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_cold_failure_and_interrupted_preparation_are_never_selected": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_dependency_bytecode_failure_preserves_previous_active_generation": [
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_failed_preparation_preserves_active_manifest_and_generation[krt-build-router.log]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_failed_preparation_preserves_active_manifest_and_generation[krt-bytecode.log]": [
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_failed_preparation_preserves_active_manifest_and_generation[krt-deps.log]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_failed_preparation_preserves_active_manifest_and_generation[krt-route-help.log]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_failed_preparation_preserves_active_manifest_and_generation[krt-startup-checks.log]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_failed_preparation_preserves_active_manifest_and_generation[venv.log]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_late_extension_import_failure_preserves_previous_selection": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_old_worker_evidence_stays_bound_to_its_executed_generation": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_preparation_builds_local_bytecode_and_runtime_leaves_generation_untouched": [
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_success_pins_existing_process_and_new_selection": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_update_lock_excludes_other_cli_processes": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_update_reports_install_failure_without_refreshing_prior_manifest": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installation_generations.py::test_updates_serialize_preparation_and_use_distinct_artifacts": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_installed_wheel.py::test_installed_doctor_route_and_campaign": [
+      0
+    ],
+    "tests/test_installed_wheel.py::test_installed_resources_writable_state_help_and_smoke_refusal": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_canary_refusal_record": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_corpus_entry_exists_is_a_state_refusal": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_corpus_entry_replays_every_routing_option": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_fixture_evidence_carries_schema_ids": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_fixture_evidence_meets_the_contract": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_json_campaign_reads_child_records": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_json_reporting_commands_print_one_record[cmd0]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_json_reporting_commands_print_one_record[cmd1]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_json_reporting_commands_print_one_record[cmd2]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_json_runs_with_explicit_run_dirs_do_not_interfere": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_ledger_refusal_record": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_no_string_exits_outside_the_refusal_helper": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_out_after_nested_subcommand_and_help": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_out_is_accepted_before_and_after_the_subcommand[both]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_out_is_accepted_before_and_after_the_subcommand[root]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_out_is_accepted_before_and_after_the_subcommand[subcommand]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[abbreviation-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[abbreviation-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[audit-library-dir-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[audit-library-dir-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[audit-not-a-dir-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[audit-not-a-dir-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[backend-env-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[backend-env-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[bad-choice-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[bad-choice-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[bad-int-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[bad-int-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[blocked-not-a-run-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[blocked-not-a-run-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[campaign-backend-env-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[campaign-backend-env-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[campaign-library-dir-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[campaign-library-dir-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[campaign-not-a-dir-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[campaign-not-a-dir-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[campaign-rounds-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[campaign-rounds-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[compare-no-result-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[compare-no-result-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[corpus-bad-name-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[corpus-bad-name-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[corpus-library-dir-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[corpus-library-dir-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[corpus-no-name-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[corpus-no-name-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[floor-outside-git-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[floor-outside-git-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[floor-since-not-a-commit-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[floor-since-not-a-commit-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[json-unsupported-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[json-unsupported-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[library-dir-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[library-dir-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[nets-match-nothing-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[nets-match-nothing-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[no-board-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[no-board-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[no-command-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[no-command-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[not-a-dir-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[not-a-dir-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[publish-no-result-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[publish-no-result-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[rev-not-a-commit-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[rev-not-a-commit-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[rev-outside-git-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[rev-outside-git-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[run-dir-exists-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[run-dir-exists-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[spokes-not-a-run-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[spokes-not-a-run-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[spokes-nothing-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[spokes-nothing-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[two-boards-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[two-boards-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[unknown-option-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[unknown-option-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[unreadable-board-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[unreadable-board-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[validate-not-a-run-human]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_pre_routing_failure_is_a_refusal[validate-not-a-run-json]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_records_written_by_commands_carry_schema_ids": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_refusal_is_a_system_exit_with_code_4": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_route_argv_reproduces_every_routing_option[spokes0]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_route_argv_reproduces_every_routing_option[spokes1]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_route_argv_reproduces_every_routing_option[spokes2]": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_run_campaign_and_corpus_take_the_same_routing_options": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_schema_rejects_broken_promises": [
+      0
+    ],
+    "tests/test_interface_contract.py::test_schemas_are_valid_2020_12": [
+      0
+    ],
+    "tests/test_owned_artwork.py::test_direct_parser_refuses_missing_or_changed_native_text_evidence": [
+      0
+    ],
+    "tests/test_owned_artwork.py::test_native_copper_artwork_survives_routing_through_its_passage": [
+      0
+    ],
+    "tests/test_owned_artwork.py::test_unsupported_copper_is_refused_without_relocation": [
+      0
+    ],
+    "tests/test_owned_build.py::test_invalid_build_does_not_replace_installed_extension": [
+      0
+    ],
+    "tests/test_owned_router.py::test_owned_source_starts_without_git_metadata": [
+      0
+    ],
+    "tests/test_owned_router.py::test_route_uses_owned_source_with_no_external_checkout": [
+      0
+    ],
+    "tests/test_planes.py::test_bwrap_readiness_fails_closed[missing]": [
+      0
+    ],
+    "tests/test_planes.py::test_bwrap_readiness_fails_closed[namespace-denied]": [
+      0
+    ],
+    "tests/test_planes.py::test_duplicate_plan_keys_refused": [
+      0
+    ],
+    "tests/test_planes.py::test_four_layer_exact_plan_and_pour_integrity": [
+      0
+    ],
+    "tests/test_planes.py::test_input_and_state_refusals[existing-output]": [
+      0
+    ],
+    "tests/test_planes.py::test_input_and_state_refusals[inside-source]": [
+      0
+    ],
+    "tests/test_planes.py::test_input_and_state_refusals[missing-project]": [
+      0
+    ],
+    "tests/test_planes.py::test_inspector_rejects_saved_setting_tamper": [
+      0
+    ],
+    "tests/test_planes.py::test_isolated_copper_attribution_and_severity": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>0]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>10]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>11]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>12]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>13]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>14]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>15]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>1]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>2]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>3]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>4]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>5]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>6]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>7]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>8]": [
+      0
+    ],
+    "tests/test_planes.py::test_malformed_native_drc_refused[<lambda>9]": [
+      0
+    ],
+    "tests/test_planes.py::test_missing_native_tool_is_failure": [
+      0
+    ],
+    "tests/test_planes.py::test_native_defect_fails_validation": [
+      0
+    ],
+    "tests/test_planes.py::test_native_refuses_unplanned_or_unfillable[crossed]": [
+      0
+    ],
+    "tests/test_planes.py::test_native_refuses_unplanned_or_unfillable[disabled-layer]": [
+      0
+    ],
+    "tests/test_planes.py::test_native_refuses_unplanned_or_unfillable[empty-fill]": [
+      0
+    ],
+    "tests/test_planes.py::test_native_refuses_unplanned_or_unfillable[footprint-zone]": [
+      0
+    ],
+    "tests/test_planes.py::test_native_refuses_unplanned_or_unfillable[missing-net]": [
+      0
+    ],
+    "tests/test_planes.py::test_native_refuses_unplanned_or_unfillable[zone-net]": [
+      0
+    ],
+    "tests/test_planes.py::test_native_refuses_unplanned_or_unfillable[zone]": [
+      0
+    ],
+    "tests/test_planes.py::test_repeat_same_input_has_identical_candidate_bytes": [
+      0
+    ],
+    "tests/test_planes.py::test_restoration_records_changes_and_removals": [
+      0
+    ],
+    "tests/test_planes.py::test_same_plan_repairs_without_duplicates": [
+      0
+    ],
+    "tests/test_planes.py::test_sandbox_denies_network_and_source_writes": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>0]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>10]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>1]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>2]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>3]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>4]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>5]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>6]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>7]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>8]": [
+      0
+    ],
+    "tests/test_planes.py::test_strict_plan_boundaries[<lambda>9]": [
+      0
+    ],
+    "tests/test_planes.py::test_unattributed_warning_prevents_worker_report": [
+      0
+    ],
+    "tests/test_pour.py::test_pour_area_loss_threshold": [
+      0
+    ],
+    "tests/test_pour.py::test_pour_outline_loses_pad": [
+      0
+    ],
+    "tests/test_pour.py::test_pour_round_trip": [
+      0
+    ],
+    "tests/test_pour.py::test_pour_slice_isolates_pad": [
+      0
+    ],
+    "tests/test_pour.py::test_pour_thermal_crowding[3-spokes_below_minimum]": [
+      0
+    ],
+    "tests/test_pour.py::test_pour_thermal_crowding[4-lost_fill_contact]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_arc_through_another_mid_is_not_the_same": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_copper_graphics_differences_listed": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_copper_text_change_fails_copper_graphics[content]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_copper_text_change_fails_copper_graphics[position]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_dropped_lock_flags_fail_protected_copper[existing]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_dropped_lock_flags_fail_protected_copper[locked]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_facts_of_hdi_board": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_footprint_differences_name_the_changed_attributes": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_footprint_value_change_is_not_a_difference": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_identical_copper_pairs_by_lock_state": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_identical_facts_pass": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_lock_moved_to_other_item_still_fails": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_locks_kept_pass": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_microvia_at_class_size_passes_netclass_geometry": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_microvia_without_class_size_and_partial_sizes": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_new_via_checked_against_its_type[blind-600000-300000-True]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_new_via_checked_against_its_type[buried-500000-300000-False]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_new_via_checked_against_its_type[micro-250000-100000-False]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_new_via_checked_against_its_type[micro-300000-100000-True]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_new_via_checked_against_its_type[micro-300000-80000-False]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_new_via_checked_against_its_type[through-300000-100000-False]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_removed_locked_via_is_missing": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_reversed_arc_board_keeps_protected_copper": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_reversed_arc_is_the_same_copper": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_setup_block_ignores_indentation_and_strings": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_setup_change_fails": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_space_indented_board_setup_is_read": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_stackup_absent_on_both_sides_passes": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_unreadable_setup_fails_closed[both]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_unreadable_setup_fails_closed[candidate]": [
+      0
+    ],
+    "tests/test_preservation_facts.py::test_unreadable_setup_fails_closed[reference]": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_children_left_behind_by_an_exiting_backend_are_killed": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_discard_run_dir_repoints_latest": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_interrupt_leaves_no_survivors": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_krt_overrun_hint_names_the_pass_that_ignores_the_stop_file": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_krt_overrun_knobs_are_never_forced": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_latest_link_survives_concurrent_runs": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_stalled_uncooperative_backend_is_killed": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_uncooperative_backend_and_its_children_are_killed[]": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_uncooperative_backend_and_its_children_are_killed[backend,child,grandchild]": [
+      0
+    ],
+    "tests/test_process_hygiene.py::test_uncooperative_backend_and_its_children_are_killed[backend]": [
+      0
+    ],
+    "tests/test_provenance.py::test_copper_edited_between_steps_counts_as_human": [
+      0
+    ],
+    "tests/test_provenance.py::test_freerouting_bridge_exports_agent_copper_unlocked": [
+      0
+    ],
+    "tests/test_provenance.py::test_human_chain_locks_only_the_origin_copper": [
+      0
+    ],
+    "tests/test_provenance.py::test_human_on_non_candidate_input_is_existing": [
+      0
+    ],
+    "tests/test_provenance.py::test_ratchet_fails_a_cut_net": [
+      0
+    ],
+    "tests/test_provenance.py::test_ratchet_unit": [
+      0
+    ],
+    "tests/test_publication_safety.py::test_bundle_manifest_does_not_overwrite_same_named_source_receipt": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_destination_symlinks_never_write_outside_bundle": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_failed_smoke_preserves_successful_publication": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_interrupted_refresh_preserves_previous_success": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[0]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[1]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[False]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[None]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[True]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[manifest0]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[manifest5]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[manifest9]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_nonobject_or_invalid_ownership_manifest_refuses_before_smoke[unowned]": [
+      1
+    ],
+    "tests/test_publication_safety.py::test_protected_destinations_are_refused[checkout]": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_protected_destinations_are_refused[fixture]": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_protected_destinations_are_refused[home]": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_protected_destinations_are_refused[out-child]": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_protected_destinations_are_refused[out-parent]": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_protected_destinations_are_refused[out]": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_protected_destinations_are_refused[root]": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_published_receipts_resolve_without_source_and_refresh_drops_stale": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_smoke_workspaces_preserve_unrelated_previous_files": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_source_directory_aliases_cannot_publish_external_receipts": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_unowned_destination_is_refused_before_smoke[False]": [
+      0,
+      1
+    ],
+    "tests/test_publication_safety.py::test_unowned_destination_is_refused_before_smoke[True]": [
+      0,
+      1
+    ],
+    "tests/test_publish_update_docs.py::test_asset_digest_absent_is_reported_unverified": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_asset_digest_mismatch_raises": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_asset_digest_unknown_algorithm_raises": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_asset_digest_verifies_github_sha256": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_docs_document_every_exit_code[README.md]": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_docs_document_every_exit_code[docs/routing.md]": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_docs_document_every_exit_code[skills/kicad-route/SKILL.md]": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_github_headers_prefers_github_token_then_gh_token": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_github_headers_without_token": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_install_creates_then_keeps_links": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_install_refuses_real_files_and_directories[dir]": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_install_refuses_real_files_and_directories[file]": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_install_repoints_stale_and_dangling_links": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_jar_asset_accepts_stable_and_prerelease_names": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_jar_asset_on_the_live_v2_5_0_shape": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_jar_asset_prefers_stable_over_prerelease": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_jar_asset_rejects_non_executable_jars_and_other_assets": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_krt_unsupported_rules_matches_every_not_applied_wording": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_krt_unsupported_rules_tolerates_wording_drift": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_krt_venv_python_defaults_to_the_running_interpreter": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_publish_copies_every_receipt_and_never_a_board": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_publish_never_lets_validate_overwrite_a_root_receipt": [
+      0
+    ],
+    "tests/test_publish_update_docs.py::test_publish_skips_symlinked_receipts": [
+      0
+    ],
+    "tests/test_routing.py::test_audit_reports_rule_changes_and_design_edits": [
+      0
+    ],
+    "tests/test_routing.py::test_bridge_scope_split_handles_parenthesised_net_names": [
+      0
+    ],
+    "tests/test_routing.py::test_budget_overrun_is_a_process_failure": [
+      0
+    ],
+    "tests/test_routing.py::test_chained_attempts_graded_against_origin": [
+      0
+    ],
+    "tests/test_routing.py::test_compare_same_and_different_inputs": [
+      0
+    ],
+    "tests/test_routing.py::test_freerouting_round_trip": [
+      0
+    ],
+    "tests/test_routing.py::test_krt_custom_rule_failure_is_reported": [
+      0
+    ],
+    "tests/test_routing.py::test_krt_round_trip": [
+      0
+    ],
+    "tests/test_routing.py::test_net_class_selection": [
+      0
+    ],
+    "tests/test_routing.py::test_net_name_selection": [
+      0
+    ],
+    "tests/test_routing.py::test_route_doctor": [
+      0
+    ],
+    "tests/test_routing.py::test_unlocked_existing_copper_survives[freerouting]": [
+      0
+    ],
+    "tests/test_routing.py::test_unlocked_existing_copper_survives[krt]": [
+      0
+    ],
+    "tests/test_routing.py::test_unroutable_board_fails[freerouting]": [
+      0
+    ],
+    "tests/test_routing.py::test_unroutable_board_fails[krt]": [
+      0
+    ],
+    "tests/test_routing.py::test_validation_detects_tampering": [
+      0
+    ],
+    "tests/test_routing_closure.py::test_inventory_follows_packages_and_literal_dynamic_imports": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_copy_project_probe_shape": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_copy_project_replicates_sibling_libraries": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_rev_sibling_outside_the_repository_is_recorded_unversioned": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_rev_snapshots_checked_out_submodule_at_its_pin": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_rev_takes_sibling_from_the_revision_not_the_working_tree[c1-v1]": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_rev_takes_sibling_from_the_revision_not_the_working_tree[c2-v2]": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_rev_uninitialised_submodule_uses_library_dir_and_committed_pin": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_rev_untracked_sibling_is_an_issue_not_a_working_tree_read": [
+      0
+    ],
+    "tests/test_snapshot_rev.py::test_working_tree_snapshot_reads_the_working_tree": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_ambiguous_member_list_is_refused": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_bare_bang_on_a_literal_net_is_refused": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_canary_freerouting": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_escaped_bang_selects_the_literal_net": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_find_open_skips_parentheses_inside_quoted_names": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_internal_quotes_and_parentheses_split_cleanly": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_kicad_export_round_trip": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_kicad_quoting_rule": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_long_member_list_is_linear": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_quoted_and_unquoted_names_do_not_collide": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_real_exclusions_are_unchanged": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_run_refuses_bare_bang_scope": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_select_nets_reads_netnames_and_campaign_spellings": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_split_partitions_by_exact_name[skip0]": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_split_partitions_by_exact_name[skip1]": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_split_partitions_by_exact_name[skip2]": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_split_partitions_by_exact_name[skip3]": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_split_partitions_by_exact_name[skip4]": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_split_partitions_by_exact_name[skip5]": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_split_untouched_class_and_power_class": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_unreadable_dsn_fails_the_export": [
+      0
+    ],
+    "tests/test_specctra_nets.py::test_wrapped_member_lines": [
+      0
+    ],
+    "tests/test_spokes.py::test_geometry_helpers": [
+      0
+    ],
+    "tests/test_spokes.py::test_plan_models_thermal_spokes": [
+      0
+    ],
+    "tests/test_spokes.py::test_reserve_strip_round_trip": [
+      0
+    ],
+    "tests/test_spokes.py::test_reserved_corridors_hold_under_pressure[freerouting]": [
+      0
+    ],
+    "tests/test_spokes.py::test_reserved_corridors_hold_under_pressure[krt]": [
+      0
+    ],
+    "tests/test_spokes.py::test_run_with_reserved_spokes[freerouting]": [
+      0
+    ],
+    "tests/test_spokes.py::test_run_with_reserved_spokes[krt]": [
+      0
+    ],
+    "tests/test_spokes.py::test_spoke_cut_attribution": [
+      0
+    ],
+    "tests/test_spokes.py::test_spokes_board_preview": [
+      0
+    ],
+    "tests/test_test_suite.py::test_exit_codes_are_pinned": [
+      1,
+      2
+    ],
+    "tests/test_test_suite.py::test_zone_definitions_ignore_fill_state_and_its_order": [
+      0,
+      1,
+      2
+    ],
+    "tests/test_tool_environment_scope.py::test_attempt_reuses_only_major_and_rebuilds_environment": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_authoritative_version_and_tool_versions_remain_fresh": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_decorated_attempt_starts_fresh_for_every_invocation": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_environment_probes_stay_fresh_outside_attempt": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_exception_restores_fresh_probes_outside_attempt": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_failed_probe_is_not_cached": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_full_cli_identity_remains_fresh_inside_attempt": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_missing_executable_fingerprint_is_not_cached": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_nested_attempt_restores_outer_scope_and_leaves_no_global_cache": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_next_attempt_observes_fresh_version_even_with_unchanged_file": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_out_paths_are_rebuilt_for_each_environment": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_path_switch_to_another_executable_invalidates_major": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_same_inode_size_and_mtime_rewrite_invalidates_major": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_same_path_executable_replacement_invalidates_major": [
+      4
+    ],
+    "tests/test_tool_environment_scope.py::test_symlink_retarget_invalidates_major": [
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[0-budget_reached]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[0-killed]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[0-stalled]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[1-budget_reached]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[1-killed]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[1-stalled]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[3-budget_reached]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[3-killed]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_repeat_evidence_cannot_qualify_wall_clock_stopped_attempt[3-stalled]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_unstopped_repeat_and_freerouting_qualification": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure[False-None-0-3]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure[False-None-1-1]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure[True-None-0-0]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure[True-None-3-3]": [
+      0,
+      1,
+      4
+    ],
+    "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure[True-cannot record-0-1]": [
+      0,
+      1,
+      4
+    ]
+  },
+  "current_test_file_sha256": {
+    "tests/conftest.py": "c525e2b90de9ca411053d9f66869ad5cc3e7fbd1920d6bdc0470d0fd16750c46",
+    "tests/helpers.py": "03005d9a1566f0fe2ac95f6ec0767a452c6e47b27eecc1c4dbdbc8b8f78c2349",
+    "tests/test_adhd_barrier.py": "a6db47e5c6119e3dd3a53b93326b31ede4ea149beb7c2bb8f5a259ac60c9dcba",
+    "tests/test_adhd_decoupling.py": "1d065effe106eeb02f5469c2171605adcc52d08731c8a120acfdc0f7a71608cd",
+    "tests/test_adhd_refusals.py": "c671f8f6397279abd810cae127937c4df9fa7f05995fcbb6a044595038b86def",
+    "tests/test_adhd_spoke_keepout.py": "6180b0f09c17581ccde27b0a61045b934aa86bf1294ce402f3947bdbdc703e84",
+    "tests/test_attempt_measurement.py": "318d0a052f51fe82f79ac231c169009270bd8e2c7bc9cc68eafe31a17fd9c76a",
+    "tests/test_baseline_identity_reuse.py": "3429e430fc031289da7c37e29e811435b7a97d5bd1402370c6e86a21c588bafe",
+    "tests/test_blocked.py": "93c95aa3b98456f23f19c7e4dd58a9e53b5b1af4704197f04b17851f14a009d6",
+    "tests/test_blocked_schema.py": "f1f4a68d95841e085861856e3b93a5b903643d6f0a41114964cd87bd51aed344",
+    "tests/test_campaign.py": "a2b6932cd1ba2ae986f8fbcfb2b6a33b9c2cf67fd04ddf71ae39efa6668ea723",
+    "tests/test_campaign_corpus.py": "d3f759d9e19a691b8329593fd678c9f7403b5caf6a5037b2e33dce8a5096eeeb",
+    "tests/test_corpus_env_options.py": "df0e93fd05b290a5b4bc50ec47aaae068526612c7c4235afcfaab9c3aa8c65b6",
+    "tests/test_determinism_generation.py": "5736454d94cc95741962a8e8f4258ae4c4cb141d6160e271bed931cdaeb3bdf0",
+    "tests/test_diff_pairs.py": "f729e573c4281ffedbd10554de19081a79f0b889b47fa5ffa669f2206161c453",
+    "tests/test_doctor_sandbox.py": "acab520b2c0b0b5e24c3b1da96b18e47dc758cefdcfffb9b2f37eb0ac6c88ee4",
+    "tests/test_dsn_quoted_nets.py": "5ac9eb7f984f1fe6ba856a2f3253bfe6316f006d8a3a3bd0448140268615a715",
+    "tests/test_engine_acceptance.py": "a6d35b1fc46ec3b1a44770205d4ef143882c24041ded6245ea9d15e3fae6720f",
+    "tests/test_engine_regressions.py": "223363758658c7c32cb3bb0cccbf915413b0ebb83809856f44d16f13aeaa4653",
+    "tests/test_evidence_integrity.py": "d7b2850ed0106098213662dcb94db1094d1a251adfe553c802e79dda15f8b59c",
+    "tests/test_evidence_manifest.py": "3cb9db42b35cdbf9e88f9e4fc3fbfb46dea4b892a489b0fe628a563b94551d66",
+    "tests/test_floor.py": "85983b35464527fafa5bfc77f195ca0eb228c1810e38afd0b9d60d50ecd96f99",
+    "tests/test_generation_refusals.py": "5eb589227bef593bc396d2c9c665ab9aed9cc63f16425ea51da7dc689ab04aa6",
+    "tests/test_grading_scope.py": "54b6acc8fec13aebd405b67b39c3488ddae4646d351044490e6ea9cd342ebfdd",
+    "tests/test_home_containment.py": "320bb5a6baef0b29003486d26419b56f22daed36702a1c37302a59e074604c76",
+    "tests/test_hygiene.py": "b2275092329240e80d5a1805353cf5a5cf4fa28a489523fe2ea9a64ee812ced6",
+    "tests/test_installation_generations.py": "48829f1fb5bd34f45f92a65c125da51d1f65b635c7b5840365ef716d97fa4c12",
+    "tests/test_installed_wheel.py": "95d0aac38c26b5796d60769f7942a58f5a1bc25723efe54a15172ee4a8486c27",
+    "tests/test_interface_contract.py": "b58a1f56c99a10783ad0d92fbdace79d1b8bb54c7f83e9a2c374236b633d2cf1",
+    "tests/test_owned_artwork.py": "f888c790613500f1efa8e834077fba4a05d540b02ee61b66bbd6e8418ce5a369",
+    "tests/test_owned_build.py": "852b69635af5e6fa75bd6c92376c713d3b954490e315ef1ce7f058630c1ce84f",
+    "tests/test_owned_router.py": "24be288c2e4d8b306d3a5f6495fae6d06b59f5caf323ba347d0021d45c1fff66",
+    "tests/test_planes.py": "884ffe03ab13863868fabf90fae9b6ae24c05302782e91f1c97d17318307a6cf",
+    "tests/test_pour.py": "358f73bad9a3aab2c5044527c0b0023d2b28fcd08da55c2c0c72eb2e61215c5a",
+    "tests/test_preservation_facts.py": "1e0fad984db51c4ce6f765add60586bd34286d2d52c15bc7a82677fb59c09cb1",
+    "tests/test_process_hygiene.py": "d3ab036d8b09ab9c0ec1f8ef5e387ccec11c7366e0be3e0a9e58cad83ef3b74c",
+    "tests/test_provenance.py": "787b823012edfb3e1bf7f85f7cc81e9cd81c2ce6fec15864f07810dab5a98573",
+    "tests/test_publication_safety.py": "75e44ecd37a4bce4082a49558334f125b43b71bdb2d4038f203ef1f2593dba64",
+    "tests/test_publish_update_docs.py": "fdf717f4844e4d203a6bc3a77245178e15cdb26a5961402f22813ad6f96a7a8a",
+    "tests/test_routing.py": "0c74a9cbe297b962ce832b8a63d547452c937bda4d2566abf5cea019ad17b3b6",
+    "tests/test_routing_closure.py": "28794a0a1903d42693214dd40431ea63d786505fc19c63c67edcd630cf5b9818",
+    "tests/test_snapshot_rev.py": "a50045ddacee2c7d84dd01c7d92893da2fc1bda091b344f6f6cef4212b22ebf2",
+    "tests/test_specctra_nets.py": "65a2c2dcfc1209f041901b6ffc3b9fea67d4cc5453555d21a3070a51434ebd46",
+    "tests/test_spokes.py": "6a2f771e3f6c9699ccece9329628fd090fbde9a1659e0e03a87dd28ea38cecfc",
+    "tests/test_test_suite.py": "ce2d8dd3ee51cfa49c79401679df224b332bd136c2fbf354b34acbc85f1b86ce",
+    "tests/test_tool_environment_scope.py": "3cc9b277f0c754c0d49b4ad24126b0240754cb17d6cbddc8469d86c5f70e3b73",
+    "tests/test_update_qualification.py": "dc7f64eea919db74e6bd7c868b27d2f317f9b09ed2fb3ec6ae35209f7e381659"
+  },
+  "historical_union": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+    "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+  },
+  "current_collection": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-collection.log",
+    "sha256": "6b1d09fe18179b95dbf3419c2bdd033d1e787358afdb7ce7ee2dd31897c85f63"
+  },
+  "updated_utc": "2026-10-20T21:14:41.185390+00:00"
+}

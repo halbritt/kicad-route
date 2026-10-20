@@ -1,0 +1,29 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "cpu-service-calibration",
+  "evidence_class": "evidence-runtime-observation",
+  "summary": "Observed terminal calibration74830selected1CPU by its immutable2then1 rule before any new native matrix result. Exactly3trials per attempted cap each ran four own child processes consuming3CPU-seconds each.2CPU wall/service fractions:6.615649/.907065,6.310747/.950893,8.000260/.750054; third was INSUFFICIENT_SERVICE.1CPU:11.984556/1.001374,12.018845/.998535,11.996413/1.000359, allPASS. Readiness threshold is CPU/(cap*wall)>=.90 plus membership/control/accounting checks, not a native utilization threshold. Root independently recomputed all six worker/control/accounting/verdict/selector records. This shows service for the fixed calibration interval only, not reserved/future service or native performance. Scope creation and calibration were executed by primary/installation lane, not by this review.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+      "method": "Read terminal selector and all six embedded trial receipts",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-root-review.json",
+      "method": "Read independent primary raw-recomputation record",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "e5100f91ff192d13fc6770a1898787d746f1c8cce96c50c76f2cc94339c6c0b6"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-plan.json",
+      "method": "Read predeclared immutable calibration contract",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "51cf52ccad99977ebeea11a22e6b033c34f9a311c46023e91c13e9b81fb80aa0"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

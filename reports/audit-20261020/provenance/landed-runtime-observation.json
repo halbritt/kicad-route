@@ -1,0 +1,37 @@
+{
+  "schema": "kicad-route/landed-runtime-observation/1",
+  "recorded_utc": "2026-10-20T22:54:47.550315+00:00",
+  "install_session": "82276",
+  "install_exit_code": 0,
+  "doctor_session": "77472",
+  "doctor_exit_code": 0,
+  "status": "PASS",
+  "generation": "/home/halbritt/git/kicad-route/.router-generations/f23025e1b26d406d83e2167aa0c0da9f",
+  "module_sha256": "e9a0c7939e87e414f6ce441d57ef51d729336fa2bcb49d84841cf19ff93e2425",
+  "install_gate_count": 29,
+  "repeat_runs": 2,
+  "repeat_basis": "same copper geometry and actual executed build; native KiCad UUID/item-order byte differences remain explicit",
+  "doctor_mode": "offline, no-canary",
+  "artifacts": [
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/receipt.json",
+      "sha256": "214e6742213c5d3f5667713aea06f653d3d941729d4340e73657f0911d66d9d0"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/installed-manifest.json",
+      "sha256": "87ae9cf328c50c1f3275a480dab2b4a9a951f09d2b2b9c6d91bfac9296221bfd"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json",
+      "sha256": "254adbfa633c15dd1a0069379ca09b5ce0cc111f6cf82216bae0e65507de5546"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-install.log",
+      "sha256": "2ad66f8b4a45e321c4072ed5f6feaf42cd1976685a5205adcd6f778c0c071d4c"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-doctor.log",
+      "sha256": "34821f3b08057803417fb0420e8999d4db864dee6726a9c84277ca1b2d22dac7"
+    }
+  ]
+}

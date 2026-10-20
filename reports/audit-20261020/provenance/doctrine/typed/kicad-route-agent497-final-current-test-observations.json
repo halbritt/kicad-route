@@ -1,0 +1,102 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "current-test-observations",
+  "evidence_class": "evidence-tests",
+  "summary": "The exact current741 collected pytest nodeIDs at frozen f0f73da each have a genuine passing retained JUnit observation. Independent audit verified47 current test-file hashes,5 JUnit hashes and every passing-node link against retained raw reports and fresh collection. Current741 equals the previous726 current nodes plus15 new environment-scope cases. The original accounting remains historical:685 still-current broad passes +2 corrected original failures +39 gross new nodeIDs =726, one obsolete unparametrized process-tree case caused net increase38. Broad retained invocation remains686PASS/2FAIL. Subsequent retained runs are193/193,25/25,24/24,113/113. This is an explicit union of observations across five invocations, not one green full-suite at finalHEAD; no count is used as adequacy proof. The original726 union is preserved byte-for-byte in coverage-union-before-env-reuse.json with SHA2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603. The current741 union SHA is2a92ad749cdfbf51f20ade1e33d7be2382b5e442f856186f77f1a6bc62436d2f. Eleven additional ignored-harness unit checks passed using fake time/counters/driver only. They are a separate population and do not increase the741 production pytest observation union.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "method": "Read retained artifact or current source; no gate execution; historical bytes retained explicitly after environment-reuse update (original observation time unchanged).",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-source-parity.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "47d82a03dbf8bed181230df3db8cb7f582ee821e9e6c8fbb0eba8a37942a6de9"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-collection.log",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "fc940b8a5be1beca7e5f705aa8650592bbe81c6376dd7a6381ce5c5ace3cab64"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-focused.xml",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "b2bfe00926ace93534d4a9dbcf744fbbf83ddc0dd1728be0b9094ebc983f2393"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-selector.xml",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "510bd00dc7c055d00587f207cb6d3f609681dc46cefd091f1482c510583052c0"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-merged-generation.xml",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "8767e191b846c749463a512c35313658ee8b98f4aa1e9a4ad4ff4a2700891e2f"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-release/smoke/20261020T192501-v7t7f9o3/junit.xml",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "dde9a13aa46c94d8f3981040b36eb79c4c29156d85bb1567342a7a9e8da0daed"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "2a92ad749cdfbf51f20ade1e33d7be2382b5e442f856186f77f1a6bc62436d2f"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-collection.log",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "6b1d09fe18179b95dbf3419c2bdd033d1e787358afdb7ce7ee2dd31897c85f63"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-env-reuse.xml",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "4e291b06e910c28e84318791b0c9f36b18cac4cebb1bef8b9c21b9dc55601f9f"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/tests/test_tool_environment_scope.py",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "3cc9b277f0c754c0d49b4ad24126b0240754cb17d6cbddc8469d86c5f70e3b73"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@f0f73da86835ec583f2a2c9128e6893fa59c03b7:tests/test_tool_environment_scope.py",
+      "method": "Hash-bound source at frozen final primary commit",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "3cc9b277f0c754c0d49b4ad24126b0240754cb17d6cbddc8469d86c5f70e3b73"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/quiet-admission-tests.log",
+      "method": "Read retained standalone synthetic admission/harness test output",
+      "observed_at": "2026-10-20T21:32:27.147066+00:00",
+      "content_sha256": "e90a21f6115ddeba7b9561dbdd88253fac6176d62d01460bc9dec14f75fb5b37"
+    }
+  ],
+  "satisfies": [
+    "tests, characterization, probes, or explicit residual risk",
+    "checkpoint verification"
+  ]
+}

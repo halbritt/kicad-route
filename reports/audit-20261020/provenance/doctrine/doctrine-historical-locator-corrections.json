@@ -1,0 +1,48 @@
+{
+  "schema": "kicad-route/doctrine-historical-locator-corrections/1",
+  "method": "Mechanical provenance repair only: preserve historical summaries/timestamps/hashvalues; point old observations to their exact immutable retained bytes rather than mutable current source/union locators. Historical source from Git b2bea77. No evidence gathering pass consumed.",
+  "changes": [
+    {
+      "record": "/tmp/kicad-route-agent497-final-local-toolchain.json",
+      "old_locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/common.py",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-source-snapshots/common-before-env-reuse.py",
+      "sha256": "df47e9868ad61538abd4f6e39c9987e2d70d058a23ed6e6aa32354d9e358dce4"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-reported-defects.json",
+      "old_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-frozen-source-parity.json",
+      "old_locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/cli.py",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-source-snapshots/cli-before-env-reuse.py",
+      "sha256": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-current-test-observations.json",
+      "old_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-gate-signal-contract.json",
+      "old_locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/cli.py",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-source-snapshots/cli-before-env-reuse.py",
+      "sha256": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-bounded-populations.json",
+      "old_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-preservation-classification.json",
+      "old_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    }
+  ]
+}

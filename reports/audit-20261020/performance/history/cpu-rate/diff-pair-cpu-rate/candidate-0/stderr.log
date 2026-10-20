@@ -1,0 +1,10 @@
+[route] krt on diff-pair -> build/agent497-qualification/diff-pair-cpu-rate/candidate-0/run
+[route] scope: all (3 of 3 nets)
+[route] baseline: native DRC of the untouched input (refilled)
+[route] routing with krt (budget 180s)
+[route] process: PASS
+[route] validating the candidate (refill, DRC + parity, preservation)
+[route] routing: COMPLETE
+[route] validation: PASS
+[route] candidate: build/agent497-qualification/diff-pair-cpu-rate/candidate-0/run/candidate/diff-pair/pair.kicad_pcb
+[route] result: build/agent497-qualification/diff-pair-cpu-rate/candidate-0/run/result.json  (exit 0)

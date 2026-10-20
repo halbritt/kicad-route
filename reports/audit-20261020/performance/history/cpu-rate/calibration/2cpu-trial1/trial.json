@@ -1,0 +1,683 @@
+{
+  "cap_cpus": 2,
+  "status": "PASS",
+  "before": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "nice": 0,
+    "scheduler": 0,
+    "ancestry": [
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17307\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17307",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 55706,
+          "user_usec": 48153,
+          "system_usec": 7553,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 1,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=9.38 avg60=12.80 avg300=12.45 total=82151429961\nfull avg10=3.12 avg60=6.04 avg300=5.89 total=28648223879",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 4882594162947,
+          "user_usec": 4647917913470,
+          "system_usec": 234676249476,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=8.70 avg60=12.61 avg300=12.44 total=81919913018\nfull avg10=3.17 avg60=6.00 avg300=5.85 total=28442910314",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 4938594386159,
+          "user_usec": 4695772358469,
+          "system_usec": 242822027689,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=62.22 avg60=63.01 avg300=47.62 total=155251379694\nfull avg10=1.54 avg60=1.72 avg300=1.41 total=10981777704",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 7043321600481,
+          "user_usec": 6504789130631,
+          "system_usec": 538532469850,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=62.22 avg60=63.02 avg300=47.65 total=155252001393\nfull avg10=1.48 avg60=1.64 avg300=1.40 total=10981606185",
+        "cpuset.cpus.effective": "0-11",
+        "cpu.stat": {
+          "usage_usec": 7043321600739,
+          "user_usec": 6504789130869,
+          "system_usec": 538532469869,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup",
+        "cpu.max": null,
+        "cpu.max.burst": null,
+        "cpu.weight": null,
+        "cpu.pressure": "some avg10=62.52 avg60=63.26 avg300=48.07 total=160390729286\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+        "cpuset.cpus.effective": "0-11",
+        "cpu.stat": {
+          "usage_usec": 7413186813000,
+          "user_usec": 6743744614000,
+          "system_usec": 669442199000,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      }
+    ],
+    "host_cpu_pressure": "some avg10=62.52 avg60=63.26 avg300=48.07 total=160390729286\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n",
+    "host_io_pressure": "some avg10=7.75 avg60=8.10 avg300=9.09 total=52413061309\nfull avg10=0.00 avg60=0.00 avg300=1.33 total=26252454405\n",
+    "loadavg": "36.13 30.67 27.89 34/4549 2274300"
+  },
+  "workers": [
+    {
+      "pid": 2274304,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "nice": 0,
+      "scheduler": 0,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+      "cpu_s": 3.0004632389999997,
+      "checksum": 3830693889,
+      "affinity_after": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "cgroup_after": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+      "nice_after": 0,
+      "scheduler_after": 0
+    },
+    {
+      "pid": 2274303,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "nice": 0,
+      "scheduler": 0,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+      "cpu_s": 3.000198509,
+      "checksum": 1873379329,
+      "affinity_after": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "cgroup_after": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+      "nice_after": 0,
+      "scheduler_after": 0
+    },
+    {
+      "pid": 2274305,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "nice": 0,
+      "scheduler": 0,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+      "cpu_s": 3.000447666,
+      "checksum": 400650241,
+      "affinity_after": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "cgroup_after": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+      "nice_after": 0,
+      "scheduler_after": 0
+    },
+    {
+      "pid": 2274301,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "nice": 0,
+      "scheduler": 0,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+      "cpu_s": 3.000544984,
+      "checksum": 1945665537,
+      "affinity_after": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "cgroup_after": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+      "nice_after": 0,
+      "scheduler_after": 0
+    }
+  ],
+  "ready": [
+    {
+      "ready": true,
+      "pid": 2274301,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "nice": 0,
+      "scheduler": 0,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope"
+    },
+    {
+      "ready": true,
+      "pid": 2274303,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "nice": 0,
+      "scheduler": 0,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope"
+    },
+    {
+      "ready": true,
+      "pid": 2274304,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "nice": 0,
+      "scheduler": 0,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope"
+    },
+    {
+      "ready": true,
+      "pid": 2274305,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "nice": 0,
+      "scheduler": 0,
+      "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope"
+    }
+  ],
+  "parent_observed_worker_membership": {
+    "2274301": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+    "2274303": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+    "2274304": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+    "2274305": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope"
+  },
+  "after": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "nice": 0,
+    "scheduler": 0,
+    "ancestry": [
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=14.50 avg60=3.12 avg300=0.67 total=2215916\nfull avg10=12.84 avg60=2.74 avg300=0.59 total=1965414",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 12075468,
+          "user_usec": 12013803,
+          "system_usec": 61665,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 67,
+          "nr_throttled": 24,
+          "throttled_usec": 658446,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=17.03 avg60=14.08 avg300=12.73 total=82153242758\nfull avg10=10.74 avg60=7.33 avg300=6.17 total=28649552900",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 4882623016595,
+          "user_usec": 4647946540987,
+          "system_usec": 234676475607,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=17.00 avg60=14.03 avg300=12.75 total=81921723362\nfull avg10=10.75 avg60=7.33 avg300=6.14 total=28444260725",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 4938623239860,
+          "user_usec": 4695800986170,
+          "system_usec": 242822253689,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=64.55 avg60=63.45 avg300=48.03 total=155255836577\nfull avg10=1.96 avg60=1.79 avg300=1.43 total=10981950938",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 7043398118340,
+          "user_usec": 6504859540886,
+          "system_usec": 538538577453,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=64.37 avg60=63.42 avg300=48.06 total=155256455982\nfull avg10=1.93 avg60=1.71 avg300=1.42 total=10981779369",
+        "cpuset.cpus.effective": "0-11",
+        "cpu.stat": {
+          "usage_usec": 7043398118650,
+          "user_usec": 6504859541173,
+          "system_usec": 538538577477,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup",
+        "cpu.max": null,
+        "cpu.max.burst": null,
+        "cpu.weight": null,
+        "cpu.pressure": "some avg10=64.89 avg60=63.68 avg300=48.47 total=160395211254\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+        "cpuset.cpus.effective": "0-11",
+        "cpu.stat": {
+          "usage_usec": 7413266356000,
+          "user_usec": 6743817315000,
+          "system_usec": 669449041000,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      }
+    ],
+    "host_cpu_pressure": "some avg10=64.89 avg60=63.68 avg300=48.47 total=160395211254\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n",
+    "host_io_pressure": "some avg10=7.80 avg60=8.09 avg300=9.06 total=52413599555\nfull avg10=0.00 avg60=0.00 avg300=1.30 total=26252455301\n",
+    "loadavg": "35.80 30.70 27.91 18/4560 2275278"
+  },
+  "work_before": {
+    "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "nice": 0,
+    "scheduler": 0,
+    "ancestry": [
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/kicadroute-agent497-calibration-2cpu-1-edbab96c.scope",
+        "cpu.max": "200000 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=22600\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=22275",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 67645,
+          "user_usec": 54116,
+          "system_usec": 13529,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 1,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=9.38 avg60=12.80 avg300=12.45 total=82151433518\nfull avg10=3.12 avg60=6.04 avg300=5.89 total=28648225240",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 4882594221626,
+          "user_usec": 4647917966065,
+          "system_usec": 234676255561,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=8.70 avg60=12.61 avg300=12.44 total=81919917101\nfull avg10=3.17 avg60=6.00 avg300=5.85 total=28442912155",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 4938594444788,
+          "user_usec": 4695772411015,
+          "system_usec": 242822033773,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-1000.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=62.22 avg60=63.01 avg300=47.62 total=155251390343\nfull avg10=1.54 avg60=1.72 avg300=1.41 total=10981777784",
+        "cpuset.cpus.effective": null,
+        "cpu.stat": {
+          "usage_usec": 7043321802730,
+          "user_usec": 6504789302926,
+          "system_usec": 538532499804,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice",
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.pressure": "some avg10=62.22 avg60=63.02 avg300=47.65 total=155252012016\nfull avg10=1.48 avg60=1.64 avg300=1.40 total=10981606265",
+        "cpuset.cpus.effective": "0-11",
+        "cpu.stat": {
+          "usage_usec": 7043321803637,
+          "user_usec": 6504789303764,
+          "system_usec": 538532499873,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      },
+      {
+        "path": "/sys/fs/cgroup",
+        "cpu.max": null,
+        "cpu.max.burst": null,
+        "cpu.weight": null,
+        "cpu.pressure": "some avg10=62.52 avg60=63.26 avg300=48.07 total=160390739745\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+        "cpuset.cpus.effective": "0-11",
+        "cpu.stat": {
+          "usage_usec": 7413187005000,
+          "user_usec": 6743744776000,
+          "system_usec": 669442229000,
+          "core_sched.force_idle_usec": 0,
+          "nr_periods": 0,
+          "nr_throttled": 0,
+          "throttled_usec": 0,
+          "nr_bursts": 0,
+          "burst_usec": 0
+        }
+      }
+    ],
+    "host_cpu_pressure": "some avg10=62.52 avg60=63.26 avg300=48.07 total=160390739745\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n",
+    "host_io_pressure": "some avg10=7.75 avg60=8.10 avg300=9.09 total=52413062964\nfull avg10=0.00 avg60=0.00 avg300=1.33 total=26252454405\n",
+    "loadavg": "36.13 30.67 27.89 33/4555 2274307"
+  },
+  "wall_s": 6.615649336017668,
+  "verdict": {
+    "passed": true,
+    "worker_cpu_s": 12.001654398,
+    "ideal_wall_s": 6.000827199,
+    "measured_wall_s": 6.615649336017668,
+    "minimum_cap_consistent_wall_s": 5.900827199,
+    "one_period_startup_allowance_s": 0.1,
+    "service_fraction": 0.9070654888447028,
+    "service_deficit_fraction": 0.09293451115529716,
+    "limit": 0.1
+  },
+  "cgroup_work_cpu_usec": 12007823,
+  "accounting_allowance_s": 0.02,
+  "finished_utc": "2026-10-20T22:08:27.411830+00:00"
+}

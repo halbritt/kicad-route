@@ -1,0 +1,119 @@
+{
+ "routed_single": [
+  "/SIG_A_OUT",
+  "/SIG_A",
+  "/SIG_B_OUT",
+  "GND",
+  "/VIN"
+ ],
+ "failed_single": [],
+ "open_single": [],
+ "failed_multipoint": [],
+ "multipoint_nets": 2,
+ "multipoint_pads_connected": 6,
+ "multipoint_pads_total": 6,
+ "multipoint_edges_routed": 3,
+ "multipoint_edges_failed": 0,
+ "ripup_success_pairs": [],
+ "rerouted_pairs": [],
+ "single_ended_target_swaps": [],
+ "layer_swaps": 0,
+ "successful": 5,
+ "failed": 0,
+ "total_time": 0.05,
+ "total_iterations": 1639,
+ "total_vias": 1,
+ "cleanup_disconnected": [],
+ "min_clearance_used": 0.4,
+ "design_rules": {
+  "escalation_policy": "off",
+  "fab_tier": "standard",
+  "board_floors": {
+   "clearance": 0.15,
+   "track_width": 0.15,
+   "via_diameter": 0.5,
+   "via_drill": 0.25,
+   "hole_to_hole": 0.25,
+   "annular": 0.1,
+   "board_edge": 0.3
+  },
+  "count": 0,
+  "nets": [],
+  "narrowed": [],
+  "min_delivered": {},
+  "fab_tier_escalations": 0,
+  "fab_tier_contexts": [],
+  "fab_tier_target": "advanced",
+  "unsupported_rules": []
+ },
+ "plane_fragility": {
+  "source": "kicad_refill",
+  "islands": 1,
+  "refill_status": "ok",
+  "why": "the KiCad refill succeeded",
+  "machine_dependent": false
+ },
+ "oracle_check": "disabled",
+ "pad_pairs_connected": 7,
+ "pad_pairs_total": 7,
+ "scope": "merged",
+ "env_knobs": {
+  "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-cpu-rate/reference-out/.home/cache",
+  "KICAD_CLI": "/usr/bin/kicad-cli",
+  "KICAD_DYNAMIC_ITERATIONS": "0",
+  "KICAD_FINALIZE_RIP": "0",
+  "KICAD_IMPEDANCE_NECKDOWN": "0",
+  "KICAD_INRUN_FLOOR_SYNC": "0",
+  "KICAD_RESCUE_CAP_MOVE": "0",
+  "KICAD_RIP_PREEXISTING": "0",
+  "KICAD_ROUTE_LEDGER": "off",
+  "KICAD_ROUTE_STATE": "/home/halbritt/git/kicad-route",
+  "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-cpu-rate/reference-0/run/work/STOP",
+  "KICAD_TERMINAL_ESCALATION": "0"
+ },
+ "oracle_reconnect": {
+  "available": true,
+  "reason": "ok",
+  "why": "the oracle ran",
+  "rounds": 0,
+  "links_routed": 0,
+  "links_failed": 0,
+  "remaining": 0
+ },
+ "regrade": {
+  "board": "file",
+  "graded_nets": 5,
+  "seconds": 0.05,
+  "unowned_broken": [],
+  "recovered": [],
+  "broken_by_run": []
+ },
+ "via_in_pad": {
+  "count": 1,
+  "sites": [
+   "C1.2 F.Paste (pad)"
+  ],
+  "stamped": 1,
+  "restored": 0,
+  "protected": 0,
+  "unstampable": 0,
+  "site_created": 0,
+  "unprotected": [],
+  "note": "via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel"
+ },
+ "improvement_gate": {
+  "lost": [],
+  "gained": [
+   "/SIG_A",
+   "/SIG_A_OUT",
+   "/SIG_B_OUT",
+   "/VIN",
+   "GND"
+  ],
+  "worsened": [],
+  "disconnected_pads_before": 6,
+  "disconnected_pads_after": 0,
+  "nets_compared": 6,
+  "verdict": "accept"
+ }
+}

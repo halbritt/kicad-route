@@ -1,0 +1,49 @@
+{
+  "schema": "kicad-route/archon-finalizer-readiness/1",
+  "status": "READY_ACTUAL_LANDED_RUNTIME_AND_DOCTOR_PENDING",
+  "observed_utc": "2026-10-20T22:52:32.464426+00:00",
+  "source_head": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+  "finalizer": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/finalize-acceptance.py",
+    "sha256": "f342d5ee2c8a5e3c115824d00828d3e3fbf62985e066e0efc6007e02eb5cef6c"
+  },
+  "independent_archon_verification": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+    "sha256": "8c5e7b8fa6983546441cdd21ac005f9feccda84d1a2fec6b2e4db365668a82b3"
+  },
+  "archon_adapter": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon_acceptance.py",
+    "sha256": "1a6af758a3995ef47c38d203dd1eb922f1dab022a3331ba18a1d19c244aa992f"
+  },
+  "portable_store": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/acceptance_profile.py",
+    "sha256": "99b1078290d27f13401adbac060ac1b6758bcfc60dcd1f2fe68f7acd4feef3e7"
+  },
+  "finalizer_tests": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_finalizer_archon.py",
+    "sha256": "784a555b32cc31751335f5aecd4d3188b09876d2f32b703c17b71532bfbc6ff9"
+  },
+  "finalizer_test_log": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/finalizer-archon-tests.log",
+    "sha256": "ea2a0bafacd86d855d77c1ee453fff612276f374370d99b49cbb8ddddd4c0bfd"
+  },
+  "finalizer_bounded_checks_passed": 9,
+  "adapter_bounded_checks_passed": 31,
+  "portable_bounded_checks_passed": 18,
+  "exact_original_tickets": 14,
+  "exact_original_clauses": 66,
+  "actual_archon_boards": 4,
+  "actual_archon_native_attempts": 48,
+  "actual_index_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e",
+  "matrix_session": "8896",
+  "matrix_exit_code": 0,
+  "closure_rendering": "All14 item bodies regenerated with current actual staged proof paths; no pending/draft/owner markers;73 and81 target performance/archon. Multi-invocation741-node coverage and broad686passed/2failed retained honestly.",
+  "peer_review": {
+    "reviewer": "installation agent",
+    "finalizer_sha256": "f342d5ee2c8a5e3c115824d00828d3e3fbf62985e066e0efc6007e02eb5cef6c",
+    "outcome": "No material bridge/runtime/closure defect found; source ancestry/content and actual runtime/doctor gates intact."
+  },
+  "native_or_remote_jobs_by_this_lane": false,
+  "final_acceptance_emitted": false,
+  "tracker_writes": false
+}

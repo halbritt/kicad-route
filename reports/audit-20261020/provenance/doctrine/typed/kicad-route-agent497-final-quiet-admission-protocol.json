@@ -1,0 +1,36 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "quiet-admission-protocol",
+  "evidence_class": "evidence-repository-contracts",
+  "summary": "Root reviewed and launched one prespecified quiet-admission experiment at21:30:31UTC, session18111, without production edits. Frozen primaryf0f73da/referencef0c09ac, prepared603, driver SHA and harness SHA392263b38f1f0391b35e0e56c5cd5e1150916b7437369e428abe8e961ffd5a66 are bound in protocol. Board order diff-pair/four-layer/multipoint/route-demo; five measured pairs plus separate warmup per side means48 CLI attempts. Before every attempt, outside timed CLI, read global /proc/stat and CPU/IO PSI every5s; require idle>=80%, CPU some avg10<=5%, IO full avg10<=1% for three consecutive full intervals. Idle excludes iowait and guest double-counting; malformed/missing/reset/duplicate counters never admit. One1800s global admission budget excludes native runtime; minimum full-matrix admission is720s. Expiry is INCONCLUSIVE_ADMISSION_EXPIRED, neverPASS. Native args, fullCLIwall, all quality/copper/stop checks and three1.10median gates remain exact frozen driver behavior. All four board verdicts are retained even after FAIL. No completed sample is dropped/retried or invalidated by after-pressure. Actual affinity/topology, raw resource intervals, before/after and tool identities are retained. CPU PSI5% is an eligibility policy, not a mathematical wall-noise bound. Terminal authority requires explicit PASS/fourPASSboards/48completed samples; experiment is still running, no acceptance claim. That prespecified experiment is now terminal INCONCLUSIVE_ADMISSION_EXPIRED after1800.000131s admission waiting, with0completed CLI samples. No native performance result exists from it; it does not qualify73. Its immutable harness/protocol/journal/terminal receipt remain history. Root subsequently selected a separately preregistered calibrated CPU-rate experiment under own normal-priority user scope; this does not modify or relabel the quiet experiment.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/quiet-admission-protocol.json",
+      "method": "Read frozen preregistration",
+      "observed_at": "2026-10-20T21:32:27.147066+00:00",
+      "content_sha256": "546568312807eb4f4bd230c74c61e1da6c61f628f82286841a483ec842ad7aef"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/run-quiet-matrix.py",
+      "method": "Read ignored harness source; source remains frozen after root launch",
+      "observed_at": "2026-10-20T21:32:27.147066+00:00",
+      "content_sha256": "392263b38f1f0391b35e0e56c5cd5e1150916b7437369e428abe8e961ffd5a66"
+    },
+    {
+      "locator": "conversation:root-approved-quiet-driver-session18111",
+      "method": "Explicit primary review/launch instruction",
+      "observed_at": "2026-10-20T21:32:27.147066+00:00"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/quiet-admission-metadata/matrix.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "0712b18337ff919d7d896ed44d92080009527040eb407b5f47c2fd0abcb1565b"
+    }
+  ],
+  "satisfies": [
+    "inventory of gates and the signals they observe",
+    "the authoritative signal named for each gate",
+    "eval-versus-serving configuration parity"
+  ]
+}

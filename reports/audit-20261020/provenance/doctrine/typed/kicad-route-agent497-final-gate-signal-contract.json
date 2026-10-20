@@ -1,0 +1,146 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "gate-signal-contract",
+  "evidence_class": "evidence-static-source-structure",
+  "summary": "Authoritative gate inventory: publication reads ownership manifest/path inventory and hashed files, rejects symlink/overlap before test/deletion; corpus compares structured process/routing/validation and missing counters/preservation, not process exit alone; evidence binds actual final saved candidate bytes plus distinct pre-refill/backend bytes; baseline cache verifies complete selected generation and hashes; installation activates manifest only after checked candidate preparation and explicit failures; update preserves prior stage outcomes and requires repeat result/record success; measurement qualification inspects all relevant command budget/stall/kill flags independently of native grade. compare_router.py quality consumes result process/routing/native validation/preservation/open-nets/pairs/copper/input/stop evidence for warmups and measured runs; compare gates medians of wall, GNU-time individual maxRSS and sampled concurrent process-tree summedRSS at1.10, with explicit migration-equivalence versus algorithm-change copper policy. Sampling is an estimate with retained cadence, not byte-exact allocator use. kernel observes freshly built owned extension plus independent Counter/Dijkstra oracles; native KiCad gates remain separate. Final-source-parity identifies benchmark-to-primary run/configuration parity; environment and input identities are also retained by each comparison, not inferred from a green verdict. Final f0f73da caches only major-based environment-name selection within run_attempt; actual full kicad-cli version/hash identity APIs remain uncached, covered by independent full-identity freshness tests. The new matrix invokes frozen primary directly with prepared603; prior prepared-bytecode performance results are historical. All new warmup/measured native outcomes and1.10 gates remain mandatory.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/publication.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "5affc73aef8c78df071c5a9fbce6184be357b0ab8617dcf171f33e28dd5669fd"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/corpus.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "428733c9eca172e936575a24906be71f9883d32f5aee704be977a6dc912b4aae"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/evidence.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c5d89a302c2694d71711d8d7576f7a38892f017c949becacf946dacc05d4946a"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/baselinecache.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/installation.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/statemanifest.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "f78bd5903dc328494264436ddb42c42d54f308cf30fad571186308f86c0cea37"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-source-snapshots/cli-before-env-reuse.py",
+      "method": "Read retained artifact or current source; no gate execution; historical bytes retained explicitly after environment-reuse update (original observation time unchanged).",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/scripts/compare_router.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/tests/test_kernel.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "0dee4f21f4f6b33fedbc0546bad952718ad7f29d4e1240dc91483dd79f4adade"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-source-parity.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "47d82a03dbf8bed181230df3db8cb7f582ee821e9e6c8fbb0eba8a37942a6de9"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/publication.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "5affc73aef8c78df071c5a9fbce6184be357b0ab8617dcf171f33e28dd5669fd"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/corpus.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "428733c9eca172e936575a24906be71f9883d32f5aee704be977a6dc912b4aae"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/evidence.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c5d89a302c2694d71711d8d7576f7a38892f017c949becacf946dacc05d4946a"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/baselinecache.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/installation.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/statemanifest.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "f78bd5903dc328494264436ddb42c42d54f308cf30fad571186308f86c0cea37"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/cli.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:scripts/compare_router.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:src/kicad_route/router/tests/test_kernel.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "0dee4f21f4f6b33fedbc0546bad952718ad7f29d4e1240dc91483dd79f4adade"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/tests/test_tool_environment_scope.py",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "3cc9b277f0c754c0d49b4ad24126b0240754cb17d6cbddc8469d86c5f70e3b73"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@f0f73da86835ec583f2a2c9128e6893fa59c03b7:tests/test_tool_environment_scope.py",
+      "method": "Hash-bound source at frozen final primary commit",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "3cc9b277f0c754c0d49b4ad24126b0240754cb17d6cbddc8469d86c5f70e3b73"
+    }
+  ],
+  "satisfies": [
+    "inventory of gates and the signals they observe",
+    "the authoritative signal named for each gate",
+    "proof the check reads that signal rather than a derived view",
+    "eval-versus-serving configuration parity"
+  ]
+}

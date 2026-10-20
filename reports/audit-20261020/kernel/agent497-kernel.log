@@ -1,0 +1,79 @@
+/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python scripts/kernel-tests.py
+   Compiling target-lexicon v0.12.16
+   Compiling autocfg v1.5.0
+   Compiling once_cell v1.21.3
+   Compiling proc-macro2 v1.0.103
+   Compiling quote v1.0.42
+   Compiling unicode-ident v1.0.22
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.9
+   Compiling libc v0.2.178
+   Compiling heck v0.5.0
+   Compiling rawpointer v0.2.1
+   Compiling indoc v2.0.7
+   Compiling cfg-if v1.0.4
+   Compiling unindent v0.2.4
+   Compiling cc v1.2.66
+   Compiling rustc-hash v2.1.1
+   Compiling num-traits v0.2.19
+   Compiling matrixmultiply v0.3.10
+   Compiling memoffset v0.9.1
+   Compiling syn v2.0.111
+   Compiling pyo3-build-config v0.23.5
+   Compiling num-integer v0.1.46
+   Compiling num-complex v0.4.6
+   Compiling libmimalloc-sys v0.1.49
+   Compiling ndarray v0.16.1
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling pyo3-macros v0.23.5
+   Compiling mimalloc v0.1.52
+   Compiling numpy v0.23.0
+   Compiling grid_router v0.23.1 (/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/router/rust_router)
+    Finished `release` profile [optimized] target(s) in 33.17s
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.184s
+
+OK
+=== uniform width ===
+A: add/remove ref-count symmetry (#198)
+B: build_base vs cache parity (#199)
+=== per-layer/impedance widths ===
+A: add/remove ref-count symmetry (#198)
+B: build_base vs cache parity (#199)
+=== dru track-clearance raise ===
+A: add/remove ref-count symmetry (#198)
+B: build_base vs cache parity (#199)
+
+PASS: add/remove leaves the map empty, and build_base == cache for axis / diagonal / off-grid segments + vias
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.044s
+
+OK
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add
+Warning: No routing elements to add

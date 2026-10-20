@@ -1,0 +1,162 @@
+2026-10-20T22:28:15Z
+Linux archon 7.2.5-3-omarchy #1 SMP PREEMPT_DYNAMIC Mon, 14 Sep 2026 19:55:01 +0000 x86_64 GNU/Linux
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           39 bits physical, 48 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  16
+On-line CPU(s) list:                     0-15
+Vendor ID:                               GenuineIntel
+Model name:                              13th Gen Intel(R) Core(TM) i7-1360P
+CPU family:                              6
+Model:                                   186
+Thread(s) per core:                      2
+Core(s) per socket:                      12
+Socket(s):                               1
+Stepping:                                2
+Microcode version:                       0x6134
+CPU(s) scaling MHz:                      60%
+CPU max MHz:                             5000.0000
+CPU min MHz:                             400.0000
+BogoMIPS:                                5222.40
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf tsc_known_freq pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb intel_pt sha_ni xsaveopt xsavec xgetbv1 xsaves split_lock_detect user_shstk avx_vnni dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp hwp_pkg_req hfi vnmi umip pku ospke waitpkg gfni vaes vpclmulqdq rdpid movdiri movdir64b fsrm md_clear serialize arch_lbr ibt flush_l1d arch_capabilities
+Virtualization:                          VT-x
+L1d cache:                               448 KiB (12 instances)
+L1i cache:                               640 KiB (12 instances)
+L2 cache:                                9 MiB (6 instances)
+L3 cache:                                18 MiB (1 instance)
+NUMA node(s):                            1
+NUMA node0 CPU(s):                       0-15
+Vulnerability Gather data sampling:      Not affected
+Vulnerability Ghostwrite:                Not affected
+Vulnerability Indirect target selection: Not affected
+Vulnerability Itlb multihit:             Not affected
+Vulnerability L1tf:                      Not affected
+Vulnerability Mds:                       Not affected
+Vulnerability Meltdown:                  Not affected
+Vulnerability Mmio stale data:           Not affected
+Vulnerability Old microcode:             Not affected
+Vulnerability Reg file data sampling:    Mitigation; Clear Register File
+Vulnerability Retbleed:                  Not affected
+Vulnerability Spec rstack overflow:      Not affected
+Vulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+Vulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S
+Vulnerability Srbds:                     Not affected
+Vulnerability Tsa:                       Not affected
+Vulnerability Tsx async abort:           Not affected
+Vulnerability Vmscape:                   Mitigation; IBPB before exit to userspace
+MemTotal:       65377208 kB
+MemFree:        46972988 kB
+MemAvailable:   48724880 kB
+Buffers:            3716 kB
+Cached:          6928852 kB
+SwapCached:            0 kB
+Active:          9983320 kB
+Inactive:        4526664 kB
+Active(anon):    9983320 kB
+Inactive(anon):        0 kB
+Active(file):          0 kB
+Inactive(file):  4526664 kB
+Unevictable:     2302492 kB
+Mlocked:               0 kB
+SwapTotal:      130753948 kB
+SwapFree:       130753948 kB
+Zswap:                 0 kB
+Zswapped:              0 kB
+Dirty:             32240 kB
+Writeback:            80 kB
+AnonPages:       9878904 kB
+Mapped:           552392 kB
+Shmem:           2325476 kB
+KReclaimable:     155732 kB
+Slab:             354456 kB
+SReclaimable:     155732 kB
+SUnreclaim:       198724 kB
+KernelStack:       12776 kB
+PageTables:        38336 kB
+SecPageTables:      5792 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:    163442552 kB
+Committed_AS:   15968132 kB
+VmallocTotal:   34359738367 kB
+VmallocUsed:      313432 kB
+VmallocChunk:          0 kB
+Percpu:            15168 kB
+HardwareCorrupted:     0 kB
+AnonHugePages:   9482240 kB
+ShmemHugePages:  2195456 kB
+ShmemPmdMapped:        0 kB
+FileHugePages:         0 kB
+FilePmdMapped:         0 kB
+CmaTotal:              0 kB
+CmaFree:               0 kB
+Unaccepted:            0 kB
+Balloon:               0 kB
+GPUActive:             0 kB
+GPUReclaim:            0 kB
+HugePages_Total:       0
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+Hugetlb:               0 kB
+DirectMap4k:      283176 kB
+DirectMap2M:    11837440 kB
+DirectMap1G:    55574528 kB
+some avg10=0.00 avg60=0.00 avg300=0.00 total=81232549
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+some avg10=5.55 avg60=2.61 avg300=0.72 total=68765904
+full avg10=5.41 avg60=2.53 avg300=0.70 total=63329217
+0::/user.slice/user-1000.slice/session-21.scope
+/sys/fs/cgroup/cpuset.cpus.effective
+0-15
+[
+    {
+        "Id": "sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac",
+        "RepoTags": [
+            "ubuntu:24.04"
+        ],
+        "RepoDigests": [
+            "ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
+        ],
+        "Created": "2026-10-02T08:10:55.064306818Z",
+        "Config": {
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            ],
+            "Cmd": [
+                "/bin/bash"
+            ],
+            "Labels": {
+                "org.opencontainers.image.version": "24.04"
+            }
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 29774922,
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:32ab39660fd51c6dc3aae486b42d42bbe8fe4c1db78eaf57bb9c21198de48a16"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-20T22:26:30.436613338Z"
+        },
+        "Descriptor": {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac",
+            "size": 6688
+        },
+        "Identity": {
+            "Pull": [
+                {
+                    "Repository": "docker.io/library/ubuntu"
+                }
+            ]
+        }
+    }
+]

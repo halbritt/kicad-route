@@ -1,0 +1,650 @@
+{
+  "schema": "kicad-route/route/1",
+  "kind": "route",
+  "backend": {
+    "name": "krt",
+    "version": "0.23.1",
+    "build": "owned-c6c09054f684",
+    "commit": "e42c208ebddbc937c49c2a97539ec1423b26fca9",
+    "source": "https://github.com/halbritt/kicad-route",
+    "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+    "upstream": {
+      "project": "KiCadRoutingTools",
+      "license": "MIT",
+      "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+      "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+      "upstream_release": "v0.23.1",
+      "fork": "https://github.com/halbritt/KiCadRoutingTools",
+      "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+      "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+      "fixes": {
+        "KICADROUTE-64": "4b316ba",
+        "KICADROUTE-63": "0494a05"
+      },
+      "source_inventory": "reports/routing-engine/source-closure.json",
+      "additional_license_notices": [
+        "py_router/stage3d/vendor/three/LICENSE"
+      ],
+      "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+    },
+    "runtime": {
+      "source": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/router",
+      "venv": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv",
+      "generation": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6"
+    },
+    "rust_router": "0.23.1",
+    "execution_identity": {
+      "name": "krt",
+      "tag": "owned-c6c09054f684",
+      "version": "0.23.1",
+      "grid_router_version": "0.23.1",
+      "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+      "extension_module_sha256": "653c0f8ed3e0724c91d397dc819da77e555de90e3bcb66a7df7af01749892c8b",
+      "venv_python_version": "3.12.3",
+      "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+    },
+    "reproducible": null,
+    "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+  },
+  "measurement": false,
+  "input": {
+    "project": "route_demo",
+    "board": "route_demo.kicad_pcb",
+    "fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+    "source_dir": "/home/halbritt/git/kicad-route/fixtures/route_demo",
+    "source": "working tree",
+    "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source_dirty_files": [],
+    "baseline": {
+      "report": "../../candidate-out/.cache/baseline/18946416f498973cbd573f04d90875ef27835bebbab0fe987b84896d1e04c11d/generation-s5r5nzbf/baseline-drc.json",
+      "cached": true,
+      "reasons": [],
+      "identity": {
+        "schema": 1,
+        "input": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+        "board": "route_demo.kicad_pcb",
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+        "pour_schema": 1,
+        "grading": {
+          "baselinecache.py": "aa2f321ed3e7f9fadf2262d341a5ab29446c2cdcc522cab5c2bf6abc3a343881",
+          "cli.py": "8620842aae01c519dde270a93e5c6fbaf75de4a60133cd0415d30c02a3b0c21e",
+          "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+          "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+          "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+        },
+        "result_schemas": {
+          "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+          "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+        }
+      },
+      "generation": "generation-s5r5nzbf"
+    },
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    }
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": 0.4,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "scope": {
+    "mode": "all",
+    "nets": 6,
+    "nets_list": [
+      "/SIG_A",
+      "/SIG_A_OUT",
+      "/SIG_B",
+      "/SIG_B_OUT",
+      "/VIN",
+      "GND"
+    ]
+  },
+  "unsupported": [
+    "KRT reads only a subset of .kicad_dru custom rules; every rule is still graded by KiCad DRC",
+    "KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class",
+    "backend reported: .kicad_dru: rule 'power_to_signal_clearance': clearance 0.4mm has a non-layer scope (netclass/area/... condition) -- skipped, KiCad will still enforce it"
+  ],
+  "floor": null,
+  "process": {
+    "status": "PASS",
+    "reasons": [],
+    "exit_code": 0,
+    "commands": [
+      {
+        "argv": [
+          "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python",
+          "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/router/py_router/route.py",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/input/route_demo/route_demo.kicad_pcb",
+          "--output",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/krt-out/route_demo.kicad_pcb",
+          "--escalation",
+          "off",
+          "--fab-tier",
+          "standard",
+          "--strict-sizes",
+          "--no-power-tap-neckdown",
+          "--no-fix-drc-settings",
+          "--json-out",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/krt-out/summary.json",
+          "--keep-input-copper",
+          "--no-stub-layer-swap",
+          "--clearance",
+          "0.4",
+          "--nets",
+          "*"
+        ],
+        "cwd": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work",
+        "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/krt.log",
+        "env": {
+          "KICAD_INRUN_FLOOR_SYNC": "0",
+          "KICAD_TERMINAL_ESCALATION": "0",
+          "KICAD_IMPEDANCE_NECKDOWN": "0",
+          "KICAD_RESCUE_CAP_MOVE": "0",
+          "KICAD_DYNAMIC_ITERATIONS": "0",
+          "KICAD_CLI": "/usr/bin/kicad-cli",
+          "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/STOP",
+          "KICAD_RIP_PREEXISTING": "0",
+          "KICAD_FINALIZE_RIP": "0"
+        },
+        "budget_s": 180,
+        "last_phase": "improvement gate",
+        "last_metric": {
+          "disconnected_pads_before": 6
+        },
+        "heartbeats": {
+          "count": 25,
+          "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/heartbeat.jsonl",
+          "stall_s": null,
+          "since_last_progress_s": 0.1,
+          "tail": [
+            {
+              "t_s": 8.522,
+              "utc": "2026-10-20T19:18:17.605949+00:00",
+              "phase": "plane finalize",
+              "metric": {},
+              "line": "Plane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies"
+            },
+            {
+              "t_s": 9.273,
+              "utc": "2026-10-20T19:18:18.356485+00:00",
+              "phase": "oracle recheck",
+              "metric": {},
+              "line": "KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)"
+            },
+            {
+              "t_s": 16.785,
+              "utc": "2026-10-20T19:18:25.868431+00:00",
+              "phase": "regrade",
+              "metric": {},
+              "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 5, \"seconds\": 0.1, \"routed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": []..."
+            },
+            {
+              "t_s": 16.785,
+              "utc": "2026-10-20T19:18:25.868565+00:00",
+              "phase": "Run complete -- whole run, re-graded on the written board (5 net(s), 0.1s)",
+              "metric": {},
+              "line": "============================================================"
+            },
+            {
+              "t_s": 17.035,
+              "utc": "2026-10-20T19:18:26.118855+00:00",
+              "phase": "improvement gate",
+              "metric": {
+                "disconnected_pads_before": 6
+              },
+              "line": "JSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/SIG_A\", \"/SIG_A_OUT\", \"/SIG_B_OUT\", \"/VIN\", \"GND\"], \"worsened\": [], \"disconnected_pads_before\": 6, \"disconne..."
+            }
+          ]
+        },
+        "stalled": false,
+        "exit_code": 0,
+        "duration_s": 17.125,
+        "output_tail": "scalation_policy\": \"off\", \"fab_tier\": \"standard\", \"board_floors\": {\"clearance\": 0.15, \"track_width\": 0.15, \"via_diameter\": 0.5, \"via_drill\": 0.25, \"hole_to_hole\": 0.25, \"annular\": 0.1, \"board_edge\": 0.3}, \"count\": 0, \"nets\": [], \"narrowed\": [], \"min_delivered\": {}, \"fab_tier_escalations\": 0, \"fab_tier_contexts\": [], \"fab_tier_target\": \"advanced\", \"unsupported_rules\": []}, \"plane_fragility\": {\"source\": \"kicad_refill\", \"islands\": 1, \"refill_status\": \"ok\", \"why\": \"the KiCad refill succeeded\", \"machine_dependent\": false}, \"oracle_check\": \"disabled\", \"pad_pairs_connected\": 7, \"pad_pairs_total\": 7, \"scope\": \"run\", \"env_knobs\": {\"KICAD_CACHE_HOME\": \"/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/cache\", \"KICAD_CLI\": \"/usr/bin/kicad-cli\", \"KICAD_DYNAMIC_ITERATIONS\": \"0\", \"KICAD_FINALIZE_RIP\": \"0\", \"KICAD_IMPEDANCE_NECKDOWN\": \"0\", \"KICAD_INRUN_FLOOR_SYNC\": \"0\", \"KICAD_RESCUE_CAP_MOVE\": \"0\", \"KICAD_RIP_PREEXISTING\": \"0\", \"KICAD_ROUTE_LEDGER\": \"off\", \"KICAD_ROUTE_STATE\": \"/home/halbritt/git/kicad-route/build/agent497-state\", \"KICAD_STOP_FILE\": \"/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/STOP\", \"KICAD_TERMINAL_ESCALATION\": \"0\"}}\n\nWriting output to /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/krt-out/route_demo.kicad_pcb...\nSuccessfully wrote /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/krt-out/route_demo.kicad_pcb\n\nPlane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies\n  KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)\n  KiCad-oracle recheck: KiCad reports all processed nets complete\n  [finalize timing] oracle leg: 8.1s\nJSON_ORACLE: {\"available\": true, \"reason\": \"ok\", \"why\": \"the oracle ran\", \"rounds\": 0, \"links_routed\": 0, \"links_failed\": 0, \"remaining\": 0, \"collapsed_duplicate_links\": 0, \"remaining_links\": [], \"cross_board\": 0, \"removed_segments\": [], \"removed_vias\": []}\n  Strict collapse (#1063, end of run): removed 1 redundant segment(s) on 1 net(s)\n\n  FAB NOTE (route): 1 via(s) in a pad or paste opening [C1.2 F.Paste (pad)] -- 1 stamped (capping yes) (filling yes), 0 already filled+capped. via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel.\nVIA_IN_PAD_JSON: {\"count\": 1, \"sites\": [\"C1.2 F.Paste (pad)\"], \"stamped\": 1, \"restored\": 0, \"protected\": 0, \"unstampable\": 0, \"site_created\": 0, \"unprotected\": [], \"note\": \"via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel\"}\nJSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 5, \"seconds\": 0.1, \"routed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_pads_total\": 6, \"multipoint_pads_connected\": 6, \"successful\": 5, \"failed\": 0, \"unowned_broken\": [], \"recovered\": [], \"broken_by_run\": []}\n\n============================================================\nRun complete -- whole run, re-graded on the written board (5 net(s), 0.1s)\n============================================================\n  Single-ended:  5/5 routed\n  Multi-point:   6/6 pads connected\n  route summary written to /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/krt-out/summary.json\nJSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/SIG_A\", \"/SIG_A_OUT\", \"/SIG_B_OUT\", \"/VIN\", \"GND\"], \"worsened\": [], \"disconnected_pads_before\": 6, \"disconnected_pads_after\": 0, \"nets_compared\": 6, \"verdict\": \"accept\"}\nJSON_SUMMARY_MIN: {\"escalations\": 0, \"failed\": 0, \"failed_single\": [], \"main_loop_time_s\": 0.04, \"min_clearance_used\": 0.4, \"multipoint_deficit\": 0, \"open_single\": [], \"pad_pairs_open\": {\"count\": 0, \"nets\": []}, \"regraded_nets\": 5, \"routed\": 5, \"scope\": \"merged\", \"terminal_restores_broken\": [], \"vias\": 1}\nEXIT=0\n"
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/kicad/locks.py",
+          "restore",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/krt-out/route_demo.kicad_pcb",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/locks.json"
+        ],
+        "cwd": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work",
+        "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/restore-locks.log",
+        "exit_code": 0,
+        "duration_s": 0.948
+      }
+    ],
+    "backend_report": {
+      "successful": 5,
+      "failed": 0,
+      "failed_single": [],
+      "open_single": [],
+      "failed_multipoint": [],
+      "multipoint_deficit": null,
+      "pad_pairs_connected": 7,
+      "pad_pairs_total": 7,
+      "total_vias": 1,
+      "total_iterations": 1639,
+      "total_time": 0.04,
+      "protected_skipped": null,
+      "scope": "merged",
+      "relaxations": {
+        "escalation_policy": "off",
+        "fab_tier": "standard",
+        "narrowed": [],
+        "fab_tier_escalations": 0,
+        "min_delivered": {},
+        "unsupported_rules": []
+      },
+      "improvement_gate": {
+        "lost": [],
+        "gained": [
+          "/SIG_A",
+          "/SIG_A_OUT",
+          "/SIG_B_OUT",
+          "/VIN",
+          "GND"
+        ],
+        "worsened": [],
+        "disconnected_pads_before": 6,
+        "disconnected_pads_after": 0,
+        "nets_compared": 6,
+        "verdict": "accept"
+      },
+      "project_writes": null
+    },
+    "existing_copper_locks": {
+      "lock": {
+        "locked": 0
+      },
+      "lock_exit": 0,
+      "restore": {
+        "restored": 0,
+        "not_found": 0
+      }
+    },
+    "project_writeback": [
+      {
+        "file": "route_demo.kicad_prl",
+        "identical_to_input": true
+      },
+      {
+        "file": "route_demo.kicad_pro",
+        "identical_to_input": true
+      }
+    ],
+    "runtime_s": 19.591,
+    "last_phase": "improvement gate",
+    "heartbeats": {
+      "count": 25,
+      "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/work/heartbeat.jsonl",
+      "stall_s": null,
+      "since_last_progress_s": 0.1,
+      "tail": [
+        {
+          "t_s": 8.522,
+          "utc": "2026-10-20T19:18:17.605949+00:00",
+          "phase": "plane finalize",
+          "metric": {},
+          "line": "Plane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies"
+        },
+        {
+          "t_s": 9.273,
+          "utc": "2026-10-20T19:18:18.356485+00:00",
+          "phase": "oracle recheck",
+          "metric": {},
+          "line": "KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)"
+        },
+        {
+          "t_s": 16.785,
+          "utc": "2026-10-20T19:18:25.868431+00:00",
+          "phase": "regrade",
+          "metric": {},
+          "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 5, \"seconds\": 0.1, \"routed_single\": [\"/SIG_A_OUT\", \"/SIG_A\", \"/SIG_B_OUT\", \"GND\", \"/VIN\"], \"failed_single\": []..."
+        },
+        {
+          "t_s": 16.785,
+          "utc": "2026-10-20T19:18:25.868565+00:00",
+          "phase": "Run complete -- whole run, re-graded on the written board (5 net(s), 0.1s)",
+          "metric": {},
+          "line": "============================================================"
+        },
+        {
+          "t_s": 17.035,
+          "utc": "2026-10-20T19:18:26.118855+00:00",
+          "phase": "improvement gate",
+          "metric": {
+            "disconnected_pads_before": 6
+          },
+          "line": "JSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/SIG_A\", \"/SIG_A_OUT\", \"/SIG_B_OUT\", \"/VIN\", \"GND\"], \"worsened\": [], \"disconnected_pads_before\": 6, \"disconne..."
+        }
+      ]
+    },
+    "stalled": false,
+    "measurement_qualification": {
+      "measurement": false,
+      "build_reproducible": null,
+      "reasons": [
+        "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+      ]
+    }
+  },
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 0,
+    "baseline_unconnected_total": 6,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 16,
+      "new_vias": 1,
+      "new_track_length_mm": 117.987,
+      "new_track_length_mm_by_layer": {
+        "B.Cu": 0.028,
+        "F.Cu": 117.959
+      },
+      "new_copper_nets": 5,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    }
+  },
+  "validation": {
+    "status": "PASS",
+    "reasons": [],
+    "dir": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/validate",
+    "rules_files": {
+      "project": "route_demo.kicad_pro",
+      "custom_rules": "route_demo.kicad_dru",
+      "not_loaded": []
+    },
+    "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "cd42bd52166749ca0d037e9e57d2aae94f65765da9aec1143b22deee83a904fd",
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/validate/candidate-refill.json",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/candidate/route_demo",
+        "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/validate/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 14.67
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/validate/candidate-drc.json",
+          "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/candidate/route_demo/route_demo.kicad_pcb"
+        ],
+        "cwd": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/candidate/route_demo",
+        "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/validate/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 20.093
+      }
+    ],
+    "validated_board_sha256": "cd42bd52166749ca0d037e9e57d2aae94f65765da9aec1143b22deee83a904fd",
+    "candidate_board_sha256": "cd42bd52166749ca0d037e9e57d2aae94f65765da9aec1143b22deee83a904fd",
+    "refill_modified_board": false,
+    "parity_performed": true,
+    "drc": {
+      "violations_total": 0,
+      "parity_total": 0,
+      "new_violations": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "preexisting_violations": 0,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 1,
+      "nets_lost": []
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    }
+  },
+  "candidate": {
+    "dir": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/candidate/route_demo",
+    "board": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run/candidate/route_demo/route_demo.kicad_pcb"
+  },
+  "run_dir": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-2/run",
+  "runtime_s": 59.34,
+  "tool_versions": {
+    "kicad-cli": "10.0.7"
+  },
+  "evidence": {
+    "input_board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+    "input_fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+    "baseline": {
+      "identity": {
+        "schema": 1,
+        "input": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732",
+        "board": "route_demo.kicad_pcb",
+        "kicad_cli": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+        "pour_schema": 1,
+        "grading": {
+          "baselinecache.py": "aa2f321ed3e7f9fadf2262d341a5ab29446c2cdcc522cab5c2bf6abc3a343881",
+          "cli.py": "8620842aae01c519dde270a93e5c6fbaf75de4a60133cd0415d30c02a3b0c21e",
+          "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+          "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+          "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+        },
+        "result_schemas": {
+          "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+          "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+        }
+      },
+      "generation": "generation-s5r5nzbf"
+    },
+    "reference_files": {
+      "fp-lib-table": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "route_demo.kicad_pcb": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "route_demo.kicad_sch": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "sym-lib-table": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
+    },
+    "rules_files": {
+      "route_demo.kicad_dru": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "route_demo.kicad_pro": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550"
+    },
+    "rule_floor_sha256": null,
+    "backend_output_board_sha256": "cd42bd52166749ca0d037e9e57d2aae94f65765da9aec1143b22deee83a904fd",
+    "candidate_hash_basis": "post-refill",
+    "candidate_board_sha256": "cd42bd52166749ca0d037e9e57d2aae94f65765da9aec1143b22deee83a904fd",
+    "pre_refill_board_sha256": "cd42bd52166749ca0d037e9e57d2aae94f65765da9aec1143b22deee83a904fd",
+    "candidate_copper_signature": {
+      "sha256": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+      "tracks": 21,
+      "vias": 3
+    },
+    "records": {
+      "attempt.json": "86b0b63d16ef877dbb91eaba4c76ff99c443ac7b49e1b3e26208418b2d009830",
+      "validate/preservation.json": "31ced08bc9afb768835703eb4663d4a1cbc6f6d6daab9d238f9058558bdb18f6",
+      "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+      "validate/candidate-drc.json": "24f4c4a417057726f1a378707f8644b329ed8e3d9004bf1f646d9ae0ec5d1263",
+      "validate/candidate-facts.json": "c2e7f51449223788a688c4814b51e2d6077b39e89b8472368a970c99354b6c41",
+      "validate/pour-integrity.json": "4e065aaf684dc85c26b17f1ab086a557e77d602fce75936875b717b474a51d82"
+    }
+  },
+  "tool_identity": {
+    "kicad_route": {
+      "version": "61e4850",
+      "commit": "61e4850f01421588a828b146362eb92a6cf2e107",
+      "dirty": false
+    },
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew": {
+      "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+      "python": "/usr/bin/python3"
+    },
+    "python": {
+      "version": "3.12.3",
+      "executable": "/usr/bin/python3"
+    },
+    "backend": {
+      "name": "krt",
+      "tag": "owned-c6c09054f684",
+      "version": "0.23.1",
+      "commit": "e42c208ebddbc937c49c2a97539ec1423b26fca9",
+      "grid_router_version": "0.23.1",
+      "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+      "extension_module_sha256": "653c0f8ed3e0724c91d397dc819da77e555de90e3bcb66a7df7af01749892c8b",
+      "venv_python_version": "3.12.3",
+      "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+    },
+    "state_manifest_sha256": "1d40df0f8ea99b7a2677fd46003a40f9c73afb36684bf3d7749b08b148b30d1e",
+    "state_manifest_drift": []
+  },
+  "finished_utc": "2026-10-20T19:19:06.088949+00:00",
+  "exit_code": 0,
+  "ledger": {
+    "fingerprint": "5fad71fbdd4bec02dbb4f167036d5f460ccec54ad509f6d0f00a8214d5e067b0",
+    "short": "5fad71fbdd4b",
+    "forced": false,
+    "forced_over": null,
+    "upstream_changed_since": null,
+    "previous_runs": [
+      "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-0/run",
+      "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-1/run"
+    ],
+    "notes": [],
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/ledger.jsonl"
+  },
+  "sandbox": {
+    "require_readonly_state": false,
+    "state": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-state",
+      "exists": true,
+      "installed": [
+        ".router-generations",
+        ".venv-krt",
+        "vendor/freerouting"
+      ],
+      "writable": true,
+      "writable_parts": [
+        ".router-generations",
+        ".venv-krt",
+        "vendor/freerouting"
+      ],
+      "readonly_mount": false
+    },
+    "tool_root": {
+      "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary",
+      "writable": true
+    },
+    "out": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out"
+    },
+    "home": {
+      "HOME": "/home/halbritt",
+      "required": false,
+      "tool_home": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.kicad-config",
+        "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/data",
+        "XDG_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/config",
+        "XDG_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/cache",
+        "XDG_DATA_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/data",
+        "XDG_STATE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/java",
+        "-Djava.util.prefs.userRoot=/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo/candidate-out/.home/java/prefs"
+      ]
+    },
+    "network": {
+      "interfaces": 38,
+      "non_loopback_interfaces": 37,
+      "non_loopback_examples": [
+        "br-08ee9a52996a",
+        "br-1b6d28c3e778",
+        "br-24c8c1a867af",
+        "br-2fd0323456d7",
+        "br-8d6dd9da25b3"
+      ],
+      "non_loopback_routes": 109,
+      "namespace": "net:[4026531840]",
+      "connect_probe": {
+        "target": "192.0.2.1:9/udp",
+        "sends_packet": false,
+        "result": "routable"
+      },
+      "isolated": false
+    }
+  }
+}

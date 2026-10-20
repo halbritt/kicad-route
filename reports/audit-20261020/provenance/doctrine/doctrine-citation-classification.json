@@ -1,0 +1,114 @@
+{
+  "schema_version": "citation-classification/2",
+  "packet_id": "pkt-7f7cc3fede0d7721",
+  "packet_content_sha256": "7f7cc3fede0d77218ee4b43b51bc70309fb18f8a8f4559426fdaaa72de896847",
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+  "index_content_hash": "0772a6d3a482dde28e3c38f6f2169dd551ca147300d044bd0d8473b6671e7b74",
+  "receipt_id": "kicad-route-agent497-final-code-readiness",
+  "output_citation_channel": "structured",
+  "citations": [
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-evidence-before-intervention",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-repository-contract-precedence",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "agent-conduct-authority-bounded-action",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-preserve-behavior-by-default",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-separate-semantic-structural-change",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "data-ingest-population-scoping",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "data-dedup-key-identity-completeness",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "operations-external-capability-verification",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-no-change-option",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "/tmp/kicad-route-agent497-doctrine-second-final.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-final-obligation-disposition.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/archon-evidence-index.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-integration-guard-review.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-reference-evidence-fix-closure.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-transport-selected-decision.json",
+      "classification": "foreign-citation"
+    }
+  ]
+}

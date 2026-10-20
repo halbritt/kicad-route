@@ -1,0 +1,77 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--refill-zones",
+        "--save-board",
+        "--format",
+        "json",
+        "-o",
+        "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/drc/baseline-refill.json",
+        "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/project/four-layer-plane/four-layer-plane.kicad_pcb"
+      ],
+      "cwd": "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/project/four-layer-plane",
+      "log": "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/drc/baseline-refill.log",
+      "exit_code": 0,
+      "duration_s": 0.309
+    },
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--format",
+        "json",
+        "--severity-all",
+        "--schematic-parity",
+        "--units",
+        "mm",
+        "-o",
+        "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/drc/baseline-drc.json",
+        "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/project/four-layer-plane/four-layer-plane.kicad_pcb"
+      ],
+      "cwd": "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/project/four-layer-plane",
+      "log": "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/drc/baseline-drc.log",
+      "exit_code": 0,
+      "duration_s": 0.195
+    }
+  ],
+  "reasons": [],
+  "refill": {
+    "board_sha256_before": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9",
+    "board_sha256_after": "9f96df9b03aa8feadf94e98cf4f1b4aa19ab6329d766574716e2c09cd213cfc1"
+  },
+  "board_sha256_graded": "9f96df9b03aa8feadf94e98cf4f1b4aa19ab6329d766574716e2c09cd213cfc1",
+  "board_sha256_checked": "9f96df9b03aa8feadf94e98cf4f1b4aa19ab6329d766574716e2c09cd213cfc1",
+  "parity_performed": false,
+  "parity_skip_message": "Failed to fetch schematic netlist for parity tests.",
+  "report": "/evidence/four-layer-archon/candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/.building-m_ia5y9r/drc/baseline-drc.json",
+  "cached": false,
+  "identity": {
+    "schema": 1,
+    "input": "fc7e1d7cb3efdd215c2ad2398474e54f72435e0a4f0dba57d2e7c23fe8598291",
+    "board": "four-layer-plane.kicad_pcb",
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew": "10.0.7-10.0.7~ubuntu24.04.1",
+    "pour_schema": 1,
+    "grading": {
+      "baselinecache.py": "2b4d52298d4c8ffe227150478217e01fe0c206306698cd687b64c93f603bad13",
+      "cli.py": "61aff3300f1f784a9e8a778e45430e3f5cb8041f820b7feea80423566bf60a4e",
+      "pour.py": "1583883ee1682bf0f72d709b1e146384d37b481a423584de9bd564ac18f1b6b7",
+      "kicad/pour.py": "a49f64c51854720e8ea680d81b94969dc8242da0c3ee93b72c8948a57b908c14",
+      "contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd"
+    },
+    "result_schemas": {
+      "result-1.json": "40dc7e85b3b74bc8dd7155ec4a90a9c74fe9f4120aae80f6367ef9001f2dc02d",
+      "result-2.json": "ede5fd72501ceb66985ce2fa63da525ae06ed301a2e75aa43c2a6ead3724b74c"
+    }
+  },
+  "generation": null
+}

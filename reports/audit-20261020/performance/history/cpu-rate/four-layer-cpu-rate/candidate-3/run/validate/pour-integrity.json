@@ -1,0 +1,70 @@
+{
+  "check": "pour_integrity",
+  "status": "PASS",
+  "min_spokes": 2,
+  "project_min_resolved_spokes": 2,
+  "area_loss_limit_pct": null,
+  "reference_islands_off_main": 0,
+  "layers": [
+    {
+      "net_layer": "GND@In1.Cu",
+      "area_mm2": [
+        298.7185,
+        298.7185
+      ],
+      "area_delta_pct": 0.0,
+      "polygons": [
+        1,
+        1
+      ],
+      "islands_off_main": [
+        0,
+        0
+      ],
+      "area_off_main_mm2": [
+        0,
+        0
+      ]
+    }
+  ],
+  "failures": [],
+  "informational": [],
+  "pads": [
+    {
+      "pad": "J1.1@In1.Cu",
+      "connection": "solid",
+      "position_mm": [
+        3.0,
+        3.0
+      ],
+      "touches_fill": [
+        true,
+        true
+      ],
+      "spokes": [
+        1,
+        1
+      ],
+      "solid": [
+        true,
+        true
+      ],
+      "track_spokes": [
+        0,
+        0
+      ],
+      "in_main": [
+        true,
+        true
+      ],
+      "polygons": [
+        "GND@In1.Cu/zone0#0"
+      ],
+      "other_path": false
+    }
+  ],
+  "reference_source": {
+    "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-cpu-rate/candidate-3/run/../../candidate-out/.cache/baseline/058d73dcff43daf50553bcfbbe38b4faf39842efe73403c2924fbd9cef1f5146/generation-0jh1ajvl/baseline-pour.json",
+    "cached": true
+  }
+}

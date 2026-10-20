@@ -1,0 +1,271 @@
+{
+  "schema": "kicad-route/installation-acceptance/1",
+  "audited_utc": "2026-10-20T19:41:21.629942+00:00",
+  "source_commit": "bd4660d9602f30deab9909d2e66499614f8fb38e",
+  "source_checkout": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary",
+  "original_requirements": "/home/halbritt/git/kicad-route/build/deep-analysis-20261020-agent486/issues-draft.json",
+  "scope": [
+    "KICADROUTE-75",
+    "KICADROUTE-76",
+    "KICADROUTE-79"
+  ],
+  "status": "implementation reviewed; final frozen-tree qualification pending",
+  "issues": [
+    {
+      "issue": "KICADROUTE-75",
+      "scope": "Prepare a complete candidate routing environment off the active path, validate it, then activate an immutable generation with its manifest. Serialize overlapping updates and keep the previous generation available for recovery. Make failed installation state explicit.",
+      "limits": "Preserve the existing policy that corpus regressions are reported rather than silently rolled back unless the owner separately changes it. This item covers installation preparation/activation failures, not an implicit new post-qualification rollback policy.",
+      "requirements": [
+        {
+          "requirement": "Injected dependency-install, Cargo-build, extension-import and startup-check failures leave the prior active environment and manifest unchanged and usable.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "src/kicad_route/installation.py::install",
+            "tests/test_installation_generations.py::test_failed_preparation_preserves_active_manifest_and_generation",
+            "tests/test_installation_generations.py::test_late_extension_import_failure_preserves_previous_selection",
+            "tests/test_installation_generations.py::test_update_reports_install_failure_without_refreshing_prior_manifest",
+            "tests/test_owned_build.py::test_invalid_build_does_not_replace_installed_extension"
+          ]
+        },
+        {
+          "requirement": "A successful activation identifies one coherent source/module/package generation.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "src/kicad_route/installation.py::install",
+            "/home/halbritt/git/kicad-route/build/agent497-state/manifest.json",
+            "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/installation.json",
+            "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/preparation.json"
+          ]
+        },
+        {
+          "requirement": "A routing process started before activation retains a usable environment; new runs see the selected new generation.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "src/kicad_route/engine.py::GENERATION",
+            "src/kicad_route/cli.py::KRT_VENV",
+            "tests/test_installation_generations.py::test_success_pins_existing_process_and_new_selection",
+            "tests/test_installation_generations.py::test_cli_pins_source_and_interpreter_from_one_activation_snapshot",
+            "tests/test_installation_generations.py::test_old_worker_evidence_stays_bound_to_its_executed_generation"
+          ]
+        },
+        {
+          "requirement": "Concurrent updates cannot share temporary artifacts or publish competing partial manifests.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "src/kicad_route/installation.py::update_lock",
+            "src/kicad_route/statemanifest.py::refresh",
+            "src/kicad_route/statemanifest.py::record_determinism",
+            "tests/test_installation_generations.py::test_updates_serialize_preparation_and_use_distinct_artifacts",
+            "tests/test_installation_generations.py::test_update_lock_excludes_other_cli_processes",
+            "tests/test_determinism_generation.py::test_manifest_read_modify_write_serializes_with_activation"
+          ]
+        },
+        {
+          "requirement": "Cold install and recovery after interrupted preparation have documented, tested outcomes.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "docs/routing-engine-migration.md:31",
+            "tests/test_installation_generations.py::test_cold_failure_and_interrupted_preparation_are_never_selected",
+            "tests/test_installation_generations.py::test_success_pins_existing_process_and_new_selection",
+            "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/preparation.json"
+          ]
+        }
+      ],
+      "implementation_gap_found": false
+    },
+    {
+      "issue": "KICADROUTE-76",
+      "scope": "Include determinism outcome, reasons and record locator in update.json and make a failed required repeat check or recording failure produce a nonzero update result. Preserve the outcomes of earlier stages.",
+      "limits": "Do not silently restore older state or redefine deterministic geometry. This can be fixed independently of staged installation.",
+      "requirements": [
+        {
+          "requirement": "Smoke/corpus PASS plus reproducible=false makes update fail and records why.",
+          "status": "proved by current source and controlled terminal test pass at61e4850; aggregate frozen smoke pending",
+          "proof": [
+            "src/kicad_route/cli.py::_update_locked",
+            "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure",
+            "observed terminal session59370, chunk9d0c1c:41passed"
+          ]
+        },
+        {
+          "requirement": "record_error makes update fail and is visible in the machine-readable receipt.",
+          "status": "proved by current source and controlled terminal test pass at61e4850; aggregate frozen smoke pending",
+          "proof": [
+            "src/kicad_route/cli.py::_update_locked",
+            "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure",
+            "observed terminal session59370, chunk9d0c1c:41passed"
+          ]
+        },
+        {
+          "requirement": "All gates passing returns zero; earlier failures cannot be overwritten by a later pass.",
+          "status": "proved by current source and controlled terminal test pass at61e4850; aggregate frozen smoke pending",
+          "proof": [
+            "src/kicad_route/cli.py::_update_locked",
+            "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure",
+            "observed terminal session59370, chunk9d0c1c:41passed"
+          ]
+        },
+        {
+          "requirement": "Tests isolate update orchestration with controlled check results; no network, package upgrade or full routing suite is needed for these cases.",
+          "status": "proved by current source and controlled terminal test pass at61e4850; aggregate frozen smoke pending",
+          "proof": [
+            "src/kicad_route/cli.py::_update_locked",
+            "tests/test_update_qualification.py::test_update_propagates_repeat_and_preserves_earlier_failure",
+            "observed terminal session59370, chunk9d0c1c:41passed"
+          ]
+        }
+      ],
+      "implementation_gap_found": false
+    },
+    {
+      "issue": "KICADROUTE-79",
+      "scope": "Separate installed runtime resources, writable state and development-checkout resources. Use a package/entrypoint invocation for child CLIs. Ship resources needed by supported installed commands and explicitly refuse checkout-only developer commands when unavailable.",
+      "limits": "Linux remains the supported platform; this is not a cross-platform port. Native KiCad and other external prerequisites are still required.",
+      "requirements": [
+        {
+          "requirement": "Install a built wheel into a fresh environment, remove the source checkout from import/executable resolution, and verify doctor/help plus a bounded route and campaign invocation.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "tests/test_installed_wheel.py::wheel_environment",
+            "tests/test_installed_wheel.py::test_installed_doctor_route_and_campaign",
+            "src/kicad_route/campaign.py::CLI",
+            "src/kicad_route/__main__.py"
+          ]
+        },
+        {
+          "requirement": "Runtime fixture/schema access works through packaged resources where the command promises it.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "setup.py::RuntimeResources",
+            "MANIFEST.in",
+            "src/kicad_route/common.py::RESOURCE_ROOT",
+            "src/kicad_route/contract.py::SCHEMAS_DIR",
+            "tests/test_installed_wheel.py::test_installed_resources_writable_state_help_and_smoke_refusal"
+          ]
+        },
+        {
+          "requirement": "Default writable state never targets site-packages or a system Python directory.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "src/kicad_route/common.py::_default_state",
+            "tests/test_installed_wheel.py::test_installed_resources_writable_state_help_and_smoke_refusal"
+          ]
+        },
+        {
+          "requirement": "Smoke either has a deliberate installed-package test strategy or reports a clear checkout-only refusal.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "src/kicad_route/cli.py::smoke",
+            "tests/test_installed_wheel.py::test_installed_resources_writable_state_help_and_smoke_refusal"
+          ]
+        },
+        {
+          "requirement": "The existing symlink-based checkout installation remains supported.",
+          "status": "implementation inspected; final frozen-tree test pass pending",
+          "proof": [
+            "scripts/install.sh",
+            "src/kicad_route/common.py::CHECKOUT_ROOT",
+            "tests/test_publish_update_docs.py::test_install_creates_then_keeps_links",
+            "tests/test_publish_update_docs.py::test_install_repoints_stale_and_dangling_links",
+            "tests/test_publish_update_docs.py::test_install_refuses_real_files_and_directories"
+          ]
+        }
+      ],
+      "implementation_gap_found": false
+    }
+  ],
+  "current_generation_evidence": {
+    "manifest": "/home/halbritt/git/kicad-route/build/agent497-state/manifest.json",
+    "generation": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6",
+    "preparation_status": "validated",
+    "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+    "source_matches_installation_receipt": true,
+    "extension_sha256": "653c0f8ed3e0724c91d397dc819da77e555de90e3bcb66a7df7af01749892c8b",
+    "extension_bytes_match_manifest_and_installation_receipt": true,
+    "packages_match_installation_receipt": true,
+    "python_version": "3.12.3",
+    "build_logs": "/home/halbritt/git/kicad-route/build/agent497-build/update/dfb6f1df05d6494687b3c0f29295cfd6"
+  },
+  "prior_dynamic_evidence": [
+    {
+      "tool_session": "23315",
+      "result": "28 passed, 1 deselected in 41.75s",
+      "command": "python3 -m pytest tests/test_installation_generations.py tests/test_owned_build.py tests/test_evidence_manifest.py -q -p no:cacheprovider -k \"not krt_repeat\"",
+      "source_commit": "688b827 (working tree later committed under this hash)",
+      "limitations": "Prior targeted evidence; does not replace current frozen-tree full-suite completion."
+    },
+    {
+      "tool_session": "13992",
+      "result": "2 passed in 179.60s",
+      "command": "KICAD_ROUTE_WHEEL_RUNTIME=<cold-built-generation>/venv python3 -m pytest tests/test_installed_wheel.py -q -p no:cacheprovider",
+      "source_commit": "688b827 wheel runtime/layout implementation before later repeat-identity additions",
+      "limitations": "Wheel-only route and campaign completed and native validation passed; temporary installed-wheel artifacts were subsequently cleaned. Terminal output remains in the agent tool record."
+    },
+    {
+      "path": "/home/halbritt/.cache/kicad-route-install-validation/generation-route.json",
+      "result": "routing COMPLETE; validation PASS; exit_code 0",
+      "limitations": "Native route using an actual selected staged environment, prior engine source generation."
+    },
+    {
+      "tool_session": "97427",
+      "result": "1 passed in 1.75s",
+      "command": "python3 -m pytest tests/test_installation_generations.py::test_success_pins_existing_process_and_new_selection -q -p no:cacheprovider",
+      "source_commit": "0287678 recovery correction",
+      "limitations": "Observed terminal evidence; current frozen-suite gate remains pending."
+    },
+    {
+      "tool_session": "59370",
+      "output_chunk": "9d0c1c",
+      "result": "41 passed in 4.13s; exit0",
+      "command": "/usr/bin/python3 -m pytest -q tests/test_determinism_generation.py tests/test_update_qualification.py tests/test_evidence_manifest.py::test_determinism_compare_judges_geometry_not_bytes tests/test_evidence_manifest.py::test_krt_reproducible_follows_the_record_for_the_build_on_disk",
+      "source_commit": "61e4850 exact tested delta",
+      "witness": "Evidence worker reported exact command and tool-captured completion; no separate durable log/JUnit was retained.",
+      "limitations": "Observed terminal evidence, not retained raw filesystem artifact. Current frozen smoke remains aggregate gate."
+    }
+  ],
+  "pending_evidence": [
+    {
+      "gate": "full smoke",
+      "tool_session": "96123",
+      "log": "/home/halbritt/git/kicad-route/build/agent497-smoke.log",
+      "observed_process_pid": 4139267,
+      "observed_environment": {
+        "KICAD_ROUTE_STATE": "/home/halbritt/git/kicad-route/build/agent497-state",
+        "KICAD_ROUTE_WHEEL_RUNTIME": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv"
+      },
+      "required_finish": "Verify required installation/update/wheel tests all pass without native-wheel skip on frozen source; retain summary/JUnit."
+    }
+  ],
+  "evidence_gaps": [
+    "Current frozen-tree full smoke was live and had not reached installation/update/wheel acceptance tests at audit time. Do not mark this report a final passing gate.",
+    "Earlier wheel-only native acceptance output is retained in the tool transcript, but its ephemeral wheel directory is no longer present. The configured current full smoke will produce fresh current-tree proof."
+  ],
+  "post_land_default_runtime_update": {
+    "run_now": false,
+    "command": "cd /home/halbritt/git/kicad-route\nenv -u KICAD_ROUTE_STATE PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/halbritt/git/kicad-route/src /usr/bin/python3 - <<'PY'\nfrom pathlib import Path\nfrom kicad_route import cli, common, determinism, installation, sandbox, skills, statemanifest\nroot = Path('/home/halbritt/git/kicad-route')\nassert common.CHECKOUT_ROOT == root and common.STATE == root\nreason = sandbox.writer_refusal('update')\nif reason:\n    raise SystemExit(reason)\ncommon.set_out(root / 'build/agent497-default-install')\nwith installation.update_lock():\n    print('activated:', cli.update_krt([]), flush=True)\n    print(skills.sync(cli.KRT_DIR, cli.KRT_VENV), flush=True)\n    manifest = statemanifest.read()\n    assert statemanifest.verify(manifest) == []\n    print('generation:', common.router_generation(), flush=True)\n    proof, path = determinism.check(cli, backend='krt', record=True)\n    print('repeat proof:', path, proof.get('record_error') or proof['reasons'], flush=True)\n    raise SystemExit(1 if proof.get('record_error') else 0 if proof['reproducible'] else 3)\nPY",
+    "effects": [
+      "Builds/validates a fresh immutable generation from landed main, then atomically selects its manifest; installation preparation failures retain prior environment and manifest.",
+      "Calls update_krt directly, so it never invokes update_freerouting or downloads a Freerouting release. Existing local jar state remains intact.",
+      "Regenerates diagnostic skill paths to the selected generation and checks manifest drift.",
+      "Runs and records a bounded fixture repeat after activation; a failed repeat returns nonzero without silently rolling back activation.",
+      "Hold the shared lock across activation and repeat recording. Execute after benchmark/final checks and trunk landing."
+    ]
+  },
+  "source_file_sha256": {
+    "src/kicad_route/installation.py": "af8d36c861440308b370747b79acbe5dd0c83ba31f763412febc88f56a868fb6",
+    "src/kicad_route/common.py": "7dc0c33acb629eb174917950607d9f48ae28454b67ab79772c5eb672c7ba9ea3",
+    "src/kicad_route/engine.py": "a6e0ac269dd523e52e67762c4a6e96fbe367947941f89a57e8db4fe3cf724eb9",
+    "src/kicad_route/cli.py": "8620842aae01c519dde270a93e5c6fbaf75de4a60133cd0415d30c02a3b0c21e",
+    "src/kicad_route/statemanifest.py": "f99b522ea63b264ede636d8af5270602caa3caf3d8735d492d4ccfc0b014d619",
+    "src/kicad_route/evidence.py": "c5d89a302c2694d71711d8d7576f7a38892f017c949becacf946dacc05d4946a",
+    "src/kicad_route/campaign.py": "02038e1e22950e42cf6c398bd5c90ab2fa2d85d278ee5035f4d795f77b5d0deb",
+    "src/kicad_route/contract.py": "51e5b43be4f05ece426e17bc541d325e311d9751747729141af16214b9a949fd",
+    "setup.py": "e23f600f70f38ec2062276a85f7f30102e9585ae9ed448c6573932793ff94923",
+    "scripts/install.sh": "bf1bdd194cb2fb8eaa839c936da5b6b80edabde2d17f3dc95c8a6ae10d295c56",
+    "tests/test_installation_generations.py": "a08357849f613659a939557b192a5b1fd04dd033243c317a0d4428537087ec34",
+    "tests/test_installed_wheel.py": "95d0aac38c26b5796d60769f7942a58f5a1bc25723efe54a15172ee4a8486c27",
+    "tests/test_update_qualification.py": "dc7f64eea919db74e6bd7c868b27d2f317f9b09ed2fb3ec6ae35209f7e381659",
+    "tests/test_publish_update_docs.py": "fdf717f4844e4d203a6bc3a77245178e15cdb26a5961402f22813ad6f96a7a8a",
+    "docs/routing-engine-migration.md": "a285de77a416a020e30a28610570ea4c1fe398b71598e604b09046fb5ff1204b"
+  }
+}

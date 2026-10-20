@@ -1,0 +1,5 @@
+PASS: full retained Archon authority independently rechecked; status=PASS
+PASS: local CPU-rate history terminal; stage will preserve it independently of outcome
+inventory files=9065 bytes=63953993
+missing=[]
+PASS: all2540 remote original locators map to exact durable audit paths

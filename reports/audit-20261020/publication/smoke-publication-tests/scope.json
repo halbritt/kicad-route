@@ -1,0 +1,19 @@
+{
+  "purpose": "publication contract tests",
+  "pytest_addopts": "-k test_publication_safety",
+  "passed": 26,
+  "deselected": 683,
+  "full_suite_evidence": {
+    "availability": "external",
+    "path": "/home/halbritt/git/kicad-route/build/agent497-smoke.log",
+    "sha256": "15ddd4201fabc61b10ceb7a685e8eaed72d5920b5c21526a435152d56e148666",
+    "passed": 686,
+    "failed": 2
+  },
+  "corrective_evidence": {
+    "availability": "external",
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-focused.xml",
+    "sha256": "b2bfe00926ace93534d4a9dbcf744fbbf83ddc0dd1728be0b9094ebc983f2393",
+    "passed": 193
+  }
+}

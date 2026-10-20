@@ -1,0 +1,53 @@
+{
+  "schema": "kicad-route/install-helper-review/1",
+  "observed_utc": "2026-10-20T22:12:34.234930+00:00",
+  "reviewed_source_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+  "helper_sha256": "1cb10c25cfd65db923d58d9257379734936f4664df4216806064427f08b38826",
+  "method": "Read-only source review and AST signature inspection; no imports, native probes, installations or runtime changes",
+  "result": "No material API mismatch or qualification-boundary defect found",
+  "validated_signatures": {
+    "cli.update_krt": [
+      "steps"
+    ],
+    "skills.sync": [
+      "krt_dir",
+      "krt_venv"
+    ],
+    "determinism.check": [
+      "cli",
+      "backend",
+      "runs",
+      "budget",
+      "dir",
+      "board",
+      "backend_env",
+      "default_clearance",
+      "record"
+    ],
+    "statemanifest.verify": [
+      "m",
+      "state"
+    ],
+    "statemanifest.record_determinism": [
+      "rec",
+      "state"
+    ],
+    "statemanifest.reproducibility": [
+      "backend",
+      "state",
+      "runtime_generation"
+    ],
+    "installation.update_lock": [
+      "state"
+    ]
+  },
+  "checks": [
+    "Runs only from clean tracked main and imports landed checkout; clears inherited STATE/OUT/runtime override before imports; pins exact qualified UV constraints and Python",
+    "Calls update_krt under shared reentrant update_lock, then skills.sync; never full update or Freerouting downloader",
+    "Gates owned source, Rust lock, exact packages/Python and explicit manifest drift; records actual qualified/new module hashes without requiring identical fresh-build binary bytes",
+    "Requires both actual native process exits zero, routing COMPLETE with zero scope-unconnected, validation PASS, no wall-clock stop, matching executed build and active generation",
+    "Records determinism only after strict actual-run gates; shared update_lock spans preparation, activation and proof; no automatic rollback after activation",
+    "Rechecks qualified isolated manifest unchanged; persists install steps and terminal failure receipts; doctor remains explicit subsequent offline/no-canary step"
+  ],
+  "execution_status": "Prepared only; must not run until authorized code landing and terminal CPU-rate qualification"
+}

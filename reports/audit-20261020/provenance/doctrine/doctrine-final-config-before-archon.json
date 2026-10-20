@@ -1,0 +1,65 @@
+{
+  "schema": "kicad-route/doctrine-final-config/1",
+  "updated_utc": "2026-10-20T21:16:56.533178+00:00",
+  "comparisons": [
+    "diff-pair-cpu-rate",
+    "four-layer-cpu-rate",
+    "multipoint-cpu-rate",
+    "route-demo-cpu-rate"
+  ],
+  "matrix_log": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-matrix.log",
+  "candidate_checkout": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary",
+  "candidate_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+  "candidate_ready": true,
+  "candidate_source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+  "candidate_generation": "60310b2b2bc14f9e9efcddcb57e650e5",
+  "source_parity_artifact": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+  "hold": "Single1CPU-rate matrix94696 is running under frozen1542/b830 profile. Final assembly requires actual terminalPASS/fourPASSboards/48samples/noresourceviolations plus independently recomputed rawcomparisons and scope/calibration bindings. Claim is conditionalCPU-rateprofile, never an unrestricted12CPU pass.",
+  "historical_matrix": {
+    "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/prepared-bytecode-matrix.log",
+    "terminal_exit": 1,
+    "diff_pair_comparison": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/comparison.json",
+    "diff_pair_wall_ratio": 1.1104090455603592,
+    "limits": 1.1,
+    "status": "Retained failure, all correctness/copper checks passed; no waiver."
+  },
+  "retained_merge": {
+    "head": "b27a004bc23d0d92330ab4aa9192619a1667b811",
+    "parents": [
+      "b2bea77af69587b572b409190f18ed674abd0006",
+      "3bc90405be40a42c1e5ff48787e35238ea994ab8"
+    ],
+    "tree_equals": "b2bea77af69587b572b409190f18ed674abd0006",
+    "purpose": "Retain exact benchmark candidate commit as ancestor without changing primary source tree."
+  },
+  "source_parity_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe",
+  "focused_tests": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-env-reuse.xml",
+    "sha256": "4e291b06e910c28e84318791b0c9f36b18cac4cebb1bef8b9c21b9dc55601f9f",
+    "passed": 113
+  },
+  "current_coverage_union": {
+    "cases": 741,
+    "files": 47,
+    "junit_sources": 5,
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+    "sha256": "2a92ad749cdfbf51f20ade1e33d7be2382b5e442f856186f77f1a6bc62436d2f",
+    "claim": "Union of passing observations, not one green full-suite."
+  },
+  "terminal_authority": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-metadata/matrix.json",
+  "preregistered_protocol": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+  "preregistered_protocol_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225",
+  "sample_resources": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-metadata/samples",
+  "study_kind": "cpu-rate",
+  "cpu_cap": 1,
+  "calibration_session": "74830",
+  "matrix_session": "94696",
+  "calibration_selection": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration/selection.json",
+    "sha256": "aedb2a9c85b9406826c466e00a07af253f68315049862106f8c470e8ffdb8137"
+  },
+  "calibration_root_review": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-root-review.json",
+    "sha256": "e5100f91ff192d13fc6770a1898787d746f1c8cce96c50c76f2cc94339c6c0b6"
+  }
+}

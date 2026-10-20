@@ -1,0 +1,52 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--refill-zones",
+        "--save-board",
+        "--format",
+        "json",
+        "-o",
+        "/evidence/diff-pair-archon/reference-out/.cache/tmp/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967-2331/drc/baseline-refill.json",
+        "/evidence/diff-pair-archon/reference-out/.cache/tmp/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967-2331/diff-pair/pair.kicad_pcb"
+      ],
+      "cwd": "/evidence/diff-pair-archon/reference-out/.cache/tmp/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967-2331/diff-pair",
+      "log": "/evidence/diff-pair-archon/reference-out/.cache/tmp/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967-2331/drc/baseline-refill.log",
+      "exit_code": 0,
+      "duration_s": 0.338
+    },
+    {
+      "argv": [
+        "kicad-cli",
+        "pcb",
+        "drc",
+        "--format",
+        "json",
+        "--severity-all",
+        "--schematic-parity",
+        "--units",
+        "mm",
+        "-o",
+        "/evidence/diff-pair-archon/reference-out/.cache/tmp/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967-2331/drc/baseline-drc.json",
+        "/evidence/diff-pair-archon/reference-out/.cache/tmp/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967-2331/diff-pair/pair.kicad_pcb"
+      ],
+      "cwd": "/evidence/diff-pair-archon/reference-out/.cache/tmp/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967-2331/diff-pair",
+      "log": "/evidence/diff-pair-archon/reference-out/.cache/tmp/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967-2331/drc/baseline-drc.log",
+      "exit_code": 0,
+      "duration_s": 0.29
+    }
+  ],
+  "reasons": [],
+  "refill": {
+    "board_sha256_before": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+    "board_sha256_after": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568"
+  },
+  "board_sha256_graded": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+  "board_sha256_checked": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568",
+  "parity_performed": false,
+  "parity_skip_message": "Failed to fetch schematic netlist for parity tests.",
+  "report": "/evidence/diff-pair-archon/reference-out/.cache/baseline/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967/baseline-drc.json"
+}

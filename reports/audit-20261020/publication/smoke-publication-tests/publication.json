@@ -1,0 +1,29 @@
+{
+  "schema": "kicad-route/publication/1",
+  "kind": "smoke",
+  "files": {
+    "junit.xml": "f0d14106719258c5555fe0c1c6394c22da638d3ea408d656d8fce53d0b489f59",
+    "scope.json": "bc6071883ddacb1b0a4b9de657bd0afe50bcd6ccc3233f5640f4b5233f4f03d2",
+    "source_untouched.json": "277fd668c45b44fc1ca8e116c40891eaea24943a87775f2ff20a64f9ef3c96e1",
+    "summary.json": "9e27d6a4a2a3ed9446eda4001ec80e849c93746b57e996a45e9333bce1014939"
+  },
+  "scope": {
+    "purpose": "publication contract tests",
+    "pytest_addopts": "-k test_publication_safety",
+    "passed": 26,
+    "deselected": 683,
+    "full_suite_evidence": {
+      "availability": "external",
+      "path": "/home/halbritt/git/kicad-route/build/agent497-smoke.log",
+      "sha256": "15ddd4201fabc61b10ceb7a685e8eaed72d5920b5c21526a435152d56e148666",
+      "passed": 686,
+      "failed": 2
+    },
+    "corrective_evidence": {
+      "availability": "external",
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-focused.xml",
+      "sha256": "b2bfe00926ace93534d4a9dbcf744fbbf83ddc0dd1728be0b9094ebc983f2393",
+      "passed": 193
+    }
+  }
+}

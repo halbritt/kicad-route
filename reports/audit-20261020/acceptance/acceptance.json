@@ -1,0 +1,169 @@
+{
+  "scope": "KICADROUTE-68 through KICADROUTE-81",
+  "requirements": [
+    {
+      "identifier": "KICADROUTE-68",
+      "name": "Refuse unsafe smoke publication destinations before deleting any files",
+      "requirements": [
+        "Tests using disposable sentinels reject checkout roots, source projects, filesystem/home roots, OUT itself, ancestors/descendants that would delete active evidence, and symlink aliases to those targets.",
+        "An existing unowned nonempty destination is refused with exit 4 before pytest or any deletion; all sentinels remain byte-identical.",
+        "A failed test run cannot delete an existing publication.",
+        "Fresh publication and a clearly defined owned-directory refresh still work; interruption cannot expose a half-replaced successful publication."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-69",
+      "name": "Make the corpus regression gate fail on lost validation and missing evidence",
+      "requirements": [
+        "A valid baseline followed by process PASS / validation FAIL / routing NOT_RUN / missing DRC and preservation evidence fails corpus check and after_update.",
+        "Validation PASS to FAIL fails even when all numeric counts are unchanged.",
+        "COMPLETE to INCOMPLETE fails even if pair evidence changes without increasing unconnected_in_scope.",
+        "Removal of a required preservation check or counter is reported as missing evidence, not an improvement.",
+        "Unchanged valid runs pass; legitimate improvements remain reported; existing refusal and incomplete-baseline behavior is tested explicitly."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-70",
+      "name": "Bind the result evidence hash to the final graded candidate board",
+      "requirements": [
+        "A fixture whose refill changes board bytes proves evidence.candidate_board_sha256 equals the bytes at candidate.board and validation.candidate_board_sha256.",
+        "The pre-refill digest remains separately available and differs in that fixture.",
+        "Determinism's candidate_bytes layer compares post-refill delivered artifacts; backend-output comparison remains independent.",
+        "Both route schemas and revalidation receipts retain explicit compatibility behavior, with tests for unchanged and changed refills."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-71",
+      "name": "Key baseline DRC caches by grading identity and publish complete cache entries",
+      "requirements": [
+        "Unchanged input and grader hit the cache; changing the selected board, kicad-cli identity or grading schema causes a miss.",
+        "No old-tool baseline is silently reused after a tool change; the result identifies the actual baseline generation.",
+        "Concurrent writers/readers and interruption between each cache write cannot yield a mixed-generation hit.",
+        "Missing or malformed report/info/pour evidence triggers safe recomputation without modifying the source project.",
+        "Sandbox and campaign cache reuse remain supported with writable OUT and read-only tools."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-72",
+      "name": "Make owned board-writer scans quote-aware and guarantee forward progress",
+      "requirements": [
+        "Valid gr_text containing '((', ')', escaped quotes, escaped backslashes and embedded '(gr_text' terminates and round-trips correctly on copper and non-copper layers.",
+        "Tests exercise both add_tracks_to_pcb and add_tracks_and_vias_to_pcb with those inputs.",
+        "Truncated or malformed blocks raise a useful error instead of hanging or rewriting the rest of the board.",
+        "A small native KiCad fixture with literal-parenthesis text routes or returns a normal graded failure within budget, without text loss."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-73",
+      "name": "Preserve input copper text and artwork in the owned routing writer",
+      "requirements": [
+        "Boards with F.Cu/B.Cu text and net-less board graphics retain those objects and pass copper_graphics preservation after routing.",
+        "New routes respect native clearances to retained copper; tests include a narrow passage affected by the artwork.",
+        "Net-tied graphics and functional footprint copper retain their existing protection.",
+        "Unsupported shapes produce an explicit preflight limitation/refusal without moving them or relaxing DRC.",
+        "Existing simple-board completion and the owner's 10 percent runtime/memory limits are rechecked for this semantic engine change."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-74",
+      "name": "Use owned source and installed build hashes in run-ledger fingerprints",
+      "requirements": [
+        "Changing source bytes, compiled extension bytes or the relevant dependency environment permits a new attempt despite unchanged semantic versions.",
+        "An unrelated documentation commit does not change the engine identity.",
+        "Installed packages without Git metadata still get distinct content-based identities.",
+        "An actually identical failed attempt is refused; --force and old-row handling remain deterministic.",
+        "Fingerprint reconstruction from result.json agrees with the stored ledger fingerprint, including protect-human settings."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-75",
+      "name": "Stage router environment updates so installation failures preserve the working build",
+      "requirements": [
+        "Injected dependency-install, Cargo-build, extension-import and startup-check failures leave the prior active environment and manifest unchanged and usable.",
+        "A successful activation identifies one coherent source/module/package generation.",
+        "A routing process started before activation retains a usable environment; new runs see the selected new generation.",
+        "Concurrent updates cannot share temporary artifacts or publish competing partial manifests.",
+        "Cold install and recovery after interrupted preparation have documented, tested outcomes."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-76",
+      "name": "Propagate failed determinism qualification through update's exit code and receipt",
+      "requirements": [
+        "Smoke/corpus PASS plus reproducible=false makes update fail and records why.",
+        "record_error makes update fail and is visible in the machine-readable receipt.",
+        "All gates passing returns zero; earlier failures cannot be overwritten by a later pass.",
+        "Tests isolate update orchestration with controlled check results; no network, package upgrade or full routing suite is needed for these cases."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-77",
+      "name": "Do not label wall-clock-stopped routing attempts as reproducible measurements",
+      "requirements": [
+        "With a reproducible installed build, budget_reached, stalled or killed in any relevant command makes the current result measurement=false.",
+        "A graceful stop may still produce a valid/incomplete candidate; its process/routing/validation meanings are unchanged.",
+        "Normal unstopped deterministic runs retain the existing positive qualification; Freerouting remains an attempt.",
+        "Single-ended and multi-pass differential routing, revalidation and schemas document/test the distinction."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-78",
+      "name": "Publish self-verifiable receipt bundles without stale files or destination-symlink writes",
+      "requirements": [
+        "A verifier can resolve and hash every included evidence record using only the publication directory.",
+        "Excluded board/input artifacts are explicitly external, not presented as included or verifiable from the bundle.",
+        "Publishing twice, or publishing a new run with fewer receipts, cannot retain misleading stale evidence.",
+        "Destination file/directory symlink sentinels outside the publication remain untouched.",
+        "The original run and its signed/hashed receipt bytes remain unchanged; layout/schema changes have a documented compatibility path."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-79",
+      "name": "Make installed wheels support runtime resources and campaign subprocesses",
+      "requirements": [
+        "Install a built wheel into a fresh environment, remove the source checkout from import/executable resolution, and verify doctor/help plus a bounded route and campaign invocation.",
+        "Runtime fixture/schema access works through packaged resources where the command promises it.",
+        "Default writable state never targets site-packages or a system Python directory.",
+        "Smoke either has a deliberate installed-package test strategy or reports a clear checkout-only refusal.",
+        "The existing symlink-based checkout installation remains supported."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-80",
+      "name": "Add a fast owned-router regression gate for obstacle state and search invariants",
+      "requirements": [
+        "Add/remove/merge/overlap sequences assert bitmap and authoritative blocked-cell membership agree, including growth and overflow windows.",
+        "Search cases assert obstacle avoidance, permitted layers, deterministic tie ordering, empty/no-path cases and pair heading/via constraints against a small independent oracle or retained reference.",
+        "Tests run against the owned extension/source without vendor/krt or network acquisition.",
+        "A documented fast command fails on deliberate invariant-breaking mutants; native KiCad integration remains a separate required gate.",
+        "Inventory retained, replaced and excluded upstream tests with reasons; do not count unrelated tool-registry failures as routing coverage."
+      ],
+      "status": "implemented; final qualification pending"
+    },
+    {
+      "identifier": "KICADROUTE-81",
+      "name": "Strengthen the router benchmark's quality gate and resource measurements",
+      "requirements": [
+        "A failed warmup, missing quality evidence, routing COMPLETE-to-INCOMPLETE transition, failed pair, or wall-clock-censored sample cannot produce a clean qualification.",
+        "Migration-equivalence mode fails changed copper geometry; an intentional algorithm-change mode documents its independent acceptance criteria.",
+        "At least three measured repetitions, separate warmup, raw samples and tool/input identities remain recorded per board; time and memory limits stay at 1.10 unless the owner changes them.",
+        "The report distinguishes legacy GNU-time RSS from concurrent process-tree peak memory and states which metric each gate enforces.",
+        "Include an authorized dense/multipoint/rescue workload or a sanitized representative fixture, preserving native correctness and no-rule-relaxation checks.",
+        "Unit cases exercise exactly 1.10, above-limit ratios, absent/invalid metrics and every quality rejection without running real benchmarks."
+      ],
+      "status": "implemented; final qualification pending"
+    }
+  ]
+}

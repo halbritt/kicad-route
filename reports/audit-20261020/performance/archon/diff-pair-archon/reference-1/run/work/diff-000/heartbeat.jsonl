@@ -1,0 +1,8 @@
+{"t_s": 0.751, "utc": "2026-10-20T22:37:21.462718+00:00", "phase": "loading board", "metric": {}, "line": "Loading /evidence/diff-pair-archon/reference-1/run/work/diff-000/input/pair.kicad_pcb to expand net patterns..."}
+{"t_s": 0.751, "utc": "2026-10-20T22:37:21.462908+00:00", "phase": "net ordering", "metric": {}, "line": "Using MPS ordering strategy..."}
+{"t_s": 0.751, "utc": "2026-10-20T22:37:21.463012+00:00", "phase": "routing differential pair(s)", "metric": {"nets": 1}, "line": "Routing 1 differential pair(s)..."}
+{"t_s": 0.751, "utc": "2026-10-20T22:37:21.463197+00:00", "phase": "routing differential pair(s)", "metric": {"net": "1/1", "failed": 0, "current": "diff pair /CAN"}, "line": "[1/1] Routing diff pair /CAN"}
+{"t_s": 0.752, "utc": "2026-10-20T22:37:21.463284+00:00", "phase": "routing differential pair(s)", "metric": {"net": "1/1", "failed": 0, "current": "diff pair /CAN", "routed": 1}, "line": "SUCCESS: 6 segments, 0 vias, 277 iterations (0.01s)"}
+{"t_s": 0.752, "utc": "2026-10-20T22:37:21.463416+00:00", "phase": "Routing complete", "metric": {}, "line": "============================================================"}
+{"t_s": 0.752, "utc": "2026-10-20T22:37:21.463494+00:00", "phase": "summary", "metric": {}, "line": "JSON_SUMMARY: {\"routed_diff_pairs\": [\"/CAN\"], \"failed_diff_pairs\": [], \"partial_diff_pairs\": [], \"member_incomplete_pairs\": [], \"single_ended_diff_pairs\": []..."}
+{"t_s": 0.752, "utc": "2026-10-20T22:37:21.463557+00:00", "phase": "writing output", "metric": {}, "line": "Writing output to /evidence/diff-pair-archon/reference-1/run/work/diff-000/pair.kicad_pcb..."}

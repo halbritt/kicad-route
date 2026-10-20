@@ -1,0 +1,81 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "native-kernel-observations",
+  "evidence_class": "evidence-runtime-observation",
+  "summary": "Retained native artwork candidate is processPASS/routingCOMPLETE/validationPASS with0newDRC violations, copper_graphicsPASS, F.Cu((/B.Cu)text, /GUARD net-tagged rectangle and J1 pad-bearing footprint copper preserved. Native route command3.466s under60s with escalationoff/strictsizes/no-fix-drc-settings/no-power-tap-neckdown and source hashes unchanged; observed tool identities KiCad10.0.7/pcbnew10.0.7/Python3.12.3, owned sourceC6. This native proof used prior selected generationdfb6, not prepared603; source parity binds unchanged owned behavior but does not claim the same extension bytes. Fast locked/offline owned extension gate retained6kernel+3writer tests and one pinned upstream obstacle parity. bitmap-clear/lane-tie-order/pair-via-clearance mutants each failed invariant assertions; compilation/import failure is not mutation success. Weighted search, crossover, full-route churn and every geometry shape are outside that fast gate, with inventory explicitly excluding973upstream entrypoints. Prepared603 native runtime is evaluated by finalmatrix separately. The new wrapper-only f0f73da patch leaves all owned routing/native-facts code and sourceC6 unchanged; prior native/kernel observations retain their original generation and exercised-surface limits. The current741-node union includes15 new bounded environment-scope cases. No new native qualification is inferred until all four env-reuse comparisons complete and pass.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/engine-acceptance.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "122528858c87733f5e3936486258e376e3c577dc6039c08a34e0d97537fe1396"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-artwork-check/runs/project/retained-artwork/20261020T192121.361126Z/result.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "32feba72bc544a35d8329c15afeb159f18edf47fb349cb4fbd9e425b131f96f2"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-kernel.log",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "c2989adf6b5daf12416bb06a231d80be354caf0dbf813fa9dc8aa58869e20562"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-kernel-mutants.log",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "9aa852d8abbfebff1169d8ef427426731605ccf5df4c374dc15ec1b1777b7a81"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/reports/routing-engine/kernel-test-inventory.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "cd265c12ec31c99a4f6e5162b770f7151a58115e03413e25806352ae813c461a"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/tests/test_owned_artwork.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "f888c790613500f1efa8e834077fba4a05d540b02ee61b66bbd6e8418ce5a369"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/tests/test_attempt_measurement.py",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "318d0a052f51fe82f79ac231c169009270bd8e2c7bc9cc68eafe31a17fd9c76a"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:reports/routing-engine/kernel-test-inventory.json",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "cd265c12ec31c99a4f6e5162b770f7151a58115e03413e25806352ae813c461a"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:tests/test_owned_artwork.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "f888c790613500f1efa8e834077fba4a05d540b02ee61b66bbd6e8418ce5a369"
+    },
+    {
+      "locator": "git:/home/halbritt/git/kicad-route@b2bea77af69587b572b409190f18ed674abd0006:tests/test_attempt_measurement.py",
+      "method": "Hash-bound source at retained primary commit; preserved after worktree cleanup",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "318d0a052f51fe82f79ac231c169009270bd8e2c7bc9cc68eafe31a17fd9c76a"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "2a92ad749cdfbf51f20ade1e33d7be2382b5e442f856186f77f1a6bc62436d2f"
+    }
+  ],
+  "satisfies": []
+}

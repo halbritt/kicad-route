@@ -1,0 +1,16 @@
+{
+  "check": "pour_integrity",
+  "status": "PASS",
+  "min_spokes": 2,
+  "project_min_resolved_spokes": 2,
+  "area_loss_limit_pct": null,
+  "reference_islands_off_main": 0,
+  "layers": [],
+  "failures": [],
+  "informational": [],
+  "pads": [],
+  "reference_source": {
+    "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-env-reuse/reference-4/run/../../reference-out/.cache/baseline/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967/baseline-pour.json",
+    "cached": true
+  }
+}

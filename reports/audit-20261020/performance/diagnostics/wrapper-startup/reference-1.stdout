@@ -1,0 +1,560 @@
+CMD: python -X importtime /home/halbritt/git/kicad-route/src/kicad_route/router/py_router/route.py --help
+ENV KNOBS: KICAD_ROUTE_STATE=/home/halbritt/git/kicad-route
+usage: route.py [-h] [--output FILE] [--nets NETS [NETS ...]] [--overwrite]
+                [--component REF [REF ...]] [--group BLOCK]
+                [--group-by SOURCES] [--group-scope {touching,internal}]
+                [--list-groups] [--preview] [--preview-png FILE] [--undo]
+                [--ordering {inside_out,mps,original,bus}]
+                [--direction {forward,backward}]
+                [--no-bga-zones [NO_BGA_ZONES ...]]
+                [--rip-existing-nets PATTERN [PATTERN ...]] [--force-reroute]
+                [--layers LAYERS [LAYERS ...]] [--track-width TRACK_WIDTH]
+                [--impedance IMPEDANCE] [--coplanar-gap COPLANAR_GAP]
+                [--coplanar-nets PATTERN [PATTERN ...]]
+                [--clearance CLEARANCE] [--via-size VIA_SIZE]
+                [--via-drill VIA_DRILL] [--net-clearances JSON]
+                [--power-nets [POWER_NETS ...]]
+                [--power-nets-widths [POWER_NETS_WIDTHS ...]]
+                [--no-power-tap-neckdown] [--capabilities] [--json-out FILE]
+                [--neckdown-length NECKDOWN_LENGTH]
+                [--neckdown-taper-length NECKDOWN_TAPER_LENGTH]
+                [--grid-step GRID_STEP] [--via-cost VIA_COST]
+                [--via-proximity-cost VIA_PROXIMITY_COST]
+                [--max-iterations MAX_ITERATIONS]
+                [--max-probe-iterations MAX_PROBE_ITERATIONS]
+                [--heuristic-weight HEURISTIC_WEIGHT] [--turn-cost TURN_COST]
+                [--direction-preference-cost DIRECTION_PREFERENCE_COST]
+                [--bus] [--bus-detection-radius BUS_DETECTION_RADIUS]
+                [--bus-attraction-radius BUS_ATTRACTION_RADIUS]
+                [--bus-attraction-bonus BUS_ATTRACTION_BONUS]
+                [--bus-min-nets BUS_MIN_NETS] [--guide-corridor]
+                [--guide-corridor-layer GUIDE_CORRIDOR_LAYER]
+                [--guide-corridor-spacing GUIDE_CORRIDOR_SPACING] [--keepout]
+                [--keepout-layer KEEPOUT_LAYER]
+                [--proximity-heuristic-factor PROXIMITY_HEURISTIC_FACTOR]
+                [--stub-proximity-radius STUB_PROXIMITY_RADIUS]
+                [--stub-proximity-cost STUB_PROXIMITY_COST]
+                [--bga-proximity-radius BGA_PROXIMITY_RADIUS]
+                [--bga-proximity-cost BGA_PROXIMITY_COST]
+                [--track-proximity-distance TRACK_PROXIMITY_DISTANCE]
+                [--track-proximity-cost TRACK_PROXIMITY_COST]
+                [--keep-away AGG:VICTIM:GAP [AGG:VICTIM:GAP ...]]
+                [--keep-away-free KEEP_AWAY_FREE]
+                [--keep-away-cost KEEP_AWAY_COST] [--no-stub-layer-swap]
+                [--no-crossing-layer-check] [--can-swap-to-top-layer]
+                [--swappable-nets SWAPPABLE_NETS [SWAPPABLE_NETS ...]]
+                [--schematic-dir SCHEMATIC_DIR]
+                [--crossing-penalty CROSSING_PENALTY] [--mps-reverse-rounds]
+                [--mps-layer-swap] [--mps-segment-intersection]
+                [--smoothing | --no-smoothing] [--keep-input-copper]
+                [--length-match-group LENGTH_MATCH_GROUPS [LENGTH_MATCH_GROUPS ...]]
+                [--length-match-tolerance LENGTH_MATCH_TOLERANCE]
+                [--meander-amplitude MEANDER_AMPLITUDE]
+                [--meander-spacing MEANDER_SPACING] [--time-matching]
+                [--time-match-tolerance TIME_MATCH_TOLERANCE]
+                [--max-ripup MAX_RIPUP]
+                [--ripup-abandon-metric {stranded,total-pads,complete-nets,congestion,history,weighted,probe,weighted-probe}]
+                [--ripup-blocker-select {count,near-target,bidir,mincut,cost}]
+                [--routing-clearance-margin ROUTING_CLEARANCE_MARGIN]
+                [--hole-to-hole-clearance HOLE_TO_HOLE_CLEARANCE]
+                [--board-edge-clearance BOARD_EDGE_CLEARANCE]
+                [--same-net-pad-clearance SAME_NET_PAD_CLEARANCE]
+                [--no-fix-drc-settings] [--relax-drc-severities]
+                [--keep-thermal] [--enable-used-layers]
+                [--vertical-attraction-radius VERTICAL_ATTRACTION_RADIUS]
+                [--vertical-attraction-cost VERTICAL_ATTRACTION_COST]
+                [--ripped-route-avoidance-radius RIPPED_ROUTE_AVOIDANCE_RADIUS]
+                [--ripped-route-avoidance-cost RIPPED_ROUTE_AVOIDANCE_COST]
+                [--layer-costs LAYER_COSTS [LAYER_COSTS ...]] [--debug-lines]
+                [--verbose] [--skip-routing] [--debug-memory]
+                [--add-teardrops] [--write-fill] [--stats]
+                [--fab-tier {standard,advanced,auto}] [--fab-overrides FILE]
+                [--escalation {off,board,fab}] [--clearance-ceiling MM]
+                [--strict-sizes]
+                input_file [output_file] [net_patterns ...]
+
+Batch PCB Router - Routes single-ended nets using Rust-accelerated A*. For differential pairs, use route_diff.py.
+
+positional arguments:
+  input_file            Input KiCad PCB file
+  output_file           Output KiCad PCB file (default:
+                        input_routed.kicad_pcb)
+  net_patterns          Net names or wildcard patterns to route (default: '*'
+                        = all nets)
+
+options:
+  -h, --help            show this help message and exit
+  --output FILE         Output KiCad PCB file (named alias for the positional
+                        output_file)
+  --nets NETS [NETS ...], -n NETS [NETS ...]
+                        Net names or wildcard patterns to route (alternative
+                        to positional args)
+  --overwrite, -O       Overwrite input file instead of creating _routed copy
+  --component REF [REF ...], -C REF [REF ...]
+                        Route all nets connected to these components (e.g.,
+                        U1, or U3 U4 'J1*'). fnmatch globs allowed; a bare
+                        reference is exact, so U1 does not match U10. Excludes
+                        GND/VCC/VDD unless net patterns also specified.
+  --group BLOCK         Route only the nets of one PLACEMENT BLOCK (#459),
+                        e.g. 'decap:U3' or a sheet block. The N-part
+                        generalization of --component; composes with net
+                        patterns the same way (patterns given -> intersect).
+                        Use --group-by to choose how blocks are derived, and
+                        --list-groups to see them.
+  --group-by SOURCES    How to derive placement blocks for --group: comma list
+                        of kicad, sheet, netprefix, decap; 'auto' =
+                        kicad,sheet (default: auto)
+  --group-scope {touching,internal}
+                        Which of a block's nets to act on: 'touching' = any
+                        pad in the block, including its interface to the rest
+                        of the board (what --component means); 'internal' =
+                        every pad inside the block. A schematic sheet is
+                        60-70% internal; a decap block is 0% internal, so
+                        'touching' is the only useful reading there. DEFAULT
+                        DEPENDS ON THE OPERATION: 'touching' when routing
+                        (route the block's interface too), 'internal' with
+                        --undo -- because a block's touching set includes
+                        GND/VCC, so an undo at 'touching' would strip those
+                        nets' copper across the WHOLE board, not just this
+                        block
+  --list-groups         List the placement blocks --group-by would derive,
+                        with their net counts, and exit
+  --preview             Route, report exactly what WOULD change, and write no
+                        output file. The engine already supports this; this
+                        exposes it on the CLI.
+  --preview-png FILE    With --preview, also render the board with the
+                        proposed copper highlighted (needs Pillow)
+  --undo                Remove the scoped nets' routed copper instead of
+                        routing them, putting them back to unrouted. Refuses
+                        KiCad-locked copper. Does NOT invert pad swaps -- see
+                        the printed report.
+  --ordering {inside_out,mps,original,bus}, -o {inside_out,mps,original,bus}
+                        Net ordering strategy: mps (default, crossing
+                        conflicts), inside_out, original, or bus (detected bus
+                        groups first, members middle-out, rest by mps;
+                        ordering only -- corridor attraction still needs
+                        --bus)
+  --direction {forward,backward}, -d {forward,backward}
+                        Direction search order for each net route
+  --no-bga-zones [NO_BGA_ZONES ...], --no-bga-zone [NO_BGA_ZONES ...]
+                        Disable BGA exclusion zones. No args = disable all.
+                        With component refs (e.g., U1 U3) = disable only
+                        those.
+  --rip-existing-nets PATTERN [PATTERN ...]
+                        Net name patterns of PRE-EXISTING routed nets that may
+                        be ripped up and re-routed when they block a net being
+                        routed (e.g. on a board routed by a previous run). Use
+                        '*' to allow any non-plane net. Without this flag,
+                        small pre-existing nets are still rip candidates
+                        (unprotected, unlocked, not zone-backed, not
+                        '!'-negated in --nets, <= 30 segments and <= 6 vias),
+                        custody-backed: a ripped net is rerouted this run or
+                        restored, or at least keeps its escape stub
+                        (KICAD_RIP_PREEXISTING=0 disables); and the in-run
+                        plane finalize's pad repair may rip a signal net
+                        blocking a tap (KICAD_FINALIZE_RIP=0 disables).
+                        Protected and KiCad-locked copper is never ripped.
+  --force-reroute       Rip and re-route from scratch every net selected by
+                        --nets, even if already fully connected (#515's manual
+                        recipe, automated; PR #533). Requires an explicit
+                        --nets scope. Protected nets (length-matched groups,
+                        routed diff pairs) are skipped unless named EXACTLY in
+                        --nets; KiCad-locked copper is never ripped; plane
+                        (zone-owning) nets are skipped -- use route_planes for
+                        those. If the re-route fails outright, the original
+                        copper is restored.
+  --layers LAYERS [LAYERS ...], -l LAYERS [LAYERS ...]
+                        Routing layers to use (default: all of the board's
+                        copper layers)
+  --track-width TRACK_WIDTH
+                        Track width in mm. Default: the board's Default net-
+                        class track_width (sibling .kicad_pro), else 0.3.
+                        Ignored if --impedance is specified.
+  --impedance IMPEDANCE
+                        Target single-ended impedance in ohms (e.g., 50).
+                        Calculates track width per layer from board stackup.
+  --coplanar-gap COPLANAR_GAP
+                        Declare that impedance-controlled traces run through a
+                        ground pour on their OWN layer, this far (mm, trace
+                        edge to pour edge) from it. Outer layers then use the
+                        coplanar-waveguide-over-ground model instead of
+                        microstrip, which gives a NARROWER trace for the same
+                        target ohms. The pour does not exist yet at route
+                        time, so this is a DECLARATION: pour the plane layers
+                        with a matching 'route_planes --zone-clearance', then
+                        verify with 'check_impedance.py --coplanar-gap'.
+                        Requires --impedance.
+  --coplanar-nets PATTERN [PATTERN ...]
+                        Limit --coplanar-gap to these nets (fnmatch patterns).
+                        Omitted: every net in this call is treated as
+                        coplanar. Given: only matching nets get CPW widths;
+                        the rest stay microstrip.
+  --clearance CLEARANCE
+                        Copper clearance of the DEFAULT net class for this
+                        run, in mm. Nets in other classes route at their own
+                        class clearance (pairwise max, as KiCad does). When
+                        OMITTED, the board's Default class from the sibling
+                        .kicad_pro, else 0.25. To cap EVERY class at one value
+                        (the old #439 behaviour) pass --clearance-ceiling. Use
+                        --net-clearances <json> for explicit per-net values.
+  --via-size VIA_SIZE   Via outer diameter in mm. Default: the board's Default
+                        net-class via_diameter (sibling .kicad_pro), else 0.5.
+  --via-drill VIA_DRILL
+                        Via drill size in mm. Default: the board's Default
+                        net-class via_drill (sibling .kicad_pro), else 0.3.
+  --net-clearances JSON
+                        Explicit override for the cross-class clearance map: a
+                        JSON object mapping net name -> that net's net-class
+                        clearance in mm. When OMITTED, the map is AUTO-READ
+                        from the sibling .kicad_pro's non-Default netclasses
+                        (all-Default boards -> empty -> inert). Every pre-
+                        placed AND in-run via/pad/segment obstacle of a
+                        different class is priced at max(this call's routing
+                        floor, that obstacle net's own clearance) so a foreign
+                        higher-clearance net (POWER_HI 0.25 while routing a
+                        Default 0.15 group) is not under-blocked (cross-class
+                        via-via/DRC). The GUI derives the same map from the
+                        board's live net classes.
+  --power-nets [POWER_NETS ...]
+                        Glob patterns for power nets (e.g., '*GND*' '*VCC*').
+                        Must pair with --power-nets-widths.
+  --power-nets-widths [POWER_NETS_WIDTHS ...]
+                        Track widths in mm for each power-net pattern (must
+                        match --power-nets length)
+  --no-power-tap-neckdown
+                        Disable neck-down retry of failed power-net tap edges
+                        (issue #72): by default a wide tap that cannot fit is
+                        re-routed at the layer's default width near the pad
+  --capabilities        Print this clone's module and flag inventory as JSON
+                        and exit. A consumer that pins a KRT clone can only
+                        check that route.py exists as a file, which passes for
+                        a clone on the wrong branch or missing the module its
+                        chain needs -- the run then prints green while
+                        describing an engine the repo does not pin. See
+                        krt_capabilities.py --require.
+  --json-out FILE       Also write the run's JSON_SUMMARY to FILE. This is the
+                        MERGED tally: when the end-of-run reconciliation
+                        fires, route.py emits a SECOND, reconcile-subset-
+                        scoped summary to stdout, and scraping either one
+                        alone is wrong -- the first counts every recovery as a
+                        failure, the second narrows the whole-board pad-pair
+                        denominator to the retried subset. Prefer this over
+                        parsing stdout.
+  --neckdown-length NECKDOWN_LENGTH
+                        Length in mm of narrow track from the target pad on
+                        neck-down tap routes; the track returns to the power
+                        width beyond this where clearance allows (default:
+                        2.5)
+  --neckdown-taper-length NECKDOWN_TAPER_LENGTH
+                        Length in mm of the stepped narrow-to-wide width taper
+                        on neck-down tap routes (0 = abrupt width change,
+                        default: 0.5)
+  --grid-step GRID_STEP
+                        Grid resolution in mm (default: 0.1)
+  --via-cost VIA_COST   Penalty for placing a via, in 0.1mm grid steps
+                        (default: 75 = 7.5mm of path; mm-equivalent at any
+                        --grid-step)
+  --via-proximity-cost VIA_PROXIMITY_COST
+                        Via cost multiplier in stub/BGA proximity zones
+                        (default: 10, 0=no extra cost)
+  --max-iterations MAX_ITERATIONS
+                        Max A* iterations before giving up (default: 200000)
+  --max-probe-iterations MAX_PROBE_ITERATIONS
+                        Max iterations for quick probe phase per direction
+                        (default: 5000)
+  --heuristic-weight HEURISTIC_WEIGHT
+                        A* heuristic weight, higher=faster but less optimal
+                        (default: 2.3)
+  --turn-cost TURN_COST
+                        Penalty for direction changes, encourages straighter
+                        paths (default: 1000)
+  --direction-preference-cost DIRECTION_PREFERENCE_COST
+                        Penalty for non-preferred layer direction, 0=disabled
+                        (default: 250)
+  --bus                 Enable auto-detection and routing of bus groups (nets
+                        with clustered endpoints)
+  --bus-detection-radius BUS_DETECTION_RADIUS
+                        Max endpoint distance to form bus in mm (default: 5.0)
+  --bus-attraction-radius BUS_ATTRACTION_RADIUS
+                        Attraction radius from neighbor track in mm (default:
+                        5.0)
+  --bus-attraction-bonus BUS_ATTRACTION_BONUS
+                        Cost bonus for staying near neighbor track (default:
+                        5000)
+  --bus-min-nets BUS_MIN_NETS
+                        Minimum nets to form a bus group (default: 2)
+  --guide-corridor      Steer routed nets along a guide polyline drawn on a
+                        User layer (issue #7)
+  --guide-corridor-layer GUIDE_CORRIDOR_LAYER
+                        User layer the guide polyline is drawn on (default:
+                        User.1)
+  --guide-corridor-spacing GUIDE_CORRIDOR_SPACING
+                        Max mm between waypoints; 0 = use only the drawn
+                        segment endpoints, >0 subdivides long segments to
+                        follow curves more tightly (default: 0.0)
+  --keepout             Keep routed tracks out of one or more polygons drawn
+                        on a User layer (issue #27)
+  --keepout-layer KEEPOUT_LAYER
+                        User layer the keepout polygons are drawn on (default:
+                        User.2)
+  --proximity-heuristic-factor PROXIMITY_HEURISTIC_FACTOR
+                        Factor for proximity heuristic estimation (default:
+                        0.02, higher=faster but may find suboptimal paths)
+  --stub-proximity-radius STUB_PROXIMITY_RADIUS
+                        Radius around stubs to penalize routing in mm
+                        (default: 2.0)
+  --stub-proximity-cost STUB_PROXIMITY_COST
+                        Cost penalty near stubs in mm equivalent (default:
+                        0.2)
+  --bga-proximity-radius BGA_PROXIMITY_RADIUS
+                        Radius around BGA edges to penalize routing in mm
+                        (default: 7.0)
+  --bga-proximity-cost BGA_PROXIMITY_COST
+                        Cost penalty near BGA edges in mm equivalent (default:
+                        0.2)
+  --track-proximity-distance TRACK_PROXIMITY_DISTANCE
+                        Radius around routed tracks in mm, same layer only (0
+                        = disabled, default: 2.0)
+  --track-proximity-cost TRACK_PROXIMITY_COST
+                        Cost penalty near routed tracks (0 = disabled,
+                        default: 0.0)
+  --keep-away AGG:VICTIM:GAP [AGG:VICTIM:GAP ...]
+                        Soft keep-away between two net groups, repeatable:
+                        while a net of one side routes, its track costs
+                        --keep-away-cost per cell where it would sit closer
+                        than GAP mm (edge to edge, same layer) to copper of
+                        the other side. Each side is comma-separated net
+                        patterns as in --nets and/or net classes as
+                        class=NAME, e.g. 'CLK*,/I2C_*:/AUDIO_*:0.5' or
+                        'class=Digital:class=Audio:0.5'. Nets of one side
+                        route against each other at the normal clearance. GAP
+                        is at most 10 mm; rules are split on spaces, so write
+                        a space inside a name as '?'. The run reports per net
+                        the length left inside a band (JSON_SUMMARY
+                        keep_away).
+  --keep-away-free KEEP_AWAY_FREE
+                        Within this many mm of the routed net's own pads the
+                        keep-away band is not priced, so a pin can leave a
+                        package whose other pins belong to the other group
+                        (default: 1.5)
+  --keep-away-cost KEEP_AWAY_COST
+                        Cost per cell inside a keep-away band, mm equivalent
+                        like the other proximity costs (0 = measure and report
+                        only, default: 0.5)
+  --no-stub-layer-swap  Disable stub layer switching optimization (enabled by
+                        default)
+  --no-crossing-layer-check
+                        Count crossings regardless of layer overlap (by
+                        default, only same-layer crossings count)
+  --can-swap-to-top-layer
+                        Allow swapping stubs to F.Cu (top layer). Off by
+                        default due to via clearance issues.
+  --swappable-nets SWAPPABLE_NETS [SWAPPABLE_NETS ...]
+                        Glob patterns for nets that can have targets swapped
+                        (e.g., '*DATA_*')
+  --schematic-dir SCHEMATIC_DIR
+                        Directory containing .kicad_sch files to update with
+                        pad swaps (default: no schematic update)
+  --crossing-penalty CROSSING_PENALTY
+                        Penalty for crossing assignments in target swap
+                        optimization (default: 1000.0)
+  --mps-reverse-rounds  Reverse MPS round order: route most-conflicting groups
+                        first instead of least-conflicting
+  --mps-layer-swap      Enable MPS-aware layer swaps to reduce crossing
+                        conflicts
+  --mps-segment-intersection
+                        Force MPS to use segment intersection for crossing
+                        detection (auto-enabled when no BGA chips)
+  --smoothing           Collapse grid-A* staircase micro-jogs into octolinear
+                        shortcuts (#536). ON by default -- measured worth ~20
+                        incomplete nets across 147 corpus boards versus off.
+  --no-smoothing        Disable #536 octolinear smoothing for this step.
+                        KICAD_SMOOTH_ROUTE=0/1 overrides either way.
+  --keep-input-copper   Treat the input file's own copper as read-only: the
+                        post-route cleanup passes (dead-end sweep, orphan
+                        islands, cycle/redundancy prunes, graze re-bends)
+                        never remove or rewrite it, only this run's new
+                        copper. For chained flows whose earlier stages author
+                        copper (fanout escape stubs, hand-routed nets) that
+                        later stages or checks must still see verbatim -
+                        including stubs of nets this run FAILED to route.
+                        Default: off (issue #84 semantics: dead input stubs on
+                        in-scope nets are swept).
+  --length-match-group LENGTH_MATCH_GROUPS [LENGTH_MATCH_GROUPS ...]
+                        Net patterns to length-match as a group (can be
+                        repeated). Use 'auto' for DDR4 auto-grouping
+  --length-match-tolerance LENGTH_MATCH_TOLERANCE
+                        Acceptable length variance within group in mm
+                        (default: 0.1)
+  --meander-amplitude MEANDER_AMPLITUDE
+                        Height of meander perpendicular to trace in mm
+                        (default: 1.0)
+  --meander-spacing MEANDER_SPACING
+                        Centre-to-centre spacing of adjacent meander arms, in
+                        multiples of the net's routed track width (default:
+                        2.0 = 2W)
+  --time-matching       Match by propagation time instead of length (accounts
+                        for layer dielectric)
+  --time-match-tolerance TIME_MATCH_TOLERANCE
+                        Acceptable time variance in picoseconds (default: 1.0)
+  --max-ripup MAX_RIPUP
+                        Maximum blockers to rip up at once during rip-up and
+                        retry (default: 3)
+  --ripup-abandon-metric {stranded,total-pads,complete-nets,congestion,history,weighted,probe,weighted-probe}
+                        How a Phase 3 tap rip-up decides keep-retry vs abandon
+                        (see docs/rip-up-reroute.md). Env override:
+                        KICAD_RIPUP_ABANDON_METRIC (default: stranded)
+  --ripup-blocker-select {count,near-target,bidir,mincut,cost}
+                        Blocker SELECTION algorithm for the rip-up ladder.
+                        'count' = historical weighted cell count; 'near-
+                        target' = endpoint-proximity first (the true last-mile
+                        blocker hugs the failing pad but has few cells);
+                        'bidir' = boost nets blocking BOTH search directions
+                        (genuine separating walls); 'mincut' = soft-cost probe
+                        on a map clone that reads the actual crossing set
+                        (names the true joint cut; falls back to count order
+                        when the wall is static copper). Default: count.
+  --routing-clearance-margin ROUTING_CLEARANCE_MARGIN
+                        Diff pairs only (a pair this run routes or restores):
+                        multiplier on the track-to-via distance that sets the
+                        P/N via offset and the centerline's via keep-out (1.0
+                        = minimum DRC). Single-ended tracks and vias do not
+                        read it.
+  --hole-to-hole-clearance HOLE_TO_HOLE_CLEARANCE
+                        Minimum clearance between drill holes in mm. Default:
+                        the board's own min_hole_to_hole constraint, else 0.2.
+  --board-edge-clearance BOARD_EDGE_CLEARANCE
+                        Clearance from board edge in mm. Default: the board's
+                        own min_copper_edge_clearance constraint, else 0.0.
+  --same-net-pad-clearance SAME_NET_PAD_CLEARANCE
+                        Edge-to-edge clearance (mm) between EVERY placed via
+                        and same-net pads (#581). > 0 keeps vias off same-net
+                        SMD pads AND off the net's solder-paste openings
+                        (#962) (escape vias, via-in-pad rescue, tap vias) and
+                        is recorded in the sibling .kicad_pro so later chain
+                        steps inherit it; -1 explicitly allows via-in-pad.
+                        Default: the project's recorded value, else via-in-pad
+                        allowed.
+  --vertical-attraction-radius VERTICAL_ATTRACTION_RADIUS
+                        Radius in mm for cross-layer track attraction (0 =
+                        disabled, default: 1.0)
+  --vertical-attraction-cost VERTICAL_ATTRACTION_COST
+                        Cost bonus for aligning with tracks on other layers (0
+                        = disabled, default: 0.0)
+  --ripped-route-avoidance-radius RIPPED_ROUTE_AVOIDANCE_RADIUS
+                        Radius in mm around ripped route segments/vias for
+                        soft penalty (default: 1.0)
+  --ripped-route-avoidance-cost RIPPED_ROUTE_AVOIDANCE_COST
+                        Soft penalty other nets pay to route through a ripped
+                        net's former corridor, reserving it for that net's
+                        reroute (the ripped net itself never pays it; 0 =
+                        disabled, default: 0.1)
+  --layer-costs LAYER_COSTS [LAYER_COSTS ...]
+                        Per-layer cost multipliers (1.0-1000, default:
+                        F.Cu=1.0, others=3.0), or any negative value (e.g. -1)
+                        = FORBIDDEN: the layer stays an obstacle (its copper
+                        blocks vias) and through-vias may span it, but NO
+                        track copper is placed on it. Order matches --layers.
+                        Example (route only F.Cu/B.Cu, In1/In2 obstacle-only):
+                        --layers F.Cu In1.Cu In2.Cu B.Cu --layer-costs 1.0 -1
+                        -1 3.0
+  --debug-lines         Output debug geometry on User.3 (connectors), User.4
+                        (stub dirs), User.8 (simplified), User.9 (raw A*)
+  --verbose, -v         Print detailed diagnostic output (setback checks,
+                        etc.)
+  --skip-routing        Skip actual routing, only do swaps and write debug
+                        info
+  --debug-memory        Print memory usage statistics at key points during
+                        routing
+  --add-teardrops       Add teardrop settings to all pads and vias in output
+                        file
+  --write-fill          After writing the board, fill its zones with KiCad's
+                        own ZONE_FILLER so the deliverable carries
+                        (filled_polygon ...) blocks (#910). Without it the
+                        board ships zone OUTLINES only, and a grade without
+                        --refill-zones reports plane opens that are not real.
+                        Needs KiCad's bundled python; the sibling .kicad_pro
+                        and its net classes are preserved.
+  --stats               Collect and print A* search statistics for debugging
+                        heuristic efficiency
+  --fab-tier {standard,advanced,auto}
+                        JLC fab capability floor (default auto). 'auto' = the
+                        cheap standard floor, escalating to advanced
+                        (0.25/0.15 via etc., more costly; warned and counted
+                        in the run summary) when a fine-pitch fan-out, plane
+                        tap or last-resort via cannot fit at the standard
+                        floor; 'standard' and 'advanced' are HARD floors that
+                        never escalate.
+  --fab-overrides FILE  Path to a fab-floor override file (key=value lines,
+                        e.g. 'via_drill = 0.15') overlaying the selected
+                        --fab-tier; only the listed values are replaced.
+                        Supplying it disables escalation (the floor becomes
+                        exactly the file + base tier). See the template
+                        fab_overrides.example.txt for the format and every
+                        key.
+  --escalation {off,board,fab}
+                        How far below a REQUESTED size a failing net may be
+                        retried (default fab). 'off': never -- sizes and
+                        clearances are exact, a net that cannot complete at
+                        them fails and is reported. 'board': down to the
+                        board's own declared floors (Board Setup rules.min_*;
+                        an unset key falls back to the fab tier floor, an
+                        unset min_clearance to the Default class). That is
+                        what KiCad's DRC accepts once the output project's
+                        Default class is lowered to the clearance used, which
+                        the DRC-settings writeback does; with --no-fix-drc-
+                        settings the project is left as it was, so clearance
+                        descents stop at the Default class (floored at
+                        min_clearance), what KiCad grades it at (#1262).
+                        'fab': down to the fab tier floor, below the board's
+                        own minimums. Every descent is counted in JSON_SUMMARY
+                        design_rules.
+  --clearance-ceiling MM
+                        Cap EVERY net class (Default included) at this copper
+                        clearance for the run and clamp the output project's
+                        classes down to it -- the 'stock net classes are
+                        aspirational' workflow. This is what --clearance used
+                        to do implicitly (#439); --clearance now sets only the
+                        Default class for the run and honours the other
+                        classes, as KiCad does.
+  --strict-sizes        Exit non-zero (3) when any feature was delivered below
+                        its requested size or a fab-tier escalation fired, so
+                        a harness needs no grep.
+
+DRC settings (post-route, issue #160):
+  --no-fix-drc-settings
+                        Do not adjust the output's .kicad_pro DRC constraints
+                        to match the routed clearances/sizes afterwards. By
+                        default the written project's Board Setup floors are
+                        loosened to the routed values so KiCad's DRC only
+                        flags genuine problems.
+  --relax-drc-severities
+                        ALSO lower the project's DRC severities for the non-
+                        routing categories (courtyard shapes, solder-mask
+                        bridges, footprint/library issues incl. annular_width
+                        -> ignore; starved_thermal -> warning;
+                        courtyards_overlap -> warning). OFF by default (#856):
+                        a routing step never changes what the project counts
+                        as a violation unless asked. Each change is logged and
+                        the previous value is kept under
+                        kicad_routing_tools.saved_severities.
+  --keep-thermal        Deprecated no-op. Routing steps no longer touch DRC
+                        severities unless --relax-drc-severities is given;
+                        with it, this leaves starved_thermal untouched.
+  --enable-used-layers  Add any layer the board uses but that is missing from
+                        its (layers) table back into the .kicad_pcb, so KiCad
+                        shows it as selectable and stops flagging
+                        item_on_disabled_layer. OFF by default (it edits the
+                        board, not just DRC settings).
+
+Wildcard patterns supported:
+  "Net-(U2A-DATA_*)"  - matches Net-(U2A-DATA_0), Net-(U2A-DATA_1), etc.
+  "Net-(*CLK*)"       - matches any net containing CLK
+
+Examples:
+  python py_router/route.py fanout_starting_point.kicad_pcb routed.kicad_pcb "Net-(U2A-DATA_*)"
+  python py_router/route.py input.kicad_pcb output.kicad_pcb "Net-(U2A-DATA_*)" --ordering mps
+
+For differential pair routing, use route_diff.py:
+  python py_router/route_diff.py input.kicad_pcb output.kicad_pcb --nets "*lvds*"
+EXIT=0

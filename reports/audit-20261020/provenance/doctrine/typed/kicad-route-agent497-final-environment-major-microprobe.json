@@ -1,0 +1,23 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "environment-major-microprobe",
+  "evidence_class": "evidence-runtime-observation",
+  "summary": "Three alternating samples per mode made nine actual tool_env calls using native kicad-cli version. Fresh mode made9 native probes per sample; attempt-scoped mode made1. Median wall was1.558260309s versus0.224570115s; median child CPU1.347489s versus0.144235s. Raw argv/version/exit/wall/CPU observations are retained, source common.py SHA4fd09eef7547c947700067975a54e08c8e6b3ed8d3c5ac94cf8ae77e4a593038 matches frozen f0f73da. This measures probe reuse only, not routing/DRC performance or final matrix qualification. Final matrix remains required.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/environment-reuse-microprobe.json",
+      "method": "Read retained alternating native version microprobe; no new process launched",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "8d62366afd3ec6372a0e2f498c83518c049dfc3beefbdf7693ae586c3a68157a"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+      "method": "Read source hash parity and retained113-focused-JUnit observations",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a77d01e9af9bcfd3080522f27ff8fad8baa32f6ce9ba5967dd71b73e793bb6fe"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

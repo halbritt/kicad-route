@@ -1,0 +1,22 @@
+{
+  "schema": "kicad-route/trunk-integration/1",
+  "recorded_utc": "2026-10-20T22:50:29.363420+00:00",
+  "git_land_session": "14042",
+  "observed_git_land_exit_code": 0,
+  "integration_test_command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /usr/bin/python3 -m pytest -q tests/test_tool_environment_scope.py tests/test_generation_refusals.py tests/test_publication_safety.py tests/test_test_suite.py",
+  "observed_test_result": {
+    "passed": 60,
+    "duration_s": 6.51
+  },
+  "git_land_head": "8c1b0331b3cf5d1f71cb2f3bf3a6964f83b1d844",
+  "qualified_benchmark_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+  "source_history_merge_head": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+  "pushed": true,
+  "history_reason": "git-land rebased away a merge containing original qualified benchmark IDs. A normal merge restored those exact ancestors with an unchanged tree, then main was fast-forward pushed.",
+  "source_history_merge_tree_unchanged": true,
+  "landed_tree_equals_benchmark_tree": true,
+  "owned_secondary_worktrees_remaining": 0,
+  "owned_secondary_branches_remaining": 0,
+  "default_runtime_session": "82276",
+  "runtime_status_at_record": "RUNNING"
+}

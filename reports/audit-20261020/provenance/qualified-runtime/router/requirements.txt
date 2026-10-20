@@ -1,0 +1,58 @@
+# KiCad Routing Tools Dependencies
+
+# Numerical computation.
+#
+# The numpy floor is 1.22, not 1.21, and it is load-bearing rather than
+# aspirational -- the whole stack breaks below it in ways that name neither
+# numpy nor us (reported from a KiCad 10 install, 2026-09-18):
+#   * `numpy._DTypeMeta.__class_getitem__` landed in 1.22. Below that, any
+#     package whose import evaluates `np.ndarray[Any, np.dtype[...]]` dies with
+#     `TypeError: 'numpy._DTypeMeta' object is not subscriptable`.
+#   * scipy >= 1.11 warns "A NumPy version >=1.22.4 and <2.3.0 is required for
+#     this version of SciPy (detected version X)".
+# `startup_checks.requirement_floors` READS this line, so the floor here is the
+# floor the gates enforce -- see FALLBACK_FLOORS there for the stripped-install
+# case. Raising it here raises it everywhere; there is no second copy to edit.
+numpy>=1.22.0
+scipy>=1.7.0
+
+# Geometry operations. 2.0 for the vectorized API: the courtyard reader
+# (placement/parser.py, #1094) calls shapely.distance / shapely.points.
+shapely>=2.0
+
+# Rasterization: board stills, review sheets, the routing movie and the film.
+# Listed because a fresh clone that followed the README could not render
+# anything without it -- but it is the RASTER path and nothing else, so its
+# absence DISABLES rendering rather than stopping anything (#943).
+#
+# ONE file imports it at module scope: py_router/route_render.py, which is the
+# raster stack and nothing else, and which calls
+# `startup_checks.check_render_dependencies` first so the message is the
+# actionable one. py_tools/render_placement.py used to be the second, and its
+# import moved into the five functions that DRAW because that module also holds
+# PlacementModel / legality_findings, which py_tools/board_context.py and the
+# stress predictors import to GRADE a placement and draw nothing.
+#
+# Routing does not touch it, and neither does the GUI plugin:
+# `deps_check.OPTIONAL_PACKAGES` names it, so a machine without Pillow gets the
+# plugin with its movie checkbox and placement preview turned off, not a dialog
+# it cannot dismiss.
+#
+# The floor is deliberately LOW: everything the renderer needs (alpha_composite,
+# LANCZOS, ImageChops, PngInfo) is far older than this, and a low floor keeps
+# older environments working. Captions want more: route_render.load_font asks
+# for a SIZED default font, ImageFont.load_default(size=), which arrived in
+# Pillow 10.1.0 -- below that its try/except falls back to the unsized default
+# and labels come out small but present. So 10.1 is the version to have, not the
+# version to require.
+#
+# (A previous comment here put load_default(size=) at 9.2. That is wrong -- it
+# is 10.1.0 -- and the error is worth naming because it was pinned INTO a
+# dependency declaration, where "the version at which the intended path works"
+# would then have been false.)
+Pillow>=9.2.0
+
+# NOT listed, deliberately: imageio and imageio-ffmpeg. They are needed only to
+# write .mp4, they are imported inside a function, and their absence is AUDIBLE
+# -- animate_route prints "mp4 unavailable (...); falling back to GIF" and
+# writes a sibling .gif. For mp4:  pip install imageio imageio-ffmpeg

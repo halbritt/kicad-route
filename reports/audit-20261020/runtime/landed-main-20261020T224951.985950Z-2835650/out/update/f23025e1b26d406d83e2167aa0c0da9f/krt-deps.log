@@ -1,0 +1,16 @@
+Using Python 3.12.3 environment at: .router-generations/f23025e1b26d406d83e2167aa0c0da9f/venv
+Resolved 4 packages in 341ms
+Downloading pillow (6.8MiB)
+Downloading numpy (16.0MiB)
+Downloading shapely (2.2MiB)
+Downloading scipy (33.7MiB)
+ Downloaded shapely
+ Downloaded pillow
+ Downloaded numpy
+ Downloaded scipy
+Prepared 4 packages in 2.43s
+Installed 4 packages in 70ms
+ + numpy==2.5.4
+ + pillow==13.0.0
+ + scipy==1.18.1
+ + shapely==2.2.0

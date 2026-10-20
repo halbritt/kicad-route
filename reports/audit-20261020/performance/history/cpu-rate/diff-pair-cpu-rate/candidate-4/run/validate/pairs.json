@@ -1,0 +1,87 @@
+[
+  {
+    "p": "/CAN+",
+    "n": "/CAN-",
+    "netclass": "CAN",
+    "width_mm": 0.25,
+    "gap_mm": 0.35,
+    "initially_connected": false,
+    "routed": true,
+    "length_p": 29.8125,
+    "length_n": 29.8125,
+    "skew": 0.0,
+    "gap_violations": 0,
+    "status": "ROUTED",
+    "backend_status": "COUPLED",
+    "backend_report": {
+      "routed_diff_pairs": [
+        "/CAN"
+      ],
+      "failed_diff_pairs": [],
+      "partial_diff_pairs": [],
+      "member_incomplete_pairs": [],
+      "single_ended_diff_pairs": [],
+      "ripup_success_pairs": [],
+      "rerouted_pairs": [],
+      "polarity_swapped_pairs": [],
+      "polarity_swap_denied_pairs": [],
+      "single_ended_followup_nets": [],
+      "skipped_bad_fanout": [],
+      "target_swaps": [],
+      "layer_swaps": 0,
+      "intra_pair_matching": [],
+      "successful": 1,
+      "failed": 0,
+      "total_time": 0.02,
+      "total_iterations": 277,
+      "total_vias": 0,
+      "min_clearance_used": 0.2,
+      "pair_reports": [
+        {
+          "pair": "/CAN",
+          "p_net": "/CAN+",
+          "n_net": "/CAN-",
+          "outcome": "coupled",
+          "failure_reason": null,
+          "failure_stage": null,
+          "incomplete_members": [],
+          "member_audit_mismatch": false,
+          "no_coupled_trunk": false
+        }
+      ],
+      "casualty_reconcile": {
+        "attempted": 0,
+        "restored": [],
+        "rerouted": [],
+        "partial": [],
+        "unrecovered": []
+      },
+      "single_ended_fallback": {
+        "attempted": [],
+        "routed": [],
+        "partial": [],
+        "failed": []
+      },
+      "plane_fragility": {
+        "source": "none",
+        "islands": 0,
+        "refill_status": null,
+        "why": "the board has no zones",
+        "machine_dependent": false
+      },
+      "env_knobs": {
+        "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/candidate-out/.home/cache",
+        "KICAD_CLI": "/usr/bin/kicad-cli",
+        "KICAD_DYNAMIC_ITERATIONS": "0",
+        "KICAD_FINALIZE_RIP": "0",
+        "KICAD_IMPEDANCE_NECKDOWN": "0",
+        "KICAD_INRUN_FLOOR_SYNC": "0",
+        "KICAD_RESCUE_CAP_MOVE": "0",
+        "KICAD_RIP_PREEXISTING": "0",
+        "KICAD_ROUTE_LEDGER": "off",
+        "KICAD_ROUTE_STATE": "/home/halbritt/git/kicad-route/build/agent497-bytecode-state",
+        "KICAD_TERMINAL_ESCALATION": "0"
+      }
+    }
+  }
+]

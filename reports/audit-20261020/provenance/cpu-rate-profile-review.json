@@ -1,0 +1,56 @@
+{
+  "schema": "kicad-route/cpu-rate-profile-review/1",
+  "created_utc": "2026-10-20T22:01:49.181257+00:00",
+  "status": "READ_ONLY_REVIEW_NO_EXECUTION",
+  "judgment": "Defensible as a new preregistered conditional CPU-rate-profile comparison for the literal bounded recheck in KICADROUTE-73 criterion5. The issue does not mandate12 unconstrained CPUs. It can support that declared condition only if actual resource parity and all original full-CLI/native/1.10 gates pass. It cannot convert failed unrestricted comparisons into passes or establish general full12CPU performance. Verification is not self-acceptance.",
+  "original_requirement": "Existing simple-board completion and the owner's 10 percent runtime/memory limits are rechecked for this semantic engine change.",
+  "new_context": {
+    "authority": "Owner already authorizes development/native verification. Root demonstrated an own-process normal-priority transient user scope withCPUQuota=200% and /usr/bin/true exit0. No unrelated workload/global or privileged resource change is proposed.",
+    "source": "Referencef0c09ac; candidatef0f73da and prepared603 remain frozen.",
+    "affinity": "Full0\u201311 unchanged for both sides. CPUQuota=200% means maximum aggregate CPU time equivalent to2logical CPUs, not a reservation of2physical cores.",
+    "scope": "Entire comparison driver plus its CLI/native descendants must be in the verified quota scope; Unix session changes do not by themselves escape a cgroup. All baseline/candidate samples run sequentially under identical scope settings and ancestors.",
+    "period": "Explicitly preregister and verify quota period, preferably unchanged systemd default100ms. Record cpu.max.burst.200% at100ms is normally200000/100000; do not assume it without reading actual cpu.max. Bursty parallel native work can interact with period throttling.",
+    "ancestor_observation": "Leaf cpu.stat bandwidth-throttling counters do not include all ancestor-induced throttling. Record ancestor limits and counters as well; use cpu.stat.local if available, without assuming every supported kernel exposes it."
+  },
+  "calibration_recommendation": {
+    "work": "Exactly3trials for the200% profile, each four concurrent child processes consuming3process-CPU-seconds apiece. Total intended child work12CPU-seconds. Parent/launch overhead and actual cgroup CPU usage must also be recorded.",
+    "ideal_wall_s_at_200_percent": 6,
+    "ideal_wall_s_at_100_percent": 12,
+    "prespecify_before_any_native_result": [
+      "All3trials complete successfully, each child reports its actual CPU work and no process/descendant escapes the intended scope.",
+      "For a chosen profile, every trial wall is no more than1.10times its declared ideal:6.6s at200%,13.2s at100%. Verify actual delivered cgroupCPU/elapsed and childCPU totals as well, not elapsed alone.",
+      "For repeatability, require max(trialwall)/min(trialwall)<=1.10 across all3trials. A materially faster-than-quota result requires investigating actual quota/burst/CPU counters; it must not be treated as proof of reserved service.",
+      "Read actual quota/period/burst/weight/affinity/ancestor constraints and CPU usage/throttle counters for every trial. Snapshot global host PSI separately; pressure/throttling can be caused by the test itself."
+    ],
+    "selection": "If every200%calibration criterion passes, choose200%and do not explore alternatives. Otherwise run exactly3trials at100%with the same preregistered criteria, before any router result. If100%also fails, stop resource-inconclusive. No additional quota, priority, best-trial selection or repeated calibration batches.",
+    "limitation": "A CPU-bound calibration measures currently attainable aggregate service, not future resource availability or native KiCad latency. It does not reserve service, model IO/memory stalls, prove stable native parallel scheduling or guarantee any route comparison passes."
+  },
+  "benchmark_requirements": [
+    "Preregister exactly one new four-board matrix with5measured repetitions and separate warmups per side, frozen comparison functions and new output namespace. All4outcomes remain, even after a failed board verdict.",
+    "Same actual host/toolchain/input/rules and quota/period/burst/ancestor/affinity/normal-priority configuration for baseline and candidate. Detect changed resource configuration, and retain it explicitly rather than claiming parity.",
+    "Keep original native budgets/stall logic, full public-CLI GNU-time wall measurement, copper/migration-equivalence policy, all warmup/measured process/routing/validation/preservation/pair/input/stop checks, and all three1.10median gates.",
+    "Include quota throttling, native refill/DRC and waiting in full-CLI wall time. Do not substitute CPU time, deduct quota delay, enlarge budgets or discard/retry a completed sample.",
+    "Capture /proc/self/cgroup, resolved cgroup mount/membership and all relevant ancestor cpu.max/weight/cpuset settings, cpu.max.burst when present, cgroupcpu.stat before/after, actual affinity and global /proc/pressure/{cpu,io,memory} with timestamps. Root cgroup may legitimately omit cpu.max; distinguish root omission from an unverified nonroot quota.",
+    "Record actual scope placement of observed descendants, or retained inheritance/configuration evidence sufficient to show scope coverage. starts_new_session alone is not a cgroup boundary.",
+    "Quota exhaustion and nr_throttled increases are expected under this profile; they are diagnostic, not reasons to exclude samples. After-pressure likewise does not invalidate or retry a completed attempt.",
+    "Maintain all failed historical unrestricted/env-reuse comparisons and the expired zero-sample quiet-admission experiment as distinct history. Do not mutate the frozen quiet harness/protocol.",
+    "If the new matrix fails any original gate, resource/runtime acceptance remains unmet. A pass is bounded to this rate profile and finite workload/toolchain sample."
+  ],
+  "non_goals": [
+    "No general unconstrained12CPU performance claim",
+    "No claim that quota caps guarantee scheduling service",
+    "No priority elevation or sibling/global workload changes",
+    "No source change, native job or scope creation performed by this review",
+    "No final doctrine reassembly before qualifying terminal evidence"
+  ],
+  "primary_sources": [
+    {
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html",
+      "supports": "CPUQuota is a maximum relative to one CPU; default quota period100ms; actual weight/hierarchy can matter."
+    },
+    {
+      "url": "https://docs.kernel.org/admin-guide/cgroup-v2.html",
+      "supports": "CPU controller hierarchy and cpu.max/cpu.stat semantics; forked descendants inherit cgroup membership and ancestor limits constrain descendants."
+    }
+  ]
+}

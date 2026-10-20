@@ -1,0 +1,16 @@
+{
+  "check": "pour_integrity",
+  "status": "PASS",
+  "min_spokes": 2,
+  "project_min_resolved_spokes": 2,
+  "area_loss_limit_pct": null,
+  "reference_islands_off_main": 0,
+  "layers": [],
+  "failures": [],
+  "informational": [],
+  "pads": [],
+  "reference_source": {
+    "source": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-cache-reuse/candidate-1/run/../../candidate-out/.cache/baseline/1ca5b3aec859db0ea55169d351e5465d925184bb8d6f42be4d87a3373c7d1875/generation-256zvtcy/baseline-pour.json",
+    "cached": true
+  }
+}

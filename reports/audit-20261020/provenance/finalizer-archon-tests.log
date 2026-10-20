@@ -1,0 +1,11 @@
+Finalizer SHA256: f342d5ee2c8a5e3c115824d00828d3e3fbf62985e066e0efc6007e02eb5cef6c
+PASS actual immutable Archon proof/index bridge,48native attempts
+PASS actual retained Archon baseline3payloads/grader/schema/native identity and executed-build ledger reconstruction
+PASS rejection: wrong externally observed indexSHA
+PASS rejection: wrong independent verificationSHA
+PASS rejection: changed original acceptance string
+PASS synthetic formatting:all14item bodies/proof paths removeobsolete profiles and retain multi-invocation coverage honesty
+PASS regression:ticket81 stale quiet-profile proof path replaced with actual Archon path
+PASS rejection: failed default-runtime proof cannot finalize
+PASS rejection: local CPU study cannot finalize73
+9 bounded finalizer bridge checks PASS; no native jobs or final acceptance files emitted.

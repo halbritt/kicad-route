@@ -1,0 +1,46 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "scope-instructions",
+  "evidence_class": "evidence-explicit-user-requirements",
+  "summary": "The active user goal authorizes implementing the exact original14 items68\u201381 and parallel work, with trunk integration delegated to the primary agent. This subtask authorizes only read-only source/evidence inspection and qualification artifacts. User-provided AGENTS instructions require subscription model routes, no uncommitted work, no /tmp worktrees and full integration; they do not grant uploading private boards, paid infrastructure or routing-algorithm optimization. No repository-local tracked AGENTS.md exists in the primary source tree; no additional AGENTS.md exists on the inspected root-to-target filesystem paths. Acceptance and tracker/trunk actions remain with the owner-authorized primary mechanism, not this receipt. The primary subsequently authorized only attempt-local major-version environment-name reuse to address the failed unchanged1.10 diff-pair gate. This extends the bounded optimization scope to common.tool_env/run_attempt, not global identity caching or routing algorithms. This receipt subtask remains read-only; owner-authorized primary owns integration and acceptance. The existing development/native-verification task authorizes reversible controls on this experiment\u2019s own processes. Root chose a normal-priority transient user scope after demonstrating capability, then selected1CPU from the predefined non-router calibration before matrix94696. This does not authorize unrelated workload changes or self-acceptance. It does not create a new blanket permission requirement for already-approved runners or CPU-count selection.",
+  "provenance": [
+    {
+      "locator": "conversation:active-user-goal-and-AGENTS-instructions",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00"
+    },
+    {
+      "locator": "conversation:root-engine-final-doctrine-task",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/deep-analysis-20261020-agent486/issues-draft.json",
+      "method": "Read retained artifact or current source; no gate execution",
+      "observed_at": "2026-10-20T21:04:24.564037+00:00",
+      "content_sha256": "bf616a12cfdf66b1e3b93b3ac2ccb07896dfc19ea1019237d3b662f707796133"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-history-merge.json",
+      "method": "Read retained current artifact or committed source; no gate execution",
+      "observed_at": "2026-10-20T21:16:56.533178+00:00",
+      "content_sha256": "a916033f4e413ba36a6c1b4f1b53c6e2cb18ac62437d075d958ca8130d6c2485"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-service-calibration-root-review.json",
+      "method": "Read retained artifact; no execution or live-file mutation",
+      "observed_at": "2026-10-20T22:14:08.109666+00:00",
+      "content_sha256": "e5100f91ff192d13fc6770a1898787d746f1c8cce96c50c76f2cc94339c6c0b6"
+    }
+  ],
+  "satisfies": [
+    "user instruction and authority",
+    "repository instructions from root through target path"
+  ]
+}

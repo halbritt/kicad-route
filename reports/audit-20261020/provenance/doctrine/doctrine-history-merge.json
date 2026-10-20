@@ -1,0 +1,13 @@
+{
+  "schema": "kicad-route/doctrine-history-merge/1",
+  "observed_utc": "2026-10-20T21:11:55.915408+00:00",
+  "head": "b27a004bc23d0d92330ab4aa9192619a1667b811",
+  "parents": [
+    "b2bea77af69587b572b409190f18ed674abd0006",
+    "3bc90405be40a42c1e5ff48787e35238ea994ab8"
+  ],
+  "merge_tree": "05a0eec8fa26eee4c94854e4f60982c5087b39b0",
+  "prior_primary_tree": "05a0eec8fa26eee4c94854e4f60982c5087b39b0",
+  "trees_equal": true,
+  "retained_benchmark_candidate_ancestor": true
+}

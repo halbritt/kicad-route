@@ -1,0 +1,26 @@
+{
+ "/AUX": {
+  "clearance": 200000,
+  "gap": 250000,
+  "length": 30000000,
+  "netclass": "Default",
+  "pad_count": 2,
+  "width": 200000
+ },
+ "/CAN+": {
+  "clearance": 200000,
+  "gap": 350000,
+  "length": 29812500,
+  "netclass": "CAN",
+  "pad_count": 2,
+  "width": 250000
+ },
+ "/CAN-": {
+  "clearance": 200000,
+  "gap": 350000,
+  "length": 29812500,
+  "netclass": "CAN",
+  "pad_count": 2,
+  "width": 250000
+ }
+}

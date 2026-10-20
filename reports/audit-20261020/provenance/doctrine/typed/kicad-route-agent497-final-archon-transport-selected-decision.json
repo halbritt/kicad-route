@@ -1,0 +1,41 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "final-archon-transport-selected-decision",
+  "evidence_class": "evidence-generated-artifacts",
+  "summary": "Parent-selected postterminal Archon artifacttransport decision preserves frozena080/ebfd measurement profile and all completed native data. A separate reviewed exporter omits only explicitly listed taskHOME/downloadcache trees, with exact omission prefixes/counts/bytes/reasons and strict refusal if a required frozenfile or retainedJSON regular-file locator would be omitted. Native results/GNU/boards/work/resources/hostattestations/manifests/preplogs/baselinecache/ledger and exact external prerequisites remain retained through sourceabsolute\u2192safe-retained-relative SHAindex. Frozen original exporter remains provenance and is explicitly unexecuted; no invented original indexhash. Alternative fullcache transport was unnecessary (~800MiB caches).10synthetic exporter checksPASS independently of741production coverage. Decision changes transport only after actual root-observed8896terminal; actual exportedindex/host-after/rawverification remain pending and acceptance authority stays external.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-transport-selected-decision.json",
+      "method": "Read selected parent-authorized policy, bounded testoutput and actual helper source; no remote/native job or measurementprofile change",
+      "observed_at": "2026-10-20T22:43:08.509277+00:00",
+      "content_sha256": "96da13d1fc578b6d591ae71228159dc2d6e70cab0c09f43202a231f545ec356a"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/export-archon-evidence.py",
+      "method": "Read selected parent-authorized policy, bounded testoutput and actual helper source; no remote/native job or measurementprofile change",
+      "observed_at": "2026-10-20T22:43:08.509277+00:00",
+      "content_sha256": "af2899d658b36ffb8c0aa7f62cee6f65c8ba5f159ecc829d64f3b7ea4f2d390a"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-export-policy.json",
+      "method": "Read selected parent-authorized policy, bounded testoutput and actual helper source; no remote/native job or measurementprofile change",
+      "observed_at": "2026-10-20T22:43:08.509277+00:00",
+      "content_sha256": "8e30d7b302bba9856a127e1a04159f2efb8571ed59c5ad3e8f4fd27027aab3e1"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_archon_export.py",
+      "method": "Read selected parent-authorized policy, bounded testoutput and actual helper source; no remote/native job or measurementprofile change",
+      "observed_at": "2026-10-20T22:43:08.509277+00:00",
+      "content_sha256": "5bcb71ceefa929e8f9e592749b712746bc80454cec88d3f3c96f5c2938a8aca2"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-export-tests.log",
+      "method": "Read selected parent-authorized policy, bounded testoutput and actual helper source; no remote/native job or measurementprofile change",
+      "observed_at": "2026-10-20T22:43:08.509277+00:00",
+      "content_sha256": "c77b20d64289b86c995a30c3e8723255b1692bc9b8945d778bfc895876ebff6d"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

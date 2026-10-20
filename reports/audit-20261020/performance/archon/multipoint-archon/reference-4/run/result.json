@@ -1,0 +1,551 @@
+{
+  "schema": "kicad-route/route/1",
+  "kind": "route",
+  "backend": {
+    "name": "krt",
+    "version": "0.23.1",
+    "build": "owned-c2ac657d5617",
+    "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source": "https://github.com/halbritt/kicad-route",
+    "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+    "upstream": {
+      "project": "KiCadRoutingTools",
+      "license": "MIT",
+      "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+      "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+      "upstream_release": "v0.23.1",
+      "fork": "https://github.com/halbritt/KiCadRoutingTools",
+      "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+      "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+      "fixes": {
+        "KICADROUTE-64": "4b316ba",
+        "KICADROUTE-63": "0494a05"
+      },
+      "source_inventory": "reports/routing-engine/source-closure.json",
+      "additional_license_notices": [
+        "py_router/stage3d/vendor/three/LICENSE"
+      ],
+      "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+    },
+    "rust_router": "0.23.1",
+    "reproducible": null,
+    "reproducible_basis": "no determinism record for this build in the state manifest (kicad-route determinism --record)"
+  },
+  "measurement": false,
+  "input": {
+    "project": "multipoint-tap",
+    "board": "multipoint-tap.kicad_pcb",
+    "fingerprint": "ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760",
+    "source_dir": "/work/reference/reports/routing-engine/inputs/multipoint-tap",
+    "source": "working tree",
+    "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source_dirty_files": null,
+    "baseline": {
+      "report": "../../reference-out/.cache/baseline/ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760/baseline-drc.json",
+      "cached": true,
+      "reasons": []
+    },
+    "rules_files": {
+      "project": "multipoint-tap.kicad_pro",
+      "custom_rules": null,
+      "not_loaded": []
+    }
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "rule_floor_sha256": null
+  },
+  "scope": {
+    "mode": "all",
+    "nets": 1,
+    "nets_list": [
+      "/T"
+    ]
+  },
+  "unsupported": [
+    "KRT moves copper gr_text and net-less copper graphics to silkscreen (not switchable on the CLI); the copper_graphics preservation check reports it",
+    "KRT's cleanup may neck wide new segments near foreign pads without a flag; the new_copper_netclass_geometry check reports any new copper below its net class"
+  ],
+  "floor": null,
+  "process": {
+    "status": "PASS",
+    "reasons": [],
+    "exit_code": 0,
+    "commands": [
+      {
+        "argv": [
+          "/work/state-reference/.venv-krt/bin/python",
+          "/work/reference/src/kicad_route/router/py_router/route.py",
+          "/evidence/multipoint-archon/reference-4/run/work/input/multipoint-tap/multipoint-tap.kicad_pcb",
+          "--output",
+          "/evidence/multipoint-archon/reference-4/run/work/krt-out/multipoint-tap.kicad_pcb",
+          "--escalation",
+          "off",
+          "--fab-tier",
+          "standard",
+          "--strict-sizes",
+          "--no-power-tap-neckdown",
+          "--no-fix-drc-settings",
+          "--json-out",
+          "/evidence/multipoint-archon/reference-4/run/work/krt-out/summary.json",
+          "--keep-input-copper",
+          "--no-stub-layer-swap",
+          "--nets",
+          "*"
+        ],
+        "cwd": "/evidence/multipoint-archon/reference-4/run/work",
+        "log": "/evidence/multipoint-archon/reference-4/run/work/krt.log",
+        "env": {
+          "KICAD_INRUN_FLOOR_SYNC": "0",
+          "KICAD_TERMINAL_ESCALATION": "0",
+          "KICAD_IMPEDANCE_NECKDOWN": "0",
+          "KICAD_RESCUE_CAP_MOVE": "0",
+          "KICAD_DYNAMIC_ITERATIONS": "0",
+          "KICAD_CLI": "/usr/bin/kicad-cli",
+          "KICAD_STOP_FILE": "/evidence/multipoint-archon/reference-4/run/work/STOP",
+          "KICAD_RIP_PREEXISTING": "0",
+          "KICAD_FINALIZE_RIP": "0"
+        },
+        "budget_s": 180,
+        "last_phase": "improvement gate",
+        "last_metric": {
+          "disconnected_pads_before": 3
+        },
+        "heartbeats": {
+          "count": 14,
+          "log": "/evidence/multipoint-archon/reference-4/run/work/heartbeat.jsonl",
+          "stall_s": null,
+          "since_last_progress_s": 0.0,
+          "tail": [
+            {
+              "t_s": 0.966,
+              "utc": "2026-10-20T22:39:24.759958+00:00",
+              "phase": "summary",
+              "metric": {},
+              "line": "JSON_SUMMARY: {\"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_nets\": 1, \"multipoint_pads_connected\": 5..."
+            },
+            {
+              "t_s": 0.966,
+              "utc": "2026-10-20T22:39:24.759999+00:00",
+              "phase": "writing output",
+              "metric": {},
+              "line": "Writing output to /evidence/multipoint-archon/reference-4/run/work/krt-out/multipoint-tap.kicad_pcb..."
+            },
+            {
+              "t_s": 0.966,
+              "utc": "2026-10-20T22:39:24.760036+00:00",
+              "phase": "regrade",
+              "metric": {},
+              "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 1, \"seconds\": 0.0, \"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"..."
+            },
+            {
+              "t_s": 0.966,
+              "utc": "2026-10-20T22:39:24.760071+00:00",
+              "phase": "Run complete -- whole run, re-graded on the written board (1 net(s), 0.0s)",
+              "metric": {},
+              "line": "============================================================"
+            },
+            {
+              "t_s": 0.966,
+              "utc": "2026-10-20T22:39:24.760116+00:00",
+              "phase": "improvement gate",
+              "metric": {
+                "disconnected_pads_before": 3
+              },
+              "line": "JSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/T\"], \"worsened\": [], \"disconnected_pads_before\": 3, \"disconnected_pads_after\": 0, \"nets_compared\": 1, \"verdi..."
+            }
+          ]
+        },
+        "stalled": false,
+        "exit_code": 0,
+        "duration_s": 0.966,
+        "output_tail": " 0 -> pad 1 (length=4.50mm) target=(7.30, 5.50)\n      Routed in 10 iterations (0.00s)\n    [2/2] Routing MST edge: pad 1 -> pad 3 (length=4.70mm) target=(10.50, 4.00)\n      Routed in 33 iterations (0.00s)\n  Phase 3 routing complete: 2 edges, 5 total segments, 0 total vias\n  Added 3 tap segments, 0 tap vias\n  (seam re-ask skipped: /T is protected)\n  Net total time: 0.00s, 1059 iterations\n\n============================================================\nRouting complete\n============================================================\n  Single-ended:  1/1 routed\n  Multi-point:   5/5 pads connected (1 nets)\n  Total vias:    0\n  Total time:    0.13s\n  Iterations:    1,016\nJSON_SUMMARY: {\"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_nets\": 1, \"multipoint_pads_connected\": 5, \"multipoint_pads_total\": 5, \"multipoint_edges_routed\": 3, \"multipoint_edges_failed\": 0, \"ripup_success_pairs\": [], \"rerouted_pairs\": [], \"single_ended_target_swaps\": [], \"layer_swaps\": 0, \"successful\": 1, \"failed\": 0, \"total_time\": 0.13, \"total_iterations\": 1016, \"total_vias\": 0, \"cleanup_disconnected\": [], \"min_clearance_used\": 0.2, \"design_rules\": {\"escalation_policy\": \"off\", \"fab_tier\": \"standard\", \"board_floors\": {\"clearance\": 0.15, \"track_width\": 0.15, \"via_diameter\": 0.5, \"via_drill\": 0.25, \"hole_to_hole\": 0.25, \"annular\": 0.1, \"board_edge\": 0.3}, \"count\": 0, \"nets\": [], \"narrowed\": [], \"min_delivered\": {}, \"fab_tier_escalations\": 0, \"fab_tier_contexts\": [], \"fab_tier_target\": \"advanced\", \"unsupported_rules\": []}, \"plane_fragility\": {\"source\": \"none\", \"islands\": 0, \"refill_status\": null, \"why\": \"the board has no zones\", \"machine_dependent\": false}, \"oracle_check\": \"disabled\", \"pad_pairs_connected\": 4, \"pad_pairs_total\": 4, \"scope\": \"run\", \"env_knobs\": {\"KICAD_CACHE_HOME\": \"/evidence/multipoint-archon/reference-out/.home/cache\", \"KICAD_CLI\": \"/usr/bin/kicad-cli\", \"KICAD_DYNAMIC_ITERATIONS\": \"0\", \"KICAD_FINALIZE_RIP\": \"0\", \"KICAD_IMPEDANCE_NECKDOWN\": \"0\", \"KICAD_INRUN_FLOOR_SYNC\": \"0\", \"KICAD_RESCUE_CAP_MOVE\": \"0\", \"KICAD_RIP_PREEXISTING\": \"0\", \"KICAD_ROUTE_LEDGER\": \"off\", \"KICAD_ROUTE_STATE\": \"/work/state-reference\", \"KICAD_STOP_FILE\": \"/evidence/multipoint-archon/reference-4/run/work/STOP\", \"KICAD_TERMINAL_ESCALATION\": \"0\"}}\n\nWriting output to /evidence/multipoint-archon/reference-4/run/work/krt-out/multipoint-tap.kicad_pcb...\nSuccessfully wrote /evidence/multipoint-archon/reference-4/run/work/krt-out/multipoint-tap.kicad_pcb\n  Strict collapse (#1063, end of run): removed 1 redundant segment(s) on 1 net(s)\nVIA_IN_PAD_JSON: {\"count\": 0, \"sites\": [], \"stamped\": 0, \"restored\": 0, \"protected\": 0, \"unstampable\": 0, \"site_created\": 0, \"unprotected\": [], \"note\": \"via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel\"}\nJSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 1, \"seconds\": 0.0, \"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_pads_total\": 5, \"multipoint_pads_connected\": 5, \"successful\": 1, \"failed\": 0, \"unowned_broken\": [], \"recovered\": [], \"broken_by_run\": []}\n\n============================================================\nRun complete -- whole run, re-graded on the written board (1 net(s), 0.0s)\n============================================================\n  Single-ended:  1/1 routed\n  Multi-point:   5/5 pads connected\n  route summary written to /evidence/multipoint-archon/reference-4/run/work/krt-out/summary.json\nJSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/T\"], \"worsened\": [], \"disconnected_pads_before\": 3, \"disconnected_pads_after\": 0, \"nets_compared\": 1, \"verdict\": \"accept\"}\nJSON_SUMMARY_MIN: {\"escalations\": 0, \"failed\": 0, \"failed_single\": [], \"main_loop_time_s\": 0.13, \"min_clearance_used\": 0.2, \"multipoint_deficit\": 0, \"open_single\": [], \"pad_pairs_open\": {\"count\": 0, \"nets\": []}, \"regraded_nets\": 1, \"routed\": 1, \"scope\": \"merged\", \"terminal_restores_broken\": [], \"vias\": 0}\nEXIT=0\n"
+      },
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "/work/reference/src/kicad_route/kicad/locks.py",
+          "restore",
+          "/evidence/multipoint-archon/reference-4/run/work/krt-out/multipoint-tap.kicad_pcb",
+          "/evidence/multipoint-archon/reference-4/run/work/locks.json"
+        ],
+        "cwd": "/evidence/multipoint-archon/reference-4/run/work",
+        "log": "/evidence/multipoint-archon/reference-4/run/work/restore-locks.log",
+        "exit_code": 0,
+        "duration_s": 0.187
+      }
+    ],
+    "backend_report": {
+      "successful": 1,
+      "failed": 0,
+      "failed_single": [],
+      "open_single": [],
+      "failed_multipoint": [],
+      "multipoint_deficit": null,
+      "pad_pairs_connected": 4,
+      "pad_pairs_total": 4,
+      "total_vias": 0,
+      "total_iterations": 1016,
+      "total_time": 0.13,
+      "protected_skipped": null,
+      "scope": "merged",
+      "relaxations": {
+        "escalation_policy": "off",
+        "fab_tier": "standard",
+        "narrowed": [],
+        "fab_tier_escalations": 0,
+        "min_delivered": {},
+        "unsupported_rules": []
+      },
+      "improvement_gate": {
+        "lost": [],
+        "gained": [
+          "/T"
+        ],
+        "worsened": [],
+        "disconnected_pads_before": 3,
+        "disconnected_pads_after": 0,
+        "nets_compared": 1,
+        "verdict": "accept"
+      },
+      "project_writes": null
+    },
+    "existing_copper_locks": {
+      "lock": {
+        "locked": 1
+      },
+      "lock_exit": 0,
+      "restore": {
+        "restored": 1,
+        "not_found": 0
+      }
+    },
+    "project_writeback": [
+      {
+        "file": "multipoint-tap.kicad_prl",
+        "identical_to_input": true
+      },
+      {
+        "file": "multipoint-tap.kicad_pro",
+        "identical_to_input": true
+      }
+    ],
+    "runtime_s": 1.429,
+    "last_phase": "improvement gate",
+    "heartbeats": {
+      "count": 14,
+      "log": "/evidence/multipoint-archon/reference-4/run/work/heartbeat.jsonl",
+      "stall_s": null,
+      "since_last_progress_s": 0.0,
+      "tail": [
+        {
+          "t_s": 0.966,
+          "utc": "2026-10-20T22:39:24.759958+00:00",
+          "phase": "summary",
+          "metric": {},
+          "line": "JSON_SUMMARY: {\"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"multipoint_nets\": 1, \"multipoint_pads_connected\": 5..."
+        },
+        {
+          "t_s": 0.966,
+          "utc": "2026-10-20T22:39:24.759999+00:00",
+          "phase": "writing output",
+          "metric": {},
+          "line": "Writing output to /evidence/multipoint-archon/reference-4/run/work/krt-out/multipoint-tap.kicad_pcb..."
+        },
+        {
+          "t_s": 0.966,
+          "utc": "2026-10-20T22:39:24.760036+00:00",
+          "phase": "regrade",
+          "metric": {},
+          "line": "JSON_REGRADE: {\"board\": \"file\", \"graded_nets\": 1, \"seconds\": 0.0, \"routed_single\": [\"/T\"], \"failed_single\": [], \"open_single\": [], \"failed_multipoint\": [], \"..."
+        },
+        {
+          "t_s": 0.966,
+          "utc": "2026-10-20T22:39:24.760071+00:00",
+          "phase": "Run complete -- whole run, re-graded on the written board (1 net(s), 0.0s)",
+          "metric": {},
+          "line": "============================================================"
+        },
+        {
+          "t_s": 0.966,
+          "utc": "2026-10-20T22:39:24.760116+00:00",
+          "phase": "improvement gate",
+          "metric": {
+            "disconnected_pads_before": 3
+          },
+          "line": "JSON_IMPROVEMENT_GATE: {\"lost\": [], \"gained\": [\"/T\"], \"worsened\": [], \"disconnected_pads_before\": 3, \"disconnected_pads_after\": 0, \"nets_compared\": 1, \"verdi..."
+        }
+      ]
+    },
+    "stalled": false
+  },
+  "routing": {
+    "status": "COMPLETE",
+    "unconnected_in_scope": 0,
+    "unconnected_total": 0,
+    "baseline_unconnected_total": 3,
+    "unrouted_nets": [],
+    "stats": {
+      "new_tracks": 4,
+      "new_vias": 0,
+      "new_track_length_mm": 6.933,
+      "new_track_length_mm_by_layer": {
+        "F.Cu": 6.933
+      },
+      "new_copper_nets": 1,
+      "removed_existing_tracks": 0,
+      "removed_existing_vias": 0
+    }
+  },
+  "validation": {
+    "status": "PASS",
+    "reasons": [],
+    "dir": "/evidence/multipoint-archon/reference-4/run/validate",
+    "rules_files": {
+      "project": "multipoint-tap.kicad_pro",
+      "custom_rules": null,
+      "not_loaded": []
+    },
+    "restored_project_files": [],
+    "delivered_project_files": [],
+    "delivered_board_sha256": "dd55bbc6011bd714634a2a6fbe56ec221fe785ac18add416974260fb93e024fa",
+    "drc_commands": [
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--refill-zones",
+          "--save-board",
+          "--format",
+          "json",
+          "-o",
+          "/evidence/multipoint-archon/reference-4/run/validate/candidate-refill.json",
+          "/evidence/multipoint-archon/reference-4/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+        ],
+        "cwd": "/evidence/multipoint-archon/reference-4/run/candidate/multipoint-tap",
+        "log": "/evidence/multipoint-archon/reference-4/run/validate/candidate-refill.log",
+        "exit_code": 0,
+        "duration_s": 0.568
+      },
+      {
+        "argv": [
+          "kicad-cli",
+          "pcb",
+          "drc",
+          "--format",
+          "json",
+          "--severity-all",
+          "--schematic-parity",
+          "--units",
+          "mm",
+          "-o",
+          "/evidence/multipoint-archon/reference-4/run/validate/candidate-drc.json",
+          "/evidence/multipoint-archon/reference-4/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+        ],
+        "cwd": "/evidence/multipoint-archon/reference-4/run/candidate/multipoint-tap",
+        "log": "/evidence/multipoint-archon/reference-4/run/validate/candidate-drc.log",
+        "exit_code": 0,
+        "duration_s": 0.553
+      }
+    ],
+    "validated_board_sha256": "dd55bbc6011bd714634a2a6fbe56ec221fe785ac18add416974260fb93e024fa",
+    "candidate_board_sha256": "dd55bbc6011bd714634a2a6fbe56ec221fe785ac18add416974260fb93e024fa",
+    "refill_modified_board": false,
+    "parity_performed": null,
+    "drc": {
+      "violations_total": 5,
+      "parity_total": 0,
+      "new_violations": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "preexisting_violations": 5,
+      "resolved_violations": 0,
+      "new_parity": {
+        "count": 0,
+        "by_type": {},
+        "by_severity": {}
+      },
+      "resolved_parity": 0
+    },
+    "net_completion": {
+      "status": "PASS",
+      "nets_connected_in_input": 0,
+      "nets_lost": []
+    },
+    "preservation": {
+      "project_files": "PASS",
+      "board_outline": "PASS",
+      "layers": "PASS",
+      "stackup": "PASS",
+      "board_setup": "PASS",
+      "nets_and_netclasses": "PASS",
+      "pad_connectivity": "PASS",
+      "footprints": "PASS",
+      "zones": "PASS",
+      "keepouts": "PASS",
+      "copper_graphics": "PASS",
+      "protected_copper": "PASS",
+      "new_copper_netclass_geometry": "PASS",
+      "routing_scope": "PASS",
+      "net_completion": "PASS",
+      "pour_integrity": "PASS"
+    }
+  },
+  "candidate": {
+    "dir": "/evidence/multipoint-archon/reference-4/run/candidate/multipoint-tap",
+    "board": "/evidence/multipoint-archon/reference-4/run/candidate/multipoint-tap/multipoint-tap.kicad_pcb"
+  },
+  "run_dir": "/evidence/multipoint-archon/reference-4/run",
+  "runtime_s": 3.176,
+  "tool_versions": {
+    "kicad-cli": "10.0.7"
+  },
+  "evidence": {
+    "input_board_sha256": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+    "input_fingerprint": "ab0e09d48dc649a0f47a64767b451e821c382621bd097e98b5f92c3e308e6760",
+    "reference_files": {
+      "multipoint-tap.kicad_pcb": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7",
+      "multipoint-tap.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    "rules_files": {
+      "multipoint-tap.kicad_pro": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    "rule_floor_sha256": null,
+    "backend_output_board_sha256": "dd55bbc6011bd714634a2a6fbe56ec221fe785ac18add416974260fb93e024fa",
+    "candidate_board_sha256": "dd55bbc6011bd714634a2a6fbe56ec221fe785ac18add416974260fb93e024fa",
+    "candidate_copper_signature": {
+      "sha256": "71c26ea223bdc77add6723d9f26d442ca3a4b0a2190a9b3836f4bbf1d8b41f42",
+      "tracks": 5,
+      "vias": 0
+    },
+    "records": {
+      "attempt.json": "ef649b31e900310383e8e8fbe39c72ca55ac63c4c0eb8a2b3dc5055c1a0a0126",
+      "validate/preservation.json": "ffeb74af1e9a78136c1d36a15d6ba6666d5efc45872be3af3e4247768453ca97",
+      "validate/new-findings.json": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+      "validate/candidate-drc.json": "de2a2c1118a8d1db86954e1b597a86e1aa4cdd873e1febd0b120c22d63f73ff4",
+      "validate/candidate-facts.json": "b8cd3212ece83e6405b11d196107366400c2c6d58218d22d88ff45115ef6a1a9",
+      "validate/pour-integrity.json": "c2fc9477f5b3998f8e0093e1d847e86654d58a5a5abada5c806dc713359c194e"
+    }
+  },
+  "tool_identity": {
+    "kicad_route": {
+      "version": "f0c09ac",
+      "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+      "dirty": false
+    },
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    },
+    "pcbnew": {
+      "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+      "python": "/usr/bin/python3"
+    },
+    "python": {
+      "version": "3.12.3",
+      "executable": "/usr/bin/python3"
+    },
+    "backend": {
+      "name": "krt",
+      "tag": "owned-c2ac657d5617",
+      "version": "0.23.1",
+      "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+      "grid_router_version": "0.23.1",
+      "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+      "extension_module_sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915",
+      "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+    },
+    "state_manifest_sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012",
+    "state_manifest_drift": []
+  },
+  "finished_utc": "2026-10-20T22:39:26.603474+00:00",
+  "exit_code": 0,
+  "ledger": {
+    "fingerprint": "01aaee0306464af4ebaae3ab318875e65d098debd911d9bc785b3ffcef5d771c",
+    "short": "01aaee030646",
+    "forced": false,
+    "forced_over": null,
+    "upstream_changed_since": null,
+    "previous_runs": [
+      "/evidence/multipoint-archon/reference-0/run",
+      "/evidence/multipoint-archon/reference-1/run",
+      "/evidence/multipoint-archon/reference-2/run",
+      "/evidence/multipoint-archon/reference-3/run"
+    ],
+    "notes": [],
+    "path": "/evidence/multipoint-archon/reference-out/ledger.jsonl"
+  },
+  "sandbox": {
+    "require_readonly_state": false,
+    "state": {
+      "path": "/work/state-reference",
+      "exists": true,
+      "installed": [
+        ".venv-krt"
+      ],
+      "writable": true,
+      "writable_parts": [
+        ".venv-krt"
+      ],
+      "readonly_mount": false
+    },
+    "tool_root": {
+      "path": "/work/reference",
+      "writable": true
+    },
+    "out": {
+      "path": "/evidence/multipoint-archon/reference-out"
+    },
+    "home": {
+      "HOME": "/work/home",
+      "required": false,
+      "tool_home": "/evidence/multipoint-archon/reference-out/.home",
+      "env": {
+        "KICAD_CONFIG_HOME": "/evidence/multipoint-archon/reference-out/.kicad-config",
+        "KICAD_CACHE_HOME": "/evidence/multipoint-archon/reference-out/.home/cache",
+        "KICAD_DOCUMENTS_HOME": "/evidence/multipoint-archon/reference-out/.home/data",
+        "XDG_CONFIG_HOME": "/evidence/multipoint-archon/reference-out/.home/config",
+        "XDG_CACHE_HOME": "/evidence/multipoint-archon/reference-out/.home/cache",
+        "XDG_DATA_HOME": "/evidence/multipoint-archon/reference-out/.home/data",
+        "XDG_STATE_HOME": "/evidence/multipoint-archon/reference-out/.home/state"
+      },
+      "jvm": [
+        "-Duser.home=/evidence/multipoint-archon/reference-out/.home/java",
+        "-Djava.util.prefs.userRoot=/evidence/multipoint-archon/reference-out/.home/java/prefs"
+      ]
+    },
+    "network": {
+      "interfaces": 2,
+      "non_loopback_interfaces": 1,
+      "non_loopback_examples": [
+        "eth0"
+      ],
+      "non_loopback_routes": 2,
+      "namespace": "net:[4026532901]",
+      "connect_probe": {
+        "target": "192.0.2.1:9/udp",
+        "sends_packet": false,
+        "result": "routable"
+      },
+      "isolated": false
+    }
+  }
+}

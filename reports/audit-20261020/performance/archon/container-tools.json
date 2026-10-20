@@ -1,0 +1,93 @@
+{
+  "schema": "kicad-route/archon-container-tools/1",
+  "observed_utc": "2026-10-20T22:30:28.015597+00:00",
+  "uname": [
+    "Linux",
+    "0748eb5cfe62",
+    "7.2.5-3-omarchy",
+    "#1 SMP PREEMPT_DYNAMIC Mon, 14 Sep 2026 19:55:01 +0000",
+    "x86_64"
+  ],
+  "python_version": "3.12.3",
+  "python": {
+    "path": "/usr/bin/python3.12",
+    "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+  },
+  "kicad_version": "10.0.7",
+  "kicad_cli": {
+    "path": "/usr/bin/kicad-cli",
+    "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+  },
+  "pcbnew_build": "10.0.7-10.0.7~ubuntu24.04.1",
+  "pcbnew_module": {
+    "path": "/usr/bin/_pcbnew.kiface",
+    "sha256": "ba821c4719fbb6e51c378ae98f7db4254a214eb9e39e4822bb88833c986513f8"
+  },
+  "os_release": "PRETTY_NAME=\"Ubuntu 24.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.5 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "nice": 0,
+  "scheduler": 0,
+  "cgroup": "0::/\n",
+  "meminfo": "MemTotal:       65377208 kB\nMemFree:        42321256 kB\nMemAvailable:   48869500 kB\nBuffers:            3716 kB\nCached:         11661324 kB\nSwapCached:            0 kB\nActive:          9884516 kB\nInactive:        9291632 kB\nActive(anon):    9884516 kB\nInactive(anon):        0 kB\nActive(file):          0 kB\nInactive(file):  9291632 kB\nUnevictable:     2269916 kB\nMlocked:               0 kB\nSwapTotal:      130753948 kB\nSwapFree:       130753948 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:             11832 kB\nWriteback:             0 kB\nAnonPages:       9780004 kB\nMapped:           585944 kB\nShmem:           2292956 kB\nKReclaimable:     218504 kB\nSlab:             443764 kB\nSReclaimable:     218504 kB\nSUnreclaim:       225260 kB\nKernelStack:       12232 kB\nPageTables:        37668 kB\nSecPageTables:      5792 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    163442552 kB\nCommitted_AS:   15471808 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:      311968 kB\nVmallocChunk:          0 kB\nPercpu:            15168 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:   9422848 kB\nShmemHugePages:  2162688 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nGPUActive:             0 kB\nGPUReclaim:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      283176 kB\nDirectMap2M:    11837440 kB\nDirectMap1G:    55574528 kB\n",
+  "tools": {
+    "rustc": {
+      "version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+      "binary": {
+        "path": "/opt/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+        "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+      }
+    },
+    "cargo": {
+      "version": "cargo 1.99.1 (5f94df478 2026-08-27)",
+      "binary": {
+        "path": "/opt/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+      }
+    },
+    "uv": {
+      "version": "uv 0.11.25 (x86_64-unknown-linux-gnu)",
+      "binary": {
+        "path": "/usr/local/bin/uv",
+        "sha256": "207e26a0b9257856b86305fff3bfbdb65183b07587e8b1fc60632fa8d61ee65e"
+      }
+    },
+    "gcc": {
+      "version": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "binary": {
+        "path": "/usr/bin/x86_64-linux-gnu-gcc-13",
+        "sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26"
+      }
+    },
+    "glibc": {
+      "version": "ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\nWritten by Roland McGrath and Ulrich Drepper.",
+      "binary": {
+        "path": "/usr/bin/ldd",
+        "sha256": "752803b8baa217b821bd4566c4fbdaec50c01cb32d2796ec056d22d190d4290f"
+      }
+    },
+    "gnu_time": {
+      "version": "time (GNU Time) UNKNOWN\nCopyright (C) 2018 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by David Keppel, David MacKenzie, and Assaf Gordon.",
+      "binary": {
+        "path": "/usr/bin/time",
+        "sha256": "3b11dec50514a8473e9f6efa7a34d584d0657538c09988f61b72d38ad4991a10"
+      }
+    }
+  }
+}

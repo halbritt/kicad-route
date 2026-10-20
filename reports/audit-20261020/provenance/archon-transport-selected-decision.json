@@ -1,0 +1,39 @@
+{
+  "schema": "kicad-route/archon-transport-selected-decision/1",
+  "observed_utc": "2026-10-20T22:43:08.509277+00:00",
+  "authority": "Parent explicitly selected postterminal filteredexport and authorized installation lane execution after actual root-observed matrix8896terminal. User selected Archon for this authorized development/native verification. No new permission requirement inferred.",
+  "options": [
+    {
+      "option": "Execute frozen original full/evidence index/export",
+      "consequence": "Would copy unrelated preparation HOME/download caches (~800MiB noted in read-onlyinventory) although not referenced by required evidence; native profile remains valid but transport unnecessarilylarge."
+    },
+    {
+      "option": "Separate postterminal filteredexport with explicit omission policy and strict required-reference guard",
+      "consequence": "Retains all raw native results/GNU/stdout/stderr/boards/work/resource/membership/hostattestations/manifests/preplogs/baselinecache/ledger and exact hash-pinned external prerequisites. Excludes only listed task HOME/downloadcache trees, records omission counts/bytes/reasons and refuses any omitted regular-file locator referenced by retained JSON."
+    }
+  ],
+  "selected": "Separate postterminal filteredexport",
+  "why": "Reduces irrelevant artifacttransport while preserving complete raw acceptance inputs and an exact SHAindexed locator population. Does not change execution, sample population, source/runtime, timing or adjudication. Frozen original exporter/protocol remain provenance; no fabricated original-index execution/hash.",
+  "frozen_measurement_protocol_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+  "original_indexer_sha256": "ba35e6ef203839f235af3b8d853ca6d5a8bdc8e9f6e3958fcd5a5d5083425e64",
+  "artifacts": [
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/export-archon-evidence.py",
+      "sha256": "af2899d658b36ffb8c0aa7f62cee6f65c8ba5f159ecc829d64f3b7ea4f2d390a"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-export-policy.json",
+      "sha256": "8e30d7b302bba9856a127e1a04159f2efb8571ed59c5ad3e8f4fd27027aab3e1"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_archon_export.py",
+      "sha256": "5bcb71ceefa929e8f9e592749b712746bc80454cec88d3f3c96f5c2938a8aca2"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-export-tests.log",
+      "sha256": "c77b20d64289b86c995a30c3e8723255b1692bc9b8945d778bfc895876ebff6d"
+    }
+  ],
+  "bounded_tests": "10synthetic exporter checksPASS; separate ignoredharness population, not added to741production union.",
+  "scope_limit": "Preparation/decision inspection only by doctrine lane. Actual host-after export/index/copy integrity and independent final Archon rawverification remain pending; this selecteddecision does not itself accept the matrix."
+}

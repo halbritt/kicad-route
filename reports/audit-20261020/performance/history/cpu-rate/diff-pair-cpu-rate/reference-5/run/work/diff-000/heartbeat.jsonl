@@ -1,0 +1,8 @@
+{"t_s": 1.758, "utc": "2026-10-20T22:18:35.922642+00:00", "phase": "loading board", "metric": {}, "line": "Loading /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-5/run/work/diff-000/input/pair.kicad_pcb to expand net patte..."}
+{"t_s": 2.009, "utc": "2026-10-20T22:18:36.173146+00:00", "phase": "net ordering", "metric": {}, "line": "Using MPS ordering strategy..."}
+{"t_s": 2.009, "utc": "2026-10-20T22:18:36.173286+00:00", "phase": "routing differential pair(s)", "metric": {"nets": 1}, "line": "Routing 1 differential pair(s)..."}
+{"t_s": 2.009, "utc": "2026-10-20T22:18:36.173498+00:00", "phase": "routing differential pair(s)", "metric": {"net": "1/1", "failed": 0, "current": "diff pair /CAN"}, "line": "[1/1] Routing diff pair /CAN"}
+{"t_s": 2.009, "utc": "2026-10-20T22:18:36.173600+00:00", "phase": "routing differential pair(s)", "metric": {"net": "1/1", "failed": 0, "current": "diff pair /CAN", "routed": 1}, "line": "SUCCESS: 6 segments, 0 vias, 277 iterations (0.02s)"}
+{"t_s": 2.261, "utc": "2026-10-20T22:18:36.425176+00:00", "phase": "Routing complete", "metric": {}, "line": "============================================================"}
+{"t_s": 2.261, "utc": "2026-10-20T22:18:36.425303+00:00", "phase": "summary", "metric": {}, "line": "JSON_SUMMARY: {\"routed_diff_pairs\": [\"/CAN\"], \"failed_diff_pairs\": [], \"partial_diff_pairs\": [], \"member_incomplete_pairs\": [], \"single_ended_diff_pairs\": []..."}
+{"t_s": 2.261, "utc": "2026-10-20T22:18:36.425382+00:00", "phase": "writing output", "metric": {}, "line": "Writing output to /home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-cpu-rate/reference-5/run/work/diff-000/pair.kicad_pcb..."}

@@ -1,0 +1,10 @@
+[route] krt on route_demo -> build/agent497-qualification/route-demo-cpu-rate/reference-5/run
+[route] scope: all (6 of 6 nets)
+[route] baseline: native DRC of the untouched input (refilled)
+[route] routing with krt (budget 180s)
+[route] process: PASS
+[route] validating the candidate (refill, DRC + parity, preservation)
+[route] routing: COMPLETE
+[route] validation: PASS
+[route] candidate: build/agent497-qualification/route-demo-cpu-rate/reference-5/run/candidate/route_demo/route_demo.kicad_pcb
+[route] result: build/agent497-qualification/route-demo-cpu-rate/reference-5/run/result.json  (exit 0)

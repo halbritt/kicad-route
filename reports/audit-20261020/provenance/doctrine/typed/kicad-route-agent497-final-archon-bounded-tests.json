@@ -1,0 +1,35 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "final-archon-bounded-tests",
+  "evidence_class": "evidence-tests",
+  "summary": "Eight bounded ignored Archon-harness tests pass without native or remote jobs: allavailableCPU/no new quota/normalpriority checks, canonical cgroup root namespace escape rejection, actual host image/initPID/hiddenquota proof, unchanged RSS piggyback/observed birth membership, all48 retention despite ordinaryFAIL, resource mismatch preventsPASS and driver errors retain completions/telemetry. Two bounded inventory tests pass for exact original external identity and unchanged JSON locators, prerequisite hash drift/incomplete writes rejection and no symlink traversal. These10 ignored harness/index observations are separate from the741production test union and are not a production-suite count.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_archon_matrix.py",
+      "method": "Read retained exact artifact/test output; no routing or remote job",
+      "observed_at": "2026-10-20T22:35:22.838671+00:00",
+      "content_sha256": "f7d72b0ed661c3b0aa3f21ca796bea7b2d43f858618fb35bac84f62a71649113"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-tests.log",
+      "method": "Read retained exact artifact/test output; no routing or remote job",
+      "observed_at": "2026-10-20T22:35:22.838671+00:00",
+      "content_sha256": "b8b74c464d92e263c4f29735f78f0bbed5e6df9ec4e7050268afb0085a63bed2"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_archon_index.py",
+      "method": "Read retained exact artifact/test output; no routing or remote job",
+      "observed_at": "2026-10-20T22:35:22.838671+00:00",
+      "content_sha256": "4da62ce8ef63130d4ad7588093fa8aba470312e5743d0f13746b80f65e95da22"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-index-tests.log",
+      "method": "Read retained exact artifact/test output; no routing or remote job",
+      "observed_at": "2026-10-20T22:35:22.838671+00:00",
+      "content_sha256": "57ad002550c350fa1e84b8ea9f6c45097249a7802fed1655811e49009939f5e0"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

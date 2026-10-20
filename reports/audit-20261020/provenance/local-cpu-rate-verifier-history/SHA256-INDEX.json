@@ -1,0 +1,86 @@
+{
+  "schema": "kicad-route/local-verifier-history/1",
+  "retained_utc": "2026-10-20T22:25:44.949030+00:00",
+  "matrix_session": "94696",
+  "role": "Supporting local1CPU-rate study only. User-selected Archon final performance remains pending. Raw local matrix continues independently without drop.",
+  "files": [
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/finalize-acceptance.py",
+      "snapshot": "finalize-acceptance.py",
+      "sha256": "24c6027ef343e9384f379fedb13e99e3aaecb3498ea31009b94f46e70bbbffd1",
+      "bytes": 58493
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_finalize_cpu_rate.py",
+      "snapshot": "test_finalize_cpu_rate.py",
+      "sha256": "e25db24e5654f429457a67bfe00ebb0089faa4dc816ce95a7c8d55f52317d1a5",
+      "bytes": 11110
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/finalizer-cpu-rate-tests.log",
+      "snapshot": "finalizer-cpu-rate-tests.log",
+      "sha256": "4482272e66b074fefec62a0ef825854f65d2420f3de6f096d78a30aa06c255f2",
+      "bytes": 2401
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_finalize_acceptance.py",
+      "snapshot": "test_finalize_acceptance.py",
+      "sha256": "47521224d747fa9997f7e983731828d1b3a1a918b5d608599946dce5f422690b",
+      "bytes": 8314
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/finalizer-admission-tests-current.log",
+      "snapshot": "finalizer-admission-tests-current.log",
+      "sha256": "3ae251e250366321cad267766d3900083116576c3ffd64e4267521578e286214",
+      "bytes": 931
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-acceptance-draft.json",
+      "snapshot": "final-acceptance-draft.json",
+      "sha256": "c28cd5c1e3c7a56e83fb4b476cf9a3b03a23e0c8971230eafb0afcd844bc55a1",
+      "bytes": 386832
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-acceptance-draft.md",
+      "snapshot": "final-acceptance-draft.md",
+      "sha256": "15aabdb9e2d62f7f8576a52ad1c637ffebaaf53f857db549abab431fd612b57e",
+      "bytes": 4169
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/closure-comments-draft.json",
+      "snapshot": "closure-comments-draft.json",
+      "sha256": "593934003811320c3d81b98cc6a7d6918329dd734757fb2b9a809dfbe945db4b",
+      "bytes": 18829
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-finalizer-readiness.json",
+      "snapshot": "cpu-rate-finalizer-readiness.json",
+      "sha256": "01d8444c7b3d848eeca3015a9eda842ae69220dfdeb375a2df15503f194c7aed",
+      "bytes": 3087
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-protocol.json",
+      "snapshot": "cpu-rate-protocol.json",
+      "sha256": "b830f37b0941b595ba2497e61d1d1c930663ce91044432eb9c91febf7936d225",
+      "bytes": 26276
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/run-cpu-rate-matrix.py",
+      "snapshot": "run-cpu-rate-matrix.py",
+      "sha256": "1542b947ac50ee2cbe632f36bfed3a1ab735bb379aa10a8fdf389c8fa897ac2a",
+      "bytes": 14648
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/test_cpu_rate_matrix.py",
+      "snapshot": "test_cpu_rate_matrix.py",
+      "sha256": "842fe6f21a3526b72606533fd1b2e3d4bec5bd2bb7469ca6cf0c48e3579ffab4",
+      "bytes": 7887
+    },
+    {
+      "original_path": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-tests.log",
+      "snapshot": "cpu-rate-tests.log",
+      "sha256": "1e90f5bdb82e88d1efce7f926a7d041e19ca952a1673d8be59244ab4acbbbf0c",
+      "bytes": 3349
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "final-archon-protocol",
+  "evidence_class": "evidence-runtime-observation",
+  "summary": "User-selected Archon replaces local resource experiments as the declared final performance profile. Frozen protocol preregisters same persistent Ubuntu24.04 container for baseline f0c09ac and candidate f0f73da, all available16CPU affinity0\u201315, nice0/SCHED_OTHER, no task quota, exact same four inputs/native budgets and frozen fullCLI/GNUtime/sampled-treeRSS/native/copper comparison functions. Five measured pairs plus separate warmups perboard, all48 retained, no result-based dropping/retries, continueordinaryFAIL. Actual running image67b60332 and hidden host ancestors are hash-bound; target preparations PASS with both1619dependency bytecode entries and matching exact four scientific packages. No matrix acceptance is observed here; final all4 gates and host-after/index verification remain pending. Prior local failures/quiet expiry/CPU-rate94696 remain historical. Root read-only preflight refused solely for absent ignored GUI .kicad_prl state before any native attempt/output; corrected preregistration removes only that noninput prerequisite, preserving former protocol/refusal and all actual board/project/DRU inputs, budgets, gates and harness.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-protocol.json",
+      "method": "Read retained exact artifact/test output; no routing or remote job",
+      "observed_at": "2026-10-20T22:35:22.838671+00:00",
+      "content_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-target-bindings.json",
+      "method": "Read retained exact artifact/test output; no routing or remote job",
+      "observed_at": "2026-10-20T22:35:22.838671+00:00",
+      "content_sha256": "50b98e1c5ff4f683d01e47ec3b748d83c41fe9889df0cb5e83a205daddd04d10"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-source-runtime-parity.json",
+      "method": "Read retained exact artifact/test output; no routing or remote job",
+      "observed_at": "2026-10-20T22:35:22.838671+00:00",
+      "content_sha256": "2c8c0bd7f600c5211eed8a5d5b8278c72a4f801856c2d39e80896b9b47f4bcc3"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

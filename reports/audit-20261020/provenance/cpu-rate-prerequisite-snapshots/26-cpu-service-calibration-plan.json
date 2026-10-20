@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "frozen_before_calibration_utc": "2026-10-20T22:08:04.901479+00:00",
+  "script": "/home/halbritt/git/kicad-route/build/agent497-qualification/calibrate-cpu-service.py",
+  "script_sha256": "50973ba0e9f32012e65cef2ac2888f20cd34f43b4c191e22c31a6c96b8da0bf9",
+  "selector": {
+    "caps_in_order": [
+      2,
+      1
+    ],
+    "trials_each": 3,
+    "select": "highest cap whose EACH trial passes; try 1 only after 2 has insufficient service; control or launcher errors stop without fallback",
+    "workers_each": 4,
+    "minimum_process_cpu_s_each": 3.0,
+    "minimum_each_trial_service_fraction": 0.9,
+    "service_fraction": "sum(worker process CPU seconds)/(cap CPUs * measured barrier-to-completion wall seconds)",
+    "minimum_wall_s": "sum(worker CPU seconds)/cap - 0.100; allow 0.000001 numerical rounding",
+    "cgroup_accounting_allowance_s": 0.02,
+    "cgroup_accounting_gates": [
+      "scope usage >= worker CPU - allowance",
+      "scope usage <= cap*(wall+0.100)+allowance"
+    ]
+  },
+  "controls": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "nice": 0,
+    "scheduler": "SCHED_OTHER",
+    "cpu_quota_period_usec": 100000,
+    "cpu_max_burst_usec": 0,
+    "cpu_weight": 100,
+    "membership": "all four distinct worker PIDs parent-observed in own scope at ready; workers self-observe same scope and controls before and after work",
+    "ancestry": "own through root max/period/burst/weight/cpuset/CPU statistics and pressure snapshots; missing controller files recorded null; restrictive ancestors below cap reject"
+  },
+  "scope": "new normal transient user scope per trial; no sibling controls, priority, weights, source, native runtime, routing, remote execution or services changed",
+  "prerequisite": "quiet matrix terminal; output directory must not exist",
+  "interpretation": "fixed CPU-rate service readiness only; does not establish CPU isolation or guarantee later service",
+  "execution": "parent runs --run only after script and selector freeze"
+}

@@ -1,0 +1,370 @@
+{
+  "schema": "kicad-route/doctrine-preparation/1",
+  "observed_utc": "2026-10-20T21:04:24.564037+00:00",
+  "first_evidence_packet": "/tmp/kicad-route-agent497-doctrine-final.json",
+  "first_evidence_packet_id": "pkt-d8a6f60c6b0638db",
+  "pass": "Second and final evidence-gathering pass; final reassembly deliberately deferred until terminalmatrix observations exist. No further source/gate work launched.",
+  "release_commit": "d3e0c0d4ccd1920b2e045c156f1cf0db4fc5f04f",
+  "records": [
+    {
+      "path": "/tmp/kicad-route-agent497-authority.json",
+      "sha256": "0b300b15bdade705b4831688e267cf7659c1a531c50de32c895085e3fd7fa325"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-contract.json",
+      "sha256": "16251fd311b9df3541905cacbb9dd52a1ddfd67739f3231b1725338455f4bd50"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-source.json",
+      "sha256": "af310755bd036353396ee83af395e87bee71961bfb7ecfb14c8d4b3b3e88eaca"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-tests.json",
+      "sha256": "eb1ac8ec6a07f87952473eba2582a8236816417047860840b473e461e7ccef45"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-scope-instructions.json",
+      "sha256": "b160cbfc628d8bd93fce28988bc9c3be4ae6715863b096c2ed8f262b21e8ad35"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-local-toolchain.json",
+      "sha256": "ae092d66ed1da6417c94f7769eab5909c62a49307215bf0af534c96eeaa4a306"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-reported-defects.json",
+      "sha256": "de119f7250323bd7741a4802ac65380e2b9654119228db149a3fad4a08c93f33"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-frozen-source-parity.json",
+      "sha256": "bd431238080a0572441b9c758985cd2b6087c84db3e702b083917235b60aaa07"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-current-test-observations.json",
+      "sha256": "a66a853ead84068bf4bbc0376becf9e88d43629d703a36d7f644f7141aa53b71"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-native-kernel-observations.json",
+      "sha256": "68c9a31a60f2745499a9711aa99abff2396c77f1dad4767439aa7591d044aa93"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-gate-signal-contract.json",
+      "sha256": "4c5f41927a2a74faffd874f55f124696c991515b481e4aef66a64359e0d88796"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-identity-dimensions.json",
+      "sha256": "08a1b596edea288bb9a7ffd26e696850e62d3745dc7e0ac289a6e2c6ff0a41f1"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-bounded-populations.json",
+      "sha256": "9dfe76c173cf2ea25c1a4f5303e26dacf8951f248c83c1e778ecc62f3ea66a17"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-preservation-classification.json",
+      "sha256": "3fd8b016466b3ed846fbe132228ceeab44e2900d887ec23f025ba59a6ec91f21"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-bounded-options.json",
+      "sha256": "ab85f2e2565a197a4015cac4fece076e3189cbf2752655070b71d77e673a98ed"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-environment-major-microprobe.json",
+      "sha256": "77b1b907a919a40e3de3a28fc3034dc67b62781e532a19e1d0d4eaf0cfa0ccfa"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-quiet-admission-bounded-tests.json",
+      "sha256": "098ffc71d9794d0ce9d122b8f0f58971c8390623f744a7dca8df788490f7a5e1"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-quiet-admission-protocol.json",
+      "sha256": "b7a2bcf630ed45c9d8fec2acd8bde13a44870d517797859acb19f85790bad4d4"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-cpu-service-calibration.json",
+      "sha256": "c93e8e33dc3eebf1f3ccf12bd96775c2979bb0b2d4f9bfac8b1e8ce582fa4e34"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-cpu-rate-protocol.json",
+      "sha256": "045b33ff0a2974d767b633304ef1ca4a734ca41dcc6d283f60ee9fcafb7581f2"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-cpu-rate-bounded-tests.json",
+      "sha256": "2997bb8e1db42ca629680fbf0a1c2867bdd67b91c3d60524c74b162c86f7f0cb"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-archon-protocol.json",
+      "sha256": "ccc49c1e7d541a2407bfe909c050d6e11772060094d04133c47a3b7bbb9babe5"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-archon-bounded-tests.json",
+      "sha256": "4685d12e9086b6827d9334c78869e678897083f6e2b27d1d879862579018d907"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-archon-source-integration-guards.json",
+      "sha256": "e089adaa0051ab03d7564e3124d1bb8430d1062a3af1b4930df2d4edf1528c20"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-archon-transport-selected-decision.json",
+      "sha256": "8f00d97e75467486fc0f70c841fed193c4c8796ac809bb0437a3633d7d64e045"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-archon-reference-evidence-fix-closure.json",
+      "sha256": "dd9aff471ce40f511293b3b36d6324df6f10939ccf4418dfd7e2230d7173b88d"
+    },
+    {
+      "path": "/tmp/kicad-route-agent497-final-matrix-observations.json",
+      "sha256": "8cacc82914447a4e51eedd3485b42c90903f47e8dc8e987f09400500e19ceec4"
+    }
+  ],
+  "remaining_material_obligations": [
+    "Independent actual Archon8896 terminalPASS proof for4boards/48samples, original1.10fullCLIwall/individualRSS/treeRSS and allnative/copper/stop checks, exact source/tool/runtime identities, actual container/host-before/after controls, observed childmembership and hash-indexed retained raw evidence. Root reported actualterminalPASS; independent portable adjudication/export is pending.",
+    "Bind selected postterminal filteredtransport policy/helper/omissions+required-reference guard proofs without altering frozen measurementprofile; preserve originalscript/protocol and failed/inconclusive local histories.",
+    "Only after independent verification and rootauthorization, consume single remaining evidence pass and write final receipt/citation consumption preserving finite samehost/toolchain/resource limits, coverageunion distinction and externalacceptanceauthority."
+  ],
+  "nonmaterial_missing_groups": {
+    "implementation-async-ui-state-design": "No async UI or rendering/layout change is in this CLI repair scope.",
+    "implementation-attention-budget-presentation": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently.",
+    "implementation-rank-before-truncate": "No ranking/search-topN selection implementation changed.",
+    "implementation-config-reference-validation": "No general config identifier registry introduced; actual build/generation/cache/publication references are verified by targeted gates, not an unrelated registry requirement.",
+    "operations-symptom-cause-monitoring": "No productionservice/pages/SLOmonitoring change; observed CLI failures and gate signals are explicitly inventoried."
+  },
+  "exact_reassembly_command": "PYTHONDONTWRITEBYTECODE=1 python3 /home/halbritt/git/kicad-route/build/agent497-qualification/assemble-final-doctrine.py (deferred; failclosed until actual root session, verification report/index/verifier SHA fields bound)",
+  "retention": "All referenced /tmp packets and typed evidence are intentional retained provenance, inventoried here and later pinned by finalreceipt sidecar; none are orphan scratch. All durable outputs live only in ignored main/build/agent497-qualification. No source/main/tracker mutation.",
+  "first_packet_remaining_after_prepared_evidence": [
+    {
+      "obligation_id": "obl-79ca08bed8844a25",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "an enumeration of lifecycle phases with a designed state for each",
+      "classification": "nonmaterial",
+      "rationale": "No async UI or rendering/layout change is in this CLI repair scope."
+    },
+    {
+      "obligation_id": "obl-cbe2d532269e88e9",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "content lifecycle phases enumerated",
+      "classification": "nonmaterial",
+      "rationale": "No async UI or rendering/layout change is in this CLI repair scope."
+    },
+    {
+      "obligation_id": "obl-a6efab71031db341",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "explicit handlers where platform defaults were overridden",
+      "classification": "nonmaterial",
+      "rationale": "No async UI or rendering/layout change is in this CLI repair scope."
+    },
+    {
+      "obligation_id": "obl-44706d6d596a492d",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "geometry reserved independent of the async payload",
+      "classification": "nonmaterial",
+      "rationale": "No async UI or rendering/layout change is in this CLI repair scope."
+    },
+    {
+      "obligation_id": "obl-21dbd360ff3b90b7",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "a prioritization key tied to the consumer's decision",
+      "classification": "nonmaterial",
+      "rationale": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently."
+    },
+    {
+      "obligation_id": "obl-984d7130ad01736c",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "proof canonical data is unchanged by presentation",
+      "classification": "nonmaterial",
+      "rationale": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently."
+    },
+    {
+      "obligation_id": "obl-83a38fa945c9ef21",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the bound stated and enforced",
+      "classification": "nonmaterial",
+      "rationale": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently."
+    },
+    {
+      "obligation_id": "obl-477d260ba84eaf0e",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the consumer and budget named",
+      "classification": "nonmaterial",
+      "rationale": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently."
+    },
+    {
+      "obligation_id": "obl-94f3707ab1ca403d",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the consumer and their budget named",
+      "classification": "nonmaterial",
+      "rationale": "No selection/ranking/truncation or humanattentionbudget behavior is changed; structured receipt completeness is addressed independently."
+    },
+    {
+      "obligation_id": "obl-bee4873549539a2e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a load-time or gate check resolving every reference against them",
+      "classification": "nonmaterial",
+      "rationale": "No general config identifier registry introduced; actual build/generation/cache/publication references are verified by targeted gates, not an unrelated registry requirement."
+    },
+    {
+      "obligation_id": "obl-aebc722e27fd332e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a named-identifier failure on mismatch",
+      "classification": "nonmaterial",
+      "rationale": "No general config identifier registry introduced; actual build/generation/cache/publication references are verified by targeted gates, not an unrelated registry requirement."
+    },
+    {
+      "obligation_id": "obl-60e11fd14335b2fa",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "the consumer's defined identifier and enum sets",
+      "classification": "nonmaterial",
+      "rationale": "No general config identifier registry introduced; actual build/generation/cache/publication references are verified by targeted gates, not an unrelated registry requirement."
+    },
+    {
+      "obligation_id": "obl-93c171b4a8964e37",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the match-text composition enumerated field by field",
+      "classification": "nonmaterial",
+      "rationale": "No ranking/search-topN selection implementation changed."
+    },
+    {
+      "obligation_id": "obl-5cac0cd10a85dbb8",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the scan shown to score the full bounded set before truncation",
+      "classification": "nonmaterial",
+      "rationale": "No ranking/search-topN selection implementation changed."
+    },
+    {
+      "obligation_id": "obl-895e1060f7bb5f86",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated",
+      "classification": "nonmaterial",
+      "rationale": "No ranking/search-topN selection implementation changed."
+    },
+    {
+      "obligation_id": "obl-78d89cb5f8e6192c",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated - relevance-ordered top-N versus first-N",
+      "classification": "nonmaterial",
+      "rationale": "No ranking/search-topN selection implementation changed."
+    },
+    {
+      "obligation_id": "obl-80432417005eb207",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "current page inventory classified symptom-versus-cause",
+      "classification": "nonmaterial",
+      "rationale": "No productionservice/pages/SLOmonitoring change; observed CLI failures and gate signals are explicitly inventoried."
+    },
+    {
+      "obligation_id": "obl-8c2d798754f29f02",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "golden-signal coverage with the error definition stated",
+      "classification": "nonmaterial",
+      "rationale": "No productionservice/pages/SLOmonitoring change; observed CLI failures and gate signals are explicitly inventoried."
+    },
+    {
+      "obligation_id": "obl-63abf1a71b4719e2",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "the service's user-visible failure modes",
+      "classification": "nonmaterial",
+      "rationale": "No productionservice/pages/SLOmonitoring change; observed CLI failures and gate signals are explicitly inventoried."
+    }
+  ],
+  "canonical_source_provenance": "Primary source locators additionally bind git:b2bea77:path with content hashes. Primary will preserve qualified candidate3bc9040 as merge ancestor before branch removal; retained artifacts carry source/test identities.",
+  "current_hold": "No material gap for narrow current-code/readiness decision. Release mechanical gates and external acceptance remain pending in decision receipt.",
+  "final_configuration": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-final-config.json",
+  "retained_failed_matrix": {
+    "log": "/home/halbritt/git/kicad-route/build/agent497-qualification/prepared-bytecode-matrix.log",
+    "terminal_exit": 1,
+    "diff_pair_comparison": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-prepared/comparison.json",
+    "diff_pair_wall_ratio": 1.1104090455603592,
+    "limits": 1.1,
+    "status": "Retained failure, all correctness/copper checks passed; no waiver."
+  },
+  "retained_history_merge": {
+    "head": "b27a004bc23d0d92330ab4aa9192619a1667b811",
+    "parents": [
+      "b2bea77af69587b572b409190f18ed674abd0006",
+      "3bc90405be40a42c1e5ff48787e35238ea994ab8"
+    ],
+    "tree_equals": "b2bea77af69587b572b409190f18ed674abd0006",
+    "purpose": "Retain exact benchmark candidate commit as ancestor without changing primary source tree.",
+    "proof": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-history-merge.json"
+  },
+  "finalizer_ownership": "Evidence agent owns finalizer and current coverage-union; engine agent edits only doctrine helpers/config/preparation and its typed evidence. No final assembly until candidate source/test identities and all four new comparisons are ready.",
+  "safe_deferred_entrypoint": "python3 build/agent497-qualification/assemble-final-doctrine.py",
+  "current_source_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+  "current_source_parity": "/home/halbritt/git/kicad-route/build/agent497-qualification/env-reuse-source-parity.json",
+  "current_test_union": {
+    "cases": 741,
+    "files": 47,
+    "junit_sources": 5,
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+    "sha256": "2a92ad749cdfbf51f20ade1e33d7be2382b5e442f856186f77f1a6bc62436d2f",
+    "claim": "Union of passing observations, not one green full-suite."
+  },
+  "current_protocol": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-protocol.json",
+    "sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+    "harness_sha256": "ebfd140540a7ac794ea6efb00c292da1ffe8ea77e8512b6981f2148ae72842e1",
+    "profile": "Archon samecontainer allavailable16CPU; no task CPUquota"
+  },
+  "standalone_harness_tests": {
+    "cases": 11,
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/quiet-admission-tests.log",
+    "included_in_production741_union": false
+  },
+  "current_calibration_session": "Historical local74830, not Archon final qualification",
+  "current_matrix_session": "8896 actual Archon terminal PASS independently verified; local94696 supporting terminalPASS retained history",
+  "human_authority_rationale": "/home/halbritt/git/kicad-route/build/agent497-qualification/cpu-rate-authority-rationale.md",
+  "active_measurement_profile": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-protocol.json",
+    "sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b",
+    "harness_sha256": "ebfd140540a7ac794ea6efb00c292da1ffe8ea77e8512b6981f2148ae72842e1",
+    "profile": "Archon samecontainer allavailable16CPU; no task CPUquota"
+  },
+  "updated_utc": "2026-10-20T22:35:22.838671+00:00",
+  "selected_transport_decision": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-transport-selected-decision.json",
+    "sha256": "96da13d1fc578b6d591ae71228159dc2d6e70cab0c09f43202a231f545ec356a"
+  },
+  "historical_provenance_locator_corrections": [
+    {
+      "record": "/tmp/kicad-route-agent497-final-local-toolchain.json",
+      "old_locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/common.py",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-source-snapshots/common-before-env-reuse.py",
+      "sha256": "df47e9868ad61538abd4f6e39c9987e2d70d058a23ed6e6aa32354d9e358dce4"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-reported-defects.json",
+      "old_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-frozen-source-parity.json",
+      "old_locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/cli.py",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-source-snapshots/cli-before-env-reuse.py",
+      "sha256": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-current-test-observations.json",
+      "old_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-gate-signal-contract.json",
+      "old_locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/cli.py",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-source-snapshots/cli-before-env-reuse.py",
+      "sha256": "d99348b0099237f58b9081cd1e8c808a014b1ec54e2f80b340ec248a597cd9b2"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-bounded-populations.json",
+      "old_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    },
+    {
+      "record": "/tmp/kicad-route-agent497-final-preservation-classification.json",
+      "old_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union.json",
+      "retained_locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/coverage-union-before-env-reuse.json",
+      "sha256": "2a1b72f5fb57ef22592162adcf593f72cdcd3dcd58969126c265e5171da3c603"
+    }
+  ],
+  "final_pass_status": "Complete: final second gather consumed once; immutable pkt-7f7cc3fede0d7721. No more evidence gathering passes."
+}

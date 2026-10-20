@@ -1,0 +1,149 @@
+{
+  "schema": "kicad-route/attempt/2",
+  "backend": "krt",
+  "project": "diff-pair",
+  "board": "pair.kicad_pcb",
+  "schematic": null,
+  "input_fingerprint": "a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967",
+  "source": {
+    "source_dir": "/home/halbritt/git/kicad-route/reports/routing-engine/inputs/diff-pair",
+    "source": "working tree",
+    "source_git_head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+    "source_dirty_files": null
+  },
+  "reference_dir": "reference/diff-pair",
+  "candidate_dir": "candidate/diff-pair",
+  "reference_facts": "facts/reference-facts.json",
+  "rules_files": {
+    "project": "pair.kicad_pro",
+    "custom_rules": "pair.kicad_dru",
+    "not_loaded": []
+  },
+  "baseline": {
+    "report": "../../reference-out/.cache/baseline/a7d83a96e7699b7cdf4d778ff83240af1c7e39fa34bd64227baabed16b670967/baseline-drc.json",
+    "cached": true,
+    "reasons": []
+  },
+  "scope": {
+    "nets": [
+      "/AUX",
+      "/CAN+",
+      "/CAN-"
+    ],
+    "mode": "all"
+  },
+  "settings": {
+    "backend": "krt",
+    "budget_s": 180,
+    "protect": "existing",
+    "max_iterations": null,
+    "passes": null,
+    "default_clearance_mm": null,
+    "clearance_margin_mm": null,
+    "pour_area_loss_pct": null,
+    "pour_min_spokes": null,
+    "backend_args": [],
+    "backend_env": {},
+    "reserve_spokes": null,
+    "barrier": null,
+    "stall_s": null,
+    "mode": "all",
+    "diff_pairs": "auto",
+    "pairs": [
+      {
+        "p": "/CAN+",
+        "n": "/CAN-",
+        "netclass": "CAN",
+        "width_mm": 0.25,
+        "gap_mm": 0.35
+      }
+    ],
+    "rule_floor_sha256": null
+  },
+  "floor": null,
+  "pairs": [
+    {
+      "p": "/CAN+",
+      "n": "/CAN-",
+      "netclass": "CAN",
+      "width_mm": 0.25,
+      "gap_mm": 0.35,
+      "initially_connected": false
+    }
+  ],
+  "pair_routing": {
+    "/CAN+": {
+      "status": "COUPLED",
+      "report": {
+        "routed_diff_pairs": [
+          "/CAN"
+        ],
+        "failed_diff_pairs": [],
+        "partial_diff_pairs": [],
+        "member_incomplete_pairs": [],
+        "single_ended_diff_pairs": [],
+        "ripup_success_pairs": [],
+        "rerouted_pairs": [],
+        "polarity_swapped_pairs": [],
+        "polarity_swap_denied_pairs": [],
+        "single_ended_followup_nets": [],
+        "skipped_bad_fanout": [],
+        "target_swaps": [],
+        "layer_swaps": 0,
+        "intra_pair_matching": [],
+        "successful": 1,
+        "failed": 0,
+        "total_time": 0.01,
+        "total_iterations": 277,
+        "total_vias": 0,
+        "min_clearance_used": 0.2,
+        "pair_reports": [
+          {
+            "pair": "/CAN",
+            "p_net": "/CAN+",
+            "n_net": "/CAN-",
+            "outcome": "coupled",
+            "failure_reason": null,
+            "failure_stage": null,
+            "incomplete_members": [],
+            "member_audit_mismatch": false,
+            "no_coupled_trunk": false
+          }
+        ],
+        "casualty_reconcile": {
+          "attempted": 0,
+          "restored": [],
+          "rerouted": [],
+          "partial": [],
+          "unrecovered": []
+        },
+        "single_ended_fallback": {
+          "attempted": [],
+          "routed": [],
+          "partial": [],
+          "failed": []
+        },
+        "plane_fragility": {
+          "source": "none",
+          "islands": 0,
+          "refill_status": null,
+          "why": "the board has no zones",
+          "machine_dependent": false
+        },
+        "env_knobs": {
+          "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-env-reuse/reference-out/.home/cache",
+          "KICAD_CLI": "/usr/bin/kicad-cli",
+          "KICAD_DYNAMIC_ITERATIONS": "0",
+          "KICAD_FINALIZE_RIP": "0",
+          "KICAD_IMPEDANCE_NECKDOWN": "0",
+          "KICAD_INRUN_FLOOR_SYNC": "0",
+          "KICAD_RESCUE_CAP_MOVE": "0",
+          "KICAD_RIP_PREEXISTING": "0",
+          "KICAD_ROUTE_LEDGER": "off",
+          "KICAD_ROUTE_STATE": "/home/halbritt/git/kicad-route",
+          "KICAD_TERMINAL_ESCALATION": "0"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba
+kicadroute-agent497-archon
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+binary: rustc
+commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+commit-date: 2026-10-13
+host: x86_64-unknown-linux-gnu
+release: 1.99.1
+LLVM version: 23.1.1
+cargo 1.99.1 (5f94df478 2026-08-27)
+f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d
+f0f73da86835ec583f2a2c9128e6893fa59c03b7
+{"affinity": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], "nice": 0, "scheduler": 0, "cgroup": "0::/\n"}

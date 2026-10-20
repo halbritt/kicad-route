@@ -1,0 +1,47 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "final-matrix-observations",
+  "evidence_class": "evidence-runtime-observation",
+  "summary": "The independently retained Archon final verification qualifies allfourboards/all48 warmup+measured attempts under the frozen samecontainer16CPU profile: unchanged fullCLIwall, GNUindividualRSS and sampledconcurrenttreeRSS median gates each1.10, exactcopper equivalence, COMPLETErouting/PASSnativevalidation/process/preservation, no newviolations/openconnections/wallclockstops and successfulpairs. Actual source/tool/module/package/manifest identities, host+container controls and observed childmembership are verified, complete rawGNU/result locators resolve through exact SHAinventory. This is a finite samehost/toolchain/resources observation, not universal performance or selfacceptance. Six frozen pre70reference evidence hashes remain explicitly stale, while native finalboard validation hashes match all48 and candidate final evidence hashes match24/24; this is fixclosure, not a native/performance gate waiver. Both local1CPU-ratePASS and earlier localfailed/inconclusive studies remain historical.741production cases are a union of passing observations, not one fullgreensuite.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-matrix-observation.json",
+      "method": "Read hash-pinned independent portable Archon verifier output, exact locator/SHA inventory, frozen protocol and source/test prerequisites. No routing/test or remote execution.",
+      "observed_at": "2026-10-20T22:46:37.736488+00:00",
+      "content_sha256": "58479a952720fca9dd80524cc77c02cab22b5923c721d8bff3ee1a8c974d2001"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-final-verification.json",
+      "method": "Read hash-pinned independent portable Archon verifier output, exact locator/SHA inventory, frozen protocol and source/test prerequisites. No routing/test or remote execution.",
+      "observed_at": "2026-10-20T22:46:37.736488+00:00",
+      "content_sha256": "8c5e7b8fa6983546441cdd21ac005f9feccda84d1a2fec6b2e4db365668a82b3"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-import/archon-evidence-index.json",
+      "method": "Read hash-pinned independent portable Archon verifier output, exact locator/SHA inventory, frozen protocol and source/test prerequisites. No routing/test or remote execution.",
+      "observed_at": "2026-10-20T22:46:37.736488+00:00",
+      "content_sha256": "19b5fca94da3fdf939bd13259fa28829573906acbae5fd694441e1b49669eb4e"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon-protocol.json",
+      "method": "Read hash-pinned independent portable Archon verifier output, exact locator/SHA inventory, frozen protocol and source/test prerequisites. No routing/test or remote execution.",
+      "observed_at": "2026-10-20T22:46:37.736488+00:00",
+      "content_sha256": "a0801e985dedb81e1d0af1d5db5d3fd78ac8d537392c1d24794d9441b5fd888b"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/archon_acceptance.py",
+      "method": "Read hash-pinned independent portable Archon verifier output, exact locator/SHA inventory, frozen protocol and source/test prerequisites. No routing/test or remote execution.",
+      "observed_at": "2026-10-20T22:46:37.736488+00:00",
+      "content_sha256": "1a6af758a3995ef47c38d203dd1eb922f1dab022a3331ba18a1d19c244aa992f"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/agent497-qualification/acceptance_profile.py",
+      "method": "Read hash-pinned independent portable Archon verifier output, exact locator/SHA inventory, frozen protocol and source/test prerequisites. No routing/test or remote execution.",
+      "observed_at": "2026-10-20T22:46:37.736488+00:00",
+      "content_sha256": "99b1078290d27f13401adbac060ac1b6758bcfc60dcd1f2fe68f7acd4feef3e7"
+    }
+  ],
+  "satisfies": [
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement"
+  ]
+}

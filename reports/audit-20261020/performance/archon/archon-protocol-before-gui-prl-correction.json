@@ -1,0 +1,374 @@
+{
+  "driver_sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad",
+  "measured_repetitions": 5,
+  "warmups_per_side": 1,
+  "sample_order": "Fixed4boards in listedorder; eachwarmupreference/candidate, oddmeasuredindicescandidate/reference, evenreference/candidate;5measuredperside+2warmupsperboard=48total. No retries/drops or early stop on ordinaryFAIL.",
+  "cli_timeout_s": 900,
+  "measurement": "medians: full-CLI wall time, GNU-time largest individual-process RSS, and sampled concurrent process-tree summed RSS (50 ms polling wait, actual intervals retained); all three gates enforce 1.10. Sampled RSS is a lower bound on peak.",
+  "unchanged_quality_and_limits": "Use exact frozen driver.run_sample and driver.compare. Original native arguments/budgets, migration-equivalence copper gate, all warmup/measured quality checks and three1.10 median gates remain unchanged. CPU/phase times and resource snapshots are diagnostic only.",
+  "failure_policy": {
+    "ordinary_quality_or_metric_failure": "Keep sample, evaluate unchanged original comparison, continue allfourboards/all48 samples; finalFAILif any gate fails.",
+    "resource_violation": "Retain native completed sample/metadata; never qualifyPASS. Changed prelaunch controls mean declared execution is unavailable and cause explicitEXECUTION_ERROR; post-observation violations are retained and preventPASS, with no retry.",
+    "driver_exception": "Cannot obtain coherent sample: explicitEXECUTION_ERRORand stop, retaining prior completions/current telemetry.",
+    "interruption": "ExplicitINTERRUPTED, exit130, retain completed data."
+  },
+  "membership_observation": "Harness piggybacks the frozen driver.process_tree_rss tracked PID/birth map and preserves exact RSS return/cadence. It checks each observed birth once, recording GNUtime rootPID, argv, verified cgroup, explicit reap/reuse races or unreadable/mismatching membership. No extra sampling thread/process or fullhostscan.",
+  "resource_observation": "Before/after EVERY CLI: actual /proc/self/cgroup, resolved cgroup2 mount, full ancestor controls cpu.max/cpu.max.burst/cpu.weight/cpu.idle/cpuset.cpus.effective and cpu.stat/cpu.stat.local/CPU+IO+memory pressure, plus global/proc/stat and/proc/pressure/{cpu,io,memory}, timestamps/affinity/nice/scheduler. Rootcpu.max omission may be legitimate.",
+  "schema": "kicad-route/archon-protocol/1",
+  "status": "PREREGISTERED_READY_NOT_STARTED",
+  "execution_ready": true,
+  "driver": "/work/candidate/scripts/compare_router.py",
+  "harness": "/evidence/run-archon-matrix.py",
+  "harness_sha256": "ebfd140540a7ac794ea6efb00c292da1ffe8ea77e8512b6981f2148ae72842e1",
+  "source_heads": [
+    {
+      "path": "/work/reference",
+      "head": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d"
+    },
+    {
+      "path": "/work/candidate",
+      "head": "f0f73da86835ec583f2a2c9128e6893fa59c03b7"
+    }
+  ],
+  "reference_cli": "/work/reference/bin/kicad-route",
+  "reference_state": "/work/state-reference",
+  "candidate_cli": "/work/candidate/bin/kicad-route",
+  "candidate_state": "/work/state-candidate",
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "allowed_existing_policy_quotas": {},
+  "container_image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+  "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+  "container_hostname": "0748eb5cfe62",
+  "host_before_attestation": {
+    "path": "/evidence/before-host-attestation.json",
+    "sha256": "aa8ba7303c5385339404914358cdec3436a1181f75fbb57d436ae22ea9d6e510"
+  },
+  "hash_prerequisites": [
+    {
+      "path": "/work/candidate/scripts/compare_router.py",
+      "sha256": "c8dbfeeb2a77f600e1363526fbc2cf002c9dde1041dd6ce9f8a554a23ae819ad"
+    },
+    {
+      "path": "/work/reference/bin/kicad-route",
+      "sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9"
+    },
+    {
+      "path": "/work/candidate/bin/kicad-route",
+      "sha256": "4d01520182f391ff1f92be7eb1e2415d3675a309a38ef449012d49e2d03e42e9"
+    },
+    {
+      "path": "/work/reference/src/kicad_route/common.py",
+      "sha256": "a42c0258052acc83004e921c139881bd0aa0ac4daa26f268348b04ee8dd2f923"
+    },
+    {
+      "path": "/work/reference/src/kicad_route/cli.py",
+      "sha256": "b71efe842b848d98ddb1e10eda090808667b92888d41f3d03e53ec3cca4d50b8"
+    },
+    {
+      "path": "/work/candidate/src/kicad_route/common.py",
+      "sha256": "4fd09eef7547c947700067975a54e08c8e6b3ed8d3c5ac94cf8ae77e4a593038"
+    },
+    {
+      "path": "/work/candidate/src/kicad_route/cli.py",
+      "sha256": "61aff3300f1f784a9e8a778e45430e3f5cb8041f820b7feea80423566bf60a4e"
+    },
+    {
+      "path": "/work/reference/reports/routing-engine/inputs/diff-pair/pair.kicad_dru",
+      "sha256": "89aef9fe89d90d5d5df5c34afd637c521dc983cfbcd61b0f540641cd13605586"
+    },
+    {
+      "path": "/work/reference/reports/routing-engine/inputs/diff-pair/pair.kicad_pcb",
+      "sha256": "82528d494e9af3495f0e93f076a7efcd4a98eb8de0f43ec7215d4712e3910568"
+    },
+    {
+      "path": "/work/reference/reports/routing-engine/inputs/diff-pair/pair.kicad_pro",
+      "sha256": "3e37285b31dcfbcf53b3af34d7616a5a8b8364d8ae5406382b67c2146146936c"
+    },
+    {
+      "path": "/work/reference/reports/routing-engine/inputs/four-layer-plane/four-layer-plane.kicad_pcb",
+      "sha256": "09cc10fff78d547e47ee717b144ee29d366d73ab5db1b3ddc273fabebd8b4cb9"
+    },
+    {
+      "path": "/work/reference/reports/routing-engine/inputs/four-layer-plane/four-layer-plane.kicad_pro",
+      "sha256": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    {
+      "path": "/work/reference/reports/routing-engine/inputs/multipoint-tap/multipoint-tap.kicad_pcb",
+      "sha256": "e4ab7aa52053521e97200a6a359d0ebf22f16bd08aa1531dc2686efabe1d0fb7"
+    },
+    {
+      "path": "/work/reference/reports/routing-engine/inputs/multipoint-tap/multipoint-tap.kicad_pro",
+      "sha256": "6ecc414293eea46f5f9cd871b40c18b90b2721a559f0ca22617f88f50123e09e"
+    },
+    {
+      "path": "/work/reference/fixtures/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502"
+    },
+    {
+      "path": "/work/reference/fixtures/route_demo/generate.py",
+      "sha256": "ff76b50cf4bf4bfd45cdf06917d94c95a43920a69dc3d7fb305f49228d9dd40d"
+    },
+    {
+      "path": "/work/reference/fixtures/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf"
+    },
+    {
+      "path": "/work/reference/fixtures/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478"
+    },
+    {
+      "path": "/work/reference/fixtures/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c"
+    },
+    {
+      "path": "/work/reference/fixtures/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550"
+    },
+    {
+      "path": "/work/reference/fixtures/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5"
+    },
+    {
+      "path": "/work/reference/fixtures/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1"
+    },
+    {
+      "path": "/evidence/run-archon-matrix.py",
+      "sha256": "ebfd140540a7ac794ea6efb00c292da1ffe8ea77e8512b6981f2148ae72842e1"
+    },
+    {
+      "path": "/evidence/preparation-reference/preparation.json",
+      "sha256": "9ca2e963ceb1ad7c63c76706c2f3baf52d29544f9f3c9a20914b7f4cfb2af5d5"
+    },
+    {
+      "path": "/work/state-reference/manifest.json",
+      "sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012"
+    },
+    {
+      "path": "/work/state-reference/.venv-krt/lib/python3.12/site-packages/grid_router.so",
+      "sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915"
+    },
+    {
+      "path": "/evidence/preparation-candidate/preparation.json",
+      "sha256": "05472a1b933f379da68d6cbfbbba61de9f4d7931aff1ea09dbc7ab4cbe4f6248"
+    },
+    {
+      "path": "/work/state-candidate/manifest.json",
+      "sha256": "06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b"
+    },
+    {
+      "path": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv/lib/python3.12/site-packages/grid_router.so",
+      "sha256": "b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957"
+    },
+    {
+      "path": "/evidence/container-tools.json",
+      "sha256": "b21411e861f1bb90994cb74c4e84922efe7f81a80505f7a752fade8ce31fd0c3"
+    },
+    {
+      "path": "/evidence/preparation-reference/manifest.json",
+      "sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012"
+    },
+    {
+      "path": "/evidence/preparation-candidate/manifest.json",
+      "sha256": "06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b"
+    },
+    {
+      "path": "/evidence/test_archon_matrix.py",
+      "sha256": "f7d72b0ed661c3b0aa3f21ca796bea7b2d43f858618fb35bac84f62a71649113"
+    },
+    {
+      "path": "/evidence/archon-tests.log",
+      "sha256": "b8b74c464d92e263c4f29735f78f0bbed5e6df9ec4e7050268afb0085a63bed2"
+    },
+    {
+      "path": "/evidence/index-archon-evidence.py",
+      "sha256": "ba35e6ef203839f235af3b8d853ca6d5a8bdc8e9f6e3958fcd5a5d5083425e64"
+    },
+    {
+      "path": "/evidence/test_archon_index.py",
+      "sha256": "4da62ce8ef63130d4ad7588093fa8aba470312e5743d0f13746b80f65e95da22"
+    },
+    {
+      "path": "/evidence/archon-index-tests.log",
+      "sha256": "57ad002550c350fa1e84b8ea9f6c45097249a7802fed1655811e49009939f5e0"
+    }
+  ],
+  "metadata_output": "/evidence/archon-metadata",
+  "outer_log": "/evidence/archon-matrix.log",
+  "boards": [
+    {
+      "name": "diff-pair",
+      "project": "/work/reference/reports/routing-engine/inputs/diff-pair",
+      "args": [
+        "--budget",
+        "180",
+        "--diff-pairs",
+        "auto"
+      ],
+      "output": "/evidence/diff-pair-archon"
+    },
+    {
+      "name": "four-layer",
+      "project": "/work/reference/reports/routing-engine/inputs/four-layer-plane",
+      "args": [
+        "--budget",
+        "180",
+        "--backend-arg=--layers",
+        "--backend-arg=F.Cu",
+        "--backend-arg=B.Cu"
+      ],
+      "output": "/evidence/four-layer-archon"
+    },
+    {
+      "name": "multipoint",
+      "project": "/work/reference/reports/routing-engine/inputs/multipoint-tap",
+      "args": [
+        "--budget",
+        "180"
+      ],
+      "output": "/evidence/multipoint-archon"
+    },
+    {
+      "name": "route-demo",
+      "project": "/work/reference/fixtures/route_demo",
+      "args": [
+        "--budget",
+        "180",
+        "--default-clearance",
+        "0.4"
+      ],
+      "output": "/evidence/route-demo-archon"
+    }
+  ],
+  "execution_model": "One persistent same-image container, Docker startup outside every timed public CLI. All available CPUs0\u201315, nice0, SCHED_OTHER, no task-imposed CPU quota. Same actual container/host controls for reference/candidate; no admission, retries, dropping, result-based CPU selection, or early termination on ordinary gateFAIL.",
+  "required_final_evidence": [
+    "Host-before/after docker inspect (Image,State.Pid,HostConfig CPU quotas/period/burst/weight/shares/cpuset) plus actual host initPID /proc/cgroup and full visible host ancestors CPU controls/stats/PSI, topology and all available affinity",
+    "Target-local actual manifests/generation/source/extension/package/Python/KiCad/Rust identities with drift[]; matched scientific bytecode preparation before benchmark",
+    "Terminal4boards/48samples, all raw GNUtime/result/quality/copper and resource metadata, independent raw comparison recomputation",
+    "Exact original absolute path to retained-safe-relative SHA256 inventory; raw JSON locators preserved"
+  ],
+  "authority": "User explicitly selected Archon. Parent reviews frozen target identities and owns sole launch. No routing started by harness author.",
+  "history": "All earlier local failed comparisons, quiet expiry, and CPU-rate94696 remain retained history; Archon results are a new declared same-host profile, not relabeled local results.",
+  "host_after_attestation_path": "/evidence/after-host-attestation.json",
+  "target_runtime": {
+    "reference": {
+      "source": {
+        "version": "0.23.1",
+        "build": "owned-c2ac657d5617",
+        "commit": "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        }
+      },
+      "venv": "/work/state-reference/.venv-krt",
+      "python": "/work/state-reference/.venv-krt/bin/python",
+      "generation": "None",
+      "module": "/work/state-reference/.venv-krt/lib/python3.12/site-packages/grid_router.so",
+      "module_sha256": "712f9f5c0f19e022900fac2331b98bce32a508a3156cb6b1693ac85edcd21915",
+      "packages": [
+        "numpy==2.5.4",
+        "pillow==13.0.0",
+        "scipy==1.18.1",
+        "shapely==2.2.0"
+      ],
+      "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+      "manifest_sha256": "980d9c2249b28828afc3fb787afc9c747314c022bec9fb0d43219991fc4fa012",
+      "dependency_pyc_count": 1619
+    },
+    "candidate": {
+      "source": {
+        "version": "0.23.1",
+        "build": "owned-c6c09054f684",
+        "commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+        "source": "https://github.com/halbritt/kicad-route",
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "upstream": {
+          "project": "KiCadRoutingTools",
+          "license": "MIT",
+          "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+          "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+          "upstream_release": "v0.23.1",
+          "fork": "https://github.com/halbritt/KiCadRoutingTools",
+          "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+          "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+          "fixes": {
+            "KICADROUTE-64": "4b316ba",
+            "KICADROUTE-63": "0494a05"
+          },
+          "source_inventory": "reports/routing-engine/source-closure.json",
+          "additional_license_notices": [
+            "py_router/stage3d/vendor/three/LICENSE"
+          ],
+          "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+        }
+      },
+      "venv": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv",
+      "python": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv/bin/python",
+      "generation": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9",
+      "module": "/work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/venv/lib/python3.12/site-packages/grid_router.so",
+      "module_sha256": "b4dfa1ab6f8b2fd2d7b77428a59891ae1990c16bd822fd59571b87e0d1589957",
+      "packages": [
+        "numpy==2.5.4",
+        "pillow==13.0.0",
+        "scipy==1.18.1",
+        "shapely==2.2.0"
+      ],
+      "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+      "manifest_sha256": "06801e7fbd15548a358b7ac9bb4c112a1469458a453a7d605156017f8325106b",
+      "dependency_pyc_count": 1619
+    }
+  },
+  "bounded_tests": {
+    "path": "/evidence/test_archon_matrix.py",
+    "sha256": "f7d72b0ed661c3b0aa3f21ca796bea7b2d43f858618fb35bac84f62a71649113",
+    "log": "/evidence/archon-tests.log",
+    "log_sha256": "b8b74c464d92e263c4f29735f78f0bbed5e6df9ec4e7050268afb0085a63bed2",
+    "cases": 8,
+    "result": "PASS synthetic only; no native or remote jobs"
+  },
+  "launch_command": "PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 /evidence/run-archon-matrix.py --protocol /evidence/archon-protocol.json > /evidence/archon-matrix.log 2>&1",
+  "topology_evidence": "/evidence/container-tools.json",
+  "preregistered_utc": "2026-10-20T22:32:56.263788+00:00",
+  "retention_index": {
+    "script": "/evidence/index-archon-evidence.py",
+    "output": "/evidence/archon-evidence-index.json",
+    "schema": "kicad-route/retained-evidence-index/1",
+    "files": "Exact source absolute identity, retained safe relative file, sha256, bytes. JSON locators unchanged. Host-after copied before index, independent index SHA retained externally."
+  },
+  "container_image_identity_note": "Docker29 inspect.Id and running container.Image are67b603...; earlier ca10eb... was exported OCI config digest. Actual running Docker image identity is authoritative."
+}

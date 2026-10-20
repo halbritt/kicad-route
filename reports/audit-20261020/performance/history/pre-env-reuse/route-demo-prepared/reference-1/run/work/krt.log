@@ -1,0 +1,119 @@
+CMD: python /home/halbritt/git/kicad-route/src/kicad_route/router/py_router/route.py /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/input/route_demo/route_demo.kicad_pcb --output /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/krt-out/route_demo.kicad_pcb --escalation off --fab-tier standard --strict-sizes --no-power-tap-neckdown --no-fix-drc-settings --json-out /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/krt-out/summary.json --keep-input-copper --no-stub-layer-swap --clearance 0.4 --nets "*"
+ENV KNOBS: KICAD_CACHE_HOME=/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-out/.home/cache KICAD_CLI=/usr/bin/kicad-cli KICAD_DYNAMIC_ITERATIONS=0 KICAD_FINALIZE_RIP=0 KICAD_IMPEDANCE_NECKDOWN=0 KICAD_INRUN_FLOOR_SYNC=0 KICAD_RESCUE_CAP_MOVE=0 KICAD_RIP_PREEXISTING=0 KICAD_ROUTE_LEDGER=off KICAD_ROUTE_STATE=/home/halbritt/git/kicad-route KICAD_STOP_FILE=/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/STOP KICAD_TERMINAL_ESCALATION=0
+--track-width not given; using the board Default net-class 0.2mm.
+--via-size not given; using the board Default net-class 0.6mm.
+--via-drill not given; using the board Default net-class 0.3mm.
+--clearance 0.4: the Default net class routes at it this run; other classes are honoured (pass --clearance-ceiling to cap every class).
+--hole-to-hole-clearance not given; using 0.25mm [board constraint].
+--board-edge-clearance not given; using 0.3mm [board constraint].
+Loading /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/input/route_demo/route_demo.kicad_pcb to expand net patterns...
+Pattern '*' matched 6 nets
+Routing 6 nets: ['/SIG_A', '/SIG_A_OUT', '/SIG_B', '/SIG_B_OUT', '/VIN']...
+Netclass clearances for 2 net(s), honored in full (--clearance omitted) (mm: [0.3]); cross-class max(A,B) respected.
+Loading /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/input/route_demo/route_demo.kicad_pcb...
+Auto-read netclass track widths for 2 non-Default net(s) (#435 single-ended companion).
+Using 2 routing layers: ['F.Cu', 'B.Cu']
+  Layer costs: F.Cu=1.0x, B.Cu=3.0x
+No BGA components detected - no exclusion zones needed
+Per-net via sizes for 2 net(s) from their net class / rules: 0.8/0.4 (run via 0.6/0.3); one via-legality rung per size (#530).
+
+Skipping 1 already-routed net(s): Already fully connected
+  .kicad_dru: rule 'power_to_signal_clearance': clearance 0.4mm has a non-layer scope (netclass/area/... condition) -- skipped, KiCad will still enforce it
+
+Using MPS ordering strategy...
+MPS: Using segment intersection method (no nets on BGA chips)
+MPS: 5 nets with 5 crossing conflicts detected
+MPS Round 1: 3 units: /SIG_A_OUT, /SIG_A, /SIG_B_OUT
+MPS Round 2: 1 units: GND
+MPS Round 3: 1 units: /VIN
+
+Routing 5 single-ended net(s)...
+============================================================
+Building base obstacle map...
+Copper-to-hole 0.25mm for NPTH holes (from the board's own min_hole_clearance, above the 0.2mm fab floor); plated holes and vias: copper clearance
+Base obstacle map built in 0.08s
+Found 6 unrouted nets in PCB for stub proximity
+Pre-computing net obstacle cache...
+Net obstacle cache built in 0.03s (6 nets)
+Plane fragility: exact-fill geometry (1 filled island(s) from KiCad refill)
+Plane fragility field: 40065 cells near the edges of 1 pour(s) (KICAD_PLANE_FRAGILITY_COST=2.0mm-equiv, DYNAMIC #466 (=0 via KICAD_PLANE_FRAGILITY_DYNAMIC reverts))
+History congestion (#590) armed: +0.1mm-equiv per contest, cap 0.5, escalate 0.0, rip weight 1.0 (radius +0.25mm), frontier weight 0.25
+
+[1/5] Routing /SIG_A_OUT (id=3)
+  SUCCESS: 4 segments, 0 vias, 202 iterations, length=23.49mm (stubs=0.00mm) (0.01s)
+
+[2/5] Routing /SIG_A (id=5)
+  SUCCESS: 10 segments, 0 vias, 206 iterations, length=23.66mm (stubs=0.00mm) (0.01s)
+
+[3/5] Routing /SIG_B_OUT (id=4)
+  SUCCESS: 4 segments, 0 vias, 202 iterations, length=25.27mm (stubs=0.00mm) (0.00s)
+
+[4/5] Routing GND (id=2)
+  Detected multi-point net with 3 pads (Phase 1: main route only)
+  POUR-LAUNCH v3: +10 region-laddered target(s) across 1 component(s) (phase 1)
+  Existing copper joins 3 terminals into 2 group(s)
+  Multi-point net Phase 1: routing longest MST edge (pads 0 and 1, length=11.49mm)
+  Phase 1 routed in 2 iterations, 2 segments
+  SUCCESS: 2 segments, 1 vias, 2 iterations, length=1.66mm (stubs=0.00mm) (0.01s)
+
+[5/5] Routing /VIN (id=1)
+  Detected multi-point net with 3 pads (Phase 1: main route only)
+  Multi-point net Phase 1: routing longest MST edge (pads 1 and 2, length=38.95mm)
+  Phase 1 routed in 1027 iterations, 12 segments
+  SUCCESS: 12 segments, 0 vias, 1027 iterations, length=40.13mm (stubs=0.00mm) (0.01s)
+
+Sync pcb_data: 37 -> 5 (kept stubs) -> 37 (after adding 32)
+
+============================================================
+Multi-point Phase 3: Routing 1 tap connections
+============================================================
+
+GND (net 2):
+  No remaining MST edges to route in Phase 3
+  Net total time: 0.01s, 2 iterations
+
+/VIN (net 1):
+  Multi-point net Phase 3: routing 1 remaining MST edges (longest first)
+    [1/1] Routing MST edge: pad 1 -> pad 0 (length=7.05mm) target=(104.00, 106.00)
+      Routed in 51 iterations (0.00s)
+  Phase 3 routing complete: 1 edges, 14 total segments, 0 total vias
+  Added 2 tap segments, 0 tap vias
+  Net total time: 0.04s, 1078 iterations
+Cycle prune: removed 6 redundant loop segment(s) across 3 net(s)
+Octolinear smoothing: collapsed 3 staircase span(s) on 2 net(s), -0.32 mm of copper (#536)
+Merged 1 collinear joint(s) on 1 net(s): -1 redundant segment(s) (#811)
+
+============================================================
+Routing complete
+============================================================
+  Single-ended:  5/5 routed
+  Multi-point:   6/6 pads connected (2 nets)
+  Total vias:    1
+  Total time:    0.05s
+  Iterations:    1,639
+  Fragility refresh (#466): 2 windows, 0.02s total
+JSON_SUMMARY: {"routed_single": ["/SIG_A_OUT", "/SIG_A", "/SIG_B_OUT", "GND", "/VIN"], "failed_single": [], "open_single": [], "failed_multipoint": [], "multipoint_nets": 2, "multipoint_pads_connected": 6, "multipoint_pads_total": 6, "multipoint_edges_routed": 3, "multipoint_edges_failed": 0, "ripup_success_pairs": [], "rerouted_pairs": [], "single_ended_target_swaps": [], "layer_swaps": 0, "successful": 5, "failed": 0, "total_time": 0.05, "total_iterations": 1639, "total_vias": 1, "cleanup_disconnected": [], "min_clearance_used": 0.4, "design_rules": {"escalation_policy": "off", "fab_tier": "standard", "board_floors": {"clearance": 0.15, "track_width": 0.15, "via_diameter": 0.5, "via_drill": 0.25, "hole_to_hole": 0.25, "annular": 0.1, "board_edge": 0.3}, "count": 0, "nets": [], "narrowed": [], "min_delivered": {}, "fab_tier_escalations": 0, "fab_tier_contexts": [], "fab_tier_target": "advanced", "unsupported_rules": []}, "plane_fragility": {"source": "kicad_refill", "islands": 1, "refill_status": "ok", "why": "the KiCad refill succeeded", "machine_dependent": false}, "oracle_check": "disabled", "pad_pairs_connected": 7, "pad_pairs_total": 7, "scope": "run", "env_knobs": {"KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-out/.home/cache", "KICAD_CLI": "/usr/bin/kicad-cli", "KICAD_DYNAMIC_ITERATIONS": "0", "KICAD_FINALIZE_RIP": "0", "KICAD_IMPEDANCE_NECKDOWN": "0", "KICAD_INRUN_FLOOR_SYNC": "0", "KICAD_RESCUE_CAP_MOVE": "0", "KICAD_RIP_PREEXISTING": "0", "KICAD_ROUTE_LEDGER": "off", "KICAD_ROUTE_STATE": "/home/halbritt/git/kicad-route", "KICAD_STOP_FILE": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/STOP", "KICAD_TERMINAL_ESCALATION": "0"}}
+
+Writing output to /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/krt-out/route_demo.kicad_pcb...
+Successfully wrote /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/krt-out/route_demo.kicad_pcb
+
+Plane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies
+  KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)
+  KiCad-oracle recheck: KiCad reports all processed nets complete
+  [finalize timing] oracle leg: 14.8s
+JSON_ORACLE: {"available": true, "reason": "ok", "why": "the oracle ran", "rounds": 0, "links_routed": 0, "links_failed": 0, "remaining": 0, "collapsed_duplicate_links": 0, "remaining_links": [], "cross_board": 0, "removed_segments": [], "removed_vias": []}
+  Strict collapse (#1063, end of run): removed 1 redundant segment(s) on 1 net(s)
+
+  FAB NOTE (route): 1 via(s) in a pad or paste opening [C1.2 F.Paste (pad)] -- 1 stamped (capping yes) (filling yes), 0 already filled+capped. via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel.
+VIA_IN_PAD_JSON: {"count": 1, "sites": ["C1.2 F.Paste (pad)"], "stamped": 1, "restored": 0, "protected": 0, "unstampable": 0, "site_created": 0, "unprotected": [], "note": "via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel"}
+JSON_REGRADE: {"board": "file", "graded_nets": 5, "seconds": 0.13, "routed_single": ["/SIG_A_OUT", "/SIG_A", "/SIG_B_OUT", "GND", "/VIN"], "failed_single": [], "open_single": [], "failed_multipoint": [], "multipoint_pads_total": 6, "multipoint_pads_connected": 6, "successful": 5, "failed": 0, "unowned_broken": [], "recovered": [], "broken_by_run": []}
+
+============================================================
+Run complete -- whole run, re-graded on the written board (5 net(s), 0.1s)
+============================================================
+  Single-ended:  5/5 routed
+  Multi-point:   6/6 pads connected
+  route summary written to /home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-prepared/reference-1/run/work/krt-out/summary.json
+JSON_IMPROVEMENT_GATE: {"lost": [], "gained": ["/SIG_A", "/SIG_A_OUT", "/SIG_B_OUT", "/VIN", "GND"], "worsened": [], "disconnected_pads_before": 6, "disconnected_pads_after": 0, "nets_compared": 6, "verdict": "accept"}
+JSON_SUMMARY_MIN: {"escalations": 0, "failed": 0, "failed_single": [], "main_loop_time_s": 0.05, "min_clearance_used": 0.4, "multipoint_deficit": 0, "open_single": [], "pad_pairs_open": {"count": 0, "nets": []}, "regraded_nets": 5, "routed": 5, "scope": "merged", "terminal_restores_broken": [], "vias": 1}
+EXIT=0

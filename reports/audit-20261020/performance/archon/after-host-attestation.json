@@ -1,0 +1,102 @@
+{
+  "schema": "kicad-route/archon-host-container-attestation/1",
+  "observed_utc": "2026-10-20T22:41:29.772263+00:00",
+  "host": "archon",
+  "actual_hostname": "archon",
+  "container_id": "0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba",
+  "container_hostname": "0748eb5cfe62",
+  "image_id": "sha256:67b60332e4fcac38bc3f6b3df1907243e1de571e8fc14c1a8acbe54a04176dd8",
+  "init_pid": 37124,
+  "raw_init_cgroup": "0::/system.slice/docker-0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba.scope\n",
+  "host_leaf": "/sys/fs/cgroup/system.slice/docker-0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba.scope",
+  "init_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "init_nice": 0,
+  "init_scheduler": 0,
+  "ancestors": [
+    {
+      "path": "/sys/fs/cgroup/system.slice/docker-0748eb5cfe62d1b31c5ea77c256223ce14d468b1f64ddf0c834aba939585c1ba.scope",
+      "controls": {
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.idle": "0",
+        "cpuset.cpus.effective": "0-15",
+        "memory.max": "max",
+        "memory.high": "max",
+        "memory.current": "1089724416",
+        "cpu.stat": "usage_usec 429789551\nuser_usec 396978247\nsystem_usec 32811304\nnice_usec 1120295\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+        "cpu.pressure": "some avg10=0.00 avg60=0.02 avg300=0.05 total=1374220\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=807598",
+        "io.pressure": "some avg10=0.00 avg60=0.13 avg300=0.17 total=1962103\nfull avg10=0.00 avg60=0.13 avg300=0.17 total=1955165"
+      }
+    },
+    {
+      "path": "/sys/fs/cgroup/system.slice",
+      "controls": {
+        "cpu.max": "max 100000",
+        "cpu.max.burst": "0",
+        "cpu.weight": "100",
+        "cpu.idle": "0",
+        "cpuset.cpus.effective": "0-15",
+        "memory.max": "max",
+        "memory.high": "max",
+        "memory.current": "16856080384",
+        "cpu.stat": "usage_usec 106492725955\nuser_usec 88657472591\nsystem_usec 17835253363\nnice_usec 4289274\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+        "cpu.pressure": "some avg10=0.00 avg60=0.11 avg300=0.14 total=57723048\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=54276420",
+        "io.pressure": "some avg10=0.00 avg60=0.03 avg300=0.12 total=58054171\nfull avg10=0.00 avg60=0.03 avg300=0.12 total=55083579"
+      }
+    },
+    {
+      "path": "/sys/fs/cgroup",
+      "controls": {
+        "cpu.max": null,
+        "cpu.max.burst": null,
+        "cpu.weight": null,
+        "cpu.idle": null,
+        "cpuset.cpus.effective": "0-15",
+        "memory.max": null,
+        "memory.high": null,
+        "memory.current": null,
+        "cpu.stat": "usage_usec 114668157355\nuser_usec 89691817397\nsystem_usec 24976339957\nnice_usec 4291264\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+        "cpu.pressure": "some avg10=0.00 avg60=0.15 avg300=0.19 total=84253757\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+        "io.pressure": "some avg10=0.00 avg60=0.06 avg300=0.18 total=73183048\nfull avg10=0.00 avg60=0.06 avg300=0.15 total=67552679"
+      }
+    }
+  ],
+  "docker_resource_config": {
+    "NanoCpus": 0,
+    "CpuShares": 0,
+    "CpuPeriod": 0,
+    "CpuQuota": 0,
+    "CpuRealtimePeriod": 0,
+    "CpuRealtimeRuntime": 0,
+    "CpusetCpus": "",
+    "CpusetMems": "",
+    "Memory": 0,
+    "MemorySwap": 0,
+    "CgroupParent": ""
+  },
+  "host_meminfo": "MemTotal:       65377208 kB\nMemFree:        42373596 kB\nMemAvailable:   48946192 kB\nBuffers:            3716 kB\nCached:         11718044 kB\nSwapCached:            0 kB\nActive:          9861748 kB\nInactive:        9313464 kB\nActive(anon):    9861748 kB\nInactive(anon):        0 kB\nActive(file):          0 kB\nInactive(file):  9313464 kB\nUnevictable:     2304732 kB\nMlocked:               0 kB\nSwapTotal:      130753948 kB\nSwapFree:       130753948 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:              1144 kB\nWriteback:             0 kB\nAnonPages:       9757728 kB\nMapped:           506788 kB\nShmem:           2327852 kB\nKReclaimable:     223544 kB\nSlab:             433060 kB\nSReclaimable:     223544 kB\nSUnreclaim:       209516 kB\nKernelStack:       11688 kB\nPageTables:        37100 kB\nSecPageTables:      5856 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    163442552 kB\nCommitted_AS:   15513380 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:      311872 kB\nVmallocChunk:          0 kB\nPercpu:            15168 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:   9414656 kB\nShmemHugePages:  2197504 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nGPUActive:             0 kB\nGPUReclaim:            0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:      283176 kB\nDirectMap2M:    11837440 kB\nDirectMap1G:    55574528 kB\n",
+  "host_cpu_pressure": "some avg10=0.00 avg60=0.15 avg300=0.19 total=84253757\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0\n",
+  "host_io_pressure": "some avg10=0.00 avg60=0.06 avg300=0.18 total=73183048\nfull avg10=0.00 avg60=0.06 avg300=0.15 total=67552679\n",
+  "owned_container_processes": "PID                 PPID                COMMAND             COMMAND\n37124               37098               sleep               sleep infinity\n",
+  "observation_scope": "After parent observed sole matrix8896 terminal; metadata capture only, no native reruns or controls changed",
+  "observed_matrix_status": "PASS",
+  "observed_completed_samples": 48
+}

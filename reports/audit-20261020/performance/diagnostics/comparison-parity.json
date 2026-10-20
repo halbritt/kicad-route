@@ -1,0 +1,602 @@
+{
+  "schema": "kicad-route/comparison-parity/1",
+  "observed_utc": "2026-10-20T20:16:26.987174+00:00",
+  "scope": "latest three passing stable comparisons and failed multipoint-stable; no reruns, source edits or native builds",
+  "conclusion": "No accidental tool/dependency/config/backend-flag/allocator mismatch found. The failed multipoint wall gate remains failed; its 1.458wall ratio is not explained by its approximately1.075CPU ratio. CPU pinning is shared with the concurrently live full smoke, not exclusive reservation.",
+  "cases": [
+    {
+      "name": "route-demo-stable",
+      "report": "/home/halbritt/git/kicad-route/build/agent497-qualification/route-demo-stable/comparison.json",
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "ratios": {
+          "wall_s": 1.0431247790738778,
+          "max_rss_kib": 0.9946297204512016,
+          "process_tree_peak_rss_kib": 0.9970692636752526
+        },
+        "copper_geometry_equal": true
+      },
+      "cpu_median_ratio": 1.0539037950205463,
+      "parity": true,
+      "samples": {
+        "reference": {
+          "measured_samples": 5,
+          "warmup": true,
+          "wall_s": [
+            54.46,
+            56.58,
+            56.72,
+            71.7,
+            52.43
+          ],
+          "cpu_user_plus_system_s": [
+            41.35,
+            41.88,
+            41.37,
+            42.05,
+            41.21
+          ],
+          "cpu_median_s": 41.370000000000005,
+          "backend_runtime_s": [
+            26.512,
+            20.969,
+            18.148,
+            28.908,
+            19.488
+          ],
+          "all_recorded_manifest_drift_empty": true,
+          "all_measured_baselines_cached": true,
+          "measured_time_range_utc": [
+            "2026-10-20T19:39:16.424458+00:00",
+            "2026-10-20T19:47:27.185706+00:00"
+          ],
+          "internal_flags_consistent": true,
+          "internal_native_argv_consistent": true,
+          "internal_backend_env_consistent": true,
+          "backend_command_count": 2,
+          "native_drc_command_count": 2
+        },
+        "candidate": {
+          "measured_samples": 5,
+          "warmup": true,
+          "wall_s": [
+            57.92,
+            63.38,
+            59.02,
+            74.3,
+            56.49
+          ],
+          "cpu_user_plus_system_s": [
+            43.06,
+            43.6,
+            43.84,
+            43.62,
+            43.23
+          ],
+          "cpu_median_s": 43.6,
+          "backend_runtime_s": [
+            25.475,
+            26.977,
+            23.913,
+            30.439,
+            26.609
+          ],
+          "all_recorded_manifest_drift_empty": true,
+          "all_measured_baselines_cached": true,
+          "measured_time_range_utc": [
+            "2026-10-20T19:38:21.936283+00:00",
+            "2026-10-20T19:46:34.725186+00:00"
+          ],
+          "internal_flags_consistent": true,
+          "internal_native_argv_consistent": true,
+          "internal_backend_env_consistent": true,
+          "backend_command_count": 2,
+          "native_drc_command_count": 2
+        }
+      }
+    },
+    {
+      "name": "diff-pair-stable",
+      "report": "/home/halbritt/git/kicad-route/build/agent497-qualification/diff-pair-stable/comparison.json",
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "ratios": {
+          "wall_s": 0.8815461346633416,
+          "max_rss_kib": 1.0074353060979993,
+          "process_tree_peak_rss_kib": 1.0068710033293762
+        },
+        "copper_geometry_equal": true
+      },
+      "cpu_median_ratio": 1.0720326625838439,
+      "parity": true,
+      "samples": {
+        "reference": {
+          "measured_samples": 5,
+          "warmup": true,
+          "wall_s": [
+            40.89,
+            40.1,
+            30.04,
+            34.58,
+            44.5
+          ],
+          "cpu_user_plus_system_s": [
+            34.18,
+            34.59,
+            34.29,
+            34.11,
+            35.06
+          ],
+          "cpu_median_s": 34.29,
+          "backend_runtime_s": [
+            11.802,
+            12.454,
+            9.22,
+            12.416,
+            14.974
+          ],
+          "all_recorded_manifest_drift_empty": true,
+          "all_measured_baselines_cached": true,
+          "measured_time_range_utc": [
+            "2026-10-20T19:50:39.731000+00:00",
+            "2026-10-20T19:55:33.850644+00:00"
+          ],
+          "internal_flags_consistent": true,
+          "internal_native_argv_consistent": true,
+          "internal_backend_env_consistent": true,
+          "backend_command_count": 8,
+          "native_drc_command_count": 2
+        },
+        "candidate": {
+          "measured_samples": 5,
+          "warmup": true,
+          "wall_s": [
+            35.35,
+            40.53,
+            30.0,
+            32.54,
+            41.65
+          ],
+          "cpu_user_plus_system_s": [
+            36.59,
+            36.76,
+            36.38,
+            37.12,
+            37.86
+          ],
+          "cpu_median_s": 36.760000000000005,
+          "backend_runtime_s": [
+            14.472,
+            14.492,
+            12.3,
+            12.726,
+            14.372
+          ],
+          "all_recorded_manifest_drift_empty": true,
+          "all_measured_baselines_cached": true,
+          "measured_time_range_utc": [
+            "2026-10-20T19:49:58.835572+00:00",
+            "2026-10-20T19:54:49.337894+00:00"
+          ],
+          "internal_flags_consistent": true,
+          "internal_native_argv_consistent": true,
+          "internal_backend_env_consistent": true,
+          "backend_command_count": 8,
+          "native_drc_command_count": 2
+        }
+      }
+    },
+    {
+      "name": "four-layer-stable",
+      "report": "/home/halbritt/git/kicad-route/build/agent497-qualification/four-layer-stable/comparison.json",
+      "verdict": {
+        "passed": true,
+        "failures": [],
+        "ratios": {
+          "wall_s": 1.074207492795389,
+          "max_rss_kib": 1.0009607618915894,
+          "process_tree_peak_rss_kib": 0.9955050966737256
+        },
+        "copper_geometry_equal": true
+      },
+      "cpu_median_ratio": 1.0326387145367815,
+      "parity": true,
+      "samples": {
+        "reference": {
+          "measured_samples": 5,
+          "warmup": true,
+          "wall_s": [
+            54.15,
+            68.44,
+            20.75,
+            23.19,
+            27.76
+          ],
+          "cpu_user_plus_system_s": [
+            41.98,
+            42.03,
+            38.18,
+            39.17,
+            39.83
+          ],
+          "cpu_median_s": 39.83,
+          "backend_runtime_s": [
+            22.19,
+            28.937,
+            8.802,
+            9.807,
+            11.251
+          ],
+          "all_recorded_manifest_drift_empty": true,
+          "all_measured_baselines_cached": true,
+          "measured_time_range_utc": [
+            "2026-10-20T20:00:04.331788+00:00",
+            "2026-10-20T20:04:28.126179+00:00"
+          ],
+          "internal_flags_consistent": true,
+          "internal_native_argv_consistent": true,
+          "internal_backend_env_consistent": true,
+          "backend_command_count": 2,
+          "native_drc_command_count": 2
+        },
+        "candidate": {
+          "measured_samples": 5,
+          "warmup": true,
+          "wall_s": [
+            50.94,
+            39.91,
+            26.47,
+            29.82,
+            27.3
+          ],
+          "cpu_user_plus_system_s": [
+            42.13,
+            42.37,
+            41.13,
+            41.05,
+            40.53
+          ],
+          "cpu_median_s": 41.13,
+          "backend_runtime_s": [
+            19.16,
+            18.097,
+            10.928,
+            13.405,
+            12.321
+          ],
+          "all_recorded_manifest_drift_empty": true,
+          "all_measured_baselines_cached": true,
+          "measured_time_range_utc": [
+            "2026-10-20T19:59:10.128133+00:00",
+            "2026-10-20T20:04:00.331235+00:00"
+          ],
+          "internal_flags_consistent": true,
+          "internal_native_argv_consistent": true,
+          "internal_backend_env_consistent": true,
+          "backend_command_count": 2,
+          "native_drc_command_count": 2
+        }
+      }
+    },
+    {
+      "name": "multipoint-stable",
+      "report": "/home/halbritt/git/kicad-route/build/agent497-qualification/multipoint-stable/comparison.json",
+      "verdict": {
+        "passed": false,
+        "failures": [
+          "wall_s exceeds 10% regression limit"
+        ],
+        "ratios": {
+          "wall_s": 1.4582677165354332,
+          "max_rss_kib": 1.0090521738477745,
+          "process_tree_peak_rss_kib": 1.0089307827189602
+        },
+        "copper_geometry_equal": true
+      },
+      "cpu_median_ratio": 1.0752339812814977,
+      "parity": true,
+      "samples": {
+        "reference": {
+          "measured_samples": 3,
+          "warmup": true,
+          "wall_s": [
+            25.4,
+            29.79,
+            24.12
+          ],
+          "cpu_user_plus_system_s": [
+            27.78,
+            27.7,
+            27.81
+          ],
+          "cpu_median_s": 27.779999999999998,
+          "backend_runtime_s": [
+            4.843,
+            6.693,
+            5.206
+          ],
+          "all_recorded_manifest_drift_empty": true,
+          "all_measured_baselines_cached": true,
+          "measured_time_range_utc": [
+            "2026-10-20T20:08:42.260928+00:00",
+            "2026-10-20T20:10:42.926297+00:00"
+          ],
+          "internal_flags_consistent": true,
+          "internal_native_argv_consistent": true,
+          "internal_backend_env_consistent": true,
+          "backend_command_count": 2,
+          "native_drc_command_count": 2
+        },
+        "candidate": {
+          "measured_samples": 3,
+          "warmup": true,
+          "wall_s": [
+            41.04,
+            37.04,
+            29.66
+          ],
+          "cpu_user_plus_system_s": [
+            29.87,
+            29.84,
+            29.91
+          ],
+          "cpu_median_s": 29.87,
+          "backend_runtime_s": [
+            8.097,
+            5.513,
+            5.926
+          ],
+          "all_recorded_manifest_drift_empty": true,
+          "all_measured_baselines_cached": true,
+          "measured_time_range_utc": [
+            "2026-10-20T20:08:16.827656+00:00",
+            "2026-10-20T20:10:18.797557+00:00"
+          ],
+          "internal_flags_consistent": true,
+          "internal_native_argv_consistent": true,
+          "internal_backend_env_consistent": true,
+          "backend_command_count": 2,
+          "native_drc_command_count": 2
+        }
+      }
+    }
+  ],
+  "runtime_resources": {
+    "build_router.py": {
+      "equal": true,
+      "reference_sha256": "f462c2c94e93effe0ffe82bb2394822277317f2847a416daf968fd966c465fdb",
+      "candidate_sha256": "f462c2c94e93effe0ffe82bb2394822277317f2847a416daf968fd966c465fdb"
+    },
+    "requirements.txt": {
+      "equal": true,
+      "reference_sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43",
+      "candidate_sha256": "139aba6f659752d19d8d7c467866bc78a6ced432b7d14b3e45bbfe24a7753e43"
+    },
+    "rust_router/Cargo.toml": {
+      "equal": true,
+      "reference_sha256": "b75f1a594d1933a7b539f123e356014f6af8c621864e01f6f0746d31330acf89",
+      "candidate_sha256": "b75f1a594d1933a7b539f123e356014f6af8c621864e01f6f0746d31330acf89"
+    },
+    "rust_router/Cargo.lock": {
+      "equal": true,
+      "reference_sha256": "f14e7b0c06ae682e63f1b452862a72417cb69ee629f51ac49bac242a24d94203",
+      "candidate_sha256": "f14e7b0c06ae682e63f1b452862a72417cb69ee629f51ac49bac242a24d94203"
+    },
+    "py_router/rust_alloc.py": {
+      "equal": true,
+      "reference_sha256": "838d142cd07a85f8f78b49b8a237f783525c1a548f545195aaa3008331a7655e",
+      "candidate_sha256": "838d142cd07a85f8f78b49b8a237f783525c1a548f545195aaa3008331a7655e"
+    }
+  },
+  "interpreter_parity": {
+    "reference": "/home/halbritt/git/kicad-route/.venv-krt/bin/python",
+    "candidate": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv/bin/python",
+    "both_resolve_to": "/usr/bin/python3.12",
+    "resolved_paths_equal": true,
+    "pyvenv_cfg_byte_equal": true
+  },
+  "dependency_wheel_metadata_parity": {
+    "numpy-2.5.4.dist-info": {
+      "METADATA": true,
+      "WHEEL": true,
+      "RECORD": true
+    },
+    "pillow-13.0.0.dist-info": {
+      "METADATA": true,
+      "WHEEL": true,
+      "RECORD": true
+    },
+    "scipy-1.18.1.dist-info": {
+      "METADATA": true,
+      "WHEEL": true,
+      "RECORD": true
+    },
+    "shapely-2.2.0.dist-info": {
+      "METADATA": true,
+      "WHEEL": true,
+      "RECORD": true
+    }
+  },
+  "compiled_toolchain_comments": {
+    "reference_and_candidate_equal": true,
+    "observed_by": "readelf -p .comment on both recorded extension paths; no compiler/build executed",
+    "strings": [
+      "GCC: (Ubuntu13.3.0-6ubuntu2~24.04.1)13.3.0",
+      "clang version23.1.0git",
+      "rustc version1.99.1 (58cf8f9c3 2026-10-13)",
+      "Linker: LLD23.1.1 (/checkout/src/llvm-project/llvm1b9c0d5ff9bbe7634aead059efe6b11a7eeba145)"
+    ]
+  },
+  "pinning": {
+    "benchmark_report_mask": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "live_full_smoke_pid": 4139267,
+    "observed_live_full_smoke_mask": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "masks_overlap": true,
+    "harness_behavior": "compare_router.py records parent affinity; time/CLI/native descendants inherit it. start_new_session does not reset affinity. Both sides alternate order under the same parent and inherit the same parent environment except explicit state/ledger and side-specific OUT paths.",
+    "limit": "Affinity history and per-child masks were not recorded during historical samples. Current live-smoke observation establishes overlap now; exact historical contention attribution remains inference."
+  },
+  "expected_setup_differences": [
+    "Reference intentionally executes frozen mainf0c09ac/sourcec2ac with legacy.venv-krt; candidate executes wrapperbd4660d/sourcec6c0 in immutable generationdfb6.",
+    "Candidate cache validates grader/tool identity and complete generations, while reference uses its legacy baseline layout. All measured samples on both sides report baseline cache hits; warmups remain separate.",
+    "Candidate adds source/module/package/interpreter identity/evidence checks and a pcbnew-version cache-key probe; reference lacks this work. This is real wrapper overhead, not a toolchain mismatch.",
+    "Reference and candidate keep separate OUT/config/cache directories. Generated KiCad config files match byte-for-byte in each case."
+  ],
+  "recommendations": [
+    "Retain the failed multipoint report and all raw samples; do not substitute CPU time for the owner wall-time gate.",
+    "For final timing, reserve the same CPU subset for both implementations and keep this full smoke off it, or wait for heavy smoke work to finish. Shared affinity alone does not isolate benchmark capacity.",
+    "Remove only independently verified redundant probe overhead, then rerun the unchanged benchmark contract with separate warmups and at least three measured samples."
+  ],
+  "limits": [
+    "Package RECORD comparison verifies recorded wheel payload identities, excluding generated environment-specific bin scripts; it does not rehash every installed payload file.",
+    "Full inherited environment and historic child/thread affinity were not captured in the reports; relevant explicit backend knobs, native argv, config bytes and tool/dependency identities were compared.",
+    "No causal performance claim is made from wall-minus-CPU arithmetic because native tools can run multiple threads; CPU and wall are reported separately."
+  ],
+  "wrapper_helper_identity": {
+    "locks.py": {
+      "reference": "/home/halbritt/git/kicad-route/src/kicad_route/kicad/locks.py",
+      "candidate": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-primary/src/kicad_route/kicad/locks.py",
+      "sha256": "5b15d4ddfbec9b7e32a841a16f9c1dd383b043c240a293251737e9cba218800a",
+      "byte_equal": true
+    }
+  },
+  "command_comparison_method": "Compared argv/environment across all measured samples and both warmups. Normalize only per-sample RUN, per-side OUT/STATE, intended router source/interpreter paths and byte-identical locks.py helper roots. Every remaining flag/value matched. Native DRC argv including refill/save/parity/severity flags matched; raw commands remain in each reported result.json.",
+  "recorded_identities_across_all_four": {
+    "reference": {
+      "backend_sources": [
+        [
+          "c2ac657d5617e6e0441ea42d1db52ce95d6fa23a512652e835c5064db440a9f7"
+        ]
+      ],
+      "extension_sha256": [
+        [
+          "8f43a5b9d5197dda34ca35216bc0fea4fbc541369555e4439942383e52137730"
+        ]
+      ],
+      "package_versions_sha256": [
+        [
+          "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        ]
+      ],
+      "runtime": [
+        null
+      ],
+      "wrapper_commit": [
+        "f0c09ac3b8d39a6674a734d3caaa9d7e3ae9633d"
+      ],
+      "state_manifest_sha256": [
+        [
+          "ea52427b9cc940bb83ae2aa99df4d294441bf5106b0c5580e334e1bfccad1643"
+        ]
+      ]
+    },
+    "candidate": {
+      "backend_sources": [
+        [
+          "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1"
+        ]
+      ],
+      "extension_sha256": [
+        [
+          "653c0f8ed3e0724c91d397dc819da77e555de90e3bcb66a7df7af01749892c8b"
+        ]
+      ],
+      "package_versions_sha256": [
+        [
+          "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        ]
+      ],
+      "runtime": [
+        {
+          "source": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/router",
+          "venv": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6/venv",
+          "generation": "/home/halbritt/git/kicad-route/build/agent497-state/.router-generations/dfb6f1df05d6494687b3c0f29295cfd6"
+        }
+      ],
+      "wrapper_commit": [
+        "bd4660d9602f30deab9909d2e66499614f8fb38e"
+      ],
+      "state_manifest_sha256": [
+        [
+          "1d40df0f8ea99b7a2677fd46003a40f9c73afb36684bf3d7749b08b148b30d1e"
+        ]
+      ]
+    }
+  },
+  "parity_checks_passed_all_four": {
+    "kicad_cli_identity_equal": true,
+    "pcbnew_identity_equal": true,
+    "cli_python_identity_equal": true,
+    "package_versions_identity_equal": true,
+    "input_reference_bytes_equal_all_samples": true,
+    "settings_equal_all_samples": true,
+    "backend_flags_equal": true,
+    "backend_environment_equal_after_expected_path_normalization": true,
+    "native_drc_commands_equal": true,
+    "generated_kicad_config_files_byte_equal": true
+  },
+  "later_bytecode_finding": {
+    "observed_after_initial_audit": true,
+    "reference_venv": {
+      "pyc": 455,
+      "bytes": 9760624,
+      "all_timestamp_headers_valid": true
+    },
+    "candidate_old_generation_venv": {
+      "pyc": 83,
+      "bytes": 2098227,
+      "all_timestamp_headers_valid": true
+    },
+    "packages_ref_vs_candidate": {
+      "numpy": [
+        132,
+        82
+      ],
+      "scipy": [
+        286,
+        0
+      ],
+      "shapely": [
+        36,
+        0
+      ],
+      "PIL": [
+        0,
+        0
+      ]
+    },
+    "router_source_ref_vs_candidate_pyc": [
+      0,
+      0
+    ],
+    "conclusion": "A derived-bytecode setup asymmetry was subsequently demonstrated despite equal tool/dependency identities. The comparison remains failed; its precise timing contribution is not yet measured.",
+    "fix": "07f9be0 prepares only numerical/site-packages bytecode before activation in a fresh isolated generation; no runtime writes or existing-state mutation."
+  }
+}

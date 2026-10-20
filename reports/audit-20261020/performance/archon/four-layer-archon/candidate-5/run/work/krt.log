@@ -1,0 +1,108 @@
+CMD: python /work/state-candidate/.router-generations/412913c359a8459ca40e4143b925e9d9/router/py_router/route.py /evidence/four-layer-archon/candidate-5/run/work/input/four-layer-plane/four-layer-plane.kicad_pcb --output /evidence/four-layer-archon/candidate-5/run/work/krt-out/four-layer-plane.kicad_pcb --escalation off --fab-tier standard --strict-sizes --no-power-tap-neckdown --no-fix-drc-settings --json-out /evidence/four-layer-archon/candidate-5/run/work/krt-out/summary.json --keep-input-copper --no-stub-layer-swap --nets "*" --layers F.Cu B.Cu
+ENV KNOBS: KICAD_CACHE_HOME=/evidence/four-layer-archon/candidate-out/.home/cache KICAD_CLI=/usr/bin/kicad-cli KICAD_DYNAMIC_ITERATIONS=0 KICAD_FINALIZE_RIP=0 KICAD_IMPEDANCE_NECKDOWN=0 KICAD_INRUN_FLOOR_SYNC=0 KICAD_RESCUE_CAP_MOVE=0 KICAD_RIP_PREEXISTING=0 KICAD_ROUTE_LEDGER=off KICAD_ROUTE_STATE=/work/state-candidate KICAD_STOP_FILE=/evidence/four-layer-archon/candidate-5/run/work/STOP KICAD_TERMINAL_ESCALATION=0
+--track-width not given; using the board Default net-class 0.2mm.
+--via-size not given; using the board Default net-class 0.6mm.
+--via-drill not given; using the board Default net-class 0.3mm.
+--clearance not given; honoring net classes with base = the board Default net-class clearance 0.2mm.
+--hole-to-hole-clearance not given; using 0.25mm [board constraint].
+--board-edge-clearance not given; using 0.3mm [board constraint].
+Loading /evidence/four-layer-archon/candidate-5/run/work/input/four-layer-plane/four-layer-plane.kicad_pcb to expand net patterns...
+Pattern '*' matched 2 nets
+Routing 2 nets: ['GND', 'SIG']
+Loading /evidence/four-layer-archon/candidate-5/run/work/input/four-layer-plane/four-layer-plane.kicad_pcb...
+Using 2 routing layers: ['F.Cu', 'B.Cu']
+  Full-stack: appended 2 unrequested copper layer(s) as FORBIDDEN obstacles (no routing, vias respect their copper): In1.Cu, In2.Cu
+  Layer costs: F.Cu=1.0x, B.Cu=3.0x, In1.Cu=-1x, In2.Cu=-1x
+No BGA components detected - no exclusion zones needed
+
+Using MPS ordering strategy...
+MPS: Using segment intersection method (no nets on BGA chips)
+MPS: 2 nets with 0 crossing conflicts detected
+MPS Round 1: 2 units: GND, SIG
+
+Routing 2 single-ended net(s)...
+============================================================
+Building base obstacle map...
+Copper-to-hole 0.25mm for NPTH holes (from the board's own min_hole_clearance, above the 0.2mm fab floor); plated holes and vias: copper clearance
+Base obstacle map built in 0.00s
+Found 2 unrouted nets in PCB for stub proximity
+Pre-computing net obstacle cache...
+Net obstacle cache built in 0.00s (2 nets)
+Plane fragility: exact-fill geometry (1 filled island(s) from KiCad refill)
+Plane fragility field: 12240 cells near the edges of 1 pour(s) (KICAD_PLANE_FRAGILITY_COST=2.0mm-equiv, DYNAMIC #466 (=0 via KICAD_PLANE_FRAGILITY_DYNAMIC reverts))
+History congestion (#590) armed: +0.1mm-equiv per contest, cap 0.5, escalate 0.0, rip weight 1.0 (radius +0.25mm), frontier weight 0.25
+
+[1/2] Routing GND (id=1)
+  Detected multi-point net with 4 pads (Phase 1: main route only)
+  POUR-LAUNCH v3: +28 region-laddered target(s) across 1 component(s) (phase 1)
+  Multi-point net Phase 1: routing longest MST edge (pads 0 and 2, length=11.50mm)
+  Phase 1 routed in 2 iterations, 0 segments
+  SUCCESS: 0 segments, 1 vias, 2 iterations, length=0.00mm (stubs=0.00mm) (0.00s)
+
+[2/2] Routing SIG (id=2)
+  Detected multi-point net with 3 pads (Phase 1: main route only)
+  Multi-point net Phase 1: routing longest MST edge (pads 0 and 2, length=8.00mm)
+  Phase 1 routed in 112 iterations, 10 segments
+  SUCCESS: 10 segments, 0 vias, 112 iterations, length=8.05mm (stubs=0.00mm) (0.00s)
+
+Sync pcb_data: 10 -> 0 (kept stubs) -> 10 (after adding 10)
+Sync pcb_data vias: 0 -> 0 (kept originals) -> 1 (after adding 1)
+
+============================================================
+Multi-point Phase 3: Routing 3 tap connections
+============================================================
+Phase 3 order (boxed-in risk first): SIG, GND
+
+SIG (net 2):
+  Multi-point net Phase 3: routing 1 remaining MST edges (longest first)
+    [1/3] Routing MST edge: pad 2 -> pad 1 (length=8.00mm) target=(12.50, 6.00)
+      Routed in 51 iterations (0.00s)
+  Phase 3 routing complete: 1 edges, 11 total segments, 0 total vias
+  Added 1 tap segments, 0 tap vias
+  Net total time: 0.00s, 163 iterations
+
+GND (net 1):
+  POUR-LAUNCH v3: +18 region-laddered target(s) across 1 component(s) (phase 3)
+  Multi-point net Phase 3: routing 2 remaining MST edges (longest first)
+    [2/3] Routing MST edge: pad 2 -> pad 3 (length=8.00mm) target=(14.50, 11.00)
+      Routed in 15086 iterations (0.00s)
+    [3/3] Routing MST edge: pad 3 -> pad 1 (length=8.00mm) target=(7.50, 12.00)
+      Routed in 100 iterations (0.00s)
+  Phase 3 routing complete: 2 edges, 28 total segments, 1 total vias
+  Added 28 tap segments, 0 tap vias
+  Net total time: 0.01s, 15188 iterations
+Octolinear smoothing: collapsed 4 staircase span(s) on 2 net(s), -0.45 mm of copper (#536)
+
+============================================================
+Routing complete
+============================================================
+  Single-ended:  2/2 routed
+  Multi-point:   7/7 pads connected (2 nets)
+  Total vias:    1
+  Total time:    0.01s
+  Iterations:    114
+  Fragility refresh (#466): 1 windows, 0.00s total
+JSON_SUMMARY: {"routed_single": ["GND", "SIG"], "failed_single": [], "open_single": [], "failed_multipoint": [], "multipoint_nets": 2, "multipoint_pads_connected": 7, "multipoint_pads_total": 7, "multipoint_edges_routed": 5, "multipoint_edges_failed": 0, "ripup_success_pairs": [], "rerouted_pairs": [], "single_ended_target_swaps": [], "layer_swaps": 0, "successful": 2, "failed": 0, "total_time": 0.01, "total_iterations": 114, "total_vias": 1, "cleanup_disconnected": [], "min_clearance_used": 0.2, "design_rules": {"escalation_policy": "off", "fab_tier": "standard", "board_floors": {"clearance": 0.15, "track_width": 0.15, "via_diameter": 0.5, "via_drill": 0.25, "hole_to_hole": 0.25, "annular": 0.1, "board_edge": 0.3}, "count": 0, "nets": [], "narrowed": [], "min_delivered": {}, "fab_tier_escalations": 0, "fab_tier_contexts": [], "fab_tier_target": "advanced", "unsupported_rules": []}, "plane_fragility": {"source": "kicad_refill", "islands": 1, "refill_status": "ok", "why": "the KiCad refill succeeded", "machine_dependent": false}, "oracle_check": "disabled", "pad_pairs_connected": 5, "pad_pairs_total": 5, "scope": "run", "env_knobs": {"KICAD_CACHE_HOME": "/evidence/four-layer-archon/candidate-out/.home/cache", "KICAD_CLI": "/usr/bin/kicad-cli", "KICAD_DYNAMIC_ITERATIONS": "0", "KICAD_FINALIZE_RIP": "0", "KICAD_IMPEDANCE_NECKDOWN": "0", "KICAD_INRUN_FLOOR_SYNC": "0", "KICAD_RESCUE_CAP_MOVE": "0", "KICAD_RIP_PREEXISTING": "0", "KICAD_ROUTE_LEDGER": "off", "KICAD_ROUTE_STATE": "/work/state-candidate", "KICAD_STOP_FILE": "/evidence/four-layer-archon/candidate-5/run/work/STOP", "KICAD_TERMINAL_ESCALATION": "0"}}
+
+Writing output to /evidence/four-layer-archon/candidate-5/run/work/krt-out/four-layer-plane.kicad_pcb...
+Successfully wrote /evidence/four-layer-archon/candidate-5/run/work/krt-out/four-layer-plane.kicad_pcb
+
+Plane finalize (#562): all zone nets complete (fill-aware) -- skipping engine/cleanup legs, oracle verifies
+  KiCad-oracle recheck: deterministic exact-fill link source (pcbnew refill)
+  KiCad-oracle recheck: KiCad reports all processed nets complete
+  [finalize timing] oracle leg: 0.4s
+JSON_ORACLE: {"available": true, "reason": "ok", "why": "the oracle ran", "rounds": 0, "links_routed": 0, "links_failed": 0, "remaining": 0, "collapsed_duplicate_links": 0, "remaining_links": [], "cross_board": 0, "removed_segments": [], "removed_vias": []}
+  Strict collapse (#1063, end of run): removed 1 redundant segment(s) on 1 net(s)
+
+  FAB NOTE (route): 1 via(s) in a pad or paste opening [R1.1] -- 1 stamped (capping yes) (filling yes), 0 already filled+capped. via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel.
+VIA_IN_PAD_JSON: {"count": 1, "sites": ["R1.1"], "stamped": 1, "restored": 0, "protected": 0, "unstampable": 0, "site_created": 0, "unprotected": [], "note": "via-in-pad requires IPC-4761 Type VII (filled + capped + plated); state it on the fab drawing or solder wicks into the barrel"}
+JSON_REGRADE: {"board": "file", "graded_nets": 2, "seconds": 0.01, "routed_single": ["GND", "SIG"], "failed_single": [], "open_single": [], "failed_multipoint": [], "multipoint_pads_total": 7, "multipoint_pads_connected": 7, "successful": 2, "failed": 0, "unowned_broken": [], "recovered": [], "broken_by_run": []}
+
+============================================================
+Run complete -- whole run, re-graded on the written board (2 net(s), 0.0s)
+============================================================
+  Single-ended:  2/2 routed
+  Multi-point:   7/7 pads connected
+  route summary written to /evidence/four-layer-archon/candidate-5/run/work/krt-out/summary.json
+JSON_SUMMARY_MIN: {"escalations": 0, "failed": 0, "failed_single": [], "main_loop_time_s": 0.01, "min_clearance_used": 0.2, "multipoint_deficit": 0, "open_single": [], "pad_pairs_open": {"count": 0, "nets": []}, "regraded_nets": 2, "routed": 2, "scope": "merged", "terminal_restores_broken": [], "vias": 1}
+EXIT=0

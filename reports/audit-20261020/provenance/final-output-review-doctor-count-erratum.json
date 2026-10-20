@@ -1,0 +1,29 @@
+{
+  "schema": "kicad-route/review-erratum/1",
+  "observed_utc": "2026-10-20T22:59:22.486813+00:00",
+  "scope": "Derived prepublication final-output review only; raw doctor/native receipts and final doctrine packet unchanged",
+  "reason": "doctor_checks_passed incorrectly used total check count24; actual overallPASS includes optional NOT_RUN/UNSUPPORTED outcomes",
+  "old_review": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-output-review-before-doctor-count-correction.json",
+    "sha256": "482bb6ddc3695f948cea8186667724ac71b1952cb673a8500785bd9ae63a37eb",
+    "incorrect": {
+      "doctor_checks_passed": 24
+    }
+  },
+  "corrected_review": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/final-output-review.json",
+    "sha256": "c8924c277168a1025aae72804c04094e1d302a5e2bf5109c1e8ae9d7959b40e4",
+    "doctor_status": "PASS",
+    "doctor_checks_total": 24,
+    "doctor_check_status_counts": {
+      "PASS": 19,
+      "UNSUPPORTED": 1,
+      "NOT_RUN": 4
+    }
+  },
+  "raw_doctor": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/doctor/doctor/doctor.json",
+    "sha256": "254adbfa633c15dd1a0069379ca09b5ce0cc111f6cf82216bae0e65507de5546"
+  },
+  "acceptance_effect": "None: actual doctor overallPASS and required checksPASS remain true; this corrects optional-check accounting"
+}

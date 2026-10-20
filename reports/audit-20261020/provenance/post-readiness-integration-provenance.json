@@ -1,0 +1,58 @@
+{
+  "schema": "kicad-route/post-readiness-integration-provenance/1",
+  "observed_utc": "2026-10-20T22:52:11.537256+00:00",
+  "method": "Read parent integration receipt and current Git refs/tree/status/worktree metadata; inspect in-progress runtime receipt only. No source/runtime/native/tracker operation or new doctrine gathering.",
+  "integration": {
+    "land_receipt": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/land-integration.json",
+      "sha256": "4cf34a2bdfc639e1513c42706be338f030a49b8fd93fd599e1ca28944aed08a8"
+    },
+    "main_head": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+    "origin_main_tracking_head": "b4bd511d782e87efcefd9d7be2494fff7461a5e4",
+    "tree": "d1fd0672b6aacf1f7955111cb7d882c2f5e8c48c",
+    "qualified_commit": "f0f73da86835ec583f2a2c9128e6893fa59c03b7",
+    "qualified_tree": "d1fd0672b6aacf1f7955111cb7d882c2f5e8c48c",
+    "trees_identical": true,
+    "actual_qualified_ancestors_preserved": {
+      "f0f73da86835ec583f2a2c9128e6893fa59c03b7": true,
+      "3bc90405be40a42c1e5ff48787e35238ea994ab8": true
+    },
+    "status_porcelain": "",
+    "worktrees_porcelain": "worktree /home/halbritt/git/kicad-route\nHEAD b4bd511d782e87efcefd9d7be2494fff7461a5e4\nbranch refs/heads/main",
+    "parent_observed_tests": {
+      "passed": 60,
+      "duration_s": 6.51
+    },
+    "test_scope": "60 focused integration guard checks only; not a new allgreen production fullsuite claim.",
+    "parent_reported_pushed": true
+  },
+  "runtime_snapshot": {
+    "session": "82276",
+    "receipt": "/home/halbritt/git/kicad-route/build/agent497-qualification/landed-main-20261020T224951.985950Z-2835650/receipt.json",
+    "observed_status": "running",
+    "role": "In-progress later release proof; two native repeats and doctor have not been accepted by this observation. Do not treat this mutable receipt SHA as final runtime evidence."
+  },
+  "verified_decision_artifacts_unchanged": [
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-final-decision-receipt.json",
+      "sha256": "d3143a19fcf0460e3ee38142aa735c4ea20dfdf5006281b56b1da3108668ec2d"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-final-obligation-disposition.json",
+      "sha256": "eaf1faa512acd8bc91edc2a780a535c6326f1309f62a999acbf693ff3dc94c9b"
+    },
+    {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-qualification/doctrine-final-provenance.json",
+      "sha256": "f5e2f72ff3cc8acf41d154ff4c97a3976c2d9359a64e81a9f1369710b12bca8d"
+    }
+  ],
+  "final_packet_unchanged": {
+    "path": "/tmp/kicad-route-agent497-doctrine-second-final.json",
+    "sha256": "d94ba9a4307083c50f66610b86b25309ba5a451fa12a73c7d735fc22eec856d2"
+  },
+  "acceptance_boundary": "This records completed source integration after the existing verified readiness decision. It neither changes that packet/receipt nor infers future default-runtime, durable-report or tracker acceptance.",
+  "still_pending": [
+    "Final supported default runtime receipt with two successful actual native repeats and offline/no-canary doctor; verify final identities and drift[].",
+    "Durable report/index verification, evidence commit/push and tracker work within existing authority."
+  ]
+}
