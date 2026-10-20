@@ -94,10 +94,13 @@ def test_quality_retains_pair_routing_and_any_intermediate_wall_clock_stop():
     assert module.quality(result)['pairs'] is None
 
 
-def test_process_tree_memory_counts_concurrent_child_in_separate_session(tmp_path):
+@pytest.mark.parametrize('threaded', [False, True])
+def test_process_tree_memory_counts_concurrent_child_in_separate_session(tmp_path, threaded):
     ready = tmp_path / 'ready'
     code = 'import pathlib,time; allocation=bytearray(24*1024*1024); pathlib.Path(%r).touch(); time.sleep(30)' % str(ready)
     parent_code = 'import subprocess,sys,time; allocation=bytearray(24*1024*1024); p=subprocess.Popen([sys.executable,"-c",%r],start_new_session=True); time.sleep(30)' % code
+    if threaded:
+        parent_code = 'import threading,time; t=threading.Thread(target=exec,args=(%r,)); t.start(); time.sleep(30)' % parent_code
     parent = subprocess.Popen([sys.executable, '-c', parent_code], start_new_session=True)
     tracked = {}
     try:

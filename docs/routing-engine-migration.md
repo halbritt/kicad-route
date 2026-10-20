@@ -172,7 +172,7 @@ does not relax rules or permit lost connections. Performance uses measured
 samples only. Each board gates median wall time, legacy GNU-time individual-process
 maximum RSS, and sampled concurrent process-tree summed RSS at a ratio of 1.10.
 The latter sums resident pages of concurrent descendants, including backend
-sessions, every 50 ms. It is a sampled lower bound on peak and can double-count
+sessions, with a 50 ms polling wait (actual maximum sample intervals are recorded). It is a sampled lower bound on peak and can double-count
 shared pages; it is not unique physical memory or an exact kernel high-water mark.
 The raw legacy metric and this aggregate metric remain distinct in each report.
 The completed historical migration receipt above keeps its original meaning.

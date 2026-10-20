@@ -122,25 +122,31 @@ def quality(result):
 
 
 def process_tree_rss(root_pid, tracked):
-    """Sample summed RSS of descendants, retaining reparented children by birth ID."""
-    processes = {}
-    for directory in Path('/proc').iterdir():
-        if not directory.name.isdigit():
+    """Sample descendants through per-thread child lists, including new sessions.
+
+    Walking all host processes on each tick makes the observer itself a CPU
+    workload. Retained birth IDs keep reparented descendants in later samples.
+    """
+    pending = [root_pid, *tracked]
+    visited, residents = set(), {}
+    while pending:
+        pid = pending.pop()
+        if pid in visited:
             continue
+        visited.add(pid)
+        directory = Path('/proc') / str(pid)
         try:
             fields = (directory / 'stat').read_text().rsplit(')', 1)[1].split()
-            processes[int(directory.name)] = (int(fields[1]), int(fields[19]), int(fields[21]))
+            birth, rss = int(fields[19]), int(fields[21])
+            if pid in tracked and tracked[pid] != birth:
+                continue
+            residents[pid] = rss
+            tracked[pid] = birth
+            for thread in (directory / 'task').iterdir():
+                pending.extend(int(child) for child in (thread / 'children').read_text().split())
         except (FileNotFoundError, ProcessLookupError):
             continue
-    members = {pid for pid, (_, birth, _) in processes.items()
-               if pid == root_pid or tracked.get(pid) == birth}
-    while True:
-        children = {pid for pid, (parent, _, _) in processes.items() if parent in members}
-        if children <= members:
-            break
-        members |= children
-    tracked.update({pid: processes[pid][1] for pid in members})
-    return sum(processes[pid][2] for pid in members) * os.sysconf('SC_PAGE_SIZE') // 1024
+    return sum(residents.values()) * os.sysconf('SC_PAGE_SIZE') // 1024
 
 
 def run_sample(config, side, index):
@@ -158,9 +164,14 @@ def run_sample(config, side, index):
         with subprocess.Popen(command, env=env, stdout=stdout, stderr=stderr,
                               start_new_session=True) as process:
             tracked, peak = {}, 0
+            previous_sample, max_interval, sample_count = None, 0.0, 0
             deadline = time.monotonic() + config.timeout
             try:
                 while True:
+                    sampled_at = time.monotonic()
+                    if previous_sample is not None:
+                        max_interval = max(max_interval, sampled_at - previous_sample)
+                    previous_sample, sample_count = sampled_at, sample_count + 1
                     peak = max(peak, process_tree_rss(process.pid, tracked))
                     if time.monotonic() >= deadline:
                         raise subprocess.TimeoutExpired(command, config.timeout)
@@ -185,7 +196,8 @@ def run_sample(config, side, index):
     if process.returncode != result["exit_code"]:
         raise RuntimeError(f"{side} CLI/result exit mismatch in {directory}")
     return {**json.loads((directory / "time.json").read_text()),
-            "process_tree_peak_rss_kib": peak, "memory_sample_interval_s": 0.05,
+            "process_tree_peak_rss_kib": peak,
+            "memory_sampling": {"poll_wait_s": 0.05, "samples": sample_count, "max_interval_s": max_interval},
             "cli_sha256": hashlib.sha256(cli.read_bytes()).hexdigest(),
             "reference_files": result["evidence"]["reference_files"],
             "exit_code": process.returncode, "quality": quality(result),
@@ -216,7 +228,7 @@ def main():
               "args": args.arg, "reference": reference, "candidate": candidate, "warmup": warmup,
               "mode": args.mode, "cpu_affinity": sorted(os.sched_getaffinity(0)),
               "measurement": "medians: full-CLI wall time, GNU-time largest individual-process RSS, "
-                             "and sampled concurrent process-tree summed RSS (50 ms interval); "
+                             "and sampled concurrent process-tree summed RSS (50 ms polling wait, actual intervals retained); "
                              "all three gates enforce 1.10. Sampled RSS is a lower bound on peak."}
     for index in range(args.repeats + 1):
         for side in (("reference", "candidate") if index % 2 == 0 else ("candidate", "reference")):
