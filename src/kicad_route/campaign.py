@@ -480,7 +480,8 @@ class Campaign:
             self.scope = cli.select_nets(facts, self.args.nets, self.args.netclass)[0]
         except cli.NetSelectionError as e:
             contract.refuse("input", str(e))
-        cli.baseline_drc(ref_dir, self.cfg["pcb"], self.fingerprint)
+        cli.baseline_drc(ref_dir, self.cfg["pcb"], self.fingerprint,
+                         pcbnew_build=facts.get("kicad_version"))
         lanes = []
         for ordering in ORDERINGS:
             first = ordering_first(facts, self.scope, ordering) if self.scope else None

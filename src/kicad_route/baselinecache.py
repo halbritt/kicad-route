@@ -11,12 +11,13 @@ SCHEMA = 1
 FILES = ("baseline-drc.json", "baseline-info.json", pour.FACTS_NAME)
 
 
-def identity(fingerprint, board_name):
+def identity(fingerprint, board_name, pcbnew_build=None):
     root = Path(__file__).parent
     grading = ("baselinecache.py", "cli.py", "pour.py", "kicad/pour.py", "contract.py")
     return {"schema": SCHEMA, "input": fingerprint, "board": board_name,
             "kicad_cli": statemanifest.kicad_cli_identity(),
-            "pcbnew": statemanifest.pcbnew_build_version(), "pour_schema": pour.SCHEMA,
+            "pcbnew": pcbnew_build if pcbnew_build is not None else statemanifest.pcbnew_build_version(),
+            "pour_schema": pour.SCHEMA,
             "grading": {p: common.sha256(root / p) for p in grading},
             "result_schemas": {p.name: common.sha256(p) for p in
                                sorted(contract.SCHEMAS_DIR.glob("result-*.json"))}}
@@ -56,8 +57,8 @@ def read(cache, expected):
         return None
 
 
-def get(reference, board_name, fingerprint, root, drc, copy_project):
-    expected = identity(fingerprint, board_name)
+def get(reference, board_name, fingerprint, root, drc, copy_project, pcbnew_build=None):
+    expected = identity(fingerprint, board_name, pcbnew_build=pcbnew_build)
     cache = Path(root) / common.sha256_of(expected)
     hit = read(cache, expected)
     if hit is not None:

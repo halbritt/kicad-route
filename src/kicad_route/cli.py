@@ -346,11 +346,11 @@ def summarize_findings(items):
             "by_severity": common.count_by(items, "severity")}
 
 
-def baseline_drc(reference, board_name, fingerprint):
+def baseline_drc(reference, board_name, fingerprint, pcbnew_build=None):
     """Native DRC of the untouched input, graded exactly like candidates (refill first).
     Cached by input, selected board and native grading content identity."""
     return baselinecache.get(reference, board_name, fingerprint,
-                             out_path(".cache", "baseline"), kicad_drc, copy_project)
+                             out_path(".cache", "baseline"), kicad_drc, copy_project, pcbnew_build=pcbnew_build)
 
 
 # ---------------------------------------------------------------- preservation
@@ -1060,7 +1060,8 @@ def run_attempt(args):
         log(f"[route] ledger: {note}")
 
     log("[route] baseline: native DRC of the untouched input (refilled)")
-    base, base_info = baseline_drc(ref_dir, board_name, fingerprint)
+    base, base_info = baseline_drc(ref_dir, board_name, fingerprint,
+                                        pcbnew_build=ref_facts.get("kicad_version"))
     if pairs is not None and base is not None:
         opened = diff_pairs.open_nets(base, ref_facts["nets"])
         for pair in pairs:
