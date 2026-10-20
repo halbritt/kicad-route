@@ -26,6 +26,7 @@ def builds(tmp_path, monkeypatch):
         (source / "implementation.py").write_text(name)
         site = generation / "venv/lib/python3.12/site-packages"
         site.mkdir(parents=True)
+        (generation / "venv/pyvenv.cfg").write_text("version = 3.12.0\n")
         module = site / "grid_router.so"
         module.write_text("extension " + name)
         metadata = site / "numerical.dist-info/METADATA"
@@ -35,11 +36,13 @@ def builds(tmp_path, monkeypatch):
         manifest = {"krt": {"generation": str(generation.relative_to(state)),
             "source_path": str(source.relative_to(state)), "source_sha256": engine.source_sha256(source),
             "extension_module": {"path": str(module.relative_to(state)), "sha256": common.sha256(module)},
-            "venv": {"path": str((generation / "venv").relative_to(state)), "packages_sha256": packages}},
+            "venv": {"path": str((generation / "venv").relative_to(state)),
+                     "packages_sha256": packages, "python_version": "3.12.0"}},
             "kicad": {"kicad_cli": {"path": str(native), "sha256": common.sha256(native)}},
             "determinism": {}}
         tools[name] = {"backend": {"name": "krt", "source_sha256": manifest["krt"]["source_sha256"],
-            "extension_module_sha256": common.sha256(module), "venv_packages_sha256": packages},
+            "extension_module_sha256": common.sha256(module), "venv_packages_sha256": packages,
+            "venv_python_version": "3.12.0"},
             "kicad_cli": {"version": "test", "sha256": common.sha256(native)}}
         manifests[name] = manifest
     statemanifest.write(manifests["A"], state)
@@ -91,7 +94,8 @@ def test_equal_geometry_from_different_builds_is_not_a_repeat_proof(builds):
 
 
 @pytest.mark.parametrize("block,key", [("backend", "source_sha256"),
-    ("backend", "extension_module_sha256"), ("backend", "venv_packages_sha256"), ("kicad_cli", "sha256")])
+    ("backend", "extension_module_sha256"), ("backend", "venv_packages_sha256"),
+    ("backend", "venv_python_version"), ("kicad_cli", "sha256")])
 def test_missing_execution_identity_never_uses_current_installation(builds, block, key):
     state, manifests, tools = builds
     incomplete = copy.deepcopy(tools["A"])
@@ -182,7 +186,8 @@ def test_manifest_updates_are_reentrant_within_update_lock(builds, monkeypatch):
 
 
 @pytest.mark.parametrize("block,key", [("backend", "source_sha256"),
-    ("backend", "extension_module_sha256"), ("backend", "venv_packages_sha256"), ("kicad_cli", "sha256")])
+    ("backend", "extension_module_sha256"), ("backend", "venv_packages_sha256"),
+    ("backend", "venv_python_version"), ("kicad_cli", "sha256")])
 def test_each_execution_identity_field_changes_the_build(builds, block, key):
     state, manifests, tools = builds
     expected = statemanifest.build_id(manifests["A"])
@@ -209,3 +214,68 @@ def test_manifest_write_failure_is_retained_as_record_error(builds, monkeypatch)
     rec = check([result(tools["A"]), result(tools["A"])])
     assert rec["reproducible"] is True and rec["record_error"] == "read-only state"
     assert "recorded_in" not in rec
+
+
+def test_python_change_invalidates_current_identity_and_existing_proof(builds):
+    state, manifests, tools = builds
+    old_id = statemanifest.build_id(manifests["A"])
+    statemanifest.record_determinism({"backend": "krt", "build_id": old_id, "reproducible": True}, state)
+    manifest = statemanifest.read(state)
+    cfg = state / manifest["krt"]["venv"]["path"] / "pyvenv.cfg"
+    cfg.write_text("version = 3.13.0\n")
+    current = statemanifest.current_identity(manifest, state)
+    assert current["krt.venv.python_version"] == "3.13.0"
+    drift = statemanifest.verify(manifest, state)
+    assert [item["item"] for item in drift] == ["krt.venv.python_version"]
+    assert statemanifest.current_build_id(state) != old_id
+    assert statemanifest.reproducibility("krt", state)["measurement"] is False
+    changed = copy.deepcopy(tools["A"])
+    changed["backend"]["venv_python_version"] = "3.13.0"
+    assert statemanifest.execution_build_id(changed) == statemanifest.current_build_id(state)
+
+
+def test_collect_preserves_same_interpreter_proof_and_drops_changed_interpreter(builds, monkeypatch):
+    state, manifests, tools = builds
+    previous = copy.deepcopy(manifests["A"])
+    old_id = statemanifest.build_id(previous)
+    previous["determinism"]["krt"] = {"build_id": old_id, "reproducible": True}
+    cfg = state / previous["krt"]["venv"]["path"] / "pyvenv.cfg"
+    def collect_router(*args, **kwargs):
+        current = copy.deepcopy(previous["krt"])
+        current["venv"]["python_version"] = statemanifest.venv_python_version(cfg.parent)
+        return current
+    monkeypatch.setattr(statemanifest, "collect_krt", collect_router)
+    monkeypatch.setattr(statemanifest, "collect_freerouting", lambda state: None)
+    monkeypatch.setattr(statemanifest, "collect_java", lambda freerouting: None)
+    monkeypatch.setattr(statemanifest, "kicad_route_identity", lambda: {})
+    monkeypatch.setattr(statemanifest, "kicad_cli_identity", lambda: copy.deepcopy(previous["kicad"]["kicad_cli"]))
+    monkeypatch.setattr(statemanifest, "pcbnew_build_version", lambda: "native")
+    unchanged = statemanifest.collect(state, previous=previous)
+    assert unchanged["determinism"] == previous["determinism"]
+    cfg.write_text("version = 3.13.0\n")
+    changed = statemanifest.collect(state, previous=previous)
+    assert changed["krt"]["venv"]["python_version"] == "3.13.0"
+    assert changed["determinism"] == {}
+    assert statemanifest.build_id(changed) != old_id
+
+
+def test_old_python_proof_cannot_record_for_otherwise_identical_active_build(builds):
+    state, manifests, tools = builds
+    old_id = statemanifest.build_id(manifests["A"])
+    changed = copy.deepcopy(manifests["A"])
+    cfg = state / changed["krt"]["venv"]["path"] / "pyvenv.cfg"
+    cfg.write_text("version = 3.13.0\n")
+    changed["krt"]["venv"]["python_version"] = "3.13.0"
+    statemanifest.write(changed, state)
+    before = statemanifest.manifest_path(state).read_bytes()
+    with pytest.raises(RuntimeError, match="active installation"):
+        statemanifest.record_determinism({"backend": "krt", "build_id": old_id}, state)
+    assert statemanifest.manifest_path(state).read_bytes() == before
+
+
+@pytest.mark.parametrize("version", [None, ""])
+def test_empty_executed_python_identity_cannot_qualify(builds, version):
+    state, manifests, tools = builds
+    incomplete = copy.deepcopy(tools["A"])
+    incomplete["backend"]["venv_python_version"] = version
+    assert statemanifest.execution_build_id(incomplete) is None

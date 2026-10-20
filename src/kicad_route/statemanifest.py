@@ -334,6 +334,7 @@ def current_identity(m, state):
         cur["krt.requirements.sha256"] = _sha(state / req) if req else None
         venv = (k.get("venv") or {}).get("path")
         cur["krt.venv.packages_sha256"] = packages_sha256(venv_packages(state / venv)) if venv else None
+        cur["krt.venv.python_version"] = venv_python_version(state / venv) if venv else None
     f = m.get("freerouting")
     if f is not None:
         jar = (f.get("jar") or {}).get("path")
@@ -364,7 +365,8 @@ def build_id(m, backend="krt"):
     if backend == "krt":
         k = m.get("krt") or {}
         parts = {"source": k.get("source_sha256") or k.get("commit"), "extension_module": (k.get("extension_module") or {}).get("sha256"),
-                 "venv": (k.get("venv") or {}).get("packages_sha256")}
+                 "venv": (k.get("venv") or {}).get("packages_sha256"),
+                 "python": (k.get("venv") or {}).get("python_version")}
     else:
         f = m.get(backend) or {}
         parts = {"jar": (f.get("jar") or {}).get("sha256"), "java": (m.get("java") or {}).get("version")}
@@ -385,10 +387,11 @@ def execution_build_id(tools, backend="krt"):
         source = executed.get("source_sha256")
         module = executed.get("extension_module_sha256")
         packages = executed.get("venv_packages_sha256")
-        if not all((source, module, packages, native)):
+        python = executed.get("venv_python_version")
+        if not all((source, module, packages, python, native)):
             return None
         manifest = {"krt": {"source_sha256": source, "extension_module": {"sha256": module},
-                            "venv": {"packages_sha256": packages}}}
+                            "venv": {"packages_sha256": packages, "python_version": python}}}
     else:
         jar, java = executed.get("jar_sha256"), executed.get("java_version")
         if not all((jar, java, native)):
@@ -409,7 +412,8 @@ def current_build_id(state=None, backend="krt"):
         live = {"krt": {"commit": cur.get("krt.commit"),
                         "source_sha256": cur.get("krt.source_sha256"),
                         "extension_module": {"sha256": cur.get("krt.extension_module.sha256")},
-                        "venv": {"packages_sha256": cur.get("krt.venv.packages_sha256")}}}
+                        "venv": {"packages_sha256": cur.get("krt.venv.packages_sha256"),
+                                 "python_version": cur.get("krt.venv.python_version")}}}
     else:
         live = {backend: {"jar": {"sha256": cur.get("freerouting.jar.sha256")}}, "java": m.get("java")}
     live["kicad"] = {"kicad_cli": {"sha256": cur.get("kicad.kicad_cli.sha256",
