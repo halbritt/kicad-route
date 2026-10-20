@@ -104,7 +104,7 @@ def test_native_copper_artwork_survives_routing_through_its_passage(tmp_path):
                 if isinstance(item, pcbnew.PCB_SHAPE) and item.IsOnCopperLayer():
                     start, end = item.GetStart(), item.GetEnd()
                     rows.append((fp.GetReference(), item.GetLayer(), int(item.GetShape()),
-                                 item.GetWidth(), item.IsFilled(),
+                                 item.GetWidth(), int(item.GetFillMode()),
                                  (start.x, start.y), (end.x, end.y)))
         return sorted(rows)
 
