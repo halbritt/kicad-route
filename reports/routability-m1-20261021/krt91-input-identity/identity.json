@@ -1,0 +1,123 @@
+{
+  "schema": "kicad-route/diagnostic-input-identity-confirmation/1",
+  "candidate_fome_commit": "7e6fb02b4cbe27fd2b4ba1058fddbdbd64752b2a",
+  "candidate_policy_receipt_sha256": "0df61bbeed1521c5eea23e4f13745160358b5e889ca93f11f269bdb7794f7d32",
+  "source_sha256": {
+    "ca2.kicad_pcb": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f",
+    "ca2.kicad_pro": "7c7933bf09fad1617887d95dce24ae2b994737bf4cc46c20662e447561515b74",
+    "ca2.kicad_dru": "ff62208301c38bca2c963a0682e0a2ee843d8a546bace3719340cfcca1b08d0d"
+  },
+  "corrected_pcb_sha256": "fe533602777dfbccea8ac9a94cc1fa99e2ce4a8b9a35dea45628f6f55b85ffc2",
+  "project_and_custom_rules_identical": true,
+  "diagnostic_manifest_entries_verified": 16,
+  "iteration7_parent_manifest_entries_verified": 30,
+  "snapshot_sha256": "e4d94dd796e750ab85d5c2edce4d3757103687f8815d18757fa39f1a8d276f6b",
+  "placement_input_sha256": "2c1ac9444885f168aa4a62335bb0b6e6ad3cca67a16396fa3f1270d9da4a54a1",
+  "planes_output_and_refill_identity_verified": true,
+  "all_original_board_bytes_preserved": true,
+  "only_change": {
+    "removed_bytes": 0,
+    "inserted_bytes": 1105,
+    "inserted_newlines": 62
+  },
+  "native_source_geometry": {
+    "U3.11": {
+      "position_mm": [
+        77.5,
+        29.1
+      ],
+      "net": "/POD_GNSS_RF",
+      "uuid": "2f14283e-47ab-51f1-9102-d1fd8d6770f9"
+    },
+    "J2.1": {
+      "position_mm": [
+        86.96,
+        28.0
+      ],
+      "net": "/POD_GNSS_RF",
+      "uuid": "36301924-71e7-59d0-a656-d05054f21656"
+    }
+  },
+  "source_rule_area_inventory": {
+    "board_owned": [],
+    "footprint_owned": [
+      {
+        "owner": "U1",
+        "uuid": "61975a3d-c782-45aa-b206-6e80874579ae"
+      },
+      {
+        "owner": "J3",
+        "uuid": "54ade010-21e1-4573-9321-40d708969346"
+      },
+      {
+        "owner": "J3",
+        "uuid": "8c1231b9-21bb-4ecf-af8b-b92ae702f14c"
+      },
+      {
+        "owner": "J3",
+        "uuid": "6d49279c-cc4f-4734-88d3-ad8e055aab04"
+      },
+      {
+        "owner": "J3",
+        "uuid": "54aee9b7-b5f8-4648-b279-d9fe9a596a14"
+      },
+      {
+        "owner": "J3",
+        "uuid": "762bded8-d400-4594-818c-5bc2226848ac"
+      }
+    ]
+  },
+  "sealed_native_evidence": {
+    "repository_commit": "367578e4c303c02580d338af5ae829a39495ab57",
+    "directory": "reports/routability-m1-20261021/krt98",
+    "archive_sha256": "f7d030f6d15347f4aae2a5aa5e93cbf72e475d773b4b463f3be7fcfc583ae779",
+    "index_sha256": "818113e264a9a42420e7bb793aca4c5e9dea30246a5b94373edf8a2661be91ef",
+    "members": {
+      "independent-verification/summary.json": "974e3e65a9bc1c7e75e3bf1bf8e50abe1d6aaeb0ccc76cde8955fd3902049f0b",
+      "independent-verification/origin-production-terminals.json": "2aeacb0eef3cc15a2d23fc534eb774b6b9adf07a3c6d6258f7591557532b2b12",
+      "independent-verification/production-ratchet-verification.json": "d13ab416c85d63e101d7e395a2bf92c18c9d95b85fe1ccbb930214deed535b03",
+      "independent-verification/independent-equivalence-expectations.json": "6355b5c2f31144fa0a4d607128e8d469fc52b10e867e9b87e76fcd831eabed6c"
+    }
+  },
+  "reconciled_historical_observations": {
+    "actual_complete_nets": 53,
+    "actual_incomplete_nets": 182,
+    "terminal_component_deficit": 686,
+    "capped_drc_connections": 499,
+    "audited_drc_incomplete_net_names": 80,
+    "incorrect_complete_count_from_capped_report": 155,
+    "actual_origin_complete_nets_lost": 0
+  },
+  "verdict": "PASS for archived PCB/project/custom-rule identity and geometric capture only",
+  "holds": [
+    "Corrected-policy branch is unreviewed/unaccepted; no merge yet.449 owns receipt correction and renewed review/hashes.",
+    "Receipt must label capped-report inference superseded and preserve55/32 and51/30 as measurements; all53complete and5partial groups preserved.",
+    "Receipt source zero rule areas is board-owned only; six footprint-owned keepouts exist and remain byte-preserved.",
+    "New policy requires fresh native grading; schematic/parity and actual native/policy findings remain unresolved.91 release and target route prerequisites remain."
+  ],
+  "scope": "Read-only source/manifest/native-position inspection and verification of existing sealed terminal evidence. No project save/refill/DRC rerun, routing, geometry/policy edit, branch integration or adoption.",
+  "native_tools": {
+    "pcbnew": {
+      "version": "10.0.7-10.0.7~ubuntu24.04.1",
+      "module": {
+        "path": "/usr/bin/_pcbnew.kiface",
+        "sha256": "ba821c4719fbb6e51c378ae98f7db4254a214eb9e39e4822bb88833c986513f8"
+      },
+      "binding": {
+        "path": "/usr/lib/python3/dist-packages/pcbnew.py",
+        "sha256": "50740b1aeed153349ffe000c7e2c39d9fd75d1cdf49118897f5df5bf957b8458"
+      },
+      "python": {
+        "path": "/usr/bin/python3.12",
+        "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+      }
+    },
+    "kicad_cli": {
+      "path": "/usr/bin/kicad-cli",
+      "version": "10.0.7",
+      "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+    }
+  },
+  "verification_script_sha256": "916b6a5ecfc65c8d1357715a486f2672880362ace225f2cad312a8dbae2b7513",
+  "corrected_policy_native_grade_status": "NOT_RUN; existing sealed partitions apply to historical source67782a5d, not a grade of correctedfe533602"
+}

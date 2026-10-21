@@ -1,0 +1,12 @@
+{
+  "candidate_fome_commit": "7e6fb02b4cbe27fd2b4ba1058fddbdbd64752b2a",
+  "source_sha256": {
+    "ca2.kicad_pcb": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f",
+    "ca2.kicad_pro": "7c7933bf09fad1617887d95dce24ae2b994737bf4cc46c20662e447561515b74",
+    "ca2.kicad_dru": "ff62208301c38bca2c963a0682e0a2ee843d8a546bace3719340cfcca1b08d0d"
+  },
+  "corrected_pcb_sha256": "fe533602777dfbccea8ac9a94cc1fa99e2ce4a8b9a35dea45628f6f55b85ffc2",
+  "diagnostic_manifest_entries_verified": 16,
+  "iteration7_parent_manifest_entries_verified": 30,
+  "verdict": "PASS for archived PCB/project/custom-rule identity and geometric capture only"
+}
