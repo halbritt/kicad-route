@@ -114,7 +114,7 @@ def test_human_chain_locks_only_the_origin_copper(chain):
     sig_b = [t for t in facts["tracks"] + facts["vias"] if t["net"] == "/SIG_B"]
     assert len(sig_b) == SIG_B["tracks"] + SIG_B["vias"] and not any(t["locked"] for t in sig_b)
     assert r2["validation"]["net_completion"] == {"status": route.PASS, "nets_connected_in_input": 3,
-                                                  "nets_lost": []}
+                                                  "nets_lost": [], "split_components": []}
     assert r2["validation"]["status"] == route.PASS, r2["validation"]["reasons"]
 
     # the end of the chain against the origin: protection is the origin's (all of its copper)
@@ -198,13 +198,12 @@ def test_ratchet_fails_a_cut_net(chain, tmp_path):
 
 
 def test_ratchet_unit():
-    """net_completion compares the nets named by unconnected items before and after."""
+    """Native terminal components, rather than DRC-list absence, establish completeness."""
+    from component_fixtures import component_receipt
     from kicad_route import provenance
-    item = lambda *nets: {"items": [{"description": f"Pad [{n}]"} for n in nets]}  # noqa: E731
-    facts = {"nets": {"A": {}, "B": {}, "C": {}}}
-    base = {"unconnected_items": [item("C")]}
-    ok = provenance.net_completion(base, {"unconnected_items": [item("C")]}, facts, route.item_nets)
+    base = component_receipt({"A": [["a1", "a2"]], "B": [["b1", "b2"]], "C": [["c1"], ["c2"]]})
+    ok = provenance.net_completion(base, base)
     assert ok["status"] == route.PASS and ok["nets_connected_in_input"] == 2
-    bad = provenance.net_completion(base, {"unconnected_items": [item("B"), item("C")]}, facts, route.item_nets)
-    assert bad["status"] == route.FAIL and bad["nets_lost"] == ["B"]
-    assert provenance.net_completion(None, base, facts, route.item_nets)["status"] == route.NOT_RUN
+    bad = component_receipt({"A": [["a1", "a2"]], "B": [["b1"], ["b2"]], "C": [["c1"], ["c2"]]})
+    assert provenance.net_completion(base, bad)["nets_lost"] == ["B"]
+    assert provenance.net_completion(None, base)["status"] == route.NOT_RUN

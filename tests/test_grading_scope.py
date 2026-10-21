@@ -25,6 +25,7 @@ import pytest
 from helpers import FIXTURE, OUT, cli
 from kicad_route import cli as route
 from kicad_route import common, netnames
+from component_fixtures import component_receipt
 
 BOARD = "route_demo.kicad_pcb"
 
@@ -138,7 +139,7 @@ def make_run(root, nets=("/A", "/BUS[0]"), scope=("/BUS[0]",), board=BOARD, pro=
     attempt = {"board": board, "schematic": None, "candidate_dir": "candidate/p", "reference_dir": "reference/p",
                "reference_facts": "facts/reference-facts.json", "baseline": {"report": "baseline.json"},
                "scope": {"nets": list(scope)}, "settings": {"protect": "existing"}, "floor": None,
-               "source": {"source_dir": str(source_dir) if source_dir else None}}
+               "source": {"source_dir": str(source_dir) if source_dir else None}, "input_fingerprint": "test-input"}
     (root / "attempt.json").write_text(json.dumps(attempt))
     return root
 
@@ -170,6 +171,11 @@ def stub_kicad(monkeypatch):
     monkeypatch.setattr(route, "pour_check", lambda *a, **k: {"check": "pour_integrity", "status": route.PASS,
                                                              "detail": "stub", "differences": []})
     monkeypatch.setattr(route.blocked, "write_report", lambda *a, **k: None)
+    state["reference_components"] = component_receipt({"/A": [["a1", "a2"]], "/BUS[0]": [["b1", "b2"]]})
+    state["candidate_components"] = state["reference_components"]
+    monkeypatch.setattr(route.baselinecache, "identity", lambda *a, **k: {"test": True})
+    monkeypatch.setattr(route.baselinecache, "terminal_facts", lambda *a, **k: state["reference_components"])
+    monkeypatch.setattr(route.native_components, "extract", lambda *a, **k: (state["candidate_components"], {}))
     return state
 
 
@@ -195,6 +201,7 @@ def test_bus_net_losing_its_connection_fails_net_completion(tmp_path, stub_kicad
     """KICADROUTE-10, the ratchet: /BUS[0] was connected in the input and is open now."""
     run_dir = make_run(tmp_path / "run")
     stub_kicad["unconnected"] = [unconnected("/BUS[0]")]
+    stub_kicad["candidate_components"] = component_receipt({"/A": [["a1", "a2"]], "/BUS[0]": [["b1"], ["b2"]]})
     v, routing = route.validate(run_dir)
     assert v["preservation"]["net_completion"] == route.FAIL and v["net_completion"]["nets_lost"] == ["/BUS[0]"]
 
@@ -342,3 +349,45 @@ def test_audit_refuses_board_without_its_project(tmp_path):
     r = cli("audit", "--dir", str(d), "--board", "other.kicad_pcb", "--old", "HEAD~1", "--new", "HEAD", timeout=300)
     assert r.returncode == 4, r.stdout + r.stderr
     assert "refused" in r.stdout and "other.kicad_pro" in r.stdout
+
+
+def test_scoped_native_deficit_cannot_hide_behind_other_drc_findings(tmp_path, stub_kicad):
+    run_dir = make_run(tmp_path / "run")
+    terminals = component_receipt({"/A": [["a1", "a2"]], "/BUS[0]": [["b1"], ["b2"], ["b3"]]})
+    stub_kicad["reference_components"] = stub_kicad["candidate_components"] = terminals
+    stub_kicad["unconnected"] = [unconnected("/BUS[0]"), unconnected("/A"), unconnected("/A")]
+    v, routing = route.validate(run_dir)
+    assert routing["unconnected_total"] == 3 and routing["unconnected_in_scope"] == 1
+    assert routing["status"] == route.NOT_RUN
+    assert v["net_completion"]["status"] == route.PASS and v["status"] == route.FAIL
+    assert any("do not cover" in reason for reason in v["reasons"])
+
+
+@pytest.mark.parametrize("damage", ["missing", "stale"])
+def test_validate_rejects_missing_or_stale_native_coverage(tmp_path, stub_kicad, damage):
+    run_dir = make_run(tmp_path / "run")
+    if damage == "missing":
+        stub_kicad["reference_components"] = None
+    else:
+        candidate = component_receipt({"/A": [["a1", "a2"]], "/BUS[0]": [["b1", "b2"]]})
+        candidate["identity"]["board_sha256"] = "f" * 64
+        stub_kicad["candidate_components"] = candidate
+    v, routing = route.validate(run_dir)
+    assert v["net_completion"]["status"] == route.NOT_RUN
+    assert v["status"] == route.FAIL
+    assert route.overall_exit({"status": route.PASS}, routing, v) == 3
+
+
+def test_validate_rejects_partial_terminal_split_despite_equal_native_open_counts(tmp_path, stub_kicad):
+    run_dir = make_run(tmp_path / "run")
+    stub_kicad["reference_components"] = component_receipt(
+        {"/A": [["a1", "a2"]], "/BUS[0]": [["b1", "b2"], ["b3"]]})
+    stub_kicad["candidate_components"] = component_receipt(
+        {"/A": [["a1", "a2"]], "/BUS[0]": [["b1"], ["b2", "b3"]]})
+    stub_kicad["unconnected"] = [unconnected("/BUS[0]")]
+    common.write_json(run_dir / "baseline.json", {**EMPTY_DRC, "unconnected_items": [unconnected("/BUS[0]")]})
+    v, routing = route.validate(run_dir)
+    assert routing["unconnected_total"] == routing["baseline_unconnected_total"] == 1
+    assert v["status"] == v["net_completion"]["status"] == route.FAIL
+    assert v["net_completion"]["nets_lost"] == []
+    assert v["net_completion"]["split_components"][0]["original_terminals"] == ["b1", "b2"]

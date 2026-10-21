@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 
-def sexpr(text):
+def sexpr(text, quoted=None):
     """Minimal s-expression reader: nested lists of atoms (strings keep quotes off)."""
     tokens = re.findall(r'"(?:\\.|[^"\\])*"|\(|\)|[^\s()"]+', text)
     stack, cur = [], []
@@ -34,7 +34,7 @@ def sexpr(text):
             done, cur = cur, stack.pop()
             cur.append(done)
         else:
-            cur.append(t[1:-1] if t.startswith('"') else t)
+            cur.append((quoted(t) if quoted else t[1:-1]) if t.startswith('"') else t)
     return cur
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from helpers import ROOT  # noqa: F401 (puts src/ on sys.path)
-from kicad_route import baselinecache, cli, common, corpus, determinism, evidence, ledger, pour
+from kicad_route import baselinecache, cli, common, corpus, determinism, evidence, ledger, native_components, pour
 
 
 def outcome(**updates):
@@ -93,12 +93,25 @@ def fake_baseline(tmp_path, monkeypatch):
     tools = {"version": "1", "sha256": "tool"}
     monkeypatch.setattr(baselinecache.statemanifest, "kicad_cli_identity", lambda: dict(tools))
     monkeypatch.setattr(baselinecache.statemanifest, "pcbnew_build_version", lambda: "pcbnew")
+    native = {"version": "pcbnew", **{key: {"path": key, "sha256": "a" * 64}
+                                      for key in ("module", "binding", "python")}}
+    monkeypatch.setattr(native_components, "native_identity", lambda: native)
     calls = []
+    def terminals(board, path, expected_sha256=None):
+        from component_fixtures import component_receipt
+        facts = component_receipt({}, board_sha256=common.sha256(board))
+        facts["native_identity"] = facts["identity"]["pcbnew"] = native
+        facts["identity"]["rules"] = native_components.rules_identity(board)
+        common.write_json(path, facts)
+        return facts, {}
+    monkeypatch.setattr(native_components, "extract", terminals)
     def drc(board, directory, name, **kwargs):
         calls.append(str(board))
         report = {"violations": [], "unconnected_items": [], "schematic_parity": [], "board": board.name}
         common.write_json(directory / "baseline-drc.json", report)
-        return report, {"reasons": [], "report": str(directory / "baseline-drc.json")}
+        return report, {"reasons": [], "report": str(directory / "baseline-drc.json"),
+                        "board_sha256_graded": common.sha256(board),
+                        "refill": {"board_sha256_before": common.sha256(board)}}
     def extract(board, path):
         facts = {"schema": pour.SCHEMA, "board": board.name, "zones": [],
                  "layers": {}, "polygons": {}, "pads": {}}
@@ -120,7 +133,7 @@ def test_baseline_identity_invalidates_board_tools_and_schema(fake_baseline, mon
     assert not get("b.kicad_pcb")[1]["cached"]
     tools["sha256"] = "new tool"
     assert not get()[1]["cached"]
-    monkeypatch.setattr(baselinecache, "SCHEMA", 2)
+    monkeypatch.setattr(baselinecache, "SCHEMA", baselinecache.SCHEMA + 1)
     assert not get()[1]["cached"]
     assert (reference / "a.kicad_pcb").read_text() == "untouched a"
 
@@ -139,7 +152,7 @@ def test_baseline_damaged_entries_recompute(fake_baseline, name, damage):
     assert not get()[1]["cached"] and len(calls) == 2
 
 
-@pytest.mark.parametrize("fail_at", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("fail_at", [1, 2, 3, 4, 5, 6])
 def test_interrupted_publication_is_never_a_hit(fake_baseline, monkeypatch, fail_at):
     get, calls, _, root, _ = fake_baseline
     original = common.write_json
@@ -265,3 +278,17 @@ def test_baseline_pointer_cannot_select_outside_a_generation(fake_baseline, gene
     pointer = Path(first['report']).parent.parent / 'current.json'
     common.write_json(pointer, {'generation': generation})
     assert not get()[1]['cached'] and len(calls) == 2
+
+
+def test_native_terminal_producer_and_binary_changes_invalidate_generation(fake_baseline, monkeypatch):
+    get, calls, _, _, _ = fake_baseline
+    get()
+    identity = native_components.native_identity()
+    changed = json.loads(json.dumps(identity))
+    changed["module"]["sha256"] = "f" * 64
+    monkeypatch.setattr(native_components, "native_identity", lambda: changed)
+    assert not get()[1]["cached"]
+    original = native_components.producer_identity()
+    altered = {**original, "kicad/native_components.py": "a" * 64}
+    monkeypatch.setattr(native_components, "producer_identity", lambda: altered)
+    assert not get()[1]["cached"] and len(calls) == 3

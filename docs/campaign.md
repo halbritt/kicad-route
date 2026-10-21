@@ -127,10 +127,10 @@ This includes protection of original copper, original complete nets, pours,
 netclass geometry, project rules and fixed poses. Existing findings remain visible
 in each referenced grade; preserving the baseline does not establish a clean board.
 Eligibility relies on the existing native grader and its preservation evidence.
-This selection fix does not establish full native terminal-component correctness
-or resolve truncated native DRC connectivity reports. Missing counts or explicitly
-unidentified terminals remain ineligible; report-saturation reconciliation requires
-separate native evidence before a release claim.
+The native terminal-component ratchet preserves each original joined terminal set
+and rejects missing or stale coverage. Raw DRC counts remain separate; an insufficient
+raw count relative to native terminal obligations makes the result unknown and
+ineligible. Missing counts or explicitly unidentified terminals remain ineligible.
 
 Eligible chains prefer fewer native unconnected items in scope, then fewer distinct
 unrouted nets, shorter runtime, candidate board hash and stable chain ID. Runtime

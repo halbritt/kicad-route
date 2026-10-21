@@ -5,10 +5,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from . import common, contract, pour, statemanifest
+from . import common, contract, native_components, pour, statemanifest
 
-SCHEMA = 1
-FILES = ("baseline-drc.json", "baseline-info.json", pour.FACTS_NAME)
+SCHEMA = 2
+FILES = ("baseline-drc.json", "baseline-info.json", pour.FACTS_NAME, native_components.FACTS_NAME)
 
 
 def identity(fingerprint, board_name, pcbnew_build=None):
@@ -18,6 +18,9 @@ def identity(fingerprint, board_name, pcbnew_build=None):
             "kicad_cli": statemanifest.kicad_cli_identity(),
             "pcbnew": pcbnew_build if pcbnew_build is not None else statemanifest.pcbnew_build_version(),
             "pour_schema": pour.SCHEMA,
+            "native_terminals": {"schema": native_components.SCHEMA,
+                                 "producer": native_components.producer_identity(),
+                                 "tool": native_components.native_identity()},
             "grading": {p: common.sha256(root / p) for p in grading},
             "result_schemas": {p.name: common.sha256(p) for p in
                                sorted(contract.SCHEMAS_DIR.glob("result-*.json"))}}
@@ -34,7 +37,7 @@ def read(cache, expected):
         receipt = json.loads((directory / "generation.json").read_text())
         if receipt["identity"] != expected or receipt["generation"] != name:
             return None
-        if set(receipt["files"]) != set(FILES):
+        if not isinstance(receipt["files"], dict) or set(receipt["files"]) != set(FILES):
             return None
         values = {}
         for name in FILES:
@@ -42,10 +45,15 @@ def read(cache, expected):
             if common.sha256(path) != receipt["files"][name]:
                 return None
             values[name] = json.loads(path.read_text())
-        report, info, facts = (values[p] for p in FILES)
+        report, info, facts, terminals = (values[p] for p in FILES)
         if (not isinstance(report, dict) or not all(isinstance(report.get(k), list) for k in
                 ("violations", "unconnected_items", "schematic_parity"))
-                or not isinstance(info, dict) or not isinstance(info.get("reasons"), list)
+                or not isinstance(info, dict)
+                or not native_components.coverage(terminals)
+                or terminals.get("identity", {}).get("pcbnew") != expected["native_terminals"]["tool"]
+                or terminals.get("identity", {}).get("producer") != expected["native_terminals"]["producer"]
+                or terminals.get("identity", {}).get("board_sha256") != info.get("board_sha256_graded")
+                or not isinstance(info.get("reasons"), list)
                 or not isinstance(facts, dict) or facts.get("schema") != pour.SCHEMA
                 or not isinstance(facts.get("zones"), list)
                 or not all(isinstance(facts.get(k), dict) for k in ("layers", "polygons", "pads"))):
@@ -58,10 +66,12 @@ def read(cache, expected):
 
 
 def get(reference, board_name, fingerprint, root, drc, copy_project, pcbnew_build=None):
+    source = {"board_sha256": common.sha256(Path(reference) / board_name),
+              "rules": native_components.rules_identity(Path(reference) / board_name)}
     expected = identity(fingerprint, board_name, pcbnew_build=pcbnew_build)
     cache = Path(root) / common.sha256_of(expected)
     hit = read(cache, expected)
-    if hit is not None:
+    if hit is not None and hit[1].get("source") == source:
         return hit
     cache.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix=".building-", dir=cache))
@@ -69,13 +79,20 @@ def get(reference, board_name, fingerprint, root, drc, copy_project, pcbnew_buil
         project = work / "project" / Path(reference).name
         copy_project(reference, project)
         report, info = drc(project / board_name, work / "drc", "baseline", refill_and_save=True)
-        info.update(cached=False, identity=expected, generation=None)
+        info.update(cached=False, identity=expected, generation=None, source=source)
         if report is None:
             return report, info
         facts, _ = pour.extract(project / board_name, work / pour.FACTS_NAME)
-        if facts is None:
-            # A DRC-only entry is never a reusable baseline. Keep the DRC for
-            # this run; validation will independently fail if pour extraction fails.
+        terminals, _ = native_components.extract(project / board_name, work / native_components.FACTS_NAME,
+                                                 info.get("board_sha256_graded"))
+        if (facts is None or not native_components.coverage(terminals)
+                or terminals["identity"]["pcbnew"] != expected["native_terminals"]["tool"]
+                or info.get("refill", {}).get("board_sha256_before") != source["board_sha256"]
+                or terminals["identity"]["rules"] != source["rules"]
+                or common.sha256(Path(reference) / board_name) != source["board_sha256"]
+                or native_components.rules_identity(Path(reference) / board_name) != source["rules"]):
+            # A generation without complete native/pour coverage is never reusable.
+            # Preserve only the original raw DRC as diagnostic evidence.
             incomplete = Path(tempfile.mkdtemp(prefix="uncached-", dir=cache))
             shutil.copy2(work / "drc" / FILES[0], incomplete / FILES[0])
             info["report"] = str(incomplete / FILES[0])
@@ -87,6 +104,7 @@ def get(reference, board_name, fingerprint, root, drc, copy_project, pcbnew_buil
         common.write_json(staged / FILES[0], report)
         common.write_json(staged / FILES[1], info)
         common.write_json(staged / FILES[2], facts)
+        common.write_json(staged / FILES[3], terminals)
         receipt = {"identity": expected, "generation": generation.name,
                    "files": {p: common.sha256(staged / p) for p in FILES}}
         common.write_json(staged / "generation.json", receipt)
@@ -98,3 +116,31 @@ def get(reference, board_name, fingerprint, root, drc, copy_project, pcbnew_buil
         return report, info
     finally:
         shutil.rmtree(work)
+
+
+def terminal_facts(report, expected, reference_board=None):
+    """Read the exact recorded generation, never a newer pointer or legacy sidecar."""
+    if report is None:
+        return None
+    directory = Path(report).parent
+    try:
+        receipt = json.loads((directory / "generation.json").read_text())
+        if receipt["identity"] != expected or receipt["generation"] != directory.name:
+            return None
+        if not isinstance(receipt["files"], dict) or set(receipt["files"]) != set(FILES):
+            return None
+        if any(common.sha256(directory / name) != checksum for name, checksum in receipt["files"].items()):
+            return None
+        facts = json.loads((directory / native_components.FACTS_NAME).read_text())
+        info = json.loads((directory / "baseline-info.json").read_text())
+        if reference_board is not None and info.get("source") != {
+                "board_sha256": common.sha256(reference_board), "rules": native_components.rules_identity(reference_board)}:
+            return None
+        if (not native_components.coverage(facts)
+                or facts["identity"]["producer"] != expected["native_terminals"]["producer"]
+                or facts["identity"]["pcbnew"] != expected["native_terminals"]["tool"]
+                or facts["identity"]["board_sha256"] != info.get("board_sha256_graded")):
+            return None
+        return facts
+    except (OSError, ValueError, KeyError, TypeError):
+        return None

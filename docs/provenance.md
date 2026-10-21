@@ -88,21 +88,42 @@ and `unattributed` (the part of `human` that no step produced). It also holds
 
 ## Completion ratchet (`net_completion`)
 
-This check applies to every protect mode and to every `validate`. Every net that was
-fully connected in the graded input must still be connected in the candidate. A net
-counts as connected when no unconnected item in the input's baseline DRC names it. The
-check is added to the preservation checks (`validation.preservation.net_completion`,
-`validate/preservation.json`). The summary goes to `validation.net_completion`:
-`status`, `nets_connected_in_input` and `nets_lost`. A lost net fails validation.
+This check applies to every protect mode and every `validate`. It preserves every
+originally connected set of terminal pad UUIDs, including connected subsets of an
+incomplete net. If the input joins pads A–B while C is separate, a candidate joining
+B–C while separating A fails even though both boards have one open connection.
 
-The ratchet matters most for `human` and `locked` runs, where the backend may remove
-copper from nets outside the scope. A step's routing status covers only its own scope,
-so a net cut outside that scope would otherwise pass as COMPLETE. With `existing`, no
-input copper can be removed, so the ratchet passes unless new copper breaks a zone
-connection. For example, a new track can split a fill and isolate a pad, which is a
-real regression.
+The extractor queries KiCad's complete native connectivity graph on the exact
+saved/refilled input and candidate. It enumerates pad UUIDs independently of printed
+pad numbers, verifies native inventory against the serialized board, and requires
+symmetric, disjoint, complete terminal partitions. Saved zone fills participate in
+native connectivity; a shared zone parent UUID does not join separate fill islands.
+Net-zero pads are inventoried but excluded from electrical obligations. Configured
+jumper flags and groups follow native semantics and must remain unchanged.
 
-Nets with fewer than two pads have nothing to connect and always count as connected.
+Evidence binds PCB/project/custom-rule hashes, producer hashes, the actual pcbnew
+module and binding hashes, the interpreter and KiCad CLI identity. Opaque native
+jumper groups are read through native serialization into an isolated temporary
+file with `aSkipSettings=True`; source files remain unchanged. The immutable baseline
+generation retains `baseline-terminals.json` before discarding its refilled working
+copy. A producer/tool/schema change selects a new generation; old receipts remain
+unchanged. Revalidating a legacy generation without this evidence yields unknown
+preservation, not a claim inferred from its DRC list.
+
+`validation.net_completion` reports `status`, `nets_connected_in_input`, `nets_lost`
+(originally complete nets that became incomplete), and `split_components` with full
+pad UUID evidence. Splitting an original component fails even when its net was
+already incomplete. Missing, stale or unsupported coverage is `NOT_RUN` and fails
+validation, making the candidate ineligible. The grade retains both component
+receipts; their hashes appear in its evidence block.
+
+`validation.native_terminal_evidence.metrics` separately reports native terminal-net
+counts, incomplete nets and component deficit. Existing `routing.unconnected_*`
+counts remain raw native DRC finding counts. Those metrics can differ because DRC
+also reports isolated copper. A native scoped/global terminal deficit greater than
+the corresponding raw finding count, or raw COMPLETE despite split native terminals,
+is explicitly unknown (`routing.status: NOT_RUN`) and cannot become a safe incumbent.
+The capped raw reports remain available for diagnosis.
 
 ## Limits
 

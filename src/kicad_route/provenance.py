@@ -161,22 +161,28 @@ def designation(run_dir, attempt, ref_facts):
             "unmatched_human_keys": sum(left.values())}
 
 
-def net_completion(base, cand, ref_facts, nets_of):
-    """The completion ratchet: nets fully connected in the input stay connected."""
-    check = {"check": "net_completion", "differences": []}
-    if base is None:
-        check.update(status=common.NOT_RUN, detail="no baseline DRC: the input's connected nets are unknown",
-                     nets_connected_in_input=None, nets_lost=[])
+def net_completion(reference, candidate):
+    """Preserve every original native terminal equivalence, including partial nets."""
+    from . import native_components
+    check = {"check": "net_completion", "differences": [], "split_components": [], "nets_lost": []}
+    if not native_components.compatible(reference, candidate):
+        check.update(status=common.NOT_RUN, nets_connected_in_input=None,
+                     detail="complete source-bound native terminal coverage is missing, stale or incompatible")
         return check
-    open_before = {n for u in base["unconnected_items"] for n in nets_of(u)}
-    connected = set(ref_facts["nets"]) - open_before
-    open_after = {n for u in cand["unconnected_items"] for n in nets_of(u)}
-    lost = sorted(connected & open_after)
-    check.update(status=common.FAIL if lost else common.PASS,
-                 detail=(f"{len(lost)} of the {len(connected)} nets fully connected in the input lost "
-                         f"connection: {', '.join(lost[:10])}" if lost else
-                         f"all {len(connected)} nets fully connected in the input stay connected"),
-                 differences=[{"net": n, "unconnected_items": sum(1 for u in cand["unconnected_items"]
-                                                                  if n in nets_of(u))} for n in lost][:20],
-                 nets_connected_in_input=len(connected), nets_lost=lost)
+    connected = {net for net, groups in reference["nets"].items() if len(groups) == 1}
+    splits = []
+    for net, groups in reference["nets"].items():
+        after = [set(g) for g in candidate["nets"][net]]
+        for group in groups:
+            before = set(group)
+            if not any(before <= other for other in after):
+                splits.append({"net": net, "original_terminals": group,
+                               "candidate_components": [sorted(other) for other in after if before & other]})
+    lost = sorted(connected & {s["net"] for s in splits})
+    check.update(status=common.FAIL if splits else common.PASS,
+                 detail=(f"{len(splits)} original terminal components split; {len(lost)} of "
+                         f"{len(connected)} originally complete nets lost connectivity" if splits else
+                         f"every original terminal equivalence preserved; {len(connected)} originally complete nets"),
+                 nets_connected_in_input=len(connected), nets_lost=lost,
+                 split_components=splits, differences=splits)
     return check

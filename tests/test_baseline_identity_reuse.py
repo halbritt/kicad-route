@@ -93,7 +93,8 @@ def test_campaign_cache_warming_forwards_this_reference_facts_version(tmp_path, 
         board_facts=lambda *args: (facts, {}), input_fingerprint=lambda manifest: "input",
         select_nets=lambda *args: ([], {}),
         baseline_drc=lambda *args, **kwargs: captured.append(kwargs["pcbnew_build"]))
-    command = SimpleNamespace(cli=adapter, cfg={"pcb": "board.kicad_pcb"}, dir=tmp_path,
+    command = campaign.Campaign.__new__(campaign.Campaign)
+    command.__dict__.update(cli=adapter, cfg={"pcb": "board.kicad_pcb"}, dir=tmp_path, ref_dir=None,
                               args=SimpleNamespace(nets=None, netclass=None, race=2))
     assert campaign.Campaign.prepare_race(command) == []
     assert captured == [facts["kicad_version"]]

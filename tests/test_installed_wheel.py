@@ -84,3 +84,17 @@ def test_installed_doctor_route_and_campaign(wheel_environment):
     record = json.loads(campaign.stdout)
     assert campaign.returncode == 0, campaign.stderr[-5000:]
     assert record["kind"] == "route-campaign"
+
+
+def test_installed_native_terminal_extractor_executes_packaged_producer(wheel_environment):
+    directory, venv, env = wheel_environment
+    proc = subprocess.run([venv / "bin/python", "-c",
+        "import json; from pathlib import Path; from kicad_route import cli,native_components as n; "
+        "facts,rec=n.extract(cli.FIXTURE/'route_demo.kicad_pcb',Path('native-components.json')); "
+        "print(json.dumps({'status':facts['status'],'reasons':facts['reasons'],"
+        "'inventory':len(facts.get('inventory',{})),'sealed':n.coverage(facts)}))"],
+        cwd=directory, env=env, capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert result["status"] == "PASS", result["reasons"]
+    assert result["sealed"] and result["inventory"] > 0

@@ -92,6 +92,7 @@ from pathlib import Path
 
 from . import barrier  # run --barrier-from / `kicad-route barrier` (docs/barrier.md)
 from . import backend_names
+from . import native_components
 from . import baselinecache
 from . import blocked
 from . import common
@@ -858,14 +859,41 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
         pair_records = diff_pairs.grade(attempt["pairs"], attempt.get("pair_routing", {}), native, cand)
         common.write_json(out_dir / "pairs.json", pair_records)
         diff_pairs.apply_routing(routing, pair_records)
-    ratchet = provenance.net_completion(base, cand, ref_facts, nets_of)  # every protect mode
+    baseline_report = run_dir / attempt["baseline"]["report"] if attempt["baseline"].get("report") else None
+    expected = baselinecache.identity(attempt["input_fingerprint"], board_name,
+                                      pcbnew_build=ref_facts.get("kicad_version")) if attempt.get("input_fingerprint") else None
+    ref_components = baselinecache.terminal_facts(baseline_report, expected, ref_dir / board_name) if expected else None
+    if ref_components is not None:
+        common.write_json(out_dir / "reference-terminal-components.json", ref_components)
+    cand_components, _ = native_components.extract(board, out_dir / "candidate-terminal-components.json",
+                                                   v.get("validated_board_sha256"))
+    metrics = {}
+    for name, components in (("reference", ref_components), ("candidate", cand_components)):
+        if native_components.coverage(components):
+            groups = components["nets"]
+            metrics[name] = {"terminal_nets": len(groups), "incomplete_nets": sum(len(c) > 1 for c in groups.values()),
+                             "component_deficit": sum(len(c) - 1 for c in groups.values())}
+    v["native_terminal_evidence"] = {"reference": common.rel(out_dir / "reference-terminal-components.json")
+                                    if ref_components is not None else None,
+                                    "candidate": common.rel(out_dir / "candidate-terminal-components.json"),
+                                    "metrics": metrics}
+    if "candidate" in metrics:
+        native_open = [n for n, groups in cand_components["nets"].items() if n in scope and len(groups) > 1]
+        if ((routing["status"] == COMPLETE and native_open)
+                or metrics["candidate"]["component_deficit"] > len(unconnected)
+                or sum(len(groups) - 1 for n, groups in cand_components["nets"].items() if n in scope) > len(in_scope)):
+            routing["raw_drc_status"] = routing["status"]
+            routing["status"] = NOT_RUN
+            routing["reasons"] = ["raw native DRC findings do not cover the complete native terminal graph"]
+            v["reasons"].extend(routing["reasons"])
+    ratchet = provenance.net_completion(ref_components, cand_components)  # every protect mode
     checks.append(ratchet)
-    v["net_completion"] = {k: ratchet[k] for k in ("status", "nets_connected_in_input", "nets_lost")}
+    v["net_completion"] = {k: ratchet[k] for k in ("status", "nets_connected_in_input", "nets_lost", "split_components")}
     checks.append(pour_check(run_dir, attempt, ref_dir, board, out_dir, pour_limits))
     common.write_json(out_dir / "preservation.json", checks)
     v["preservation"] = {c["check"]: c["status"] for c in checks}
     for c in checks:
-        if c["status"] == FAIL:
+        if c["status"] != PASS:
             v["reasons"].append(f"preservation {c['check']}: {c['detail']}")
     v["status"] = FAIL if v["reasons"] else PASS
     routing["stats"] = stats
