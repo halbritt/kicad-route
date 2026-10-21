@@ -1,14 +1,22 @@
 ---
 name: kicad-route
-description: "Use for KiCad PCB trace routing with kicad-route: run KRT or Freerouting on an isolated copy of a project, read the structured result (process / routing / validation), plan the next attempt without relaxing the design's constraints, or audit a committed board change against its parent."
+description: "Use for KiCad PCB trace routing with kicad-route: run the built-in router or Freerouting on an isolated copy of a project, read the structured result (process / routing / validation), plan the next attempt without relaxing the design's constraints, or audit a committed board change against its parent."
 ---
 
 # kicad-route
 
 `kicad-route` routes an isolated copy of a KiCad project with one of two backends
 and grades the result with KiCad's own checks:
-- **krt** selects the owned engine extracted from patched KRT; it reads and writes native KiCad files.
+- **builtin** (default) selects the router maintained in kicad-route's own source;
+  it reads and writes native KiCad files. It derives from KRT (KiCadRoutingTools),
+  but needs no separate KRT checkout or download.
 - **Freerouting** goes through KiCad's Specctra DSN/SES bridge.
+
+Use `--backend builtin` in new commands. `--backend krt` is a deprecated alias
+that warns on stderr; new results use `backend.name: builtin`. Historical receipts
+remain readable. The state-manifest and determinism `krt` keys, identity fingerprints,
+`work/krt.log`, and generated `krt-*` diagnostic skill names retain their compatibility
+spelling; they do not select a separate engine.
 
 The source checkout is `~/git/kicad-route`. Full reference, install and update notes,
 and the decision record are in `docs/routing.md` there. A project may wrap these
@@ -37,7 +45,7 @@ first.
   - It comes from KiCad's own DRC: zones refilled, schematic parity, the input's own
     `.kicad_pro`/`.kicad_dru`.
   - Preservation checks are added on top.
-  - Backend self-reports (KRT `JSON_SUMMARY`, Freerouting's result JSON) are
+  - Backend self-reports (the built-in router's `JSON_SUMMARY`, Freerouting's result JSON) are
     diagnostics only.
 
 ## Commands (run from the project directory, or pass `--dir`)
@@ -46,11 +54,11 @@ first.
 |---|---|
 | `kicad-route doctor` | Readiness, versions and capabilities of both backends (`OUT/doctor/doctor.json`) |
 | `kicad-route doctor --json --offline [--no-canary]` | The same record on stdout (schema `kicad-route/doctor/1`, logs on stderr), with no network; its `sandbox` block lists the read-only mounts, writable OUT, environment and network a sandbox must provide (`docs/sandbox.md`) |
-| `kicad-route run --backend krt\|freerouting [options]` | One attempt; prints the run directory and exits with its verdict |
+| `kicad-route run --backend builtin\|freerouting [options]` | One attempt; prints the run directory and exits with its verdict |
 | `kicad-route planes --board B.kicad_pcb --plan PLAN.json --run-dir NEW_DIR [--json]` | Create/refill exactly `agent-ee.plane-plan/1` zones on a copy; planned settings, fill areas and before/after pour evidence (`docs/planes.md`). Separate production contract; full routing acceptance remains required |
 | `kicad-route validate <run_dir>` | Re-grade a candidate (e.g. after hand edits) into `<run_dir>/revalidate/<stamp>/` |
 | `kicad-route validate <last> --against <first>` | Grade the end of a `--dir` chain against the first run's input (`revalidate-origin/<stamp>/`) |
-| `kicad-route campaign --backend krt\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`). `--total-budget` cuts each run's `--budget` to the time left and stops a step still running past its grace (`timeouts` in campaign.json) |
+| `kicad-route campaign --backend builtin\|freerouting [run options] [--rounds N] [--race K] [--total-budget S]` | Hard nets first, automated: round 0 over the scope, then the backlog of unrouted nets first on the original input and the rest from that candidate; every chain graded against the input; prints the best run (`OUT/campaigns/…/campaign.json`, `docs/campaign.md`). `--total-budget` cuts each run's `--budget` to the time left and stops a step still running past its grace (`timeouts` in campaign.json) |
 | `kicad-route blocked <run_dir>` | (Re)compute the blocked-by receipts of an incomplete run or re-grade (`validate/blocked-by.json`) |
 | `kicad-route blocked --board B.kicad_pcb [--json]` | The same receipts for a placed, unrouted or partly routed board, with no routing run (placement evidence; the board is not written) |
 | `kicad-route compare <run_dir> …` | Side-by-side table; refuses to call different inputs comparable |
@@ -58,8 +66,8 @@ first.
 | `kicad-route floor [--write-declared]` | Rules looser than their git high-water mark or the declared floor `<board>.rules-floor.json` (`OUT/floor/<project>/floor.json`) |
 | `kicad-route publish <run_dir> [--to DIR]` | Copy the attempt's structured receipts (every JSON receipt plus `RESULT.md`: validation, spokes, blocked-by, pour integrity, provenance, facts, latest re-validation; never a board, log or `work/`) to `<DIR>/<project>/<label>/` for committing |
 | `kicad-route update` | Build the owned engine and acquire Freerouting's current release, write `STATE/manifest.json`, regenerate the `krt-*` skills, run `smoke`, the corpus gate and the routing repeat check |
-| `kicad-route state-manifest` | Record what is installed under STATE (versions, URLs, sha256 of the jar, the KRT extension module, the venv packages, kicad-cli) in `STATE/manifest.json`; downloads nothing. `doctor` fails when the files drift from it |
-| `kicad-route determinism [--backend krt] [--runs N] [--record]` | Route the fixture (or `--dir`) N times, ledger off, and compare copper geometry, candidate bytes and outcome; `--record` stores the verdict in the state manifest (exit 0 reproducible, 3 not) |
+| `kicad-route state-manifest` | Record what is installed under STATE (versions, URLs, sha256 of the jar, the built-in router's extension module, the venv packages, kicad-cli) in `STATE/manifest.json`; downloads nothing. `doctor` fails when the files drift from it |
+| `kicad-route determinism [--backend builtin] [--runs N] [--record]` | Route the fixture (or `--dir`) N times, ledger off, and compare copper geometry, candidate bytes and outcome; `--record` stores the verdict in the state manifest (exit 0 reproducible, 3 not) |
 | `kicad-route smoke` | Integration tests on the bundled fixture board |
 | `kicad-route canary [--backend B]` | Awkward net names (`Net-(BT1-+)`, `/a b/c`, `-VIN(1)`, ...) through each backend's round trip on the fixture |
 | `kicad-route corpus add\|check\|list` | Real-board regression gate: snapshots with baseline outcomes, re-run after backend updates (`update` runs `check`) |
@@ -78,7 +86,7 @@ records them; one shared definition):
     `library_issues`.
   - `--library-dir NAME=PATH` maps an empty library submodule to a path.
 - **Scope:**
-  - `--backend krt --diff-pairs auto` detects native-class pairs, routes them first,
+  - `--backend builtin --diff-pairs auto` detects native-class pairs, routes them first,
     and excludes every pair member from the ordinary-net pass. Unpaired suffixes,
     split selections and mismatched classes are refused. Read `docs/diff-pairs.md`
     for naming, restrictions, and `result.json` pair lengths/skew/status.
@@ -91,14 +99,14 @@ records them; one shared definition):
   - Default: all nets.
 - **Budget:**
   - `--budget SECONDS` is wall clock (default 300).
-  - `--max-iterations N` (KRT); `--passes N` (Freerouting).
+  - `--max-iterations N` (built-in router); `--passes N` (Freerouting).
 - **Protection:**
   - `--protect existing` (default): all input copper must survive.
-  - `--protect locked`: only locked copper must survive, and KRT may rip up unlocked
+  - `--protect locked`: only locked copper must survive, and the built-in router may rip up unlocked
     copper.
   - `--protect human`: in a `--dir` chain, only the designer's copper (the first run's
     input) is protected; copper earlier kicad-route steps placed may be ripped up and
-    rerouted by KRT. On a non-candidate input it equals `existing` (docs/provenance.md).
+    rerouted by the built-in router. On a non-candidate input it equals `existing` (docs/provenance.md).
 - **Thermal spokes:** `--reserve-spokes [N]` keeps new tracks and vias out of N
   spoke corridors per zone-connected pad while routing; the corridors are removed
   before grading (docs/spokes.md). `kicad-route spokes <run>` names the new copper
@@ -124,7 +132,7 @@ records them; one shared definition):
   - `--pour-area-loss PCT` and `--pour-min-spokes N` make `pour_integrity` stricter
     (also on `validate`; see `docs/pour.md`).
 - **Pass-through:**
-  - `--backend-arg ARG` (repeat) and `--backend-env KEY=VALUE` (for example KRT
+  - `--backend-arg ARG` (repeat) and `--backend-env KEY=VALUE` (for example the built-in router's
     `KICAD_*` knobs).
   - Both are recorded in the result; grading is unaffected.
 - `--label NAME` names the run directory; `--run-dir PATH` uses exactly `PATH`
@@ -191,11 +199,13 @@ Provenance, for recording a run as evidence:
   the candidate's copper. Compare candidates by that signature, not by file hash:
   KiCad writes fresh UUIDs on every save.
 - `tool_identity`: kicad-route, kicad-cli (version, sha256), pcbnew, Python, the
-  backend build (KRT commit and extension-module sha256; Freerouting jar sha256 and
+  backend build (the built-in router's source commit and extension-module sha256; Freerouting jar sha256 and
   Java), and the state manifest's sha256 with any drift from it.
 - `backend.reproducible` and `measurement`: Freerouting results are attempts
-  (`reproducible: false`, `measurement: false`); a KRT result is a measurement only
-  when the state manifest holds a passing repeat check for the build on disk.
+  (`reproducible: false`, `measurement: false`); a built-in router result is a measurement only
+  when the state manifest holds a passing repeat check for its executed build
+  and the current attempt finished without a budget or stall stop. Read
+  `measurement_basis` for that attempt's qualification.
 
 Also read:
 
@@ -223,7 +233,7 @@ Also read:
   terminates). It is a straight/L-corridor heuristic (`heuristic: true`): use it as a
   pointer, not a proof (`docs/blocked.md`).
 - **`unsupported`:** constraints the backend could not see. KiCad still grades them.
-- **Backend reports:** `process.backend_report` holds KRT's relaxations ledger and
+- **Backend reports:** `process.backend_report` holds the built-in router's relaxations ledger and
   Freerouting's incomplete count.
 - **The candidate:** `candidate/<project>/<board>.kicad_pcb` opens in KiCad. Its zones
   are refilled, and it is exactly the file that was graded.
@@ -235,28 +245,28 @@ Also read:
 | new `clearance` violations naming a `.kicad_dru` rule, rule listed in `unsupported` | `--default-clearance <rule value>`. For Freerouting, class-to-class rules are already translated; add `--clearance-margin 0.01` for micrometre misses |
 | `routing INCOMPLETE`, `unrouted_nets` few | larger `--budget`, or Freerouting `--passes 100`. Route the hard nets first with `--nets` **on the original input**, then continue from that candidate with `--dir <run>/candidate/<project>`. Finishing them *after* everything else rarely works because existing copper is locked. Grade the end with `validate <last> --against <first>`. `kicad-route campaign` does all of this |
 | `blocked_by` top blockers are `new_copper` | the backend's own copper is in the way: route the blocked nets first (`--nets`) on the original input, then the rest |
-| `blocked_by` top blockers are `input_copper` | existing copper is in the way. If it is unlocked, `--protect locked` lets KRT move it. If it is locked, ask the owner; never unlock it yourself |
+| `blocked_by` top blockers are `input_copper` | existing copper is in the way. If it is unlocked, `--protect locked` lets the built-in router move it. If it is locked, ask the owner; never unlock it yourself |
 | `blocked_by` top blocker is a `keepout` on every layer | the keepout separates the endpoints. Report it as a design issue; never edit the keepout |
-| `process FAIL` "exceeded the … budget" (KRT) | larger `--budget`, or `--backend-env KICAD_NET_RESCUE=0` to skip the long rescue search. If plane nets are what runs long, use `--backend-env KICAD_PLANE_FINALIZE=0` and plan the planes separately |
+| `process FAIL` "exceeded the … budget" (built-in router) | larger `--budget`, or `--backend-env KICAD_NET_RESCUE=0` to skip the long rescue search. If plane nets are what runs long, use `--backend-env KICAD_PLANE_FINALIZE=0` and plan the planes separately |
 | Freerouting INCOMPLETE at SMD pads or plane connections | `--backend-arg=--router.fanout.enabled=true`. Fanout is off by default because it can neck traces to 3/4–1/2 width; `new_copper_netclass_geometry` catches that if it happens |
 | `via_dangling` / `track_dangling` new | Freerouting left fanout stubs on a net it could not finish. Treat it as incomplete routing, and retry as above or with the other backend |
 | a few new `clearance` / `tracks_crossing` / `shorting_items` findings at single spots | when tightening the whole net class (rows above) is too broad: rewind with `run ... --barrier-from <run>` (same input and scope), which puts a keepout where the new copper ran. Check `process.barrier.outcome`; a barrier can move the problem elsewhere |
 | `starved_thermal` new | new tracks crowd the thermal spokes of a zone-connected pad. Retry with `--reserve-spokes`; `kicad-route spokes <run>` names the cutting tracks. A stitching via is a design call for a person; never lower `min_resolved_spokes` |
-| `net_completion` FAIL | the candidate disconnected a net that was connected in its input (with `--protect human`, KRT ripped agent copper and did not finish it). Do not adopt; route that net first or use `--protect existing` |
-| finishing leftovers on a candidate routes nothing (all copper locked) | `--protect human` lets KRT reroute copper earlier steps placed, or let `kicad-route campaign` reorder the work |
+| `net_completion` FAIL | the candidate disconnected a net that was connected in its input (with `--protect human`, the built-in router ripped agent copper and did not finish it). Do not adopt; route that net first or use `--protect existing` |
+| finishing leftovers on a candidate routes nothing (all copper locked) | `--protect human` lets the built-in router reroute copper earlier steps placed, or let `kicad-route campaign` reorder the work |
 | `pour_integrity` FAIL | new copper damaged a pour: `isolated_island` (a pad cut off from its net's main pour), `lost_fill_contact`, `lost_pad_reach` (the zone no longer reaches the pad at all), `spokes_below_minimum`, or `area_loss` (only with `--pour-area-loss`). Read `validate/pour-integrity.json` for the pads and islands. Retry with the cutting nets kept off that layer near the pads (another backend, or a `--nets` scope that routes them separately); a stitching via is a design call for a person. Never lower `min_resolved_spokes`. `--pour-min-spokes N` and `--pour-area-loss PCT` only tighten |
 | `protected_copper` / `footprints` / `zones` FAIL | backend or bridge defect. Report it with the run directory; do not adopt the candidate |
-| `new_copper_netclass_geometry` FAIL | the backend narrowed a conductor below its net class. Do not adopt; report the KRT/Freerouting version |
-| `process FAIL` "stalled in <phase> at <metric>" | the backend stopped making progress there. A rescue search on walled-off nets: `--backend-env KICAD_NET_RESCUE=0` or a different scope. A silent KiCad leg (refill, oracle): a larger `--stall`. KRT honours the stop file only in its main pass; the kill reason names the knob for the pass that ignored it (docs/hygiene.md, "Budget overrun") |
+| `new_copper_netclass_geometry` FAIL | the backend narrowed a conductor below its net class. Do not adopt; report the backend version |
+| `process FAIL` "stalled in <phase> at <metric>" | the backend stopped making progress there. A rescue search on walled-off nets: `--backend-env KICAD_NET_RESCUE=0` or a different scope. A silent KiCad leg (refill, oracle): a larger `--stall`. The built-in router honours the stop file only in its main pass; the kill reason names the knob for the pass that ignored it (docs/hygiene.md, "Budget overrun") |
 | exit 4 "has no <board>.kicad_pro beside it" | KiCad reads a board's net classes, constraints, severities and `.kicad_dru` only from the project of the board's own name (`main.kicad_pcb` needs `main.kicad_pro`, `main.kicad_dru`). Ask the owner to rename or copy the project; never grade without it |
 | `project_files` FAIL, `restored_project_files` | the backend (or an edit) changed the rules files; grading used the input's. The delivered versions are in `<validate dir>/delivered-project-files/` (`validation.delivered_project_files`) |
-| exit 4 "identical attempt ... already finished" | the ledger: the same input, backend build and settings already failed. KRT: change the attempt; `--force` only to check for nondeterminism. Freerouting: its outcome may vary, so `--force` is a legitimate retry |
-| exit 4 "Freerouting cannot tell these nets apart" or "the Specctra bridge cannot write a net name one way" | a net name holds `"`, which KiCad's DSN export writes as `''`. Two nets would get the same Specctra name, or a name reads more than one way. Nothing ran. Route with `--backend krt`, or ask the owner to rename the net; never rename it in the design yourself |
+| exit 4 "identical attempt ... already finished" | the ledger: the same input, backend build and settings already failed. The built-in router: change the attempt; `--force` only to check for nondeterminism. Freerouting: its outcome may vary, so `--force` is a legitimate retry |
+| exit 4 "Freerouting cannot tell these nets apart" or "the Specctra bridge cannot write a net name one way" | a net name holds `"`, which KiCad's DSN export writes as `''`. Two nets would get the same Specctra name, or a name reads more than one way. Nothing ran. Route with `--backend builtin`, or ask the owner to rename the net; never rename it in the design yourself |
 | exit 4, `reason_class` `usage` or `input` | nothing ran: read `message` in the refusal record and fix the command line or the input (`--board`, `--rev`, `--nets`) |
 | same failure twice with no new evidence | change approach: the other backend, a different scope, or inspect the board (load `krt-diagnose-routing-failures`) |
 
 Compare attempts from the same input with `kicad-route compare`. For deeper diagnosis
-use `krt-diagnose-routing-failures` and `krt-review-routed-board`. Those are KRT's
+use `krt-diagnose-routing-failures` and `krt-review-routed-board`. Those are the built-in router's
 own skills, adapted and generated by `kicad-route update`.
 
 ## Auditing someone else's board change
@@ -286,7 +296,8 @@ routing or another agent's routing, without routing anything:
 - **CLI:** `~/git/kicad-route/bin/kicad-route`, linked as `~/.local/bin/kicad-route`.
 - **Code:** `src/kicad_route/`. That's `cli.py`, plus `kicad/facts.py`,
   `kicad/specctra.py` and `kicad/locks.py`, which run under KiCad's Python.
-- **Backends:** owned source in `src/kicad_route/router/` with `STATE/.venv-krt`, and
+- **Backends:** owned source in `src/kicad_route/router/` with immutable environments in `STATE/.router-generations/`
+  (legacy `STATE/.venv-krt` remains readable), and
   `vendor/freerouting/current/freerouting-*.jar`. The jar runs with the newest
   installed JVM that satisfies it (Java 25 for 2.5.x).
 - **Evidence:** the fixture is in `fixtures/route_demo/`, and its smoke evidence is

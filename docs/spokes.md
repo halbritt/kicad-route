@@ -12,7 +12,7 @@ kicad-route can keep new copper out of the spokes' way while it routes, and it c
 afterwards which new track starved which pad.
 
 ```sh
-kicad-route run --backend krt --reserve-spokes            # N = the board's min_resolved_spokes (normally 2)
+kicad-route run --backend builtin --reserve-spokes            # N = the board's min_resolved_spokes (normally 2)
 kicad-route run --backend freerouting --reserve-spokes 1  # one corridor per pad: less blocked area
 kicad-route spokes <run_dir>                              # spoke-cut attribution -> <run_dir>/spokes.json
 kicad-route spokes <run_dir> --validation <run_dir>/revalidate/<stamp>   # after a hand edit + validate
@@ -78,7 +78,7 @@ The option takes 0–4; with no value it uses the board's `min_resolved_spokes`.
    `kicad-route:spoke:<ref>:<pad>:<layer>:<k>`. The area allows no tracks and no vias;
    pads, footprints and zone fills are allowed. A board that already has such areas
    is refused.
-2. **Route** with the backend as usual. KRT reads rule areas natively, per layer
+2. **Route** with the backend as usual. The built-in router reads rule areas natively, per layer
    (`add_rule_area_keepout_obstacles`). For Freerouting, KiCad's DSN export writes
    each area as a single-layer Specctra `(keepout …)`; the tests check this.
 3. **Strip** every `kicad-route:spoke:` rule area from the backend's output board
@@ -176,7 +176,7 @@ Measured on the fixture with an F.Cu GND pour (`tests/test_adhd_spoke_keepout.py
 
 - **Over-reservation.** Each corridor is about `spoke_width + 2·clearance` wide (1.3 mm
   on the fixture). Both backends also hold their own clearance from a rule-area edge.
-  Measured on the F.Cu-pour test variant, the closest new copper was 0.41 mm (KRT) and
+  Measured on the F.Cu-pour test variant, the closest new copper was 0.41 mm (historical KRT run) and
   0.57 mm (Freerouting) from a reserved corridor. The effective blocked area is
   therefore about one clearance larger again. On dense boards this can make nets
   unroutable or push them to other layers. Use `--reserve-spokes 1`, or route the

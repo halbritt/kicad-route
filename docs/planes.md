@@ -2,7 +2,7 @@
 
 `planes` creates or repairs exactly the copper zones in an
 `agent-ee.plane-plan/1` input, using KiCad's native Python bindings. This is the
-plan-input backend; it does not call KRT's heuristic `route_planes.py`.
+plan-input backend; it does not call the built-in router's heuristic `route_planes.py`.
 
 ```sh
 kicad-route planes --board project/board.kicad_pcb --plan plane-plan.json \

@@ -106,7 +106,7 @@ Both `run` and `validate` take these options. `run` records them in the attempt'
 
 ## Evidence (`tests/test_pour.py`)
 
-Each test starts from a clean KRT candidate of the fixture routed with
+Each test starts from a clean built-in router candidate of the fixture routed with
 `--nets '!GND'`. J1.2 and J2.2 then reach GND only through the B.Cu pour, with four
 45° spokes each. The tests edit copies of that candidate with pcbnew and run
 `validate` again:

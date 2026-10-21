@@ -15,9 +15,12 @@ wrapper is kicad-route `50af32245b4c3e3440de5757bff6222b351fb52b`.
 
 The maintained implementation lives in `src/kicad_route/router/`, including its
 Rust crate, locked crate dependencies, numerical-package requirements, MIT
-license and `UPSTREAM.json`. The historical backend spelling `--backend krt`
-is retained. It selects this owned implementation; no runtime source selector,
-upstream checkout or prebuilt-router download is used.
+license and `UPSTREAM.json`. The canonical backend is `builtin` (the default).
+`--backend krt` remains a deprecated alias and warns on stderr. New result backend
+names are `builtin`; historical receipts remain readable, and manifest/determinism
+`krt` keys and identity fingerprints retain their compatibility spelling. Neither
+spelling selects a separate KRT installation: no runtime source selector, upstream
+checkout or prebuilt-router download is used.
 
 `scripts/routing_closure.py` inventories static imports, including package
 initializers and literal dynamic imports, from the two routing entry points and
@@ -121,7 +124,9 @@ The benchmark inputs are retained under `reports/routing-engine/inputs/`; the
 route demo is `fixtures/route_demo/`. To repeat a comparison, pass the frozen
 wrapper and patched-fork state as `--reference-cli` and `--reference-state` to
 `scripts/compare_router.py`, and this checkout's CLI and installed state as
-`--candidate-cli` and `--candidate-state`. Set `--project` to the input directory
+`--candidate-cli` and `--candidate-state`. The comparison driver defaults to `--reference-backend krt`
+for the frozen historical wrapper and `--candidate-backend builtin` for this checkout.
+Set `--project` to the input directory
 and `--output` to a new evidence directory. All four cases used `--arg=--budget
 --arg=180`. Additional arguments were:
 

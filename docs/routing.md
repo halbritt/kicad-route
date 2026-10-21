@@ -17,9 +17,9 @@ and the hermetic KiCad configuration go. Programs use the machine interface in
 ```sh
 kicad-route doctor                                   # readiness, versions, capabilities
 kicad-route doctor --json --offline                  # the same as one JSON record, no network (docs/sandbox.md)
-kicad-route run --backend krt                        # route the project in . (a copy), 300 s budget
+kicad-route run --backend builtin                        # route the project in . (a copy), 300 s budget
 kicad-route run --backend freerouting --clearance-margin 0.01
-kicad-route run --backend krt --rev HEAD --nets "/CAN*" --budget 600
+kicad-route run --backend builtin --rev HEAD --nets "/CAN*" --budget 600
 kicad-route validate <run_dir>                       # re-grade a candidate (e.g. after hand edits)
 kicad-route validate <last step> --against <first run>   # grade a --dir chain vs the original input
 kicad-route compare <run_dir> <run_dir>
@@ -27,13 +27,22 @@ kicad-route blocked <run_dir>                        # what blocks the open conn
 kicad-route audit --old HEAD~1 --new HEAD            # grade a committed board change against its parent
 kicad-route floor                                    # rule high-water mark and declared floor (docs/floor.md)
 kicad-route publish <run_dir> --to reports/routing   # structured evidence for committing
-kicad-route update                                   # newest upstream releases, skills, smoke
+kicad-route update                                   # build included router, acquire Freerouting, skills, smoke
 kicad-route smoke                                    # integration tests on the bundled fixture
 ```
 
 ## Backends
 
-| | KRT (KiCadRoutingTools) | Freerouting |
+`builtin` is the default: the maintained router is part of kicad-route's source,
+including its Python code and Rust extension. KRT (KiCadRoutingTools) is its upstream
+provenance, not a separate installation selected at runtime. `--backend krt` remains
+a deprecated alias and warns on stderr. New results use `builtin` for the backend
+name even when invoked through the alias. Historical receipts remain readable;
+state-manifest and determinism `krt` keys, identity fingerprints, `krt.log` filenames,
+`KICAD_ROUTE_KRT_PYTHON`, and generated `krt-*` skill names retain their compatibility
+spelling.
+
+| | Built-in router (`builtin`) | Freerouting |
 |---|---|---|
 | Upstream | github.com/drandyhaas/KiCadRoutingTools (MIT) | github.com/freerouting/freerouting (GPL-3.0) |
 | Channel used | owned source in `src/kicad_route/router/`, with patched-KRT provenance | latest GitHub release, executable jar `vendor/freerouting/current/` |
@@ -52,18 +61,18 @@ during an attempt (below).
 
 ### What the adapters switch off
 
-KRT relaxes by default. The adapter (`KRT_FLAGS` / `KRT_ENV` in `kicad_route/cli.py`) passes
+The built-in router relaxes by default. The adapter (`KRT_FLAGS` / `KRT_ENV` in `kicad_route/cli.py`) passes
 `--escalation off --fab-tier standard --strict-sizes --no-power-tap-neckdown
 --no-fix-drc-settings`, plus `--keep-input-copper --no-stub-layer-swap` for
 `--protect existing`, and sets `KICAD_INRUN_FLOOR_SYNC=0 KICAD_TERMINAL_ESCALATION=0
 KICAD_IMPEDANCE_NECKDOWN=0 KICAD_RESCUE_CAP_MOVE=0 KICAD_DYNAMIC_ITERATIONS=0`
 (and `KICAD_RIP_PREEXISTING=0 KICAD_FINALIZE_RIP=0` for `--protect existing`). Those
-flags were not enough on a real 4-layer board: KRT's net rescue still moved 138 existing
+flags were not enough on a real 4-layer board: the built-in router's net rescue still moved 138 existing
 segments and vias ("STUB-SWAP RESCUE: GND stub B.Cu -> In1.Cu") and reworked copper on
-nets it failed. KRT never touches locked copper, so for `--protect existing` the wrapper
+nets it failed. The built-in router never touches locked copper, so for `--protect existing` the wrapper
 locks every input track and via in the work copy before routing and restores the
-original lock flags on KRT's output by exact geometry (`kicad/locks.py`). Without
-these, KRT steps down fab tiers, necks wide nets into pads, moves passives to rescue a
+original lock flags on the built-in router's output by exact geometry (`kicad/locks.py`). Without
+these, the built-in router steps down fab tiers, necks wide nets into pads, moves passives to rescue a
 net, and writes lowered DRC minimums into its output `.kicad_pro` (seen on the fixture:
 `min_hole_clearance` 0.25 → 0.2 with a "FAB FLOOR RELAXED" warning). Two behaviours
 cannot be switched off from the CLI in v0.23.x and are caught by the grader instead: a
@@ -147,7 +156,7 @@ fixture evidence by `tests/test_interface_contract.py`.
 exclusions alone (`--nets '!GND'`) the scope starts from every net. A net whose
 name starts with `!` (active-low `!RESET`) is written with an escaped `\!`:
 `--nets '\!RESET'` routes it, `--nets '!\!RESET'` excludes it (the same
-spelling `kicad/netnames.py` passes to KRT). An exclusion that excludes nothing
+spelling `kicad/netnames.py` passes to the built-in router). An exclusion that excludes nothing
 while a net is literally named like it (`--nets '!RESET'` on a board whose net is
 `!RESET`) would route the whole board instead of that net, so it is refused
 (exit 4) with the escaped spellings in the message. `--netclass` adds nets by
@@ -170,20 +179,22 @@ campaign's `best` carries those of its graded record.
   UUIDs, with the item counts); `records` (sha256 of `attempt.json` and the grading
   records, keyed by path relative to the result's directory).
 - **`tool_identity`**: `kicad_route` (describe, commit, dirty), `kicad_cli` (path,
-  version, sha256), `pcbnew.build_version`, `python`, `backend` (KRT: tag, version,
+  version, sha256), `pcbnew.build_version`, `python`, `backend` (the built-in router: tag, version,
   commit, grid_router version, extension-module sha256, venv packages sha256;
   Freerouting: tag, jar sha256, build revision, Java path and full version),
   `state_manifest_sha256` and `state_manifest_drift`. It holds no timestamps: two
   runs on the same tools report the same block.
 - **`backend.reproducible`, `measurement`**: Freerouting is `reproducible: false`
   and every Freerouting result is `measurement: false`: an attempt, not evidence of
-  what a board or setting can achieve. KRT is `reproducible: true` (and the result a
-  measurement) only when the state manifest holds a passing repeat check for the
-  build on disk now (KRT commit, extension module, venv packages, kicad-cli);
-  otherwise `null` with the reason in `backend.reproducible_basis`.
+  what a board or setting can achieve. The built-in router is `reproducible: true`
+  only when the state manifest holds a passing repeat check for the executed build
+  (source, extension module, Python and venv packages, kicad-cli and pcbnew);
+  otherwise `null` with the reason in `backend.reproducible_basis`. Measurement
+  qualification also requires that the current attempt finished without a budget or
+  stall stop (`measurement_basis`).
 
-Byte hashes of candidates differ between identical KRT runs: KiCad assigns fresh
-UUIDs and KRT's item order varies. `kicad-route determinism` therefore judges a
+Byte hashes of candidates differ between identical built-in router runs: KiCad
+assigns fresh UUIDs and the router's item order varies. `kicad-route determinism` judges a
 repeat by the copper signature and the outcome, and reports the byte layers
 (backend output, delivered candidate) for diagnosis. It routes the fixture (or
 `--dir`) `--runs` times with the ledger off; a run that stopped at its budget or
@@ -269,7 +280,7 @@ quantisation (KiCad reads a 0.29972 mm via drill back as 0.299 mm).
 ### Tightening controls
 
 Allowed because they only make routing stricter; grading is unchanged:
-`--default-clearance MM` (Default class: KRT `--clearance`, DSN `kicad_default` class
+`--default-clearance MM` (Default class: the built-in router's `--clearance`, DSN `kicad_default` class
 and board rule), `--clearance-margin MM` (Freerouting: added to every DSN clearance),
 plus any backend option through `--backend-arg` / `--backend-env` (recorded in the
 result). A relaxing option passed through does not change the verdict; it can only
@@ -305,7 +316,7 @@ while the build they hold for is unchanged). Paths under STATE are relative to i
 disk and reports drift (a replaced jar or extension module, a changed venv or
 requirements file, changed owned routing source or kicad-cli) as a required FAIL; re-run
 `kicad-route state-manifest` after a deliberate change. A missing manifest is
-NOT_RUN (not required); "KRT determinism verified for this build" is informational.
+NOT_RUN (not required); "Builtin determinism verified for this build" is informational.
 Every `result.json` carries the manifest's sha256 (`tool_identity`).
 
 The owner-authorized engine migration of 2026-10-20 supersedes the external-KRT
@@ -322,7 +333,7 @@ and acceptance requirements.
 - `kicad-route update`:
   - Owned routing engine: prepare a fresh source snapshot and venv under
     `.router-generations/<unique-id>` (on the Python running kicad-route, or
-    `$KICAD_ROUTE_KRT_PYTHON`; KRT does not use pcbnew). Install requirements,
+    `$KICAD_ROUTE_KRT_PYTHON`; the built-in router does not use pcbnew). Install requirements,
     build the included Rust crate with Cargo's locked dependencies, and validate
     startup and route help before atomic manifest activation. Failures preserve
     the prior generation; updates serialize and retain old generations. See
@@ -338,11 +349,11 @@ and acceptance requirements.
   - Regenerate the `krt-*` skills from the included source (`vendor/skills/`, linked into the same
     skill directories), then run `kicad-route smoke` (round trips, constraint
     preservation, native validation, failure reporting). Compatibility problems surface
-    there and in `kicad-route doctor` ("KRT controls used by the adapter" fails if a
+    there and in `kicad-route doctor` ("Builtin controls used by the adapter" fails if a
     flag the adapter relies on disappears).
   - Write `STATE/manifest.json` (before the skills and smoke, so a failed smoke still
     leaves the record of what was installed), and after smoke and the corpus gate run
-    `kicad-route determinism --record` for the new KRT build.
+    `kicad-route determinism --record` for the new built-in router build.
 - Java: the jar states the Java release it was built for; the wrapper picks the newest
   JVM under `/usr/lib/jvm` that satisfies it. Install new majors with apt
   (`sudo apt install openjdk-<N>-jre-headless`); security updates arrive with normal
@@ -409,11 +420,11 @@ rules remain unchanged.
   [sandbox.md](sandbox.md). What that needs from kicad-route (a versioned result contract,
   hashes, read-only state, offline operation) was delivered under the Plane
   KICADROUTE `generator` label (items closed 2026-10-18).
-- **KRT is the default backend; Freerouting runs are attempts, not measurements**
-  (agent-ee decision 3). KRT is chosen because it is deterministic: the same input,
-  settings and KRT build should give the same candidate, so a result can be
+- **Built-in router is the default backend; Freerouting runs are attempts, not measurements**
+  (agent-ee decision 3). The built-in router is chosen because it is deterministic: the same input,
+  settings and the built-in router build should give the same candidate, so a result can be
   reproduced and a repeat of a failed attempt changes nothing. `kicad-route
-  determinism` checks this per KRT build (geometric equivalence, below) and records
+  determinism` checks this per built-in router build (geometric equivalence, below) and records
   the verdict in the state manifest; `reports/determinism/` retains historical
   repeat checks. A current attempt also needs to finish without a wall-clock stop
   to qualify as a measurement. A Freerouting run can
@@ -430,18 +441,18 @@ rules remain unchanged.
   already runs in its sandbox. kicad-route contributes routability evidence: the
   placement stage consumes `kicad-route blocked` receipts ([blocked.md](blocked.md))
   as a check input.
-- **Owned KRT and external Freerouting; identities are recorded per run.** The
+- **Built-in router and external Freerouting; identities are recorded per run.** The
   owner's 2026-10-20 routing-engine ownership decision supersedes agent-ee
-  decision 6 for KRT. Its maintained source is included in this repository and
+  decision 6 for KRT. The built-in router's maintained source is included in this repository and
   updates compile immutable generations under `STATE/.router-generations/`.
   Freerouting remains a separately acquired GPL-3.0 program under `STATE/vendor/`;
   kicad-route does not import or link it. Both backends run as subprocesses, and
   every `result.json` records their content and build identities. See
   [routing engine ownership](routing-engine-migration.md).
 - **MIT license for kicad-route** (2026-10-17, [`LICENSE`](../LICENSE)). It covers this
-  repository only; KRT (MIT) and Freerouting (GPL-3.0) keep their own licenses.
+  repository only; upstream KRT (MIT) and Freerouting (GPL-3.0) keep their own licenses.
 
-**Determinism is geometric equivalence (owner decision, 2026-10-18).** Two KRT
+**Determinism is geometric equivalence (owner decision, 2026-10-18).** Two built-in router
 runs on the same board produce identical copper geometry with different bytes:
 segment order and UUIDs differ (KICADROUTE-7). A repeated run is deterministic
 when its normalized copper geometry set (segments, vias and arcs by layer, net,
@@ -452,16 +463,16 @@ writer is not required to normalize segment order or derive UUIDs.
 
 ## Known limitations
 
-- KRT honours only part of `.kicad_dru` (it logs skipped rules; they appear under
+- The built-in router honours only part of `.kicad_dru` (it logs skipped rules; they appear under
   `unsupported`). On the fixture, its default attempt violates a Power-to-signal 0.4 mm
   rule; `--default-clearance 0.4` produces a valid candidate.
-- KRT checks the stop file only between nets of its main pass. Its later passes (net
+- The built-in router checks the stop file only between nets of its main pass. Its later passes (net
   rescue, Phase 3, plane finalize, final reconciliation) ignore it. On a blocked board,
   the rescue keeps searching after the budget until the grace period ends, and then
-  KRT is killed (process FAIL, no candidate). `--backend-env KICAD_NET_RESCUE=0`
+  the built-in router is killed (process FAIL, no candidate). `--backend-env KICAD_NET_RESCUE=0`
   (or `KICAD_PLANE_FINALIZE=0`) returns a partial candidate. See docs/hygiene.md,
   "Budget overrun".
-- KRT exits 0 even when nets fail; the wrapper ignores its exit code for completion.
+- The built-in router exits 0 even when nets fail; the wrapper ignores its exit code for completion.
 - Freerouting approximates pad shapes and can land a few micrometres inside a clearance
   (fixture: 0.3928 mm against a 0.4 mm rule); `--clearance-margin 0.01` resolved it.
 - Specctra export rounds pad centres to 1 µm, so Freerouting can report a locked track
@@ -501,9 +512,9 @@ plus `spokes.json`, `provenance.json`, `facts/`, `spokes/`, and the latest
 `revalidate*/` as `against-origin/` and `revalidate/`; never a board, project file, log
 or `work/`). It proves:
 
-- KRT and Freerouting round trips that are complete and valid, with every preservation
+- The built-in router and Freerouting round trips that are complete and valid, with every preservation
   check passing and the candidate's rules byte-identical to the input's;
-- the KRT default attempt fails validation on the custom rule, and the failure is the
+- The built-in router default attempt fails validation on the custom rule, and the failure is the
   exit code (3), with the skipped rule named under `unsupported`;
 - net-name (`--nets '/SIG_A*'`) and net-class (`--netclass Power`) scopes, with no
   copper outside scope;
@@ -527,7 +538,7 @@ relaxes a rule.
 
 | Feature | Entry point | Page |
 |---|---|---|
-| Differential pairs before ordinary nets, with native length/skew evidence | `run --backend krt --diff-pairs auto` | [`diff-pairs.md`](diff-pairs.md) |
+| Differential pairs before ordinary nets, with native length/skew evidence | `run --backend builtin --diff-pairs auto` | [`diff-pairs.md`](diff-pairs.md) |
 | Hard-nets-first campaigns | `kicad-route campaign` | [`campaign.md`](campaign.md) |
 | Thermal-spoke corridor reservation and spoke-cut attribution | `run --reserve-spokes [N]`, `kicad-route spokes` | [`spokes.md`](spokes.md) |
 | Collision barriers (rewind with a keepout where new copper collided) | `run --barrier-from RUN_DIR`, `kicad-route barrier` | [`barrier.md`](barrier.md) |

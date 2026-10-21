@@ -67,7 +67,7 @@ def test_installed_doctor_route_and_campaign(wheel_environment):
     record = json.loads(doctor.stdout)
     assert record["kind"] == "doctor"
     checks = {check["check"]: check for check in record["checks"]}
-    for name in ("KRT routing venv", "KRT Rust router module", "KRT startup checks", "KRT controls used by the adapter"):
+    for name in ("Builtin routing venv", "Builtin Rust router module", "Builtin startup checks", "Builtin controls used by the adapter"):
         assert checks[name]["status"] == "PASS", checks[name]
     assert "No module named" not in doctor.stderr
     info = subprocess.check_output([venv / "bin/python", "-c",

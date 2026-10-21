@@ -12,8 +12,8 @@ copper an earlier step placed. A completion ratchet makes sure no net that was a
 connected ends up open.
 
 ```sh
-kicad-route run --backend krt --nets "/CAN*" --label step1               # on the original project
-kicad-route run --backend krt --protect human --nets "!/CAN*" --label step2 \
+kicad-route run --backend builtin --nets "/CAN*" --label step1               # on the original project
+kicad-route run --backend builtin --protect human --nets "!/CAN*" --label step2 \
     --dir build/kicad-route/runs/<project>/step1/latest/candidate/<project>
 kicad-route validate <step2 run> --against <step1 run>                   # end of the chain vs the original
 ```
@@ -55,8 +55,8 @@ records `human`.
    writes two files:
    - `provenance.json` in the run directory.
    - `facts/human-keys.json`, the lock allowlist (`settings.protect_only`).
-2. **KRT:** the work copy goes through `locks.py lock BOARD RECORD --only
-   facts/human-keys.json`, so only human items are locked. KRT runs without
+2. **Built-in router:** the work copy goes through `locks.py lock BOARD RECORD --only
+   facts/human-keys.json`, so only human items are locked. The built-in router runs without
    `--keep-input-copper --no-stub-layer-swap` and without `KICAD_RIP_PREEXISTING=0
    KICAD_FINALIZE_RIP=0`. That lets its rip-up and rescue paths rework agent copper.
    Afterwards the original lock flags are restored, as with `existing`.
@@ -64,7 +64,7 @@ records `human`.
    only human items for the round trip. Agent copper exports as `(type route)` and is
    rebuilt from the session. In practice Freerouting returns `route` wires as
    `(type protect)` and never rips them up. On Freerouting, `human` therefore gives no
-   extra room, and the attempt's `unsupported` list says so. Use KRT for steps that
+   extra room, and the attempt's `unsupported` list says so. Use the built-in router for steps that
    need to reroute agent copper.
 
 `provenance.json` holds `chain`, `origin_run`, `input_is_candidate`,
@@ -80,7 +80,7 @@ and `unattributed` (the part of `human` that no step produced). It also holds
   Agent copper is not designated. `existing_unlocked_copper` reports how much of it was
   removed or changed. That check is informational only and always passes.
 - **`routing_scope`:** new copper is also allowed on nets that carried agent copper,
-  because KRT reroutes the agent nets it rips. All new copper is still checked against
+  because the built-in router reroutes the agent nets it rips. All new copper is still checked against
   its net class (`new_copper_netclass_geometry`).
 - **`validate <last> --against <first>`:** protection comes from the origin run,
   usually `existing` (all of the original input's copper). That is the human set by
@@ -112,9 +112,9 @@ Nets with fewer than two pads have nothing to connect and always count as connec
 - The fixture has room for every net, so the tests prove the locking, flags and
   grading. They do not prove that `human` routes more nets than `existing` on a
   congested board. That evidence comes from real boards.
-- KRT decides on its own what to rip. Its rip-up guards still apply: small nets only,
+- The built-in router decides on its own what to rip. Its rip-up guards still apply: small nets only,
   no plane-backed nets, nothing locked, and nothing `!`-negated in `--nets`. A net it
-  rips and cannot reroute is restored by KRT, or else caught by the ratchet.
+  rips and cannot reroute is restored by the built-in router, or else caught by the ratchet.
 - With Freerouting, agent copper makes a Specctra round trip and may come back
   re-normalised. On the fixture it came back with 0 changed items.
 
@@ -123,10 +123,10 @@ Nets with fewer than two pads have nothing to connect and always count as connec
 `tests/test_provenance.py` covers these cases on the fixture, using `unlocked_dir`, a
 variant with `/SIG_B` unlocked so that only provenance can protect it:
 
-- `--protect human` on a non-candidate input is the same as `existing`: settings, KRT
+- `--protect human` on a non-candidate input is the same as `existing`: settings, the built-in router
   argv and env, locks and designation.
 - A two-step chain locks exactly the 7 `/SIG_B` items, classes step 1's `/SIG_A*`
-  copper as agent, drops KRT's keep-input switches, designates 5 tracks and 2 vias,
+  copper as agent, drops the built-in router's keep-input switches, designates 5 tracks and 2 vias,
   and passes `validate --against` the origin.
 - The Freerouting bridge exports agent copper as `(type route)`.
 - A track edited between steps counts as human (fail closed).

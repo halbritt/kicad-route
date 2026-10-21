@@ -33,7 +33,7 @@ JSON object per line: `t_s`, `utc`, `phase`, `metric`, `line`.
 
 What counts as progress:
 
-- **KRT** (py_router console output):
+- **Built-in router** (py_router console output):
   - phase banners (`=====` / title / `=====`), `Routing N single-ended net(s)...`
   - per-net `[i/N (k failed)] Routing NET`, `SUCCESS:` / `FAILED:` counts
   - `Per-net fine-parameter rescue`, `Rescuing NET (..., N disconnected parts)`
@@ -53,13 +53,13 @@ What counts as progress:
 
 Observation is always on, so `result.json` records `process.last_phase` and
 `process.heartbeats` (count, log path, last five records) even for a budget
-kill. For KRT, `PYTHONUNBUFFERED=1` is set so the log is written in time. It
+kill. For the built-in router, `PYTHONUNBUFFERED=1` is set so the log is written in time. It
 changes only output buffering.
 
 With `--stall S` (default off; without it the budget path is exactly as
 before), when there has been no progress for S seconds:
 
-1. The stop file is touched. This is KRT's `KICAD_STOP_FILE`; Freerouting has
+1. The stop file is touched. This is the built-in router's `KICAD_STOP_FILE`; Freerouting has
    none.
 2. After a grace period of `min(budget grace, max(15, S))` seconds, the
    backend is terminated, then killed.
@@ -69,10 +69,10 @@ before), when there has been no progress for S seconds:
    seconds without progress at the moment of the stall), `last_phase` and
    `heartbeats`.
 
-If KRT honours the stop file, it writes the board as it stood. That candidate
+If the built-in router honours the stop file, it writes the board as it stood. That candidate
 is graded like any other, and the reason says it stalled and stopped early.
 
-Choose S above the longest *silent* leg of the board. KRT's KiCad refills and
+Choose S above the longest *silent* leg of the board. The built-in router's KiCad refills and
 oracle rechecks print nothing while they run. On the 50 x 30 mm fixture that
 leg takes about 13 s; it grows with the board and its pours. `--stall` is a way
 to give up on a hopeless search sooner than `--budget`. It is not a substitute
@@ -81,7 +81,7 @@ for the budget.
 ### Process groups
 
 Each backend starts as the leader of its own session and process group
-(`src/kicad_route/procgroup.py`). The KRT interpreter, the Freerouting JVM and
+(`src/kicad_route/procgroup.py`). The built-in router interpreter, the Freerouting JVM and
 everything they start (kicad-cli refills, helpers, shell wrappers) are in that
 group:
 
@@ -95,16 +95,16 @@ group:
   SIGINT, so this step is necessary.
 
 A process that starts its own session (`setsid`) leaves the group, and this
-does not cover it. KRT and Freerouting do not do that.
+does not cover it. The built-in router and Freerouting do not do that.
 
 ### Budget overrun
 
-KRT checks `KICAD_STOP_FILE` in one place only: between nets of its main
+The built-in router checks `KICAD_STOP_FILE` in one place only: between nets of its main
 single-ended pass (`py_router/single_ended_loop.py`). When it stops there, it
 skips every later pass and writes the board as it stood. The passes after the
 main loop do not look at the stop file. These are the reroute loop,
 multi-point Phase 3, net rescue, terminal escalation, the plane finalize and
-the final reconciliation. In CLI mode KRT passes no `cancel_check` to them. A
+the final reconciliation. In CLI mode the built-in router passes no `cancel_check` to them. A
 stop requested during one of these passes therefore has no effect. The kill at
 the end of the grace period is what ends the run:
 
@@ -113,7 +113,7 @@ the end of the grace period is what ends the run:
 | budget | `max(30, budget // 5)` s | grace + 10 s |
 | `--stall S` | `min(max(30, budget // 5), max(15, S))` s | grace + 10 s |
 
-A killed KRT writes no board, so the result is process FAIL with no
+A killed built-in router writes no board, so the result is process FAIL with no
 candidate. Each command record has `stop_s` (when the stop was requested) and
 `stop_to_exit_s` (how long the backend ran after it). The kill reason names
 the pass that ignored the stop and its kill switch:
@@ -125,7 +125,7 @@ the pass that ignored the stop and its kill switch:
 kicad-route does not set these switches itself, also not with `--stall` or a
 short `--budget`. Turning off a pass changes the attempt (and its ledger key).
 The rescue is also where `--stall` usually finds the hopeless searches. Neither
-switch relaxes a rule: with the switch set, KRT does less work, and KiCad still
+switch relaxes a rule: with the switch set, the built-in router does less work, and KiCad still
 grades the result against the input's rules. Use the switches when the time
 limit matters more than what the pass could recover.
 
@@ -149,7 +149,7 @@ The two keys:
     keys valid.
   - Net patterns and classes are order-free. Backend args are not.
 - **fingerprint**: a hash of the attempt key and `backend.execution_identity`.
-  KRT includes owned source, compiled extension, Python and package environment
+  The built-in router includes owned source, compiled extension, Python and package environment
   content identities. Freerouting includes its jar and Java runtime identity.
   Repository commits remain readable provenance and do not invalidate unchanged
   engine content. `result.json` carries the fingerprint in
@@ -166,14 +166,14 @@ reconstruction from `result.json` agrees with the original gate.
 
 - **Refused (exit 4):** an earlier attempt with the same fingerprint finished
   `process_fail`, `validation_fail` or `incomplete`. The message names that
-  run directory. KRT fails the same way twice (`kicad-route determinism`
+  run directory. The built-in router fails the same way twice (`kicad-route determinism`
   checks this per build), so change the input, scope or settings. Freerouting's
   outcome may vary between runs, so its message says a retry may differ; the
   retry still needs `--force`.
 - **`--force`:** runs it anyway. `result.json` and the ledger record
   `forced: true` and `forced_over: <run dir>`.
 - **Allowed, with a note:** the same attempt key under a different backend
-  version: `upstream changed since <run dir> (krt 0.23.1 -> 0.24.0)`.
+  version: `upstream changed since <run dir> (builtin 0.23.1 -> 0.24.0)`.
 - An earlier identical attempt that passed is not refused.
 
 The fingerprint can be derived from `result.json` alone
@@ -211,11 +211,11 @@ The canary works on the bundled fixture.
 |---|---|---|
 | `split` | `specctra.split_classes` on a synthetic KiCad-style network (Default and Power classes, three scoped-out names) | ms, no KiCad |
 | `bridge` | KiCad's DSN export of the renamed board (`specctra.py check`, which leaves it as KiCad wrote it) must parse. Then the class split, in process and through `specctra.py --skip-nets`: every net stays in exactly one class, scoped-out nets are in the `__skip` copies with identical rules, the ignored-class list matches. In the DSN that `--skip-nets` writes, every plane, class member and wire/via net is spelled as a `(net ...)` definition | ~2 s |
-| `krt`, `freerouting` | a short run of the adapter itself (`krt_route` / `freerouting_route`). Then a facts compare of output against input: nets, net classes and pad-to-net assignments are equal; new copper is only on in-scope nets; every in-scope net that needed a track got one | ~20 s each |
+| `builtin`, `freerouting` | a short run of the adapter itself (`krt_route` / `freerouting_route`). Then a facts compare of output against input: nets, net classes and pad-to-net assignments are equal; new copper is only on in-scope nets; every in-scope net that needed a track got one | ~20 s each |
 
 - `doctor` runs `split` and `bridge`, so the parenthesis class of bug shows up
   in seconds.
-- `kicad-route canary [--backend krt|freerouting|all]` runs everything.
+- `kicad-route canary [--backend builtin|freerouting|all]` runs everything.
 - `run --canary` runs it for the run's backend first, and refuses (exit 4) if
   it fails.
 
@@ -272,14 +272,14 @@ Bugs the canary found while it was written (fixed on this branch):
     write a name one way: two nets that KiCad writes the same (`a"b` and `a''b`
     are both `a''b`, and Freerouting would merge them), or a plane, wire or
     class list that reads more than one way. A direct export in that state
-    exits 4 with a `BRIDGE_REFUSAL` line. KRT reads the board directly and is
+    exits 4 with a `BRIDGE_REFUSAL` line. The built-in router reads the board directly and is
     not affected.
 
 ## Real-board update gate (corpus)
 
 ```sh
 kicad-route corpus add --dir ~/git/board --rev HEAD --name board-can \
-    --backend krt --nets '/CAN*' --default-clearance 0.2 --budget 600
+    --backend builtin --nets '/CAN*' --default-clearance 0.2 --budget 600
 kicad-route corpus check [--name board-can]
 kicad-route corpus list
 ```
@@ -334,7 +334,7 @@ is any of:
 ## Nothing under HOME
 
 Apart from `update` and `corpus add` (which write STATE) and a `--ledger PATH`
-outside OUT, kicad-route writes only under `--out` and `/tmp`, whatever `HOME` is. Every KiCad, KRT and Freerouting subprocess gets
+outside OUT, kicad-route writes only under `--out` and `/tmp`, whatever `HOME` is. Every KiCad, built-in router and Freerouting subprocess gets
 `common.tool_env()`, which sends the per-user files of the tools under OUT:
 
 | What | Default location | Under OUT | How |
@@ -353,10 +353,10 @@ The JVM takes `user.home` from the password database, not from `$HOME`, so setti
 kicad-route calls to learn KiCad's version, gets the same KiCad variables.
 
 `/tmp` still receives KiCad's instance lock (`/tmp/org.kicad.kicad`), the JVM's
-`hsperfdata_<user>` and KRT's temporary refill and oracle directories; a private
+`hsperfdata_<user>` and the built-in router's temporary refill and oracle directories; a private
 tmpfs is fine (docs/sandbox.md). `result.json` and doctor's `sandbox.observed` record
 the redirection as `sandbox.home`. `tests/test_home_containment.py` runs the
-fixture's KRT and Freerouting round trips and `doctor --json --offline` with `HOME`
+fixture's built-in router and Freerouting round trips and `doctor --json --offline` with `HOME`
 set to an empty read-only directory, traced with `strace` when it is available. The
 runs must pass, the directory must not change, and no process may try to write under
 it, under the real home or anywhere else outside OUT and `/tmp` (KICADROUTE-60).

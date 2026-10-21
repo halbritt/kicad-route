@@ -164,7 +164,7 @@ def test_doctor_json_offline_record(doctor_record):
     assert rec["schema"] == "kicad-route/doctor/1" and rec["status"] == "PASS" and rec["offline"] is True
     assert json.loads((out / "doctor" / "doctor.json").read_text()) == rec
     checks = {c["check"]: c for c in rec["checks"]}
-    for name in ("KRT latest release", "Freerouting latest release", "canary (awkward net names)"):
+    for name in ("Builtin latest release", "Freerouting latest release", "canary (awkward net names)"):
         assert checks[name]["status"] == "NOT_RUN" and not checks[name]["required"], checks[name]
     assert checks['bwrap (planes)']['status'] == ('PASS' if BWRAP else 'FAIL')
     assert checks['bwrap (planes)']['required'] is False

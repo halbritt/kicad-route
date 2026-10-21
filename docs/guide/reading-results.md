@@ -36,6 +36,9 @@ Rules of thumb:
 
 ## RESULT.md, section by section
 
+This captured example predates the `builtin` name. New results identify the
+built-in router as `builtin`; historical `krt` receipts remain readable.
+
 ```
 # Routing attempt: krt on route_demo
 - Backend: krt 0.23.1 (v0.23.1)                 ← exactly which build ran
@@ -155,7 +158,7 @@ summary names it as the top blocker of every open net:
 | Category | Meaning | Next attempt |
 |---|---|---|
 | `keepout` | a rule area of the design | a design constraint: report it, never edit it |
-| `input_copper` | the input's own copper | if unlocked, `--protect locked` lets KRT move it; if locked, ask the owner |
+| `input_copper` | the input's own copper | if unlocked, `--protect locked` lets the built-in router move it; if locked, ask the owner |
 | `new_copper` | copper the backend placed in this attempt | route the blocked nets first (`--nets`) on the original input, or use `campaign` |
 | `footprint` | other nets' pads | placement is fixed: another layer or approach |
 | `board_edge` | a corridor leaves the outline | the connection needs a detour |
@@ -169,7 +172,7 @@ are in `validate/blocked-by.json` ([blocked.md](../blocked.md)).
 - `unsupported` lists the constraints the backend could not see or approximated,
   for example a custom `.kicad_dru` rule with a net-class condition. KiCad still
   graded them.
-- `process.backend_report` keeps the backend's own view (KRT's relaxation ledger
+- `process.backend_report` keeps the backend's own view (the built-in router's relaxation ledger
   and summaries, Freerouting's incomplete count). It is a diagnostic. Backends
   disagree with KiCad in both directions, so it never decides anything.
 
@@ -184,13 +187,14 @@ its directory:
   tracks, arcs and vias without UUIDs or order. **Compare candidates by that
   signature, not by file hash**: KiCad writes fresh UUIDs on every save.
 - `tool_identity`: kicad-route's commit, kicad-cli's version and sha256, pcbnew,
-  Python, the backend build (KRT commit and extension module, or Freerouting jar
+  Python, the backend build (the built-in router's source commit and extension module, or Freerouting jar
   and Java), and the state manifest's sha256 with any drift.
 
 `backend.reproducible` and `measurement` say whether a result is evidence of what
-a board can achieve. Freerouting results are attempts (`measurement: false`). A KRT
-result is a measurement when the state manifest holds a passing repeat check for
-the build on disk (`kicad-route determinism`).
+a board can achieve. Freerouting results are attempts (`measurement: false`). A built-in router
+result is a measurement only when the state manifest holds a passing repeat check
+for its executed build (`kicad-route determinism`) and the current attempt finished
+without a budget or stall stop. `measurement_basis` explains that qualification.
 
 ## Refusals (exit 4)
 
@@ -201,8 +205,8 @@ A refusal leaves no run directory. The reason is in
 {"schema": "kicad-route/refusal/1", "kind": "refusal", "exit_code": 4,
  "command": "run", "reason_class": "input",
  "message": "the net selection matches no nets",
- "argv": ["run", "--backend", "krt", "--nets", "NOPE*"], "cwd": "/work/board",
- "input_fingerprint": "3f5c…", "discarded_run_dir": "build/kicad-route/runs/board/krt/…",
+ "argv": ["run", "--backend", "builtin", "--nets", "NOPE*"], "cwd": "/work/board",
+ "input_fingerprint": "3f5c…", "discarded_run_dir": "build/kicad-route/runs/board/builtin/…",
  "refused_utc": "2026-10-17T21:52:53+00:00"}
 ```
 

@@ -8,11 +8,11 @@ others committed.
 ## Choosing what to route
 
 ```sh
-kicad-route run --backend krt                               # every net
-kicad-route run --backend krt --nets '/CAN*' '/USB*'        # by name (fnmatch patterns)
-kicad-route run --backend krt --netclass Power               # by effective KiCad net class
-kicad-route run --backend krt --nets '!GND'                  # everything except GND
-kicad-route run --backend krt --nets '\!RESET'               # a net literally named !RESET
+kicad-route run --backend builtin                               # every net
+kicad-route run --backend builtin --nets '/CAN*' '/USB*'        # by name (fnmatch patterns)
+kicad-route run --backend builtin --netclass Power               # by effective KiCad net class
+kicad-route run --backend builtin --nets '!GND'                  # everything except GND
+kicad-route run --backend builtin --nets '\!RESET'               # a net literally named !RESET
 ```
 
 Exclusions (`!PAT`) apply last, so `--netclass Power --nets '!/VIN'` is "Power
@@ -24,7 +24,7 @@ something else, is refused. New copper on nets outside the scope fails
 
 | Option | Effect |
 |---|---|
-| `--default-clearance MM` | the Default class clearance the backend works to (KRT `--clearance`, Freerouting's default class). Use the value of a custom rule the backend cannot see |
+| `--default-clearance MM` | the Default class clearance the backend works to (the built-in router's `--clearance`, Freerouting's default class). Use the value of a custom rule the backend cannot see |
 | `--clearance-margin MM` | Freerouting only: added to every clearance, for the few-micrometre misses its pad approximation causes |
 | `--pour-min-spokes N`, `--pour-area-loss PCT` | make `pour_integrity` stricter |
 | `--backend-arg ARG`, `--backend-env KEY=VALUE` | pass anything through to the backend; recorded in the result; grading unchanged |
@@ -42,7 +42,7 @@ flowchart LR
         U["unlocked copper"]
     end
     E["--protect existing (default)<br/>everything is locked"]
-    L["--protect locked<br/>only locked items are protected;<br/>KRT may rip up unlocked copper"]
+    L["--protect locked<br/>only locked items are protected;<br/>the built-in router may rip up unlocked copper"]
     M["--protect human<br/>in a chain: designer's copper locked,<br/>agent copper may be rerouted"]
     input --> E & L & M
 ```
@@ -69,8 +69,8 @@ flowchart LR
 ```
 
 ```sh
-kicad-route run --backend krt --nets '/CAN*' --label step1
-kicad-route run --backend krt --nets '!/CAN*' --label step2 \
+kicad-route run --backend builtin --nets '/CAN*' --label step1
+kicad-route run --backend builtin --nets '!/CAN*' --label step2 \
     --dir build/kicad-route/runs/<project>/step1/latest/candidate/<project>
 kicad-route validate build/kicad-route/runs/<project>/step2/latest \
     --against build/kicad-route/runs/<project>/step1/latest
@@ -102,8 +102,8 @@ flowchart TB
 ```
 
 ```sh
-kicad-route campaign --backend krt --budget 900 --rounds 2
-kicad-route campaign --backend krt --nets '/CAN*' '/USB*' --race 3 --total-budget 7200
+kicad-route campaign --backend builtin --budget 900 --rounds 2
+kicad-route campaign --backend builtin --nets '/CAN*' '/USB*' --race 3 --total-budget 7200
 ```
 
 - Every step is an ordinary `run` with the campaign's options; rules are never
@@ -217,7 +217,7 @@ These commands need no routing run and never write the board:
 ```sh
 kicad-route doctor            # readiness, versions, manifest drift, canary
 kicad-route update            # latest releases, manifest, skills, smoke, corpus check, determinism
-kicad-route corpus add --dir ~/git/board --rev HEAD --name board-can --backend krt --nets '/CAN*'
+kicad-route corpus add --dir ~/git/board --rev HEAD --name board-can --backend builtin --nets '/CAN*'
 kicad-route corpus check      # re-route every corpus entry; exit 1 on any regression
 ```
 

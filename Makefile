@@ -13,7 +13,7 @@ update:
 state-manifest:      ## record what is installed under STATE in STATE/manifest.json (no downloads)
 	$(KR) state-manifest
 determinism:         ## route the fixture twice with KRT, compare, record in the state manifest and reports/
-	$(KR) determinism --backend krt --record --publish reports/determinism
+	$(KR) determinism --backend builtin --record --publish reports/determinism
 smoke:
 	$(KR) smoke
 evidence:            ## smoke, then copy the structured evidence to reports/fixture for committing

@@ -21,6 +21,7 @@ backend.reproducible in result.json reads.
 import os
 from pathlib import Path
 
+from . import backend_names
 from . import common
 from . import contract
 from . import statemanifest
@@ -77,9 +78,10 @@ def compare(records):
             "candidate bytes differ while geometry is compared: KiCad UUIDs and item order"}
 
 
-def check(cli, backend="krt", runs=2, budget=180, dir=None, board=None, backend_env=None,
+def check(cli, backend="builtin", runs=2, budget=180, dir=None, board=None, backend_env=None,
           default_clearance=None, record=False):
     """Route the input `runs` times (ledger off, in this process) and compare."""
+    backend = backend_names.canonical(backend)
     common.ensure_kicad_config()
     stamp = common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ")
     results = []
@@ -163,7 +165,8 @@ def cmd(args, cli):
 def add_parser(sub):
     p = sub.add_parser("determinism", help="route one input repeatedly with one backend build and compare "
                                            "the candidates (copper geometry, bytes, outcome)")
-    p.add_argument("--backend", default="krt", choices=["krt", "freerouting"])
+    p.add_argument("--backend", type=backend_names.parse, default="builtin",
+                   choices=backend_names.CHOICES, help=backend_names.HELP)
     p.add_argument("--runs", type=int, default=2, help="number of runs (default 2)")
     p.add_argument("--budget", type=int, default=180, help="wall-clock seconds per run (default 180)")
     p.add_argument("--dir", help="project directory (default: the bundled fixture)")

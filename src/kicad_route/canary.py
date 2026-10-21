@@ -32,6 +32,7 @@ import re
 import shutil
 from pathlib import Path
 
+from . import backend_names
 from . import common
 from . import cli as route
 from .kicad import specctra
@@ -286,14 +287,15 @@ def facts_check(ref, cand, scope):
 
 def check_backend(name, dest, board, facts):
     """A short run of the real adapter on the canary board, then the facts compare."""
+    name = backend_names.canonical(name)
     work = dest / name
     copy = work / "input" / board.parent.name
     route.copy_project(board.parent, copy)
     scope = sorted(set(facts["nets"]) - set(SCOPED_OUT) - {""})
     settings = {"backend": name, "budget_s": 90, "protect": "existing", "max_iterations": None,
-                "passes": 10, "default_clearance_mm": 0.4 if name == "krt" else None,
+                "passes": 10, "default_clearance_mm": 0.4 if name == "builtin" else None,
                 "clearance_margin_mm": None, "backend_args": [],
-                "backend_env": {"KICAD_NET_RESCUE": "0"} if name == "krt" else {},
+                "backend_env": {"KICAD_NET_RESCUE": "0"} if name == "builtin" else {},
                 "mode": "selected", "net_patterns": scope, "netclasses": []}
     out = {"check": name, "scope": scope, "scoped_out": SCOPED_OUT}
     try:
@@ -311,7 +313,7 @@ def check_backend(name, dest, board, facts):
 
 
 def available(name):
-    if name == "krt":
+    if backend_names.canonical(name) == "builtin":
         return route.route_python().exists() and route.KRT_DIR.exists()
     return route.freerouting_installed() is not None
 
@@ -319,6 +321,7 @@ def available(name):
 def run_canary(backend="all", quick=False, dest=None):
     """split + bridge, then (unless quick) each backend's round trip. Returns the
     record written to OUT/canary/<stamp>/canary.json."""
+    backend = backend_names.canonical(backend)
     common.ensure_kicad_config()
     dest = Path(dest or route.out_path("canary", common.now_utc().strftime("%Y%m%dT%H%M%S.%fZ")))
     dest.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,6 @@
-# Differential pairs with KRT
+# Differential pairs with the built-in router
 
-`kicad-route run --backend krt --diff-pairs auto` routes differential pairs before
+`kicad-route run --backend builtin --diff-pairs auto` routes differential pairs before
 the remaining selected nets. Without `--diff-pairs`, the existing single-ended
 adapter and its command line are unchanged. The option also passes through
 `campaign` and corpus replay, like the other routing options.
@@ -19,10 +19,10 @@ Before routing, exit 4 refuses:
 - a selection containing only one member of a detected pair;
 - members in different effective classes, or without matching positive native
   `diff_pair_width` and `diff_pair_gap` settings;
-- a pair gap below either member's class clearance, which KRT would otherwise
+- a pair gap below either member's class clearance, which the built-in router would otherwise
   raise silently, or fewer than two pads on either member;
-- `--default-clearance` larger than a pair gap, which KRT would also raise;
-- a backend other than KRT, a missing installed `route_diff.py`, or
+- `--default-clearance` larger than a pair gap, which the built-in router would also raise;
+- a backend other than the built-in router, a missing installed `route_diff.py`, or
   `--backend-arg` with this option. Verbatim backend arguments could override
   pair selection or geometry. `--backend-env` remains available and recorded.
 
@@ -61,7 +61,7 @@ empty or measurements are unavailable. Runs without the option retain
 |---|---|
 | `p`, `n` | Exact positive and negative net names |
 | `netclass` | Native effective class shared by the members |
-| `width_mm`, `gap_mm` | Native class leg width and copper-edge gap passed explicitly to KRT, in mm; these are router settings, not measured impedance |
+| `width_mm`, `gap_mm` | Native class leg width and copper-edge gap passed explicitly to the built-in router, in mm; these are router settings, not measured impedance |
 | `initially_connected` | When available, whether the input's native baseline DRC had no open item on either member; recorded in `attempt.json`'s pair plan, outside the fingerprinted `settings.pairs` |
 | `routed` | Both members have native connectivity evidence, accepted coupled routing (or preserved input connectivity), available lengths, and no native gap finding |
 | `length_p`, `length_n` | Sum of native planar track/arc lengths on each member in mm, rounded to 6 decimals; includes existing copper and branches, excludes via barrels and pad traversal; `null` without a measurement |
@@ -69,7 +69,7 @@ empty or measurements are unavailable. Runs without the option retain
 | `gap_violations` | Number of native `diff_pair_gap_out_of_range` findings involving either member, regardless of severity or baseline status; unidentified gap findings count against every pair; `null` if DRC did not run |
 | `status` | `ROUTED`, `INCOMPLETE`, or `NOT_RUN` when native evidence is unavailable |
 | `backend_status` | `COUPLED`, `ALREADY_CONNECTED`, `REJECTED`, `PROCESS_FAILED`, `BUDGET_EXHAUSTED`, or `NOT_RUN` |
-| `backend_report` | The pair pass's full KRT `JSON_SUMMARY` diagnostic, or `null`; never a substitute for native grading |
+| `backend_report` | The pair pass's full `JSON_SUMMARY` diagnostic from the built-in router, or `null`; never a substitute for native grading |
 
 Class pair settings supply router defaults. To enforce a specific gap range,
 declare a `diff_pair_gap` constraint in the project's `.kicad_dru`.

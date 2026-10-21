@@ -157,8 +157,9 @@ def run_sample(config, side, index):
     command = ["/usr/bin/time", "-q", "-f",
                '{"wall_s":%e,"user_s":%U,"system_s":%S,"max_rss_kib":%M}', "-o", str(directory / "time.json"),
                sys.executable, str(cli), "--out", str(config.output / (side + "-out")),
-               "run", "--backend", "krt", "--dir", str(config.project),
+               "run", "--backend", getattr(config, side + "_backend"), "--dir", str(config.project),
                "--run-dir", str(directory / "run"), "--json", *config.arg]
+    (directory / "command.json").write_text(json.dumps(command, indent=2) + "\n")
     env = dict(os.environ, KICAD_ROUTE_STATE=str(state), KICAD_ROUTE_LEDGER="off")
     with (directory / "stdout.log").open("w") as stdout, (directory / "stderr.log").open("w") as stderr:
         with subprocess.Popen(command, env=env, stdout=stdout, stderr=stderr,
@@ -196,6 +197,7 @@ def run_sample(config, side, index):
     if process.returncode != result["exit_code"]:
         raise RuntimeError(f"{side} CLI/result exit mismatch in {directory}")
     return {**json.loads((directory / "time.json").read_text()),
+            "timed_command": command,
             "process_tree_peak_rss_kib": peak,
             "memory_sampling": {"poll_wait_s": 0.05, "samples": sample_count, "max_interval_s": max_interval},
             "cli_sha256": hashlib.sha256(cli.read_bytes()).hexdigest(),
@@ -216,6 +218,10 @@ def main():
                         default="migration-equivalence")
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--timeout", type=float, default=900)
+    parser.add_argument("--reference-backend", choices=["krt", "builtin"], default="krt",
+                        help="frozen reference spelling (default: krt for pre-rename versions)")
+    parser.add_argument("--candidate-backend", choices=["builtin", "krt"], default="builtin",
+                        help="candidate spelling (default: builtin)")
     args = parser.parse_args()
     if args.repeats < 3:
         parser.error("at least three measured repetitions are required")
@@ -225,7 +231,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     reference, candidate, warmup = [], [], {}
     report = {"schema": "kicad-route/engine-comparison/2", "project": str(args.project),
-              "args": args.arg, "reference": reference, "candidate": candidate, "warmup": warmup,
+              "args": args.arg, "reference_backend": args.reference_backend,
+              "candidate_backend": args.candidate_backend, "reference": reference, "candidate": candidate, "warmup": warmup,
               "mode": args.mode, "cpu_affinity": sorted(os.sched_getaffinity(0)),
               "measurement": "medians: full-CLI wall time, GNU-time largest individual-process RSS, "
                              "and sampled concurrent process-tree summed RSS (50 ms polling wait, actual intervals retained); "

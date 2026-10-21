@@ -2,9 +2,8 @@
 
 Agent-driven PCB trace routing for KiCad projects, graded by KiCad itself.
 
-`kicad-route` runs a routing backend — its owned engine, extracted from patched
-[KRT (KiCadRoutingTools)](https://github.com/drandyhaas/KiCadRoutingTools),
-or [Freerouting](https://github.com/freerouting/freerouting) — on an isolated copy of a
+`kicad-route` runs a routing backend — its built-in router (`builtin`), or
+[Freerouting](https://github.com/freerouting/freerouting) — on an isolated copy of a
 KiCad project and hands back a native KiCad candidate board. The candidate is then graded
 with `kicad-cli` DRC (zones refilled, schematic parity) against the input's own,
 unchanged rules, plus checks that the backend preserved what it must not touch: outline,
@@ -39,33 +38,41 @@ kicad-route doctor
 
 `install.sh` links `~/.local/bin/kicad-route` and the `kicad-route` agent skill into
 `~/.agents/skills`, `~/.codex/skills` and `~/.claude/skills`. `kicad-route update`
-builds the owned engine from this repository and installs Freerouting's current
+builds the built-in router from this repository and installs Freerouting's current
 release. The versions and source hashes used are recorded in every result.
-It generates the `krt-*` skills from the included routing diagnostics,
-and runs the integration tests. Re-run it to update.
+It generates the `krt-*` diagnostic skills (names retained for compatibility)
+from the included source, and runs the integration tests. Re-run it to update.
 
 ## Use
+
+`builtin` is the default backend. Its maintained Python and Rust source is part of
+kicad-route, derived from [KRT (KiCadRoutingTools)](https://github.com/drandyhaas/KiCadRoutingTools);
+it does not require a separate KRT checkout or download. `--backend krt` remains a
+deprecated alias and warns on stderr; new results identify the backend as `builtin`.
+Existing receipts remain readable. State-manifest and determinism `krt` keys,
+identity fingerprints, `work/krt.log`, and generated `krt-*` skill names retain
+their compatibility spelling.
 
 From a KiCad project directory:
 
 ```sh
-kicad-route run --backend krt                          # all nets, 300 s budget
-kicad-route run --backend krt --diff-pairs auto        # native-class pairs first, then other nets
+kicad-route run --backend builtin                          # all nets, 300 s budget
+kicad-route run --backend builtin --diff-pairs auto        # native-class pairs first, then other nets
 kicad-route run --backend freerouting --nets "/CAN*" --clearance-margin 0.01
-kicad-route run --backend krt --rev HEAD --budget 1500 # route the committed state
+kicad-route run --backend builtin --rev HEAD --budget 1500 # route the committed state
 kicad-route validate build/kicad-route/runs/<project>/<label>/latest
 kicad-route compare <run_dir> <run_dir>
-kicad-route run --backend krt --reserve-spokes         # keep new copper off thermal-spoke corridors
-kicad-route run --backend krt --dir <run>/candidate/<project> --protect human
+kicad-route run --backend builtin --reserve-spokes         # keep new copper off thermal-spoke corridors
+kicad-route run --backend builtin --dir <run>/candidate/<project> --protect human
                                                        # continue a chain; earlier agent copper may be rerouted
-kicad-route campaign --backend krt --rounds 2          # hard nets first, best chain graded vs the input
+kicad-route campaign --backend builtin --rounds 2          # hard nets first, best chain graded vs the input
 kicad-route blocked <run_dir>                          # what lies across each open connection
 kicad-route blocked --board <B>.kicad_pcb --json      # the same for a placed board, before routing
 kicad-route spokes <run_dir>                           # which new copper starved which thermal pad
 kicad-route audit --old HEAD~1                         # grade the last commit's board change
 kicad-route floor                                      # rules looser than their high-water mark / declared floor
-kicad-route run --backend krt --json --run-dir /tmp/r1 # machine mode: one JSON record on stdout, logs on stderr
-kicad-route run --backend krt --barrier-from <run>      # retry with a keepout where that run's new copper collided
+kicad-route run --backend builtin --json --run-dir /tmp/r1 # machine mode: one JSON record on stdout, logs on stderr
+kicad-route run --backend builtin --barrier-from <run>      # retry with a keepout where that run's new copper collided
 kicad-route decoupling --board <B>.kicad_pcb          # read-only: bypass capacitors between IC pins and the plane?
 kicad-route planes --board B.kicad_pcb --plan plane-plan.json --run-dir build/planes-1 --json
                                                        # explicit native planes with refill evidence
@@ -126,7 +133,7 @@ sandboxes, and a glossary. The pages below are the reference.
   including the retry playbook.
 - `reports/fixture/` — the latest committed smoke evidence (`make evidence`);
   `reports/state/manifest.json` — the state manifest of the install that produced it;
-  `reports/determinism/` — the KRT repeat check for that build (`make determinism`).
+  `reports/determinism/` — the historical KRT repeat check for that build (`make determinism`).
 
 ## Development
 
@@ -134,7 +141,7 @@ sandboxes, and a glossary. The pages below are the reference.
 make install          # scripts/install.sh: CLI and skill links, then update
 make doctor | update | smoke
 make state-manifest   # record the installed backends in STATE/manifest.json (no downloads)
-make determinism      # route the fixture twice with KRT, compare, record the verdict
+make determinism      # route the fixture twice with builtin, compare, record the verdict
 make evidence     # smoke, then publish its structured evidence to reports/fixture/
 make fixture      # regenerate fixtures/route_demo
 ```

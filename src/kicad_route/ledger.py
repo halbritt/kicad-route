@@ -24,6 +24,7 @@ import shutil
 from pathlib import Path
 
 from . import common
+from . import backend_names
 
 VERSION_KEYS = ("version", "commit", "rust_router", "sha256")
 FAILING = ("process_fail", "validation_fail", "incomplete")
@@ -44,6 +45,8 @@ def normalize_settings(settings):
             continue
         if k in ("net_patterns", "netclasses"):
             v = sorted(v)
+        elif k == "backend":
+            v = backend_names.storage_key(v)
         out[k] = v
     return out
 
@@ -57,11 +60,17 @@ def backend_identity(version):
 
 
 def attempt_key(input_fp, backend, settings):
-    return _h({"input": input_fp, "backend": backend, "settings": normalize_settings(settings)})
+    return _h({"input": input_fp, "backend": backend_names.storage_key(backend),
+               "settings": normalize_settings(settings)})
 
 
 def fingerprint(input_fp, backend, version, settings):
-    return _h({"attempt": attempt_key(input_fp, backend, settings), "backend_version": backend_identity(version)})
+    identity = backend_identity(version)
+    executed = identity.get("execution_identity")
+    if executed is not None and "name" in executed:
+        # The public name changed; existing failed-attempt fingerprints must not.
+        identity = {"execution_identity": {**executed, "name": backend_names.storage_key(executed["name"])}}
+    return _h({"attempt": attempt_key(input_fp, backend, settings), "backend_version": identity})
 
 
 def from_result(result):

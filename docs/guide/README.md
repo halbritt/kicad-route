@@ -26,7 +26,7 @@ and field. This guide links to them where the detail matters.
 ```mermaid
 flowchart LR
     P["Your KiCad project<br/>(never modified)"] --> S["Isolated copy"]
-    S --> B["Routing backend<br/>KRT or Freerouting"]
+    S --> B["Routing backend<br/>the built-in router or Freerouting"]
     B --> C["Candidate board"]
     C --> G["KiCad DRC + preservation checks<br/>under the input's own rules"]
     G --> R["result.json / RESULT.md<br/>exit code 0..4"]

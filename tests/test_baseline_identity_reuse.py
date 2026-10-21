@@ -70,7 +70,7 @@ def test_run_attempt_forwards_this_reference_facts_version(tmp_path, monkeypatch
     monkeypatch.setattr(common, "_out", tmp_path / "out")
     monkeypatch.setattr(common, "ensure_kicad_config", lambda: None)
     monkeypatch.setattr(cli.sandbox, "facts", lambda **kwargs: {})
-    monkeypatch.setitem(cli.BACKENDS, "krt", {"version": lambda: {}})
+    monkeypatch.setitem(cli.BACKENDS, "builtin", {"version": lambda: {}})
     monkeypatch.setattr(cli.evidence, "backend_identity", lambda *args: {})
     monkeypatch.setattr(cli.floor, "preflight", lambda *args, **kwargs: None)
     native_facts = {"kicad_version": "fresh native reference version", "nets": {"/A": {"netclass": "Default"}}}

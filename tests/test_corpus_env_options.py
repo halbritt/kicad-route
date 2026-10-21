@@ -70,7 +70,7 @@ def test_corpus_add_records_neither_environment_option(out, tmp_path, monkeypatc
          "--budget", "7", "--ledger", "add-ledger.jsonl", "--require-readonly-state"])
     assert corpus.cmd_corpus(args) == 0   # in-process: dispatch's writer refusal is not under test here
     attempt = json.loads((tmp_path / "corpus" / "env" / "entry.json").read_text())["attempt"]
-    assert attempt["budget"] == 7 and attempt["backend"] == "krt"
+    assert attempt["budget"] == 7 and attempt["backend"] == "builtin"
     assert not ENV & set(attempt), attempt
     # the add-time run itself ran in the environment it was given
     assert runs[0].ledger == str(tmp_path / "add-ledger.jsonl") and runs[0].require_readonly_state is True

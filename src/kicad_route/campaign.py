@@ -44,6 +44,7 @@ import threading
 import time
 from pathlib import Path
 
+from . import backend_names
 from . import common
 from . import contract
 
@@ -75,7 +76,8 @@ def add_parser(sub, cli):
     are the campaign scope), plus campaign controls."""
     p = sub.add_parser("campaign", help="hard-nets-first routing campaign: several attempts, best chain graded "
                                         "against the original input")
-    p.add_argument("--backend", required=True, choices=sorted(cli.BACKENDS))
+    p.add_argument("--backend", type=backend_names.parse, default="builtin",
+                   choices=backend_names.CHOICES, help=backend_names.HELP)
     cli.add_input_args(p)
     cli.add_route_args(p)
     cli.add_environment_args(p)   # forwarded to every step too (cli.route_argv)

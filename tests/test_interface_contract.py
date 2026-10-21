@@ -440,7 +440,7 @@ def test_json_runs_with_explicit_run_dirs_do_not_interfere():
     `latest` link. Then validate/blocked --json on one of them."""
     base = OUT / "runs" / "route_demo" / "iface-json"
     shutil.rmtree(base, ignore_errors=True)
-    jobs = {"krt": ["--backend", "krt", "--default-clearance", "0.4"],
+    jobs = {"builtin": ["--backend", "builtin", "--default-clearance", "0.4"],
             "freerouting": ["--backend", "freerouting", "--clearance-margin", "0.01"]}
 
     def go(name):

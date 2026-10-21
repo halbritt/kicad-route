@@ -7,7 +7,7 @@ has to provide. The contract itself is [interface.md](../interface.md).
 ## Machine mode: `--json`
 
 ```sh
-kicad-route run --backend krt --json --run-dir /tmp/r1 > result.json 2> progress.log
+kicad-route run --backend builtin --json --run-dir /tmp/r1 > result.json 2> progress.log
 echo $?
 ```
 
@@ -25,7 +25,7 @@ sequenceDiagram
     participant K as kicad-route
     participant B as backend
     participant D as kicad-cli
-    C->>K: run --backend krt --json --run-dir R
+    C->>K: run --backend builtin --json --run-dir R
     K-->>C: (stderr) progress lines
     K->>D: baseline DRC of the input
     K->>B: route the work copy (own process group, offline)
@@ -97,14 +97,14 @@ flowchart LR
 
 - **The run ledger** (`OUT/ledger.jsonl`) fingerprints every attempt from the input,
   the backend build and the normalised settings. A repeat of one that failed is
-  refused (exit 4) because KRT fails the same way twice; `--force` overrides, and
+  refused (exit 4) because the built-in router fails the same way twice; `--force` overrides, and
   a different backend version is allowed with a note. `KICAD_ROUTE_LEDGER=off`
   records but never refuses.
 - **`--stall S`** watches the backend's own log for progress (per-net lines, phase
   banners, improving passes) and stops a search that goes nowhere, without waiting
   for the budget. Choose S above the longest silent leg (KiCad refills print
   nothing).
-- **Budget overrun** is a known KRT limitation: its late passes ignore the stop
+- **Budget overrun** is a known limitation of the built-in router: its late passes ignore the stop
   file, so a blocked board can end in a kill (exit 1). `--backend-env
   KICAD_NET_RESCUE=0` or `KICAD_PLANE_FINALIZE=0` returns a partial candidate
   instead ([hygiene.md](../hygiene.md#budget-overrun)).
@@ -125,7 +125,7 @@ flowchart LR
     end
     subgraph rw["writable"]
         OUT["--out<br/>runs, refusals, baseline cache,<br/>.kicad-config, .home, ledger"]
-        TMP["/tmp (private tmpfs is fine)<br/>KiCad lock, JVM hsperfdata, KRT temp"]
+        TMP["/tmp (private tmpfs is fine)<br/>KiCad lock, JVM hsperfdata, router temp"]
     end
     NET["network: none<br/>(update and online doctor excluded)"]
     ro --> K(("kicad-route run<br/>--require-readonly-state<br/>--ledger PATH")) --> rw
@@ -138,7 +138,7 @@ bwrap ... --unshare-net \
   --clearenv --setenv HOME /work/home --setenv PATH /usr/local/bin:/usr/bin:/bin -- \
   /usr/bin/env KICAD_ROUTE_STATE=STATE \
   /usr/bin/python3 TOOL_ROOT/bin/kicad-route --out /work/out \
-    run --backend krt --dir /candidate --name PROJECT_NAME \
+    run --backend builtin --dir /candidate --name PROJECT_NAME \
     --require-readonly-state --ledger /work/ledger.jsonl
 ```
 
@@ -167,7 +167,7 @@ A caller that needs one exact tool build does not ask kicad-route to pin anythin
 
 ```mermaid
 flowchart LR
-    U["kicad-route update"] --> M["STATE/manifest.json<br/>versions, URLs, sha256 of the jar,<br/>KRT module, venv packages, kicad-cli"]
+    U["kicad-route update"] --> M["STATE/manifest.json<br/>versions, URLs, sha256 of the jar,<br/>built-in router module, venv packages, kicad-cli"]
     M --> D["doctor: recompute hashes on disk;<br/>drift = required FAIL"]
     M --> R["every result.json:<br/>tool_identity.state_manifest_sha256<br/>+ state_manifest_drift"]
     DET["kicad-route determinism --record"] --> M
@@ -176,7 +176,7 @@ flowchart LR
 
 `determinism` routes one input repeatedly with the ledger off and compares the
 copper signature and the outcome. Byte-identical candidates are not expected: KiCad
-assigns fresh UUIDs and KRT's item order varies. Geometric equivalence is the
+assigns fresh UUIDs and the built-in router's item order varies. Geometric equivalence is the
 criterion.
 
 ## Exit codes of the other commands

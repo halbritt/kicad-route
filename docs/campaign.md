@@ -9,16 +9,16 @@ campaign's own options, and the grading is KiCad's DRC against the input's
 unchanged project files.
 
 Why it helps: with `--protect existing`, a later attempt cannot move copper that an
-earlier attempt placed. On a real 448-net 4-layer board, a full KRT attempt left 16
+earlier attempt placed. On a real 448-net 4-layer board, a historical KRT attempt left 16
 signal nets open. Finishing those 16 on that candidate routed 0 of 16. Routing the 16
 first on the original input routed 11, and routing everything else from that
 candidate gave the best result overall (20 unconnected instead of 26, and fewer new
 findings).
 
 ```sh
-kicad-route campaign --backend krt --budget 900 --rounds 2
+kicad-route campaign --backend builtin --budget 900 --rounds 2
 kicad-route campaign --backend freerouting --clearance-margin 0.01 --total-budget 7200
-kicad-route campaign --backend krt --nets '/CAN*' '/USB*' --race 3 --default-clearance 0.4
+kicad-route campaign --backend builtin --nets '/CAN*' '/USB*' --race 3 --default-clearance 0.4
 ```
 
 ## Options

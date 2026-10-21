@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""kicad-route: run a PCB routing backend (KRT or Freerouting) on an isolated copy
+"""kicad-route: run a PCB routing backend (builtin or Freerouting) on an isolated copy
 of a KiCad project and grade the resulting native KiCad candidate against the
 input's unchanged constraints.
 
     kicad-route [--out DIR] [--json] doctor [--offline] [--no-canary] [--require-readonly-state]
                                           readiness and capabilities of each backend, and
                                           what a sandbox must provide (docs/sandbox.md)
-    kicad-route run --backend krt|freerouting [--dir D] [--board B.kicad_pcb] [--rev REV]
+    kicad-route run --backend builtin|freerouting [--dir D] [--board B.kicad_pcb] [--rev REV]
                  [--nets PAT ...] [--netclass NAME ...] [--budget SECONDS]
                  [--protect existing|locked|human] [--label L | --run-dir PATH] [--backend-arg ARG ...]
     kicad-route validate RUN_DIR [--against ORIGIN_RUN]
                                           re-grade a candidate (or a --dir chain) against its input
-    kicad-route campaign --backend krt|freerouting [run options] [--rounds N] [--race K] [--total-budget S]
+    kicad-route campaign --backend builtin|freerouting [run options] [--rounds N] [--race K] [--total-budget S]
                                           hard-nets-first campaign of runs; best chain graded vs the input
     kicad-route compare RUN_DIR ...       compare candidates routed from the same input
     kicad-route blocked RUN_DIR [--top N] which obstacles lie across the connections left open
@@ -33,7 +33,7 @@ input's unchanged constraints.
                                           copy a run's structured evidence (not the board) for committing
     kicad-route update                    build the owned engine, acquire Freerouting, then smoke
     kicad-route state-manifest            record what is installed under STATE in STATE/manifest.json
-    kicad-route determinism [--backend krt] [--runs N] [--record]
+    kicad-route determinism [--backend builtin] [--runs N] [--record]
                                           route one input repeatedly and compare the candidates
     kicad-route smoke [--publish DIR]     integration tests on the bundled fixture board
     kicad-route canary [--backend B|all]  awkward net names through each backend's round trip
@@ -91,6 +91,7 @@ import time
 from pathlib import Path
 
 from . import barrier  # run --barrier-from / `kicad-route barrier` (docs/barrier.md)
+from . import backend_names
 from . import baselinecache
 from . import blocked
 from . import common
@@ -952,13 +953,14 @@ def run_attempt(args):
             contract.refuse("state", refusal)
     sandbox_facts = sandbox.facts(flag=readonly)
     common.ensure_kicad_config()
+    args.backend = backend_names.canonical(args.backend)
     backend = BACKENDS[args.backend]
     cfg = resolve_input(args)
     project = cfg["name"]
     if any("=" not in e for e in args.backend_env or []):
         contract.refuse("usage", "--backend-env takes KEY=VALUE")
-    if getattr(args, "diff_pairs", None) and (args.backend != "krt" or args.backend_arg):
-        contract.refuse("usage", "--diff-pairs auto requires KRT and does not accept --backend-arg")
+    if getattr(args, "diff_pairs", None) and (args.backend != "builtin" or args.backend_arg):
+        contract.refuse("usage", "--diff-pairs auto requires the builtin engine and does not accept --backend-arg")
     run_dir = make_run_dir(args, project)
     started = time.monotonic()
     fingerprint = None
@@ -1603,7 +1605,7 @@ def freerouting_preflight(board, facts, run_dir):
     if clash:
         return ("Freerouting cannot tell these nets apart: KiCad's DSN export writes `\"` as `''`, so "
                 + "; ".join(" and ".join(map(repr, ns)) + f" are each written {tok}" for ns, tok in clash)
-                + ". Rename one of each, or route with --backend krt")
+                + ". Rename one of each, or route with --backend builtin")
     d = run_dir / "facts"
     rec = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "specctra.py", "check", board, d / "names-check.dsn"],
                          d, d / "names-check.log", timeout=600)
@@ -1611,7 +1613,7 @@ def freerouting_preflight(board, facts, run_dir):
     refusal = tagged_json(rec["output"], "BRIDGE_REFUSAL")
     if rec["exit_code"] == 4 and refusal:
         return (f"the Specctra bridge cannot write a net name one way for Freerouting: {refusal['message']}. "
-                "Rename the net, or route with --backend krt")
+                "Rename the net, or route with --backend builtin")
     return None  # anything else the export itself reports when the attempt runs
 
 
@@ -1848,10 +1850,10 @@ def _update_locked():
     steps, errors = [], []
     for name, fn in (("krt", update_krt), ("freerouting", update_freerouting)):
         try:
-            log(f"[update] {name}: {fn(steps)}")
+            log(f"[update] {backend_names.canonical(name)}: {fn(steps)}")
         except Exception as e:  # report and continue with the other backend
             errors.append(f"{name}: {e}")
-            log(f"[update] {name}: FAILED: {e}")
+            log(f"[update] {backend_names.canonical(name)}: FAILED: {e}")
     failed = [s for s in steps if s.get("exit_code") != 0]
     for s in failed:
         errors.append(f"command failed: {' '.join(s['argv'])} (exit {s.get('exit_code')}, log {s['log']})")
@@ -1871,7 +1873,7 @@ def _update_locked():
     log(f"[update] state manifest: {manifest_path}")
     for name in ("krt", "freerouting"):
         b, a = (before[name] or {}).get("version"), after[name].get("version")
-        log(f"[update] {name}: {b} -> {a}")
+        log(f"[update] {backend_names.canonical(name)}: {b} -> {a}")
     if errors:
         log("[update] errors:\n  " + "\n  ".join(errors))
         return 1
@@ -1880,8 +1882,8 @@ def _update_locked():
     from . import corpus  # real-board gate after smoke; regressions reported in update.json, never rolled back
     rc = corpus.after_update(out_path("update") / "update.json", smoke())
     from . import determinism  # repeat check for the new KRT build, recorded in the state manifest
-    det, det_path = determinism.check(sys.modules[__name__], "krt", record=True)
-    log(f"[update] KRT determinism: {'reproducible' if det['reproducible'] else 'NOT reproducible'}"
+    det, det_path = determinism.check(sys.modules[__name__], "builtin", record=True)
+    log(f"[update] builtin determinism: {'reproducible' if det['reproducible'] else 'NOT reproducible'}"
         + (f" ({'; '.join(det['reasons'])})" if det["reasons"] else "") + f" -> {common.rel(det_path)}")
     record = load_json(out_path("update") / "update.json")
     record["determinism"] = {**det, "record_path": str(det_path)}
@@ -1927,19 +1929,19 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
     # KRT
     v = krt_version() if KRT_DIR.exists() else {}
     add("owned routing source", PASS if v.get("version") else FAIL, f"{v.get('version')} {v.get('build')}")
-    add("KRT routing venv", PASS if route_python().exists() else FAIL, str(KRT_VENV))
-    add("KRT Rust router module", PASS if v.get("rust_router") and v.get("rust_router") == v.get("version") else FAIL,
+    add("Builtin routing venv", PASS if route_python().exists() else FAIL, str(KRT_VENV))
+    add("Builtin Rust router module", PASS if v.get("rust_router") and v.get("rust_router") == v.get("version") else FAIL,
         f"grid_router {v.get('rust_router')} (checkout {v.get('version')})")
     if route_python().exists() and KRT_DIR.exists():
         r = subprocess.run([str(route_python()), "py_router/startup_checks.py"], cwd=KRT_DIR,
                            capture_output=True, text=True, env=common.tool_env())
-        add("KRT startup checks", PASS if r.returncode == 0 else FAIL, (r.stdout + r.stderr).strip().splitlines()[-1:])
+        add("Builtin startup checks", PASS if r.returncode == 0 else FAIL, (r.stdout + r.stderr).strip().splitlines()[-1:])
         r = subprocess.run([str(route_python()), "py_router/route.py", "--help"], cwd=KRT_DIR,
                            capture_output=True, text=True, env=common.tool_env())
         missing = [f for f in KRT_REQUIRED_FLAGS if f not in r.stdout]
-        add("KRT controls used by the adapter", PASS if not missing else FAIL,
+        add("Builtin controls used by the adapter", PASS if not missing else FAIL,
             "all present" if not missing else f"missing: {missing} (upstream changed; update the adapter)")
-        add("KRT latest release", NOT_RUN, "owned source; upstream is provenance only", required=False)
+        add("Builtin latest release", NOT_RUN, "owned source; upstream is provenance only", required=False)
 
     # Freerouting
     fv = freerouting_version()
@@ -2004,6 +2006,7 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
                         "existing_copper": "all pre-existing copper frozen; SES import keeps locked copper and "
                                            "re-creates unlocked copper from the session"},
     }
+    capabilities["builtin"] = capabilities["krt"]
     required_fail = [c for c in checks if c["required"] and c["status"] != PASS]
     status = FAIL if required_fail else PASS
     out = out_path("doctor", "doctor.json")
@@ -2016,7 +2019,7 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
     rec = {"schema": contract.schema_id("doctor"), "kind": "doctor", "status": status, "checks": checks,
            "offline": offline, "canary": canary_check,
            "required_failed": [c["check"] for c in required_fail],
-           "capabilities": capabilities, "versions": {"krt": v, "freerouting": fv},
+           "capabilities": capabilities, "versions": {"builtin": v, "krt": v, "freerouting": fv},
            "state_manifest": {"path": str(statemanifest.manifest_path()), "sha256": statemanifest.file_sha256()},
            "state": sandbox.state_status(),
            "sandbox": sandbox.requirements(venv_python=route_python(), pcbnew_python=pcbnew_python(),
@@ -2278,7 +2281,7 @@ def audit(args):
 # ------------------------------------------------------------------------ CLI
 
 BACKENDS = {
-    "krt": {"route": krt_route, "version": krt_version, "unsupported": krt_unsupported,
+    "builtin": {"route": krt_route, "version": krt_version, "unsupported": krt_unsupported,
             "preflight": krt_preflight},
     "freerouting": {"route": freerouting_route, "version": freerouting_version,
                     "unsupported": freerouting_unsupported, "preflight": freerouting_preflight},
@@ -2436,9 +2439,9 @@ def add_route_args(p):
     p.add_argument("--netclass", nargs="+", metavar="CLASS",
                    help="net-CLASS selection: nets whose effective KiCad net class is CLASS")
     p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
-    p.add_argument("--diff-pairs", choices=["auto"], help="KRT: detect native differential pairs, route pairs first, "
+    p.add_argument("--diff-pairs", choices=["auto"], help="builtin: detect native differential pairs, route pairs first, "
                    "and exclude all pair members from single-ended routing (default off)")
-    p.add_argument("--max-iterations", type=int, help="KRT A* iteration cap per search")
+    p.add_argument("--max-iterations", type=int, help="builtin A* iteration cap per search")
     p.add_argument("--passes", type=int, help="Freerouting maximum routing passes")
     p.add_argument("--default-clearance", type=float, metavar="MM",
                    help="route the Default net class with at least MM clearance (tighten only; same meaning "
@@ -2530,7 +2533,8 @@ def build_parser():
     dp.add_argument("--require-readonly-state", action="store_true",
                     help=f"make the 'state read-only' check required (also {sandbox.ENV_FLAG}=1)")
     rp = sub.add_parser("run", help="route an isolated copy and grade the candidate")
-    rp.add_argument("--backend", required=True, choices=sorted(BACKENDS))
+    rp.add_argument("--backend", type=backend_names.parse, default="builtin",
+                    choices=backend_names.CHOICES, help=backend_names.HELP)
     add_input_args(rp)
     add_route_args(rp)
     add_environment_args(rp)
@@ -2576,7 +2580,8 @@ def build_parser():
     from . import determinism
     determinism.add_parser(sub)
     cn = sub.add_parser("canary", help="awkward-net-name round trip through each backend on the fixture")
-    cn.add_argument("--backend", choices=["all", *sorted(BACKENDS)], default="all")
+    cn.add_argument("--backend", type=backend_names.parse, choices=["all", *backend_names.CHOICES],
+                    default="all", help=backend_names.HELP)
     from . import corpus
     corpus.add_parser(sub, sys.modules[__name__])
     sm = sub.add_parser("smoke", help="routing integration tests on the bundled fixture")
@@ -2589,7 +2594,7 @@ def build_parser():
 def run_namespace(backend, **values):
     """A `run` Namespace with every option at its CLI default, then `values`: for
     callers that drive run_attempt directly (corpus), so new run options never break them."""
-    a = build_parser().parse_args(["run", "--backend", backend])
+    a = build_parser().parse_args(["run", "--backend", backend_names.canonical(backend)])
     for k, v in values.items():
         if not hasattr(a, k):
             raise TypeError(f"run has no option {k!r}")

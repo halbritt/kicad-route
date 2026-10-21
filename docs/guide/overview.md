@@ -20,7 +20,7 @@ flowchart TB
     subgraph run["One routing attempt (a run directory)"]
         REF["reference/<br/>untouched copy"]
         WORK["work/<br/>what the backend sees"]
-        BE(("backend<br/>KRT or Freerouting"))
+        BE(("backend<br/>the built-in router or Freerouting"))
         CAND["candidate/<br/>routed board"]
         GRADE{"KiCad DRC<br/>+ preservation checks"}
         RES["result.json<br/>RESULT.md<br/>exit code"]
@@ -48,9 +48,11 @@ The bundled demo board is a 2-layer, 50 x 30 mm board with two connectors, three
 passives, a locked pre-routed signal, a ground pour on the back, a custom clearance
 rule and a keepout in the middle.
 
-| Input (6 connections open) | KRT candidate: complete and valid (exit 0) |
+| Input (6 connections open) | Historical candidate: complete and valid (exit 0) |
 |---|---|
-| ![demo board before routing](../figures/fixture-input.png) | ![demo board routed by KRT](../figures/fixture-krt.png) |
+| ![demo board before routing](../figures/fixture-input.png) | ![historical KRT demo candidate](../figures/fixture-krt.png) |
+
+The figures retain a historical KRT fixture run from before the backend rename.
 
 The thick red track is the Power-class net `/VIN` (0.5 mm). The thin red tracks are
 Default-class signals (0.2 mm). The white track with two vias is `/SIG_B`, which was
@@ -72,12 +74,17 @@ These hold for every command and are enforced by the test suite:
 
 ## Two backends, one command
 
-| | KRT (KiCadRoutingTools) | Freerouting |
+The built-in router is maintained in kicad-route's own source, derived from KRT
+(KiCadRoutingTools). It needs no separate KRT checkout. Use `--backend builtin`;
+`--backend krt` is a deprecated alias that warns on stderr. Historical receipts and
+compatibility state keys retain `krt`.
+
+| | Built-in router (`builtin`) | Freerouting |
 |---|---|---|
 | How it talks to KiCad | reads and writes `.kicad_pcb` directly | through KiCad's Specctra DSN/SES bridge |
 | Determinism | deterministic for a given build: a result is a **measurement** | varies between runs: a result is an **attempt** |
-| Default? | yes (`--backend krt`) | `--backend freerouting` |
-| Typical use | first choice; chains and campaigns | a second opinion when KRT is stuck |
+| Default? | yes (`--backend builtin`) | `--backend freerouting` |
+| Typical use | first choice; chains and campaigns | a second opinion when the built-in router is stuck |
 
 Both run as separate processes, offline, inside their own process group, with a
 wall-clock budget. Details of what each adapter switches off are in

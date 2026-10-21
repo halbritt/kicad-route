@@ -2,7 +2,7 @@
 and baseline outcomes, re-run against the currently installed backends.
 
     kicad-route corpus add --dir D [--board B] [--rev REV] [--library-dir NAME=PATH] --name NAME
-                           [--backend krt|freerouting] [any `run` routing option: --nets, --netclass,
+                           [--backend builtin|freerouting] [any `run` routing option: --nets, --netclass,
                            --budget, --protect, --reserve-spokes, --pour-*, ...]
                            [--ledger PATH] [--require-readonly-state]
     kicad-route corpus check [--name NAME ...] [--ledger PATH] [--require-readonly-state]
@@ -34,6 +34,7 @@ import re
 import shutil
 from pathlib import Path
 
+from . import backend_names
 from . import common
 from . import contract
 from . import cli as route
@@ -285,7 +286,8 @@ def add_parser(sub, cli):
     cs = cp.add_subparsers(dest="corpus_cmd", required=True)
     a = cs.add_parser("add", help="snapshot a project with one attempt and record its baseline outcome")
     cli.add_input_args(a)  # its --name is the entry's name (required)
-    a.add_argument("--backend", default="krt", choices=sorted(cli.BACKENDS))
+    a.add_argument("--backend", type=backend_names.parse, default="builtin",
+                   choices=backend_names.CHOICES, help=backend_names.HELP)
     cli.add_route_args(a)   # the same routing options as run, recorded in the entry
     cli.add_environment_args(a)   # the add-time run's environment, not recorded
     c = cs.add_parser("check", help="re-run every entry with the installed backends and compare to its baseline")

@@ -7,9 +7,9 @@ one run directory. Also the unit the ledger fingerprints.
 backend name and the normalised settings; the ledger fingerprint adds the backend
 build. `compare` shows it as `fp`.
 
-**backend** — the autorouter that places copper: KRT (KiCadRoutingTools) or
-Freerouting. Installed from upstream releases into STATE; declared in every result,
-never pinned.
+**backend** — the autorouter that places copper: `builtin` or `freerouting`.
+The built-in router is compiled from kicad-route's included source into STATE;
+Freerouting is acquired separately. Every result records the executed build.
 
 **barrier** — a small temporary keepout placed where an earlier run's new copper
 collided, for `run --barrier-from RUN`. Removed before grading.
@@ -24,6 +24,12 @@ category (`keepout`, `input_copper`, `new_copper`, `footprint`, `board_edge`).
 Heuristic; schema `kicad-route/blocked/2`.
 
 **budget** — the wall-clock limit of a backend run (`--budget`, default 300 s).
+
+**builtin** — the default backend, maintained in `src/kicad_route/router/`.
+Reads and writes native `.kicad_pcb` files. Its source derives from KRT; it does not
+load a separate KRT checkout. `krt` is a deprecated CLI alias that warns on stderr.
+New result backend names are `builtin`; existing manifest, determinism and identity
+keys retain `krt` for compatibility.
 
 **campaign** — `kicad-route campaign`: round 0 over the scope, then hard-first
 rounds (backlog first on the original input, the rest from that candidate), every
@@ -57,7 +63,7 @@ and keepout strip, before the refill (`delivered_board_sha256`).
 
 **determinism** — `kicad-route determinism`: the same input routed repeatedly with
 the ledger off; reproducible when the copper signature and outcome are identical.
-Recorded in the state manifest per KRT build.
+Recorded in the state manifest per built-in router build.
 
 **doctor** — readiness: versions, capabilities, manifest drift, canary, and what a
 sandbox must provide (`--json --offline`).
@@ -80,8 +86,8 @@ and `audit`.
 run's input (and anything untraceable) is human and locked; copper some step
 delivered as new is agent copper and may be rerouted.
 
-**KRT** — KiCadRoutingTools, the default backend. Reads and writes `.kicad_pcb`
-directly. Deterministic per build; its results can be measurements.
+**KRT** — KiCadRoutingTools, the upstream project from which the built-in router
+derives. Also the historical backend spelling; see *builtin*.
 
 **ledger** — `OUT/ledger.jsonl`: one line per finished attempt. An exact repeat of
 a failed attempt is refused (exit 4) unless `--force`.
@@ -89,7 +95,8 @@ a failed attempt is refused (exit 4) unless `--force`.
 **machine mode** — `--json`: one JSON record on stdout, progress on stderr.
 
 **measurement** — a result that is evidence of what a board or setting can
-achieve: KRT with a passing determinism record for the build on disk. Freerouting
+achieve: the built-in router with a passing determinism record for its executed build
+and no budget or stall stop in the current attempt. Freerouting
 results are attempts, not measurements.
 
 **OUT** — the output directory (`--out`, `$KICAD_ROUTE_OUT`, default

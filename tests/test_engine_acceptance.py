@@ -1,10 +1,12 @@
 """Every attempt protects correctness; measured medians enforce owner limits."""
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,6 +14,35 @@ script = Path(__file__).resolve().parents[1] / "scripts" / "compare_router.py"
 spec = importlib.util.spec_from_file_location("compare_router", script)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+
+
+@pytest.mark.parametrize('side,backend', [('reference', 'krt'), ('candidate', 'builtin')])
+def test_sample_records_selected_backend_before_launch(tmp_path, monkeypatch, side, backend):
+    config = SimpleNamespace(
+        output=tmp_path, project=tmp_path / 'project', arg=['--budget', '180'],
+        reference_cli=tmp_path / 'old-cli.py', candidate_cli=tmp_path / 'new-cli.py',
+        reference_state=tmp_path / 'old-state', candidate_state=tmp_path / 'new-state',
+        reference_backend='krt', candidate_backend='builtin', timeout=30,
+    )
+    captured = {}
+
+    class LaunchStopped(Exception):
+        pass
+
+    def stop_launch(command, **kwargs):
+        captured.update(command=command, env=kwargs['env'])
+        raise LaunchStopped
+
+    monkeypatch.setattr(module.subprocess, 'Popen', stop_launch)
+    with pytest.raises(LaunchStopped):
+        module.run_sample(config, side, 0)
+
+    recorded = json.loads((tmp_path / f'{side}-0' / 'command.json').read_text())
+    assert recorded == captured['command']
+    assert recorded[recorded.index('--backend') + 1] == backend
+    assert recorded[recorded.index('run') - 3] == str(getattr(config, side + '_cli'))
+    assert captured['env']['KICAD_ROUTE_STATE'] == str(getattr(config, side + '_state'))
+    assert captured['env']['KICAD_ROUTE_LEDGER'] == 'off'
 
 
 def sample():

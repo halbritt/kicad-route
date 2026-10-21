@@ -192,7 +192,7 @@ def test_krt_reproducible_follows_the_record_for_the_build_on_disk(state):
     # another extension module is another build: the record no longer applies
     (root / ".venv-krt/lib/python3.12/site-packages/grid_router.so").write_bytes(b"\x7fELF module v2")
     r = statemanifest.reproducibility("krt", root)
-    assert r["reproducible"] is None and r["measurement"] is False and "another krt build" in r["basis"]
+    assert r["reproducible"] is None and r["measurement"] is False and "another builtin build" in r["basis"]
     statemanifest.refresh("test", None, state=root)
     assert "krt" not in statemanifest.read(root)["determinism"]
 

@@ -99,6 +99,7 @@
           "properties": {
             "name": {
               "enum": [
+                "builtin",
                 "krt",
                 "freerouting"
               ]
@@ -175,6 +176,7 @@
           "properties": {
             "backend": {
               "enum": [
+                "builtin",
                 "krt",
                 "freerouting"
               ]

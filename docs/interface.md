@@ -14,7 +14,7 @@ JSON Schemas (draft 2020-12):
   `route-validate` records.
 - [`schemas/refusal-1.json`](../schemas/refusal-1.json): the refusal record (exit 4).
 
-KRT's opt-in `run --diff-pairs auto` adds `pairs` to route and re-validation
+The built-in router's opt-in `run --diff-pairs auto` adds `pairs` to route and re-validation
 records, using `kicad-route/route/2` and `kicad-route/route-validate/2` respectively.
 Names, native class width/gap settings, native planar lengths and skew,
 gap findings, and explicit failure statuses are documented in
@@ -35,6 +35,13 @@ major = record["schema"].rsplit("/", 1)[1]
 schema = json.load(open(f"schemas/result-{major}.json"))
 jsonschema.Draft202012Validator(schema).validate(record)
 ```
+
+The canonical routing backend name is `builtin`; it selects the router included in
+kicad-route's source. `krt` is a deprecated CLI alias and emits a warning on stderr,
+including with `--json`. New `backend.name`, `settings.backend`, and
+`tool_identity.backend.name` values are `builtin` for either spelling. Existing
+receipts with `krt` remain readable; persistent state-manifest/determinism `krt`
+keys and identity fingerprints retain their compatibility spelling.
 
 ## Calling kicad-route from a program
 
@@ -221,8 +228,8 @@ The record (`schemas/refusal-1.json`):
 ```json
 {"schema": "kicad-route/refusal/1", "kind": "refusal", "exit_code": 4,
  "command": "run", "reason_class": "input", "message": "the net selection matches no nets",
- "argv": ["run", "--backend", "krt", "--nets", "NOPE*"], "cwd": "/work/board",
- "input_fingerprint": "3f5c…", "discarded_run_dir": "build/kicad-route/runs/board/krt/20261017T…Z",
+ "argv": ["run", "--backend", "builtin", "--nets", "NOPE*"], "cwd": "/work/board",
+ "input_fingerprint": "3f5c…", "discarded_run_dir": "build/kicad-route/runs/board/builtin/20261017T…Z",
  "refused_utc": "2026-10-17T21:52:53+00:00",
  "record": "build/kicad-route/refusals/20261017T215253.420179Z-638465.json"}
 ```

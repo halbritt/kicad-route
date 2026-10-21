@@ -28,6 +28,7 @@ from pathlib import Path
 
 from . import common
 from . import statemanifest
+from . import backend_names
 
 RECORD_FILES = ("attempt.json", "preservation.json", "new-findings.json", "candidate-drc.json",
                 "candidate-facts.json", "pour-integrity.json", "pair-facts.json", "pairs.json")
@@ -104,11 +105,12 @@ def block(run_dir, attempt, grade_dir, validation, backend_output_sha256=None, r
 
 def backend_identity(name, version, state=None):
     """The backend part of tool_identity, from its version record and the state on disk."""
+    name = backend_names.canonical(name)
     state = Path(state or common.STATE)
-    if name == "krt":
+    if name == "builtin":
         venv = Path((version.get("runtime") or {}).get("venv") or statemanifest.layout(state)["venv"])
         module = statemanifest.extension_module(venv)
-        return {"name": "krt", "tag": version.get("build"), "version": version.get("version"),
+        return {"name": name, "tag": version.get("build"), "version": version.get("version"),
                 "commit": version.get("commit"), "grid_router_version": version.get("rust_router"),
                 "source_sha256": version.get("source_sha256"),
                 "extension_module_sha256": _sha(module) if module else None,
@@ -125,9 +127,10 @@ def backend_identity(name, version, state=None):
 def tool_identity(name, version, pcbnew_build=None, state=None):
     """tool_identity for a run with backend `name` (version: the backend's version record).
     Holds no timestamps: equal for runs on the same tools."""
+    name = backend_names.canonical(name)
     m = statemanifest.read(state)
     drift = [d["item"] for d in statemanifest.verify(m, state or common.STATE)] if m else None
-    if name == "krt" and "runtime" in version:
+    if name == "builtin" and "runtime" in version:
         runtime = version["runtime"].get("generation")
         selected = common.router_generation(state)
         if (Path(runtime) if runtime else None) != selected:

@@ -42,10 +42,21 @@ the project itself.)
 ```sh
 cp -r ~/git/kicad-route/fixtures/route_demo /tmp/route_demo
 cd /tmp/route_demo
-kicad-route run --backend krt --budget 120 --default-clearance 0.4
+kicad-route run --backend builtin --budget 120 --default-clearance 0.4
 ```
 
-The console shows each stage as it happens:
+The console shows each stage as it happens. A new run starts with this backend
+name and default directory label (`<stamp>` is the run's timestamp):
+
+```text
+[route] builtin on route_demo -> build/kicad-route/runs/route_demo/builtin/<stamp>
+```
+
+The captured output, verdicts and
+comparison table below are from 2026-10-18, before the backend was renamed; their
+`krt` names and paths are historical. New runs identify this backend as `builtin`
+and use `builtin` as the default run label. `--backend krt` still works as a
+deprecated alias, with a warning on stderr.
 
 ```
 [route] krt on route_demo -> build/kicad-route/runs/route_demo/krt/20261018T145739.829486Z
@@ -65,15 +76,15 @@ DRC found nothing new, and every preservation check passed.
 
 ## Look at the candidate
 
-Open the candidate in KiCad:
+For the new run above, open the candidate in KiCad:
 
 ```sh
-pcbnew build/kicad-route/runs/route_demo/krt/latest/candidate/route_demo/route_demo.kicad_pcb
+pcbnew build/kicad-route/runs/route_demo/builtin/latest/candidate/route_demo/route_demo.kicad_pcb
 ```
 
 | Before | After |
 |---|---|
-| ![input](../figures/fixture-input.png) | ![KRT candidate](../figures/fixture-krt.png) |
+| ![input](../figures/fixture-input.png) | ![historical KRT candidate](../figures/fixture-krt.png) |
 
 The candidate directory is a complete copy of the project with the routed board in
 it, zones refilled and saved. It is exactly the file KiCad graded. The original in
@@ -81,7 +92,7 @@ it, zones refilled and saved. It is exactly the file KiCad graded. The original 
 
 ## Read the verdict
 
-`RESULT.md` in the run directory is the human-readable verdict. The top of it:
+`RESULT.md` in the run directory is the human-readable verdict. The top of the historical example (use your new run's printed path to read its verdict):
 
 ```
 # Routing attempt: krt on route_demo
@@ -113,12 +124,12 @@ explains every field.
 ## A second attempt: watch a rule being enforced
 
 The demo project has a custom rule in `route_demo.kicad_dru`: Power nets must keep
-0.4 mm from everything that is not Power. KRT cannot read that kind of rule, so
+0.4 mm from everything that is not Power. The built-in router cannot read that kind of rule, so
 without `--default-clearance 0.4` it routes `/SIG_A` 0.3748 mm from a ground pad.
 Run it again without the option:
 
 ```sh
-kicad-route run --backend krt --budget 120
+kicad-route run --backend builtin --budget 120
 ```
 
 ```
@@ -147,7 +158,7 @@ distance. Tightening is always allowed; relaxing never is.
 ## Compare attempts
 
 ```sh
-kicad-route compare build/kicad-route/runs/route_demo/krt/2026*Z
+kicad-route compare build/kicad-route/runs/route_demo/builtin/2026*Z
 ```
 
 ```
@@ -164,10 +175,10 @@ uses (see below).
 ## Route only some nets
 
 ```sh
-kicad-route run --backend krt --nets '/SIG_A*' --default-clearance 0.4
+kicad-route run --backend builtin --nets '/SIG_A*' --default-clearance 0.4
 ```
 
-![KRT candidate with only the /SIG_A nets routed](../figures/fixture-krt-nets.png)
+![historical KRT candidate with only the /SIG_A nets routed](../figures/fixture-krt-nets.png)
 
 Only `/SIG_A` and `/SIG_A_OUT` were routed; `/VIN` and the others are still open,
 and the run is still exit 0, because the verdict is about the **scope** you asked
@@ -192,9 +203,9 @@ approximates pad shapes and can land a few micrometres inside a rule.
   `latest` link per label. Change the root with `--out DIR` or `$KICAD_ROUTE_OUT`;
   pick the directory yourself with `run --run-dir PATH`.
 - **The run ledger.** An exact repeat of an attempt that already failed is refused
-  with exit 4, because KRT would fail the same way again. Change something (scope,
+  with exit 4, because the built-in router would fail the same way again. Change something (scope,
   budget, an option) or pass `--force`. The ledger is `build/kicad-route/ledger.jsonl`.
-- **Budget.** `--budget SECONDS` is wall clock (default 300). KRT is stopped
+- **Budget.** `--budget SECONDS` is wall clock (default 300). The built-in router is stopped
   cleanly at the budget when it can be, and killed after a grace period when it
   cannot.
 - **The project file must match the board's name.** KiCad only loads

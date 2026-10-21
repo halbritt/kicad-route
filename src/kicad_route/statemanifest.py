@@ -36,6 +36,7 @@ from pathlib import Path
 
 from . import common
 from . import engine
+from . import backend_names
 
 SCHEMA = "kicad-route/state/1"
 FILENAME = "manifest.json"
@@ -361,9 +362,10 @@ def verify(m, state=None):
             for item, now in current_identity(m, state).items() if recorded(m, item) != now]
 
 
-def build_id(m, backend="krt"):
+def build_id(m, backend="builtin"):
     """Identity of the build a determinism record holds for: the backend's code and
     environment plus the KiCad that refills and saves every candidate."""
+    backend = backend_names.storage_key(backend)
     if backend == "krt":
         k = m.get("krt") or {}
         parts = {"source": k.get("source_sha256") or k.get("commit"), "extension_module": (k.get("extension_module") or {}).get("sha256"),
@@ -376,12 +378,13 @@ def build_id(m, backend="krt"):
     return common.sha256_of({"backend": backend, **parts})
 
 
-def execution_build_id(tools, backend="krt"):
+def execution_build_id(tools, backend="builtin"):
     """The build actually executed, using the same content fields as build_id.
 
     Missing execution evidence cannot be replaced with the currently selected
     installation: a worker may still be running a prior generation.
     """
+    backend = backend_names.storage_key(backend)
     tools = tools or {}
     executed = tools.get("backend") or {}
     native = (tools.get("kicad_cli") or {}).get("sha256")
@@ -403,8 +406,9 @@ def execution_build_id(tools, backend="krt"):
     return build_id(manifest, backend)
 
 
-def current_build_id(state=None, backend="krt"):
+def current_build_id(state=None, backend="builtin"):
     """build_id of what is on disk now, from the manifest's own paths."""
+    backend = backend_names.storage_key(backend)
     state = Path(state or common.STATE)
     m = read(state)
     if m is None:
@@ -430,6 +434,7 @@ def reproducibility(backend, state=None, runtime_generation=_UNSPECIFIED_GENERAT
     """backend.reproducible and the result's measurement flag for a run on the installed build.
     Freerouting's outcome may vary run to run: never reproducible, never a measurement.
     KRT: what the state manifest's determinism record says for the build on disk now."""
+    backend = backend_names.canonical(backend)
     if backend == "freerouting":
         return {"reproducible": False, "measurement": False,
                 "basis": "Freerouting's outcome may vary between runs: this result is an attempt, not a measurement"}
@@ -440,7 +445,7 @@ def reproducibility(backend, state=None, runtime_generation=_UNSPECIFIED_GENERAT
         if runtime != selected:
             return {"reproducible": None, "measurement": False,
                     "basis": "routing process uses a previous generation; the active manifest selects another build"}
-    rec = ((m or {}).get("determinism") or {}).get(backend)
+    rec = ((m or {}).get("determinism") or {}).get(backend_names.storage_key(backend))
     if not rec:
         return {"reproducible": None, "measurement": False,
                 "basis": "no determinism record for this build in the state manifest "
@@ -478,7 +483,7 @@ def record_determinism(rec, state=None):
             raise RuntimeError("executed repeat build differs from the active installation; rerun determinism")
         if verify(m, state):
             raise RuntimeError("state manifest drift: re-record it with `kicad-route state-manifest` first")
-        m.setdefault("determinism", {})[rec["backend"]] = rec
+        m.setdefault("determinism", {})[backend_names.storage_key(rec["backend"])] = rec
         write(m, state)
         return m
 
@@ -502,8 +507,8 @@ def doctor_checks(state=None):
                 "drift: " + "; ".join(f"{d['item']} recorded {str(d['recorded'])[:16]} now {str(d['current'])[:16]}"
                                       for d in drift) + " (reinstall, or re-record with `kicad-route state-manifest`)",
                 True))
-    r = reproducibility("krt", state)
-    out.append(("KRT determinism verified for this build",
+    r = reproducibility("builtin", state)
+    out.append(("builtin determinism verified for this build",
                 common.PASS if r["reproducible"] else (common.FAIL if r["reproducible"] is False else common.NOT_RUN),
                 r["basis"], False))
     return out

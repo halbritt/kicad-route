@@ -39,7 +39,7 @@ The record holds `status`, `required_failed`, `checks`, `versions`, `capabilitie
 
 | Key | Contents |
 |---|---|
-| `ro_paths` | each read-only path with its purpose: `/usr`, `/etc`, the checkout (TOOL_ROOT), its git common dir when it is a worktree, STATE, resolved runtime directories when the venv or Freerouting is a symlink outside STATE, the KRT venv's interpreter target, the pcbnew Python and module, `/usr/share/kicad`, `kicad-cli`, `git`, `bwrap` when installed, and the JVM directory `find_java` chose. Paths are resolved and absolute. Bind them at the same path: the venv stores absolute paths |
+| `ro_paths` | each read-only path with its purpose: `/usr`, `/etc`, the checkout (TOOL_ROOT), its git common dir when it is a worktree, STATE, resolved runtime directories when the venv or Freerouting is a symlink outside STATE, the interpreter target of the built-in router's venv, the pcbnew Python and module, `/usr/share/kicad`, `kicad-cli`, `git`, `bwrap` when installed, and the JVM directory `find_java` chose. Paths are resolved and absolute. Bind them at the same path: the venv stores absolute paths |
 | `ro_binds` | the smallest subset of `ro_paths` whose binds cover all of them |
 | `rw_paths` | OUT, the only writable path a run needs |
 | `env` | variables to set, with values: `KICAD_ROUTE_STATE`, `PATH` (`kicad-cli`, `git`, `bwrap`), and the optional `HOME` (`required: false`; it need not be writable, see [HOME](#home) below), `KICAD_ROUTE_PCBNEW_PYTHON`, `KICAD_ROUTE_OUT`, `KICAD_ROUTE_REQUIRE_READONLY_STATE` |
@@ -64,12 +64,12 @@ bwrap ... --unshare-net \
   --clearenv --setenv HOME /work/home --setenv PATH /usr/local/bin:/usr/bin:/bin -- \
   /usr/bin/env KICAD_ROUTE_STATE=STATE \
   /usr/bin/python3 TOOL_ROOT/bin/kicad-route --out /work/out \
-    run --backend krt --dir /candidate --name PROJECT_NAME \
+    run --backend builtin --dir /candidate --name PROJECT_NAME \
     --require-readonly-state --ledger /work/ledger.jsonl
 ```
 
 Pass `--name`: the project directory is mounted as `/candidate`, and the name
-otherwise comes from the directory. With these mounts the fixture's KRT and
+otherwise comes from the directory. With these mounts the fixture's built-in router and
 Freerouting round trips give the same verdicts, input fingerprint and ledger
 fingerprint as the same runs outside the sandbox, and the same candidate: identical
 copper and an identical rest of the file. The raw file hashes differ, because KiCad
@@ -87,7 +87,7 @@ other XDG directories go to `OUT/.home` (`KICAD_CACHE_HOME`, `KICAD_DOCUMENTS_HO
 from the password database, not `$HOME`, so each launch gets `-Duser.home` and
 `-Djava.util.prefs.userRoot` under `OUT/.home/java`. The full table is in
 [hygiene.md](hygiene.md#nothing-under-home). `/tmp` still receives KiCad's instance
-lock, the JVM's `hsperfdata` and KRT's temporary directories.
+lock, the JVM's `hsperfdata` and the built-in router's temporary directories.
 `tests/test_home_containment.py` runs the fixture's round trips and `doctor --json
 --offline` with an empty read-only `HOME` under `strace` and fails on any write
 attempt there, under the real home, or outside OUT and `/tmp` (KICADROUTE-60).

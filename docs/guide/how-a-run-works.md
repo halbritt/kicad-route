@@ -75,7 +75,7 @@ and the temporary keepouts are removed again before grading.
 
 The backend starts as the leader of its own session and process group, with:
 
-- a **wall-clock budget** (`--budget`, default 300 s). KRT is asked to stop through
+- a **wall-clock budget** (`--budget`, default 300 s). The built-in router is asked to stop through
   its stop file; after a grace period of `max(30, budget/5)` s the whole group is
   terminated, then killed.
 - an optional **stall watchdog** (`--stall S`): the log is tailed for progress, and
@@ -91,7 +91,7 @@ whose `process.status` is FAIL with reasons, and no candidate. Heartbeats
 
 ## 6. Collect: the delivered board
 
-The backend's output is brought back into a KiCad board: KRT's output file
+The backend's output is brought back into a KiCad board: the built-in router's output file
 directly, Freerouting's session through KiCad's SES import (with the footprint
 placement section removed, so a session can never move parts). Temporary keepouts
 are stripped, lock flags are restored to what the design had, and the result is

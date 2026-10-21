@@ -12,8 +12,8 @@ routing decision. It places one barrier per collision. It does not stack barrier
 across several rounds, and it does not rewind per net.
 
 ```sh
-kicad-route run --backend krt --nets /SIG_A                       # exit 3: new clearance violation
-kicad-route run --backend krt --nets /SIG_A --barrier-from <run>  # same input, barrier where it collided
+kicad-route run --backend builtin --nets /SIG_A                       # exit 3: new clearance violation
+kicad-route run --backend builtin --nets /SIG_A --barrier-from <run>  # same input, barrier where it collided
 kicad-route run ... --barrier-from <run> --barrier-size 0.1       # larger square (default 0.05 mm)
 kicad-route barrier <run>                                         # preview: <run>/barrier-preview/
 kicad-route barrier <run> --size 0.1                              # preview with the square `--barrier-size` would use
@@ -41,7 +41,7 @@ point is the middle of the overlap. The barrier goes at the closest point over a
 shared layers, on that layer. For `copper_edge_clearance`, the other item is an
 Edge.Cuts shape, so the barrier goes on the new item's own layer.
 
-On the fixture, the KRT `/SIG_A` diagonal passes C1.2 with 0.3748 mm of clearance. Its
+On the fixture, the built-in router's `/SIG_A` diagonal passes C1.2 with 0.3748 mm of clearance. Its
 barrier is at (111.7125, 104.9875) on F.Cu, 0.4748 mm from the pad: the clearance plus
 half the 0.2 mm track width.
 
@@ -64,7 +64,7 @@ In `run_attempt`, `barrier.around_route` wraps the backend call. It also wraps
    footprints and zone fills are allowed. A barrier that touches existing copper on
    its layer (a track, via or pad of any net) is skipped, because it would block that
    copper's own net. A board that already has barrier areas is refused.
-2. **Route** with the backend as usual. KRT reads rule areas per layer. For
+2. **Route** with the backend as usual. The built-in router reads rule areas per layer. For
    Freerouting, KiCad's DSN export writes each area as a single-layer Specctra
    `(keepout …)`; the tests check this.
 3. **Strip** every `kicad-route:barrier:` rule area from the backend's output board
@@ -118,7 +118,7 @@ replaces the whole `barrier-preview/` directory. Exit status:
 - **Search chaos.** A barrier forces a detour at one point. It does not make the
   detour local: a rip-up-and-reroute router can change the topology elsewhere and
   make new collisions or leave nets open. Grade the rewind like any run; it is not
-  better because it had a barrier. On the fixture, one KRT rewind on `/SIG_A` moved
+  better because it had a barrier. On the fixture, one built-in router rewind on `/SIG_A` moved
   the diagonal by 0.5 mm and passed.
 - **The effective size is larger than the square.** Both backends keep their own
   clearance from a rule-area edge, so a 0.05 mm square blocks about one clearance
