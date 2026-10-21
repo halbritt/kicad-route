@@ -1,0 +1,174 @@
+{
+  "schema": "kicad-route/advisory-publication/1",
+  "status": "PASS",
+  "published_utc": "2026-10-21T10:23:04.432591+00:00",
+  "source": {
+    "record_id": "dd839318-7dcb-4065-82b1-9191f2c28b0a",
+    "version": 8
+  },
+  "publisher": "agent/3b73cfa3-939b-4bda-adb3-536eaad9ec4c",
+  "published_count": 20,
+  "recipients": [
+    {
+      "agent_id": "2f8142aa-27cb-4da4-b043-d49629158cfb",
+      "display_name": "agent-305",
+      "request_id": "92aef7d8-5820-4453-a039-caa4e7226246",
+      "event_id": "59dda641-b309-43bf-bd2e-66b09ed29e5d",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "cdc2069f-38c2-4f11-8cf8-8f44f44287f9",
+      "display_name": "agent-341",
+      "request_id": "89c09797-a57f-458c-9b51-79230035805e",
+      "event_id": "d123675a-2bfa-4d86-9170-225f97b12a29",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "7e1258f7-63a0-4184-a1d9-4ae9c6bbf7aa",
+      "display_name": "agent-449",
+      "request_id": "d48ea9f3-3e45-4d62-83df-8c376d7e3be9",
+      "event_id": "bd3b6acf-1ba4-4406-8a8b-a3c2d2dde47f",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "66ceb063-7e84-4069-825e-311d225bcb2e",
+      "display_name": "agent-452",
+      "request_id": "ca81d44a-6117-4631-849b-df0180594a34",
+      "event_id": "09121940-f0d7-495a-a329-c4cdd0d3b7ce",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "8a610c10-b910-4d77-9bf1-6c136182f65e",
+      "display_name": "agent-454",
+      "request_id": "104d92da-c27e-4a9f-9c28-85cfa75b6b07",
+      "event_id": "a05bb7a8-387b-4f13-ba35-c0fac9f3a5ad",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "85f8cd2d-db8c-4f6b-8fde-83f2ba2f9692",
+      "display_name": "agent-455",
+      "request_id": "023b33e3-9c88-4965-a671-81d314526a63",
+      "event_id": "dc6ff1d5-aa69-4c66-93f3-94cdad248683",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "97d25b09-22c4-4c68-ac54-0bd723d2f0f4",
+      "display_name": "agent-456",
+      "request_id": "e6136193-6b18-4d0f-951b-86861efff46b",
+      "event_id": "c0b1d0dc-35b3-4f60-be32-706d72779c32",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "e17aa1cb-ba9d-4688-b35a-ad1660b5f33e",
+      "display_name": "agent-457",
+      "request_id": "0e8f7b59-ea5f-4c1d-95ca-30eae4f50ca2",
+      "event_id": "f3e7495d-c3ad-401e-9716-40c3e8301265",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "95603c8c-62b6-4f8d-9d28-22ed5321bc56",
+      "display_name": "agent-458",
+      "request_id": "202303a4-99b1-471e-9a9e-aa136bb21d62",
+      "event_id": "d472e0f4-436e-496e-87b1-708eaae081e8",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "8375ce27-0938-4f0d-8a9b-203e4472b85e",
+      "display_name": "agent-459",
+      "request_id": "c037d330-0b9f-41f0-892c-49fbabcb57dd",
+      "event_id": "4a54658a-0125-43b7-baeb-79a23a5b3e37",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "66c9a59d-2040-4113-ace1-2bb6d49d85ae",
+      "display_name": "agent-460",
+      "request_id": "3c0c8f3a-daa2-4bf7-a381-8cd7f60b5159",
+      "event_id": "018cae88-a49f-45f1-b768-6f837141e7e4",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "61b39c8b-ba4f-4935-9b88-6500895cd809",
+      "display_name": "agent-468",
+      "request_id": "6f9d986a-d45a-4601-846e-6c5f31c9244a",
+      "event_id": "a5bab2c6-234c-4383-9b1a-0674314bc94c",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "c2eb161c-c1b1-4a21-9c19-25a6491a2631",
+      "display_name": "agent-470",
+      "request_id": "5f2ae702-6fe4-4e39-a1e5-abcd0abbfb78",
+      "event_id": "1d4cbc94-8ef9-4598-83fe-e991536514de",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "36dbce71-5f29-4cc3-ae5a-a80798f08a98",
+      "display_name": "agent-475",
+      "request_id": "2c33f792-faea-4169-8d04-106f05abd04e",
+      "event_id": "2b8544e7-66a9-4a76-84b7-9b2026aeec76",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "918a8dc5-371e-472b-89ca-17b1ea309cae",
+      "display_name": "agent-492",
+      "request_id": "f88faf08-d129-4e9d-8e22-22ba2e4cefd4",
+      "event_id": "d32311fb-3f47-4efa-a6f7-c41b5fc7f459",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "ce63b508-fd08-49bf-bd1e-10630bf989d7",
+      "display_name": "agent-499",
+      "request_id": "79241a43-77ba-45b7-8037-8354e2dc1bec",
+      "event_id": "c51f2395-8d4c-496b-8cda-6c652b21eaed",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "1987e3a6-75fb-4cd6-9066-09aa61038652",
+      "display_name": "agent-500",
+      "request_id": "216510de-14fd-4e2c-8e37-0a7259f53dcc",
+      "event_id": "6888fcda-6932-40c9-9c30-7a4aa73ea038",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "3e264d92-6abe-48b4-882c-6be14b834ddc",
+      "display_name": "agent-501",
+      "request_id": "4c84156a-1b31-41e9-8a74-94ddae489935",
+      "event_id": "29beffea-78f4-4d0e-baed-0913bc279b1e",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "65fb5f64-0baf-4c50-8182-a6e5ee603315",
+      "display_name": "agent-503",
+      "request_id": "e511c276-bf24-4fa7-a6c9-732a5ac36963",
+      "event_id": "6f1652d1-8f4a-4891-b6f0-8e45ab17df31",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    },
+    {
+      "agent_id": "c8198a35-55b6-4af9-a03a-7207c01952b4",
+      "display_name": "agent-504",
+      "request_id": "c4fea325-317d-4e69-9aef-e129c225d2a3",
+      "event_id": "417d565d-79ed-407a-afa7-7626837df2de",
+      "status": "PUBLISHED",
+      "handling_confirmed": false
+    }
+  ],
+  "scope": "Fresh uniquely resolved live registered sessions excluding self, under explicit owner advisory instruction. Publication does not assert recipient handling."
+}

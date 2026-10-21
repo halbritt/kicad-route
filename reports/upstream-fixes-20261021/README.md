@@ -94,3 +94,8 @@ identical `/test-evidence` aliases from separate runs intentionally stay separat
 [cleanup.json](cleanup.json) records scoped resource removal. All four owned
 worktrees/branches, five Archon containers, three task image tags and the exclusive
 remote directory are removed. Unrelated resources and rollback C6 are preserved.
+
+KICADROUTE-83–89 are Done with seven individual API readbacks. The post-deployment
+advisory was published through Cairn to 20 freshly resolved agent sessions.
+[closure.json](closure.json) retains the tracker and publication receipt; publication
+does not assert recipient handling. Subsequent report commits change no shipping code.

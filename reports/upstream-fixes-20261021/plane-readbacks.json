@@ -1,0 +1,48 @@
+{
+  "status": "PASS",
+  "report_commit": "5ca591264c65aa63917212b6781a472edf84054c",
+  "items": [
+    {
+      "identifier": "KICADROUTE-83",
+      "id": "5fda5002-5737-4881-866e-97b4323e2cfe",
+      "state": "52afe24c-af0a-465e-8b50-3bba0d7fe1be",
+      "readback_sha256": "aae96832f6ecc121b1a0051058ba1e71f9129f0df8ebea37e5b5a0f9f01c43aa"
+    },
+    {
+      "identifier": "KICADROUTE-84",
+      "id": "edcf7a57-1d4b-4f97-a94d-2713e473274f",
+      "state": "52afe24c-af0a-465e-8b50-3bba0d7fe1be",
+      "readback_sha256": "ff4e60964c40959850ce6418538efc81be76444cdce5bfbdb9997d9c133c3483"
+    },
+    {
+      "identifier": "KICADROUTE-85",
+      "id": "668e4c7c-6cdc-4828-99f7-000d02f319d8",
+      "state": "52afe24c-af0a-465e-8b50-3bba0d7fe1be",
+      "readback_sha256": "9e0c79b79b4e617ae446274da1f19d16d5259649e03eb5bdd97f0adc68692942"
+    },
+    {
+      "identifier": "KICADROUTE-86",
+      "id": "995ac599-b0df-4692-ad8f-1a2ab39e6347",
+      "state": "52afe24c-af0a-465e-8b50-3bba0d7fe1be",
+      "readback_sha256": "b4ba86b28e1ff1e70b852da2e0100461effb54dc64181b75d78a5d7946da8880"
+    },
+    {
+      "identifier": "KICADROUTE-87",
+      "id": "5dbed64f-ad59-47fa-874f-56f3632a8e66",
+      "state": "52afe24c-af0a-465e-8b50-3bba0d7fe1be",
+      "readback_sha256": "e2f7f888940a8e37d6ae95779ed9beccfdbe8c62dada40a5071dc26bfed9119c"
+    },
+    {
+      "identifier": "KICADROUTE-88",
+      "id": "80229214-3163-45b9-82f2-c330647e0119",
+      "state": "52afe24c-af0a-465e-8b50-3bba0d7fe1be",
+      "readback_sha256": "68fc7981d93b5427aef9299e33325ce8eb70b444017ce563b7628c036da7b398"
+    },
+    {
+      "identifier": "KICADROUTE-89",
+      "id": "9d131282-5b40-42a7-9d4d-b56cf38c3c1e",
+      "state": "52afe24c-af0a-465e-8b50-3bba0d7fe1be",
+      "readback_sha256": "26dab73d49309efb30d117c4f85b198927bfb78aebe404da8bd5ac018a61ba0f"
+    }
+  ]
+}

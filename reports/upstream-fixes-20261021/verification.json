@@ -2,7 +2,7 @@
   "schema": "kicad-route/upstream-adoption-verification/1",
   "status": "PASS",
   "verified_utc": "2026-10-21T10:17:20.454231+00:00",
-  "scope": "Technical source/integration/native performance/full tests/deployment/evidence/cleanup gates. Tracker and advisory handling are recorded separately after their external writes.",
+  "scope": "Technical source/integration/native performance/full tests/deployment/evidence/cleanup gates; tracker and advisory publication receipts are retained in closure.json.",
   "integrated_source_commit": "f42b8796de2006bae147e65340da99462b5fd9be",
   "shipping_source_tree": "672e1f2764a498d2ba0284ba248f8b163b649701",
   "engine_source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
@@ -28,8 +28,16 @@
   "test_archive_sha256": "d9642a4dd95e6a45d99fcebd40021d6d957689e891b3dc404697eb3d7930d98a",
   "evidence_artifacts": {
     "README.md": {
-      "sha256": "003745efc01212cb1a063cdbb5536c7f4834d50e41484b2c802e200400836c6f",
+      "sha256": "ad039ef668d46efd3074fbf916eae97ad53c7d6a773fbea257287a7c69017bd1",
+      "bytes": 6574
+    },
+    "advisory-publications.json": {
+      "sha256": "4392e803c7d9d1d8cc232c4b22b2a45211cf8aad953f28eb69f363d847d4a4f5",
       "bytes": 6239
+    },
+    "advisory-source.md": {
+      "sha256": "0f817233fe98ab731767b88e1898927c3f708f89ba9eb19976dfaa688cf4ad04",
+      "bytes": 2316
     },
     "archon-evidence.tar.gz": {
       "sha256": "be5d87b80c696729d4b526a90b59068808e90ead762f89e3c96d831634fa953d",
@@ -50,6 +58,18 @@
     "cleanup.json": {
       "sha256": "28b2019ce14cfc51c5632ca9314c11b0609643978683f87bab53cff41a6d3cfb",
       "bytes": 3103
+    },
+    "closure-evidence-index.json": {
+      "sha256": "6ef137b073cdc1cad48a1747828943087146f651d76b617d6ff384de2022fc23",
+      "bytes": 23241
+    },
+    "closure-evidence.tar.gz": {
+      "sha256": "2b48ad2cec675e3b03df71c6c23509c573efcbd5659b17f59868eeac5ee9a4f7",
+      "bytes": 18342
+    },
+    "closure.json": {
+      "sha256": "6fc5c2458a95bc1644050b2115d0a6d73ba43d278f1e44e1d5f30d682bd7f2de",
+      "bytes": 2613
     },
     "decision.json": {
       "sha256": "b931477b44a39ad8139c356cd9504b2b40407bdf728d8e46e9615d4b0ed3bdba",
@@ -123,6 +143,10 @@
       "sha256": "5af33928d2e5018622d708ae79a876313e1b79e19ee3e209854ef8da2820af31",
       "bytes": 18218
     },
+    "plane-readbacks.json": {
+      "sha256": "477825d1c19d37d8844c6c15282bd86732c21035dafacdd6fd1b10ff95d37093",
+      "bytes": 1846
+    },
     "qualification/independent-junit-map.json": {
       "sha256": "b34750692b52cef74480649e9c0fe35c5220cbde348a9dd4b254196bcec655c2",
       "bytes": 231425
@@ -164,5 +188,6 @@
       "bytes": 34794820
     }
   },
-  "human_acceptance_claimed": false
+  "human_acceptance_claimed": false,
+  "task_closure": "closure.json"
 }
