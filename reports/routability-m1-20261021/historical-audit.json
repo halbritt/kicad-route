@@ -1,0 +1,378 @@
+{
+  "schema": "kicad-route.m1b-baseline-audit/1",
+  "project": "fome-mc telemetry-pod expansion historical iteration8d; current-policy input unresolved pending project coordinator449 capture",
+  "authority": "read-only evidence audit; no route, native DRC rerun, source project edits or policy decisions",
+  "method": {
+    "raw_metrics": "Parsed retained KiCad10.0.7 raw DRC, exact board-name-aware net matching; all UUID/native component diagnostics performed on isolated byte-identical copies, no save/refill",
+    "native_terminals": "pcbnew.LoadBoard; BuildConnectivity; GetConnectedItems(pad, flags=0); matching-net native clusters include saved zone fills. API source retained and hashed; snapshots unchanged.",
+    "reproduce_counts": "python3 build/krt91-audit-agent507/reproduce-counts.py",
+    "reproduce_components": "timeout 60 /usr/bin/python3 build/krt91-audit-agent507/reproduce-all-components.py",
+    "reproduce_ten_nets": "timeout 60 /usr/bin/python3 build/krt91-audit-agent507/reproduce-terminals.py",
+    "duration_all_components_seconds": 2.344253080897033
+  },
+  "observations": {
+    "historical_raw_metrics": [
+      {
+        "run": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z",
+        "raw_reference": {
+          "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/.cache/baseline/89660781ebe2ee1069f2543301b9730945a4fc968ed42e2c538cb3f1754b013a/generation-obh2rjvw/baseline-drc.json",
+          "sha256": "590066daab8ba728fd754cf7b0180f385a690b5629ab3362bd46e9c07a92d734"
+        },
+        "raw_candidate": {
+          "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z/validate/candidate-drc.json",
+          "sha256": "6463c141a0da1a81e402d71dcedd322efb194e4dd3841a6ce8d5b17e8cf1a2fa"
+        },
+        "reference_connections": 499,
+        "reference_incomplete_nets": 80,
+        "candidate_connections": 55,
+        "candidate_incomplete_nets": 32,
+        "files": {
+          "reference": [
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z/reference/candidate/ca2.kicad_dru",
+              "sha256": "ff62208301c38bca2c963a0682e0a2ee843d8a546bace3719340cfcca1b08d0d"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z/reference/candidate/ca2.kicad_pcb",
+              "sha256": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z/reference/candidate/ca2.kicad_pro",
+              "sha256": "7c7933bf09fad1617887d95dce24ae2b994737bf4cc46c20662e447561515b74"
+            }
+          ],
+          "candidate": [
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z/candidate/candidate/ca2.kicad_dru",
+              "sha256": "ff62208301c38bca2c963a0682e0a2ee843d8a546bace3719340cfcca1b08d0d"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z/candidate/candidate/ca2.kicad_pcb",
+              "sha256": "471ffb9b5a1ebf7ae7100d59582c1a0bcbfb8666a053f9029eb8603e88bf430e"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z/candidate/candidate/ca2.kicad_prl",
+              "sha256": "b8d2aee9872fb25dbc2a17fb65583d4aa795ca7b7bd0c17f18fdce132788b4c4"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-campaign-r0/20261021T135939.841838Z/candidate/candidate/ca2.kicad_pro",
+              "sha256": "7c7933bf09fad1617887d95dce24ae2b994737bf4cc46c20662e447561515b74"
+            }
+          ]
+        },
+        "exact_refilled_grade_identity": {
+          "receipt_path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/origin-baseline-info.json",
+          "receipt_sha256": "3fa58a8d7d975ded34e871fc0a6ccba8fa58724669a0cfa95c043a8248bced9d",
+          "board_sha256_graded": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f",
+          "board_sha256_checked": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f",
+          "refill": {
+            "board_sha256_before": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f",
+            "board_sha256_after": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f"
+          },
+          "identity_provenance": "Cache generation retains reports; deleted .building-* project was byte-identical to retained reference PCB before and after native refill as these hashes establish."
+        }
+      },
+      {
+        "run": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z",
+        "raw_reference": {
+          "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/.cache/baseline/f4397d15d48d3c37d9dae9db898154ed2563a82ff513809e19e114d96b5c88c6/generation-vxbxgo_x/baseline-drc.json",
+          "sha256": "2f4afd6462a5600932b05cf390b8cdb3505c274fcd29e99ca68eb762dca2b58b"
+        },
+        "raw_candidate": {
+          "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z/validate/candidate-drc.json",
+          "sha256": "00fb80698487488c6311fef12a6852a7637d08757b5c943b5bd452409b758e2b"
+        },
+        "reference_connections": 55,
+        "reference_incomplete_nets": 32,
+        "candidate_connections": 51,
+        "candidate_incomplete_nets": 30,
+        "files": {
+          "reference": [
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z/reference/candidate/ca2.kicad_dru",
+              "sha256": "ff62208301c38bca2c963a0682e0a2ee843d8a546bace3719340cfcca1b08d0d"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z/reference/candidate/ca2.kicad_pcb",
+              "sha256": "471ffb9b5a1ebf7ae7100d59582c1a0bcbfb8666a053f9029eb8603e88bf430e"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z/reference/candidate/ca2.kicad_pro",
+              "sha256": "7c7933bf09fad1617887d95dce24ae2b994737bf4cc46c20662e447561515b74"
+            }
+          ],
+          "candidate": [
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z/candidate/candidate/ca2.kicad_dru",
+              "sha256": "ff62208301c38bca2c963a0682e0a2ee843d8a546bace3719340cfcca1b08d0d"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z/candidate/candidate/ca2.kicad_pcb",
+              "sha256": "09b3c0bec29663f94ebf165c8a7ae3d96db81ad174e4c18996882cc48b39fc5e"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z/candidate/candidate/ca2.kicad_prl",
+              "sha256": "b8d2aee9872fb25dbc2a17fb65583d4aa795ca7b7bd0c17f18fdce132788b4c4"
+            },
+            {
+              "path": "/home/halbritt/.cache/agent499-microsd/iter8d/route/runs/candidate/iter8d-fr-leftovers/20261021T152620.088475Z/candidate/candidate/ca2.kicad_pro",
+              "sha256": "7c7933bf09fad1617887d95dce24ae2b994737bf4cc46c20662e447561515b74"
+            }
+          ]
+        },
+        "exact_refilled_grade_identity": {
+          "receipt_path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/r0-baseline-info.json",
+          "receipt_sha256": "6e8276110f5c0d3d09edfa195c8809b743095ccfc9b9c3e40d6206441bb0031c",
+          "board_sha256_graded": "471ffb9b5a1ebf7ae7100d59582c1a0bcbfb8666a053f9029eb8603e88bf430e",
+          "board_sha256_checked": "471ffb9b5a1ebf7ae7100d59582c1a0bcbfb8666a053f9029eb8603e88bf430e",
+          "refill": {
+            "board_sha256_before": "471ffb9b5a1ebf7ae7100d59582c1a0bcbfb8666a053f9029eb8603e88bf430e",
+            "board_sha256_after": "471ffb9b5a1ebf7ae7100d59582c1a0bcbfb8666a053f9029eb8603e88bf430e"
+          },
+          "identity_provenance": "Cache generation retains reports; deleted .building-* project was byte-identical to retained reference PCB before and after native refill as these hashes establish."
+        }
+      }
+    ],
+    "native_terminal_metrics": [
+      {
+        "role": "origin",
+        "pcb_sha256": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f",
+        "duration_s": 0.44060344295576215,
+        "nets_with_terminals": 235,
+        "incomplete_terminal_nets": 182,
+        "terminal_component_deficit": 686
+      },
+      {
+        "role": "r0",
+        "pcb_sha256": "471ffb9b5a1ebf7ae7100d59582c1a0bcbfb8666a053f9029eb8603e88bf430e",
+        "duration_s": 1.0655047849286348,
+        "nets_with_terminals": 235,
+        "incomplete_terminal_nets": 32,
+        "terminal_component_deficit": 55
+      },
+      {
+        "role": "fr",
+        "pcb_sha256": "09b3c0bec29663f94ebf165c8a7ae3d96db81ad174e4c18996882cc48b39fc5e",
+        "duration_s": 0.8381448530126363,
+        "nets_with_terminals": 235,
+        "incomplete_terminal_nets": 30,
+        "terminal_component_deficit": 51
+      }
+    ],
+    "origin_connected_nets": 53,
+    "origin_complete_nets_lost": {
+      "r0": [],
+      "fr": []
+    },
+    "ten_reported_lost_nets": {
+      "/AFE_BUF1": {
+        "origin": 3,
+        "r0": 2,
+        "fr": 2
+      },
+      "/AFE_DIV1": {
+        "origin": 4,
+        "r0": 2,
+        "fr": 2
+      },
+      "/DIAG_U28_AIN3": {
+        "origin": 4,
+        "r0": 2,
+        "fr": 2
+      },
+      "/POD_AUX3_SIGNAL": {
+        "origin": 3,
+        "r0": 2,
+        "fr": 2
+      },
+      "/SD_DAT1": {
+        "origin": 3,
+        "r0": 2,
+        "fr": 2
+      },
+      "/SD_DAT2": {
+        "origin": 3,
+        "r0": 2,
+        "fr": 2
+      },
+      "/SENSOR_POWER_FRONT_DVDT": {
+        "origin": 2,
+        "r0": 2,
+        "fr": 1
+      },
+      "/SENSOR_POWER_FRONT_ILIM": {
+        "origin": 2,
+        "r0": 2,
+        "fr": 2
+      },
+      "/SENSOR_POWER_REAR_ILIM": {
+        "origin": 2,
+        "r0": 2,
+        "fr": 2
+      },
+      "/SUP_U18_SENSE": {
+        "origin": 3,
+        "r0": 2,
+        "fr": 2
+      }
+    },
+    "keepouts": {
+      "board_owned_rule_areas": 0,
+      "footprint_owned_rule_areas": [
+        {
+          "owner": "U1",
+          "uuid": "61975a3d-c782-45aa-b206-6e80874579ae",
+          "name": "",
+          "layers": [
+            "F.Cu",
+            "B.Cu",
+            "In1.Cu",
+            "In2.Cu"
+          ],
+          "no_tracks": true,
+          "no_vias": true,
+          "no_zone_fills": true
+        },
+        {
+          "owner": "J3",
+          "uuid": "54ade010-21e1-4573-9321-40d708969346",
+          "name": "",
+          "layers": [
+            "B.Cu"
+          ],
+          "no_tracks": true,
+          "no_vias": true,
+          "no_zone_fills": true
+        },
+        {
+          "owner": "J3",
+          "uuid": "8c1231b9-21bb-4ecf-af8b-b92ae702f14c",
+          "name": "",
+          "layers": [
+            "B.Cu"
+          ],
+          "no_tracks": true,
+          "no_vias": true,
+          "no_zone_fills": true
+        },
+        {
+          "owner": "J3",
+          "uuid": "6d49279c-cc4f-4734-88d3-ad8e055aab04",
+          "name": "",
+          "layers": [
+            "B.Cu"
+          ],
+          "no_tracks": true,
+          "no_vias": true,
+          "no_zone_fills": true
+        },
+        {
+          "owner": "J3",
+          "uuid": "54aee9b7-b5f8-4648-b279-d9fe9a596a14",
+          "name": "",
+          "layers": [
+            "B.Cu"
+          ],
+          "no_tracks": true,
+          "no_vias": true,
+          "no_zone_fills": true
+        },
+        {
+          "owner": "J3",
+          "uuid": "762bded8-d400-4594-818c-5bc2226848ac",
+          "name": "",
+          "layers": [
+            "B.Cu"
+          ],
+          "no_tracks": true,
+          "no_vias": true,
+          "no_zone_fills": true
+        }
+      ],
+      "same_counts_all_three_boards": true,
+      "warning": "Old facts/preservation zero rule areas refers to board-owned areas; native U1/J3 footprint keepouts exist and must remain preserved."
+    },
+    "native_report_cap": {
+      "kicad_version": "10.0.7",
+      "url": "https://gitlab.com/kicad/code/kicad/-/raw/10.0.7/pcbnew/drc/drc_engine.cpp",
+      "local_sha256": "90779fc011abf0fbbd2ea7fa1a28077da24fce9a9617bb21b9c91d5bdeddf798",
+      "extended_error_limit": 499,
+      "locators": [
+        "line62 EXTENDED_ERROR_LIMIT499",
+        "lines933-934 unconnected uses extended limit",
+        "lines2265-2294 per-code decrement and exhaustion"
+      ],
+      "observed_origin_unconnected_count": 499,
+      "consequence": "Absence of a net from saturated native DRC is not evidence it is connected. provenance.net_completion assumes absence implies connected and reports ten already-incomplete nets as lost."
+    },
+    "ten_net_full_terminal_uuid_evidence": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/terminal-components.json",
+      "sha256": "29c720ccb8b32971123d9e55b59532ca98d9fa04a0fe6242a4483cbd19ddde51"
+    }
+  },
+  "policy_source": {
+    "project_revision": "19522e37de01103a93fe171a09fe624d8aba6bad",
+    "constraints_path": "/home/halbritt/git/fome-mc/telemetry-pod/expansion/design-rules/constraints.json",
+    "constraints_sha256": "e7e095b3ca595fdfb3c73fc22ad87c326fbc1c152523e85f2da4df4d908ea2e4",
+    "locator": "decisions_pending_next_seed D-PCB-7 v2 and D-PCB-6",
+    "current_written_policy": "SIG/GND/PWR+SIG/SIG: In1 no tracks boardwide (vias allowed); In2 signals around+3V3; RF corridor x76..88,y26.5..30.6mm no tracks/no vias on In1+In2; preserve actual stricter native policy/footprint keepouts",
+    "limitation": "Written pending policy is not an applied corrected-policy capture. iter8d is historical. Later live499 experiments are diagnostic only; no replacement project inferred."
+  },
+  "remaining_promotion_blockers": [
+    "Current-policy captured project identity/rule-area verification from449 not yet available to audit",
+    "Historical r0/FR use all four layers and do not meet written layer policy",
+    "r0 introduced via_dangling; FR inherits it; raw complete metrics are not acceptance",
+    "Historical captured input contains onlyPCB/project/custom rules, no schematic/netlist identity; baseline-info records parity_performed false",
+    "net_completion raw-DRC absence assumption must be corrected/separately verified before origin-valid promotion; preserve checks, do not waive them"
+  ],
+  "supporting_artifacts": {
+    "all-components.log": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/all-components.log",
+      "sha256": "582ff63209a0aa46f19274ea53fc73bc3000c70c5016d6c2d504cc174e7c7d25"
+    },
+    "kicad-10.0.7-drc_engine.cpp": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/kicad-10.0.7-drc_engine.cpp",
+      "sha256": "90779fc011abf0fbbd2ea7fa1a28077da24fce9a9617bb21b9c91d5bdeddf798"
+    },
+    "reproduce-all-components.py": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/reproduce-all-components.py",
+      "sha256": "9cd77c28d7def8840341c6910414cde6a40e613ab26241df1084b6942cba85a2"
+    },
+    "kicad-10.0.7-connectivity_data.cpp": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/kicad-10.0.7-connectivity_data.cpp",
+      "sha256": "604b288df7679e211d52f5c18934cdf2a0e270daf5d6e3401898d4b981d5a159"
+    },
+    "terminal-components.json": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/terminal-components.json",
+      "sha256": "29c720ccb8b32971123d9e55b59532ca98d9fa04a0fe6242a4483cbd19ddde51"
+    },
+    "baseline-counts.json": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/baseline-counts.json",
+      "sha256": "e2babfe5d8153df8895f6fc50547bb89888ac34e183520881e67abe087f96146"
+    },
+    "terminal-components.log": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/terminal-components.log",
+      "sha256": "23bbd5ddf5c83b3dd500c69fe606c5a01cac90e52f9288d6ed0e40ad62277bb6"
+    },
+    "r0-baseline-info.json": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/r0-baseline-info.json",
+      "sha256": "6e8276110f5c0d3d09edfa195c8809b743095ccfc9b9c3e40d6206441bb0031c"
+    },
+    "reproduce-counts.py": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/reproduce-counts.py",
+      "sha256": "31677b95dfe6d8058c628d3791a8e1bd6549fbe91a74f2058a1287bdcbca472c"
+    },
+    "reproduce-terminals.py": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/reproduce-terminals.py",
+      "sha256": "82240a93371f76174fc8793355ad947f062bd969a5e6af25699ab4e6f521c941"
+    },
+    "origin-baseline-info.json": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/origin-baseline-info.json",
+      "sha256": "3fa58a8d7d975ded34e871fc0a6ccba8fa58724669a0cfa95c043a8248bced9d"
+    },
+    "all-native-terminal-components.json": {
+      "path": "/home/halbritt/git/kicad-route/build/krt91-audit-agent507/all-native-terminal-components.json",
+      "sha256": "3cc602db9b1d5746f9a7fbfd28d1d7cba19cc4a7ce41069e3c91c02bc3806698"
+    }
+  }
+}

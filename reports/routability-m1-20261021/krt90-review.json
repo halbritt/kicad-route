@@ -1,0 +1,38 @@
+{
+  "schema": "kicad-route.independent-review/1",
+  "candidate_commit": "683b270ca1a5d19c7422098a29893d55230d0af4",
+  "diff_sha256": "f20fc9d65fe163e37e997d6c22179bb4266ed9dd7cf9f19140222ed35e8d24b0",
+  "diff_method": "git show --format= HEAD | sha256sum",
+  "blocking_findings": [],
+  "scope": "native grade capture, eligibility before completion, best/early stop, captured original/noeligible behavior, campaign2 schema/docs/test changes",
+  "validation": [
+    {
+      "command": "KICAD_ROUTE_TEST_OUT=/tmp/krt90-review-fast507 PYTHONPATH=src /usr/bin/python3 -m pytest -q tests/test_campaign.py -k \"rank or net_pattern or ineligible or missing_grade or unknown_native\" tests/test_campaign_corpus.py",
+      "result": "17 passed23 deselected0.15s"
+    },
+    {
+      "command": "KICAD_ROUTE_TEST_OUT=/tmp/krt90-review-corpus507 PYTHONPATH=src /usr/bin/python3 -m pytest -q tests/test_campaign_corpus.py",
+      "result": "19 passed3.37s"
+    }
+  ],
+  "test_review": "Regression checks use real chain state. Grade fixtures cross filesystem boundary; noeligible test simulates external child subprocess but exercises actual campaign machine records and disk baseline byte preservation. No blocking Test Guard violation observed. Parent owns native composed tests.",
+  "limits": [
+    "Read-only independent review, not release/electrical acceptance",
+    "Known existing capped DRC/native terminal completeness defect remains separate91 release gate;90 docs explicitly disclaim resolving it",
+    "Native DRC or routing not rerun for this review"
+  ],
+  "doctrine": {
+    "packet_id": "pkt-6d39283362097101",
+    "packet_sha256": "6d392833620971016afea32ea35c05e71e2e812d0bf46000378bd34b19b694f5",
+    "corpus": "corpus-2026-07-12-a11702cc9217",
+    "doctrine": "doctrine-f6bbb5196a3f8bf9",
+    "retriever": "retriever-ec995ecdd083b2c8",
+    "release": "d3e0c0d4ccd1920b2e045c156f1cf0db4fc5f04f",
+    "used_concepts": [
+      "universal-repository-contract-precedence",
+      "agent-conduct-authority-bounded-action"
+    ],
+    "material_obligations": "No doctrine-backed adoption/optimization conclusion. Claim narrowed to code inspection and listed fast checks; native integration is outstanding with parent.",
+    "nonmaterial_obligations": "Broad UI/ingest/dedup/monitoring/optimization obligations are outside this campaign selection review; no claims on them."
+  }
+}

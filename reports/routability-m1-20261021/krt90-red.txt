@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_rank_prefers_valid_incomplete_over_complete_new_clearance_error _____
+
+    def test_rank_prefers_valid_incomplete_over_complete_new_clearance_error():
+        # KICADROUTE-90: a clearance-invalid complete board previously beat a safe partial board.
+        invalid = graded_chain("invalid-complete")
+        invalid["grade"]["exit_code"] = 3
+        invalid["grade"]["validation"].update(status="FAIL", new_violations=1)
+        valid = graded_chain("valid-incomplete", unconnected=5)
+>       assert sorted([invalid, valid], key=campaign.rank_key) == [valid, invalid]
+E       AssertionError: assert [{'id': 'inva...graded', ...}] == [{'id': 'vali...graded', ...}]
+E         
+E         At index 0 diff: {'id': 'invalid-complete', 'round': 0, 'strategy': 'full', 'status': 'graded', 'steps': [], 'runtime_s': 10.0, 'grade': {'exit_code': 3, 'result': 'result.json', 'candidate': 'candidate.kicad_pcb', 'against': 'root-run', 'routing': {'status': 'COMPLETE', 'unconnected_in_scope': 0, 'unrouted_nets': []}, 'validation': {'status': 'FAIL', 'native_refill': 'PASS', 'native_drc': 'PASS', 'new_violations': 1, 'new_parity': 0, 'preservation_failures': []}}} != {'id': 'valid-incomplete', 'round': 0, 'strategy': 'full', 'status': 'graded', 'steps': [], 'runtime_s'...
+E         
+E         ...Full output truncated (2 lines hidden), use '-vv' to show
+
+tests/test_campaign.py:68: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_campaign.py::test_rank_prefers_valid_incomplete_over_complete_new_clearance_error
+1 failed in 0.11s

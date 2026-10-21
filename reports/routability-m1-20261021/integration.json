@@ -1,0 +1,107 @@
+{
+  "schema": "kicad-route.m1a-integration/1",
+  "status": "PASS",
+  "integrated_commit": "683b270ca1a5d19c7422098a29893d55230d0af4",
+  "base_commit": "557ae5758c06b050508dd8016f5c7b6abc2a83f8",
+  "native_gate": {
+    "command": "KICAD_ROUTE_STATE=/home/halbritt/git/kicad-route KICAD_ROUTE_TEST_OUT=/home/halbritt/git/kicad-route/build/routability-m1/native90 PYTHONPATH=src /usr/bin/python3 -m pytest -q tests/test_campaign.py tests/test_campaign_corpus.py tests/test_routing.py::test_chained_attempts_graded_against_origin 'tests/test_routing.py::test_unlocked_existing_copper_survives[krt]' --junitxml=/home/halbritt/git/kicad-route/build/routability-m1/native90/junit.xml",
+    "passed": 42,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "duration_s": 248.91,
+    "note": "Composed gate includes native campaigns, original-chain grading, protected unlocked copper and fast campaign/corpus cases; not a full suite count."
+  },
+  "worker_focused": {
+    "passed": 135,
+    "native_deselected": 10,
+    "duration_s": 40.55
+  },
+  "landing_gate": {
+    "passed": 17,
+    "deselected": 23,
+    "duration_s": 0.2
+  },
+  "independent_review": "krt90-review.json",
+  "doctor": {
+    "status": "PASS",
+    "offline": true,
+    "canary": false,
+    "manifest_drift": [],
+    "engine_source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d"
+  },
+  "source_unchanged": "Owned engine unchanged; wrapper code is live via installed main-checkout entry point. No generation activation required.",
+  "release_limits": [
+    "Known capped native unconnected report/terminal coverage issue remains91 gate.",
+    "No91release/pin,current-policy target route or optional algorithm/default promotion."
+  ],
+  "prep91": {
+    "candidate": "10ff94b874e840293c0ac3e73a703cee46aaae10",
+    "bundle": "build/routability-m1/prep91/identity-prep.bundle",
+    "bundle_sha256": "dea63d6f12d96eb0246946899a9c9e337e0d41c380c8c5959ab48a94456437a2",
+    "status": "UNMERGED_NOT_RELEASE_READY",
+    "branch_and_worktree_removed": true
+  },
+  "artifacts": {
+    "citation-classification.json": {
+      "sha256": "37541299494a735cb1034048ba4502a2819ecd0ad671279811db3b68c9c7456d",
+      "bytes": 1186
+    },
+    "krt90-native-evidence.tar.gz": {
+      "sha256": "fa5b968e05e444138391e85e3981488fce038b9fa005e6b44a2e498cd148b8fc",
+      "bytes": 348835
+    },
+    "README.md": {
+      "sha256": "f00744f07606440e384f6e929b1ee28537fabde9f6d47779023f41c46d396916",
+      "bytes": 2692
+    },
+    "krt90-review.json": {
+      "sha256": "d4c7a9cd6e998b188c4c40535490b06e5b2b540cb3e73ade648a962e119ce44d",
+      "bytes": 2376
+    },
+    "doctrine-receipt.json": {
+      "sha256": "4871e583d44ed6d5d985b6c5a83337ba4d45402192d22d02ac88cd86a04e4026",
+      "bytes": 12821
+    },
+    "historical-evidence-index.json": {
+      "sha256": "3608f49c82bf82ee664da4293683d8fe03e92ea63ae90aba999d47bd465d8cc9",
+      "bytes": 1627
+    },
+    "doctrine-packet.json": {
+      "sha256": "171963df496ce6758e328a69970f974ceda1c97c99d3d758ec5dcb78582754a4",
+      "bytes": 82038
+    },
+    "historical-evidence.tar.gz": {
+      "sha256": "fb7407f5ad7abd82b7bfcc06958990cf547c9d863ce18e2d41daee4d12ccd355",
+      "bytes": 92094
+    },
+    "krt90-focused.txt": {
+      "sha256": "09c347375ad8c43f5563218a82077b3d4f611c925c43f514475d56221e3d7d04",
+      "bytes": 113
+    },
+    "krt90-red-replay.py": {
+      "sha256": "66dd07bf8909d5b6fbf1d5064a47844fb84484e2d61b15199cb1b9fb960eb370",
+      "bytes": 460
+    },
+    "krt90-commands.txt": {
+      "sha256": "dfeb83a34b1b7e4932fdbd39484cdb0838db2600815a9515adb0c61906ccd197",
+      "bytes": 675
+    },
+    "krt90-native-index.json": {
+      "sha256": "01d37aaba65a44e4248e6effcf6d352dbad0dd25b5fbfb2c407f0d2391c850a1",
+      "bytes": 80850
+    },
+    "krt90-red.txt": {
+      "sha256": "897d94292087b0148bce98b220d898fb5ae74027f9f9fef707219ace1341ee19",
+      "bytes": 1761
+    },
+    "historical-audit.json": {
+      "sha256": "b4a899242a6b5a34fa3e12dd163acb786dd3e0f7925a26b97d5d34a9fd2ae4a7",
+      "bytes": 18051
+    },
+    "citation-observations.json": {
+      "sha256": "a926b20e3e31d19620a37cd2c632b2e5eb2e4f573ee4f492ff0206f23e5a31d6",
+      "bytes": 488
+    }
+  }
+}

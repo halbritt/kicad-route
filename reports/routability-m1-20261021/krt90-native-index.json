@@ -1,0 +1,1402 @@
+{
+  "build/krt90-native.log": {
+    "sha256": "92f9951cc7554985a016adc089046e877aab452aa8121f19d17fea225edb2e4b",
+    "bytes": 750
+  },
+  "build/routability-m1/doctor90.json": {
+    "sha256": "f5173a560d5ab341972dcee4ee21eb385fcbe64bb98e564adbb83340bc165c43",
+    "bytes": 16732
+  },
+  "build/routability-m1/doctor90.log": {
+    "sha256": "e8dadb09d32b3573d7e3322c36e5bee4392601e4b3efe91fbf6dbd7f50990359",
+    "bytes": 2639
+  },
+  "build/routability-m1/native90/.cache/baseline/0d77f350067155cf5b8cdb3780850b13820d960abb343591fbb48fb0873e78c1/current.json": {
+    "sha256": "e54f2879b31a8e385fa7ecc393068a897ec8563b029ada7c5a94415790871142",
+    "bytes": 42
+  },
+  "build/routability-m1/native90/.cache/baseline/0d77f350067155cf5b8cdb3780850b13820d960abb343591fbb48fb0873e78c1/generation-6mvphi7h/baseline-drc.json": {
+    "sha256": "be8e74a50349ae118539e78c07ac2a435c048d9509c51c7fcb3dea789dbd9fd1",
+    "bytes": 4452
+  },
+  "build/routability-m1/native90/.cache/baseline/0d77f350067155cf5b8cdb3780850b13820d960abb343591fbb48fb0873e78c1/generation-6mvphi7h/baseline-info.json": {
+    "sha256": "8d9f41237520662e2ae9808d6a437acaff41109e82dd8b1e614eb10b6ae8059d",
+    "bytes": 3684
+  },
+  "build/routability-m1/native90/.cache/baseline/0d77f350067155cf5b8cdb3780850b13820d960abb343591fbb48fb0873e78c1/generation-6mvphi7h/baseline-pour.json": {
+    "sha256": "94bd17a356e2f5be33db3cca2c9b30c2a7a1f434f906673ada72f80dfcb247ac",
+    "bytes": 1982
+  },
+  "build/routability-m1/native90/.cache/baseline/0d77f350067155cf5b8cdb3780850b13820d960abb343591fbb48fb0873e78c1/generation-6mvphi7h/generation.json": {
+    "sha256": "0ea10e868f40533968c4a8b4a7d13ec8998b749de7ae93e3c993f9739351944c",
+    "bytes": 1512
+  },
+  "build/routability-m1/native90/.cache/baseline/30f8381bf88ddf1d084490f5d50690aa3f1d2772c62617a62eb5fb9fb3f7bd00/current.json": {
+    "sha256": "f0c2022114016150382f501c70a9a600ee820ee18c80f58d401e97fd8266edb1",
+    "bytes": 42
+  },
+  "build/routability-m1/native90/.cache/baseline/30f8381bf88ddf1d084490f5d50690aa3f1d2772c62617a62eb5fb9fb3f7bd00/generation-8jzq08uy/baseline-drc.json": {
+    "sha256": "6494a5491cca8321912db9ae9fd3e8a585160fd08c6a1b3f75172153e4eeff63",
+    "bytes": 4452
+  },
+  "build/routability-m1/native90/.cache/baseline/30f8381bf88ddf1d084490f5d50690aa3f1d2772c62617a62eb5fb9fb3f7bd00/generation-8jzq08uy/baseline-info.json": {
+    "sha256": "9eaf012c7b9f2840979a3684d46bfe8c5bf31b4ca9aa69404c5be66297d17afc",
+    "bytes": 3685
+  },
+  "build/routability-m1/native90/.cache/baseline/30f8381bf88ddf1d084490f5d50690aa3f1d2772c62617a62eb5fb9fb3f7bd00/generation-8jzq08uy/baseline-pour.json": {
+    "sha256": "94bd17a356e2f5be33db3cca2c9b30c2a7a1f434f906673ada72f80dfcb247ac",
+    "bytes": 1982
+  },
+  "build/routability-m1/native90/.cache/baseline/30f8381bf88ddf1d084490f5d50690aa3f1d2772c62617a62eb5fb9fb3f7bd00/generation-8jzq08uy/generation.json": {
+    "sha256": "cd97c05f34d85ce23d8560d6135872603676d3b124eace1f6615dd8c8d5d53d2",
+    "bytes": 1512
+  },
+  "build/routability-m1/native90/.cache/baseline/944fda8c9a1572fe186e0ae7db3cc9282b89232639e0bc87c298e53f0973205b/current.json": {
+    "sha256": "f6ad460c208043d3962607ad2a272e6e5735827d8a11f5385a9d88868db9b396",
+    "bytes": 42
+  },
+  "build/routability-m1/native90/.cache/baseline/944fda8c9a1572fe186e0ae7db3cc9282b89232639e0bc87c298e53f0973205b/generation-n5akzjkw/baseline-drc.json": {
+    "sha256": "f751a63921a4c4e5bf6ca86d603f030dca29288ee32e435ba67661cc52bb17d6",
+    "bytes": 3276
+  },
+  "build/routability-m1/native90/.cache/baseline/944fda8c9a1572fe186e0ae7db3cc9282b89232639e0bc87c298e53f0973205b/generation-n5akzjkw/baseline-info.json": {
+    "sha256": "e5c851c4593949b9c5f024fba3812b8f8e891141b2754610f4c432821c385300",
+    "bytes": 3685
+  },
+  "build/routability-m1/native90/.cache/baseline/944fda8c9a1572fe186e0ae7db3cc9282b89232639e0bc87c298e53f0973205b/generation-n5akzjkw/baseline-pour.json": {
+    "sha256": "94bd17a356e2f5be33db3cca2c9b30c2a7a1f434f906673ada72f80dfcb247ac",
+    "bytes": 1982
+  },
+  "build/routability-m1/native90/.cache/baseline/944fda8c9a1572fe186e0ae7db3cc9282b89232639e0bc87c298e53f0973205b/generation-n5akzjkw/generation.json": {
+    "sha256": "23e6bbab23e53936bb83aae99768b0da50dc2ea4ea36f9bd03ae7f240b376463",
+    "bytes": 1512
+  },
+  "build/routability-m1/native90/.cache/baseline/96012668f44fcd929169c904e9431d9aa901f12b2d55bebae9594751c02ab1fe/current.json": {
+    "sha256": "def0df81f2cfc4d5d0795c9bb5f24a1bc1a84a38c9bd4cbc00120d11c4bfb2fd",
+    "bytes": 42
+  },
+  "build/routability-m1/native90/.cache/baseline/96012668f44fcd929169c904e9431d9aa901f12b2d55bebae9594751c02ab1fe/generation-kbl96egx/baseline-drc.json": {
+    "sha256": "9d541eae1d23a0e753fd4dce3c832a358cb25382af6236ea7d423faf91c8a548",
+    "bytes": 5028
+  },
+  "build/routability-m1/native90/.cache/baseline/96012668f44fcd929169c904e9431d9aa901f12b2d55bebae9594751c02ab1fe/generation-kbl96egx/baseline-info.json": {
+    "sha256": "10f6feff387095a86cadc681a72a688aa854592ef53f2b877a64f9d20f2c78af",
+    "bytes": 3685
+  },
+  "build/routability-m1/native90/.cache/baseline/96012668f44fcd929169c904e9431d9aa901f12b2d55bebae9594751c02ab1fe/generation-kbl96egx/baseline-pour.json": {
+    "sha256": "32a99805b50129e3097664659cafcacf0324726de67e6f1c803e46a2bb26848a",
+    "bytes": 2279
+  },
+  "build/routability-m1/native90/.cache/baseline/96012668f44fcd929169c904e9431d9aa901f12b2d55bebae9594751c02ab1fe/generation-kbl96egx/generation.json": {
+    "sha256": "139ff42c2a0f597c065d639b25caca38298c513a548529896f66fca03f900a85",
+    "bytes": 1512
+  },
+  "build/routability-m1/native90/.cache/baseline/b1db5f3d2dfa55f36fe5cc461933ea9ba11c04f58cf5c5b841f42f7cd3666dc9/current.json": {
+    "sha256": "62e3b87b33c7f72f4e5b731945a74a56bf855b0c1ede25d99d3a0cee5b6f5354",
+    "bytes": 42
+  },
+  "build/routability-m1/native90/.cache/baseline/b1db5f3d2dfa55f36fe5cc461933ea9ba11c04f58cf5c5b841f42f7cd3666dc9/generation-qi1pt0m_/baseline-drc.json": {
+    "sha256": "23ff4ff34db50bf172338bd64360bd60254b33937b371e8379f72f14b800f902",
+    "bytes": 3868
+  },
+  "build/routability-m1/native90/.cache/baseline/b1db5f3d2dfa55f36fe5cc461933ea9ba11c04f58cf5c5b841f42f7cd3666dc9/generation-qi1pt0m_/baseline-info.json": {
+    "sha256": "eb0ded8b99e7e4b808c7f27476872f8163ea73ffdd57e8583936345f35a54b64",
+    "bytes": 3684
+  },
+  "build/routability-m1/native90/.cache/baseline/b1db5f3d2dfa55f36fe5cc461933ea9ba11c04f58cf5c5b841f42f7cd3666dc9/generation-qi1pt0m_/baseline-pour.json": {
+    "sha256": "94bd17a356e2f5be33db3cca2c9b30c2a7a1f434f906673ada72f80dfcb247ac",
+    "bytes": 1982
+  },
+  "build/routability-m1/native90/.cache/baseline/b1db5f3d2dfa55f36fe5cc461933ea9ba11c04f58cf5c5b841f42f7cd3666dc9/generation-qi1pt0m_/generation.json": {
+    "sha256": "eedbf645d5e191267449c2234616f4392a11de7d8ece3a5da1f64a7518bdbb0c",
+    "bytes": 1512
+  },
+  "build/routability-m1/native90/.cache/baseline/c1d340119b5481ef4d02b42be4d99f4b1b30cb005138fdd513cf7785fbd8ddec/current.json": {
+    "sha256": "5fb7b0b4d49e662dec54c5d6c55fe2af792b454fa508203a4c5e83bb449a977f",
+    "bytes": 42
+  },
+  "build/routability-m1/native90/.cache/baseline/c1d340119b5481ef4d02b42be4d99f4b1b30cb005138fdd513cf7785fbd8ddec/generation-ven8avii/baseline-drc.json": {
+    "sha256": "f0f41fd4ae61a2788d40fdebb49636aceeb071bd432bd2e0981c98b8a67e4395",
+    "bytes": 3898
+  },
+  "build/routability-m1/native90/.cache/baseline/c1d340119b5481ef4d02b42be4d99f4b1b30cb005138fdd513cf7785fbd8ddec/generation-ven8avii/baseline-info.json": {
+    "sha256": "3f70c5dcb21296c26203363bd7b5b27194765da4395940f17f46d98a47378ec8",
+    "bytes": 3685
+  },
+  "build/routability-m1/native90/.cache/baseline/c1d340119b5481ef4d02b42be4d99f4b1b30cb005138fdd513cf7785fbd8ddec/generation-ven8avii/baseline-pour.json": {
+    "sha256": "d7dff88139704532a41234665ecc886b5442cf4926861620b2a898ba89e7b581",
+    "bytes": 2279
+  },
+  "build/routability-m1/native90/.cache/baseline/c1d340119b5481ef4d02b42be4d99f4b1b30cb005138fdd513cf7785fbd8ddec/generation-ven8avii/generation.json": {
+    "sha256": "9a6119d8febf9f24c9c84ae7bc4e84aac95f01d138f9e04311252ad4be94a5e7",
+    "bytes": 1512
+  },
+  "build/routability-m1/native90/.kicad-config/10.0/3d_viewer.json": {
+    "sha256": "7c95b3fdd72f837a3cc49248249c40bc24c07b75bafe02d0d091a0864746b6a9",
+    "bytes": 9269
+  },
+  "build/routability-m1/native90/.kicad-config/10.0/cvpcb.json": {
+    "sha256": "3a24bbacab369da74efdaff851be8869d8ca2e5e4ca28304f9eb57041bdad759",
+    "bytes": 8409
+  },
+  "build/routability-m1/native90/.kicad-config/10.0/eeschema.json": {
+    "sha256": "ad360fd6896e8d8f65059a2aaff40139e8c37f5f758954d3b94be9033fb114fb",
+    "bytes": 12148
+  },
+  "build/routability-m1/native90/.kicad-config/10.0/fpedit.json": {
+    "sha256": "4d824ab97688dcfc144494386c6991dc0a31f324228d6a85cea279a474f51bb0",
+    "bytes": 7196
+  },
+  "build/routability-m1/native90/.kicad-config/10.0/kicad.json": {
+    "sha256": "20c9db1c1f2caacc9f2fb9bf25909f0e50dcb86f5fbda21233168c0d751bc650",
+    "bytes": 5767
+  },
+  "build/routability-m1/native90/.kicad-config/10.0/kicad_common.json": {
+    "sha256": "f5f96f05e23a5d34cfe027cc7284d8977bbc25c833ceba996a2f4872a20e44d6",
+    "bytes": 2565
+  },
+  "build/routability-m1/native90/.kicad-config/10.0/pcbnew.json": {
+    "sha256": "412c1fe43f0db375147a9d25f5c7da6768ae054d94300cef57c9349bd3374e7a",
+    "bytes": 13751
+  },
+  "build/routability-m1/native90/.kicad-config/10.0/symbol_editor.json": {
+    "sha256": "9b42635c84a17cb400a5ff58be7e9376289054294c8ab6b9d92257af7f87a8aa",
+    "bytes": 4247
+  },
+  "build/routability-m1/native90/campaign_blocked.json": {
+    "sha256": "908ab30a8789eddc110937ad5436d49a0caa3c57eaba9f308056d6c26f50a52a",
+    "bytes": 7998
+  },
+  "build/routability-m1/native90/campaign_race.json": {
+    "sha256": "8292a7223df0be0c50daa4089df9cab2143c78bfa48e7575929a8981abfb226d",
+    "bytes": 7080
+  },
+  "build/routability-m1/native90/campaign_total_budget.json": {
+    "sha256": "85a4ae5edf28c58e75a884c695e28635862f162f891b78104ac0b95b53684f4d",
+    "bytes": 1168
+  },
+  "build/routability-m1/native90/campaign_trivial.json": {
+    "sha256": "3b175afa453c76db411b9359e72460a1fa576bb349d65247c2497ced68b5c291",
+    "bytes": 6360
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/campaign.json": {
+    "sha256": "85ab33794391baff9c85f20828e5a6282d17c24f1df2b328a577812ba8abcd75",
+    "bytes": 20199
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/input/snapshot.json": {
+    "sha256": "865e8f049da9ffd3ee31a38c5671d9f54cd03112dae39aa01a5bfac1a00b7c59",
+    "bytes": 1043
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/logs/campaign-blocked-r0.json": {
+    "sha256": "af5fed1fbd1668517a751a115bfdd458fd5834e3ef5c0940ec215f78df2bd96c",
+    "bytes": 28636
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/logs/campaign-blocked-r0.log": {
+    "sha256": "f5a8bb3e3d25d46fb0768ae4353e209dc165defe99a61b9e20c1e58184e53a5b",
+    "bytes": 621
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/logs/campaign-blocked-r1-backlog.json": {
+    "sha256": "dd49e3b65284772004e630ca3ab8d0c7b18272d6a42b2cc85e5811ac8b0bfcdb",
+    "bytes": 28653
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/logs/campaign-blocked-r1-backlog.log": {
+    "sha256": "c82636ac6aec544ef7525ddf1ad8d6e48e635fec80d71d32ba067b88d92c1e0e",
+    "bytes": 650
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/logs/campaign-blocked-r1-rest.json": {
+    "sha256": "3970706fcf4fe6ff24e3f991647efe49f926ff0fe0398337b4ec13e418c22ec4",
+    "bytes": 27099
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/logs/campaign-blocked-r1-rest.log": {
+    "sha256": "392f45f819dacc650099557b867c41143449990e3785fb952833f1c5e689a0a3",
+    "bytes": 614
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/logs/campaign-blocked-r1-validate.json": {
+    "sha256": "7f3379a21fc65d46334b73d01d69725847a7640ac4ba60a4d96199fb2bcf908b",
+    "bytes": 9845
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-blocked/20261021T183529.223551Z/logs/campaign-blocked-r1-validate.log": {
+    "sha256": "b84298e398e04730085894cafef617bc37c9330ccebf9ada5b1ee6454c64cd7b",
+    "bytes": 189
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/campaign.json": {
+    "sha256": "425d51832bfc560b466b45b31478f40e5063a7b17c705158c9a7bea64165f7b1",
+    "bytes": 18519
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/input/facts.json": {
+    "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+    "bytes": 16631
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/input/facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/input/snapshot.json": {
+    "sha256": "742bbfaaca5321dae0ffbc5d418e0afd75d79d087725b7b65b52af9c374a6113",
+    "bytes": 1116
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/logs/campaign-race-r0-pads-first.json": {
+    "sha256": "f6f20bc43038d26fb5f6ae10d57a331fa1a54f8652beb0bcb27b74d5944ea62d",
+    "bytes": 26935
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/logs/campaign-race-r0-pads-first.log": {
+    "sha256": "acc845a46101621675252fc99baf6e8e5fbff8b60780bee1b2fce8d2c83ff089",
+    "bytes": 623
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/logs/campaign-race-r0-pads-rest.json": {
+    "sha256": "9b7735a0ad49f32c361f2300d758fe7872325719afe7a279e75a4380e70c2fe3",
+    "bytes": 26990
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/logs/campaign-race-r0-pads-rest.log": {
+    "sha256": "d5f1d803830a7ac04da505a3880836389305bfe34189aaf4cbad91c3c1e65f22",
+    "bytes": 620
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/logs/campaign-race-r0-pads-validate.json": {
+    "sha256": "6f7aab8d6d676abb54ae5f3192f12939663d62c29e38c09679d252cebe5dd5a9",
+    "bytes": 8137
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/logs/campaign-race-r0-pads-validate.log": {
+    "sha256": "c4327e4a25490b454bb8477b86643307020f69d8b21b23977c1ba7a87cf2ace8",
+    "bytes": 189
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/logs/campaign-race-r0.json": {
+    "sha256": "114f0a37335128f165e49098979fd081e287f3c95823b909c3edeae486b95818",
+    "bytes": 26842
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-race/20261021T183710.018717Z/logs/campaign-race-r0.log": {
+    "sha256": "d464cabced6ec0020052917fca3ec57c0b1a298f156b97ffb1eacc942dfecd70",
+    "bytes": 590
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-total-budget/20261021T183747.378894Z/campaign.json": {
+    "sha256": "ae627c62806986d8aba979649a61dfb686fdacacd3f48a53c9140b550923c23a",
+    "bytes": 11788
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-total-budget/20261021T183747.378894Z/input/snapshot.json": {
+    "sha256": "865e8f049da9ffd3ee31a38c5671d9f54cd03112dae39aa01a5bfac1a00b7c59",
+    "bytes": 1043
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-total-budget/20261021T183747.378894Z/logs/campaign-total-budget-r0.json": {
+    "sha256": "ef5c4928c2fd207cbfacb1b50a9afc05f42226057ddb815d29731a53d24dd249",
+    "bytes": 27903
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-total-budget/20261021T183747.378894Z/logs/campaign-total-budget-r0.log": {
+    "sha256": "c63d98550044d5c1f52e9550aeab31ba651336a261c916e9b65b3729de0e0320",
+    "bytes": 702
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-trivial/20261021T183454.818458Z/campaign.json": {
+    "sha256": "459dedde55d00da0b200852777ffdbbc31f1a508157b6bd5d8252d4a7c3d8766",
+    "bytes": 11120
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-trivial/20261021T183454.818458Z/input/snapshot.json": {
+    "sha256": "742bbfaaca5321dae0ffbc5d418e0afd75d79d087725b7b65b52af9c374a6113",
+    "bytes": 1116
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-trivial/20261021T183454.818458Z/logs/campaign-trivial-r0.json": {
+    "sha256": "2a4f8cc8b6d3bdaf062f5ad8d02e838002d41c47526050352a227c999c47bca5",
+    "bytes": 26789
+  },
+  "build/routability-m1/native90/campaigns/route_demo/campaign-trivial/20261021T183454.818458Z/logs/campaign-trivial-r0.log": {
+    "sha256": "c3faab89d9ae3440fc9986a72085680db2b7c9d8db33454ac1751fce5820262e",
+    "bytes": 599
+  },
+  "build/routability-m1/native90/chain.json": {
+    "sha256": "dcd1089c31363c62cd711c0b356a31c554d3c517a2faa4d7d97bfd0ea129fa54",
+    "bytes": 20754
+  },
+  "build/routability-m1/native90/junit.xml": {
+    "sha256": "a2d0d8c1e5a6d72a6d0ffb1614ca21a2b387640ea7a435cced07f634c9bd9c10",
+    "bytes": 5708
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/attempt.json": {
+    "sha256": "6bdcb94218332caa7ee61079eb12dd001007b056218d321ec3a119ee9fd893c3",
+    "bytes": 2852
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/facts/reference-facts.json": {
+    "sha256": "927676b0df291edb3a46d7559d06e3c44d4637da4752730c73f0639221a5e1d2",
+    "bytes": 17013
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/result.json": {
+    "sha256": "e1d942985b6dcf5a61c3b592270ae8670fd87a80c5757c56a36bf9544085a50c",
+    "bytes": 34836
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/snapshot.json": {
+    "sha256": "865e8f049da9ffd3ee31a38c5671d9f54cd03112dae39aa01a5bfac1a00b7c59",
+    "bytes": 1043
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/blocked-by.json": {
+    "sha256": "fc5f2141eed001ab5ae2aae53e0f82a9194871b41a71f73f171319a12d3a72ac",
+    "bytes": 18293
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/candidate-drc.json": {
+    "sha256": "624cb177b7815957eb4db2ee832325626d6efbef8f426d6017c58f2b912b886f",
+    "bytes": 4244
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/candidate-drc.log": {
+    "sha256": "3e96c9d850e53144d625e21fb7245e4e9753479b602f1e2e2c04d530579d54ce",
+    "bytes": 246
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/candidate-facts.json": {
+    "sha256": "572ece4461af6bed5de933c50eb5efcc9e9b996afa3454910e239b4a2ec4bbc3",
+    "bytes": 19063
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/candidate-pour.json": {
+    "sha256": "b686fbd1f0b1eba0451dc55a10fe376af7ef8b4faa81a7fcdb99017f7972083a",
+    "bytes": 1947
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/candidate-refill.json": {
+    "sha256": "fbae4f2c984126c197e609ed7ae7d0b05002bdb9b31c0a06b13a6ffcd1a5d397",
+    "bytes": 4223
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/candidate-refill.log": {
+    "sha256": "e69013e19f916820618ac4fe6003be9b419bc9b8ab6a1dea30e351b8e3a8e3c9",
+    "bytes": 229
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/pour-integrity.json": {
+    "sha256": "c334189e0d686da06ae1323a9fdf3911e436d5889660de0a59607bf187dad38a",
+    "bytes": 1859
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/validate/preservation.json": {
+    "sha256": "c231280b432a95bcb933e108ffc105b5987efb292a948881283aee81ddfbd066",
+    "bytes": 2702
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/work/krt-out/summary.json": {
+    "sha256": "437a7cb76c4f9c91623a1053c834b15b75c46736eafd43feb119cfc07f23870f",
+    "bytes": 4128
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/work/krt.log": {
+    "sha256": "edb46ff7f7965f676fbd289d8cc8ff12bc7ae10f74648d42a139345912e83906",
+    "bytes": 28830
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/work/lock-existing.log": {
+    "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/work/locks.json": {
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r0/20261021T183529.441167Z/work/restore-locks.log": {
+    "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/attempt.json": {
+    "sha256": "19d80eedbb7246534bd25558ca1bd6af833fa7a170efb20b8b8239be907067de",
+    "bytes": 3063
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/facts/reference-facts.json": {
+    "sha256": "927676b0df291edb3a46d7559d06e3c44d4637da4752730c73f0639221a5e1d2",
+    "bytes": 17013
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/result.json": {
+    "sha256": "62e3606ae2e3ab998c408b8db208e74122b1ec8902db762f2801104536208368",
+    "bytes": 34735
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/snapshot.json": {
+    "sha256": "865e8f049da9ffd3ee31a38c5671d9f54cd03112dae39aa01a5bfac1a00b7c59",
+    "bytes": 1043
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/blocked-by.json": {
+    "sha256": "a96868d728a160beda7e1db128cf8c8076be01e23b038abc18074133dcdeb73f",
+    "bytes": 16771
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/candidate-drc.json": {
+    "sha256": "ae83b81f4bed75c159a891b32c8b1c37e35b4d1d3ce5148265b081faa922bb9a",
+    "bytes": 5026
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/candidate-drc.log": {
+    "sha256": "f4885b80fd4a66b1ea1441fdec13cdf9949bce0f6f8c0a36a6f7efc55426595a",
+    "bytes": 254
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/candidate-facts.json": {
+    "sha256": "03682ffc4da0ff685d84b8f312c21b422940b3a7a43a33a3c65e570453b2511e",
+    "bytes": 18292
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/candidate-pour.json": {
+    "sha256": "b686fbd1f0b1eba0451dc55a10fe376af7ef8b4faa81a7fcdb99017f7972083a",
+    "bytes": 1947
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/candidate-refill.json": {
+    "sha256": "3fb23b601d11d7d20926e54d58dbda3f58f24cf6d838c801b367a720893ad9c9",
+    "bytes": 4994
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/candidate-refill.log": {
+    "sha256": "d20c5cf5dcac1d75eece1e767c63f28c32b9c6cd936c5fae11b5df0b1e94a5d7",
+    "bytes": 237
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/pour-integrity.json": {
+    "sha256": "6e523442f19e1e29ea84c718434dd8df4c651a18fad4f3b21565d1b867cc7580",
+    "bytes": 1867
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/validate/preservation.json": {
+    "sha256": "032781da108bc4efd7e6313d55a06125ffc019f897a27405385fd7a60737b8b3",
+    "bytes": 2702
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/work/krt-out/summary.json": {
+    "sha256": "abff7a8ad01a6903b72d6a229915bca2c498b2e98ae515f4f1203d09ab57a380",
+    "bytes": 3928
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/work/krt.log": {
+    "sha256": "76f791ce156933d010661e9c88367e4fd91764b75bb7d09d9edb2e0d44c9cf0d",
+    "bytes": 27620
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/work/lock-existing.log": {
+    "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/work/locks.json": {
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-backlog/20261021T183616.858964Z/work/restore-locks.log": {
+    "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/attempt.json": {
+    "sha256": "fd9ddd678c0d29ab6dd84b23aba298c9a1b4cb7ef6171847ed41dadd0f0160b2",
+    "bytes": 3169
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/facts/reference-facts.json": {
+    "sha256": "03682ffc4da0ff685d84b8f312c21b422940b3a7a43a33a3c65e570453b2511e",
+    "bytes": 18292
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/result.json": {
+    "sha256": "9915447b30a9de252efa7b501c1f5923949ef616205d97dbfcd4519a27522209",
+    "bytes": 32217
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/blocked-by.json": {
+    "sha256": "f17036d929e3dd37f2f75d79777a74de357f1a58b139f0175c636ccc1f51e3bc",
+    "bytes": 18293
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/candidate-drc.json": {
+    "sha256": "f7a5ed5a3874df9225b26288725bec035703b864a9e2592f11656ca605bfab89",
+    "bytes": 4244
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/candidate-drc.log": {
+    "sha256": "cb32546bcc4e57f6f7a9e516a9c9f51a72224ce00f1a6deb1d48d5b2d36ec710",
+    "bytes": 284
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/candidate-facts.json": {
+    "sha256": "7fbd5129e41178ca0e99c011a2f16c12aa19d90ff7878599b7324407b66ea8c3",
+    "bytes": 19063
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/candidate-pour.json": {
+    "sha256": "b686fbd1f0b1eba0451dc55a10fe376af7ef8b4faa81a7fcdb99017f7972083a",
+    "bytes": 1947
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/candidate-refill.json": {
+    "sha256": "d28148055b2630e46a8cb9f0cb2e7475b135bb6d404027cc156139c3aa19cb63",
+    "bytes": 4212
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/candidate-refill.log": {
+    "sha256": "da1a4f1f551bc0b52b1584df8a94f5036da271d1bf2e2267ae4806476763c21c",
+    "bytes": 267
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/pour-integrity.json": {
+    "sha256": "6e523442f19e1e29ea84c718434dd8df4c651a18fad4f3b21565d1b867cc7580",
+    "bytes": 1867
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/preservation.json": {
+    "sha256": "c231280b432a95bcb933e108ffc105b5987efb292a948881283aee81ddfbd066",
+    "bytes": 2702
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/revalidate-origin/20261021T183700.851818Z/result.json": {
+    "sha256": "62346d31d3de920360fb43fd6a584c413fa6ae08076957630d6f72c37ec08807",
+    "bytes": 12221
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/snapshot.json": {
+    "sha256": "c44a8b552fa28f726685b03bf04f3c888a6bb37fa772bc44c79aa4614a050350",
+    "bytes": 1175
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/candidate-drc.json": {
+    "sha256": "6c8a1a93dbee55fe842f2ace98cd5413e0fb0f8b349bfb5326d3fb8fdf8c8515",
+    "bytes": 4244
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/candidate-drc.log": {
+    "sha256": "00c9a19fa800ae44b3d9346e863dd1b23c3ff2d2f8bcf5890b8f809953718019",
+    "bytes": 251
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/candidate-facts.json": {
+    "sha256": "7fbd5129e41178ca0e99c011a2f16c12aa19d90ff7878599b7324407b66ea8c3",
+    "bytes": 19063
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/candidate-pour.json": {
+    "sha256": "b686fbd1f0b1eba0451dc55a10fe376af7ef8b4faa81a7fcdb99017f7972083a",
+    "bytes": 1947
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/candidate-refill.json": {
+    "sha256": "1025a34200cbd0390991b35354fd4af5c20bb031c93e9a1a3e5e6d8f1274cff1",
+    "bytes": 4223
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/candidate-refill.log": {
+    "sha256": "7638e2d1e44aa9edaa31d325d9e83d49ded60c43f0cb9c4fbcecf630c1c3264c",
+    "bytes": 234
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/pour-integrity.json": {
+    "sha256": "68bb23f972f387262231f9dce8ebb3e0165e3bdf8977d5ca76b85fc406a41917",
+    "bytes": 1864
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/validate/preservation.json": {
+    "sha256": "c640155934d877dd8f91b39d989375d865358c8e36cb6c44ef41ee7040235f49",
+    "bytes": 2702
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/work/krt-out/summary.json": {
+    "sha256": "377ec7c14cacb7467fd8e28fe723ada1ce97f4cdf22632f88c2ff7b67de0a8d7",
+    "bytes": 2909
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/work/krt.log": {
+    "sha256": "4f69089b601d9d97dc23cdc7aee3e6d768560118701e2b088a0b22a6f4240443",
+    "bytes": 9064
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/work/lock-existing.log": {
+    "sha256": "5441695cc2ffb49e43b472088d44bf501ee67b9fef9d8ed4eb3882f219d82459",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/work/locks.json": {
+    "sha256": "8713c2c46b2fc4e7a7e37fa5dfc23e967b232386fa95f554a2206f10776d0a29",
+    "bytes": 354
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-blocked-r1-rest/20261021T183643.578817Z/work/restore-locks.log": {
+    "sha256": "5d56e0615f83d4b55ba6928a4c9b6558e14efd118083a2f4c28325342a01097a",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/attempt.json": {
+    "sha256": "d5232d45f68b05c9e0e5f7a8429ccf8fb2f3d4059e3d82488d281d52a7e04941",
+    "bytes": 2935
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/facts/reference-facts.json": {
+    "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+    "bytes": 16631
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/result.json": {
+    "sha256": "66e70394bc34373d9118f578124b61cb1fdf8ec525d922dce3653d69a180aaf0",
+    "bytes": 31926
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/snapshot.json": {
+    "sha256": "742bbfaaca5321dae0ffbc5d418e0afd75d79d087725b7b65b52af9c374a6113",
+    "bytes": 1116
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/candidate-drc.json": {
+    "sha256": "dbbb0de6b7a996b4c69b900649674b746027b5873966fa97dd4642d9b2337002",
+    "bytes": 4206
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/candidate-drc.log": {
+    "sha256": "046312856517a0d435c3f365d28874daba36e4fc336ccfa66b8790208c582a39",
+    "bytes": 243
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/candidate-facts.json": {
+    "sha256": "f970ceb644d23ab14a89ad4b6c4af5f3c23dae3a059c826af020b6cb135413a9",
+    "bytes": 17924
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/candidate-pour.json": {
+    "sha256": "d4f17575811a150b3bb5c8be466f013d8165696901385e2ddf1bc065c5c2f8e8",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/candidate-refill.json": {
+    "sha256": "48b62c19a1fb6a3966fe8da86bea1f265432bf538559a8596b82156d7e7a5a79",
+    "bytes": 4185
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/candidate-refill.log": {
+    "sha256": "0ba9ae5e3ffc394b69a06df01d2f037928e40f872aea2b4f60b5dca1c92de493",
+    "bytes": 226
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/pour-integrity.json": {
+    "sha256": "b9edbcf8010295a2de0bfcf00064efca9809b0814e30423a055b7ec83b0a66ae",
+    "bytes": 1840
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/validate/preservation.json": {
+    "sha256": "0475f2d53117ca81e1c36e195122157177503f28016785c854976a675d15ca3a",
+    "bytes": 2673
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/work/krt-out/summary.json": {
+    "sha256": "94eec1ae8a749c08be501efcd93a04f7d2ac7fa524fcd546b195e0ea2306c77b",
+    "bytes": 2886
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/work/krt.log": {
+    "sha256": "0575e2dbd1179530a4e73154aa210a277a15540f2e8bd3cd9f15bc9813bf0c33",
+    "bytes": 8782
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/work/lock-existing.log": {
+    "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/work/locks.json": {
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0/20261021T183711.582563Z/work/restore-locks.log": {
+    "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/attempt.json": {
+    "sha256": "f6c07ae7f88911d6a772a8d602fdd2093b92156443ba5d5ef31cbc0b4136d447",
+    "bytes": 2913
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/facts/reference-facts.json": {
+    "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+    "bytes": 16631
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/result.json": {
+    "sha256": "291cb6322442b28cbb3a75cec33845f7e483596abd9d45154202ba0cf0947718",
+    "bytes": 31981
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/snapshot.json": {
+    "sha256": "742bbfaaca5321dae0ffbc5d418e0afd75d79d087725b7b65b52af9c374a6113",
+    "bytes": 1116
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/candidate-drc.json": {
+    "sha256": "a7c4a353bdff6d0939068277a3175708cdbf2c2e5ff2429b495c110eaef62328",
+    "bytes": 4996
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/candidate-drc.log": {
+    "sha256": "346f8e22d1144873da2d47a9c07c4b9bdd15c532483e2f7cccc15b523c6c7560",
+    "bytes": 254
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/candidate-facts.json": {
+    "sha256": "6bbb11e9e6a000460d13a0f4201e2a040042079e34ecd4682477e45b43c6298d",
+    "bytes": 17402
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/candidate-pour.json": {
+    "sha256": "d4f17575811a150b3bb5c8be466f013d8165696901385e2ddf1bc065c5c2f8e8",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/candidate-refill.json": {
+    "sha256": "e7ce334eda20fb4c9180dd10c227e2f2c5e87dbf65850f787dd6d22174b1b494",
+    "bytes": 4975
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/candidate-refill.log": {
+    "sha256": "1c367528fe2c2a58db270f0d7347a9efc29334470f7ccd2b9a192b2a30bee602",
+    "bytes": 237
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/pour-integrity.json": {
+    "sha256": "067b94845fb7537715d0a99c8e322ff834c0c59a30a9fc7b346a399978067a6d",
+    "bytes": 1851
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/validate/preservation.json": {
+    "sha256": "5c7f94281d9443f8823522f9ef42ec8989162076d10ee25775a1470c116da39f",
+    "bytes": 2673
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/work/krt-out/summary.json": {
+    "sha256": "64a241ecaa838b16d79def2eaf1a56750dfd32bd17fa8fa37f5393bc7b0d80bd",
+    "bytes": 2864
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/work/krt.log": {
+    "sha256": "818ea800cd40b8238a5e3041c0b391c099942b4e61719c32ed1fb54aa0fd2442",
+    "bytes": 8695
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/work/lock-existing.log": {
+    "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/work/locks.json": {
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-first/20261021T183711.586478Z/work/restore-locks.log": {
+    "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/attempt.json": {
+    "sha256": "3c4e69bdc6fd45d6dc2fa2223d407c6c5b95dc959b70f91c6205989cf94ede2c",
+    "bytes": 3013
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/facts/reference-facts.json": {
+    "sha256": "6bbb11e9e6a000460d13a0f4201e2a040042079e34ecd4682477e45b43c6298d",
+    "bytes": 17402
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/result.json": {
+    "sha256": "5434059b70d91e7dad90dd9986f2899abe776e45634b976b883bde3e13a11e26",
+    "bytes": 32042
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/candidate-drc.json": {
+    "sha256": "7831e7550190d8a3f469dd0b9864a96e1a09f4ab722d80d194203242229619fb",
+    "bytes": 4206
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/candidate-drc.log": {
+    "sha256": "2a2f68278310af68243aea870f008716ce1fc5a37d7f3a9044d088743210baf8",
+    "bytes": 286
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/candidate-facts.json": {
+    "sha256": "8ab31daa057b33c159b36dc382c38fbd132390d97926b07abb8fb15635be7129",
+    "bytes": 17924
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/candidate-pour.json": {
+    "sha256": "d4f17575811a150b3bb5c8be466f013d8165696901385e2ddf1bc065c5c2f8e8",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/candidate-refill.json": {
+    "sha256": "b5d2603fa33963f82f08a5334157e7f1ff139fe11dd0ff3ed278a6b3450ff857",
+    "bytes": 4185
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/candidate-refill.log": {
+    "sha256": "bda430cc902f335555d212ca7a400946c7f15aecad6a8a3cbeac95209b940bd2",
+    "bytes": 269
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/pour-integrity.json": {
+    "sha256": "067b94845fb7537715d0a99c8e322ff834c0c59a30a9fc7b346a399978067a6d",
+    "bytes": 1851
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/preservation.json": {
+    "sha256": "0475f2d53117ca81e1c36e195122157177503f28016785c854976a675d15ca3a",
+    "bytes": 2673
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/revalidate-origin/20261021T183740.379249Z/result.json": {
+    "sha256": "a743d16bd50b6104e95ea09f622d7c29bfca6e655bb104d37163269fd62bdd7e",
+    "bytes": 9579
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/snapshot.json": {
+    "sha256": "0fcc88ec1a47a50160152e992b6895e45711176b48843fe7ca75d572e6c8f0bb",
+    "bytes": 1175
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/candidate-drc.json": {
+    "sha256": "26f55daed9d5198d5e1c073a2e63361fe1010f98e5055a37cbd61e7b5a1428be",
+    "bytes": 4206
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/candidate-drc.log": {
+    "sha256": "0f121df3e07802ca23f676cba1f603bcacac8e123e5e8543523da7481b466e27",
+    "bytes": 253
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/candidate-facts.json": {
+    "sha256": "8ab31daa057b33c159b36dc382c38fbd132390d97926b07abb8fb15635be7129",
+    "bytes": 17924
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/candidate-pour.json": {
+    "sha256": "d4f17575811a150b3bb5c8be466f013d8165696901385e2ddf1bc065c5c2f8e8",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/candidate-refill.json": {
+    "sha256": "710f7d5161560ff80d595038d34ecd55020479e18420a42c2584c75675f9b329",
+    "bytes": 4185
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/candidate-refill.log": {
+    "sha256": "daa5e8fe2eae9088aba2e395fa2bf9548271f9eb4da9aef06df2ad37e48c9c3b",
+    "bytes": 236
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/pour-integrity.json": {
+    "sha256": "505bb87c0b6d171398cd5f92b9971b72e72d6f9b1b8ddd0aff6bb699849b3a65",
+    "bytes": 1850
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/validate/preservation.json": {
+    "sha256": "6b6d9739a66df4d55d2b38a2a8dc1afce48592587914b0ea865d54706fa8af62",
+    "bytes": 2673
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/work/krt-out/summary.json": {
+    "sha256": "182ecf25341ed84d7e55addbd154a0299a0f0c0c8ad58bf9b7e5890cbd0826b1",
+    "bytes": 2871
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/work/krt.log": {
+    "sha256": "b27fb3a9571ef123b4f5c136fa8debc5edca3fb354f810e5eb63b8cbd94d738d",
+    "bytes": 8620
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/work/lock-existing.log": {
+    "sha256": "cac3164bed8cbd6c576c124a64aa163a55dd376d38590741dfde1a71b26c7ffc",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/work/locks.json": {
+    "sha256": "36f9f2d1dfd17b79fb8ac779fed87ab0d9b5330e90827dcdde4a2ca07f568ae2",
+    "bytes": 228
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-race-r0-pads-rest/20261021T183726.195279Z/work/restore-locks.log": {
+    "sha256": "f63b0bf321a2c21cb7650e229845780e36eddba2093ac07cec66c20947a0d92f",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/attempt.json": {
+    "sha256": "0e809f1b1ec89a1e5e9af64552e0623f6f5c850417ea8f628462c6ae553b92b9",
+    "bytes": 2849
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/facts/reference-facts.json": {
+    "sha256": "927676b0df291edb3a46d7559d06e3c44d4637da4752730c73f0639221a5e1d2",
+    "bytes": 17013
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/result.json": {
+    "sha256": "2cd6dfbcb6c0ec1f3c8ba86e1d3a683dae0d61dbef4c996fda2ec3d4e367a000",
+    "bytes": 33845
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/snapshot.json": {
+    "sha256": "865e8f049da9ffd3ee31a38c5671d9f54cd03112dae39aa01a5bfac1a00b7c59",
+    "bytes": 1043
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/blocked-by.json": {
+    "sha256": "492331de67989509df2a96da6cb77e7f5d59d7cff8b49f291b686557b8182321",
+    "bytes": 23110
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/candidate-drc.json": {
+    "sha256": "f80d8fc31032c47cfade9a9b51b207b6251cc7766496d9c3ea0a2a4be3bc56bd",
+    "bytes": 6552
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/candidate-drc.log": {
+    "sha256": "23161cde5d28d1066549784d3a2065adde5309224ea1c4285dc09cd79f73d116",
+    "bytes": 251
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/candidate-facts.json": {
+    "sha256": "6f6a5e56dbbf1c8fcfbca6256dade9d256e69d9095906b82912fdf4dc6671a21",
+    "bytes": 17013
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/candidate-pour.json": {
+    "sha256": "2e5bad2d1f2c8b1350d18099f0c4b9e1dc1b31d4194dc7bbb88f71f80be7a5ef",
+    "bytes": 1947
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/candidate-refill.json": {
+    "sha256": "e78d80a03e2a1f2c70b509ac2010ff02fb86ede68f876fd5336d2476b0fcde0f",
+    "bytes": 6531
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/candidate-refill.log": {
+    "sha256": "a6442347507ce636755b6a61abfe6a5d9ed88a3254c0fd88f86db320d0770007",
+    "bytes": 234
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/pour-integrity.json": {
+    "sha256": "5a39eb09ef806b8d60061e83f5ed3cbde0022abc5a9fb7d00005a154d2d48a2a",
+    "bytes": 1864
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/validate/preservation.json": {
+    "sha256": "d0344bdcf0297a1a3c0c2d2f60411bbcf50f81c6b7820958e5295fb4dfff399e",
+    "bytes": 2702
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/work/krt-out/summary.json": {
+    "sha256": "d12b5f4968a9b18b43bb2e26a0895442e1a0ed798ed85da154de31a870bb6f6c",
+    "bytes": 3007
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/work/krt.log": {
+    "sha256": "1b496bc73c5807aa0f0205fef9826b83453cb2eccf76fde44b82d5064d8b6585",
+    "bytes": 8589
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/work/lock-existing.log": {
+    "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/work/locks.json": {
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-total-budget-r0/20261021T183747.567632Z/work/restore-locks.log": {
+    "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/attempt.json": {
+    "sha256": "257820b643497f9ad1b721cc7285666357a0148e7e3b61140d2c7c21c53189b7",
+    "bytes": 2936
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/facts/reference-facts.json": {
+    "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+    "bytes": 16631
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/result.json": {
+    "sha256": "1c67c803ec95e67019693dfb5b0282f1e18440052a811a1f9e328e17dcaba849",
+    "bytes": 31861
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/snapshot.json": {
+    "sha256": "742bbfaaca5321dae0ffbc5d418e0afd75d79d087725b7b65b52af9c374a6113",
+    "bytes": 1116
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/candidate-drc.json": {
+    "sha256": "99a079bd51ce5c235c16ed1ffd9cd031dc96f1cfd1e24d31a8986e7b269d8e8d",
+    "bytes": 4206
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/candidate-drc.log": {
+    "sha256": "964d563786f023aff6a3513a5e4a995ea7464206c6fa92ea002795b065cc0de3",
+    "bytes": 246
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/candidate-facts.json": {
+    "sha256": "c5c815b42c3fe7f4b0d235ba052d00c567dbfb20f96c3294ac758ad2f8213a82",
+    "bytes": 17924
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/candidate-pour.json": {
+    "sha256": "d4f17575811a150b3bb5c8be466f013d8165696901385e2ddf1bc065c5c2f8e8",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/candidate-refill.json": {
+    "sha256": "71a2c1dc9de1094b5d65d35028e4eb8fcd33774dfd0eeef7edb357b961eb5f53",
+    "bytes": 4185
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/candidate-refill.log": {
+    "sha256": "a4efd098280030399adafc97fa65c10ea5ea8e09c25ba1d68e5bf6ff9e54a6b3",
+    "bytes": 229
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/pour-integrity.json": {
+    "sha256": "139f7060d7a0c44f0bc0c313cf58e7a567d2a228f63d25a28418947cb62bf8fd",
+    "bytes": 1843
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/validate/preservation.json": {
+    "sha256": "0475f2d53117ca81e1c36e195122157177503f28016785c854976a675d15ca3a",
+    "bytes": 2673
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/work/krt-out/summary.json": {
+    "sha256": "2afdff7257393b872b80dc5a860f97ad2915a3738293a9946df26ca7e0af85c2",
+    "bytes": 2889
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/work/krt.log": {
+    "sha256": "c3bd7f725826884e2c61b3b60a8f7796f720259f35c8d3d3f3cf41500622c023",
+    "bytes": 8812
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/work/lock-existing.log": {
+    "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/work/locks.json": {
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  "build/routability-m1/native90/runs/route_demo/campaign-trivial-r0/20261021T183455.110679Z/work/restore-locks.log": {
+    "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/attempt.json": {
+    "sha256": "e3d1660ccfe805a4398d82fc75c2ad7586aec17ed6405c80ae2bc7135bb0b8ee",
+    "bytes": 3011
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/facts/reference-facts.json": {
+    "sha256": "c55693c861aed99ed6df4e9bd83d709a03166c8773b18d63b8a5616fc29901d9",
+    "bytes": 17924
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/result.json": {
+    "sha256": "908c6c1afa384996364e3d7cf2f1e021da7436d1d5f382762ce3e3454523af6b",
+    "bytes": 31613
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/candidate-drc.json": {
+    "sha256": "b43b99118c071a91b0f68a3abf12f6ea1027192d77512bd943e453714ddabb40",
+    "bytes": 1088
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/candidate-drc.log": {
+    "sha256": "9733d8601c5f315b804943800bc50531b2a9f6e99670d749b5a82dfa129991c1",
+    "bytes": 275
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/candidate-facts.json": {
+    "sha256": "80ea6aa963d4f99dc8db72dc7682f6ba36fa20bb960c250a7a8363414a609a8c",
+    "bytes": 21000
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/candidate-pour.json": {
+    "sha256": "b39af73b1e9744198b2117017c63554311dc99c3222fa0a7032b90309a1b9306",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/candidate-refill.json": {
+    "sha256": "bfb65d0da4dd4744cdc6f0858cf3bc30002947fac3c25626431f004c24f99dc3",
+    "bytes": 1067
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/candidate-refill.log": {
+    "sha256": "4370249ca0604eaf4e87496d0d5ea8a147296f5af2aa020b6f2710e97127c294",
+    "bytes": 258
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/pour-integrity.json": {
+    "sha256": "b4409842841104826ea887f3047dc0babc258c312c0e67366d23da453365befe",
+    "bytes": 1838
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/preservation.json": {
+    "sha256": "31ced08bc9afb768835703eb4663d4a1cbc6f6d6daab9d238f9058558bdb18f6",
+    "bytes": 2674
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/revalidate-origin/20261021T183836.339596Z/result.json": {
+    "sha256": "df19b0c1ae273fe988de89dad1955834b9885f27e7d2de241fbe7ce2ef24568c",
+    "bytes": 9436
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/snapshot.json": {
+    "sha256": "c7f53b86fc148a5de9bc163adb50b6428f7dad3a26b5513ec8825438aa0a11c5",
+    "bytes": 1162
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/candidate-drc.json": {
+    "sha256": "c3598b3a9861eb93ef9921f54b94beefc6a54348b68aa324c4f743d296b40ef8",
+    "bytes": 1088
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/candidate-drc.log": {
+    "sha256": "a5abb19add053827b1242dd71fdd51dfd297f016cb1b413fdc1d3d4ab3c2e046",
+    "bytes": 242
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/candidate-facts.json": {
+    "sha256": "80ea6aa963d4f99dc8db72dc7682f6ba36fa20bb960c250a7a8363414a609a8c",
+    "bytes": 21000
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/candidate-pour.json": {
+    "sha256": "b39af73b1e9744198b2117017c63554311dc99c3222fa0a7032b90309a1b9306",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/candidate-refill.json": {
+    "sha256": "e4ee3300947f4d586c1bfa5a8edc5f7b911c24ec48bc161dbb3781988cfa31f1",
+    "bytes": 1067
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/candidate-refill.log": {
+    "sha256": "df4580809b361965ca32f6692c6e1c6ec1baf581a9ddb75efd878c5782fd2bd7",
+    "bytes": 225
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/pour-integrity.json": {
+    "sha256": "370610fb245c274eda711806ea2ae6698e40a93eb2addfe75d11200d636c57f7",
+    "bytes": 1839
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/validate/preservation.json": {
+    "sha256": "fd86651f35bf9ef81f5f9818d94b18bcac75f0c16348e8f944bca06edae339b6",
+    "bytes": 2675
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/work/krt-out/summary.json": {
+    "sha256": "fee6fdda9f55f376622cbcbe2ca1ed34956dca9001c57cad4b1d24c6f6ef8d1c",
+    "bytes": 2816
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/work/krt.log": {
+    "sha256": "dbf4afd47747ca20b7a9aa29ed2f8798afce59797c3d4ec27fc43449bd30fa2c",
+    "bytes": 10721
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/work/lock-existing.log": {
+    "sha256": "5441695cc2ffb49e43b472088d44bf501ee67b9fef9d8ed4eb3882f219d82459",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/work/locks.json": {
+    "sha256": "ee50512ded177c6ba0f46dadd4cb0d27a1e69ebd2be504da0a1750b47488214e",
+    "bytes": 388
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-chain/20261021T183815.786211Z/work/restore-locks.log": {
+    "sha256": "5d56e0615f83d4b55ba6928a4c9b6558e14efd118083a2f4c28325342a01097a",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/attempt.json": {
+    "sha256": "5ddd514c4414436d05117e0bde5eaf0f92b40229a53669654b7583ba29643c23",
+    "bytes": 2935
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/facts/reference-facts.json": {
+    "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+    "bytes": 16631
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/result.json": {
+    "sha256": "0f07a56041adf82ad884017774644c47595e0617fbc0350fb11454224e7b122c",
+    "bytes": 31743
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/snapshot.json": {
+    "sha256": "742bbfaaca5321dae0ffbc5d418e0afd75d79d087725b7b65b52af9c374a6113",
+    "bytes": 1116
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/candidate-drc.json": {
+    "sha256": "a73b42a5714135c0373c0c4e8277228e18a2c0e0ebdda332a468271040e18df0",
+    "bytes": 4206
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/candidate-drc.log": {
+    "sha256": "1ae7d8c2391d6be50e4647fae645783e42ba6e448c10a2cc3751fb9e15d7cd1f",
+    "bytes": 241
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/candidate-facts.json": {
+    "sha256": "c55693c861aed99ed6df4e9bd83d709a03166c8773b18d63b8a5616fc29901d9",
+    "bytes": 17924
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/candidate-pour.json": {
+    "sha256": "d4f17575811a150b3bb5c8be466f013d8165696901385e2ddf1bc065c5c2f8e8",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/candidate-refill.json": {
+    "sha256": "772c14c7d104533b9eb86ff5a7cb14e336bf85e586c301ffe9407bf5fbae97a9",
+    "bytes": 4185
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/candidate-refill.log": {
+    "sha256": "9a2878ec156f5004d659801fbd630edf583885329857f94f2e2d44b3346c2016",
+    "bytes": 224
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/pour-integrity.json": {
+    "sha256": "b4409842841104826ea887f3047dc0babc258c312c0e67366d23da453365befe",
+    "bytes": 1838
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/validate/preservation.json": {
+    "sha256": "0475f2d53117ca81e1c36e195122157177503f28016785c854976a675d15ca3a",
+    "bytes": 2673
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/work/krt-out/summary.json": {
+    "sha256": "718ecda32d0e03312371ef9f2416e18eb806eae1da1b79061ca2b6b9943e6700",
+    "bytes": 2884
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/work/krt.log": {
+    "sha256": "54e6834c6ee0f19b1963b971332e5c93bbe2fdd491aecf0a3a1d66fb9ab4a1b8",
+    "bytes": 8762
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/work/lock-existing.log": {
+    "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/work/locks.json": {
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-krt-nets/20261021T183803.843271Z/work/restore-locks.log": {
+    "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/attempt.json": {
+    "sha256": "571dc17c7fe6d4365abd5471115217d798c476a2c6276e82f510d1667d840aa7",
+    "bytes": 2783
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/facts/reference-facts.json": {
+    "sha256": "cbdc392d8b6f7b2417fb2ca097dbc74235d5469bcd045ebe20ffae22299616fb",
+    "bytes": 16638
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/facts/reference-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/result.json": {
+    "sha256": "0fc2696794847ee8d734dc411c3222dd5706fa7e5c448b69032c0309e0abcb21",
+    "bytes": 31515
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/snapshot.json": {
+    "sha256": "110cf6dc6ec71fbdf216d6e4558d11b5e5c07e2fad63e898422d9f01cf864ca9",
+    "bytes": 1044
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/candidate-drc.json": {
+    "sha256": "b958fdbc8e744619a18f11d3061f845ce7da5611941861effb7c825c494c6608",
+    "bytes": 1088
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/candidate-drc.log": {
+    "sha256": "c0d0225352730af2dbd0ff9cf69e6b9bea877ac8029745028a41d682da40fee6",
+    "bytes": 245
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/candidate-facts.json": {
+    "sha256": "1791bcbbf8936ddc28cf8a0814e808e6ba446951b4fc397f99943e174ed38a5f",
+    "bytes": 21007
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/candidate-facts.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/candidate-pour.json": {
+    "sha256": "b39af73b1e9744198b2117017c63554311dc99c3222fa0a7032b90309a1b9306",
+    "bytes": 1703
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/candidate-pour.log": {
+    "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+    "bytes": 387
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/candidate-refill.json": {
+    "sha256": "430ac6a2f8c716ced06c2c76f50f3772f4b8d0f02a92c003559350645b8b4b42",
+    "bytes": 1067
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/candidate-refill.log": {
+    "sha256": "cccd16df3de4314690db7bb05782deb8628d7779720686ba0cd5e0f2338b00de",
+    "bytes": 228
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/new-findings.json": {
+    "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+    "bytes": 78
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/pour-integrity.json": {
+    "sha256": "ec192a2521ca4e83b651bb7bce5fe74fa6b78d90957aa1bd9bb7e301a5726400",
+    "bytes": 1842
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/validate/preservation.json": {
+    "sha256": "31ced08bc9afb768835703eb4663d4a1cbc6f6d6daab9d238f9058558bdb18f6",
+    "bytes": 2674
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/work/krt-out/summary.json": {
+    "sha256": "ead5d9d80b983fb5e726363ef86a29ed418072cd2c6d986cf8108211a1eaa39e",
+    "bytes": 2877
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/work/krt.log": {
+    "sha256": "122a587be5bf00594079886eb4a4747dd946c683901d7f62083a7f54f140595b",
+    "bytes": 11123
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/work/lock-existing.log": {
+    "sha256": "69b763c9f8ab15698e27701f127b335a8be151aba4f6d1e35b68039ebd692eab",
+    "bytes": 413
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/work/locks.json": {
+    "sha256": "0c2d04bbc37a2604205da2569e3b23cb1c9f01bbf99b89322fafcf3dda38768b",
+    "bytes": 506
+  },
+  "build/routability-m1/native90/runs/route_demo/smoke-unlocked-krt/20261021T183843.481286Z/work/restore-locks.log": {
+    "sha256": "8aeff6d2c95dd6869f9a26bf838920320f7ab60d1c4de7481573acb70b8dab16",
+    "bytes": 431
+  },
+  "build/routability-m1/native90/source_untouched.json": {
+    "sha256": "277fd668c45b44fc1ca8e116c40891eaea24943a87775f2ff20a64f9ef3c96e1",
+    "bytes": 198
+  },
+  "build/routability-m1/native90/unlocked_krt.json": {
+    "sha256": "996d67e786064ae8f7fa3d03a54c53038121874f5cb8ce7ba0ebb2157ec2a87b",
+    "bytes": 10256
+  }
+}
