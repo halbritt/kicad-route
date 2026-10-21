@@ -1,0 +1,300 @@
+{
+  "schema": "kicad-route/upstream-archon-verification/1",
+  "status": "PASS",
+  "host": "archon",
+  "matrix_session": "47159",
+  "observed_matrix_exit_code": 0,
+  "completed_attempts": 48,
+  "measured_attempts": 40,
+  "separate_warmups": 8,
+  "completed_boards": 4,
+  "comparison_mode": "algorithm-change",
+  "gate_limit": 1.1,
+  "protocol": {
+    "source": "/evidence/archon-protocol.json",
+    "retained": "archon-protocol.json",
+    "sha256": "23ced002d30ff310d18cab5c96688798773f40d96bb0b78fb78ac1c13b0bcd1d"
+  },
+  "matrix": {
+    "source": "/evidence/archon-metadata/matrix.json",
+    "retained": "archon-metadata/matrix.json",
+    "sha256": "87b8c6282d144d1a570f7feb6277d902445ddce4d8251b64208252aa29a39b37"
+  },
+  "evidence_index": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/archon-import/archon-evidence-index.json",
+    "sha256": "73392c58be2ea7b9d6bf5aa466e57e5dab88603ed4a2d5b409b8b9a356b8077a"
+  },
+  "verifier_sha256": "68a1ffdf749ece7bd4342a3a48036c97a0554ab5d50ce5e66d7aa9065bc43b07",
+  "resolver_sha256": "99b1078290d27f13401adbac060ac1b6758bcfc60dcd1f2fe68f7acd4feef3e7",
+  "boards": [
+    {
+      "board": "diff-pair",
+      "passed": true,
+      "metrics": {
+        "wall_s": {
+          "reference_median": 4.71,
+          "candidate_median": 4.58,
+          "ratio": 0.9723991507430998,
+          "limit": 1.1
+        },
+        "max_rss_kib": {
+          "reference_median": 227936,
+          "candidate_median": 227804,
+          "ratio": 0.9994208900744068,
+          "limit": 1.1
+        },
+        "process_tree_peak_rss_kib": {
+          "reference_median": 249948,
+          "candidate_median": 249364,
+          "ratio": 0.9976635140109142,
+          "limit": 1.1
+        }
+      },
+      "copper_geometry_equal": true,
+      "reference_completion": {
+        "minimum_open": 0,
+        "all_complete": true
+      },
+      "report": {
+        "source": "/evidence/diff-pair-archon/comparison.json",
+        "retained": "diff-pair-archon/comparison.json",
+        "sha256": "6ef32737ee92a5b0ae7c2dad2636370cc814bdc0634bb8d24cb1a2f64e122823"
+      }
+    },
+    {
+      "board": "four-layer",
+      "passed": true,
+      "metrics": {
+        "wall_s": {
+          "reference_median": 3.64,
+          "candidate_median": 3.72,
+          "ratio": 1.021978021978022,
+          "limit": 1.1
+        },
+        "max_rss_kib": {
+          "reference_median": 228464,
+          "candidate_median": 228716,
+          "ratio": 1.0011030184186567,
+          "limit": 1.1
+        },
+        "process_tree_peak_rss_kib": {
+          "reference_median": 382524,
+          "candidate_median": 384124,
+          "ratio": 1.0041827440892597,
+          "limit": 1.1
+        }
+      },
+      "copper_geometry_equal": true,
+      "reference_completion": {
+        "minimum_open": 0,
+        "all_complete": true
+      },
+      "report": {
+        "source": "/evidence/four-layer-archon/comparison.json",
+        "retained": "four-layer-archon/comparison.json",
+        "sha256": "b1f1bc5caa4400866a59200361492987c5764998aac2aa92a564c59f2340031e"
+      }
+    },
+    {
+      "board": "multipoint",
+      "passed": true,
+      "metrics": {
+        "wall_s": {
+          "reference_median": 2.95,
+          "candidate_median": 2.96,
+          "ratio": 1.0033898305084745,
+          "limit": 1.1
+        },
+        "max_rss_kib": {
+          "reference_median": 228336,
+          "candidate_median": 227884,
+          "ratio": 0.9980204610749072,
+          "limit": 1.1
+        },
+        "process_tree_peak_rss_kib": {
+          "reference_median": 250208,
+          "candidate_median": 248736,
+          "ratio": 0.9941168947435733,
+          "limit": 1.1
+        }
+      },
+      "copper_geometry_equal": true,
+      "reference_completion": {
+        "minimum_open": 0,
+        "all_complete": true
+      },
+      "report": {
+        "source": "/evidence/multipoint-archon/comparison.json",
+        "retained": "multipoint-archon/comparison.json",
+        "sha256": "c74f206f6c381a926743db16c8d11bd9b5c8160b50d964e47f4956c27f516b27"
+      }
+    },
+    {
+      "board": "route-demo",
+      "passed": true,
+      "metrics": {
+        "wall_s": {
+          "reference_median": 4.12,
+          "candidate_median": 4.12,
+          "ratio": 1.0,
+          "limit": 1.1
+        },
+        "max_rss_kib": {
+          "reference_median": 265992,
+          "candidate_median": 266376,
+          "ratio": 1.001443652440675,
+          "limit": 1.1
+        },
+        "process_tree_peak_rss_kib": {
+          "reference_median": 413968,
+          "candidate_median": 415056,
+          "ratio": 1.0026282224713021,
+          "limit": 1.1
+        }
+      },
+      "copper_geometry_equal": true,
+      "reference_completion": {
+        "minimum_open": 0,
+        "all_complete": true
+      },
+      "report": {
+        "source": "/evidence/route-demo-archon/comparison.json",
+        "retained": "route-demo-archon/comparison.json",
+        "sha256": "c94967e8ad30062a082f0211f6d2e368d39cc7e5b4abd29276144707c37c4ef9"
+      }
+    }
+  ],
+  "quality": {
+    "all48_raw_result_summaries_checked": true,
+    "frozen_pair_population_checked": true,
+    "all48_uncensored": true,
+    "all48_native_validation_and_preservation_passed": true,
+    "all48_complete": true,
+    "original_rule_and_final_board_hashes_checked": true,
+    "grading_record_hashes_verified": 312
+  },
+  "resources": {
+    "observed_in_scope_births": 963,
+    "explicit_birth_races": 3,
+    "resource_violations": [],
+    "all48_order_control_membership_checked": true,
+    "host_before": {
+      "source": "/evidence/before-host-attestation.json",
+      "retained": "before-host-attestation.json",
+      "sha256": "32f495e8b3fddccd3e54e46af58b409ccda6d004fb24aa8cbe27002ccd6c22d7"
+    },
+    "host_after": {
+      "source": "/evidence/after-host-attestation.json",
+      "retained": "after-host-attestation.json",
+      "sha256": "953965bd03bd5922397f70b5684d7c0a5a81da35f54bfc963e075975578a9435"
+    }
+  },
+  "runtime": {
+    "prepared": {
+      "reference": {
+        "manifest": {
+          "source": "/work/state-reference/manifest.json",
+          "retained": "prerequisite-by-sha/5c7ec23731fd36f1668958e47cec67c26b5124b76bce4d1fa617cc1e2f62f750/manifest.json",
+          "sha256": "5c7ec23731fd36f1668958e47cec67c26b5124b76bce4d1fa617cc1e2f62f750"
+        },
+        "module": {
+          "source": "/work/state-reference/.router-generations/3f0844f335914420b9c0d81c4d1c7aa5/venv/lib/python3.12/site-packages/grid_router.so",
+          "retained": "prerequisite-by-sha/7ac7a1f4936f0ede4667a8eeb1331da0a02354b6e614ce917421659d9e84ac8d/grid_router.so",
+          "sha256": "7ac7a1f4936f0ede4667a8eeb1331da0a02354b6e614ce917421659d9e84ac8d"
+        },
+        "preparation": {
+          "source": "/evidence/preparation-reference/preparation.json",
+          "retained": "preparation-reference/preparation.json",
+          "sha256": "234dfb9d44de9712c0cd35087bff0c8f56f86ef2f223c9491fcdffd3c7f54c13"
+        },
+        "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+        "extension_sha256": "7ac7a1f4936f0ede4667a8eeb1331da0a02354b6e614ce917421659d9e84ac8d",
+        "python_version": "3.12.3",
+        "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+        "dependency_pyc_count": 1619
+      },
+      "candidate": {
+        "manifest": {
+          "source": "/work/state-candidate/manifest.json",
+          "retained": "prerequisite-by-sha/8d0d061e19316e84377fe20a34030303b5ea6c62fec29105dce7ceabdb46433e/manifest.json",
+          "sha256": "8d0d061e19316e84377fe20a34030303b5ea6c62fec29105dce7ceabdb46433e"
+        },
+        "module": {
+          "source": "/work/state-candidate/.router-generations/1f6882cf883342ba882e37a8fbdbc7ca/venv/lib/python3.12/site-packages/grid_router.so",
+          "retained": "prerequisite-by-sha/88cad36f96c7313278b90ce724a425a67a0af230865820c487722dfe68ab9d34/grid_router.so",
+          "sha256": "88cad36f96c7313278b90ce724a425a67a0af230865820c487722dfe68ab9d34"
+        },
+        "preparation": {
+          "source": "/evidence/preparation-candidate/preparation.json",
+          "retained": "preparation-candidate/preparation.json",
+          "sha256": "deaaf08b0003be08f2fa4db7deb105309bfcadac864fe647d653524d30dc757c"
+        },
+        "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+        "extension_sha256": "88cad36f96c7313278b90ce724a425a67a0af230865820c487722dfe68ab9d34",
+        "python_version": "3.12.3",
+        "packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+        "dependency_pyc_count": 1619
+      }
+    },
+    "actual": {
+      "reference": {
+        "backend": {
+          "name": "builtin",
+          "tag": "owned-c6c09054f684",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+          "extension_module_sha256": "7ac7a1f4936f0ede4667a8eeb1331da0a02354b6e614ce917421659d9e84ac8d",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+          "venv_python_version": "3.12.3"
+        },
+        "native": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "wrapper_python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        }
+      },
+      "candidate": {
+        "backend": {
+          "name": "builtin",
+          "tag": "owned-89a2efbf5305",
+          "version": "0.23.1",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+          "extension_module_sha256": "88cad36f96c7313278b90ce724a425a67a0af230865820c487722dfe68ab9d34",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+          "venv_python_version": "3.12.3"
+        },
+        "native": {
+          "path": "/usr/bin/kicad-cli",
+          "version": "10.0.7",
+          "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+        },
+        "pcbnew": {
+          "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+          "python": "/usr/bin/python3"
+        },
+        "wrapper_python": {
+          "version": "3.12.3",
+          "executable": "/usr/bin/python3"
+        }
+      }
+    }
+  },
+  "limits": [
+    "Sampled process-tree RSS is the frozen observer peak (lower bound), not a reconstructed continuous peak.",
+    "Membership is once per observed birth; explicit reap/reuse races are retained, not continuous migration tracing.",
+    "Algorithm-change mode permits copper geometry changes; all original native and 1.10 gates remain enforced.",
+    "External index SHA and actual terminal session/exit are root observations, not inferred from imported metadata."
+  ],
+  "native_reruns": false,
+  "source_or_state_mutations": false
+}

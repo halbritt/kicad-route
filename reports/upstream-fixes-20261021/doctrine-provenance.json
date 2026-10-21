@@ -1,0 +1,13 @@
+{
+  "schema": "kicad-route/doctrine-provenance/1",
+  "packet_id": "pkt-488908796a8e4ee7",
+  "packet_content_sha256": "488908796a8e4ee72dbc0a3db91d09ccfa51144579ce6b8e84ee64948408bcc4",
+  "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "retriever_version": "retriever-ec995ecdd083b2c8",
+  "release_commit": "d3e0c0d4ccd1920b2e045c156f1cf0db4fc5f04f",
+  "retrieval_state": "GatePASS checksum/sourcefingerprint/committedretrievalpaths; no development fallback",
+  "evidence_gathering_assemblies": 2,
+  "authority_ceiling": "Execute within owner-authorized scope; verify actual named gates; no asserted human acceptance",
+  "packet_file_sha256": "b8b9a095a8b0e9de8cc744aace47933f355a860ff3c9b415912246ee6218281e"
+}

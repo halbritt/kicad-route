@@ -1,0 +1,52 @@
+{
+  "schema": "kicad-route/wheel-runtime-capability-verification/1",
+  "status": "PASS",
+  "source_commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+  "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+  "selected_generation": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295",
+  "wheel_runtime": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295/venv",
+  "ordinary_independent_verifier_sha256": "ea7139f64062674af6cd4280a35ebdbaedffa2d24bf0619b4320133878be1146",
+  "ordinary_independent_report_sha256": "6b33ef602f6aeeb0bd452970eb44257fd774277e902f23af2375c6181ef429f6",
+  "wheel_native_results": [
+    {
+      "result": "/tmp/pytest-of-ubuntu/pytest-0/installed-wheel0/out/runs/route_demo/builtin/20261021T094706.409817Z/result.json",
+      "sha256": "062f6353bee10cf7d093851824d5d0517c41edeaae3803bd79cd476ff6adb322",
+      "candidate": "/tmp/pytest-of-ubuntu/pytest-0/installed-wheel0/out/runs/route_demo/builtin/20261021T094706.409817Z/candidate/route_demo/route_demo.kicad_pcb",
+      "candidate_sha256": "f7fb6c28d8dacbd5c9123946988c583f49cd79cc24896dec48976174941f3d67",
+      "executed_backend": {
+        "name": "builtin",
+        "tag": "owned-89a2efbf5305",
+        "version": "0.23.1",
+        "commit": null,
+        "grid_router_version": "0.23.1",
+        "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+        "extension_module_sha256": "a9e29be7aa1b44d70a87404f03060c2dbe81531da0a3070fb575c4c34282070f",
+        "venv_python_version": "3.12.3",
+        "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+      },
+      "native_status": "PASS/COMPLETE/PASS"
+    },
+    {
+      "result": "/tmp/pytest-of-ubuntu/pytest-0/installed-wheel0/out/runs/route_demo/campaign-builtin-r0/20261021T094720.054661Z/result.json",
+      "sha256": "a87ffa17fa6eb37e3c5d643e560a57bf79d9bafadd1bbbe775c3b25d90a94c3a",
+      "candidate": "/tmp/pytest-of-ubuntu/pytest-0/installed-wheel0/out/runs/route_demo/campaign-builtin-r0/20261021T094720.054661Z/candidate/route_demo/route_demo.kicad_pcb",
+      "candidate_sha256": "283e40f5a36bcb39dcf26c42fdd2907656e8287840c440f87f922c77983dc3d9",
+      "executed_backend": {
+        "name": "builtin",
+        "tag": "owned-89a2efbf5305",
+        "version": "0.23.1",
+        "commit": null,
+        "grid_router_version": "0.23.1",
+        "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+        "extension_module_sha256": "a9e29be7aa1b44d70a87404f03060c2dbe81531da0a3070fb575c4c34282070f",
+        "venv_python_version": "3.12.3",
+        "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+      },
+      "native_status": "PASS/COMPLETE/PASS"
+    }
+  ],
+  "strict_repeat_raw_population": 2,
+  "helper_sha256": "0dbbbfa6140132e94abfe0595fc39fd52a7fead24b061a4c2302ce43259d03d5",
+  "native_reruns": false,
+  "source_or_state_mutations": false
+}

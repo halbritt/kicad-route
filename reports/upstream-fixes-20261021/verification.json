@@ -1,0 +1,168 @@
+{
+  "schema": "kicad-route/upstream-adoption-verification/1",
+  "status": "PASS",
+  "verified_utc": "2026-10-21T10:17:20.454231+00:00",
+  "scope": "Technical source/integration/native performance/full tests/deployment/evidence/cleanup gates. Tracker and advisory handling are recorded separately after their external writes.",
+  "integrated_source_commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+  "shipping_source_tree": "672e1f2764a498d2ba0284ba248f8b163b649701",
+  "engine_source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+  "benchmark_source_commit": "4fb4fa14a968cf08127cc849d81eb0f9c20a1b05",
+  "benchmark_verification_sha256": "b33a197185c6b834db71580ac2d71f5c5b873a860a68317c2801c227c5029991",
+  "full_tests": {
+    "base_nodes": 816,
+    "successful_subtest_events": 6,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "independent_verification_sha256": "6b33ef602f6aeeb0bd452970eb44257fd774277e902f23af2375c6181ef429f6",
+    "wheel_runtime_verification_sha256": "25232b945d2413dafc6faad4dd3a14bb715f0eccbdf9a407f21ec87fefbd46c0"
+  },
+  "installed": {
+    "generation": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363",
+    "module_sha256": "a68e93acff252282e8836b0ac33e1347684f66db7af5633c90afd326fa9d60a6",
+    "independent_verification_sha256": "b3ac42687bd3a355c8c45172bd0d02d38b47fb6601a440cfdb0d19b6fe82f871",
+    "skills_sync_sha256": "650eceacf9c89d96bdf790576106669962c807d166ecdf7a5fd89cfa2b112e08",
+    "manifest_drift": []
+  },
+  "cleanup_sha256": "28b2019ce14cfc51c5632ca9314c11b0609643978683f87bab53cff41a6d3cfb",
+  "test_archive_sha256": "d9642a4dd95e6a45d99fcebd40021d6d957689e891b3dc404697eb3d7930d98a",
+  "evidence_artifacts": {
+    "README.md": {
+      "sha256": "003745efc01212cb1a063cdbb5536c7f4834d50e41484b2c802e200400836c6f",
+      "bytes": 6239
+    },
+    "archon-evidence.tar.gz": {
+      "sha256": "be5d87b80c696729d4b526a90b59068808e90ead762f89e3c96d831634fa953d",
+      "bytes": 23129760
+    },
+    "benchmark-verification.json": {
+      "sha256": "b33a197185c6b834db71580ac2d71f5c5b873a860a68317c2801c227c5029991",
+      "bytes": 11249
+    },
+    "citation-classification.json": {
+      "sha256": "4d8d6a6b37d085b6c8737a416c1ba34316f73fa375a58da8394c7f8a862050be",
+      "bytes": 2842
+    },
+    "citation-observations.json": {
+      "sha256": "8a33fd11d45eb59ea3271594e3f95c7bc32eda93384abe4e242620b3f9f3a80e",
+      "bytes": 881
+    },
+    "cleanup.json": {
+      "sha256": "28b2019ce14cfc51c5632ca9314c11b0609643978683f87bab53cff41a6d3cfb",
+      "bytes": 3103
+    },
+    "decision.json": {
+      "sha256": "b931477b44a39ad8139c356cd9504b2b40407bdf728d8e46e9615d4b0ed3bdba",
+      "bytes": 31282
+    },
+    "deployment/doctor.json": {
+      "sha256": "6eb20a2b4519958ebe6701c4a62e63f209e08d5ca9498d3c26ac0e9861d3e790",
+      "bytes": 21889
+    },
+    "deployment/execution.json": {
+      "sha256": "983082485b1c4fa441313bd528b14cca4f579b47c71147ee430d81672d6bf7ea",
+      "bytes": 43708
+    },
+    "deployment/independent-verification.json": {
+      "sha256": "b3ac42687bd3a355c8c45172bd0d02d38b47fb6601a440cfdb0d19b6fe82f871",
+      "bytes": 10623
+    },
+    "deployment/installation.json": {
+      "sha256": "04c54c777cd8ac771e17f003721b7878b416769c5857eccd5a59b03bfc2cc2e8",
+      "bytes": 42563
+    },
+    "deployment/installed-manifest.json": {
+      "sha256": "c67400a1ae5d4569c5402e432c3d2e298d4ca61d69f2353d217cf49ff8d15377",
+      "bytes": 8638
+    },
+    "deployment/skills-sync.json": {
+      "sha256": "650eceacf9c89d96bdf790576106669962c807d166ecdf7a5fd89cfa2b112e08",
+      "bytes": 1527
+    },
+    "deployment-cache-omissions.json": {
+      "sha256": "a6e6e78840e7ffe7992ce35b868951c000647db7f7dc189271f947439e792015",
+      "bytes": 1583383
+    },
+    "deployment-evidence-index.json": {
+      "sha256": "f8adf01697c47268cccee985bd850efa390a64cdb34817616b507055c035bb64",
+      "bytes": 75297
+    },
+    "deployment-evidence.tar.gz": {
+      "sha256": "c090f586cef8e87d89f8f617023ec9a9432aaac97ae3b6c51ca5f76b29608fd1",
+      "bytes": 335931
+    },
+    "doctrine-packet.json": {
+      "sha256": "b8b9a095a8b0e9de8cc744aace47933f355a860ff3c9b415912246ee6218281e",
+      "bytes": 100626
+    },
+    "doctrine-packet.md": {
+      "sha256": "a766f6cdd67254a214b2f97fbefd6b285ac576ab8df35003becff9fb8ae4fb09",
+      "bytes": 17334
+    },
+    "doctrine-provenance.json": {
+      "sha256": "9bb6ac94daeb8d9470fcf0d47b3a2498fcb8e2afb24a01b5d4ecf385af005687",
+      "bytes": 768
+    },
+    "focused-evidence.tar.gz": {
+      "sha256": "540820fdfea147354bad972e31880313f324c2bb4866c6f7722cb79ceac4f679",
+      "bytes": 5277370
+    },
+    "followup-evidence-index.json": {
+      "sha256": "7d1760c5521131c67d02c8b7a427fa1faa366d132659a0015b84825b24af047d",
+      "bytes": 68037
+    },
+    "followup-evidence.tar.gz": {
+      "sha256": "1efb08434ad62bac8089a0904e5f1e47788f485fee62d45c7dab63b5a5bb7074",
+      "bytes": 333226
+    },
+    "integration.json": {
+      "sha256": "035c7c297dc58a75449d690a84c33ea2d9df5588483950ab92df6a3c596c44af",
+      "bytes": 588
+    },
+    "obligation-disposition.json": {
+      "sha256": "5af33928d2e5018622d708ae79a876313e1b79e19ee3e209854ef8da2820af31",
+      "bytes": 18218
+    },
+    "qualification/independent-junit-map.json": {
+      "sha256": "b34750692b52cef74480649e9c0fe35c5220cbde348a9dd4b254196bcec655c2",
+      "bytes": 231425
+    },
+    "qualification/independent-verification.json": {
+      "sha256": "6b33ef602f6aeeb0bd452970eb44257fd774277e902f23af2375c6181ef429f6",
+      "bytes": 8422
+    },
+    "qualification/qualification-receipt.json": {
+      "sha256": "09062b9aa125154d2f9edd0549e027f937b5fe5e29432d3ed86b7b48c9c18499",
+      "bytes": 17513
+    },
+    "qualification/retained-verification.json": {
+      "sha256": "0894ca7d4e7f36a6a54e708f59b30728981a6c9cbd651b6d2b4d113eca8aaea3",
+      "bytes": 1064
+    },
+    "qualification/test-readiness.json": {
+      "sha256": "fc9cbfd3c28dc30649c0337b6699d7fc713fbc29044016238f9edbb7778cac18",
+      "bytes": 2485
+    },
+    "qualification/wheel-runtime-verification.json": {
+      "sha256": "25232b945d2413dafc6faad4dd3a14bb715f0eccbdf9a407f21ec87fefbd46c0",
+      "bytes": 3037
+    },
+    "source-closure.json": {
+      "sha256": "488c7ebcda268af15eb7ea4cbb6f5d35c4189c4de1232f4be0e841d71900dbb8",
+      "bytes": 111924
+    },
+    "test-evidence-archive.json": {
+      "sha256": "d9642a4dd95e6a45d99fcebd40021d6d957689e891b3dc404697eb3d7930d98a",
+      "bytes": 977
+    },
+    "test-evidence.tar.gz.part01": {
+      "sha256": "4df4dcc6d319beffc85a67cca4f1a8ba7c7548bd02710872799b124607012167",
+      "bytes": 83886080
+    },
+    "test-evidence.tar.gz.part02": {
+      "sha256": "eb1820d7a852d75ab4efaa46cb2e9f292d9b7db792c5396ad8223b513629a954",
+      "bytes": 34794820
+    }
+  },
+  "human_acceptance_claimed": false
+}

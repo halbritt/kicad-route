@@ -1,0 +1,56 @@
+{
+  "schema": "kicad-route/upstream-adoption-cleanup/1",
+  "status": "PASS",
+  "scope": "Four owned worktrees/branches, all Archon task containers/images/exclusive root, isolated local candidate state and failed dependency preparation. The new active generation, preexisting C6 rollback generation and unrelated resources are preserved.",
+  "worktrees": {
+    "status": "PASS",
+    "observed_utc": "2026-10-21T10:00:19.079320+00:00",
+    "integrated_source_commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+    "worktrees": [
+      {
+        "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary",
+        "branch": "wt/agent497-upstream-primary",
+        "removed": true,
+        "original_head": "f42b8796de2006bae147e65340da99462b5fd9be",
+        "integrated_work_retained_by_exact_patch_id": true
+      },
+      {
+        "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-rules",
+        "branch": "wt/agent497-upstream-rules",
+        "removed": true,
+        "original_head": "6c170789927cb3fdaeabe0247a814294ad5cfbed",
+        "integrated_work_retained_by_exact_patch_id": true
+      },
+      {
+        "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-lifecycle",
+        "branch": "wt/agent497-upstream-lifecycle",
+        "removed": true,
+        "original_head": "34fb6c81c7828f98d410a3f1363d87df13fd1b9a",
+        "integrated_work_retained_by_exact_patch_id": true
+      },
+      {
+        "path": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-parser",
+        "branch": "wt/agent497-upstream-parser",
+        "removed": true,
+        "original_head": "fc88b24ca3d8426811ac5db0de804ffb6dfec1cb",
+        "integrated_work_retained_by_exact_patch_id": true
+      }
+    ],
+    "only_registered_worktree": "worktree /home/halbritt/git/kicad-route\nHEAD f42b8796de2006bae147e65340da99462b5fd9be\nbranch refs/heads/main\n\n",
+    "scope": "Only four owned task worktrees/branches; exact original-to-integrated patch matches retained before deletion. Primary removed by successful git-land after report staging. Deployment output/source staging remain outside worktrees."
+  },
+  "local_temporary_states": {
+    "status": "PASS",
+    "observed_utc": "2026-10-21T10:09:09.131016+00:00",
+    "removed": [
+      "/home/halbritt/git/kicad-route/.router-generations/8a5c5eec36404751aa3c93ac8a275687",
+      "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/state-candidate"
+    ],
+    "preserved_active_generation": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363",
+    "scope": "Only this task\u2019s unselected failed dependency preparation and isolated candidate test state. Jobs using them were terminal; diagnostic manifests/preparation and all native test outputs retained before deletion. Preexisting C6 and the new active generation preserved."
+  },
+  "archon_receipt": {
+    "retained": "deployment-evidence.tar.gz:release/archon-cleanup.json",
+    "sha256": "6d0ec5da29b9240a4b2946a59ee507f4156c07fd3f91a89f8201798040e346e2"
+  }
+}

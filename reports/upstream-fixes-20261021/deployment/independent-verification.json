@@ -1,0 +1,235 @@
+{
+  "schema": "kicad-route/independent-deployment-verification/1",
+  "status": "PASS",
+  "verified_utc": "2026-10-21T10:12:05.280297+00:00",
+  "main_commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+  "shipping_source_tree": "672e1f2764a498d2ba0284ba248f8b163b649701",
+  "engine_source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+  "generation_freshly_checked": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363",
+  "module": {
+    "path": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/venv/lib/python3.12/site-packages/grid_router.so",
+    "sha256": "a68e93acff252282e8836b0ac33e1347684f66db7af5633c90afd326fa9d60a6"
+  },
+  "packages": [
+    "numpy==2.5.4",
+    "pillow==13.0.0",
+    "scipy==1.18.1",
+    "shapely==2.2.0"
+  ],
+  "manifest": {
+    "path": "/home/halbritt/git/kicad-route/manifest.json",
+    "sha256": "c67400a1ae5d4569c5402e432c3d2e298d4ca61d69f2353d217cf49ff8d15377"
+  },
+  "manifest_before": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/installed-manifest-before-checks.json",
+    "sha256": "3355b7804406d53da72eed84809f92d6c7b3bc09f762f9b84d471c26f5dab639"
+  },
+  "manifest_drift": [],
+  "installation": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/installation.json",
+    "sha256": "04c54c777cd8ac771e17f003721b7878b416769c5857eccd5a59b03bfc2cc2e8"
+  },
+  "execution": {
+    "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/execution.json",
+    "sha256": "983082485b1c4fa441313bd528b14cca4f579b47c71147ee430d81672d6bf7ea"
+  },
+  "doctor": {
+    "artifact": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/doctor.json",
+      "sha256": "6eb20a2b4519958ebe6701c4a62e63f209e08d5ca9498d3c26ac0e9861d3e790"
+    },
+    "required": [
+      "kicad-cli",
+      "kicad-cli pcb drc --refill-zones",
+      "kicad-cli pcb drc --save-board",
+      "kicad-cli pcb drc --schematic-parity",
+      "kicad-cli pcb drc --severity-all",
+      "kicad-cli pcb drc --format",
+      "pcbnew SWIG (facts, Specctra bridge)",
+      "owned routing source",
+      "Builtin routing venv",
+      "Builtin Rust router module",
+      "Builtin startup checks",
+      "Builtin controls used by the adapter",
+      "Freerouting jar",
+      "Java for Freerouting",
+      "Freerouting headless CLI",
+      "state manifest",
+      "state manifest matches the files on disk",
+      "canary split (awkward net names)",
+      "canary bridge (awkward net names)"
+    ],
+    "optional": [
+      {
+        "check": "kicad-cli DSN export",
+        "status": "UNSUPPORTED",
+        "detail": "not in kicad-cli: the Freerouting bridge uses pcbnew SWIG instead",
+        "required": false
+      },
+      {
+        "check": "bwrap (planes)",
+        "status": "PASS",
+        "required": false,
+        "detail": "planes namespaces ready; see build/agent497-upstream-adoption/deployment/doctor/doctor/planes-bwrap/bwrap.log"
+      },
+      {
+        "check": "Builtin latest release",
+        "status": "NOT_RUN",
+        "detail": "owned source; upstream is provenance only",
+        "required": false
+      },
+      {
+        "check": "Freerouting latest release",
+        "status": "NOT_RUN",
+        "detail": "--offline: not looked up",
+        "required": false
+      },
+      {
+        "check": "builtin determinism verified for this build",
+        "status": "NOT_RUN",
+        "detail": "no determinism record for this build in the state manifest (kicad-route determinism --record)",
+        "required": false
+      },
+      {
+        "check": "state read-only",
+        "status": "NOT_RUN",
+        "detail": "--require-readonly-state: STATE /home/halbritt/git/kicad-route is writable by this process (., .router-generations, .venv-krt, vendor/freerouting, vendor/skills); mount it read-only before `doctor`",
+        "required": false
+      }
+    ],
+    "optional_statuses_are_not_required_gates": true
+  },
+  "determinism": {
+    "artifact": {
+      "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/determinism/20261021T100333.124748Z/determinism.json",
+      "sha256": "99aee2a097130bcba963457b8e6ba2f4b9dc7e42ee41297d7d6f4d250a4ba469"
+    },
+    "raw_population": 2,
+    "comparison": {
+      "reproducible": true,
+      "reasons": [],
+      "same": {
+        "outcome": true,
+        "copper_geometry": true,
+        "candidate_bytes": false,
+        "backend_output_bytes": false
+      },
+      "differs_at": "candidate_bytes",
+      "bytes_note": "candidate bytes differ while geometry is compared: KiCad UUIDs and item order"
+    },
+    "build_id": "18919db07bcf511322e8f0029c78d397fb7a99044e4440c23e1037a0ea01fa12",
+    "raw_results": [
+      {
+        "result": {
+          "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/result.json",
+          "sha256": "934bd5232ded2b5433cf190a40b17460dab06446d4691b3199a32de69b002b6c"
+        },
+        "final_board": {
+          "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_pcb",
+          "sha256": "5635a7b27490d54a11e91d0c2815a22f8382457e0a66db197beb3b0743efaeff"
+        },
+        "native_grading_records_verified": 6,
+        "reference_files_verified": 6,
+        "copper_geometry_reconstructed": {
+          "sha256": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+          "tracks": 21,
+          "vias": 3
+        },
+        "strict_worker_command": {
+          "argv": [
+            "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/venv/bin/python",
+            "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/router/py_router/route.py",
+            "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_pcb",
+            "--output",
+            "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/route_demo.kicad_pcb",
+            "--escalation",
+            "off",
+            "--fab-tier",
+            "standard",
+            "--strict-sizes",
+            "--no-power-tap-neckdown",
+            "--no-fix-drc-settings",
+            "--json-out",
+            "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/summary.json",
+            "--keep-input-copper",
+            "--no-stub-layer-swap",
+            "--clearance",
+            "0.4",
+            "--nets",
+            "*"
+          ],
+          "strict_environment": {
+            "KICAD_INRUN_FLOOR_SYNC": "0",
+            "KICAD_TERMINAL_ESCALATION": "0",
+            "KICAD_IMPEDANCE_NECKDOWN": "0",
+            "KICAD_RESCUE_CAP_MOVE": "0",
+            "KICAD_DYNAMIC_ITERATIONS": "0",
+            "KICAD_CLI": "/usr/bin/kicad-cli",
+            "KICAD_RIP_PREEXISTING": "0",
+            "KICAD_FINALIZE_RIP": "0"
+          }
+        }
+      },
+      {
+        "result": {
+          "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/result.json",
+          "sha256": "c179b8b93603591ddbdcb575e53bb17030d44d412f52d25ea9ea971b62207d60"
+        },
+        "final_board": {
+          "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_pcb",
+          "sha256": "4ea1239659285090cac899590c167199089aaf590e28cceaa8596fa3408f66eb"
+        },
+        "native_grading_records_verified": 6,
+        "reference_files_verified": 6,
+        "copper_geometry_reconstructed": {
+          "sha256": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+          "tracks": 21,
+          "vias": 3
+        },
+        "strict_worker_command": {
+          "argv": [
+            "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/venv/bin/python",
+            "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/router/py_router/route.py",
+            "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_pcb",
+            "--output",
+            "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/route_demo.kicad_pcb",
+            "--escalation",
+            "off",
+            "--fab-tier",
+            "standard",
+            "--strict-sizes",
+            "--no-power-tap-neckdown",
+            "--no-fix-drc-settings",
+            "--json-out",
+            "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/summary.json",
+            "--keep-input-copper",
+            "--no-stub-layer-swap",
+            "--clearance",
+            "0.4",
+            "--nets",
+            "*"
+          ],
+          "strict_environment": {
+            "KICAD_INRUN_FLOOR_SYNC": "0",
+            "KICAD_TERMINAL_ESCALATION": "0",
+            "KICAD_IMPEDANCE_NECKDOWN": "0",
+            "KICAD_RESCUE_CAP_MOVE": "0",
+            "KICAD_DYNAMIC_ITERATIONS": "0",
+            "KICAD_CLI": "/usr/bin/kicad-cli",
+            "KICAD_RIP_PREEXISTING": "0",
+            "KICAD_FINALIZE_RIP": "0"
+          }
+        }
+      }
+    ],
+    "persisted_current_build": true
+  },
+  "helper_sha256": "43d6741e92bde048ab96003849bac331808c738971224566b7351e63cb2d834e",
+  "native_routing_or_test_reruns": false,
+  "source_or_state_writes": false,
+  "limits": [
+    "Read-only reconstruction of retained native checks; does not rerun KiCad or establish performance.",
+    "Optional doctor checks retain their actual NOT_RUN/UNSUPPORTED/FAIL statuses and do not become required.",
+    "Manifest verification uses ordinary bounded version/interpreter identity probes."
+  ]
+}

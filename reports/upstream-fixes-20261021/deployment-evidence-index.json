@@ -1,0 +1,1162 @@
+{
+  "schema": "kicad-route/release-evidence-index/1",
+  "files": [
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/archon-cleanup.json",
+      "retained": "release/archon-cleanup.json",
+      "sha256": "6d0ec5da29b9240a4b2946a59ee507f4156c07fd3f91a89f8201798040e346e2",
+      "size": 165675
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/archon-test-evidence-retained-verification.json",
+      "retained": "release/archon-test-evidence-retained-verification.json",
+      "sha256": "0894ca7d4e7f36a6a54e708f59b30728981a6c9cbd651b6d2b4d113eca8aaea3",
+      "size": 1064
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/archon-test-export-policy.json",
+      "retained": "release/archon-test-export-policy.json",
+      "sha256": "e2f04801849918e30bf5135eb7d7a2ecb41f4475d5976a6b8222db258ce1bf84",
+      "size": 2101
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/archon-tests-final-launch.json",
+      "retained": "release/archon-tests-final-launch.json",
+      "sha256": "b9b07de366910bb7866646af627bbb474988f7e39e6b4e47c7412ff0995dc2c0",
+      "size": 2612
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/close-plane-review.json",
+      "retained": "release/close-plane-review.json",
+      "sha256": "b88ab09f8a62f6f48d39b8913f0a22b4a7c2167955c2bf3ce3ced1942b748ce0",
+      "size": 2306
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/close-plane.py",
+      "retained": "release/close-plane.py",
+      "sha256": "f2567c1bb4342027898b5f942e9f6392c6022df363d507cf88c5975dee272498",
+      "size": 4399
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deploy-main.py",
+      "retained": "release/deploy-main.py",
+      "sha256": "aafe304685b264738dcc8ad1b8d49b6e8009b4d5d662c3387b6cd82364996655",
+      "size": 6117
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/constraints.txt",
+      "retained": "release/deployment/constraints.txt",
+      "sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+      "size": 57
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/determinism.log",
+      "retained": "release/deployment/determinism.log",
+      "sha256": "3d866ab661d96cd5cb3d10de506cafce10ba93320ebee9697a60baca09cd7ca3",
+      "size": 2272
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/config/freerouting/freerouting.json",
+      "retained": "release/deployment/doctor/.home/config/freerouting/freerouting.json",
+      "sha256": "10adb07482a424f742d2714b4fe697bcd38a4289504c4ff4b77672ec94bd69a3",
+      "size": 2096
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/state/freerouting/logs/freerouting.log",
+      "retained": "release/deployment/doctor/.home/state/freerouting/logs/freerouting.log",
+      "sha256": "0c39f8d87084d2fee9b14b23d75aaffb6436c4feebcdbc55cd370bdf43b87305",
+      "size": 1410
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.kicad-config/10.0/fp-lib-table",
+      "retained": "release/deployment/doctor/.kicad-config/10.0/fp-lib-table",
+      "sha256": "4042e1c92709d4f872d4cdeaddfa7ec0f6bd49be240e0d9668b76e89888b1e77",
+      "size": 25235
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.kicad-config/10.0/kicad.json",
+      "retained": "release/deployment/doctor/.kicad-config/10.0/kicad.json",
+      "sha256": "20c9db1c1f2caacc9f2fb9bf25909f0e50dcb86f5fbda21233168c0d751bc650",
+      "size": 5767
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.kicad-config/10.0/kicad_common.json",
+      "retained": "release/deployment/doctor/.kicad-config/10.0/kicad_common.json",
+      "sha256": "f56940b478bd4e63b5a7929ec69549ab2be529c69f048bc30a3c14d3ece39a01",
+      "size": 2535
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.kicad-config/10.0/sym-lib-table",
+      "retained": "release/deployment/doctor/.kicad-config/10.0/sym-lib-table",
+      "sha256": "70d7bba56bcfd2f59d98e2354a8979661f2c49f3686d13e989b20202514654c3",
+      "size": 33919
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/canary.json",
+      "retained": "release/deployment/doctor/doctor/canary/canary.json",
+      "sha256": "087fe41d9f7d3766670b766b3cb0ba31764c0b7d1fbc890a7afd54a9bcf28765",
+      "size": 1102
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/export-raw.log",
+      "retained": "release/deployment/doctor/doctor/canary/export-raw.log",
+      "sha256": "a0453804635d06ef979bf51cd24cd4e2064df352660b430216f29aaa8855948c",
+      "size": 687
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/export-scoped.log",
+      "retained": "release/deployment/doctor/doctor/canary/export-scoped.log",
+      "sha256": "b285c47ea1876948765faee3d78eef9d0034918a147bed538100a263af5a4818",
+      "size": 839
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/input-facts.json",
+      "retained": "release/deployment/doctor/doctor/canary/input-facts.json",
+      "sha256": "cff4937add55798f217180317a4c201e911c28af4453a288ae62501a10f66de1",
+      "size": 16715
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/input-facts.log",
+      "retained": "release/deployment/doctor/doctor/canary/input-facts.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/raw.dsn",
+      "retained": "release/deployment/doctor/doctor/canary/raw.dsn",
+      "sha256": "06f27187771123ba84c36d505d5c00dc29505ec451bc9a3bc2b2b00cc95df558",
+      "size": 6460
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/rename.json",
+      "retained": "release/deployment/doctor/doctor/canary/rename.json",
+      "sha256": "c94767495170ab292b741bd1f5397a9c30c7b47091763bd8356b501c824c317e",
+      "size": 139
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/rename.log",
+      "retained": "release/deployment/doctor/doctor/canary/rename.log",
+      "sha256": "920c1419a8fcda30a99ba0039585e7e43ca49e75f50c326b66b14144166097e4",
+      "size": 576
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/route_demo/fp-lib-table",
+      "retained": "release/deployment/doctor/doctor/canary/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_dru",
+      "retained": "release/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_pcb",
+      "retained": "release/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_pcb",
+      "sha256": "9f5541dc7a25b11e08d2226136fb69683fdbffeb454be1fd681a74082dd43967",
+      "size": 40687
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_prl",
+      "retained": "release/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_pro",
+      "retained": "release/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_pro",
+      "sha256": "49c9050c15d077ed93ceb6f47831fd90ef730a6624df3602b933928597534a2b",
+      "size": 10615
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_sch",
+      "retained": "release/deployment/doctor/doctor/canary/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/route_demo/sym-lib-table",
+      "retained": "release/deployment/doctor/doctor/canary/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/scoped.dsn",
+      "retained": "release/deployment/doctor/doctor/canary/scoped.dsn",
+      "sha256": "055560eb9fc683c49b5ad82d27ef64165a8a53659509eeb5f4f0405a6948724a",
+      "size": 6626
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/canary/skip-nets.json",
+      "retained": "release/deployment/doctor/doctor/canary/skip-nets.json",
+      "sha256": "fa7db0cc256c1d2d4429b422f24539df5381abc2d9ea95cf7765f709b845b828",
+      "size": 24
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/doctor.json",
+      "retained": "release/deployment/doctor/doctor/doctor.json",
+      "sha256": "6eb20a2b4519958ebe6701c4a62e63f209e08d5ca9498d3c26ac0e9861d3e790",
+      "size": 21889
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/doctor/planes-bwrap/bwrap.log",
+      "retained": "release/deployment/doctor/doctor/planes-bwrap/bwrap.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor.log",
+      "retained": "release/deployment/doctor.log",
+      "sha256": "70e4d1fe221563cc0007eda3b460781edf6b3cff413e1cc3711b06e2c4321efd",
+      "size": 3000
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/execution.json",
+      "retained": "release/deployment/execution.json",
+      "sha256": "983082485b1c4fa441313bd528b14cca4f579b47c71147ee430d81672d6bf7ea",
+      "size": 43708
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/independent-verification.json",
+      "retained": "release/deployment/independent-verification.json",
+      "sha256": "b3ac42687bd3a355c8c45172bd0d02d38b47fb6601a440cfdb0d19b6fe82f871",
+      "size": 10623
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/install/.kicad-config/10.0/kicad.json",
+      "retained": "release/deployment/install/.kicad-config/10.0/kicad.json",
+      "sha256": "20c9db1c1f2caacc9f2fb9bf25909f0e50dcb86f5fbda21233168c0d751bc650",
+      "size": 5767
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/install/.kicad-config/10.0/kicad_common.json",
+      "retained": "release/deployment/install/.kicad-config/10.0/kicad_common.json",
+      "sha256": "f56940b478bd4e63b5a7929ec69549ab2be529c69f048bc30a3c14d3ece39a01",
+      "size": 2535
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-build-router.log",
+      "retained": "release/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-build-router.log",
+      "sha256": "852dfc3cd6785d41e69963f84427f7d14b1cd1befe1e31be37b47e888bc8f18d",
+      "size": 1321
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-bytecode.log",
+      "retained": "release/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-bytecode.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-deps.log",
+      "retained": "release/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-deps.log",
+      "sha256": "0039cf2606d81e6538e1ff31327e849dbc632cf25bdc9713cac7f8f9fa360980",
+      "size": 439
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-route-help.log",
+      "retained": "release/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-route-help.log",
+      "sha256": "c0cd51cb9bb0236db73c038b408718e9f84aabde2cc356017b2591992d4d77e3",
+      "size": 35900
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-startup-checks.log",
+      "retained": "release/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/krt-startup-checks.log",
+      "sha256": "7112736c0f58dff69b87409abb44f6e0eb82d0748b0a6ab108000a11d0b3efdb",
+      "size": 39
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/venv.log",
+      "retained": "release/deployment/install/update/84b30dc286f44df6b465ae8d40aa1363/venv.log",
+      "sha256": "41a2f9041f28108c82178903dd8487477007a24fcad3307b514941fdd09a3d7c",
+      "size": 241
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/installation.json",
+      "retained": "release/deployment/installation.json",
+      "sha256": "04c54c777cd8ac771e17f003721b7878b416769c5857eccd5a59b03bfc2cc2e8",
+      "size": 42563
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/installed-manifest-before-checks.json",
+      "retained": "release/deployment/installed-manifest-before-checks.json",
+      "sha256": "3355b7804406d53da72eed84809f92d6c7b3bc09f762f9b84d471c26f5dab639",
+      "size": 5566
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/installed-manifest.json",
+      "retained": "release/deployment/installed-manifest.json",
+      "sha256": "c67400a1ae5d4569c5402e432c3d2e298d4ca61d69f2353d217cf49ff8d15377",
+      "size": 8638
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/phases.json",
+      "retained": "release/deployment/phases.json",
+      "sha256": "859e0fbe1d8fc5eaf1643de4636720ed694ff4388a5c4105a82c424db0bca85b",
+      "size": 1000
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/previous-manifest.json",
+      "retained": "release/deployment/previous-manifest.json",
+      "sha256": "87ae9cf328c50c1f3275a480dab2b4a9a951f09d2b2b9c6d91bfac9296221bfd",
+      "size": 6922
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/current.json",
+      "retained": "release/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/current.json",
+      "sha256": "74286281cb7b32c9d5c53b6de57bf6e6d81463ddcd0ae5b4e3b27093322dbeac",
+      "size": 42
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-rafdq90i/baseline-drc.json",
+      "retained": "release/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-rafdq90i/baseline-drc.json",
+      "sha256": "3852ea40b33210f725d4bab04569774e80b6f34ce720f42dd5aad31e9ce130e9",
+      "size": 4452
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-rafdq90i/baseline-info.json",
+      "retained": "release/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-rafdq90i/baseline-info.json",
+      "sha256": "088864b5693295d5f0873e1ce617e0902cd16111fad4a323937956a3a7b9e086",
+      "size": 3925
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-rafdq90i/baseline-pour.json",
+      "retained": "release/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-rafdq90i/baseline-pour.json",
+      "sha256": "94bd17a356e2f5be33db3cca2c9b30c2a7a1f434f906673ada72f80dfcb247ac",
+      "size": 1982
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-rafdq90i/generation.json",
+      "retained": "release/deployment/repeat/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-rafdq90i/generation.json",
+      "sha256": "e61c3e59a8115a15e9b5aa3db1e5ba13e02ba28b9165531425adda60f5ead53a",
+      "size": 1412
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/3d_viewer.json",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/3d_viewer.json",
+      "sha256": "7c95b3fdd72f837a3cc49248249c40bc24c07b75bafe02d0d091a0864746b6a9",
+      "size": 9269
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/cvpcb.json",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/cvpcb.json",
+      "sha256": "3a24bbacab369da74efdaff851be8869d8ca2e5e4ca28304f9eb57041bdad759",
+      "size": 8409
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/eeschema.json",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/eeschema.json",
+      "sha256": "ad360fd6896e8d8f65059a2aaff40139e8c37f5f758954d3b94be9033fb114fb",
+      "size": 12148
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/fp-lib-table",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/fp-lib-table",
+      "sha256": "4042e1c92709d4f872d4cdeaddfa7ec0f6bd49be240e0d9668b76e89888b1e77",
+      "size": 25235
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/fpedit.json",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/fpedit.json",
+      "sha256": "4d824ab97688dcfc144494386c6991dc0a31f324228d6a85cea279a474f51bb0",
+      "size": 7196
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/kicad.json",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/kicad.json",
+      "sha256": "20c9db1c1f2caacc9f2fb9bf25909f0e50dcb86f5fbda21233168c0d751bc650",
+      "size": 5767
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/kicad_common.json",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/kicad_common.json",
+      "sha256": "f56940b478bd4e63b5a7929ec69549ab2be529c69f048bc30a3c14d3ece39a01",
+      "size": 2535
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/pcbnew.json",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/pcbnew.json",
+      "sha256": "412c1fe43f0db375147a9d25f5c7da6768ae054d94300cef57c9349bd3374e7a",
+      "size": 13751
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/sym-lib-table",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/sym-lib-table",
+      "sha256": "70d7bba56bcfd2f59d98e2354a8979661f2c49f3686d13e989b20202514654c3",
+      "size": 33919
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/.kicad-config/10.0/symbol_editor.json",
+      "retained": "release/deployment/repeat/.kicad-config/10.0/symbol_editor.json",
+      "sha256": "9b42635c84a17cb400a5ff58be7e9376289054294c8ab6b9d92257af7f87a8aa",
+      "size": 4247
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/determinism/20261021T100333.124748Z/determinism.json",
+      "retained": "release/deployment/repeat/determinism/20261021T100333.124748Z/determinism.json",
+      "sha256": "99aee2a097130bcba963457b8e6ba2f4b9dc7e42ee41297d7d6f4d250a4ba469",
+      "size": 2819
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/ledger.jsonl",
+      "retained": "release/deployment/repeat/ledger.jsonl",
+      "sha256": "0dd3bd9537a957b52667a64ea1f54fd5b7d3fe7014298f4f945f0bbe3c896ba5",
+      "size": 2088
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/RESULT.md",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/RESULT.md",
+      "sha256": "91afd4f26782820129108fb850834b916f14b8054a762c92a348740996d1972d",
+      "size": 2137
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/attempt.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/attempt.json",
+      "sha256": "2a008c31b0fabc6a1cc707571b1ce55b6a052e35927971b9597c6b3d7a9eba06",
+      "size": 2713
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/fp-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_dru",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_pcb",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_pcb",
+      "sha256": "5635a7b27490d54a11e91d0c2815a22f8382457e0a66db197beb3b0743efaeff",
+      "size": 43167
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_prl",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_pro",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "size": 2300
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_sch",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/sym-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/candidate/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/facts/reference-facts.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/facts/reference-facts.json",
+      "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+      "size": 16631
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/facts/reference-facts.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/facts/reference-facts.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/fp-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/route_demo.kicad_dru",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/route_demo.kicad_pcb",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/route_demo.kicad_pro",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "size": 2300
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/route_demo.kicad_sch",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/sym-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/reference/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/result.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/result.json",
+      "sha256": "934bd5232ded2b5433cf190a40b17460dab06446d4691b3199a32de69b002b6c",
+      "size": 32626
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/snapshot.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/snapshot.json",
+      "sha256": "672fd9be59779fd2e21bad7db2f32ef15184bae8587966ca353d34f56fa3c98d",
+      "size": 1076
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-drc.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-drc.json",
+      "sha256": "df848fed108fd5e0b12c78af44bb9d4e8506d968be917db05021a09fda6b8dd8",
+      "size": 1088
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-drc.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-drc.log",
+      "sha256": "06ecaba4a562036fea9d6e3b92a0eefc62cbd7e358351ec386dd3d64ad267e0c",
+      "size": 269
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-facts.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-facts.json",
+      "sha256": "0d3f125093daf19c195ecf849c4323331ea837a52958f0877709af6d47e46725",
+      "size": 21000
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-facts.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-facts.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-pour.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-pour.json",
+      "sha256": "b39af73b1e9744198b2117017c63554311dc99c3222fa0a7032b90309a1b9306",
+      "size": 1703
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-pour.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-pour.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-refill.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-refill.json",
+      "sha256": "1f8a3ec7d051efccc65ebe0e6981e91ac396f4d06b20c9962936dbc599930b72",
+      "size": 1067
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-refill.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/candidate-refill.log",
+      "sha256": "c51891d0afed28054c97e78478ea82815bb894a6d607d326b7ec303d7fd24fed",
+      "size": 252
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/new-findings.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/new-findings.json",
+      "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+      "size": 78
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/pour-integrity.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/pour-integrity.json",
+      "sha256": "cdd9b8d48a3e70f21b349e0fd59adf84cc2f63d7d846fcad91d187de8275d4bb",
+      "size": 1866
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/preservation.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/validate/preservation.json",
+      "sha256": "31ced08bc9afb768835703eb4663d4a1cbc6f6d6daab9d238f9058558bdb18f6",
+      "size": 2674
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/heartbeat.jsonl",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/heartbeat.jsonl",
+      "sha256": "e91a9f861e4f33fe5074b13a3348f4dd802c65ef128b9d4003abb7ea24f3ad1b",
+      "size": 5924
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/fp-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_dru",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_pcb",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_prl",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_pro",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_pro",
+      "sha256": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
+      "size": 10604
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_sch",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/sym-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/input/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/route_demo.kicad_pcb",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/route_demo.kicad_pcb",
+      "sha256": "5635a7b27490d54a11e91d0c2815a22f8382457e0a66db197beb3b0743efaeff",
+      "size": 43167
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/route_demo.kicad_prl",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/route_demo.kicad_pro",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/route_demo.kicad_pro",
+      "sha256": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
+      "size": 10604
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/summary.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt-out/summary.json",
+      "sha256": "0a009d99335a9347046256016a0137c416b525f53a9e82b0d46255557d22622a",
+      "size": 2990
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/krt.log",
+      "sha256": "aa1d2fa71b1eff09acb2788dd5579456b976739975ccbae87f2882749fa8d11e",
+      "size": 11532
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/lock-existing.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/lock-existing.log",
+      "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+      "size": 413
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/locks.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/locks.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size": 2
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/restore-locks.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/20261021T100334.466943Z/work/restore-locks.log",
+      "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+      "size": 431
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-1/latest",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-1/latest",
+      "symlink": "20261021T100334.466943Z"
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/RESULT.md",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/RESULT.md",
+      "sha256": "ae656e382de72c17950b9f33098c2c35fc3bddc51add13d9453b034c4e733d2b",
+      "size": 2137
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/attempt.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/attempt.json",
+      "sha256": "57f6ba74898926563d430b977ca7d5d40f25da27c41b0f8815b2c15233268e61",
+      "size": 2712
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/fp-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_dru",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_pcb",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_pcb",
+      "sha256": "4ea1239659285090cac899590c167199089aaf590e28cceaa8596fa3408f66eb",
+      "size": 43167
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_prl",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_pro",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "size": 2300
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_sch",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/sym-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/candidate/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/facts/reference-facts.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/facts/reference-facts.json",
+      "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+      "size": 16631
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/facts/reference-facts.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/facts/reference-facts.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/fp-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/route_demo.kicad_dru",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/route_demo.kicad_pcb",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/route_demo.kicad_pro",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "size": 2300
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/route_demo.kicad_sch",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/sym-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/reference/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/result.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/result.json",
+      "sha256": "c179b8b93603591ddbdcb575e53bb17030d44d412f52d25ea9ea971b62207d60",
+      "size": 32779
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/snapshot.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/snapshot.json",
+      "sha256": "672fd9be59779fd2e21bad7db2f32ef15184bae8587966ca353d34f56fa3c98d",
+      "size": 1076
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-drc.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-drc.json",
+      "sha256": "9b87478d8ced7c669b49ff5571031ed75d511421154d814b70c849710562cfa1",
+      "size": 1088
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-drc.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-drc.log",
+      "sha256": "8533b217270d03428c4da1db1b2768f443eb5f57b9e3e4e924bc88f130a3cf1d",
+      "size": 269
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-facts.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-facts.json",
+      "sha256": "75cc1c84568332965d5147245a4b603206788b0b5a90145376b2f1974dcda7f2",
+      "size": 21000
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-facts.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-facts.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-pour.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-pour.json",
+      "sha256": "b39af73b1e9744198b2117017c63554311dc99c3222fa0a7032b90309a1b9306",
+      "size": 1703
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-pour.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-pour.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-refill.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-refill.json",
+      "sha256": "0af2f5da33053e6be888efd1bdde116f3e9d961563cbea7e7a4b6641b0b3fb16",
+      "size": 1067
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-refill.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/candidate-refill.log",
+      "sha256": "b65a06bb7fd5eccc9423f38251dc090ad2119788a289e6ebbd0c93d4c5eabfd5",
+      "size": 252
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/new-findings.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/new-findings.json",
+      "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+      "size": 78
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/pour-integrity.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/pour-integrity.json",
+      "sha256": "0ca18e2f819c4dae098a25a9502a11a562980e6e013e48afe199b246c6a28063",
+      "size": 1866
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/preservation.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/validate/preservation.json",
+      "sha256": "31ced08bc9afb768835703eb4663d4a1cbc6f6d6daab9d238f9058558bdb18f6",
+      "size": 2674
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/heartbeat.jsonl",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/heartbeat.jsonl",
+      "sha256": "79e1dbaf37da4da79dfe8aa901ab6eccaec92b9fc258b465eb9479105578b444",
+      "size": 5925
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/fp-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_dru",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_pcb",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_prl",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_pro",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_pro",
+      "sha256": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
+      "size": 10604
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_sch",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/sym-lib-table",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/input/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/route_demo.kicad_pcb",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/route_demo.kicad_pcb",
+      "sha256": "4ea1239659285090cac899590c167199089aaf590e28cceaa8596fa3408f66eb",
+      "size": 43167
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/route_demo.kicad_prl",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/route_demo.kicad_pro",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/route_demo.kicad_pro",
+      "sha256": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
+      "size": 10604
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/summary.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt-out/summary.json",
+      "sha256": "77f0f0daf00b903ddaf2b81a0d5bc6f407567f6d54fd196f600c19cdbe30f169",
+      "size": 2990
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/krt.log",
+      "sha256": "0d2f6b87d7dd9fc66db96d13ba41dcf1e143ed73a521c9fd8fca2abfa42a2517",
+      "size": 11532
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/lock-existing.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/lock-existing.log",
+      "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+      "size": 413
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/locks.json",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/locks.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size": 2
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/restore-locks.log",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/20261021T100853.253605Z/work/restore-locks.log",
+      "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+      "size": 431
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/repeat/runs/route_demo/determinism-builtin-2/latest",
+      "retained": "release/deployment/repeat/runs/route_demo/determinism-builtin-2/latest",
+      "symlink": "20261021T100853.253605Z"
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/skills-sync.json",
+      "retained": "release/deployment/skills-sync.json",
+      "sha256": "650eceacf9c89d96bdf790576106669962c807d166ecdf7a5fd89cfa2b112e08",
+      "size": 1527
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/constraints.txt",
+      "retained": "release/deployment-first-offline/constraints.txt",
+      "sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae",
+      "size": 57
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/execution.json",
+      "retained": "release/deployment-first-offline/execution.json",
+      "sha256": "a3075e4e25c2237257fe02dbcb7f244b95b18395924b153e1ad5ba0ae010677b",
+      "size": 2590
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/failed-generation-preparation.json",
+      "retained": "release/deployment-first-offline/failed-generation-preparation.json",
+      "sha256": "a64de34f716cecb68e0c625c496b5d30bd87317c07a8ca3c9a77bd6a8f783ea2",
+      "size": 313
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.home/cache/uv/.gitignore",
+      "retained": "release/deployment-first-offline/install/.home/cache/uv/.gitignore",
+      "sha256": "684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1",
+      "size": 1
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.home/cache/uv/.lock",
+      "retained": "release/deployment-first-offline/install/.home/cache/uv/.lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.home/cache/uv/CACHEDIR.TAG",
+      "retained": "release/deployment-first-offline/install/.home/cache/uv/CACHEDIR.TAG",
+      "sha256": "5953156d7e0c564a427251316eaf26f8870e6483ae2197f916b630e4f93e31ae",
+      "size": 43
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.home/cache/uv/interpreter-v4/cf675df6f007cb2f/ac7a6430fd462eda.msgpack",
+      "retained": "release/deployment-first-offline/install/.home/cache/uv/interpreter-v4/cf675df6f007cb2f/ac7a6430fd462eda.msgpack",
+      "sha256": "99c6861b311caf6fe8cae5a41561fa7990a2ba43a1d14dfb257c67562a9bf13f",
+      "size": 1970
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.home/cache/uv/interpreter-v4/cf675df6f007cb2f/c046fd27fa767df4.msgpack",
+      "retained": "release/deployment-first-offline/install/.home/cache/uv/interpreter-v4/cf675df6f007cb2f/c046fd27fa767df4.msgpack",
+      "sha256": "7bb34b7b30ba695f26d756f85b5cd20d29aed93231dde26ba42d00aef2fb2234",
+      "size": 981
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.home/cache/uv/sdists-v9/.git",
+      "retained": "release/deployment-first-offline/install/.home/cache/uv/sdists-v9/.git",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.home/cache/uv/sdists-v9/.gitignore",
+      "retained": "release/deployment-first-offline/install/.home/cache/uv/sdists-v9/.gitignore",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.kicad-config/10.0/kicad.json",
+      "retained": "release/deployment-first-offline/install/.kicad-config/10.0/kicad.json",
+      "sha256": "20c9db1c1f2caacc9f2fb9bf25909f0e50dcb86f5fbda21233168c0d751bc650",
+      "size": 5767
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/.kicad-config/10.0/kicad_common.json",
+      "retained": "release/deployment-first-offline/install/.kicad-config/10.0/kicad_common.json",
+      "sha256": "f56940b478bd4e63b5a7929ec69549ab2be529c69f048bc30a3c14d3ece39a01",
+      "size": 2535
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/update/8a5c5eec36404751aa3c93ac8a275687/krt-deps.log",
+      "retained": "release/deployment-first-offline/install/update/8a5c5eec36404751aa3c93ac8a275687/krt-deps.log",
+      "sha256": "101deb9a0edd3e5a65320828e3912ecf98f45980ad4fd4ed37214656b007a24b",
+      "size": 440
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/install/update/8a5c5eec36404751aa3c93ac8a275687/venv.log",
+      "retained": "release/deployment-first-offline/install/update/8a5c5eec36404751aa3c93ac8a275687/venv.log",
+      "sha256": "b2a729786f6f5587d16f41bebaac1f2eac15bcfa5c65aaa730d118004a9d61a9",
+      "size": 241
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-first-offline/previous-manifest.json",
+      "retained": "release/deployment-first-offline/previous-manifest.json",
+      "sha256": "87ae9cf328c50c1f3275a480dab2b4a9a951f09d2b2b9c6d91bfac9296221bfd",
+      "size": 6922
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-independent-launch.log",
+      "retained": "release/deployment-independent-launch.log",
+      "sha256": "983c746da1bd2387e5fafe5ea8b512e6b72e684be43accec1910e2b98ffb2c28",
+      "size": 215
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-launch.log",
+      "retained": "release/deployment-launch.log",
+      "sha256": "5abc44e526a82ee0e5dab481e41ce7dde50bb4242c89f3f9934ceb7b8fcc4e0e",
+      "size": 1079
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-retry-launch.log",
+      "retained": "release/deployment-retry-launch.log",
+      "sha256": "9b78a1060871e74b66d3ced804dd6ef378edaea9b3bcf69361c7a24df8117446",
+      "size": 803
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-verifier-tests.log",
+      "retained": "release/deployment-verifier-tests.log",
+      "sha256": "89902304c9dee8611dd535002ad4a2cc1c92a951120bad60aaa1b128ee66bea5",
+      "size": 2345
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/export-archon-tests.py",
+      "retained": "release/export-archon-tests.py",
+      "sha256": "2c4a075024c61b92699ea8703b89442314b60b6acc4f5d40a8776c26b356bcb0",
+      "size": 11914
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/local-temporary-state-cleanup.json",
+      "retained": "release/local-temporary-state-cleanup.json",
+      "sha256": "95513866c31595137eb5c7138a684800fa7f1441ffc065fbd4732797f6042e06",
+      "size": 680
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/owned-worktree-cleanup-inventory.json",
+      "retained": "release/owned-worktree-cleanup-inventory.json",
+      "sha256": "94cff50abf3ab45ccf63297622522015b9695d59fba583326e27dd8796abf2dc",
+      "size": 6647
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/pack-test-evidence.py",
+      "retained": "release/pack-test-evidence.py",
+      "sha256": "20fcd934737f2f34a224d6fc7ab4a859a0442f8cdbb0c8e9fb46895c85a4b857",
+      "size": 3752
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/qualify-archon-tests-noskip.py",
+      "retained": "release/qualify-archon-tests-noskip.py",
+      "sha256": "eac433437c0d17208e0bf808a0d33a1490649aa142912ce99f12ed128640cb33",
+      "size": 11442
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control.py",
+      "retained": "release/single-ended-control.py",
+      "sha256": "e11531dbcbd96e1c9ac2c0b789eb01aed7e2d312d6d38632e3f0706bb2729fc7",
+      "size": 3574
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/source-landing-readiness.json",
+      "retained": "release/source-landing-readiness.json",
+      "sha256": "125b3a6d563c1fc55d4f4111c6c4ccb492caafd94bff35caef260203290a010e",
+      "size": 313
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/source-landing-terminal.json",
+      "retained": "release/source-landing-terminal.json",
+      "sha256": "035c7c297dc58a75449d690a84c33ea2d9df5588483950ab92df6a3c596c44af",
+      "size": 588
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/test_verify_deployment.py",
+      "retained": "release/test_verify_deployment.py",
+      "sha256": "cd13db3d33668a2cfd311796d40b7b0bc4fbfaa7ef36a5311502bfb748f21d1d",
+      "size": 7291
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/verify-deployment.py",
+      "retained": "release/verify-deployment.py",
+      "sha256": "43d6741e92bde048ab96003849bac331808c738971224566b7351e63cb2d834e",
+      "size": 22305
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/verify-test-export.py",
+      "retained": "release/verify-test-export.py",
+      "sha256": "b31e43ed6bf97926cf4021a1e89ce5ba4c6234c9302551d7882be3472c88e4b8",
+      "size": 5657
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/worktree-cleanup.json",
+      "retained": "release/worktree-cleanup.json",
+      "sha256": "43856cf5ccd4620bdc35b28dd2b5c41f60568bf7f9ccff14ce79d9361c254267",
+      "size": 1766
+    }
+  ],
+  "omission_policy": "deployment-cache-omissions.json"
+}

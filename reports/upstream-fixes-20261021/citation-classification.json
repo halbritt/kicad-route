@@ -1,0 +1,90 @@
+{
+  "schema_version": "citation-classification/2",
+  "packet_id": "pkt-488908796a8e4ee7",
+  "packet_content_sha256": "488908796a8e4ee72dbc0a3db91d09ccfa51144579ce6b8e84ee64948408bcc4",
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+  "index_content_hash": "0772a6d3a482dde28e3c38f6f2169dd551ca147300d044bd0d8473b6671e7b74",
+  "receipt_id": "kicadroute-83-through-89-selective-adoption",
+  "output_citation_channel": "structured",
+  "citations": [
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "operations-external-capability-verification",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "python-repository-shaped-idiom",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-repository-contract-precedence",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-evidence-before-intervention",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-separate-semantic-structural-change",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-preserve-behavior-by-default",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "agent-conduct-authority-bounded-action",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-no-change-option",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "Plane:KICADROUTE-83..89",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "src/kicad_route/router/UPSTREAM.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "reports/upstream-fixes-20261021/focused-evidence.tar.gz",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "reports/upstream-fixes-20261021/archon-evidence.tar.gz",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "reports/upstream-fixes-20261021/obligation-disposition.json",
+      "classification": "foreign-citation"
+    }
+  ]
+}

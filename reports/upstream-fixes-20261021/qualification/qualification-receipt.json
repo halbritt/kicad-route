@@ -1,0 +1,460 @@
+{
+  "status": "PASS",
+  "finished_utc": "2026-10-21T09:57:22.770750+00:00",
+  "source_commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+  "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+  "generation": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295",
+  "phases": [
+    {
+      "name": "smoke",
+      "argv": [
+        "/usr/bin/python3",
+        "/testwork/candidate/bin/kicad-route",
+        "--out",
+        "/test-evidence/full-smoke",
+        "smoke"
+      ],
+      "started_utc": "2026-10-21T09:34:31.925994+00:00",
+      "status": "PASS",
+      "exit_code": 0,
+      "finished_utc": "2026-10-21T09:56:53.618121+00:00",
+      "drift": []
+    },
+    {
+      "name": "determinism",
+      "argv": [
+        "/usr/bin/python3",
+        "/testwork/candidate/bin/kicad-route",
+        "--out",
+        "/test-evidence/repeat",
+        "determinism",
+        "--backend",
+        "builtin",
+        "--runs",
+        "2",
+        "--budget",
+        "180",
+        "--default-clearance",
+        "0.4",
+        "--record"
+      ],
+      "started_utc": "2026-10-21T09:56:53.683028+00:00",
+      "status": "PASS",
+      "exit_code": 0,
+      "finished_utc": "2026-10-21T09:57:22.456821+00:00",
+      "drift": []
+    }
+  ],
+  "gates": [
+    {
+      "name": "ordinary_full_smoke",
+      "passed": true,
+      "observed": {
+        "kind": "route-smoke",
+        "status": "PASS",
+        "pytest_exit_code": 0,
+        "time_utc": "2026-10-21T09:56:53.029320+00:00",
+        "versions": {
+          "krt": {
+            "version": "0.23.1",
+            "build": "owned-89a2efbf5305",
+            "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+            "source": "https://github.com/halbritt/kicad-route",
+            "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+            "upstream": {
+              "project": "KiCadRoutingTools",
+              "license": "MIT",
+              "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+              "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+              "upstream_release": "v0.23.1",
+              "fork": "https://github.com/halbritt/KiCadRoutingTools",
+              "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+              "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+              "fixes": {
+                "KICADROUTE-64": "4b316ba",
+                "KICADROUTE-63": "0494a05"
+              },
+              "source_inventory": "reports/routing-engine/source-closure.json",
+              "additional_license_notices": [
+                "py_router/stage3d/vendor/three/LICENSE"
+              ],
+              "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector.",
+              "selective_adoptions": {
+                "KICADROUTE-83": {
+                  "commits": [
+                    "fd59a050e258581d5938c4d9456bbfeb13240e67"
+                  ],
+                  "scope": "pass-rules"
+                },
+                "KICADROUTE-84": {
+                  "commits": [
+                    "8c3e833179615dbe5e3cd205e68b03e25a6f73e8",
+                    "29be549c9747855315957ccc160d69746a3d66cb",
+                    "20a8e1b83b00e410f2adf60861ee536d3e57dabc",
+                    "0e0029f450fa609447bcb62d16a9381cbc9d9d5d",
+                    "ca96bc28f39d3c5e5f014950e8ed9664a755a8f1"
+                  ],
+                  "scope": "layer-stub-safety"
+                },
+                "KICADROUTE-85": {
+                  "commits": [
+                    "a0489b30621460e35f9d390f929fab215f7cc7f3"
+                  ],
+                  "scope": "pair-keepouts"
+                },
+                "KICADROUTE-86": {
+                  "commits": [
+                    "9ac916bc16d6edcd554bf4dc8640f30379386447",
+                    "ed17b29f7eaec4822ba12178a65eca5c3a452e40"
+                  ],
+                  "scope": "obstacle-lifecycle"
+                },
+                "KICADROUTE-87": {
+                  "commits": [
+                    "0b3b6a2d19666c3411252f314d3ca8d12f1766fa"
+                  ],
+                  "scope": "rescue-custody"
+                },
+                "KICADROUTE-88": {
+                  "commits": [
+                    "2ddfc187a1bd4aa0f33263de3d5194a4c6205809"
+                  ],
+                  "scope": "parser-lifecycle"
+                }
+              },
+              "adoption_review_head": "0b3b6a2d19666c3411252f314d3ca8d12f1766fa",
+              "adoption_note": "Selected headless fixes only; extraction baseline above is unchanged. Parser caches use parse-local context rather than upstream global memo. Owned quote-aware copper-preserving writer, unsupported-copper refusal and tap/weld repairs remain authoritative.",
+              "adoption_inventory": "reports/upstream-fixes-20261021/source-closure.json"
+            },
+            "runtime": {
+              "source": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295/router",
+              "venv": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295/venv",
+              "generation": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295"
+            },
+            "rust_router": "0.23.1"
+          },
+          "freerouting": {
+            "version": "v2.5.0",
+            "build": "freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76",
+            "sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
+            "java": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java (25)",
+            "java_required": 25,
+            "source": "https://github.com/freerouting/freerouting"
+          },
+          "kicad-cli": "10.0.7",
+          "python": "3.12.3",
+          "kicad-route": "f42b879"
+        },
+        "junit": "junit.xml",
+        "tests": [
+          "adhd_decoupling_board",
+          "adhd_spoke_keepout_drc",
+          "adhd_spoke_keepout_edge",
+          "audit",
+          "barrier_rewind_krt",
+          "blocked_board_mode",
+          "blocked_freerouting",
+          "blocked_krt",
+          "blocked_receipts",
+          "blocked_schema",
+          "budget_checkpoint",
+          "budget_forced_kill",
+          "campaign_blocked",
+          "campaign_race",
+          "campaign_total_budget",
+          "campaign_trivial",
+          "chain",
+          "compare",
+          "diff_pair",
+          "diff_pair_blocked",
+          "doctor",
+          "doctor_offline",
+          "doctor_offline_netns",
+          "dsn_quoted_nets_ambiguous_refusal",
+          "dsn_quoted_nets_collision_refusal",
+          "dsn_quoted_nets_export",
+          "dsn_quoted_nets_freerouting",
+          "evidence_manifest_determinism",
+          "evidence_manifest_unit_manifest",
+          "floor_audit_lowered",
+          "floor_audit_two_step",
+          "floor_run_preflight",
+          "freerouting_netclass_selection",
+          "freerouting_round_trip",
+          "home_containment_doctor",
+          "home_containment_freerouting",
+          "home_containment_krt",
+          "hygiene_canary",
+          "hygiene_canary_quick",
+          "hygiene_corpus",
+          "hygiene_ledger",
+          "hygiene_monitor_budget",
+          "hygiene_monitor_stall",
+          "hygiene_stall_krt",
+          "interface_contract",
+          "interface_json_campaign",
+          "interface_json_runs",
+          "krt_default",
+          "krt_net_selection",
+          "krt_round_trip",
+          "pour_area_loss",
+          "pour_crowd_3",
+          "pour_crowd_4",
+          "pour_lost_reach",
+          "pour_round_trip",
+          "pour_slice",
+          "process_hygiene_uncooperative_backend",
+          "process_hygiene_uncooperative_backend_child_grandchild",
+          "process_hygiene_uncooperative_none",
+          "provenance_chain",
+          "provenance_chain_against_origin",
+          "provenance_edited",
+          "provenance_freerouting",
+          "provenance_non_candidate",
+          "ratchet",
+          "sandboxed_freerouting",
+          "sandboxed_krt",
+          "source_untouched",
+          "specctra_nets_canary_freerouting",
+          "specctra_nets_export",
+          "spokes_attribution",
+          "spokes_fzone_freerouting",
+          "spokes_fzone_krt",
+          "spokes_plan",
+          "spokes_run_freerouting",
+          "spokes_run_krt",
+          "state_untouched_plain_krt",
+          "tampering",
+          "unlocked_freerouting",
+          "unlocked_krt"
+        ]
+      }
+    },
+    {
+      "name": "complete_no_skip_population",
+      "passed": true,
+      "observed": {
+        "tests": 822,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "strict_recorded_repeat",
+      "passed": true,
+      "observed": {
+        "schema": "kicad-route/determinism/1",
+        "backend": "builtin",
+        "verified_utc": "2026-10-21T09:57:22.260140+00:00",
+        "build_id": "aee11a58bfb00f2be6eed408616719f108b28334a9ce3b0666a4267ba1fadc29",
+        "build": {
+          "name": "builtin",
+          "tag": "owned-89a2efbf5305",
+          "version": "0.23.1",
+          "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+          "extension_module_sha256": "a9e29be7aa1b44d70a87404f03060c2dbe81531da0a3070fb575c4c34282070f",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        "kicad_cli": "10.0.7",
+        "input": {
+          "dir": "fixtures/route_demo",
+          "fingerprint": "ba2f343c49e2f97183bc15cf4dadbeef7e186fed4a1a935b3163964714aaf732"
+        },
+        "settings": {
+          "runs": 2,
+          "budget_s": 180,
+          "backend_env": [],
+          "default_clearance_mm": 0.4
+        },
+        "reproducible": true,
+        "reasons": [],
+        "same": {
+          "outcome": true,
+          "copper_geometry": true,
+          "candidate_bytes": false,
+          "backend_output_bytes": false,
+          "execution_build": true
+        },
+        "differs_at": "candidate_bytes",
+        "bytes_note": "candidate bytes differ while geometry is compared: KiCad UUIDs and item order",
+        "runs": [
+          {
+            "run_dir": "/test-evidence/repeat/runs/route_demo/determinism-builtin-1/20261021T095654.056674Z",
+            "exit_code": 0,
+            "outcome": {
+              "process": "PASS",
+              "routing": "COMPLETE",
+              "validation": "PASS",
+              "unconnected_in_scope": 0
+            },
+            "wall_clock_stop": false,
+            "backend_output_bytes": "1830a077815c9e0e3c71581706ff71ddf3e21eb7a5731195d79c4b56c2fd4796",
+            "candidate_bytes": "1830a077815c9e0e3c71581706ff71ddf3e21eb7a5731195d79c4b56c2fd4796",
+            "copper_geometry": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+            "copper_items": {
+              "tracks": 21,
+              "vias": 3
+            }
+          },
+          {
+            "run_dir": "/test-evidence/repeat/runs/route_demo/determinism-builtin-2/20261021T095707.549178Z",
+            "exit_code": 0,
+            "outcome": {
+              "process": "PASS",
+              "routing": "COMPLETE",
+              "validation": "PASS",
+              "unconnected_in_scope": 0
+            },
+            "wall_clock_stop": false,
+            "backend_output_bytes": "4600b3b70547ee5eb06184ef0d2f6030d069c70f4653360b4b16ceb641c9a28c",
+            "candidate_bytes": "4600b3b70547ee5eb06184ef0d2f6030d069c70f4653360b4b16ceb641c9a28c",
+            "copper_geometry": "bb5784b85517c3ca9f424d1c1c39b0375d59665ede57fcffb6ef3eeb0b77757f",
+            "copper_items": {
+              "tracks": 21,
+              "vias": 3
+            }
+          }
+        ],
+        "recorded_in": "/testwork/state-candidate/manifest.json"
+      }
+    },
+    {
+      "name": "repeat_1_native",
+      "passed": true,
+      "observed": {
+        "result": "/test-evidence/repeat/runs/route_demo/determinism-builtin-1/20261021T095654.056674Z/result.json",
+        "sha256": "7aeed555df289329204a9db55da0147fb56528dac05e854885a801155c1536d7",
+        "exit_code": 0,
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "tool_identity": {
+          "kicad_route": {
+            "version": "f42b879",
+            "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+            "dirty": false
+          },
+          "kicad_cli": {
+            "path": "/usr/bin/kicad-cli",
+            "version": "10.0.7",
+            "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+          },
+          "pcbnew": {
+            "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+            "python": "/usr/bin/python3"
+          },
+          "python": {
+            "version": "3.12.3",
+            "executable": "/usr/bin/python3"
+          },
+          "backend": {
+            "name": "builtin",
+            "tag": "owned-89a2efbf5305",
+            "version": "0.23.1",
+            "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+            "grid_router_version": "0.23.1",
+            "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+            "extension_module_sha256": "a9e29be7aa1b44d70a87404f03060c2dbe81531da0a3070fb575c4c34282070f",
+            "venv_python_version": "3.12.3",
+            "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+          },
+          "state_manifest_sha256": "6f004e9e807eb3f4658fe9eb111ee0d0c4d0f5cc8cf868809dd48957dccd5f75",
+          "state_manifest_drift": []
+        }
+      }
+    },
+    {
+      "name": "repeat_2_native",
+      "passed": true,
+      "observed": {
+        "result": "/test-evidence/repeat/runs/route_demo/determinism-builtin-2/20261021T095707.549178Z/result.json",
+        "sha256": "91af0e2fdf81143a68080d8a1421f68bb4072194fdb78d37e1e51fcb7b611f56",
+        "exit_code": 0,
+        "process": "PASS",
+        "routing": "COMPLETE",
+        "validation": "PASS",
+        "tool_identity": {
+          "kicad_route": {
+            "version": "f42b879",
+            "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+            "dirty": false
+          },
+          "kicad_cli": {
+            "path": "/usr/bin/kicad-cli",
+            "version": "10.0.7",
+            "sha256": "0dd2a47a1cb8642513d623152a1815c493c4909a879db1bae95b5ac13caaaa61"
+          },
+          "pcbnew": {
+            "build_version": "10.0.7-10.0.7~ubuntu24.04.1",
+            "python": "/usr/bin/python3"
+          },
+          "python": {
+            "version": "3.12.3",
+            "executable": "/usr/bin/python3"
+          },
+          "backend": {
+            "name": "builtin",
+            "tag": "owned-89a2efbf5305",
+            "version": "0.23.1",
+            "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+            "grid_router_version": "0.23.1",
+            "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+            "extension_module_sha256": "a9e29be7aa1b44d70a87404f03060c2dbe81531da0a3070fb575c4c34282070f",
+            "venv_python_version": "3.12.3",
+            "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+          },
+          "state_manifest_sha256": "6f004e9e807eb3f4658fe9eb111ee0d0c4d0f5cc8cf868809dd48957dccd5f75",
+          "state_manifest_drift": []
+        }
+      }
+    },
+    {
+      "name": "same_executed_backend",
+      "passed": true,
+      "observed": [
+        {
+          "name": "builtin",
+          "tag": "owned-89a2efbf5305",
+          "version": "0.23.1",
+          "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+          "extension_module_sha256": "a9e29be7aa1b44d70a87404f03060c2dbe81531da0a3070fb575c4c34282070f",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        },
+        {
+          "name": "builtin",
+          "tag": "owned-89a2efbf5305",
+          "version": "0.23.1",
+          "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+          "grid_router_version": "0.23.1",
+          "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+          "extension_module_sha256": "a9e29be7aa1b44d70a87404f03060c2dbe81531da0a3070fb575c4c34282070f",
+          "venv_python_version": "3.12.3",
+          "venv_packages_sha256": "0dc7c913210ed2d7f0afe996b4f936eaee539c19ca5e6e5d76949d13eaf304ae"
+        }
+      ]
+    },
+    {
+      "name": "same_generation",
+      "passed": true,
+      "observed": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295"
+    },
+    {
+      "name": "source_unchanged",
+      "passed": true,
+      "observed": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d"
+    },
+    {
+      "name": "manifest_drift",
+      "passed": true,
+      "observed": []
+    }
+  ],
+  "manifest_sha256": "9977b7860072ebbc86cae2489db4c7b45d807cb86f543e248c4d3e7b949bfa51"
+}

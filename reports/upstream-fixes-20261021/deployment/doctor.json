@@ -1,0 +1,594 @@
+{
+  "schema": "kicad-route/doctor/1",
+  "kind": "doctor",
+  "status": "PASS",
+  "checks": [
+    {
+      "check": "kicad-cli",
+      "status": "PASS",
+      "detail": "10.0.7",
+      "required": true
+    },
+    {
+      "check": "kicad-cli pcb drc --refill-zones",
+      "status": "PASS",
+      "detail": "native grading",
+      "required": true
+    },
+    {
+      "check": "kicad-cli pcb drc --save-board",
+      "status": "PASS",
+      "detail": "native grading",
+      "required": true
+    },
+    {
+      "check": "kicad-cli pcb drc --schematic-parity",
+      "status": "PASS",
+      "detail": "native grading",
+      "required": true
+    },
+    {
+      "check": "kicad-cli pcb drc --severity-all",
+      "status": "PASS",
+      "detail": "native grading",
+      "required": true
+    },
+    {
+      "check": "kicad-cli pcb drc --format",
+      "status": "PASS",
+      "detail": "native grading",
+      "required": true
+    },
+    {
+      "check": "kicad-cli DSN export",
+      "status": "UNSUPPORTED",
+      "detail": "not in kicad-cli: the Freerouting bridge uses pcbnew SWIG instead",
+      "required": false
+    },
+    {
+      "check": "pcbnew SWIG (facts, Specctra bridge)",
+      "status": "PASS",
+      "detail": "10.0.7-10.0.7~ubuntu24.04.1",
+      "required": true
+    },
+    {
+      "check": "bwrap (planes)",
+      "status": "PASS",
+      "required": false,
+      "detail": "planes namespaces ready; see build/agent497-upstream-adoption/deployment/doctor/doctor/planes-bwrap/bwrap.log"
+    },
+    {
+      "check": "owned routing source",
+      "status": "PASS",
+      "detail": "0.23.1 owned-89a2efbf5305",
+      "required": true
+    },
+    {
+      "check": "Builtin routing venv",
+      "status": "PASS",
+      "detail": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/venv",
+      "required": true
+    },
+    {
+      "check": "Builtin Rust router module",
+      "status": "PASS",
+      "detail": "grid_router 0.23.1 (checkout 0.23.1)",
+      "required": true
+    },
+    {
+      "check": "Builtin startup checks",
+      "status": "PASS",
+      "detail": [
+        "All checks passed. Rust router v0.23.1"
+      ],
+      "required": true
+    },
+    {
+      "check": "Builtin controls used by the adapter",
+      "status": "PASS",
+      "detail": "all present",
+      "required": true
+    },
+    {
+      "check": "Builtin latest release",
+      "status": "NOT_RUN",
+      "detail": "owned source; upstream is provenance only",
+      "required": false
+    },
+    {
+      "check": "Freerouting jar",
+      "status": "PASS",
+      "detail": "v2.5.0 freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76",
+      "required": true
+    },
+    {
+      "check": "Java for Freerouting",
+      "status": "PASS",
+      "detail": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java (25) (jar built for Java 25)",
+      "required": true
+    },
+    {
+      "check": "Freerouting headless CLI",
+      "status": "PASS",
+      "detail": "Freerouting v2.5.0 (build-date: 2026-10-05)",
+      "required": true
+    },
+    {
+      "check": "Freerouting latest release",
+      "status": "NOT_RUN",
+      "detail": "--offline: not looked up",
+      "required": false
+    },
+    {
+      "check": "state manifest",
+      "status": "PASS",
+      "detail": "/home/halbritt/git/kicad-route/manifest.json (2026-10-21T10:02:46.166586+00:00, by update)",
+      "required": true
+    },
+    {
+      "check": "state manifest matches the files on disk",
+      "status": "PASS",
+      "detail": "jar, extension module, venv packages, requirements, owned source, kicad-cli",
+      "required": true
+    },
+    {
+      "check": "builtin determinism verified for this build",
+      "status": "NOT_RUN",
+      "detail": "no determinism record for this build in the state manifest (kicad-route determinism --record)",
+      "required": false
+    },
+    {
+      "check": "canary split (awkward net names)",
+      "status": "PASS",
+      "detail": "Specctra class split and DSN export/parse round-trip",
+      "required": true
+    },
+    {
+      "check": "canary bridge (awkward net names)",
+      "status": "PASS",
+      "detail": "Specctra class split and DSN export/parse round-trip",
+      "required": true
+    },
+    {
+      "check": "state read-only",
+      "status": "NOT_RUN",
+      "detail": "--require-readonly-state: STATE /home/halbritt/git/kicad-route is writable by this process (., .router-generations, .venv-krt, vendor/freerouting, vendor/skills); mount it read-only before `doctor`",
+      "required": false
+    }
+  ],
+  "offline": true,
+  "canary": true,
+  "required_failed": [],
+  "capabilities": {
+    "planes": {
+      "interface": "native pcbnew, agent-ee.plane-plan/1",
+      "bwrap_ready": true
+    },
+    "krt": {
+      "interface": "CLI (py_router/route.py), headless, no KiCad editor needed",
+      "net_selection": "names (fnmatch, !exclude); classes expanded by the wrapper",
+      "budget": "wall clock via KICAD_STOP_FILE + kill; --max-iterations",
+      "relaxation_controls": "--escalation off --fab-tier standard --strict-sizes --no-power-tap-neckdown plus KICAD_* knobs (see KRT_FLAGS/KRT_ENV in kicad_route/cli.py)",
+      "project_writeback": "disabled (--no-fix-drc-settings, KICAD_INRUN_FLOOR_SYNC=0); originals restored anyway",
+      "existing_copper": "locked copper never touched; with --protect existing the wrapper locks all input copper for the run and restores the flags afterwards"
+    },
+    "freerouting": {
+      "interface": "executable jar, headless (-de/-do), via KiCad pcbnew Specctra bridge",
+      "net_selection": "by DSN class: out-of-scope nets moved to ignored copies of their class",
+      "budget": "--router.job_timeout + kill; --router.autorouter.max_passes",
+      "relaxation_controls": "--router.automatic_neckdown=false",
+      "project_writeback": "none (Specctra session only)",
+      "existing_copper": "all pre-existing copper frozen; SES import keeps locked copper and re-creates unlocked copper from the session"
+    },
+    "builtin": {
+      "interface": "CLI (py_router/route.py), headless, no KiCad editor needed",
+      "net_selection": "names (fnmatch, !exclude); classes expanded by the wrapper",
+      "budget": "wall clock via KICAD_STOP_FILE + kill; --max-iterations",
+      "relaxation_controls": "--escalation off --fab-tier standard --strict-sizes --no-power-tap-neckdown plus KICAD_* knobs (see KRT_FLAGS/KRT_ENV in kicad_route/cli.py)",
+      "project_writeback": "disabled (--no-fix-drc-settings, KICAD_INRUN_FLOOR_SYNC=0); originals restored anyway",
+      "existing_copper": "locked copper never touched; with --protect existing the wrapper locks all input copper for the run and restores the flags afterwards"
+    }
+  },
+  "versions": {
+    "builtin": {
+      "version": "0.23.1",
+      "build": "owned-89a2efbf5305",
+      "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+      "source": "https://github.com/halbritt/kicad-route",
+      "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+      "upstream": {
+        "project": "KiCadRoutingTools",
+        "license": "MIT",
+        "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+        "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+        "upstream_release": "v0.23.1",
+        "fork": "https://github.com/halbritt/KiCadRoutingTools",
+        "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+        "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+        "fixes": {
+          "KICADROUTE-64": "4b316ba",
+          "KICADROUTE-63": "0494a05"
+        },
+        "source_inventory": "reports/routing-engine/source-closure.json",
+        "additional_license_notices": [
+          "py_router/stage3d/vendor/three/LICENSE"
+        ],
+        "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector.",
+        "selective_adoptions": {
+          "KICADROUTE-83": {
+            "commits": [
+              "fd59a050e258581d5938c4d9456bbfeb13240e67"
+            ],
+            "scope": "pass-rules"
+          },
+          "KICADROUTE-84": {
+            "commits": [
+              "8c3e833179615dbe5e3cd205e68b03e25a6f73e8",
+              "29be549c9747855315957ccc160d69746a3d66cb",
+              "20a8e1b83b00e410f2adf60861ee536d3e57dabc",
+              "0e0029f450fa609447bcb62d16a9381cbc9d9d5d",
+              "ca96bc28f39d3c5e5f014950e8ed9664a755a8f1"
+            ],
+            "scope": "layer-stub-safety"
+          },
+          "KICADROUTE-85": {
+            "commits": [
+              "a0489b30621460e35f9d390f929fab215f7cc7f3"
+            ],
+            "scope": "pair-keepouts"
+          },
+          "KICADROUTE-86": {
+            "commits": [
+              "9ac916bc16d6edcd554bf4dc8640f30379386447",
+              "ed17b29f7eaec4822ba12178a65eca5c3a452e40"
+            ],
+            "scope": "obstacle-lifecycle"
+          },
+          "KICADROUTE-87": {
+            "commits": [
+              "0b3b6a2d19666c3411252f314d3ca8d12f1766fa"
+            ],
+            "scope": "rescue-custody"
+          },
+          "KICADROUTE-88": {
+            "commits": [
+              "2ddfc187a1bd4aa0f33263de3d5194a4c6205809"
+            ],
+            "scope": "parser-lifecycle"
+          }
+        },
+        "adoption_review_head": "0b3b6a2d19666c3411252f314d3ca8d12f1766fa",
+        "adoption_note": "Selected headless fixes only; extraction baseline above is unchanged. Parser caches use parse-local context rather than upstream global memo. Owned quote-aware copper-preserving writer, unsupported-copper refusal and tap/weld repairs remain authoritative.",
+        "adoption_inventory": "reports/upstream-fixes-20261021/source-closure.json"
+      },
+      "runtime": {
+        "source": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/router",
+        "venv": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/venv",
+        "generation": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363"
+      },
+      "rust_router": "0.23.1"
+    },
+    "krt": {
+      "version": "0.23.1",
+      "build": "owned-89a2efbf5305",
+      "commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+      "source": "https://github.com/halbritt/kicad-route",
+      "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+      "upstream": {
+        "project": "KiCadRoutingTools",
+        "license": "MIT",
+        "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+        "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+        "upstream_release": "v0.23.1",
+        "fork": "https://github.com/halbritt/KiCadRoutingTools",
+        "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+        "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
+        "fixes": {
+          "KICADROUTE-64": "4b316ba",
+          "KICADROUTE-63": "0494a05"
+        },
+        "source_inventory": "reports/routing-engine/source-closure.json",
+        "additional_license_notices": [
+          "py_router/stage3d/vendor/three/LICENSE"
+        ],
+        "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector.",
+        "selective_adoptions": {
+          "KICADROUTE-83": {
+            "commits": [
+              "fd59a050e258581d5938c4d9456bbfeb13240e67"
+            ],
+            "scope": "pass-rules"
+          },
+          "KICADROUTE-84": {
+            "commits": [
+              "8c3e833179615dbe5e3cd205e68b03e25a6f73e8",
+              "29be549c9747855315957ccc160d69746a3d66cb",
+              "20a8e1b83b00e410f2adf60861ee536d3e57dabc",
+              "0e0029f450fa609447bcb62d16a9381cbc9d9d5d",
+              "ca96bc28f39d3c5e5f014950e8ed9664a755a8f1"
+            ],
+            "scope": "layer-stub-safety"
+          },
+          "KICADROUTE-85": {
+            "commits": [
+              "a0489b30621460e35f9d390f929fab215f7cc7f3"
+            ],
+            "scope": "pair-keepouts"
+          },
+          "KICADROUTE-86": {
+            "commits": [
+              "9ac916bc16d6edcd554bf4dc8640f30379386447",
+              "ed17b29f7eaec4822ba12178a65eca5c3a452e40"
+            ],
+            "scope": "obstacle-lifecycle"
+          },
+          "KICADROUTE-87": {
+            "commits": [
+              "0b3b6a2d19666c3411252f314d3ca8d12f1766fa"
+            ],
+            "scope": "rescue-custody"
+          },
+          "KICADROUTE-88": {
+            "commits": [
+              "2ddfc187a1bd4aa0f33263de3d5194a4c6205809"
+            ],
+            "scope": "parser-lifecycle"
+          }
+        },
+        "adoption_review_head": "0b3b6a2d19666c3411252f314d3ca8d12f1766fa",
+        "adoption_note": "Selected headless fixes only; extraction baseline above is unchanged. Parser caches use parse-local context rather than upstream global memo. Owned quote-aware copper-preserving writer, unsupported-copper refusal and tap/weld repairs remain authoritative.",
+        "adoption_inventory": "reports/upstream-fixes-20261021/source-closure.json"
+      },
+      "runtime": {
+        "source": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/router",
+        "venv": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/venv",
+        "generation": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363"
+      },
+      "rust_router": "0.23.1"
+    },
+    "freerouting": {
+      "version": "v2.5.0",
+      "build": "freerouting-2.5.0.jar b647a2f824cfbc54bc4dcaee71b03b7cd945eb76",
+      "sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7",
+      "java": "/usr/lib/jvm/java-25-openjdk-amd64/bin/java (25)",
+      "java_required": 25,
+      "source": "https://github.com/freerouting/freerouting"
+    }
+  },
+  "state_manifest": {
+    "path": "/home/halbritt/git/kicad-route/manifest.json",
+    "sha256": "3355b7804406d53da72eed84809f92d6c7b3bc09f762f9b84d471c26f5dab639"
+  },
+  "state": {
+    "path": "/home/halbritt/git/kicad-route",
+    "exists": true,
+    "installed": [
+      ".router-generations",
+      ".venv-krt",
+      "vendor/freerouting",
+      "vendor/skills"
+    ],
+    "writable": true,
+    "writable_parts": [
+      ".router-generations",
+      ".venv-krt",
+      "vendor/freerouting",
+      "vendor/skills"
+    ],
+    "readonly_mount": false
+  },
+  "sandbox": {
+    "ro_paths": [
+      {
+        "path": "/usr",
+        "purpose": "system: KiCad (kicad-cli, pcbnew, /usr/share/kicad), Python, Java, git",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/etc",
+        "purpose": "system configuration (ld.so cache, fonts, passwd)",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route",
+        "purpose": "kicad-route checkout: code, KiCad scripts, the canary fixture",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/home/halbritt/git/kicad-route",
+        "purpose": "STATE: router generations, legacy .venv-krt, vendor/freerouting; the venv stores absolute paths, so bind it at the same path",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/python3.12",
+        "purpose": "interpreter the KRT venv links to (.venv-krt/bin/python)",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/python3.12",
+        "purpose": "Python with KiCad's pcbnew bindings (KICAD_ROUTE_PCBNEW_PYTHON)",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/lib/python3/dist-packages",
+        "purpose": "the pcbnew module",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/share/kicad",
+        "purpose": "KiCad stock libraries and templates (hermetic config, DRC)",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/kicad-cli",
+        "purpose": "kicad-cli executable",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/git",
+        "purpose": "git executable",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/bin/bwrap",
+        "purpose": "bwrap executable",
+        "exists": true,
+        "same_path_required": true
+      },
+      {
+        "path": "/usr/lib/jvm/java-25-openjdk-amd64",
+        "purpose": "JVM for Freerouting (newest under /usr/lib/jvm meeting the jar)",
+        "exists": true,
+        "same_path_required": true
+      }
+    ],
+    "ro_binds": [
+      "/etc",
+      "/home/halbritt/git/kicad-route",
+      "/usr"
+    ],
+    "rw_paths": [
+      {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor",
+        "purpose": "--out: runs, baseline cache, hermetic KiCad config, the tools' per-user files (OUT/.home), doctor output, the ledger (unless --ledger)"
+      }
+    ],
+    "tmp": "/tmp may be a private tmpfs",
+    "env": [
+      {
+        "name": "KICAD_ROUTE_STATE",
+        "value": "/home/halbritt/git/kicad-route",
+        "required": true,
+        "purpose": "the installed backends (checkout or user state directory by default)"
+      },
+      {
+        "name": "HOME",
+        "value": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/home",
+        "required": false,
+        "purpose": "optional, need not be writable: KiCad's config, cache and data, fontconfig's cache and the Freerouting JVM's user.home are kept under OUT (OUT/.kicad-config, OUT/.home)"
+      },
+      {
+        "name": "PATH",
+        "value": "/usr/bin:/usr/local/bin:/bin",
+        "required": true,
+        "purpose": "kicad-cli, git and bwrap (planes)"
+      },
+      {
+        "name": "KICAD_ROUTE_PCBNEW_PYTHON",
+        "value": "/usr/bin/python3",
+        "required": false,
+        "purpose": "only when it is not /usr/bin/python3"
+      },
+      {
+        "name": "KICAD_ROUTE_OUT",
+        "value": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor",
+        "required": false,
+        "purpose": "or pass --out"
+      },
+      {
+        "name": "KICAD_ROUTE_REQUIRE_READONLY_STATE",
+        "value": "1",
+        "required": false,
+        "purpose": "refuse (exit 4) unless STATE is read-only; update and corpus add refuse"
+      }
+    ],
+    "network": {
+      "run": [],
+      "campaign": [],
+      "validate": [],
+      "blocked": [],
+      "planes": [],
+      "doctor --offline": [],
+      "doctor": [
+        "api.github.com:443"
+      ],
+      "update": [
+        "api.github.com:443",
+        "github.com:443",
+        "objects.githubusercontent.com:443",
+        "release-assets.githubusercontent.com:443",
+        "pypi.org:443",
+        "files.pythonhosted.org:443",
+        "index.crates.io:443",
+        "static.crates.io:443"
+      ],
+      "note": "routing needs no network; Freerouting additionally gets a dead HTTPS proxy"
+    },
+    "writes_state": [
+      "update",
+      "corpus add"
+    ],
+    "observed": {
+      "require_readonly_state": false,
+      "state": {
+        "path": "/home/halbritt/git/kicad-route",
+        "exists": true,
+        "installed": [
+          ".router-generations",
+          ".venv-krt",
+          "vendor/freerouting",
+          "vendor/skills"
+        ],
+        "writable": true,
+        "writable_parts": [
+          ".router-generations",
+          ".venv-krt",
+          "vendor/freerouting",
+          "vendor/skills"
+        ],
+        "readonly_mount": false
+      },
+      "tool_root": {
+        "path": "/home/halbritt/git/kicad-route",
+        "writable": true
+      },
+      "out": {
+        "path": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor"
+      },
+      "home": {
+        "HOME": "/home/halbritt",
+        "required": false,
+        "tool_home": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home",
+        "env": {
+          "KICAD_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.kicad-config",
+          "KICAD_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/cache",
+          "KICAD_DOCUMENTS_HOME": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/data",
+          "XDG_CONFIG_HOME": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/config",
+          "XDG_CACHE_HOME": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/cache",
+          "XDG_DATA_HOME": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/data",
+          "XDG_STATE_HOME": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/state"
+        },
+        "jvm": [
+          "-Duser.home=/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/java",
+          "-Djava.util.prefs.userRoot=/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment/doctor/.home/java/prefs"
+        ]
+      },
+      "network": {
+        "interfaces": 38,
+        "non_loopback_interfaces": 37,
+        "non_loopback_examples": [
+          "br-08ee9a52996a",
+          "br-1b6d28c3e778",
+          "br-24c8c1a867af",
+          "br-2fd0323456d7",
+          "br-8d6dd9da25b3"
+        ],
+        "non_loopback_routes": 109,
+        "namespace": "net:[4026531840]",
+        "isolated": false
+      }
+    }
+  },
+  "exit_code": 0,
+  "record": "build/agent497-upstream-adoption/deployment/doctor/doctor/doctor.json"
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "kicad-route/retained-test-archive/1",
+  "status": "PASS",
+  "index_sha256": "aa8582f641d6be7753e96e8acd282ec1ff8362c53947569ca17359915737843c",
+  "regular_files_verified": 7964,
+  "uncompressed_bytes": 205325988,
+  "gzip_stream_sha256": "e6f4d1c8d5f4ce902b42eea2ad912227450b65c3160411a377a6c05e0a89b886",
+  "gzip_stream_bytes": 118680900,
+  "parts": [
+    {
+      "path": "test-evidence.tar.gz.part01",
+      "size": 83886080,
+      "sha256": "4df4dcc6d319beffc85a67cca4f1a8ba7c7548bd02710872799b124607012167"
+    },
+    {
+      "path": "test-evidence.tar.gz.part02",
+      "size": 34794820,
+      "sha256": "eb1820d7a852d75ab4efaa46cb2e9f292d9b7db792c5396ad8223b513629a954"
+    }
+  ],
+  "reconstruct": "cat test-evidence.tar.gz.part* > test-evidence.tar.gz; tar -xzf test-evidence.tar.gz",
+  "scope": "All verified CAS bytes and profile-scoped locators retained. Every tar member rehashed before splitting; concatenated parts match the verified gzip stream."
+}

@@ -1,0 +1,1025 @@
+{
+  "schema": "kicad-route/retained-followup-index/1",
+  "files": [
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/acceptance_profile.py",
+      "retained": "followup/acceptance_profile.py",
+      "sha256": "99b1078290d27f13401adbac060ac1b6758bcfc60dcd1f2fe68f7acd4feef3e7",
+      "size": 8302
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/archon-export-policy.json",
+      "retained": "followup/archon-export-policy.json",
+      "sha256": "a0f5b22003e560eed840a1b802e2bd227262581eef61ef67aa03e259c9f4f7b4",
+      "size": 1696
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/archon-final-verification.json",
+      "retained": "followup/archon-final-verification.json",
+      "sha256": "b33a197185c6b834db71580ac2d71f5c5b873a860a68317c2801c227c5029991",
+      "size": 11249
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/archon-protocol.json",
+      "retained": "followup/archon-protocol.json",
+      "sha256": "23ced002d30ff310d18cab5c96688798773f40d96bb0b78fb78ac1c13b0bcd1d",
+      "size": 20932
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deploy-main.py",
+      "retained": "followup/deploy-main.py",
+      "sha256": "041f8279019b4efeaa8ad6de168d66df88c8cd5e4a13b0e87a70ce3b7aa57ae3",
+      "size": 6159
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-verifier-tests-initial.log",
+      "retained": "followup/deployment-verifier-tests-initial.log",
+      "sha256": "c319efba877d6825a9d64f14d388024fa79f00f3501f381166b3ed240142ba52",
+      "size": 5782
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/deployment-verifier-tests.log",
+      "retained": "followup/deployment-verifier-tests.log",
+      "sha256": "89902304c9dee8611dd535002ad4a2cc1c92a951120bad60aaa1b128ee66bea5",
+      "size": 2345
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/export-archon-evidence.py",
+      "retained": "followup/export-archon-evidence.py",
+      "sha256": "af2899d658b36ffb8c0aa7f62cee6f65c8ba5f159ecc829d64f3b7ea4f2d390a",
+      "size": 10643
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/focused-evidence-summary.json",
+      "retained": "followup/focused-evidence-summary.json",
+      "sha256": "fa70d89073cfcaa96a719c04ae8395903d6ebde9186ef916c4e44e75d958e438",
+      "size": 34643
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/harness-tests-final-boundary.log",
+      "retained": "followup/harness-tests-final-boundary.log",
+      "sha256": "517bbbae182d266b1caea74580f0e4df78aaaaeb8ea40161c0e6a382dc567fa6",
+      "size": 111
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/import-verification.json",
+      "retained": "followup/import-verification.json",
+      "sha256": "d9e000a00983e080089e5bd540d599f22be0fe923d51a1c2b23f5904877d7eef",
+      "size": 180
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/independent-test-verifier-tests.log",
+      "retained": "followup/independent-test-verifier-tests.log",
+      "sha256": "7f909a44a2f7f0f943949257ff9bb14cb13caf8fee3a713466cba5b86fd5d406",
+      "size": 2295
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/index-archon-evidence.py",
+      "retained": "followup/index-archon-evidence.py",
+      "sha256": "ba35e6ef203839f235af3b8d853ca6d5a8bdc8e9f6e3958fcd5a5d5083425e64",
+      "size": 4188
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/kernel-verification.json",
+      "retained": "followup/kernel-verification.json",
+      "sha256": "94f7f6013d0b2f976c750d89083429253ab59fd407936c348ea9a320a215e7c9",
+      "size": 2809
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/kernel.log",
+      "retained": "followup/kernel.log",
+      "sha256": "70b0d94d0d64f7625a7a6d5cb83333a2adc847249220293796ab318c698e967c",
+      "size": 6325
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/launch.json",
+      "retained": "followup/launch.json",
+      "sha256": "2dcb793b5659a88605b8f6a6a43b660d2f0e3c5d80c78eb452bcb55054c933d6",
+      "size": 788
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/qualification-plan-final.json",
+      "retained": "followup/qualification-plan-final.json",
+      "sha256": "3488e83e7c7326f59c639620f0b8dbd7caa575defd9b6091833ed9dba6908686",
+      "size": 4507
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/qualification-source-bridge.json",
+      "retained": "followup/qualification-source-bridge.json",
+      "sha256": "145e30d0d7b4d27b71a28b8530972f396216876919e22ff464c78a9f2e04b8ee",
+      "size": 633
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/qualification-test-issue-create.json",
+      "retained": "followup/qualification-test-issue-create.json",
+      "sha256": "8620d655cc6d928c5ab0324fdc3715b56ebb83e5529afd1b5b4a64506a2fc751",
+      "size": 2338
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/root-preflight.log",
+      "retained": "followup/root-preflight.log",
+      "sha256": "497a0e07ba68391f105660a51345bb2c8721a3be6e8571f2fb846b890943fe35",
+      "size": 128
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/final-integration-review.json",
+      "retained": "followup/rules-lane/final-integration-review.json",
+      "sha256": "c2ddaa73c650a976a39f122f07288b1126b32405f498f6bf7efc8ac509dda36d",
+      "size": 2411
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup-alias-proof.json",
+      "retained": "followup/rules-lane/qualification-followup-alias-proof.json",
+      "sha256": "95c220e9f58da0f7ae926c36c0fa32cb40fd5af3c0e1a46780ef5e55c776998b",
+      "size": 953
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/artifact-index.json",
+      "retained": "followup/rules-lane/qualification-followup/artifact-index.json",
+      "sha256": "ab98adcef6ccaa336405e4dc833c9548de5b205d81a4d4e669aabe6c0d954d6c",
+      "size": 23541
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/exact-node-replacement.json",
+      "retained": "followup/rules-lane/qualification-followup/exact-node-replacement.json",
+      "sha256": "4e743fdd3968c9182e20c390d90e8a955bff3957020eef1a40cedb6a41eb1c69",
+      "size": 909
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/qualification-followup-budget.log",
+      "retained": "followup/rules-lane/qualification-followup/qualification-followup-budget.log",
+      "sha256": "2fe7addae657aeebc69653835159cdf1cb8ece8036b32e29b228ff7aebaa5c1c",
+      "size": 110
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/qualification-followup-budget.xml",
+      "retained": "followup/rules-lane/qualification-followup/qualification-followup-budget.xml",
+      "sha256": "e6451b699444908994c5285226f43b7510b1c054dbb1d242f29ec3b6cccd300d",
+      "size": 519
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/qualification-followup-collection.log",
+      "retained": "followup/rules-lane/qualification-followup/qualification-followup-collection.log",
+      "sha256": "1778cf86e1da53d0ffe6e698c7ef8f30cfcc8c8b6b799225965d554d61d69b70",
+      "size": 72539
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/controlled-worker/py_router/route.pid",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/controlled-worker/py_router/route.pid",
+      "sha256": "032a4f34e575f0a7eea6f81b62f82c13b0301fa9144c439e7778d3b973b45813",
+      "size": 7
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/controlled-worker/py_router/route.py",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/controlled-worker/py_router/route.py",
+      "sha256": "f2556172ff191750b7a9f93f21c2cb16a7effe1e6c8348fc0ff57560e5e4407f",
+      "size": 545
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/current.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/current.json",
+      "sha256": "02b6c905b88143a2689f836522dac5c0249abfb28b46bdc60ded15662db84c76",
+      "size": 42
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-m70eox6d/baseline-drc.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-m70eox6d/baseline-drc.json",
+      "sha256": "d5b74b198b5031aff87c8c12c80b1863d675c4e5c34e335b9f5c1037a2766d19",
+      "size": 4452
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-m70eox6d/baseline-info.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-m70eox6d/baseline-info.json",
+      "sha256": "fd2f04d578c149eeb9e29e71816fc7c5f17beaa178d10382dd1fad95445ace98",
+      "size": 3991
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-m70eox6d/baseline-pour.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-m70eox6d/baseline-pour.json",
+      "sha256": "94bd17a356e2f5be33db3cca2c9b30c2a7a1f434f906673ada72f80dfcb247ac",
+      "size": 1982
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-m70eox6d/generation.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-m70eox6d/generation.json",
+      "sha256": "a08edd48c469721ed90e07a33187fc59e0f3b97fa6f355e014ec06e587e91872",
+      "size": 1412
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/3d_viewer.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/3d_viewer.json",
+      "sha256": "7c95b3fdd72f837a3cc49248249c40bc24c07b75bafe02d0d091a0864746b6a9",
+      "size": 9269
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/cvpcb.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/cvpcb.json",
+      "sha256": "3a24bbacab369da74efdaff851be8869d8ca2e5e4ca28304f9eb57041bdad759",
+      "size": 8409
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/eeschema.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/eeschema.json",
+      "sha256": "ad360fd6896e8d8f65059a2aaff40139e8c37f5f758954d3b94be9033fb114fb",
+      "size": 12148
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/fp-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/fp-lib-table",
+      "sha256": "4042e1c92709d4f872d4cdeaddfa7ec0f6bd49be240e0d9668b76e89888b1e77",
+      "size": 25235
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/fpedit.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/fpedit.json",
+      "sha256": "4d824ab97688dcfc144494386c6991dc0a31f324228d6a85cea279a474f51bb0",
+      "size": 7196
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/kicad.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/kicad.json",
+      "sha256": "20c9db1c1f2caacc9f2fb9bf25909f0e50dcb86f5fbda21233168c0d751bc650",
+      "size": 5767
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/kicad_common.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/kicad_common.json",
+      "sha256": "e50c15fd187c772eaeccbfd94a816f73d23ebf245f78c97228fb55c53cb01934",
+      "size": 2578
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/pcbnew.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/pcbnew.json",
+      "sha256": "412c1fe43f0db375147a9d25f5c7da6768ae054d94300cef57c9349bd3374e7a",
+      "size": 13751
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/sym-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/sym-lib-table",
+      "sha256": "70d7bba56bcfd2f59d98e2354a8979661f2c49f3686d13e989b20202514654c3",
+      "size": 33919
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/symbol_editor.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/.kicad-config/10.0/symbol_editor.json",
+      "sha256": "9b42635c84a17cb400a5ff58be7e9376289054294c8ab6b9d92257af7f87a8aa",
+      "size": 4247
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/ledger.jsonl",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/out/ledger.jsonl",
+      "sha256": "b4fc8ef78bac5d0f802cd6b860a22f2d2141b0ab43599d9c3f17f2336e18c98b",
+      "size": 979
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/RESULT.md",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/RESULT.md",
+      "sha256": "c9a9ddc3596c06ef90114f13a4066ae63a6480989d60155b88928724a76fc1d2",
+      "size": 1104
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/attempt.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/attempt.json",
+      "sha256": "ffcaf19d9de7aea096e87ee2e27ab20044aef842431c05b6e5067b448033aa11",
+      "size": 2750
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/facts/reference-facts.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/facts/reference-facts.json",
+      "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+      "size": 16631
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/facts/reference-facts.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/facts/reference-facts.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/fp-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/route_demo.kicad_dru",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/route_demo.kicad_pcb",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/route_demo.kicad_pro",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "size": 2300
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/route_demo.kicad_sch",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/sym-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/reference/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/result.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/result.json",
+      "sha256": "26885eb7a745e6a29a407cc8d8d57d6525f76f4efe2abcc929596dca80ea5eec",
+      "size": 17412
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/snapshot.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/snapshot.json",
+      "sha256": "71c0e574f30118eb84969f5ac46c643f01e672041fa92751cf089940fed95289",
+      "size": 1119
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/STOP",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/STOP",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/heartbeat.jsonl",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/heartbeat.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/fp-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_dru",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_pcb",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_prl",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_pro",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_pro",
+      "sha256": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
+      "size": 10604
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_sch",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/sym-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/input/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/krt.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/krt.log",
+      "sha256": "b6e2b8f058e9fa28158deda7df728633a7c4d854fca65f4f31cf78cd87706ed4",
+      "size": 31
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/lock-existing.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/lock-existing.log",
+      "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+      "size": 413
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/locks.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro0/run/work/locks.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size": 2
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/controlled-worker/py_router/route.pid",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/controlled-worker/py_router/route.pid",
+      "sha256": "742757e401148ca2c5141de490b95151cbea6abbdc57b5fbfc9c03803e4ee128",
+      "size": 7
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/controlled-worker/py_router/route.py",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/controlled-worker/py_router/route.py",
+      "sha256": "e7dea9731ac63527a18466cc0b1167dfef678d1a426fedeb3ef2ccfb6b130dd3",
+      "size": 544
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/current.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/current.json",
+      "sha256": "b56c873dd71a4e6f9bfa2826882d2aef6db6b615e444e4fab45ca09c09849147",
+      "size": 42
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-9hfbhqca/baseline-drc.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-9hfbhqca/baseline-drc.json",
+      "sha256": "226c8580428799854f34da34042ecdd7a47345ca463b291843d3a02f0a65f18c",
+      "size": 4452
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-9hfbhqca/baseline-info.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-9hfbhqca/baseline-info.json",
+      "sha256": "b7f11cb60e0327556b87d4f19d6b042e9a403fc6f7cf182c081f834c19f788d5",
+      "size": 3991
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-9hfbhqca/baseline-pour.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-9hfbhqca/baseline-pour.json",
+      "sha256": "94bd17a356e2f5be33db3cca2c9b30c2a7a1f434f906673ada72f80dfcb247ac",
+      "size": 1982
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-9hfbhqca/generation.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.cache/baseline/25e3d74633911a25e57a477d341371421bbee24a142e6c6fe34726468e825c9f/generation-9hfbhqca/generation.json",
+      "sha256": "48905244b9916161bc98aff5ff300ea01dce7fbac2e66d4640095c7ffa7019ca",
+      "size": 1412
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/3d_viewer.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/3d_viewer.json",
+      "sha256": "7c95b3fdd72f837a3cc49248249c40bc24c07b75bafe02d0d091a0864746b6a9",
+      "size": 9269
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/cvpcb.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/cvpcb.json",
+      "sha256": "3a24bbacab369da74efdaff851be8869d8ca2e5e4ca28304f9eb57041bdad759",
+      "size": 8409
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/eeschema.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/eeschema.json",
+      "sha256": "ad360fd6896e8d8f65059a2aaff40139e8c37f5f758954d3b94be9033fb114fb",
+      "size": 12148
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/fp-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/fp-lib-table",
+      "sha256": "4042e1c92709d4f872d4cdeaddfa7ec0f6bd49be240e0d9668b76e89888b1e77",
+      "size": 25235
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/fpedit.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/fpedit.json",
+      "sha256": "4d824ab97688dcfc144494386c6991dc0a31f324228d6a85cea279a474f51bb0",
+      "size": 7196
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/kicad.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/kicad.json",
+      "sha256": "20c9db1c1f2caacc9f2fb9bf25909f0e50dcb86f5fbda21233168c0d751bc650",
+      "size": 5767
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/kicad_common.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/kicad_common.json",
+      "sha256": "e50c15fd187c772eaeccbfd94a816f73d23ebf245f78c97228fb55c53cb01934",
+      "size": 2578
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/pcbnew.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/pcbnew.json",
+      "sha256": "412c1fe43f0db375147a9d25f5c7da6768ae054d94300cef57c9349bd3374e7a",
+      "size": 13751
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/sym-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/sym-lib-table",
+      "sha256": "70d7bba56bcfd2f59d98e2354a8979661f2c49f3686d13e989b20202514654c3",
+      "size": 33919
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/symbol_editor.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/.kicad-config/10.0/symbol_editor.json",
+      "sha256": "9b42635c84a17cb400a5ff58be7e9376289054294c8ab6b9d92257af7f87a8aa",
+      "size": 4247
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/ledger.jsonl",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/out/ledger.jsonl",
+      "sha256": "545f3ac49cf2aade218d8014c2fe61dac7165a798f50aeaf436b1610308e4556",
+      "size": 974
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/RESULT.md",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/RESULT.md",
+      "sha256": "b2b17dd3b571eddb12b6f920220cb34fcd8c1d3959a995b3c18dda1ecd257547",
+      "size": 2762
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/attempt.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/attempt.json",
+      "sha256": "5ab907ea0e4b0b35a8786ddcfb351b5102ada64502e3b1a9aea5ec8ebcdec517",
+      "size": 2750
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/fp-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_dru",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_pcb",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_prl",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_pro",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "size": 2300
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_sch",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/sym-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/candidate/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/facts/reference-facts.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/facts/reference-facts.json",
+      "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+      "size": 16631
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/facts/reference-facts.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/facts/reference-facts.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/fp-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/route_demo.kicad_dru",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/route_demo.kicad_pcb",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/route_demo.kicad_pro",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/route_demo.kicad_pro",
+      "sha256": "9e37d0fc2b30552f6b3c29b38cb6631a0a851216b625f7146b6655dd6671e550",
+      "size": 2300
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/route_demo.kicad_sch",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/sym-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/reference/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/result.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/result.json",
+      "sha256": "6f96ffe34ed1fb0f13f06269ad79d0fc7027d61435fa9f16925b283900070de9",
+      "size": 24420
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/snapshot.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/snapshot.json",
+      "sha256": "71c0e574f30118eb84969f5ac46c643f01e672041fa92751cf089940fed95289",
+      "size": 1119
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/blocked-by.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/blocked-by.json",
+      "sha256": "1a1e07f07261816aafd94e16624d0c969c8e2f137b37df27ee8ffbfbb883b352",
+      "size": 17572
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-drc.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-drc.json",
+      "sha256": "0f8f9d71a606052b986f37e1c10e67cd0a542c3337a058fc2fcae54c78e11d35",
+      "size": 5778
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-drc.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-drc.log",
+      "sha256": "2f7fd2a40d3752aa12b356acc2456ab5bb7fff3bd249fa6f9185e0a75c721020",
+      "size": 197
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-facts.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-facts.json",
+      "sha256": "11aa6f1ac19350edaa31f65b7d49eb215e5677076e2d8d28f3a60b93fe009107",
+      "size": 16631
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-facts.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-facts.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-pour.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-pour.json",
+      "sha256": "d4f17575811a150b3bb5c8be466f013d8165696901385e2ddf1bc065c5c2f8e8",
+      "size": 1703
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-pour.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-pour.log",
+      "sha256": "ecfdabc9a488fbdbeb42728b58080ecf903a12f0cabcb48d0622d8aa9f2d1a1e",
+      "size": 387
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-refill.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-refill.json",
+      "sha256": "9eeafd663e9916d1368135fa2e3560fa9b410bd43aa8155af2e0195879e3cb24",
+      "size": 5757
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-refill.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/candidate-refill.log",
+      "sha256": "08043147759d66310d1bdd4d04b6d5d1dc971ef9d6ea58b85034582ada31afbb",
+      "size": 180
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/new-findings.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/new-findings.json",
+      "sha256": "5ff88c9f28b8acc5f2c72b470a49c028151205a12102b200c793d6ef1aeebbbd",
+      "size": 78
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/pour-integrity.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/pour-integrity.json",
+      "sha256": "4a52369ef049ccc494e4f4642be02eb7b894cc25e91fce4044fb6aa55e59be66",
+      "size": 1789
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/preservation.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/validate/preservation.json",
+      "sha256": "f1273a9564fe88a77776a366854e43eb24f04c5274846e746e30e0a61ddd7b87",
+      "size": 2673
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/STOP",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/STOP",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/heartbeat.jsonl",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/heartbeat.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/fp-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/fp-lib-table",
+      "sha256": "5920f6994f7eb805b4b1a8f47b6d05756ec0519343f3c18fa0c0bb6a385e0502",
+      "size": 414
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_dru",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_dru",
+      "sha256": "86f29647af18453e03b6a7b4ad7b7fadbf5c58d11810a86ca8594bd3ccb729cf",
+      "size": 219
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_pcb",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_prl",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_pro",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_pro",
+      "sha256": "4493ba77519ec9349469e147dacd4e6980e7bc2f1832c86a32a6e54da9e92070",
+      "size": 10604
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_sch",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/route_demo.kicad_sch",
+      "sha256": "a0a85566d95f8e669046615b8fd939739a549c5de492d73a0d6ede74b734c0b5",
+      "size": 29495
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/sym-lib-table",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/input/route_demo/sym-lib-table",
+      "sha256": "4a4eb72d752f4ca92d1dbf149b9d8407cdda2f43cb63c825248c2bcc3002d4d1",
+      "size": 369
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/krt-out/route_demo.kicad_pcb",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/krt-out/route_demo.kicad_pcb",
+      "sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+      "size": 40640
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/krt-out/route_demo.kicad_prl",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/krt-out/route_demo.kicad_prl",
+      "sha256": "7e500d815a30299246140d547503873914f1d1c9bb5307bbea3e9aa205a1939c",
+      "size": 2297
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/krt-out/route_demo.kicad_pro",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/krt-out/route_demo.kicad_pro",
+      "sha256": "c834c62fd799ab9230dfcccedbebbb4c9497550af2721426e962cbf147b632fe",
+      "size": 9693
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/krt.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/krt.log",
+      "sha256": "439793b0d96ce468c6d88ad671c3a4806846781009348c518314fc007b401e24",
+      "size": 75
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/lock-existing.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/lock-existing.log",
+      "sha256": "2ec439afbbb283ff10aa1f665406af1690f3fbc0ad5dc6b75ce1a80c893fd461",
+      "size": 413
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/locks.json",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/locks.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size": 2
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/restore-locks.log",
+      "retained": "followup/rules-lane/qualification-followup/raw/test_budget_stop_preserves_pro1/run/work/restore-locks.log",
+      "sha256": "269856dc0c643532e5e24442e88ed78c98abf7295474605471446907f732c11c",
+      "size": 431
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/verification.json",
+      "retained": "followup/rules-lane/qualification-followup/verification.json",
+      "sha256": "0fa80148f3f8f8b03c1e2cc3cf6f214e2d8f54c3f434b36dbd99b02f397eeb4c",
+      "size": 2958
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-first.py",
+      "retained": "followup/single-ended-control-first.py",
+      "sha256": "bd4cc9d77ce19c2604efa4e4cfc6b62135fb329bb9822d7ed57c68ebbd1bbf00",
+      "size": 3471
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed.log",
+      "retained": "followup/single-ended-control-fixed.log",
+      "sha256": "bd953cf0b863e1735d75aaf1fa7e647541d8d1c6329e6a6c00c77efaa9396a33",
+      "size": 3560
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_dcydyqwo/route.log",
+      "retained": "followup/single-ended-control-fixed/dkmc_dcydyqwo/route.log",
+      "sha256": "017d2c8407669c1117f6098981ea86b209d1b4c9ee6e344869d556e916fcc1ef",
+      "size": 20593
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_dcydyqwo/single-ended.kicad_pcb",
+      "retained": "followup/single-ended-control-fixed/dkmc_dcydyqwo/single-ended.kicad_pcb",
+      "sha256": "7870e1dd51d0ac16c17967d1c9893b71b3e70f919f883000e3f1e00876ce8207",
+      "size": 73804
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_dcydyqwo/single-ended.kicad_pcb.drc.json",
+      "retained": "followup/single-ended-control-fixed/dkmc_dcydyqwo/single-ended.kicad_pcb.drc.json",
+      "sha256": "9b7e6de5e93a5f017b3f3d8f101802de996ee37bedce0f5d196914e9572e7cb2",
+      "size": 47719
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_dcydyqwo/single-ended.kicad_prl",
+      "retained": "followup/single-ended-control-fixed/dkmc_dcydyqwo/single-ended.kicad_prl",
+      "sha256": "97cfa168572fa755bce068f5453a1be2211bfff8835a68dc3907906036a6d427",
+      "size": 2299
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_dcydyqwo/user.kicad_pcb",
+      "retained": "followup/single-ended-control-fixed/dkmc_dcydyqwo/user.kicad_pcb",
+      "sha256": "9d3c33fe7a440f97bde79080163bbabf995503db21721348e7e138d946d36453",
+      "size": 70812
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_difbaz29/native.kicad_pcb",
+      "retained": "followup/single-ended-control-fixed/dkmc_difbaz29/native.kicad_pcb",
+      "sha256": "2ec57431b37f356b34e8ab97770e85e376da5c96584e4f505fccfc58d3a430b1",
+      "size": 71136
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_difbaz29/route.log",
+      "retained": "followup/single-ended-control-fixed/dkmc_difbaz29/route.log",
+      "sha256": "13a88cd7fce0a5a79a32924ebcad4d155cb6ca524d8a3786f827709c6ccfbb11",
+      "size": 20532
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_difbaz29/single-ended.kicad_pcb",
+      "retained": "followup/single-ended-control-fixed/dkmc_difbaz29/single-ended.kicad_pcb",
+      "sha256": "1501721199b20b359d4bd22c64325e2019ce634d88b4287a66e14fa261b0b58a",
+      "size": 74128
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_difbaz29/single-ended.kicad_pcb.drc.json",
+      "retained": "followup/single-ended-control-fixed/dkmc_difbaz29/single-ended.kicad_pcb.drc.json",
+      "sha256": "7168a86cf62ec6907515e33a23191e1b659224030a8c0f0aed593f5e8885e8d6",
+      "size": 47719
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/dkmc_difbaz29/single-ended.kicad_prl",
+      "retained": "followup/single-ended-control-fixed/dkmc_difbaz29/single-ended.kicad_prl",
+      "sha256": "97cfa168572fa755bce068f5453a1be2211bfff8835a68dc3907906036a6d427",
+      "size": 2299
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/native-readback.json",
+      "retained": "followup/single-ended-control-fixed/native-readback.json",
+      "sha256": "3c1ab65aac631a318a663eca5a1052e532fc10a448e7531537c77d85e03ac08a",
+      "size": 913
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control-fixed/receipt.json",
+      "retained": "followup/single-ended-control-fixed/receipt.json",
+      "sha256": "f08cb7f50f33054c8f2a8b80eec12e94ee7787a43d8f3e005dc35d69fe78f93b",
+      "size": 4168
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control.log",
+      "retained": "followup/single-ended-control.log",
+      "sha256": "edc75eb8878fdba59d5c8ba81a85cbf360b8336d38ce63d2b64370a054026c42",
+      "size": 1597
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/single-ended-control.py",
+      "retained": "followup/single-ended-control.py",
+      "sha256": "e11531dbcbd96e1c9ac2c0b789eb01aed7e2d312d6d38632e3f0706bb2729fc7",
+      "size": 3574
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/test_archon_export.py",
+      "retained": "followup/test_archon_export.py",
+      "sha256": "5bcb71ceefa929e8f9e592749b712746bc80454cec88d3f3c96f5c2938a8aca2",
+      "size": 6868
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/test_archon_index.py",
+      "retained": "followup/test_archon_index.py",
+      "sha256": "4da62ce8ef63130d4ad7588093fa8aba470312e5743d0f13746b80f65e95da22",
+      "size": 2509
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/test_archon_matrix.py",
+      "retained": "followup/test_archon_matrix.py",
+      "sha256": "603703b383a3aefc2f5e443ca65aed35d9a17968f75c36af4f180db65ddf2f88",
+      "size": 11081
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/test_verify_archon_tests.py",
+      "retained": "followup/test_verify_archon_tests.py",
+      "sha256": "92e58b8f781eea6961f5df78e74c3d7bf1b1653df0e32559624e2ae008fe123b",
+      "size": 7091
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/test_verify_deployment.py",
+      "retained": "followup/test_verify_deployment.py",
+      "sha256": "cd13db3d33668a2cfd311796d40b7b0bc4fbfaa7ef36a5311502bfb748f21d1d",
+      "size": 7291
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/test_verify_matrix.py",
+      "retained": "followup/test_verify_matrix.py",
+      "sha256": "e23d1514e56daf3942cef21cc8310657f5c52c575f3286ded1c7f77f60c5439c",
+      "size": 5194
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe.log",
+      "retained": "followup/unicode-token-probe.log",
+      "sha256": "f856061a825a102489eb38c889401bfd030e83c74de6608881c5bee1e995ebce",
+      "size": 3730
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe.py",
+      "retained": "followup/unicode-token-probe.py",
+      "sha256": "f3039f27470565994c46980b41d55a7e8b2eb7a14f0d1e7e5051bec0f3d5866b",
+      "size": 2697
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe/input-10.kicad_pcb",
+      "retained": "followup/unicode-token-probe/input-10.kicad_pcb",
+      "sha256": "35a9095991944a8fecc555e8864f68a0603ee8ff3ce0967da65a2e7b1be0242a",
+      "size": 494
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe/input-9.kicad_pcb",
+      "retained": "followup/unicode-token-probe/input-9.kicad_pcb",
+      "sha256": "9f121eabc0e207fd39bf62fcbebe16d2984a53f58eb8d2a567a00457f745506f",
+      "size": 552
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe/receipt.json",
+      "retained": "followup/unicode-token-probe/receipt.json",
+      "sha256": "1486d0304b5926a235a10a366f422d160be5daad44329ff5081e44cc5595c468",
+      "size": 1215
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe/swapped-10.kicad_pcb",
+      "retained": "followup/unicode-token-probe/swapped-10.kicad_pcb",
+      "sha256": "b912b445b4d8e30c2fc3a6d75d371e0430757f484c64659d38e2756fda1a56a2",
+      "size": 494
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe/swapped-9.kicad_pcb",
+      "retained": "followup/unicode-token-probe/swapped-9.kicad_pcb",
+      "sha256": "12bba84d74ec7158f3d6aae8d1908aff8b29cd253d7d2801ad7bffd872d5d5ba",
+      "size": 552
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/verifier-invocation.json",
+      "retained": "followup/verifier-invocation.json",
+      "sha256": "9538371a800bee9fd3cb9a793bfce410a996adfbdb90f337770d6bb8fc7e16de",
+      "size": 1735
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/verifier-tests.log",
+      "retained": "followup/verifier-tests.log",
+      "sha256": "e11bbb630c1a6ea91f4322ac92d7ce2a6c043ad84d3e41ecf0d0f5a73e9c9fd0",
+      "size": 104
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/verify-archon-tests.py",
+      "retained": "followup/verify-archon-tests.py",
+      "sha256": "ea7139f64062674af6cd4280a35ebdbaedffa2d24bf0619b4320133878be1146",
+      "size": 23843
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/verify-deployment.py",
+      "retained": "followup/verify-deployment.py",
+      "sha256": "43d6741e92bde048ab96003849bac331808c738971224566b7351e63cb2d834e",
+      "size": 22305
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/verify-matrix.py",
+      "retained": "followup/verify-matrix.py",
+      "sha256": "68a1ffdf749ece7bd4342a3a48036c97a0554ab5d50ce5e66d7aa9065bc43b07",
+      "size": 38412
+    },
+    {
+      "original": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/zero-skip-prerequisite-audit.json",
+      "retained": "followup/zero-skip-prerequisite-audit.json",
+      "sha256": "5c7f139a23ffde7f0d786d866a5b5ed3feb0e69e96426844a1c358e1a782003c",
+      "size": 3411
+    }
+  ]
+}

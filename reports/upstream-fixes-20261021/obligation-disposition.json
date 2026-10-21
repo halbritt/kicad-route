@@ -1,0 +1,330 @@
+{
+  "schema": "kicad-route/doctrine-obligation-disposition/1",
+  "packet_id": "pkt-488908796a8e4ee7",
+  "packet_content_sha256": "488908796a8e4ee72dbc0a3db91d09ccfa51144579ce6b8e84ee64948408bcc4",
+  "scope": "Six selected source repairs only; excludes whole-upstream fitness, production incident prediction and universal PCB safety. Deployment still requires actual full-suite and installed-main gates.",
+  "missing_obligations": [
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-012f9f4a4fc9e76d",
+      "required_by": "data-dedup-key-identity-completeness",
+      "requirement": "an explicit enumeration of the record's identity dimensions matched against the key's columns",
+      "status": "missing",
+      "material": false,
+      "rationale": "No database uniqueness key is changed. Rescue custody DOES change the in-memory authoritative-result filter: identity is the authoritative result object/net registration; an extends rider survives only while its owner remains authoritative. Actual producer/filter/repeated-rescue/later-rip tests cover that owned identity boundary. Additional database-key evidence would not change this repair choice."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-9ae09a63fe1a5ef8",
+      "required_by": "data-dedup-key-identity-completeness",
+      "requirement": "logical-identity definition of the affected record",
+      "status": "missing",
+      "material": false,
+      "rationale": "No database uniqueness key is changed. Rescue custody DOES change the in-memory authoritative-result filter: identity is the authoritative result object/net registration; an extends rider survives only while its owner remains authoritative. Actual producer/filter/repeated-rescue/later-rip tests cover that owned identity boundary. Additional database-key evidence would not change this repair choice."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-87773e203d59013a",
+      "required_by": "data-dedup-key-identity-completeness",
+      "requirement": "the conflict-handling semantics at that key - abort update or silent drop",
+      "status": "missing",
+      "material": false,
+      "rationale": "No database uniqueness key is changed. Rescue custody DOES change the in-memory authoritative-result filter: identity is the authoritative result object/net registration; an extends rider survives only while its owner remains authoritative. Actual producer/filter/repeated-rescue/later-rip tests cover that owned identity boundary. Additional database-key evidence would not change this repair choice."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-4865f8254cf67aba",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "a dry-run enumeration with counts compared against expectation",
+      "status": "missing",
+      "material": false,
+      "rationale": "No bulk ingest/backfill is implemented. The separate test acceptance profile has an exact collected-node diff and independent node accounting; generic ingestion discovery is outside the source decision."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-905937990cfd5f38",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the discovery pattern shown to match the specification's depth and class constraints",
+      "status": "missing",
+      "material": false,
+      "rationale": "No bulk ingest/backfill is implemented. The separate test acceptance profile has an exact collected-node diff and independent node accounting; generic ingestion discovery is outside the source decision."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-c87fc05d43132cb2",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the input population specification",
+      "status": "missing",
+      "material": false,
+      "rationale": "No bulk ingest/backfill is implemented. The separate test acceptance profile has an exact collected-node diff and independent node accounting; generic ingestion discovery is outside the source decision."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-7a41bb7011b779eb",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the specified input population stated precisely",
+      "status": "missing",
+      "material": false,
+      "rationale": "No bulk ingest/backfill is implemented. The separate test acceptance profile has an exact collected-node diff and independent node accounting; generic ingestion discovery is outside the source decision."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-79ca08bed8844a25",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "an enumeration of lifecycle phases with a designed state for each",
+      "status": "missing",
+      "material": false,
+      "rationale": "No asynchronous UI or layout is changed; the product remains a CLI."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-cbe2d532269e88e9",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "content lifecycle phases enumerated",
+      "status": "missing",
+      "material": false,
+      "rationale": "No asynchronous UI or layout is changed; the product remains a CLI."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a6efab71031db341",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "explicit handlers where platform defaults were overridden",
+      "status": "missing",
+      "material": false,
+      "rationale": "No asynchronous UI or layout is changed; the product remains a CLI."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-44706d6d596a492d",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "geometry reserved independent of the async payload",
+      "status": "missing",
+      "material": false,
+      "rationale": "No asynchronous UI or layout is changed; the product remains a CLI."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-21dbd360ff3b90b7",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "a prioritization key tied to the consumer's decision",
+      "status": "missing",
+      "material": false,
+      "rationale": "This change does not implement a ranking/presentation pipeline. The short README points to retained raw artifacts and explicitly bounds its claims; no canonical measurement is truncated."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-984d7130ad01736c",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "proof canonical data is unchanged by presentation",
+      "status": "missing",
+      "material": false,
+      "rationale": "This change does not implement a ranking/presentation pipeline. The short README points to retained raw artifacts and explicitly bounds its claims; no canonical measurement is truncated."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-83a38fa945c9ef21",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the bound stated and enforced",
+      "status": "missing",
+      "material": false,
+      "rationale": "This change does not implement a ranking/presentation pipeline. The short README points to retained raw artifacts and explicitly bounds its claims; no canonical measurement is truncated."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-477d260ba84eaf0e",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the consumer and budget named",
+      "status": "missing",
+      "material": false,
+      "rationale": "This change does not implement a ranking/presentation pipeline. The short README points to retained raw artifacts and explicitly bounds its claims; no canonical measurement is truncated."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-94f3707ab1ca403d",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the consumer and their budget named",
+      "status": "missing",
+      "material": false,
+      "rationale": "This change does not implement a ranking/presentation pipeline. The short README points to retained raw artifacts and explicitly bounds its claims; no canonical measurement is truncated."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-bee4873549539a2e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a load-time or gate check resolving every reference against them",
+      "status": "missing",
+      "material": false,
+      "rationale": "No new symbolic configuration schema or identifier registry is introduced. Exact pair identities and CLI controls have independent acceptance checks."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-aebc722e27fd332e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a named-identifier failure on mismatch",
+      "status": "missing",
+      "material": false,
+      "rationale": "No new symbolic configuration schema or identifier registry is introduced. Exact pair identities and CLI controls have independent acceptance checks."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-60e11fd14335b2fa",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "the consumer's defined identifier and enum sets",
+      "status": "missing",
+      "material": false,
+      "rationale": "No new symbolic configuration schema or identifier registry is introduced. Exact pair identities and CLI controls have independent acceptance checks."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-93c171b4a8964e37",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the match-text composition enumerated field by field",
+      "status": "missing",
+      "material": false,
+      "rationale": "No top-N selection/ranking function is changed."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-5cac0cd10a85dbb8",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the scan shown to score the full bounded set before truncation",
+      "status": "missing",
+      "material": false,
+      "rationale": "No top-N selection/ranking function is changed."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-895e1060f7bb5f86",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated",
+      "status": "missing",
+      "material": false,
+      "rationale": "No top-N selection/ranking function is changed."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-78d89cb5f8e6192c",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated - relevance-ordered top-N versus first-N",
+      "status": "missing",
+      "material": false,
+      "rationale": "No top-N selection/ranking function is changed."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-dc786532677f8ca1",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "or an explicit record that verification is provisional",
+      "status": "missing",
+      "material": false,
+      "rationale": "This is the alternative provisional-record requirement; actual native KiCad and Archon execution evidence satisfy end-to-end verification for the stated inputs. No untested endpoint capability is declared working."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-80432417005eb207",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "current page inventory classified symptom-versus-cause",
+      "status": "missing",
+      "material": false,
+      "rationale": "No paging service or monitoring policy is modified; this report makes no service-wide golden-signal coverage claim."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-8c2d798754f29f02",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "golden-signal coverage with the error definition stated",
+      "status": "missing",
+      "material": false,
+      "rationale": "No paging service or monitoring policy is modified; this report makes no service-wide golden-signal coverage claim."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-63abf1a71b4719e2",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "the service's user-visible failure modes",
+      "status": "missing",
+      "material": false,
+      "rationale": "No paging service or monitoring policy is modified; this report makes no service-wide golden-signal coverage claim."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-49731a7fb6fe90d5",
+      "required_by": "task:defect-repair",
+      "requirement": "evidence-incidents",
+      "status": "missing",
+      "material": false,
+      "rationale": "No production-incident frequency/severity claim is needed. Independently failing baseline regressions and passing actual native reproductions directly establish these defect classes; an outage ledger would not change the bounded repair choice."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-0eae811ab54b943b",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "alternatives including no change where viable",
+      "status": "missing",
+      "material": false,
+      "rationale": "No further generic observation is needed for the alternatives: the decision receipt compares unchanged C6, whole upstream replacement and selected causal ports against retained reds/native gates and explicit owner scope."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-ec0bebeb749e3fa9",
+      "required_by": "universal-no-change-option",
+      "requirement": "actual current cost/risk or absence within a stated interval",
+      "status": "missing",
+      "material": false,
+      "rationale": "No architecture or speculative optimization is recommended. Current authored failures, measured parse retention/CPU tradeoff and the four declared CLI workloads are retained. The owner-selected repair plan supplies the change priority; no future traffic forecast or general security/safety assurance is claimed. Unselected upstream changes remain unchanged. Costs and residual uncertainty are explicit in the decision receipt."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a7c3deeb27a6d936",
+      "required_by": "universal-no-change-option",
+      "requirement": "expected future change from accepted plans",
+      "status": "missing",
+      "material": false,
+      "rationale": "No architecture or speculative optimization is recommended. Current authored failures, measured parse retention/CPU tradeoff and the four declared CLI workloads are retained. The owner-selected repair plan supplies the change priority; no future traffic forecast or general security/safety assurance is claimed. Unselected upstream changes remain unchanged. Costs and residual uncertainty are explicit in the decision receipt."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-6c30f81e2a22c6ae",
+      "required_by": "universal-no-change-option",
+      "requirement": "intervention cost and uncertainty",
+      "status": "missing",
+      "material": false,
+      "rationale": "No architecture or speculative optimization is recommended. Current authored failures, measured parse retention/CPU tradeoff and the four declared CLI workloads are retained. The owner-selected repair plan supplies the change priority; no future traffic forecast or general security/safety assurance is claimed. Unselected upstream changes remain unchanged. Costs and residual uncertainty are explicit in the decision receipt."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-543196d64e60fc3a",
+      "required_by": "universal-no-change-option",
+      "requirement": "latent security, safety, data, durability, and compatibility check",
+      "status": "missing",
+      "material": false,
+      "rationale": "No architecture or speculative optimization is recommended. Current authored failures, measured parse retention/CPU tradeoff and the four declared CLI workloads are retained. The owner-selected repair plan supplies the change priority; no future traffic forecast or general security/safety assurance is claimed. Unselected upstream changes remain unchanged. Costs and residual uncertainty are explicit in the decision receipt."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a89dd32d7271dec4",
+      "required_by": "universal-no-change-option",
+      "requirement": "proc-decide-leave-code-alone",
+      "status": "missing",
+      "material": false,
+      "rationale": "No architecture or speculative optimization is recommended. Current authored failures, measured parse retention/CPU tradeoff and the four declared CLI workloads are retained. The owner-selected repair plan supplies the change priority; no future traffic forecast or general security/safety assurance is claimed. Unselected upstream changes remain unchanged. Costs and residual uncertainty are explicit in the decision receipt."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-125d0b69ca2b7b70",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "proc-establish-preservation-boundaries",
+      "status": "missing",
+      "material": false,
+      "rationale": "The named process artifact is not an extra empirical observation. Owner Plane contracts, source diff and focused/native preservation evidence establish the actual boundaries, which the receipt states explicitly."
+    }
+  ],
+  "material_unmet_count": 0,
+  "additional_release_gates": [
+    "final full816/no skips and strict repeats",
+    "clean pushed integration",
+    "fresh installed-main doctor and native determinism",
+    "tracker readbacks and owned resource cleanup"
+  ]
+}

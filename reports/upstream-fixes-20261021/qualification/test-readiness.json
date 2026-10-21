@@ -1,0 +1,96 @@
+{
+  "status": "READY",
+  "time_utc": "2026-10-21T09:33:46.060078+00:00",
+  "uid": 1000,
+  "gid": 1000,
+  "source_commit": "f42b8796de2006bae147e65340da99462b5fd9be",
+  "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+  "generation": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295",
+  "module_sha256": "a9e29be7aa1b44d70a87404f03060c2dbe81531da0a3070fb575c4c34282070f",
+  "packages": [
+    "numpy==2.5.4",
+    "pillow==13.0.0",
+    "scipy==1.18.1",
+    "shapely==2.2.0"
+  ],
+  "manifest_sha256": "6f004e9e807eb3f4658fe9eb111ee0d0c4d0f5cc8cf868809dd48957dccd5f75",
+  "drift": [],
+  "tools": {
+    "java": {
+      "argv": [
+        "java",
+        "-version"
+      ],
+      "stdout": "",
+      "stderr": "openjdk version \"25.0.4.1\" 2026-08-18\nOpenJDK Runtime Environment (build 25.0.4.1+1-1-24.04.4-Ubuntu)\nOpenJDK 64-Bit Server VM (build 25.0.4.1+1-1-24.04.4-Ubuntu, mixed mode, sharing)\n"
+    },
+    "pytest": {
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "pytest",
+        "--version"
+      ],
+      "stdout": "pytest 9.1.0\n",
+      "stderr": ""
+    },
+    "python": {
+      "argv": [
+        "/usr/bin/python3",
+        "--version"
+      ],
+      "stdout": "Python 3.12.3\n",
+      "stderr": ""
+    },
+    "native": {
+      "argv": [
+        "kicad-cli",
+        "--version"
+      ],
+      "stdout": "10.0.7\n",
+      "stderr": ""
+    },
+    "rustc": {
+      "argv": [
+        "rustc",
+        "-vV"
+      ],
+      "stdout": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+      "stderr": ""
+    },
+    "uv": {
+      "argv": [
+        "uv",
+        "--version"
+      ],
+      "stdout": "uv 0.11.25 (x86_64-unknown-linux-gnu)\n",
+      "stderr": ""
+    }
+  },
+  "bwrap_actual_uid_probe": "PASS",
+  "collected_node_count": 816,
+  "wheel_runtime": "/testwork/state-candidate/.router-generations/92cd087e4d51496e963407439604b295/venv",
+  "full_proc_dev_namespace_probe": "PASS",
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "nice": 0,
+  "scheduler": 0,
+  "helper_sha256": "eac433437c0d17208e0bf808a0d33a1490649aa142912ce99f12ed128640cb33",
+  "freerouting_jar_sha256": "f6f51bb02245e8e717f9359bd260cc9c5c0b1bc0acc8b7cb2cd5b8ffeb5de3c7"
+}

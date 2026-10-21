@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "head": "f42b8796de2006bae147e65340da99462b5fd9be",
+  "pushed": true,
+  "integration_test_command": "env KICAD_ROUTE_STATE=/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/state-candidate PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /usr/bin/python3 -m pytest tests/test_engine_acceptance.py tests/test_backend_names.py -q -p no:cacheprovider",
+  "observed": "113 passed in 11.07s; git-land returned ok true, pushed true, worktree_removed true",
+  "evidence_kind": "Root observation of actual terminal tool output, not a replacement raw JUnit record"
+}

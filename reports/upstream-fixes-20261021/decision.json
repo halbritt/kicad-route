@@ -1,0 +1,510 @@
+{
+  "schema_version": "decision-receipt/2",
+  "receipt_id": "kicadroute-83-through-89-selective-adoption",
+  "question": "How should six scoped upstream KRT fix families be adopted into builtin while preserving local repairs, strict native original-rule acceptance and runtime qualification?",
+  "scope": [
+    "Selective owned builtin source repairs83–88 and qualification test repair89",
+    "Source and declared-workload verification; operational deployment governed by separate actual release gates"
+  ],
+  "status": "verified",
+  "authority_boundary": {
+    "owner": "repository owner",
+    "authority_source": "Current request to create Plane work items and complete them; explicit Archon selection and deployment/advisory authorization; user AGENTS trunk lifecycle",
+    "authorized_scope": [
+      "Six causal upstream repair families only",
+      "Preserve strict original-rule/native grading and local writer/tap/weld fixes",
+      "Minimum qualification test/verifier corrections, clean integration, local deployment and advisory"
+    ]
+  },
+  "evidence": [
+    {
+      "schema_version": "evidence-record/1",
+      "id": "archon-native-matched-runtime",
+      "evidence_class": "evidence-runtime-observation",
+      "summary": "SoleArchon matrix session47159 exited0, all48attempts/4boards PASS under exactprotocol23ced002, baseline784/C6 vs4fb/89a. Independent retainedrawverification rechecked48commands/nativeCLIresults,312gradingrecords, finalboardbytes, input/quality/completion/preservation and no censoring; all4coppergeometryequal. All3median ratios<=1.021978 wall and<=1.004183 RSS vs1.10limit. FreshPython3.12.3/KiCad10.0.7, locked Rust/packages,1619matchedpreparedpyc, immutablemanifestdrift[]; CPU0–15 normal/noquotas;963in-scopebirths/3explicitraces/noresourceviolations. All2595retainedfilesSHAverified; selected HOMEcache omissions explicit; no native reruns. Thisqualifies fourdeclaredCLIworkloads, not everyboard or low-levelAPI.",
+      "provenance": [
+        {
+          "locator": "build/agent497-upstream-adoption/archon-protocol.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841780+00:00",
+          "content_sha256": "23ced002d30ff310d18cab5c96688798773f40d96bb0b78fb78ac1c13b0bcd1d"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/launch.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841837+00:00",
+          "content_sha256": "2dcb793b5659a88605b8f6a6a43b660d2f0e3c5d80c78eb452bcb55054c933d6"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/import-verification.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841865+00:00",
+          "content_sha256": "d9e000a00983e080089e5bd540d599f22be0fe923d51a1c2b23f5904877d7eef"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/archon-final-verification.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841897+00:00",
+          "content_sha256": "b33a197185c6b834db71580ac2d71f5c5b873a860a68317c2801c227c5029991"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/archon-import/archon-evidence-index.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841930+00:00",
+          "content_sha256": "73392c58be2ea7b9d6bf5aa466e57e5dab88603ed4a2d5b409b8b9a356b8077a"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/archon-import/transport-omissions.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.849002+00:00",
+          "content_sha256": "ea09c511e69aff2e0c4d53569b4a1e939295fe3c8e3e5c56ec635f49d824f0e3"
+        }
+      ],
+      "satisfies": [
+        "access to the real device or endpoint",
+        "an end-to-end verification artifact against the actual device or endpoint",
+        "the real system's own statement of its capability - device configuration output wire capture or endpoint self-description",
+        "reversibility and verification",
+        "the backward-compatibility strictness of the outgoing contract",
+        "response validation at the boundary"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "cleanup-and-dependency-ownership",
+      "evidence_class": "evidence-static-source-structure",
+      "summary": "Parser ContextVar resets in finally with perparse scope; retry finally reverses applied stub mutations on incomplete/BaseException unless committed; tap maps restore entry borrowed free-vias/temporary overrides/endpoint exemptions. Real localmanaged Python/Rust objects are exercised. CLI builtin adapter and procgroup/watchdog own the worker. Native KiCad is external independentgrader, testedreal with native deadlines/results, not simulated. Test89 controls only worker STOP response, preserving actualwatchdog/baseline/nativegrading. Sixproductionfixes have noDB/RPC/schema/transportchange. Packageinstaller and Freerouting implementations unchanged.",
+      "provenance": [
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/kicad_parser.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection",
+          "content_sha256": "ffb7274af0b09fbacc8a070de86c50c3cb41c5aae0afd07702ac8a5e16e40370"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/phase3_routing.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection",
+          "content_sha256": "c8e8021875a1b18e3249445e72469aca71650b5662cd63c9b8d042442ca97288"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/net_rescue.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection",
+          "content_sha256": "05345a1e780b44b18461f5040ce16ae8d8834f970441086cd8df3f9000a92f51"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/cli.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection",
+          "content_sha256": "7f9a3f69ce54d84eb82ea76ae074d2a0bc42691c8544929e199d172a30ce2999"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/installation.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection",
+          "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/focused-evidence-summary.json",
+          "method": "Direct source/control-flow and retained native/failure-output inspection",
+          "content_sha256": "fa70d89073cfcaa96a719c04ae8395903d6ebde9186ef916c4e44e75d958e438"
+        }
+      ],
+      "satisfies": [
+        "acquisition and release paths",
+        "nesting order",
+        "owner and lifetime",
+        "resource ownership and failure policy",
+        "per-dependency classification as managed or unmanaged with ownership evidence",
+        "out-of-process dependency classification with ownership evidence",
+        "preservation matrix and consumers",
+        "tests, characterization, probes, or explicit residual risk"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "contracts-and-shape",
+      "evidence_class": "evidence-repository-contracts",
+      "summary": "Owned builtin runtime uses immutable generations and source SHA, Python>=3.12, locked unchanged Rust and pinned numerical dependencies. Make smoke scopes top-leveltests. Repository has no.githubworkflow or configured formatter/typechecker in pyproject. Source baseline784/C6 clean and pushed; separate branches and sequential commit integration preserve review/reversal. User-supplied AGENTS requires clean trunk push and ownedworktree removal.",
+      "provenance": [
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/pyproject.toml",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.440374+00:00",
+          "content_sha256": "53f8c772981a963b89a2ff90e3b61dd6e8e2c4278f7642cbd1d59331309e7d51"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/Makefile",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.440422+00:00",
+          "content_sha256": "638f9ee3b258535a1a2b729085c8a14b651b3c836dda207ef0b30f71bfd3a5f9"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/engine.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450021+00:00",
+          "content_sha256": "4f4451f6356a9b5ba63b01d4e1d97f7490b80deb0a1518e28b29e9ae13c9d1c1"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/docs/routing-engine-migration.md",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450091+00:00",
+          "content_sha256": "f13fc7ce29d78cbfc8e709463a659855086ba00534fcc3f1f42d18a23ebdde83"
+        },
+        {
+          "locator": "conversation:user-AGENTS.md",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450139+00:00"
+        }
+      ],
+      "satisfies": [
+        "repository contract",
+        "repository version and dependency contract",
+        "repository toolchain inspection",
+        "Python and dependency version matrix",
+        "CI and build matrix",
+        "formatter and static-tool configuration",
+        "formatter linter and type-checker configuration",
+        "repository instructions from root through target path",
+        "accepted ADR, RFC, API, compatibility, generation, build, and test contracts"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "focused-regressions",
+      "evidence_class": "evidence-tests",
+      "summary": "Independent baseline failures and passing selective repairs are retained perissue83–88. Real Rust maps and mandatory native KiCad cover keepouts, stale-map collision, rescued copper connectivity and originalrule custody; quoted/bare dialect nativeparity; nested/concurrent/failing parser cleanup. Exception/KeyboardInterrupt after actualstub mutation now reverts. Native hole case intentionally asserts only hole spacing, not fullsynthetic-boardcleanliness. Root reproduced combined keepout4, floor4, parser13+6subtests and legacytap/weld2; bootstrap import error retained thenfixed; offline kernel/parity/writerpasses. Full815suite is stillpending.",
+      "provenance": [
+        {
+          "locator": "build/agent497-upstream-adoption/focused-evidence-summary.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.840928+00:00",
+          "content_sha256": "fa70d89073cfcaa96a719c04ae8395903d6ebde9186ef916c4e44e75d958e438"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/root-focused/keepout-final.xml",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841081+00:00",
+          "content_sha256": "1de7a883691b119b59222d6b0aea8e6bfd67b34c6301e329122a4af322ae7cad"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/root-focused/rules-integrated.xml",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841123+00:00",
+          "content_sha256": "3053e215efc256fa345923fd2d484882bf9b32a67bd384ac99cee944c532a2d2"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/root-focused/parser-integrated.xml",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841152+00:00",
+          "content_sha256": "1977feb7da1468222308c8b76ac5273e52e21a94da72f0922c163d2eb806847d"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/lifecycle-lane/lane-proof.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841181+00:00",
+          "content_sha256": "36ebc03814e370d40fb1ef5f885650971a040cebdacf0800bbe87ce6c7901fd4"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/parser-lane/receipt.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841220+00:00",
+          "content_sha256": "b4c9d6c840f701a3e09bfa8ed4acbe646efdb972c8711453ccc8a447a682ece7"
+        },
+        {
+          "locator": "build/agent497-upstream-adoption/kernel-verification.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841495+00:00",
+          "content_sha256": "94f7f6013d0b2f976c750d89083429253ab59fd407936c348ea9a320a215e7c9"
+        }
+      ],
+      "satisfies": [
+        "behavior tests",
+        "public API and tests",
+        "tests, characterization, probes, or explicit residual risk",
+        "round-trip and failure tests",
+        "acquisition and release paths",
+        "exception and cancellation behavior",
+        "nesting order",
+        "owner and lifetime",
+        "resource ownership and failure policy",
+        "whether asserted values are independent of production constants",
+        "availability of a real managed dependency for tests",
+        "evidence connecting the proposed action to the condition",
+        "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+        "checkpoint verification"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "owner-six-repairs",
+      "evidence_class": "evidence-explicit-user-requirements",
+      "summary": "Owner active goal is make Plane work items then burn them down; six selected fix families are In Progress83..88. Root plus3agents authorized. Preserve original rules, local repairs, all native quality and1.10median gates; deploy/push/cleanup/Done readback required. Archon explicitly selected. New map exception cleanup and pair-population verifier repair are bounded acceptance necessities, not unrelated feature work.",
+      "provenance": [
+        {
+          "locator": "conversation:user-active-goal-and-instructions",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.432591+00:00"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/issues.json",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.432647+00:00",
+          "content_sha256": "d16f91d5dba63c971d08a496fd365d94f151454a0a627560c35a958fcc80065b"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/qualification-plan.json",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.440043+00:00",
+          "content_sha256": "191696d5819e417464bb7eda464c1ed1444e681fecaf633c0e8c7d34fa6a8014"
+        }
+      ],
+      "satisfies": [
+        "decision owner",
+        "explicit task authority",
+        "task scope and authority statement",
+        "user instruction and authority",
+        "target repository and task scope",
+        "a bounded decision question",
+        "accepted desired behavior and semantic authority",
+        "preservation boundary and semantic authority"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "selective-causal-sources",
+      "evidence_class": "evidence-static-source-structure",
+      "summary": "Reviewed selective headless source for rulefloors, layerguards, pairkeepoutbands, mapcleanup/freshcallback, rescueproducer+authoritative writerfilter, parser ContextVar and token-aware legacyforms. Existing quote/copper preservation/noop relocation and unsupported-copper refusal retained. Runtime adapters publicCLI→isolatedworker→ownedPython+Rust→nativeKiCad. Rust/dependencies unmodified; source changes are defect repair with separately committed verifier/test edits, no refactoring campaign.",
+      "provenance": [
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/UPSTREAM.json",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450415+00:00",
+          "content_sha256": "073bbeea8dd8b20b396347647949375f6439daa6333f5d1b8567ec268a2d6db9"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/kicad_parser.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450461+00:00",
+          "content_sha256": "ffb7274af0b09fbacc8a070de86c50c3cb41c5aae0afd07702ac8a5e16e40370"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/phase3_routing.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.451180+00:00",
+          "content_sha256": "c8e8021875a1b18e3249445e72469aca71650b5662cd63c9b8d042442ca97288"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/net_rescue.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.451367+00:00",
+          "content_sha256": "05345a1e780b44b18461f5040ce16ae8d8834f970441086cd8df3f9000a92f51"
+        },
+        {
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/route.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.451506+00:00",
+          "content_sha256": "38224e910ad72c790b3a7d0799b7ddfffae1cd5e6296f0bfad80295570b3bf5b"
+        }
+      ],
+      "satisfies": [
+        "adjacent code",
+        "affected behavior and state",
+        "current source, configuration, and relevant runtime state",
+        "change-type classification",
+        "per-edit change classification",
+        "external format and domain text contract",
+        "protocol or file metadata",
+        "normalization requirements",
+        "adapter chain inventory",
+        "the chain of owned types leading to the external system",
+        "integration inventory"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "utf8-bare-net-native-roundtrip",
+      "evidence_class": "evidence-tests",
+      "summary": "Frozen89a parser and quote-aware writer preserve non-ASCII bare net names 温度Ω and питаниеµ through pad-net swaps in both KiCad9 numeric/net-table and KiCad10 name-only dialects. Owned model and native pcbnew readback agree before/after both swaps. No source/runtime change and no routing/DRC claim.",
+      "provenance": [
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe/receipt.json",
+          "method": "Root executed actual frozen parser/writer and native pcbnew readbacks on authored UTF-8 files",
+          "observed_at": "2026-10-21T08:52:57.286246+00:00",
+          "content_sha256": "1486d0304b5926a235a10a366f422d160be5daad44329ff5081e44cc5595c468"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe.py",
+          "method": "Exact probe source",
+          "content_sha256": "f3039f27470565994c46980b41d55a7e8b2eb7a14f0d1e7e5051bec0f3d5866b"
+        }
+      ],
+      "satisfies": [
+        "representative non-ASCII data",
+        "round-trip and failure tests"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "watchdog-test-only-correction",
+      "evidence_class": "evidence-tests",
+      "summary": "Retained original full815 ended797pass/12fail/6error/no skips; two assertions still expected deprecated outputname, a40sfixture assumed a search phase. Tests-only f42b879 changes2files, allshipping src/build bytes identical4fb/89a. Exact814base nodes preserved and one timingcase replaced by two real3s-watchdog controls: SIGTERM-ignoringworker killed→processFAIL/no candidate/exit1; cooperative unchangedinput checkpoint→nativePASS/preservationPASS/INCOMPLETE/exit2. Both actualnativecasesPASS123.03s. No wholecorrectedfullsuitePASS yet. Independent boundedsource review found no materialdefects, not a universalcorrectnessclaim.",
+      "provenance": [
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/verification.json",
+          "method": "Root read original source diff and raw native/watchdog outputs, checked SHA; independent source review and exact collected node diff retained",
+          "observed_at": "2026-10-21T09:09:38.635451+00:00",
+          "content_sha256": "0fa80148f3f8f8b03c1e2cc3cf6f214e2d8f54c3f434b36dbd99b02f397eeb4c"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/exact-node-replacement.json",
+          "method": "Root read original source diff and raw native/watchdog outputs, checked SHA; independent source review and exact collected node diff retained",
+          "observed_at": "2026-10-21T09:09:38.638794+00:00",
+          "content_sha256": "4e743fdd3968c9182e20c390d90e8a955bff3957020eef1a40cedb6a41eb1c69"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/final-integration-review.json",
+          "method": "Root read original source diff and raw native/watchdog outputs, checked SHA; independent source review and exact collected node diff retained",
+          "observed_at": "2026-10-21T09:09:38.641034+00:00",
+          "content_sha256": "c2ddaa73c650a976a39f122f07288b1126b32405f498f6bf7efc8ac509dda36d"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/qualification-source-bridge.json",
+          "method": "Root read original source diff and raw native/watchdog outputs, checked SHA; independent source review and exact collected node diff retained",
+          "observed_at": "2026-10-21T09:09:38.641099+00:00",
+          "content_sha256": "145e30d0d7b4d27b71a28b8530972f396216876919e22ff464c78a9f2e04b8ee"
+        }
+      ],
+      "satisfies": [
+        "public API and tests",
+        "whether asserted values are independent of production constants",
+        "evidence of how each dependency fails - refused hung slow or malformed",
+        "exception and cancellation behavior",
+        "response validation at the boundary",
+        "availability of a real managed dependency for tests"
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "id": "observed-defects",
+      "type": "observation",
+      "text": "Retained baseline reproductions demonstrate the selected rule/layer/keepout/lifecycle/custody/parser defects. No production incident frequency or severity is inferred.",
+      "evidence": [
+        "focused-regressions",
+        "selective-causal-sources"
+      ]
+    },
+    {
+      "id": "selection",
+      "type": "decision",
+      "text": "Select bounded causal ports into builtin, retaining existing Rust/dependencies, owned writer and strict acceptance. Leave conditional via-type/diff-pair-floor/GUI/placement series unchanged.",
+      "depends_on": [
+        "observed-defects",
+        "owner-six-repairs",
+        "contracts-and-shape"
+      ],
+      "owner": "root executing delegated repository task",
+      "authority": "Owner instruction and six Plane scope/acceptance contracts"
+    },
+    {
+      "id": "repair-execution",
+      "type": "execution",
+      "text": "Six individually committed source families and separately committed qualification test corrections are integrated at frozen f42b879. No deployment acceptance is asserted by this receipt.",
+      "depends_on": [
+        "selection"
+      ],
+      "scope": [
+        "Owned router Python source",
+        "Focused/qualification tests",
+        "Native acceptance comparator population guard",
+        "Selective provenance"
+      ]
+    },
+    {
+      "id": "bounded-verification",
+      "type": "verification",
+      "text": "Focused causal/native controls and the sole declared48-attempt Archon comparison pass. Current source89a remains unchanged by test89. Further release gates remain independent mandatory checks.",
+      "depends_on": [
+        "repair-execution"
+      ],
+      "criteria": [
+        "Baseline-failing causal controls repaired without original-rule relaxation",
+        "All48attempts complete and native/preservationPASS, exact expectedpair present, no censoring",
+        "Allfour wall/GNU-RSS/tree-RSS median ratios within unchanged1.10limits",
+        "Uncooperative worker hardkill and cooperative checkpoint native grading exercise actualwatchdog"
+      ],
+      "evidence": [
+        "focused-regressions",
+        "archon-native-matched-runtime",
+        "watchdog-test-only-correction",
+        "cleanup-and-dependency-ownership",
+        "utf8-bare-net-native-roundtrip"
+      ]
+    }
+  ],
+  "alternatives": [
+    {
+      "option": "Leave C6 unchanged: retains authored defect reproductions and does not fulfill the selected repair task; no outage-frequency claim used to reject it.",
+      "disposition": "rejected",
+      "evidence": [
+        "owner-six-repairs",
+        "focused-regressions"
+      ]
+    },
+    {
+      "option": "Replace owned engine wholesale with upstream HEAD: would widen uncertainty to unselected rules/GUI/copper behavior and erase owned preservation boundaries.",
+      "disposition": "rejected",
+      "evidence": [
+        "owner-six-repairs",
+        "contracts-and-shape",
+        "selective-causal-sources"
+      ]
+    },
+    {
+      "option": "Select six causal headless ports, preserve source ownership and unchanged dependencies, test each cause and original native acceptance.",
+      "disposition": "selected",
+      "evidence": [
+        "focused-regressions",
+        "selective-causal-sources",
+        "archon-native-matched-runtime"
+      ]
+    },
+    {
+      "option": "Adopt unrelated conditional typed-via, diff-pair-floor or GUI/placement work.",
+      "disposition": "deferred",
+      "evidence": [
+        "owner-six-repairs",
+        "contracts-and-shape"
+      ]
+    }
+  ],
+  "source_locators": [
+    "Plane:KICADROUTE-83..89",
+    "src/kicad_route/router/UPSTREAM.json",
+    "reports/upstream-fixes-20261021/focused-evidence.tar.gz",
+    "reports/upstream-fixes-20261021/archon-evidence.tar.gz",
+    "reports/upstream-fixes-20261021/obligation-disposition.json"
+  ],
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "retriever_version": "retriever-ec995ecdd083b2c8",
+  "verification_criteria": [
+    "Retain actual final816suite with no skips and exact node population",
+    "Independently verify strict two-run native determinism",
+    "Clean pushed main, fresh atomic installed-main generation, doctor and recorded native repeats",
+    "Individual Plane Done API readbacks; scoped resource and worktree cleanup"
+  ],
+  "reopening_conditions": [
+    "Any native quality/completion/preservation failure or relaxed original rule",
+    "Any1.10wall/RSSgate failure or changed measurement/resource profile",
+    "Missing expected differential pair identity, source/runtime drift or source change invalidating proof",
+    "Unexplained full-suite failure; no deployment until diagnosed and repaired within scope"
+  ],
+  "residual_risk": [
+    "Four representative workload gates do not establish every PCB or KiCad version.",
+    "Synthetic via-fit evidence checks hole spacing; unrelated synthetic DRC findings are retained.",
+    "User-polygon keepouts use a geometry oracle; zero-offset controls are map-only.",
+    "Parse-lifetime memory is lower in the authored retention diagnostic, while unscoped extractor CPU is about2.5x higher; no universal speedup is claimed.",
+    "Sampled summed RSS is a lower bound and three explicit process-observation races remain retained.",
+    "Static import inventory is conservative, not whole-engine runtime coverage.",
+    "35 generic missing doctrine obligations are individually classified nonmaterial for this bounded choice; no broader architecture, UI, database, monitoring or incident-prediction conclusion is made.",
+    "Verification is distinct from owner acceptance.",
+    "The doctrine evidence snapshots precede the final release checks; their completed technical outcomes are recorded separately in verification.json."
+  ]
+}

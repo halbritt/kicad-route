@@ -1,0 +1,24 @@
+{
+  "schema": "kicad-route/test-cas-retained-verification/1",
+  "status": "PASS",
+  "index_sha256": "aa8582f641d6be7753e96e8acd282ec1ff8362c53947569ca17359915737843c",
+  "index": "build/agent497-upstream-adoption/archon-tests-export/test-evidence-index.json",
+  "profile_entry_counts": {
+    "original-failed": 16206,
+    "sandbox-correction": 869,
+    "one-skip-nonaccepting": 18331,
+    "final-passed": 17950
+  },
+  "blob_count": 7961,
+  "unique_payload_bytes": 177751894,
+  "represented_regular_file_bytes": 2676881557,
+  "max_blob_bytes": 64599107,
+  "all_blobs_rehashed": true,
+  "all_original_locator_bindings_checked": true,
+  "final_proof_sha256": {
+    "qualification-receipt.json": "09062b9aa125154d2f9edd0549e027f937b5fe5e29432d3ed86b7b48c9c18499",
+    "independent-verification.json": "6b33ef602f6aeeb0bd452970eb44257fd774277e902f23af2375c6181ef429f6",
+    "wheel-runtime-verification.json": "25232b945d2413dafc6faad4dd3a14bb715f0eccbdf9a407f21ec87fefbd46c0"
+  },
+  "helper_sha256": "b31e43ed6bf97926cf4021a1e89ce5ba4c6234c9302551d7882be3472c88e4b8"
+}

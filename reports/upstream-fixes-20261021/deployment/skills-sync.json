@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "generation": "/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363",
+  "message": "skills: generated krt-diagnose-routing-failures, krt-review-routed-board in /home/halbritt/git/kicad-route/vendor/skills",
+  "skills": [
+    {
+      "name": "krt-diagnose-routing-failures",
+      "skill": "/home/halbritt/git/kicad-route/vendor/skills/krt-diagnose-routing-failures/SKILL.md",
+      "sha256": "4553012a0772e3ff90dd70e7767de76bf06df8cee0a6d5ada14965a7eaafafe3",
+      "links": [
+        "/home/halbritt/.claude/skills/krt-diagnose-routing-failures",
+        "/home/halbritt/.codex-harm/skills/krt-diagnose-routing-failures",
+        "/home/halbritt/.agents/skills/krt-diagnose-routing-failures"
+      ],
+      "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+      "commit": "f42b8796de2006bae147e65340da99462b5fd9be"
+    },
+    {
+      "name": "krt-review-routed-board",
+      "skill": "/home/halbritt/git/kicad-route/vendor/skills/krt-review-routed-board/SKILL.md",
+      "sha256": "5842bf8a5c10e448693c6fb7f0c31560b7ad27a95d7a8613c05e010e150b56d8",
+      "links": [
+        "/home/halbritt/.claude/skills/krt-review-routed-board",
+        "/home/halbritt/.codex-harm/skills/krt-review-routed-board",
+        "/home/halbritt/.agents/skills/krt-review-routed-board"
+      ],
+      "source_sha256": "89a2efbf53057a0694b3cef365ec3acdc01b61f5f57d86bfbe8a62dc8f11db6d",
+      "commit": "f42b8796de2006bae147e65340da99462b5fd9be"
+    }
+  ]
+}

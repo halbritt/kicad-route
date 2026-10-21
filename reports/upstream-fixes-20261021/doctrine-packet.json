@@ -1,0 +1,2173 @@
+{
+  "activated_concepts": [
+    "python-repository-shaped-idiom",
+    "universal-repository-contract-precedence",
+    "universal-evidence-before-intervention",
+    "universal-separate-semantic-structural-change",
+    "universal-no-change-option",
+    "universal-preserve-behavior-by-default",
+    "agent-conduct-authority-bounded-action",
+    "data-ingest-population-scoping",
+    "implementation-async-ui-state-design",
+    "implementation-attention-budget-presentation",
+    "implementation-config-reference-validation",
+    "implementation-rank-before-truncate",
+    "operations-symptom-cause-monitoring",
+    "data-dedup-key-identity-completeness",
+    "operations-external-capability-verification"
+  ],
+  "activated_lenses": [
+    "lens-python"
+  ],
+  "activated_procedures": [
+    "proc-assess-authority-to-act",
+    "proc-determine-tests-characterization",
+    "proc-distinguish-repair-structural",
+    "proc-establish-preservation-boundaries",
+    "proc-rank-engineering-risks"
+  ],
+  "activated_prohibitions": [
+    "prohibit-authority-inference-from-access",
+    "prohibit-coverage-as-adequacy-proof",
+    "prohibit-generic-doctrine-over-local-contract",
+    "prohibit-global-legacy-understanding-gate",
+    "prohibit-semantic-work-labeled-refactoring",
+    "prohibit-silent-characterization-repair",
+    "prohibit-symptom-only-repair",
+    "prohibit-test-change-without-contract-reconciliation",
+    "prohibit-unknown-consequential-implementation"
+  ],
+  "activation_reasons": [
+    {
+      "id": "python-repository-shaped-idiom",
+      "reasons": [
+        "language bundle 'Python'",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-repository-contract-precedence",
+      "reasons": [
+        "always-load core concept",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-evidence-before-intervention",
+      "reasons": [
+        "always-load core concept",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-separate-semantic-structural-change",
+      "reasons": [
+        "always-load core concept",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-no-change-option",
+      "reasons": [
+        "always-load core concept"
+      ]
+    },
+    {
+      "id": "universal-preserve-behavior-by-default",
+      "reasons": [
+        "always-load core concept",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "agent-conduct-authority-bounded-action",
+      "reasons": [
+        "always-load core concept",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "data-ingest-population-scoping",
+      "reasons": [
+        "evidence class 'evidence-runtime-observation' supplied by ['archon-native-matched-runtime']",
+        "evidence class 'evidence-static-source-structure' supplied by ['cleanup-and-dependency-ownership', 'selective-causal-sources']",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "implementation-async-ui-state-design",
+      "reasons": [
+        "evidence class 'evidence-explicit-user-requirements' supplied by ['owner-six-repairs']",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "implementation-attention-budget-presentation",
+      "reasons": [
+        "evidence class 'evidence-explicit-user-requirements' supplied by ['owner-six-repairs']",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "implementation-config-reference-validation",
+      "reasons": [
+        "evidence class 'evidence-static-source-structure' supplied by ['cleanup-and-dependency-ownership', 'selective-causal-sources']",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "implementation-rank-before-truncate",
+      "reasons": [
+        "evidence class 'evidence-runtime-observation' supplied by ['archon-native-matched-runtime']",
+        "evidence class 'evidence-static-source-structure' supplied by ['cleanup-and-dependency-ownership', 'selective-causal-sources']",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "operations-symptom-cause-monitoring",
+      "reasons": [
+        "evidence class 'evidence-runtime-observation' supplied by ['archon-native-matched-runtime']",
+        "evidence class 'evidence-tests' supplied by ['focused-regressions', 'utf8-bare-net-native-roundtrip', 'watchdog-test-only-correction']",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "data-dedup-key-identity-completeness",
+      "reasons": [
+        "evidence class 'evidence-static-source-structure' supplied by ['cleanup-and-dependency-ownership', 'selective-causal-sources']",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "operations-external-capability-verification",
+      "reasons": [
+        "evidence class 'evidence-runtime-observation' supplied by ['archon-native-matched-runtime']",
+        "risk route 'correctness'",
+        "task variant 'vendor-integration'"
+      ]
+    },
+    {
+      "id": "lens-python",
+      "reasons": [
+        "language 'Python'"
+      ]
+    },
+    {
+      "id": "proc-assess-authority-to-act",
+      "reasons": [
+        "procedure for task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "proc-determine-tests-characterization",
+      "reasons": [
+        "procedure for task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "proc-distinguish-repair-structural",
+      "reasons": [
+        "procedure for task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "proc-establish-preservation-boundaries",
+      "reasons": [
+        "procedure for task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "proc-rank-engineering-risks",
+      "reasons": [
+        "procedure for task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "prohibit-authority-inference-from-access",
+      "reasons": [
+        "core prohibition"
+      ]
+    },
+    {
+      "id": "prohibit-coverage-as-adequacy-proof",
+      "reasons": [
+        "applies to task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "prohibit-generic-doctrine-over-local-contract",
+      "reasons": [
+        "core prohibition"
+      ]
+    },
+    {
+      "id": "prohibit-global-legacy-understanding-gate",
+      "reasons": [
+        "applies to task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "prohibit-semantic-work-labeled-refactoring",
+      "reasons": [
+        "applies to task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "prohibit-silent-characterization-repair",
+      "reasons": [
+        "applies to task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "prohibit-symptom-only-repair",
+      "reasons": [
+        "applies to task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "prohibit-test-change-without-contract-reconciliation",
+      "reasons": [
+        "applies to task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "prohibit-unknown-consequential-implementation",
+      "reasons": [
+        "applies to task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "evidence-incidents",
+      "reasons": [
+        "required by task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "evidence-runtime-observation",
+      "reasons": [
+        "required by task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "evidence-static-source-structure",
+      "reasons": [
+        "required by task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "evidence-tests",
+      "reasons": [
+        "required by task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "change-defect-repair",
+      "reasons": [
+        "applicable to task family 'defect-repair'"
+      ]
+    },
+    {
+      "id": "authority-model.yaml",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    },
+    {
+      "id": "change-types.yaml",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    },
+    {
+      "id": "universal-doctrine.md",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    }
+  ],
+  "applicable_change_types": [
+    "change-defect-repair"
+  ],
+  "authority_constraints": {
+    "artifact": "authority-model.yaml",
+    "constraints": [
+      "accepted architecture and task semantics remain fixed unless challenge authority is explicit",
+      "verify implementation but do not self-accept"
+    ],
+    "usual_ceiling": "execute"
+  },
+  "budget_excluded": [
+    {
+      "cost": 380,
+      "id": "architecture-command-event-semantics",
+      "reason": "requires 380 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 390,
+      "id": "data-batch-reproducible-derivation",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 410,
+      "id": "data-end-to-end-request-idempotence",
+      "reason": "requires 410 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 390,
+      "id": "data-fencing-token-enforcement",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 430,
+      "id": "data-transaction-guarantee-verification",
+      "reason": "requires 430 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 770,
+      "id": "debugging-causal-repair",
+      "reason": "requires 770 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 390,
+      "id": "debugging-hypothesis-led-investigation",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 370,
+      "id": "implementation-atomicity-scope",
+      "reason": "requires 370 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 380,
+      "id": "implementation-concurrency-ordering-contract",
+      "reason": "requires 380 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 370,
+      "id": "implementation-duplication-as-evidence",
+      "reason": "requires 370 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 740,
+      "id": "implementation-error-surface-reduction",
+      "reason": "requires 740 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 420,
+      "id": "implementation-explicit-failure-policy",
+      "reason": "requires 420 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 760,
+      "id": "implementation-fail-fast-or-recover",
+      "reason": "requires 760 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 390,
+      "id": "implementation-minimal-coherent-api",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 320,
+      "id": "implementation-obvious-control-flow",
+      "reason": "requires 320 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 360,
+      "id": "implementation-placement-by-ownership",
+      "reason": "requires 360 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 330,
+      "id": "implementation-repository-language-conformance",
+      "reason": "requires 330 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 350,
+      "id": "implementation-representation-fit",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 380,
+      "id": "implementation-unit-of-work-safe-default",
+      "reason": "requires 380 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 360,
+      "id": "implementation-validation-placement",
+      "reason": "requires 360 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 390,
+      "id": "operations-contract-conformance-testing",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 350,
+      "id": "operations-gate-authoritative-signal",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 320 remain"
+    },
+    {
+      "cost": 400,
+      "id": "operations-integration-point-distrust",
+      "reason": "requires 400 relative routing-cost units with prerequisites; only 320 remain"
+    },
+    {
+      "cost": 430,
+      "id": "operations-untrusted-request-handling",
+      "reason": "requires 430 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 340,
+      "id": "python-inheritance-constraints",
+      "reason": "requires 340 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 350,
+      "id": "python-interface-mechanism-selection",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 350,
+      "id": "python-mutable-ownership",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 340,
+      "id": "python-protocol-conformance",
+      "reason": "requires 340 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 350,
+      "id": "python-representation-fit",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 350,
+      "id": "python-runtime-static-boundary",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 340,
+      "id": "python-special-method-laws",
+      "reason": "requires 340 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 360,
+      "id": "python-streaming-iteration",
+      "reason": "requires 360 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 330,
+      "id": "python-structured-cleanup",
+      "reason": "requires 330 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 330,
+      "id": "python-text-bytes-boundary",
+      "reason": "requires 330 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 660,
+      "id": "testing-coverage-is-not-adequacy",
+      "reason": "requires 660 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 370,
+      "id": "testing-deterministic-async-observation",
+      "reason": "requires 370 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 780,
+      "id": "testing-mock-at-system-edges",
+      "reason": "requires 780 relative routing-cost units with prerequisites; only 320 remain"
+    },
+    {
+      "cost": 420,
+      "id": "testing-no-test-privileged-access",
+      "reason": "requires 420 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 310,
+      "id": "testing-test-first-feedback",
+      "reason": "requires 310 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 370,
+      "id": "universal-explicit-invariants",
+      "reason": "requires 370 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 360,
+      "id": "universal-information-hiding",
+      "reason": "requires 360 relative routing-cost units with prerequisites; only 20 remain"
+    },
+    {
+      "cost": 340,
+      "id": "universal-local-reasoning",
+      "reason": "requires 340 relative routing-cost units with prerequisites; only 20 remain"
+    }
+  ],
+  "conflicts": [
+    "conflict-refactor-now-vs-leave-alone",
+    "conflict-uniformity-vs-context-sensitive-design",
+    "conflict-upfront-vs-evolutionary-architecture"
+  ],
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "demoted_stubs": [
+    {
+      "citation_locator": "books/concurrency-in-go/chapters/005-chapter-1-an-introduction-to-concurrency.md :: Deadlocks, Livelocks, and Starvation",
+      "claim": "Concurrent correctness requires progress as well as race freedom: designs must account for deadlock, livelock, starvation, lock ordering, and fairness across every contended resource.",
+      "concept_id": "implementation-concurrency-progress-contract",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/code-complete-2nd-edition-v413hav/chapters/008-chapter-3-measure-twice-cut-once-upstream-prerequisites.md :: cc2e.com/0386 Checklist: Upstream Prerequisites",
+      "claim": "Consequential coding should begin only after the intended outcome, affected contracts, placement constraints, failure and resource policy, verification route, and integration path are understood at a depth proportional to consequence and uncertainty.",
+      "concept_id": "implementation-readiness",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/100-go-mistakes-and-how-to-avoid-them-teiva-harsanyi-bibis-ir/chapters/015-chapter-11-testing.md :: 11.2 #83: Not enabling the -race flag",
+      "claim": "Tests and characterization should protect observable contracts, invariants, boundary values, state transitions, failure and resource paths, and repaired regressions at the smallest level that can observe them without binding to irrelevant internals.",
+      "concept_id": "implementation-risk-driven-tests",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Improving Design",
+      "claim": "Unless change is authorized, externally observable behavior remains invariant across structural work.",
+      "concept_id": "refactoring-behavior-preservation",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+      "claim": "A change label is valid only when its purpose and allowable observable delta match the actual work.",
+      "concept_id": "refactoring-change-type-classification",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/021-chapter-13-i-need-to-make-a-change-but-i-don-t-know-what-tests-to-write.md :: When You Find Bugs",
+      "claim": "The agent must stop when it can no longer state what changed, what remains invariant, why a check failed, or whether it has authority.",
+      "concept_id": "refactoring-stop-backtrack-escalate",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/017-appendix-a1-the-hazards-of-productivity-and-performance-metrics.md :: Adaptive Behavior and the Destruction of a Data Source",
+      "claim": "Commit, LOC, ownership, defect-attribution, hotspot, and knowledge-map data must never be converted into individual productivity or performance judgments.",
+      "concept_id": "repository-assessment-metrics-not-performance",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/code-complete-2nd-edition-v413hav/chapters/030-chapter-21-collaborative-construction.md :: Collaborative Construction Complements Other Quality-Assurance Techniques",
+      "claim": "A review must distinguish demonstrated defect or contract violation from evidence-backed risk, maintainability concern, suggestion, and personal preference, while stating confidence independently from consequence.",
+      "concept_id": "review-severity-confidence-separation",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/manning-unit-testing-principles-practices-and-patterns-2020-1/chapters/015-chapter-8-why-integration-testing.md :: 8.1 What is an integration test?",
+      "claim": "Keep integration tests few and targeted - cover as many edge cases as possible with unit tests, then use integration tests for the longest happy path that touches all out-of-process dependencies plus only those edge cases unit tests cannot exercise, letting fail-fast crashes stand in for tests of wiring bugs that manifest immediately without corrupting state.",
+      "concept_id": "testing-integration-scope-selection",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/manning-unit-testing-principles-practices-and-patterns-2020-1/chapters/007-chapter-2-what-is-a-unit-test.md :: 2.3.1 Unit testing one class at a time",
+      "claim": "A unit test should verify one unit of observable behavior meaningful in the problem domain - which may span a method, a class, or several classes - rather than one unit of code per class.",
+      "concept_id": "testing-unit-of-behavior",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/clean-architecture-a-craftsman-guide-to-software-structure-and-design/chapters/023-chapter-13-component-cohesion.md :: THE COMMON CLOSURE PRINCIPLE",
+      "claim": "Structure is costly when one conceptual change repeatedly forces disproportionate, risky, or cross-owner edits; restructuring is justified only when it reduces that demonstrated amplification.",
+      "concept_id": "universal-change-amplification",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/100-go-mistakes-and-how-to-avoid-them-teiva-harsanyi-bibis-ir/chapters/006-chapter-2-code-and-project-organization.md :: 2.5 #5: Interface pollution",
+      "claim": "Introduce or retain an abstraction only when it hides coherent knowledge or mechanism and reduces total caller reasoning, coordinated change, or substitution cost more than its interface and indirection add.",
+      "concept_id": "universal-earned-abstraction",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/007-chapter-2-identify-code-with-high-interest-rates.md :: Follow Up on Improvements to Rails",
+      "claim": "A claim that work improves performance, maintainability, reliability, architecture fitness, or process needs a preserved baseline and evidence on that same dimension.",
+      "concept_id": "universal-measure-claimed-improvement",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/code-complete-2nd-edition-v413hav/chapters/011-chapter-5-design-in-construction.md :: Experimental Prototyping",
+      "claim": "Organize investigation and change so one uncertain behavior, dependency, design choice, or performance hypothesis is tested at a time with close feedback.",
+      "concept_id": "universal-minimize-simultaneous-uncertainty",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-engineering-at-google-lessons-learned-from-programming-over-time-1nbsped-1492082791-9781492082798/chapters/017-chapter-9-code-review.md :: Write Small Changes",
+      "claim": "Choose the smallest coherent step that can be independently understood, verified, and reversed or safely advanced.",
+      "concept_id": "universal-reversible-reviewable-change",
+      "tier": 4
+    }
+  ],
+  "doctrine_artifacts": [
+    "authority-model.yaml",
+    "change-types.yaml",
+    "universal-doctrine.md"
+  ],
+  "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+  "evidence_obligations": [
+    {
+      "evidence_ids": [
+        "selective-causal-sources"
+      ],
+      "obligation_id": "obl-3a2a7453bce3e4ac",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "affected behavior and state",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "owner-six-repairs"
+      ],
+      "obligation_id": "obl-5d35aa1fcf61e87f",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "decision owner",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "owner-six-repairs"
+      ],
+      "obligation_id": "obl-c0d5aab60ce5ddc0",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "explicit task authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "contracts-and-shape"
+      ],
+      "obligation_id": "obl-6bfd28264a777f3b",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "repository contract",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "archon-native-matched-runtime"
+      ],
+      "obligation_id": "obl-b78bc0267cf64262",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "reversibility and verification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "owner-six-repairs"
+      ],
+      "obligation_id": "obl-63c1022e995c36ad",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "task scope and authority statement",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-012f9f4a4fc9e76d",
+      "required_by": "data-dedup-key-identity-completeness",
+      "requirement": "an explicit enumeration of the record's identity dimensions matched against the key's columns",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-9ae09a63fe1a5ef8",
+      "required_by": "data-dedup-key-identity-completeness",
+      "requirement": "logical-identity definition of the affected record",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-87773e203d59013a",
+      "required_by": "data-dedup-key-identity-completeness",
+      "requirement": "the conflict-handling semantics at that key - abort update or silent drop",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-4865f8254cf67aba",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "a dry-run enumeration with counts compared against expectation",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-905937990cfd5f38",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the discovery pattern shown to match the specification's depth and class constraints",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-c87fc05d43132cb2",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the input population specification",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-7a41bb7011b779eb",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the specified input population stated precisely",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-79ca08bed8844a25",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "an enumeration of lifecycle phases with a designed state for each",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-cbe2d532269e88e9",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "content lifecycle phases enumerated",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a6efab71031db341",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "explicit handlers where platform defaults were overridden",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-44706d6d596a492d",
+      "required_by": "implementation-async-ui-state-design",
+      "requirement": "geometry reserved independent of the async payload",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-21dbd360ff3b90b7",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "a prioritization key tied to the consumer's decision",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-984d7130ad01736c",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "proof canonical data is unchanged by presentation",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-83a38fa945c9ef21",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the bound stated and enforced",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-477d260ba84eaf0e",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the consumer and budget named",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-94f3707ab1ca403d",
+      "required_by": "implementation-attention-budget-presentation",
+      "requirement": "the consumer and their budget named",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-bee4873549539a2e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a load-time or gate check resolving every reference against them",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-aebc722e27fd332e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a named-identifier failure on mismatch",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-60e11fd14335b2fa",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "the consumer's defined identifier and enum sets",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-93c171b4a8964e37",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the match-text composition enumerated field by field",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-5cac0cd10a85dbb8",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the scan shown to score the full bounded set before truncation",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-895e1060f7bb5f86",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-78d89cb5f8e6192c",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated - relevance-ordered top-N versus first-N",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "archon-native-matched-runtime"
+      ],
+      "obligation_id": "obl-b39c8b4fb6a38a6d",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "access to the real device or endpoint",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "archon-native-matched-runtime"
+      ],
+      "obligation_id": "obl-4e1dfd2c915fe674",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "an end-to-end verification artifact against the actual device or endpoint",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-dc786532677f8ca1",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "or an explicit record that verification is provisional",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "archon-native-matched-runtime"
+      ],
+      "obligation_id": "obl-27a2b6e1eadab2c7",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "the real system's own statement of its capability - device configuration output wire capture or endpoint self-description",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-80432417005eb207",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "current page inventory classified symptom-versus-cause",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-8c2d798754f29f02",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "golden-signal coverage with the error definition stated",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-63abf1a71b4719e2",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "the service's user-visible failure modes",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "contracts-and-shape"
+      ],
+      "obligation_id": "obl-7a342184b4a54bb7",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "Python and dependency version matrix",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "selective-causal-sources"
+      ],
+      "obligation_id": "obl-98dce0cbd8d4d928",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "adjacent code",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "contracts-and-shape"
+      ],
+      "obligation_id": "obl-886b16ae2adaee03",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "formatter linter and type-checker configuration",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "focused-regressions",
+        "watchdog-test-only-correction"
+      ],
+      "obligation_id": "obl-9532e1849c7db686",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "public API and tests",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "contracts-and-shape"
+      ],
+      "obligation_id": "obl-bfc19e3ba2d1d451",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "repository toolchain inspection",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-49731a7fb6fe90d5",
+      "required_by": "task:defect-repair",
+      "requirement": "evidence-incidents",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "archon-native-matched-runtime"
+      ],
+      "obligation_id": "obl-befd281b0fd6dbe2",
+      "required_by": "task:defect-repair",
+      "requirement": "evidence-runtime-observation",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "cleanup-and-dependency-ownership",
+        "selective-causal-sources"
+      ],
+      "obligation_id": "obl-a86964499a24e033",
+      "required_by": "task:defect-repair",
+      "requirement": "evidence-static-source-structure",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "focused-regressions",
+        "utf8-bare-net-native-roundtrip",
+        "watchdog-test-only-correction"
+      ],
+      "obligation_id": "obl-8e19ef7f4b67bef4",
+      "required_by": "task:defect-repair",
+      "requirement": "evidence-tests",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "owner-six-repairs"
+      ],
+      "obligation_id": "obl-06fe7b03ace44133",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "a bounded decision question",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-0eae811ab54b943b",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "alternatives including no change where viable",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "focused-regressions"
+      ],
+      "obligation_id": "obl-e82ef27e7b7f49b2",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "focused-regressions"
+      ],
+      "obligation_id": "obl-2bc1d1e34300cdfe",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "evidence connecting the proposed action to the condition",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-ec0bebeb749e3fa9",
+      "required_by": "universal-no-change-option",
+      "requirement": "actual current cost/risk or absence within a stated interval",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a7c3deeb27a6d936",
+      "required_by": "universal-no-change-option",
+      "requirement": "expected future change from accepted plans",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-6c30f81e2a22c6ae",
+      "required_by": "universal-no-change-option",
+      "requirement": "intervention cost and uncertainty",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-543196d64e60fc3a",
+      "required_by": "universal-no-change-option",
+      "requirement": "latent security, safety, data, durability, and compatibility check",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a89dd32d7271dec4",
+      "required_by": "universal-no-change-option",
+      "requirement": "proc-decide-leave-code-alone",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "owner-six-repairs"
+      ],
+      "obligation_id": "obl-3579d03ad8af3e57",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "accepted desired behavior and semantic authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "cleanup-and-dependency-ownership"
+      ],
+      "obligation_id": "obl-3926b51901ac30aa",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "preservation matrix and consumers",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-125d0b69ca2b7b70",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "proc-establish-preservation-boundaries",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "cleanup-and-dependency-ownership",
+        "focused-regressions"
+      ],
+      "obligation_id": "obl-ce03b1c4566bb9cd",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "tests, characterization, probes, or explicit residual risk",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "contracts-and-shape"
+      ],
+      "obligation_id": "obl-02e117562b29cefa",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "accepted ADR, RFC, API, compatibility, generation, build, and test contracts",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "selective-causal-sources"
+      ],
+      "obligation_id": "obl-b581a58085de1282",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "current source, configuration, and relevant runtime state",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "contracts-and-shape"
+      ],
+      "obligation_id": "obl-5ad348092a91d31f",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "repository instructions from root through target path",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "owner-six-repairs"
+      ],
+      "obligation_id": "obl-8d8fc243a9adadfc",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "target repository and task scope",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "owner-six-repairs"
+      ],
+      "obligation_id": "obl-5526278eee7fb7d7",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "user instruction and authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "selective-causal-sources"
+      ],
+      "obligation_id": "obl-bc386b0d0552a2c6",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "change-type classification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "focused-regressions"
+      ],
+      "obligation_id": "obl-a6fcb0b50aa1efa9",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "checkpoint verification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "selective-causal-sources"
+      ],
+      "obligation_id": "obl-5363e6b05fa6c7de",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "per-edit change classification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "owner-six-repairs"
+      ],
+      "obligation_id": "obl-a328065111f22734",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "preservation boundary and semantic authority",
+      "status": "satisfied"
+    }
+  ],
+  "evidence_records": [
+    {
+      "evidence_class": "evidence-runtime-observation",
+      "id": "archon-native-matched-runtime",
+      "provenance": [
+        {
+          "content_sha256": "23ced002d30ff310d18cab5c96688798773f40d96bb0b78fb78ac1c13b0bcd1d",
+          "locator": "build/agent497-upstream-adoption/archon-protocol.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841780+00:00"
+        },
+        {
+          "content_sha256": "2dcb793b5659a88605b8f6a6a43b660d2f0e3c5d80c78eb452bcb55054c933d6",
+          "locator": "build/agent497-upstream-adoption/launch.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841837+00:00"
+        },
+        {
+          "content_sha256": "d9e000a00983e080089e5bd540d599f22be0fe923d51a1c2b23f5904877d7eef",
+          "locator": "build/agent497-upstream-adoption/import-verification.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841865+00:00"
+        },
+        {
+          "content_sha256": "b33a197185c6b834db71580ac2d71f5c5b873a860a68317c2801c227c5029991",
+          "locator": "build/agent497-upstream-adoption/archon-final-verification.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841897+00:00"
+        },
+        {
+          "content_sha256": "73392c58be2ea7b9d6bf5aa466e57e5dab88603ed4a2d5b409b8b9a356b8077a",
+          "locator": "build/agent497-upstream-adoption/archon-import/archon-evidence-index.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841930+00:00"
+        },
+        {
+          "content_sha256": "ea09c511e69aff2e0c4d53569b4a1e939295fe3c8e3e5c56ec635f49d824f0e3",
+          "locator": "build/agent497-upstream-adoption/archon-import/transport-omissions.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.849002+00:00"
+        }
+      ],
+      "satisfies": [
+        "access to the real device or endpoint",
+        "an end-to-end verification artifact against the actual device or endpoint",
+        "the real system's own statement of its capability - device configuration output wire capture or endpoint self-description",
+        "reversibility and verification",
+        "the backward-compatibility strictness of the outgoing contract",
+        "response validation at the boundary"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "SoleArchon matrix session47159 exited0, all48attempts/4boards PASS under exactprotocol23ced002, baseline784/C6 vs4fb/89a. Independent retainedrawverification rechecked48commands/nativeCLIresults,312gradingrecords, finalboardbytes, input/quality/completion/preservation and no censoring; all4coppergeometryequal. All3median ratios<=1.021978 wall and<=1.004183 RSS vs1.10limit. FreshPython3.12.3/KiCad10.0.7, locked Rust/packages,1619matchedpreparedpyc, immutablemanifestdrift[]; CPU0–15 normal/noquotas;963in-scopebirths/3explicitraces/noresourceviolations. All2595retainedfilesSHAverified; selected HOMEcache omissions explicit; no native reruns. Thisqualifies fourdeclaredCLIworkloads, not everyboard or low-levelAPI."
+    },
+    {
+      "evidence_class": "evidence-static-source-structure",
+      "id": "cleanup-and-dependency-ownership",
+      "provenance": [
+        {
+          "content_sha256": "ffb7274af0b09fbacc8a070de86c50c3cb41c5aae0afd07702ac8a5e16e40370",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/kicad_parser.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection"
+        },
+        {
+          "content_sha256": "c8e8021875a1b18e3249445e72469aca71650b5662cd63c9b8d042442ca97288",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/phase3_routing.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection"
+        },
+        {
+          "content_sha256": "05345a1e780b44b18461f5040ce16ae8d8834f970441086cd8df3f9000a92f51",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/net_rescue.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection"
+        },
+        {
+          "content_sha256": "7f9a3f69ce54d84eb82ea76ae074d2a0bc42691c8544929e199d172a30ce2999",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/cli.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection"
+        },
+        {
+          "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/installation.py",
+          "method": "Direct source/control-flow and retained native/failure-output inspection"
+        },
+        {
+          "content_sha256": "fa70d89073cfcaa96a719c04ae8395903d6ebde9186ef916c4e44e75d958e438",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/focused-evidence-summary.json",
+          "method": "Direct source/control-flow and retained native/failure-output inspection"
+        }
+      ],
+      "satisfies": [
+        "acquisition and release paths",
+        "nesting order",
+        "owner and lifetime",
+        "resource ownership and failure policy",
+        "per-dependency classification as managed or unmanaged with ownership evidence",
+        "out-of-process dependency classification with ownership evidence",
+        "preservation matrix and consumers",
+        "tests, characterization, probes, or explicit residual risk"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Parser ContextVar resets in finally with perparse scope; retry finally reverses applied stub mutations on incomplete/BaseException unless committed; tap maps restore entry borrowed free-vias/temporary overrides/endpoint exemptions. Real localmanaged Python/Rust objects are exercised. CLI builtin adapter and procgroup/watchdog own the worker. Native KiCad is external independentgrader, testedreal with native deadlines/results, not simulated. Test89 controls only worker STOP response, preserving actualwatchdog/baseline/nativegrading. Sixproductionfixes have noDB/RPC/schema/transportchange. Packageinstaller and Freerouting implementations unchanged."
+    },
+    {
+      "evidence_class": "evidence-repository-contracts",
+      "id": "contracts-and-shape",
+      "provenance": [
+        {
+          "content_sha256": "53f8c772981a963b89a2ff90e3b61dd6e8e2c4278f7642cbd1d59331309e7d51",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/pyproject.toml",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.440374+00:00"
+        },
+        {
+          "content_sha256": "638f9ee3b258535a1a2b729085c8a14b651b3c836dda207ef0b30f71bfd3a5f9",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/Makefile",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.440422+00:00"
+        },
+        {
+          "content_sha256": "4f4451f6356a9b5ba63b01d4e1d97f7490b80deb0a1518e28b29e9ae13c9d1c1",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/engine.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450021+00:00"
+        },
+        {
+          "content_sha256": "f13fc7ce29d78cbfc8e709463a659855086ba00534fcc3f1f42d18a23ebdde83",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/docs/routing-engine-migration.md",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450091+00:00"
+        },
+        {
+          "locator": "conversation:user-AGENTS.md",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450139+00:00"
+        }
+      ],
+      "satisfies": [
+        "repository contract",
+        "repository version and dependency contract",
+        "repository toolchain inspection",
+        "Python and dependency version matrix",
+        "CI and build matrix",
+        "formatter and static-tool configuration",
+        "formatter linter and type-checker configuration",
+        "repository instructions from root through target path",
+        "accepted ADR, RFC, API, compatibility, generation, build, and test contracts"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Owned builtin runtime uses immutable generations and source SHA, Python>=3.12, locked unchanged Rust and pinned numerical dependencies. Make smoke scopes top-leveltests. Repository has no.githubworkflow or configured formatter/typechecker in pyproject. Source baseline784/C6 clean and pushed; separate branches and sequential commit integration preserve review/reversal. User-supplied AGENTS requires clean trunk push and ownedworktree removal."
+    },
+    {
+      "evidence_class": "evidence-tests",
+      "id": "focused-regressions",
+      "provenance": [
+        {
+          "content_sha256": "fa70d89073cfcaa96a719c04ae8395903d6ebde9186ef916c4e44e75d958e438",
+          "locator": "build/agent497-upstream-adoption/focused-evidence-summary.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.840928+00:00"
+        },
+        {
+          "content_sha256": "1de7a883691b119b59222d6b0aea8e6bfd67b34c6301e329122a4af322ae7cad",
+          "locator": "build/agent497-upstream-adoption/root-focused/keepout-final.xml",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841081+00:00"
+        },
+        {
+          "content_sha256": "3053e215efc256fa345923fd2d484882bf9b32a67bd384ac99cee944c532a2d2",
+          "locator": "build/agent497-upstream-adoption/root-focused/rules-integrated.xml",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841123+00:00"
+        },
+        {
+          "content_sha256": "1977feb7da1468222308c8b76ac5273e52e21a94da72f0922c163d2eb806847d",
+          "locator": "build/agent497-upstream-adoption/root-focused/parser-integrated.xml",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841152+00:00"
+        },
+        {
+          "content_sha256": "36ebc03814e370d40fb1ef5f885650971a040cebdacf0800bbe87ce6c7901fd4",
+          "locator": "build/agent497-upstream-adoption/lifecycle-lane/lane-proof.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841181+00:00"
+        },
+        {
+          "content_sha256": "b4c9d6c840f701a3e09bfa8ed4acbe646efdb972c8711453ccc8a447a682ece7",
+          "locator": "build/agent497-upstream-adoption/parser-lane/receipt.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841220+00:00"
+        },
+        {
+          "content_sha256": "94f7f6013d0b2f976c750d89083429253ab59fd407936c348ea9a320a215e7c9",
+          "locator": "build/agent497-upstream-adoption/kernel-verification.json",
+          "method": "Root read and hash-verified retained native/result/command/test artifact; independent verifier crosschecked raw outputs where stated",
+          "observed_at": "2026-10-21T08:40:42.841495+00:00"
+        }
+      ],
+      "satisfies": [
+        "behavior tests",
+        "public API and tests",
+        "tests, characterization, probes, or explicit residual risk",
+        "round-trip and failure tests",
+        "acquisition and release paths",
+        "exception and cancellation behavior",
+        "nesting order",
+        "owner and lifetime",
+        "resource ownership and failure policy",
+        "whether asserted values are independent of production constants",
+        "availability of a real managed dependency for tests",
+        "evidence connecting the proposed action to the condition",
+        "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+        "checkpoint verification"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Independent baseline failures and passing selective repairs are retained perissue83–88. Real Rust maps and mandatory native KiCad cover keepouts, stale-map collision, rescued copper connectivity and originalrule custody; quoted/bare dialect nativeparity; nested/concurrent/failing parser cleanup. Exception/KeyboardInterrupt after actualstub mutation now reverts. Native hole case intentionally asserts only hole spacing, not fullsynthetic-boardcleanliness. Root reproduced combined keepout4, floor4, parser13+6subtests and legacytap/weld2; bootstrap import error retained thenfixed; offline kernel/parity/writerpasses. Full815suite is stillpending."
+    },
+    {
+      "evidence_class": "evidence-explicit-user-requirements",
+      "id": "owner-six-repairs",
+      "provenance": [
+        {
+          "locator": "conversation:user-active-goal-and-instructions",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.432591+00:00"
+        },
+        {
+          "content_sha256": "d16f91d5dba63c971d08a496fd365d94f151454a0a627560c35a958fcc80065b",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/issues.json",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.432647+00:00"
+        },
+        {
+          "content_sha256": "191696d5819e417464bb7eda464c1ed1444e681fecaf633c0e8c7d34fa6a8014",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/qualification-plan.json",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.440043+00:00"
+        }
+      ],
+      "satisfies": [
+        "decision owner",
+        "explicit task authority",
+        "task scope and authority statement",
+        "user instruction and authority",
+        "target repository and task scope",
+        "a bounded decision question",
+        "accepted desired behavior and semantic authority",
+        "preservation boundary and semantic authority"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Owner active goal is make Plane work items then burn them down; six selected fix families are In Progress83..88. Root plus3agents authorized. Preserve original rules, local repairs, all native quality and1.10median gates; deploy/push/cleanup/Done readback required. Archon explicitly selected. New map exception cleanup and pair-population verifier repair are bounded acceptance necessities, not unrelated feature work."
+    },
+    {
+      "evidence_class": "evidence-static-source-structure",
+      "id": "selective-causal-sources",
+      "provenance": [
+        {
+          "content_sha256": "073bbeea8dd8b20b396347647949375f6439daa6333f5d1b8567ec268a2d6db9",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/UPSTREAM.json",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450415+00:00"
+        },
+        {
+          "content_sha256": "ffb7274af0b09fbacc8a070de86c50c3cb41c5aae0afd07702ac8a5e16e40370",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/kicad_parser.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.450461+00:00"
+        },
+        {
+          "content_sha256": "c8e8021875a1b18e3249445e72469aca71650b5662cd63c9b8d042442ca97288",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/phase3_routing.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.451180+00:00"
+        },
+        {
+          "content_sha256": "05345a1e780b44b18461f5040ce16ae8d8834f970441086cd8df3f9000a92f51",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/net_rescue.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.451367+00:00"
+        },
+        {
+          "content_sha256": "38224e910ad72c790b3a7d0799b7ddfffae1cd5e6296f0bfad80295570b3bf5b",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-upstream-primary/src/kicad_route/router/py_router/route.py",
+          "method": "Root read source, contract or actual retained tool result",
+          "observed_at": "2026-10-21T08:16:58.451506+00:00"
+        }
+      ],
+      "satisfies": [
+        "adjacent code",
+        "affected behavior and state",
+        "current source, configuration, and relevant runtime state",
+        "change-type classification",
+        "per-edit change classification",
+        "external format and domain text contract",
+        "protocol or file metadata",
+        "normalization requirements",
+        "adapter chain inventory",
+        "the chain of owned types leading to the external system",
+        "integration inventory"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Reviewed selective headless source for rulefloors, layerguards, pairkeepoutbands, mapcleanup/freshcallback, rescueproducer+authoritative writerfilter, parser ContextVar and token-aware legacyforms. Existing quote/copper preservation/noop relocation and unsupported-copper refusal retained. Runtime adapters publicCLI→isolatedworker→ownedPython+Rust→nativeKiCad. Rust/dependencies unmodified; source changes are defect repair with separately committed verifier/test edits, no refactoring campaign."
+    },
+    {
+      "evidence_class": "evidence-tests",
+      "id": "utf8-bare-net-native-roundtrip",
+      "provenance": [
+        {
+          "content_sha256": "1486d0304b5926a235a10a366f422d160be5daad44329ff5081e44cc5595c468",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe/receipt.json",
+          "method": "Root executed actual frozen parser/writer and native pcbnew readbacks on authored UTF-8 files",
+          "observed_at": "2026-10-21T08:52:57.286246+00:00"
+        },
+        {
+          "content_sha256": "f3039f27470565994c46980b41d55a7e8b2eb7a14f0d1e7e5051bec0f3d5866b",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/unicode-token-probe.py",
+          "method": "Exact probe source"
+        }
+      ],
+      "satisfies": [
+        "representative non-ASCII data",
+        "round-trip and failure tests"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Frozen89a parser and quote-aware writer preserve non-ASCII bare net names 温度Ω and питаниеµ through pad-net swaps in both KiCad9 numeric/net-table and KiCad10 name-only dialects. Owned model and native pcbnew readback agree before/after both swaps. No source/runtime change and no routing/DRC claim."
+    },
+    {
+      "evidence_class": "evidence-tests",
+      "id": "watchdog-test-only-correction",
+      "provenance": [
+        {
+          "content_sha256": "0fa80148f3f8f8b03c1e2cc3cf6f214e2d8f54c3f434b36dbd99b02f397eeb4c",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/verification.json",
+          "method": "Root read original source diff and raw native/watchdog outputs, checked SHA; independent source review and exact collected node diff retained",
+          "observed_at": "2026-10-21T09:09:38.635451+00:00"
+        },
+        {
+          "content_sha256": "4e743fdd3968c9182e20c390d90e8a955bff3957020eef1a40cedb6a41eb1c69",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/qualification-followup/exact-node-replacement.json",
+          "method": "Root read original source diff and raw native/watchdog outputs, checked SHA; independent source review and exact collected node diff retained",
+          "observed_at": "2026-10-21T09:09:38.638794+00:00"
+        },
+        {
+          "content_sha256": "c2ddaa73c650a976a39f122f07288b1126b32405f498f6bf7efc8ac509dda36d",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/rules-lane/final-integration-review.json",
+          "method": "Root read original source diff and raw native/watchdog outputs, checked SHA; independent source review and exact collected node diff retained",
+          "observed_at": "2026-10-21T09:09:38.641034+00:00"
+        },
+        {
+          "content_sha256": "145e30d0d7b4d27b71a28b8530972f396216876919e22ff464c78a9f2e04b8ee",
+          "locator": "/home/halbritt/git/kicad-route/build/agent497-upstream-adoption/qualification-source-bridge.json",
+          "method": "Root read original source diff and raw native/watchdog outputs, checked SHA; independent source review and exact collected node diff retained",
+          "observed_at": "2026-10-21T09:09:38.641099+00:00"
+        }
+      ],
+      "satisfies": [
+        "public API and tests",
+        "whether asserted values are independent of production constants",
+        "evidence of how each dependency fails - refused hung slow or malformed",
+        "exception and cancellation behavior",
+        "response validation at the boundary",
+        "availability of a real managed dependency for tests"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Retained original full815 ended797pass/12fail/6error/no skips; two assertions still expected deprecated outputname, a40sfixture assumed a search phase. Tests-only f42b879 changes2files, allshipping src/build bytes identical4fb/89a. Exact814base nodes preserved and one timingcase replaced by two real3s-watchdog controls: SIGTERM-ignoringworker killed→processFAIL/no candidate/exit1; cooperative unchangedinput checkpoint→nativePASS/preservationPASS/INCOMPLETE/exit2. Both actualnativecasesPASS123.03s. No wholecorrectedfullsuitePASS yet. Independent boundedsource review found no materialdefects, not a universalcorrectnessclaim."
+    }
+  ],
+  "excluded_candidates": [
+    {
+      "id": "architecture-event-temporal-semantics",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "architecture-fitness-functions",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-consistency-model-selection",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-end-to-end-integrity-auditing",
+      "reason": "nominated by: risk route 'correctness'; dropped: role 'coding-agent' not in activate_for_roles"
+    },
+    {
+      "id": "data-event-time-semantics",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-system-of-record-derived-state",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-aggregate-invariant-boundary",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-anticorruption-layer",
+      "reason": "nominated by: task variant 'vendor-integration'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-association-constraint",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-authorization-embodied-in-action",
+      "reason": "nominated by: evidence class 'evidence-explicit-user-requirements' supplied by ['owner-six-repairs']; risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-context-relationship-selection",
+      "reason": "nominated by: task variant 'vendor-integration'; dropped: role 'coding-agent' not in activate_for_roles; task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-explicit-concept",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-factory-lifecycle",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-identity-entity",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-intention-revealing-interface",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-language-model-loop",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-repository-lifecycle",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-service-operation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-value-object",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "go-channel-capacity-contract",
+      "reason": "nominated by: role bundle intersected with task bundle; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-consumer-owned-interfaces",
+      "reason": "nominated by: role bundle intersected with task bundle; evidence class 'evidence-static-source-structure' supplied by ['cleanup-and-dependency-ownership', 'selective-causal-sources']; evidence class 'evidence-explicit-user-requirements' supplied by ['owner-six-repairs']; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-context-lifecycle-propagation",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-explicit-contextual-errors",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-goroutine-resource-lifecycle",
+      "reason": "nominated by: role bundle intersected with task bundle; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-interface-nil-semantics",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-package-api-simplicity",
+      "reason": "nominated by: role bundle intersected with task bundle; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-semantics-before-performance-constructs",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-slice-aliasing-control",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-synchronization-mechanism-fit",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "go-text-byte-rune-semantics",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python', 'Rust']"
+    },
+    {
+      "id": "implementation-non-obvious-commentary",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-normal-result-or-exception",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "legacy-effect-surface",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['cleanup-and-dependency-ownership', 'selective-causal-sources']; evidence class 'evidence-runtime-observation' supplied by ['archon-native-matched-runtime']; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-blameless-postmortem",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['archon-native-matched-runtime']; dropped: role 'coding-agent' not in activate_for_roles; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "operations-designed-failure-modes",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-error-budget",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['archon-native-matched-runtime']; evidence class 'evidence-explicit-user-requirements' supplied by ['owner-six-repairs']; dropped: task 'defect-repair' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "operations-live-interface-compatibility",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-toil-ceiling",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['archon-native-matched-runtime']; dropped: task 'defect-repair' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "performance-cache-validity",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-earned-bounded-concurrency",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-memory-lifecycle",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-profile-causal-bottleneck",
+      "reason": "nominated by: language bundle 'Python'; dropped: role 'coding-agent' not in activate_for_roles; task 'defect-repair' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "performance-resource-lifecycle",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'defect-repair' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "performance-semantic-preservation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-specialization-evidence",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-bounded-async",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'defect-repair' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-cache-validity",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-compatible-property-evolution",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-concurrency-model-selection",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'defect-repair' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-data-carrier-versus-domain-object",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'defect-repair' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-dynamic-mechanism-escalation",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'defect-repair' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-function-over-stateless-class",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'defect-repair' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    }
+  ],
+  "packet_content_sha256": "488908796a8e4ee72dbc0a3db91d09ccfa51144579ce6b8e84ee64948408bcc4",
+  "packet_id": "pkt-488908796a8e4ee7",
+  "provenance_links": [
+    {
+      "concept_id": "python-repository-shaped-idiom",
+      "formulation_ids": [
+        "F-CONCEPT-FP-6191dfc584db",
+        "F-CONCEPT-FP-b1d03f6e2bd6"
+      ],
+      "source_support": [
+        {
+          "contribution": "Makes source-version and language evolution assumptions explicit.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/002-preface.md :: Preface",
+          "relationship": "refinement",
+          "source_id": "SRC-FP"
+        },
+        {
+          "contribution": "Frames Pythonic object design in relation to application and library requirements rather than syntax alone.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/018-chapter-11-a-pythonic-object.md :: Chapter Summary",
+          "relationship": "direct_support",
+          "source_id": "SRC-FP"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-repository-contract-precedence",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-901470c5095d",
+        "F-CONCEPT-CC-59bf0838015e",
+        "F-CONCEPT-FSA-0302ef761084"
+      ],
+      "source_support": [
+        {
+          "contribution": "Establishes existing local consistency as leverage that should not be displaced casually.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/022-17-consistency.md :: 17: Consistency",
+          "relationship": "corroboration",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Makes language, platform, project convention, and risk explicit inputs to construction choices.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/009-chapter-4-key-construction-decisions.md :: cc2e.com/0496 Checklist: Major Construction Practices Coding",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Rejects timeless architecture axioms and requires context-specific tradeoff reasoning.",
+          "locator": "books/oreilly-fundamentals-of-software-architecture-2020-1/chapters/003-preface-invalidating-axioms.md :: Axiom",
+          "relationship": "direct_support",
+          "source_id": "SRC-FSA"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-evidence-before-intervention",
+      "formulation_ids": [
+        "F-CONCEPT-CC-8730c675fe4f",
+        "F-CONCEPT-EGO-04a5f9442d14",
+        "F-CONCEPT-SDX-4a4d1f2737b8",
+        "F-SRC-SDX-C01-DEBT-DEPENDS-ON-CHANGE",
+        "F-SRC-SDX-C02-HOTSPOTS-FOCUS",
+        "F-SRC-WELC-C01-CHANGE-PRESERVATION",
+        "F-SRC-WELC-C05-TOOL-TRUST"
+      ],
+      "source_support": [
+        {
+          "contribution": "Requires problem, requirements, and architecture evidence before construction.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/008-chapter-3-measure-twice-cut-once-upstream-prerequisites.md :: cc2e.com/0386 Checklist: Upstream Prerequisites",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Makes optimization action depend on explicit workload and resource evidence.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: Resource-Aware Efficiency Requirements",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Shows that poor-looking code creates maintenance debt only in relation to change and context.",
+          "locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/006-chapter-1-why-technical-debt-isn-t-technical.md :: Interest Rate Is a Function of Time",
+          "relationship": "direct_support",
+          "source_id": "SRC-SDX"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-separate-semantic-structural-change",
+      "formulation_ids": [
+        "F-CONCEPT-EGO-6b5a5b5f4309",
+        "F-CONCEPT-REF-93dea0b4cc46",
+        "F-CONCEPT-WELC-9ac8f09782c8"
+      ],
+      "source_support": [
+        {
+          "contribution": "Preserves causal evidence by isolating one performance transformation.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/014-chapter-10-optimization-examples.md :: Optimize One Thing at a Time",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Distinguishes adding function from restructuring and advocates not doing both at the same instant.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: The Two Hats",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Distinguishes feature, repair, design, and optimization intents by behavior preservation.",
+          "locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+          "relationship": "corroboration",
+          "source_id": "SRC-WELC"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-no-change-option",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-542db617dd0a",
+        "F-CONCEPT-REF-47a52fa2ffa2",
+        "F-CONCEPT-SDX-27531eaed8cd"
+      ],
+      "source_support": [
+        {
+          "contribution": "Prioritizes design attention on consequential complexity instead of uniform perfection.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/026-21-decide-what-matters.md :: 21: Decide What Matters",
+          "relationship": "corroboration",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Explicitly retains cases where refactoring is not the appropriate action.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: When Shouldn't You Refactor?",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Separates unattractive static code from code imposing active maintenance interest.",
+          "locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/006-chapter-1-why-technical-debt-isn-t-technical.md :: Interest Rate Is a Function of Time",
+          "relationship": "corroboration",
+          "source_id": "SRC-SDX"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-preserve-behavior-by-default",
+      "formulation_ids": [
+        "F-CONCEPT-EGO-cb3c230956bf",
+        "F-CONCEPT-REF-470f9e409dc8",
+        "F-CONCEPT-WELC-c9e182aee017",
+        "F-SRC-REF-C02-TWO-DEFINITIONS",
+        "F-SRC-WELC-C01-CHANGE-PRESERVATION"
+      ],
+      "source_support": [
+        {
+          "contribution": "Requires a functional baseline before efficiency changes.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: Functionality Phase",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Defines refactoring by preservation of externally visible behavior.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: Defining Refactoring",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Distinguishes change intents while centering preservation of existing behavior.",
+          "locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+          "relationship": "corroboration",
+          "source_id": "SRC-WELC"
+        }
+      ]
+    },
+    {
+      "concept_id": "agent-conduct-authority-bounded-action",
+      "formulation_ids": [
+        "F-CONCEPT-CC-8d39ebafa179",
+        "F-CONCEPT-CC-ef6a379be1f7",
+        "F-CONCEPT-EGO-0ea813693bc5",
+        "F-CONCEPT-PP-3cd1576a1ee8"
+      ],
+      "source_support": [
+        {
+          "contribution": "Supplies a practical stop signal when consequential prerequisites cannot be responsibly defended.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/008-chapter-3-measure-twice-cut-once-upstream-prerequisites.md :: Boss-Readiness Test",
+          "relationship": "refinement",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Technical ability to make a change does not confer authority to select or authorize it; proposed changes should pass through explicit evaluation and approval before execution.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/038-chapter-28-managing-construction.md :: Requirements and Design Changes",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Refines authority discipline with a positive stop rule at the accepted target and escalation for wider tradeoffs.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: 5. Are we within RAERs?",
+          "relationship": "refinement",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Requires stating uncertainty, accepting responsibility, and declining or renegotiating unsupported commitments.",
+          "locator": "books/the-pragmatic-programmer/chapters/006-chapter-1-a-pragmatic-philosophy.md :: Take Responsibility",
+          "relationship": "direct_support",
+          "source_id": "SRC-PP"
+        }
+      ]
+    },
+    {
+      "concept_id": "data-ingest-population-scoping",
+      "formulation_ids": [
+        "F-CONCEPT-DEFECT-ENGRAM-03a890de5a70"
+      ],
+      "source_support": [
+        {
+          "contribution": "Recursive discovery swept subagent session files into a backfill scoped to top-level sessions; discovery pattern narrowed to exactly the intended population.",
+          "locator": "defect://engram/0d494fecf9f52f9eb79dbd3ea6229aa34176483c",
+          "relationship": "direct_support",
+          "source_id": "SRC-DEFECT-ENGRAM"
+        }
+      ]
+    },
+    {
+      "concept_id": "implementation-async-ui-state-design",
+      "formulation_ids": [
+        "F-CONCEPT-DEFECT-ENGRAM-730c05b4302b",
+        "F-CONCEPT-RI-41f7412c605f"
+      ],
+      "source_support": [
+        {
+          "contribution": "Photo preview's native-default activation and shifting geometry replaced with designed per-phase states: reserved geometry, explicit loading and error states, deliberate activation.",
+          "locator": "defect://engram/ef0a3cb7d6a8ec83d37f4bb6e0df131699b1c28a",
+          "relationship": "direct_support",
+          "source_id": "SRC-DEFECT-ENGRAM"
+        },
+        {
+          "contribution": "States that failure modes exist whether or not you design them - if you do not design your failure modes you get whatever unpredictable and usually dangerous ones happen to emerge - the designed-versus-incidental principle this concept applies to asynchronous UI states.",
+          "locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/008-chapter-3-stabilize-your-system.md :: Failure Modes",
+          "relationship": "corroboration",
+          "source_id": "SRC-RI"
+        }
+      ]
+    },
+    {
+      "concept_id": "implementation-attention-budget-presentation",
+      "formulation_ids": [
+        "F-CONCEPT-DEFECT-PINCITE-5b3cdab49623"
+      ],
+      "source_support": [
+        {
+          "contribution": "Unbounded packet dump into the consumer's context replaced by a bounded, ranked, size-budgeted brief rendered over unchanged canonical JSON.",
+          "locator": "defect://pincite/ab37dac0038395baebabbeab1dacff5d4ecf7f58",
+          "relationship": "direct_support",
+          "source_id": "SRC-DEFECT-PINCITE"
+        }
+      ]
+    },
+    {
+      "concept_id": "implementation-config-reference-validation",
+      "formulation_ids": [
+        "F-CONCEPT-DEFECT-ENGRAM-c6bfb4422da2",
+        "F-CONCEPT-RI-6e36b0a21c2b"
+      ],
+      "source_support": [
+        {
+          "contribution": "Dangling job id and unknown enum value in hand-authored declarative config; cross-references validated against the authoritative set at load.",
+          "locator": "defect://engram/1b3456ae9e5a5eaffcf3fe422b91c8c58b44eed1",
+          "relationship": "direct_support",
+          "source_id": "SRC-DEFECT-ENGRAM"
+        },
+        {
+          "contribution": "Prescribes verifying in advance that every referenced resource is present and failing immediately - the renderer checked for the presence of every font image background and mask before spending compute - rather than failing downstream after work is wasted.",
+          "locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/010-chapter-5-stability-patterns.md :: Fail Fast",
+          "relationship": "corroboration",
+          "source_id": "SRC-RI"
+        }
+      ]
+    },
+    {
+      "concept_id": "implementation-rank-before-truncate",
+      "formulation_ids": [
+        "F-CONCEPT-DEFECT-ENGRAM-ec69f37de90f"
+      ],
+      "source_support": [
+        {
+          "contribution": "Early exit before ranking silently substituted arrival order for relevance; fix scores the entire bounded candidate set before truncation and composes match text from content fields only.",
+          "locator": "defect://engram/a4f0b8dfcecf66bc8b4552584128a702a07e5d3f",
+          "relationship": "direct_support",
+          "source_id": "SRC-DEFECT-ENGRAM"
+        }
+      ]
+    },
+    {
+      "concept_id": "operations-symptom-cause-monitoring",
+      "formulation_ids": [
+        "F-CONCEPT-SRE-961e31381231",
+        "F-CONCEPT-SRE-d6d6e78bce10",
+        "F-CONCEPT-SRE-efbfed724301"
+      ],
+      "source_support": [
+        {
+          "contribution": "Carries the paging-versus-diagnosis rule: black-box monitoring is symptom-oriented and for paging forces the discipline of nagging a human only for ongoing, real-symptom problems, while white-box instrumentation serves diagnosis and imminent-failure detection; also notes symptom and cause are layer-relative in multilayered systems.",
+          "locator": "books/site-reliability-engineering/chapters/012-chapter-6-monitoring-distributed-systems.md :: Black-Box Versus White-Box",
+          "relationship": "direct_support",
+          "source_id": "SRC-SRE"
+        },
+        {
+          "contribution": "States the two-question split verbatim - monitoring should address what is broken (the symptom) and why (the cause) - with the symptom-cause example table, and names the what-versus-why distinction as central to maximum-signal minimum-noise monitoring.",
+          "locator": "books/site-reliability-engineering/chapters/012-chapter-6-monitoring-distributed-systems.md :: Symptoms Versus Causes",
+          "relationship": "direct_support",
+          "source_id": "SRC-SRE"
+        },
+        {
+          "contribution": "Enumerates latency, traffic, errors, and saturation, and defines errors beyond protocol codes - explicit failures, implicit wrong-content successes, and policy failures - noting load-balancer catches versus end-to-end tests for wrong content.",
+          "locator": "books/site-reliability-engineering/chapters/012-chapter-6-monitoring-distributed-systems.md :: The Four Golden Signals",
+          "relationship": "direct_support",
+          "source_id": "SRC-SRE"
+        }
+      ]
+    },
+    {
+      "concept_id": "data-dedup-key-identity-completeness",
+      "formulation_ids": [
+        "F-CONCEPT-DDIA2-10251a823c05",
+        "F-CONCEPT-DDIA2-115d1649d339",
+        "F-CONCEPT-DDIA2-5acf9c30316b",
+        "F-CONCEPT-DEFECT-ENGRAM-5dd7662afe51"
+      ],
+      "source_support": [
+        {
+          "contribution": "Documents the GitHub incident where reused primary keys conflated distinct records across MySQL and Redis, silently disclosing private data - the consequence of a key not pinning one logical record.",
+          "locator": "books/dokumen-pub-designing-data-intensive-applications-the-big-ideas-behind-reliable-scalable-and-maintainable-systems-2/chapters/010-chapter-6-replication.md :: Handling Node Outages",
+          "relationship": "corroboration",
+          "source_id": "SRC-DDIA2"
+        },
+        {
+          "contribution": "Shows that an identifier failing to name a particular version of a record conflates distinct records and makes results wrong; the fix is widening the identifier - the slowly-changing-dimension version key.",
+          "locator": "books/dokumen-pub-designing-data-intensive-applications-the-big-ideas-behind-reliable-scalable-and-maintainable-systems-2/chapters/016-chapter-12-stream-processing.md :: Stream Joins",
+          "relationship": "refinement",
+          "source_id": "SRC-DDIA2"
+        },
+        {
+          "contribution": "States the loud-abort uniqueness mechanism - INSERT under a UNIQUE constraint fails visibly on collision - which is the safe default this concept prefers over silent suppression, and derives the request identifier from all relevant fields.",
+          "locator": "books/dokumen-pub-designing-data-intensive-applications-the-big-ideas-behind-reliable-scalable-and-maintainable-systems-2/chapters/017-chapter-13-a-philosophy-of-streaming-systems.md :: Uniquely identifying requests",
+          "relationship": "corroboration",
+          "source_id": "SRC-DDIA2"
+        },
+        {
+          "contribution": "UNIQUE key widened to include manifest_id and ON CONFLICT corrected; the dedup key now covers every dimension of the record's true logical identity.",
+          "locator": "defect://engram/405ae8691c9c4e709a981c4519d740c787a93550",
+          "relationship": "direct_support",
+          "source_id": "SRC-DEFECT-ENGRAM"
+        }
+      ]
+    },
+    {
+      "concept_id": "operations-external-capability-verification",
+      "formulation_ids": [
+        "F-CONCEPT-DEFECT-ENGRAM-59ffd03aabbc",
+        "F-CONCEPT-DEFECT-ENGRAM-ae081c444a7b",
+        "F-CONCEPT-RI-4fa237a28418",
+        "F-CONCEPT-RI-e1028514156e"
+      ],
+      "source_support": [
+        {
+          "contribution": "Fabricated external model identifier corrected against the provider's real catalog; identifiers and capabilities of external systems verified at the source, not assumed.",
+          "locator": "defect://engram/3d88df23d79e75bd275b9bb33f924ed2ad957b13",
+          "relationship": "direct_support",
+          "source_id": "SRC-DEFECT-ENGRAM"
+        },
+        {
+          "contribution": "Hardware-verified fix: the label printer's advertised ZPL support was false and TSPL was required; the fix embodies establishing an external system's actual capability before integrating against its claims.",
+          "locator": "defect://engram/63d443c2d33766af9776d743c761cecf408f6656",
+          "relationship": "direct_support",
+          "source_id": "SRC-DEFECT-ENGRAM"
+        },
+        {
+          "contribution": "Frames a provider's stated behavior as an unverified claim - it may claim to be sending JSON but actually send plain text - prescribes treating responses as data until confirmed against expectations, and states that vendor-advertised hardening of client libraries cannot be trusted.",
+          "locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/009-chapter-4-stability-antipatterns.md :: Integration Points",
+          "relationship": "refinement",
+          "source_id": "SRC-RI"
+        },
+        {
+          "contribution": "States the silent-failure consequence - a misrouted integration will appear to be working normally so you won't even know it's happening - and that a consistent error beats intermittent success.",
+          "locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/015-chapter-9-interconnect.md :: Network Routing",
+          "relationship": "corroboration",
+          "source_id": "SRC-RI"
+        }
+      ]
+    }
+  ],
+  "question": "How should six scoped upstream KRT fix families be adopted into builtin while preserving local repairs, strict native original-rule acceptance and runtime qualification?",
+  "required_evidence_classes": [
+    "evidence-incidents",
+    "evidence-runtime-observation",
+    "evidence-static-source-structure",
+    "evidence-tests"
+  ],
+  "retrieval_abstention": {
+    "abstained": false,
+    "reason_codes": []
+  },
+  "retrieval_budget": {
+    "meaning": "Relative doctrine-selection cost; not a byte, word, or tokenizer-measured context limit. Delivery size is governed separately by the selected detail profile.",
+    "minimum_required": 2140,
+    "remaining": 5,
+    "requested": 5000,
+    "scope": "activated-concept-selection-only",
+    "unit": "relative-routing-cost-unit",
+    "used": 4995
+  },
+  "retrieval_context": {
+    "canonical_role": "coding-agent",
+    "detail": "compact",
+    "evidence_ids": [
+      "archon-native-matched-runtime",
+      "cleanup-and-dependency-ownership",
+      "contracts-and-shape",
+      "focused-regressions",
+      "owner-six-repairs",
+      "selective-causal-sources",
+      "utf8-bare-net-native-roundtrip",
+      "watchdog-test-only-correction"
+    ],
+    "languages": [
+      "Python",
+      "Rust"
+    ],
+    "requested_lenses": [],
+    "requested_role": "coding-agent",
+    "requested_task": "defect-repair",
+    "retrieval_budget": 5000,
+    "risk_class": "correctness",
+    "signals": [
+      "six source-pinned Plane repairs with independent lanes and immutable installed generation"
+    ],
+    "task_family": "defect-repair",
+    "task_variants": [
+      "vendor-integration"
+    ]
+  },
+  "retriever_version": "retriever-ec995ecdd083b2c8",
+  "schema_version": "evidence-packet/3"
+}
