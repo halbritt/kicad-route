@@ -2,6 +2,7 @@
 import contextlib
 import io
 import os
+import signal
 import tempfile
 from pathlib import Path
 import sys
@@ -58,6 +59,67 @@ def tap_case(blocked=False):
 
 
 class TapMapLifecycleTests(unittest.TestCase):
+    def test_stub_retry_rolls_back_real_switch_on_builder_or_route_failure(self):
+        from phase3_routing import _phase3_stub_switch_retry
+        from routing_state import RoutingState
+        from obstacle_map import build_base_obstacle_map
+
+        for failure in ('builder-error', 'builder-cancel', 'route-error', 'route-cancel', 'route-incomplete'):
+            with self.subTest(failure=failure):
+                pcb, cfg, _, main = tap_case()
+                main['new_vias'] = []
+                main['failed_pads_info'] = [dict(x=3, y=2.5)]
+                pcb.segments.append(Segment(3, 3, 3, 2.5, .2, 'F.Cu', 1))
+                state = RoutingState(pcb, cfg)
+                before = [(id(s), dict(vars(s))) for s in pcb.segments]
+                vias = [(id(v), dict(vars(v))) for v in pcb.vias]
+                observed = []
+
+                def build():
+                    observed.append([s.layer for s in pcb.segments if s.net_id == 1])
+                    self.assertIn('B.Cu', observed[-1], 'the real stub switch never ran')
+                    if failure == 'builder-error':
+                        raise RuntimeError('fresh obstacle build failed')
+                    if failure == 'builder-cancel':
+                        raise KeyboardInterrupt
+                    obstacles = build_base_obstacle_map(pcb, cfg, [1], static_base=True)
+                    if failure == 'route-incomplete':
+                        # A closed, thick wall remains beyond both terminal
+                        # exemptions; straight-line shortcuts cannot bypass it.
+                        for x in range(10, 51):
+                            for y in range(10, 51):
+                                if x < 23 or x > 37 or y < 23 or y > 37:
+                                    for layer in (0, 1):
+                                        obstacles.add_static_blocked_cell(x, y, layer)
+                                    obstacles.add_static_blocked_via(x, y)
+                    return obstacles
+
+                def cancel_route(frame, event, _arg):
+                    if event == 'call' and frame.f_code is routing._route_multipoint_taps_impl.__code__:
+                        signal.raise_signal(signal.SIGINT)
+
+                if failure == 'route-error':
+                    main['mst_edges'][1] = None  # Real tap engine raises after the switch.
+                if failure == 'route-incomplete':
+                    cfg.max_iterations = 1
+                if failure == 'route-cancel':
+                    sys.setprofile(cancel_route)
+                error = KeyboardInterrupt if failure.endswith('cancel') else (RuntimeError if failure.startswith('builder') else TypeError)
+                try:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        if failure == 'route-incomplete':
+                            self.assertIsNone(_phase3_stub_switch_retry(1, main, pcb, cfg, state, build, 0, 0, 0))
+                        else:
+                            with self.assertRaises(error):
+                                _phase3_stub_switch_retry(1, main, pcb, cfg, state, build, 0, 0, 0)
+                finally:
+                    sys.setprofile(None)
+                self.assertEqual(observed, [['F.Cu', 'B.Cu']])
+                self.assertEqual([(id(s), dict(vars(s))) for s in pcb.segments], before)
+                self.assertEqual([(id(v), dict(vars(v))) for v in pcb.vias], vias)
+                self.assertEqual(state.all_segment_modifications, [])
+                self.assertEqual(state.all_swap_vias, [])
+
     def test_success_removes_new_free_via_and_keeps_entry_barrel(self):
         pcb = board()
         pcb.vias.append(Via(1, 1, 0.6, 0.3, ['F.Cu', 'B.Cu'], 1))

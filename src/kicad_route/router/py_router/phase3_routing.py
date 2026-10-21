@@ -538,36 +538,41 @@ def _phase3_stub_switch_retry(net_id, completed_result, pcb_data, config,
     registry = None
     switched = []
     moved_tips = set()
-    for fp in failed_pads[:3]:
-        fx, fy = fp.get('x'), fp.get('y')
-        if fx is None:
-            continue
-        if registry is None:
-            registry = foreign_stub_registry(pcb_data, net_id)
-        sw = switch_boxed_stub_near(pcb_data, net_id, config, fx, fy,
-                                    all_stubs_by_layer=registry,
-                                    moved_tips=moved_tips)
-        if sw is not None:
-            switched.append(sw)
-    if not switched:
-        return None
+    committed = False
+    try:
+        for fp in failed_pads[:3]:
+            fx, fy = fp.get('x'), fp.get('y')
+            if fx is None:
+                continue
+            if registry is None:
+                registry = foreign_stub_registry(pcb_data, net_id)
+            sw = switch_boxed_stub_near(pcb_data, net_id, config, fx, fy,
+                                        all_stubs_by_layer=registry,
+                                        moved_tips=moved_tips)
+            if sw is not None:
+                switched.append(sw)
+        if not switched:
+            return None
 
-    retry = route_multipoint_taps(
-        pcb_data, net_id, config, build_obstacles(), dict(completed_result),
-        global_offset=global_tap_offset, global_total=total_tap_edges,
-        global_failed=global_tap_failed)
-    after = len((retry or {}).get('failed_pads_info') or []) \
-        if retry else len(failed_pads)
-    if retry and after < len(failed_pads):
-        print(f"  PHASE-3 STUB SWITCH: {len(failed_pads) - after} pad(s) "
-              f"reconnected after moving {len(switched)} stub(s)")
-        for seg_mods, new_vias, _from, _dest in switched:
-            state.all_segment_modifications.extend(seg_mods)
-            state.all_swap_vias.extend(new_vias)
-        return retry
-    for seg_mods, new_vias, _from, _dest in reversed(switched):
-        revert_stub_layer_switch(pcb_data, seg_mods, new_vias)
-    return None
+        retry = route_multipoint_taps(
+            pcb_data, net_id, config, build_obstacles(), dict(completed_result),
+            global_offset=global_tap_offset, global_total=total_tap_edges,
+            global_failed=global_tap_failed)
+        after = len((retry or {}).get('failed_pads_info') or []) \
+            if retry else len(failed_pads)
+        if retry and after < len(failed_pads):
+            print(f"  PHASE-3 STUB SWITCH: {len(failed_pads) - after} pad(s) "
+                  f"reconnected after moving {len(switched)} stub(s)")
+            for seg_mods, new_vias, _from, _dest in switched:
+                state.all_segment_modifications.extend(seg_mods)
+                state.all_swap_vias.extend(new_vias)
+            committed = True
+            return retry
+        return None
+    finally:
+        if not committed:
+            for seg_mods, new_vias, _from, _dest in reversed(switched):
+                revert_stub_layer_switch(pcb_data, seg_mods, new_vias)
 
 
 def run_phase3_tap_routing(
