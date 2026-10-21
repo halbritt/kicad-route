@@ -178,10 +178,12 @@ def net_completion(reference, candidate):
             if not any(before <= other for other in after):
                 splits.append({"net": net, "original_terminals": group,
                                "candidate_components": [sorted(other) for other in after if before & other]})
-    lost = sorted(connected & {s["net"] for s in splits})
+    affected = sorted({s["net"] for s in splits})
+    lost = sorted(connected & set(affected))
     check.update(status=common.FAIL if splits else common.PASS,
                  detail=(f"{len(splits)} original terminal components split; {len(lost)} of "
-                         f"{len(connected)} originally complete nets lost connectivity" if splits else
+                         f"{len(connected)} originally complete nets lost connectivity; affected nets: "
+                         f"{', '.join(affected[:10])}{' …' if len(affected) > 10 else ''}" if splits else
                          f"every original terminal equivalence preserved; {len(connected)} originally complete nets"),
                  nets_connected_in_input=len(connected), nets_lost=lost,
                  split_components=splits, differences=splits)
