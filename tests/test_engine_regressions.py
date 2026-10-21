@@ -11,6 +11,7 @@ from kicad_route import cli as route, common, engine
 
 @pytest.mark.parametrize("script", [
     "test_krt64_tap_grid.py", "test_pour_launch_forbidden_layer_welds.py",
+    "test_obstacle_lifecycle.py",
 ])
 def test_known_fork_regression_passes_with_owned_engine(script):
     # The worker needs its numeric dependencies and extension; only the test's
