@@ -12,6 +12,54 @@
     "KICADROUTE-63": "0494a05"
   },
   "source_inventory": "reports/routing-engine/source-closure.json",
-  "additional_license_notices": ["py_router/stage3d/vendor/three/LICENSE"],
-  "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector."
+  "additional_license_notices": [
+    "py_router/stage3d/vendor/three/LICENSE"
+  ],
+  "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector.",
+  "selective_adoptions": {
+    "KICADROUTE-83": {
+      "commits": [
+        "fd59a050e258581d5938c4d9456bbfeb13240e67"
+      ],
+      "scope": "pass-rules"
+    },
+    "KICADROUTE-84": {
+      "commits": [
+        "8c3e833179615dbe5e3cd205e68b03e25a6f73e8",
+        "29be549c9747855315957ccc160d69746a3d66cb",
+        "20a8e1b83b00e410f2adf60861ee536d3e57dabc",
+        "0e0029f450fa609447bcb62d16a9381cbc9d9d5d",
+        "ca96bc28f39d3c5e5f014950e8ed9664a755a8f1"
+      ],
+      "scope": "layer-stub-safety"
+    },
+    "KICADROUTE-85": {
+      "commits": [
+        "a0489b30621460e35f9d390f929fab215f7cc7f3"
+      ],
+      "scope": "pair-keepouts"
+    },
+    "KICADROUTE-86": {
+      "commits": [
+        "9ac916bc16d6edcd554bf4dc8640f30379386447",
+        "ed17b29f7eaec4822ba12178a65eca5c3a452e40"
+      ],
+      "scope": "obstacle-lifecycle"
+    },
+    "KICADROUTE-87": {
+      "commits": [
+        "0b3b6a2d19666c3411252f314d3ca8d12f1766fa"
+      ],
+      "scope": "rescue-custody"
+    },
+    "KICADROUTE-88": {
+      "commits": [
+        "2ddfc187a1bd4aa0f33263de3d5194a4c6205809"
+      ],
+      "scope": "parser-lifecycle"
+    }
+  },
+  "adoption_review_head": "0b3b6a2d19666c3411252f314d3ca8d12f1766fa",
+  "adoption_note": "Selected headless fixes only; extraction baseline above is unchanged. Parser caches use parse-local context rather than upstream global memo. Owned quote-aware copper-preserving writer, unsupported-copper refusal and tap/weld repairs remain authoritative.",
+  "adoption_inventory": "reports/upstream-fixes-20261021/source-closure.json"
 }
