@@ -1,5 +1,6 @@
 """Every attempt protects correctness; measured medians enforce owner limits."""
 import importlib.util
+import copy
 import json
 import os
 from pathlib import Path
@@ -107,6 +108,67 @@ def test_algorithm_change_mode_keeps_independent_native_and_completion_gates():
     assert compare(lambda s: s['quality'].update(copper='new-algorithm'), mode='algorithm-change')['passed']
     verdict = compare(lambda s: s['quality'].update(copper='new-algorithm', unconnected=1), mode='algorithm-change')
     assert not verdict['passed']
+
+
+def test_algorithm_change_rejects_omitted_reference_pair_population():
+    reference, candidate = [sample() for _ in range(3)], [sample() for _ in range(3)]
+    for row in reference:
+        row['quality']['pairs'] = [{'p': '/CAN+', 'n': '/CAN-',
+                                    'routed': True, 'status': 'ROUTED'}]
+    verdict = module.compare(reference, candidate,
+                             {'reference': reference[0], 'candidate': candidate[0]},
+                             'algorithm-change')
+    assert not verdict['passed']
+    assert 'pair identities differ' in verdict['failures']
+
+
+def paired_comparison():
+    reference, candidate = [sample() for _ in range(3)], [sample() for _ in range(3)]
+    warmup = {'reference': sample(), 'candidate': sample()}
+    for row in [*reference, *candidate, *warmup.values()]:
+        row['quality']['pairs'] = [{'p': '/CAN+', 'n': '/CAN-', 'routed': True, 'status': 'ROUTED'},
+                                   {'p': '/USB+', 'n': '/USB-', 'routed': True, 'status': 'ROUTED'}]
+    return reference, candidate, warmup
+
+
+@pytest.mark.parametrize('where', ['candidate', 'candidate-warmup', 'reference', 'reference-warmup'])
+@pytest.mark.parametrize('change', ['missing', 'changed', 'swapped'])
+def test_every_measured_and_warmup_attempt_preserves_pair_population(where, change):
+    reference, candidate, warmup = paired_comparison()
+    rows = {'candidate': candidate[1], 'candidate-warmup': warmup['candidate'],
+            'reference': reference[1], 'reference-warmup': warmup['reference']}
+    pairs = rows[where]['quality']['pairs']
+    if change == 'missing':
+        pairs.pop()
+    elif change == 'changed':
+        pairs[1]['n'] = '/OTHER-'
+    else:
+        pairs[1]['p'], pairs[1]['n'] = pairs[1]['n'], pairs[1]['p']
+    verdict = module.compare(reference, candidate, warmup, 'algorithm-change')
+    assert not verdict['passed'] and 'pair identities differ' in verdict['failures']
+
+
+@pytest.mark.parametrize('bad_pairs', [
+    [{'routed': True, 'status': 'ROUTED'}],
+    [{'p': '', 'n': '/N', 'routed': True, 'status': 'ROUTED'}],
+    [{'p': '/P', 'n': True, 'routed': True, 'status': 'ROUTED'}],
+    [{'p': '/P', 'n': '/P', 'routed': True, 'status': 'ROUTED'}],
+    [{'p': '/P', 'n': '/N', 'routed': True, 'status': 'ROUTED'}] * 2,
+])
+def test_malformed_or_duplicate_pair_records_cannot_qualify(bad_pairs):
+    reference, candidate, warmup = paired_comparison()
+    candidate[0]['quality']['pairs'] = copy.deepcopy(bad_pairs)
+    verdict = module.compare(reference, candidate, warmup, 'algorithm-change')
+    assert not verdict['passed'] and 'invalid pair identities' in verdict['failures']
+
+
+def test_pair_record_order_and_new_algorithm_geometry_can_change_together():
+    reference, candidate, warmup = paired_comparison()
+    for row in [*candidate, warmup['candidate']]:
+        row['quality']['pairs'].reverse()
+        row['quality']['copper'] = 'new-algorithm-geometry'
+    assert module.compare(reference, candidate, warmup, 'algorithm-change')['passed']
+    assert not module.compare(reference, candidate, warmup, 'migration-equivalence')['passed']
 
 
 def test_minimum_repeats_and_warmup_are_required():

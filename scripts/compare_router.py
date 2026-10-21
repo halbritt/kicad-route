@@ -22,6 +22,23 @@ def _positive(number):
     return type(number) in (int, float) and math.isfinite(number) and number > 0
 
 
+def _pair_identities(pairs):
+    """Exact positive/negative net population, independent of record order."""
+    if not isinstance(pairs, list):
+        return None
+    identities = []
+    for pair in pairs:
+        if not isinstance(pair, dict):
+            return None
+        p, n = pair.get('p'), pair.get('n')
+        if not isinstance(p, str) or not p or not isinstance(n, str) or not n or p == n:
+            return None
+        identities.append((p, n))
+    if len(set(identities)) != len(identities):
+        return None
+    return frozenset(identities)
+
+
 def _quality_errors(quality):
     errors = []
     required = ("process", "routing", "validation", "unconnected", "open_nets", "preservation",
@@ -49,6 +66,8 @@ def _quality_errors(quality):
             not isinstance(p, dict) or p.get("routed") is not True or p.get("status") != "ROUTED"
             for p in quality["pairs"]):
         errors.append("pair routing failed")
+    if _pair_identities(quality["pairs"]) is None:
+        errors.append("invalid pair identities")
     if quality["wall_clock_stop"] is not False:
         errors.append("wall-clock-censored attempt")
     return errors
@@ -76,7 +95,10 @@ def compare(reference, candidate, warmup=None, mode="migration-equivalence"):
         minimum_open = min(q["unconnected"] for q in reference_quality)
         allowed_open_nets = set.intersection(*(set(q["open_nets"]) for q in reference_quality))
         requires_complete = any(q["routing"] == "COMPLETE" for q in reference_quality)
+        expected_pairs = _pair_identities(baseline["pairs"])
         for quality in qualities:
+            if _pair_identities(quality["pairs"]) != expected_pairs:
+                failures.append("pair identities differ")
             if quality["input_fingerprint"] != baseline["input_fingerprint"]:
                 failures.append("inputs differ")
             if (quality["unconnected"] > minimum_open or set(quality["open_nets"]) - allowed_open_nets or
