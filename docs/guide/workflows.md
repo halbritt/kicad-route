@@ -48,8 +48,8 @@ flowchart LR
 ```
 
 Whichever mode you choose, `protected_copper` checks that every designated item
-survived with the same geometry and lock flag, and `net_completion` checks that no
-net which was connected in the input is open in the candidate. With `--protect
+survived with the same geometry and lock flag, and `net_completion` checks that each
+originally joined set of terminal pads stays joined. With `--protect
 human`, provenance is derived from the chain of run directories, and anything that
 cannot be traced to a kicad-route step counts as human and is locked
 ([provenance.md](../provenance.md)).

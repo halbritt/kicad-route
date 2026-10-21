@@ -36,7 +36,7 @@ def test_fresh_version_or_tool_change_still_misses_existing_generation(fake_base
     before = (reference / "a.kicad_pcb").read_bytes()
     version = "new pcbnew" if change == "native version" else "pcbnew"
     if change == "native CLI":
-        tools["sha256"] = "new native CLI"
+        tools["sha256"] = "f" * 64
     monkeypatch.setattr(baselinecache.statemanifest, "pcbnew_build_version",
                         lambda: pytest.fail("supplied native version must be used"))
     def miss(*args, **kwargs):

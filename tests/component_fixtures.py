@@ -14,5 +14,5 @@ def component_receipt(nets, *, board_sha256="a" * 64, inventory=None):
             "nets": nets, "jumpers": jumpers, "jumpers_sha256": common.sha256_of(jumpers), "native_identity": native,
             "board_sha256_before": board_sha256, "board_sha256_after": board_sha256,
             "identity": {"board_sha256": board_sha256, "producer": native_components.producer_identity(),
-                         "rules": {"test.kicad_pro": "c" * 64}, "pcbnew": native,
-                         "kicad_cli": {"sha256": "d" * 64}}}
+                         "rules": {"test.kicad_pro": "c" * 64, "test.kicad_dru": None}, "pcbnew": native,
+                         "kicad_cli": {"path": "/usr/bin/kicad-cli", "version": "10.0.test", "sha256": "d" * 64}}}

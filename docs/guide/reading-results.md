@@ -128,7 +128,7 @@ what they protect:
 | New and old copper | `protected_copper` | a designated track or via is missing, moved, or lost its lock flag |
 | | `new_copper_netclass_geometry` | a new track is narrower than its class, or a new via smaller than its class |
 | | `routing_scope` | new copper appeared on a net outside the scope (or on no net) |
-| | `net_completion` | a net that was fully connected in the input is open in the candidate (the ratchet) |
+| | `net_completion` | an originally joined set of terminal pads is split, or complete native evidence is unavailable (the ratchet) |
 | | `existing_unlocked_copper` | never (informational): how much unlocked input copper changed under `--protect locked` or `human` |
 | Pours | `pour_integrity` | a zone-connected pad lost fill contact or the zone's reach, dropped below the minimum spoke count, or ended up on an island cut off from its net's main pour ([pour.md](../pour.md)) |
 

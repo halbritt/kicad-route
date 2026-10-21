@@ -49,9 +49,14 @@ def read(cache, expected):
         if (not isinstance(report, dict) or not all(isinstance(report.get(k), list) for k in
                 ("violations", "unconnected_items", "schematic_parity"))
                 or not isinstance(info, dict)
+                or not native_components.source_identity_valid(info.get("source"))
+                or not isinstance(info.get("refill"), dict)
+                or info["refill"].get("board_sha256_before") != info["source"]["board_sha256"]
                 or not native_components.coverage(terminals)
                 or terminals.get("identity", {}).get("pcbnew") != expected["native_terminals"]["tool"]
                 or terminals.get("identity", {}).get("producer") != expected["native_terminals"]["producer"]
+                or terminals["identity"]["kicad_cli"] != expected["kicad_cli"]
+                or terminals["identity"]["rules"] != info["source"]["rules"]
                 or terminals.get("identity", {}).get("board_sha256") != info.get("board_sha256_graded")
                 or not isinstance(info.get("reasons"), list)
                 or not isinstance(facts, dict) or facts.get("schema") != pour.SCHEMA
@@ -133,12 +138,18 @@ def terminal_facts(report, expected, reference_board=None):
             return None
         facts = json.loads((directory / native_components.FACTS_NAME).read_text())
         info = json.loads((directory / "baseline-info.json").read_text())
+        if (not isinstance(info, dict) or not native_components.source_identity_valid(info.get("source"))
+                or not isinstance(info.get("refill"), dict)
+                or info["refill"].get("board_sha256_before") != info["source"]["board_sha256"]):
+            return None
         if reference_board is not None and info.get("source") != {
                 "board_sha256": common.sha256(reference_board), "rules": native_components.rules_identity(reference_board)}:
             return None
         if (not native_components.coverage(facts)
                 or facts["identity"]["producer"] != expected["native_terminals"]["producer"]
                 or facts["identity"]["pcbnew"] != expected["native_terminals"]["tool"]
+                or facts["identity"]["kicad_cli"] != expected["kicad_cli"]
+                or facts["identity"]["rules"] != info["source"]["rules"]
                 or facts["identity"]["board_sha256"] != info.get("board_sha256_graded")):
             return None
         return facts

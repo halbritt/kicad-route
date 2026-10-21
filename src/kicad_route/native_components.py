@@ -10,6 +10,39 @@ FACTS_NAME = "baseline-terminals.json"
 KICAD_SCRIPT = Path(__file__).parent / "kicad" / "native_components.py"
 
 
+def _text(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _sha256(value):
+    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
+
+
+def _native_identity(value):
+    return (isinstance(value, dict) and _text(value.get("version"))
+            and all(isinstance(value.get(key), dict) and _text(value[key].get("path"))
+                    and _sha256(value[key].get("sha256")) for key in ("module", "binding", "python")))
+
+
+def _cli_identity(value):
+    return (isinstance(value, dict) and _text(value.get("path")) and _text(value.get("version"))
+            and _sha256(value.get("sha256")))
+
+
+def _rules_identity(value):
+    if not isinstance(value, dict) or len(value) != 2 or any(not _text(name) for name in value):
+        return False
+    paths = [Path(name) for name in value]
+    return ({p.suffix for p in paths} == {".kicad_pro", ".kicad_dru"}
+            and len({p.stem for p in paths}) == 1 and all(p.name == str(p) for p in paths)
+            and all(checksum is None or _sha256(checksum) for checksum in value.values()))
+
+
+def source_identity_valid(value):
+    return (isinstance(value, dict) and _sha256(value.get("board_sha256"))
+            and _rules_identity(value.get("rules")))
+
+
 def native_identity():
     try:
         proc = subprocess.run([common.PCBNEW_PYTHON, KICAD_SCRIPT, "--identity"],
@@ -17,7 +50,8 @@ def native_identity():
     except (OSError, subprocess.TimeoutExpired):
         return None
     try:
-        return json.loads(proc.stdout) if proc.returncode == 0 else None
+        value = json.loads(proc.stdout) if proc.returncode == 0 else None
+        return value if _native_identity(value) else None
     except ValueError:
         return None
 
@@ -36,16 +70,32 @@ def rules_identity(board):
 
 def coverage(facts):
     """Validate the complete native partition against the independently parsed inventory."""
-    if not isinstance(facts, dict) or facts.get("schema") != SCHEMA or facts.get("status") != common.PASS:
+    if (not isinstance(facts, dict) or type(facts.get("schema")) is not int
+            or facts["schema"] != SCHEMA or facts.get("status") != common.PASS):
+        return False
+    if (not _native_identity(facts.get("native_identity")) or not _sha256(facts.get("board_sha256_before"))
+            or facts["board_sha256_before"] != facts.get("board_sha256_after")
+            or not isinstance(facts.get("reasons"), list) or any(not isinstance(r, str) for r in facts["reasons"])):
         return False
     inventory, nets = facts.get("inventory"), facts.get("nets")
-    if "identity" in facts and not isinstance(facts["identity"], dict):
-        return False
+    if "identity" in facts:
+        identity = facts["identity"]
+        if (not isinstance(identity, dict) or not _sha256(identity.get("board_sha256"))
+                or identity["board_sha256"] != facts["board_sha256_before"]
+                or identity.get("pcbnew") != facts["native_identity"]
+                or not _cli_identity(identity.get("kicad_cli")) or not _rules_identity(identity.get("rules"))
+                or not isinstance(identity.get("producer"), dict)
+                or set(identity["producer"]) != set(producer_identity())
+                or any(not _sha256(value) for value in identity["producer"].values())):
+            return False
     if not isinstance(inventory, dict) or not isinstance(nets, dict) or not isinstance(facts.get("jumpers"), dict):
         return False
     jumpers = facts["jumpers"]
-    if any(not isinstance(pad, dict) or pad.get("footprint") not in jumpers for pad in inventory.values()):
-        return False
+    for uid, pad in inventory.items():
+        if (not _text(uid) or not isinstance(pad, dict)
+                or any(not isinstance(pad.get(key), str) for key in ("net", "number", "footprint"))
+                or not _text(pad["footprint"]) or pad["footprint"] not in jumpers):
+            return False
     for setting in jumpers.values():
         if not isinstance(setting, dict) or type(setting.get("duplicate_numbers")) is not bool:
             return False
@@ -91,7 +141,8 @@ def extract(board, out, expected_sha256=None):
     facts = common.load_json(out) if rec["exit_code"] == 0 else None
     if not isinstance(facts, dict):
         facts = None
-    reasons = list((facts or {}).get("reasons", []))
+    source_reasons = (facts or {}).get("reasons", [])
+    reasons = list(source_reasons) if isinstance(source_reasons, list) and all(isinstance(r, str) for r in source_reasons) else ["malformed native terminal reasons"]
     if not coverage(facts):
         reasons.append("missing or incomplete native terminal coverage")
     if (common.sha256(board) != identity["board_sha256"]

@@ -172,3 +172,51 @@ def test_incomplete_or_stale_terminal_coverage_is_unknown(damage):
     else:
         after = ["corrupt"]
     assert cli.provenance.net_completion(before, after)["status"] == common.NOT_RUN
+
+
+@pytest.mark.parametrize("damage", ["native_version_only", "missing_module_hash", "native_string", "cli_path_only",
+                                   "cli_string", "rules_list", "short_board_hash", "numeric_board_hash",
+                                   "footprint_list", "number_list"])
+def test_matching_malformed_identities_cannot_establish_connectivity(damage):
+    from component_fixtures import component_receipt
+    before = component_receipt({"N": [["a", "b"]]})
+    after = component_receipt({"N": [["a", "b"]]})
+    for receipt in (before, after):
+        if damage == "native_version_only":
+            receipt["native_identity"] = receipt["identity"]["pcbnew"] = {"version": "10.0.7"}
+        elif damage == "missing_module_hash":
+            del receipt["native_identity"]["module"]["sha256"]
+        elif damage == "native_string":
+            receipt["native_identity"] = receipt["identity"]["pcbnew"] = "not-a-native-identity"
+        elif damage == "cli_path_only":
+            receipt["identity"]["kicad_cli"] = {"path": "/usr/bin/kicad-cli"}
+        elif damage == "cli_string":
+            receipt["identity"]["kicad_cli"] = "not-a-cli-identity"
+        elif damage == "rules_list":
+            receipt["identity"]["rules"] = ["not-rules"]
+        elif damage in ("short_board_hash", "numeric_board_hash"):
+            value = "x" if damage == "short_board_hash" else 7
+            receipt["identity"]["board_sha256"] = value
+            receipt["board_sha256_before"] = receipt["board_sha256_after"] = value
+        else:
+            receipt["inventory"]["a"]["footprint" if damage == "footprint_list" else "number"] = []
+            receipt["inventory_sha256"] = common.sha256_of(receipt["inventory"])
+    assert cli.provenance.net_completion(before, after)["status"] == common.NOT_RUN
+
+
+@pytest.mark.parametrize("source_reasons", [None, 7])
+def test_malformed_native_child_reasons_return_unknown(tmp_path, monkeypatch, source_reasons):
+    from component_fixtures import component_receipt
+    board, output = tmp_path / BOARD, tmp_path / "components.json"
+    board.write_text("unchanged input")
+    def malformed_child(argv, cwd, log_path, timeout):
+        facts = component_receipt({"N": [["a", "b"]]}, board_sha256=common.sha256(board))
+        facts.pop("identity")
+        facts["reasons"] = source_reasons
+        common.write_json(Path(argv[-1]), facts)
+        return {"exit_code": 0}
+    monkeypatch.setattr(common, "run_cmd", malformed_child)
+    facts, _ = native_components.extract(board, output)
+    assert facts["status"] == common.NOT_RUN
+    assert "malformed native terminal reasons" in facts["reasons"]
+    assert board.read_text() == "unchanged input"

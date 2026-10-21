@@ -46,8 +46,8 @@ file KiCad graded (`candidate_board_sha256 == validated_board_sha256` on exit 0)
 (`--dir <run>/candidate/<project>`). Graded end to end with
 `validate LAST --against FIRST`.
 
-**completion ratchet (`net_completion`)** — the check that every net fully
-connected in the input is still connected in the candidate.
+**completion ratchet (`net_completion`)** — the check that every originally joined
+set of terminal pads stays joined, including subsets of incomplete nets.
 
 **copper signature** — sha256 over the candidate's tracks, arcs and vias, sorted,
 without UUIDs. The way to compare candidates; file hashes differ on every save.

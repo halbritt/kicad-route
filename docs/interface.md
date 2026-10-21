@@ -158,10 +158,10 @@ or report the final digest unknown if that validation field is absent. Existing
 receipt bytes are not rewritten.
 
 `input.baseline.identity` identifies the input snapshot, selected board, native
-KiCad tools, pour schema, result schemas and grading source content.
-`input.baseline.generation` identifies the immutable cached DRC/info/pour generation
+KiCad tools, pour and terminal schemas, result schemas and grading source content.
+`input.baseline.generation` identifies the immutable cached DRC/info/pour/terminal generation
 used by this run, or is null when no complete generation could be published.
-Cached generations include `generation.json` with hashes of all three records.
+Cached generations include `generation.json` with hashes of all four records.
 Only a complete, hash-verified generation selected by an atomic pointer is reused;
 legacy, missing and malformed entries cause recomputation in writable OUT.
 

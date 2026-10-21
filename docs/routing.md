@@ -261,7 +261,7 @@ From `kicad/facts.py` (KiCad's own loader; serialisation differences do not coun
 | `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation; a track or arc may come back with start and end swapped), and every locked one still locked (a dropped lock flag FAILs); designated = locked items, plus all input copper with `--protect existing`, or the chain's human copper with `--protect human` ([`provenance.md`](provenance.md)) |
 | `new_copper_netclass_geometry` | every new track at least its net class width, every new via at least its class diameter and drill (microvias against the class microvia diameter and drill; through, blind and buried vias against the via sizes) |
 | `routing_scope` | new copper only on in-scope nets; new copper with no net (`<no net>`) is always outside the scope |
-| `net_completion` | every net fully connected in the input is still connected in the candidate (the completion ratchet; all protect modes) |
+| `net_completion` | every originally joined set of terminal pads stays joined, including subsets of incomplete nets (the completion ratchet; all protect modes) |
 | `existing_unlocked_copper` | with `--protect locked`/`human`: how much unlocked input copper was removed or changed (informational, always PASS) |
 | `pour_integrity` | the refilled candidate's pours against the refilled input's: no zone-connected pad loses fill contact or the zone's reach, drops below `min_resolved_spokes` or lands on an island cut off from its net's main pour; area loss reported (fails only with `--pour-area-loss PCT`). See [`pour.md`](pour.md) |
 

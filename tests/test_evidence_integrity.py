@@ -90,7 +90,7 @@ def fake_baseline(tmp_path, monkeypatch):
     reference.mkdir()
     (reference / "a.kicad_pcb").write_text("untouched a")
     (reference / "b.kicad_pcb").write_text("untouched b")
-    tools = {"version": "1", "sha256": "tool"}
+    tools = {"version": "1", "path": "/usr/bin/kicad-cli", "sha256": "a" * 64}
     monkeypatch.setattr(baselinecache.statemanifest, "kicad_cli_identity", lambda: dict(tools))
     monkeypatch.setattr(baselinecache.statemanifest, "pcbnew_build_version", lambda: "pcbnew")
     native = {"version": "pcbnew", **{key: {"path": key, "sha256": "a" * 64}
@@ -102,6 +102,7 @@ def fake_baseline(tmp_path, monkeypatch):
         facts = component_receipt({}, board_sha256=common.sha256(board))
         facts["native_identity"] = facts["identity"]["pcbnew"] = native
         facts["identity"]["rules"] = native_components.rules_identity(board)
+        facts["identity"]["kicad_cli"] = dict(tools)
         common.write_json(path, facts)
         return facts, {}
     monkeypatch.setattr(native_components, "extract", terminals)
@@ -131,7 +132,7 @@ def test_baseline_identity_invalidates_board_tools_and_schema(fake_baseline, mon
     _, second = get()
     assert second["cached"] and len(calls) == 1 and second["generation"] == first["generation"]
     assert not get("b.kicad_pcb")[1]["cached"]
-    tools["sha256"] = "new tool"
+    tools["sha256"] = "e" * 64
     assert not get()[1]["cached"]
     monkeypatch.setattr(baselinecache, "SCHEMA", baselinecache.SCHEMA + 1)
     assert not get()[1]["cached"]
@@ -292,3 +293,31 @@ def test_native_terminal_producer_and_binary_changes_invalidate_generation(fake_
     altered = {**original, "kicad/native_components.py": "a" * 64}
     monkeypatch.setattr(native_components, "producer_identity", lambda: altered)
     assert not get()[1]["cached"] and len(calls) == 3
+
+
+@pytest.mark.parametrize("name", ["baseline-info.json", native_components.FACTS_NAME])
+@pytest.mark.parametrize("payload", [None, []])
+def test_nonobject_sealed_baseline_artifacts_are_cache_misses(fake_baseline, name, payload):
+    get, _, _, _, _ = fake_baseline
+    _, first = get()
+    directory = Path(first["report"]).parent
+    common.write_json(directory / name, payload)
+    receipt = common.load_json(directory / "generation.json")
+    receipt["files"][name] = common.sha256(directory / name)
+    common.write_json(directory / "generation.json", receipt)
+    assert baselinecache.read(directory.parent, first["identity"]) is None
+    assert baselinecache.terminal_facts(first["report"], first["identity"]) is None
+
+
+def test_sealed_baseline_without_source_binding_is_unknown(fake_baseline):
+    get, _, _, _, _ = fake_baseline
+    _, first = get()
+    directory = Path(first["report"]).parent
+    info = common.load_json(directory / "baseline-info.json")
+    info["source"] = None
+    common.write_json(directory / "baseline-info.json", info)
+    receipt = common.load_json(directory / "generation.json")
+    receipt["files"]["baseline-info.json"] = common.sha256(directory / "baseline-info.json")
+    common.write_json(directory / "generation.json", receipt)
+    assert baselinecache.read(directory.parent, first["identity"]) is None
+    assert baselinecache.terminal_facts(first["report"], first["identity"]) is None
