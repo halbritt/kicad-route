@@ -3440,7 +3440,7 @@ def create_plane(
         net_clearances = {nid: min(c, clearance_ceiling)
                           for nid, c in net_clearances.items()}
     if net_clearances:
-        config.net_clearances = dict(net_clearances)
+        config.set_net_clearances(net_clearances, net_ids)
     # Publish the SAME map to the fill model (#483 item 5): KiCad refills a
     # zone at max(zone clearance, pairwise netclass), so on honor-classes
     # chains a looser foreign class carves copper the model would otherwise
