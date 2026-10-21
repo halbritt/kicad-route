@@ -110,6 +110,21 @@ import rust_alloc  # noqa: E402,F401  # issue #419: set MIMALLOC_PURGE_DELAY bef
 from grid_router import GridObstacleMap, GridRouter
 
 
+def _prune_superseded_results(results, routed_results):
+    """Keep authoritative write entries and rescue riders owned by those entries.
+
+    A restored pre-existing registration owns copper but is not itself emitted;
+    its rider emits only the rescue addition. Superseding or ripping that owner
+    also invalidates its riders (KICADROUTE-87 / upstream #87).
+    """
+    authoritative = {id(r) for r in routed_results.values()}
+    kept = [r for r in results if id(r) in authoritative or
+            (r.get('extends') is not None and id(r['extends']) in authoritative)]
+    removed = len(results) - len(kept)
+    results[:] = kept
+    return removed
+
+
 def _compute_stale_input_copper(orig_by_net, scope_ids, final_copper,
                                 emitted_copper, full_sig, pos_sig,
                                 final_ids=None):
@@ -3660,6 +3675,8 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                            'terminal_restores/reconciliation)')
             elif _r_pe.get('is_existing_route'):
                 _out_pe = 'original copper restored'
+                if any(r.get('extends') is _r_pe for r in results):
+                    _out_pe += ', joined by rescue/escalation copper'
             elif not _pe_connected(_rid):
                 # Live connectivity, deliberately NOT failed_pads_info: the
                 # end-of-run sweep has not attached that yet, and a phase-3
@@ -3704,11 +3721,13 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # same-net vias (#87). Dropping by identity is safe now that the Phase-3 commit
     # reconciles each net's result against its actual copper, so the authoritative
     # result is the complete one (a dropped tap is flagged and re-routed, not lost).
-    _authoritative = {id(r) for r in routed_results.values()}
-    _stale = [r for r in results if id(r) not in _authoritative]
-    if _stale:
-        results[:] = [r for r in results if id(r) in _authoritative]
-        print(f"Dropped {len(_stale)} superseded rip-reroute result(s) from the write-list")
+    # An entry that `extends` the net's result carries copper folded into a
+    # restored pre-existing net's custody registration, which is not on the
+    # write-list itself (net_rescue._fold_into_result); it lives while that
+    # registration is still the net's result.
+    _stale_count = _prune_superseded_results(results, routed_results)
+    if _stale_count:
+        print(f"Dropped {_stale_count} superseded rip-reroute result(s) from the write-list")
 
     # --force-reroute custody: a force-ripped net whose replan landed NO new
     # copper gets its ORIGINAL copper back. Restore re-adds the SAVED objects
