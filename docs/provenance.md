@@ -114,7 +114,7 @@ preservation, not a claim inferred from its DRC list.
 (originally complete nets that became incomplete), and `split_components` with full
 pad UUID evidence. Splitting an original component fails even when its net was
 already incomplete. Missing, stale or unsupported coverage is `NOT_RUN` and fails
-validation, making the candidate ineligible. The grade retains both component
+validation, making the candidate ineligible. The grade retains available component
 receipts; their hashes appear in its evidence block.
 
 `validation.native_terminal_evidence.metrics` separately reports native terminal-net

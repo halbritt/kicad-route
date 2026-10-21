@@ -25,7 +25,7 @@ limit. Native pad-UUID component checks on the exact saved/refilled input show
 that all ten reported lost nets were already incomplete. None of the 53 truly
 complete origin nets becomes incomplete in either historical result. The old
 completion ratchet inferred 155 complete nets from absence in the capped report;
-that inference needs a separate correction before origin-valid promotion.
+that inference is corrected by KICADROUTE-98, with evidence below.
 
 This does not qualify the historical routes for adoption. They use all four
 trace layers, retain a new dangling-via finding and lack a captured schematic
@@ -38,3 +38,12 @@ raw count reconciliation, exact refill identities, native component UUIDs and
 reproduction scripts. PCB/project files remain in the local ignored audit
 directory. KICADROUTE-92–97 retain their ticket dependencies and conditional
 release gates; no downstream gate is released by this report.
+
+KICADROUTE-98 is integrated at 8d866f65. Completion now uses complete native
+terminal partitions and preserves connected subsets of incomplete nets. Missing
+or malformed coverage fails validation. The final composed gate passed all 157
+cases; landing checks passed 54 cases and the installed offline/no-canary doctor
+passed. The independent extractor reconciles the historical 53 complete origin
+nets and preserves all five partial connected groups. [The release record](krt98/README.md)
+retains exact hashes, corrected causal proof and the failed attempts. This
+prerequisite releases no KICADROUTE-91 policy or downstream gate.

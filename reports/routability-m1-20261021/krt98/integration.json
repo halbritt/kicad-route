@@ -1,0 +1,54 @@
+{
+  "schema": "kicad-route/krt98-integration/1",
+  "implementation": [
+    "1ae34cb894d3d9485fe13054388e8f8395d6649f",
+    "37497a09dc59a31d9bac8d9272cad741675e8dee",
+    "8d866f65ac9ee2e50c2a83b6303663c3d5c99dff"
+  ],
+  "landed_head": "8d866f65ac9ee2e50c2a83b6303663c3d5c99dff",
+  "main_pushed": true,
+  "worktree_removed": true,
+  "composed": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "157",
+    "time": "383.970",
+    "timestamp": "2026-10-21T12:30:11.438306-07:00",
+    "hostname": "proximal"
+  },
+  "landing": {
+    "passed": 54,
+    "deselected": 1
+  },
+  "focused": {
+    "candidate": "37497a09",
+    "passed": 136,
+    "deselected": 14
+  },
+  "wheel": {
+    "candidate": "37497a09",
+    "passed": 2,
+    "native_extractor_unchanged_at_final": true
+  },
+  "native_fixture_selection": {
+    "candidate": "37497a09",
+    "passed": 7
+  },
+  "doctor": {
+    "status": "PASS",
+    "offline": true,
+    "canary": false,
+    "required_failed": [],
+    "state_manifest": {
+      "path": "/home/halbritt/git/kicad-route/manifest.json",
+      "sha256": "c67400a1ae5d4569c5402e432c3d2e298d4ca61d69f2353d217cf49ff8d15377"
+    }
+  },
+  "source_bytes_equal_before_after_and_installed": true,
+  "independent_review": "independent-review/review-8d866f65.json",
+  "independent_historical_verification": "independent-verification/summary.json",
+  "known_failed_attempts": "nonaccepting-attempts.txt",
+  "scope": "KICADROUTE98 correctness prerequisite only.91 unreleased. No policy target route, physical adoption, optimization or general uncapped-native-findings claim."
+}

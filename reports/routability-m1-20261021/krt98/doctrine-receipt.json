@@ -1,0 +1,163 @@
+{
+  "packet_id": "pkt-21b55d3b075e86d6",
+  "packet_sha256": "21b55d3b075e86d62c58c9bf4671c62e3803cbcc418deeeff056274b04788272",
+  "release_commit": "d3e0c0d4ccd1920b2e045c156f1cf0db4fc5f04f",
+  "corpus": "corpus-2026-07-12-a11702cc9217",
+  "doctrine": "doctrine-f6bbb5196a3f8bf9",
+  "retriever": "retriever-ec995ecdd083b2c8",
+  "used_concepts": [
+    "universal-repository-contract-precedence",
+    "universal-evidence-before-intervention",
+    "universal-separate-semantic-structural-change",
+    "agent-conduct-authority-bounded-action",
+    "operations-gate-authoritative-signal",
+    "data-dedup-key-identity-completeness"
+  ],
+  "unmet_obligations": [
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-4865f8254cf67aba",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "a dry-run enumeration with counts compared against expectation",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-905937990cfd5f38",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the discovery pattern shown to match the specification's depth and class constraints",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-c87fc05d43132cb2",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the input population specification",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-7a41bb7011b779eb",
+      "required_by": "data-ingest-population-scoping",
+      "requirement": "the specified input population stated precisely",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-bee4873549539a2e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a load-time or gate check resolving every reference against them",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-aebc722e27fd332e",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "a named-identifier failure on mismatch",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-60e11fd14335b2fa",
+      "required_by": "implementation-config-reference-validation",
+      "requirement": "the consumer's defined identifier and enum sets",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-93c171b4a8964e37",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the match-text composition enumerated field by field",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-5cac0cd10a85dbb8",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the scan shown to score the full bounded set before truncation",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-895e1060f7bb5f86",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-78d89cb5f8e6192c",
+      "required_by": "implementation-rank-before-truncate",
+      "requirement": "the selection contract stated - relevance-ordered top-N versus first-N",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-dc786532677f8ca1",
+      "required_by": "operations-external-capability-verification",
+      "requirement": "or an explicit record that verification is provisional",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "The alternative real-native capability and end-to-end evidence is present; the bounded verified integration is not provisional. Other native finding-list completeness and policy acceptance remain unclaimed."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-80432417005eb207",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "current page inventory classified symptom-versus-cause",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-8c2d798754f29f02",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "golden-signal coverage with the error definition stated",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-63abf1a71b4719e2",
+      "required_by": "operations-symptom-cause-monitoring",
+      "requirement": "the service's user-visible failure modes",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "This routed concept is not applied: the change does not perform bulk discovery, declarative identifier migration, top-N retrieval or production monitoring."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-49731a7fb6fe90d5",
+      "required_by": "task:defect-repair",
+      "requirement": "evidence-incidents",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "rationale": "A reproduced native defect and exact old/new causal regression establish the repair; no production incident claim is made."
+    }
+  ],
+  "conclusion_scope": "Authorized KICADROUTE98 native terminal-preservation repair only.91 unreleased; no target-policy, physical adoption, optimization or general uncapped-native-finding acceptance."
+}
