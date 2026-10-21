@@ -7,7 +7,8 @@ from __future__ import annotations
 #: the board. Read by krt_registry.py -- by AST, never imported.
 KRT_TOOL = {'scope': [], 'kind': 'instrument'}
 
-import functools
+from contextvars import ContextVar
+from array import array
 import os
 import re
 import math
@@ -2503,8 +2504,45 @@ _GR_CIRCLE_PATTERN = (r'\(gr_circle\s+\(center\s+([\d.-]+)\s+([\d.-]+)\)\s+'
                       + r'\(layer\s+"Edge\.Cuts"\)')
 
 
-@functools.lru_cache(maxsize=2)
+# Whole-board texts belong to one parse, including nested/concurrent calls.
+_PARSE_MEMO = ContextVar("kicad_parse_memo", default=None)
+
+
+def _memo_for(content: str) -> Optional[dict]:
+    memo = _PARSE_MEMO.get()
+    if memo is not None and memo['live'].get(id(content)) is content:
+        return memo
+    return None
+
+
+def _block_end(content: str, start: int) -> int:
+    """`find_matching_paren(content, start)`, answered once per parse for the
+    parse's own texts: every footprint-block scan opens the same blocks."""
+    memo = _memo_for(content)
+    if memo is None:
+        return find_matching_paren(content, start)
+    key = (id(content), start)
+    end = memo['ends'].get(key)
+    if end is None:
+        end = memo['ends'][key] = find_matching_paren(content, start)
+    return end
+
+
+def _text_cached(content, name, compute):
+    memo = _PARSE_MEMO.get()
+    if memo is None or not isinstance(content, str):
+        return compute(content)
+    cache = memo.setdefault(name, {})
+    if content not in cache:
+        cache[content] = compute(content)
+    return cache[content]
+
+
 def _mask_pad_primitives(content: str) -> str:
+    return _text_cached(content, 'masks', _mask_pad_primitives_uncached)
+
+
+def _mask_pad_primitives_uncached(content: str) -> str:
     """Blank out pad ``(primitives ...)`` blocks before board-level graphic scans.
 
     Memoised (#962): a pure function of the text, and one parse now calls it
@@ -2541,12 +2579,16 @@ def _mask_pad_primitives(content: str) -> str:
     if not out:
         return content
     out.append(content[pos:])
-    return ''.join(out)
+    masked = ''.join(out)
+    memo = _memo_for(content)
+    if memo is not None:
+        memo['live'][id(masked)] = masked
+        memo['masked_from'][id(masked)] = content
+    return masked
 
 
-@functools.lru_cache(maxsize=2)
 def _footprint_blocks_by_key_cached(content: str):
-    return _footprint_blocks_by_key_uncached(content)
+    return _text_cached(content, 'blocks', _footprint_blocks_by_key_uncached)
 
 
 def _footprint_blocks_by_key(content: str):
@@ -2562,14 +2604,15 @@ def _footprint_blocks_by_key(content: str):
     three older callers stop paying for their own repeats.
 
     The returned list is treated as READ-ONLY by every caller; do not mutate
-    it. `maxsize=2` for the same reason `_footprint_edge_points_by_ref` uses
-    it: the only repeat caller is one parse, and caching board texts is not
-    worth the memory.
+    it. Only the current parse retains this answer; standalone calls recompute.
     """
     try:
         hash(content)
     except TypeError:              # not a str: cannot be memoised
         return _footprint_blocks_by_key_uncached(content)
+    memo = _memo_for(content)
+    if memo is not None:
+        content = memo['masked_from'].get(id(content), content)
     # Deliberately NOT a try/except around the cached call: that would also
     # catch a TypeError raised INSIDE the scan, re-run the whole whole-file
     # walk, and hide the real bug behind a slow success.
@@ -2589,7 +2632,7 @@ def _footprint_blocks_by_key_uncached(content: str):
     """
     spans, raws = [], []
     for m in re.finditer(r'\(footprint\s+"', content):
-        end = find_matching_paren(content, m.start())
+        end = _block_end(content, m.start())
         spans.append((m.start(), end))
         raws.append(footprint_raw_reference(content[m.start():end]))
     return [(a, b, k) for (a, b), k in
@@ -2623,6 +2666,12 @@ def iter_footprint_shapes(fp_text: str, tags=_FP_SHAPE_TAGS):
     a synthetic 45-degree part) -- a false obstacle AND missing copper at
     once. Do not widen this to "any shape inside a footprint block".
     """
+    for tag, start, end in _footprint_shape_spans(fp_text, tags):
+        yield tag, fp_text[start:end]
+
+
+def _footprint_shape_spans(fp_text: str, tags=_FP_SHAPE_TAGS):
+    """`iter_footprint_shapes`' shapes as `(tag, start, end)` in `fp_text`."""
     for tag in tags:
         needle = '(' + tag
         pos = 0
@@ -2635,8 +2684,26 @@ def iter_footprint_shapes(fp_text: str, tags=_FP_SHAPE_TAGS):
                 pos = i + len(needle)      # token boundary: '(fp_linex'
                 continue
             j = find_matching_paren(fp_text, i)
-            yield tag, fp_text[i:j]
+            yield tag, i, j
             pos = j
+
+
+def _footprint_shapes(content, start, fp_text, tags=_FP_SHAPE_TAGS):
+    """Share offsets per footprint and tag; never retain sliced shape strings."""
+    memo = _memo_for(content)
+    if memo is None:
+        yield from iter_footprint_shapes(fp_text, tags)
+        return
+    for tag in tags:
+        key = (id(content), start, tag)
+        spans = memo['shapes'].get(key)
+        if spans is None:
+            spans = array('l')
+            for _tag, i, j in _footprint_shape_spans(fp_text, (tag,)):
+                spans.extend((i, j))
+            memo['shapes'][key] = spans
+        for k in range(0, len(spans), 2):
+            yield tag, fp_text[spans[k]:spans[k + 1]]
 
 
 def footprint_pose(fp_text: str):
@@ -2736,9 +2803,8 @@ def _footprint_edge_points(content: str) -> List[Tuple[float, float]]:
             for p in pts]
 
 
-@functools.lru_cache(maxsize=2)
 def _footprint_edge_points_by_ref_cached(content: str):
-    return _footprint_edge_points_by_ref_uncached(content)
+    return _text_cached(content, 'edges', _footprint_edge_points_by_ref_uncached)
 
 
 def _footprint_edge_points_by_ref(
@@ -2754,8 +2820,7 @@ def _footprint_edge_points_by_ref(
     second call is free and a parse costs what it did before.
 
     The returned dict is treated as read-only by both callers; do not mutate it.
-    `maxsize=2` because the only repeat caller is one parse, and a big cache of
-    board texts is not worth the memory.
+    Only the current parse retains this answer; standalone calls recompute.
     """
     try:
         return _footprint_edge_points_by_ref_cached(content)
@@ -4194,7 +4259,7 @@ def iter_footprint_blocks(content: str):
         start = m.start()
         if start < reach:
             continue
-        end = find_matching_paren(content, start)
+        end = _block_end(content, start)
         reach = end
         text = content[start:end]
         spans.append((start, end, text))
@@ -5560,7 +5625,7 @@ def extract_unmodelled_footprint_copper(content: str) -> List[dict]:
             continue
         copper_tags = []
         if not functional or 'fp_curve' in fp_text:
-            for tag, blk in iter_footprint_shapes(fp_text, _FP_SHAPE_TAGS + ('fp_curve',)):
+            for tag, blk in _footprint_shapes(masked, _fstart, fp_text, _FP_SHAPE_TAGS + ('fp_curve',)):
                 if any(ln.endswith('.Cu') or ln == 'F&B.Cu'
                        for ln in _shape_layer_names(blk)):
                     copper_tags.append(tag)
@@ -5603,7 +5668,7 @@ def extract_paste_graphics(content: str) -> List[dict]:
 
         def tf(x, y, _ox=fx, _oy=fy, _or=frot):
             return local_to_global(_ox, _oy, _or, x, y)
-        for tag, blk in iter_footprint_shapes(fp_text):
+        for tag, blk in _footprint_shapes(masked, _fstart, fp_text):
             if 'Paste' in blk:      # most shapes are silk/fab: skip the regexes
                 out.extend(_paste_shape_record(tag, blk, _fkey, tf))
     # Board-level gr_* on a paste layer (rare; owner '').
@@ -6172,7 +6237,7 @@ def extract_segments(content: str, name_to_id: Dict[str, int] = None) -> List[Se
                 return local_to_global(_ox, _oy, _or, _x, _y)
 
             _mark_from = len(segments)
-            for tag, blk in iter_footprint_shapes(fp_text):
+            for tag, blk in _footprint_shapes(_gcontent, _fstart, fp_text):
                 layers, w, nid, uuid = _blk_fields(blk)
                 if not layers:
                     continue
@@ -7039,6 +7104,14 @@ def parse_kicad_pcb(filepath: str, guide_layer: str = "User.1",
     Returns:
         PCBData object containing all parsed data
     """
+    token = _PARSE_MEMO.set({'live': {}, 'masked_from': {}, 'ends': {}, 'shapes': {}})
+    try:
+        return _parse_kicad_pcb(filepath, guide_layer, keepout_layer)
+    finally:
+        _PARSE_MEMO.reset(token)
+
+
+def _parse_kicad_pcb(filepath, guide_layer, keepout_layer):
     content = read_board_text(filepath)
     from sexpr import unsupported_copper
     limitation = unsupported_copper(content)
@@ -7056,6 +7129,9 @@ def parse_kicad_pcb(filepath: str, guide_layer: str = "User.1",
     # A file from before 6.0's arc format: rewrite its center/angle arcs as
     # start/mid/end on this ANALYSIS copy, the form every reader below matches.
     content = strip_bare_shape_locks(upgrade_legacy_arcs(content, kicad_version))
+    memo = _PARSE_MEMO.get()
+    if memo is not None:
+        memo['live'][id(content)] = content
 
     # Extract components in order
     board_info = extract_layers(content)
