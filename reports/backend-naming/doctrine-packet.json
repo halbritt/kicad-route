@@ -1,0 +1,1991 @@
+{
+  "activated_concepts": [
+    "python-repository-shaped-idiom",
+    "universal-repository-contract-precedence",
+    "implementation-repository-language-conformance",
+    "universal-evidence-before-intervention",
+    "universal-local-reasoning",
+    "universal-separate-semantic-structural-change",
+    "universal-no-change-option",
+    "universal-information-hiding",
+    "universal-explicit-invariants",
+    "universal-preserve-behavior-by-default",
+    "agent-conduct-authority-bounded-action",
+    "legacy-effect-surface",
+    "refactoring-compatibility-migration"
+  ],
+  "activated_lenses": [
+    "lens-python"
+  ],
+  "activated_procedures": [
+    "proc-assess-authority-to-act",
+    "proc-determine-tests-characterization",
+    "proc-establish-preservation-boundaries",
+    "proc-stop-and-escalate",
+    "proc-work-poorly-characterized-code"
+  ],
+  "activated_prohibitions": [
+    "prohibit-authority-inference-from-access",
+    "prohibit-coverage-as-adequacy-proof",
+    "prohibit-generic-doctrine-over-local-contract",
+    "prohibit-global-legacy-understanding-gate",
+    "prohibit-indirection-by-slogan",
+    "prohibit-silent-characterization-repair",
+    "prohibit-unclassified-temporary-seam",
+    "prohibit-unknown-consequential-implementation",
+    "prohibit-unsafe-broad-refactor"
+  ],
+  "activation_reasons": [
+    {
+      "id": "python-repository-shaped-idiom",
+      "reasons": [
+        "language bundle 'Python'",
+        "question term 'compatibility'",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "universal-repository-contract-precedence",
+      "reasons": [
+        "always-load core concept",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "implementation-repository-language-conformance",
+      "reasons": [
+        "question term 'compatibility'",
+        "risk route 'correctness'"
+      ]
+    },
+    {
+      "id": "universal-evidence-before-intervention",
+      "reasons": [
+        "always-load core concept",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-local-reasoning",
+      "reasons": [
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-separate-semantic-structural-change",
+      "reasons": [
+        "always-load core concept",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-no-change-option",
+      "reasons": [
+        "always-load core concept"
+      ]
+    },
+    {
+      "id": "universal-information-hiding",
+      "reasons": [
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-explicit-invariants",
+      "reasons": [
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-preserve-behavior-by-default",
+      "reasons": [
+        "always-load core concept",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "agent-conduct-authority-bounded-action",
+      "reasons": [
+        "always-load core concept",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "legacy-effect-surface",
+      "reasons": [
+        "evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']",
+        "evidence class 'evidence-static-source-structure' supplied by ['builtin-source']",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "refactoring-compatibility-migration",
+      "reasons": [
+        "question term 'compatibility'",
+        "task variant 'public rename'"
+      ]
+    },
+    {
+      "id": "lens-python",
+      "reasons": [
+        "language 'Python'"
+      ]
+    },
+    {
+      "id": "proc-assess-authority-to-act",
+      "reasons": [
+        "procedure for task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "proc-determine-tests-characterization",
+      "reasons": [
+        "procedure for task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "proc-establish-preservation-boundaries",
+      "reasons": [
+        "procedure for task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "proc-stop-and-escalate",
+      "reasons": [
+        "procedure for task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "proc-work-poorly-characterized-code",
+      "reasons": [
+        "procedure for task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "prohibit-authority-inference-from-access",
+      "reasons": [
+        "core prohibition"
+      ]
+    },
+    {
+      "id": "prohibit-coverage-as-adequacy-proof",
+      "reasons": [
+        "applies to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "prohibit-generic-doctrine-over-local-contract",
+      "reasons": [
+        "core prohibition"
+      ]
+    },
+    {
+      "id": "prohibit-global-legacy-understanding-gate",
+      "reasons": [
+        "applies to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "prohibit-indirection-by-slogan",
+      "reasons": [
+        "applies to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "prohibit-silent-characterization-repair",
+      "reasons": [
+        "applies to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "prohibit-unclassified-temporary-seam",
+      "reasons": [
+        "applies to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "prohibit-unknown-consequential-implementation",
+      "reasons": [
+        "applies to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "prohibit-unsafe-broad-refactor",
+      "reasons": [
+        "applies to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "evidence-incidents",
+      "reasons": [
+        "required by task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "evidence-runtime-observation",
+      "reasons": [
+        "required by task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "evidence-static-source-structure",
+      "reasons": [
+        "required by task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "evidence-tests",
+      "reasons": [
+        "required by task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "change-defect-repair",
+      "reasons": [
+        "applicable to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "change-feature-implementation",
+      "reasons": [
+        "applicable to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "change-refactoring",
+      "reasons": [
+        "applicable to task family 'legacy-change'"
+      ]
+    },
+    {
+      "id": "authority-model.yaml",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    },
+    {
+      "id": "change-types.yaml",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    },
+    {
+      "id": "universal-doctrine.md",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    }
+  ],
+  "applicable_change_types": [
+    "change-defect-repair",
+    "change-feature-implementation",
+    "change-refactoring"
+  ],
+  "authority_constraints": {
+    "artifact": "authority-model.yaml",
+    "constraints": [
+      "accepted architecture and task semantics remain fixed unless challenge authority is explicit",
+      "verify implementation but do not self-accept"
+    ],
+    "usual_ceiling": "execute"
+  },
+  "budget_excluded": [
+    {
+      "cost": 770,
+      "id": "debugging-causal-repair",
+      "reason": "requires 770 relative routing-cost units with prerequisites; only 260 remain"
+    },
+    {
+      "cost": 390,
+      "id": "debugging-hypothesis-led-investigation",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 260 remain"
+    }
+  ],
+  "conflicts": [
+    "conflict-broad-vs-narrow-characterization",
+    "conflict-deep-modules-vs-small-units",
+    "conflict-dependency-inversion-vs-direct-coupling",
+    "conflict-refactor-now-vs-leave-alone",
+    "conflict-uniformity-vs-context-sensitive-design",
+    "conflict-upfront-vs-evolutionary-architecture"
+  ],
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "demoted_stubs": [
+    {
+      "citation_locator": "books/domain-driven-design-tackling-complexity-in-the-heart-of-software-eric-evans/chapters/019-chapter-17-bringing-the-strategy-together.md :: Decisions must reach the entire team",
+      "claim": "Architecturally significant decisions need a durable record of status, context, scope, alternatives, consequences, authority, verification, and evidence-based supersession triggers.",
+      "concept_id": "architecture-decision-record",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/009-chapter-2-working-with-feedback.md :: The Legacy Code Change Algorithm",
+      "claim": "Poorly characterized code should be changed through a minimum route from change point to effect/test point, dependency seam, characterization, semantic edit, and optional refactoring.",
+      "concept_id": "legacy-cover-and-modify",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/009-chapter-4-stability-antipatterns.md :: Force Multiplier",
+      "claim": "Control-plane automation acting on a mistaken sensed state or a mistaken desired state amplifies failure at machine speed; automated actuators need sanity bounds on their own observations, rate limits and minimum-capacity floors on destructive change, hysteresis, and human confirmation when observed and expected state diverge widely.",
+      "concept_id": "operations-automation-safeguards",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Improving Design",
+      "claim": "Unless change is authorized, externally observable behavior remains invariant across structural work.",
+      "concept_id": "refactoring-behavior-preservation",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+      "claim": "A change label is valid only when its purpose and allowable observable delta match the actual work.",
+      "concept_id": "refactoring-change-type-classification",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/refactoring-improving-the-design-of-existing-code/chapters/009-chapter-5-toward-a-catalog-of-refactorings.md :: Format of the Refactorings",
+      "claim": "Structural safety comes from small reversible moves with feedback, not from the intended final design alone.",
+      "concept_id": "refactoring-small-verified-steps",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/007-chapter-2-identify-code-with-high-interest-rates.md :: Escape the Technical-Debt Trap",
+      "claim": "A smell names an investigation question and neither proves a defect nor selects a transformation.",
+      "concept_id": "refactoring-smells-as-hypotheses",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/021-chapter-13-i-need-to-make-a-change-but-i-don-t-know-what-tests-to-write.md :: When You Find Bugs",
+      "claim": "The agent must stop when it can no longer state what changed, what remains invariant, why a check failed, or whether it has authority.",
+      "concept_id": "refactoring-stop-backtrack-escalate",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/030-chapter-22-i-need-to-change-a-monster-method-and-i-can-t-write-tests-for-it.md :: Tackling Monsters with Automated Refactoring Support",
+      "claim": "Automated transformation reduces mechanical error only within the language and repository surfaces the tool models.",
+      "concept_id": "refactoring-transformation-tool-trust",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/017-appendix-a1-the-hazards-of-productivity-and-performance-metrics.md :: Adaptive Behavior and the Destruction of a Data Source",
+      "claim": "Commit, LOC, ownership, defect-attribution, hotspot, and knowledge-map data must never be converted into individual productivity or performance judgments.",
+      "concept_id": "repository-assessment-metrics-not-performance",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/clean-architecture-a-craftsman-guide-to-software-structure-and-design/chapters/023-chapter-13-component-cohesion.md :: THE COMMON CLOSURE PRINCIPLE",
+      "claim": "Structure is costly when one conceptual change repeatedly forces disproportionate, risky, or cross-owner edits; restructuring is justified only when it reduces that demonstrated amplification.",
+      "concept_id": "universal-change-amplification",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/100-go-mistakes-and-how-to-avoid-them-teiva-harsanyi-bibis-ir/chapters/006-chapter-2-code-and-project-organization.md :: 2.5 #5: Interface pollution",
+      "claim": "Introduce or retain an abstraction only when it hides coherent knowledge or mechanism and reduces total caller reasoning, coordinated change, or substitution cost more than its interface and indirection add.",
+      "concept_id": "universal-earned-abstraction",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/007-chapter-2-identify-code-with-high-interest-rates.md :: Follow Up on Improvements to Rails",
+      "claim": "A claim that work improves performance, maintainability, reliability, architecture fitness, or process needs a preserved baseline and evidence on that same dimension.",
+      "concept_id": "universal-measure-claimed-improvement",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/code-complete-2nd-edition-v413hav/chapters/011-chapter-5-design-in-construction.md :: Experimental Prototyping",
+      "claim": "Organize investigation and change so one uncertain behavior, dependency, design choice, or performance hypothesis is tested at a time with close feedback.",
+      "concept_id": "universal-minimize-simultaneous-uncertainty",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-engineering-at-google-lessons-learned-from-programming-over-time-1nbsped-1492082791-9781492082798/chapters/017-chapter-9-code-review.md :: Write Small Changes",
+      "claim": "Choose the smallest coherent step that can be independently understood, verified, and reversed or safely advanced.",
+      "concept_id": "universal-reversible-reviewable-change",
+      "tier": 4
+    }
+  ],
+  "doctrine_artifacts": [
+    "authority-model.yaml",
+    "change-types.yaml",
+    "universal-doctrine.md"
+  ],
+  "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+  "evidence_obligations": [
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-3a2a7453bce3e4ac",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "affected behavior and state",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-authority"
+      ],
+      "obligation_id": "obl-5d35aa1fcf61e87f",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "decision owner",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-authority"
+      ],
+      "obligation_id": "obl-c0d5aab60ce5ddc0",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "explicit task authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-6bfd28264a777f3b",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "repository contract",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-b78bc0267cf64262",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "reversibility and verification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-authority"
+      ],
+      "obligation_id": "obl-63c1022e995c36ad",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "task scope and authority statement",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-e5969900d0a1474a",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "CI and build matrix",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-694a6fe4ba00387a",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "adjacent code",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-tests"
+      ],
+      "obligation_id": "obl-93e5516757747391",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "behavior tests",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-6beb33575d727362",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "formatter and static-tool configuration",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-5a3747c72eb92fd3",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "repository version and dependency contract",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-f894d1588d266898",
+      "required_by": "legacy-effect-surface",
+      "requirement": "call and effect sketch",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-f21bafc14049d01c",
+      "required_by": "legacy-effect-surface",
+      "requirement": "exception paths",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-a8b604f8afa9cf43",
+      "required_by": "legacy-effect-surface",
+      "requirement": "identified change point",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-209014322565a49e",
+      "required_by": "legacy-effect-surface",
+      "requirement": "observation points",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-40ab7e77e9714422",
+      "required_by": "legacy-effect-surface",
+      "requirement": "side effects",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-7a342184b4a54bb7",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "Python and dependency version matrix",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-98dce0cbd8d4d928",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "adjacent code",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-886b16ae2adaee03",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "formatter linter and type-checker configuration",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-9532e1849c7db686",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "public API and tests",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-bfc19e3ba2d1d451",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "repository toolchain inspection",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-dcdd23db8bfe4edc",
+      "required_by": "refactoring-compatibility-migration",
+      "requirement": "compatibility contract",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-81a4bf6000c00389",
+      "required_by": "refactoring-compatibility-migration",
+      "requirement": "consumer and authority inventory",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-f08ddc9071061260",
+      "required_by": "refactoring-compatibility-migration",
+      "requirement": "consumer inventory",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-40637e0b6836a86f",
+      "required_by": "refactoring-compatibility-migration",
+      "requirement": "ownership",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-f0a04e6a2ca03d1f",
+      "required_by": "refactoring-compatibility-migration",
+      "requirement": "rollback",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-9b60b3012eec0099",
+      "required_by": "refactoring-compatibility-migration",
+      "requirement": "rollout",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-12b075c577f9263b",
+      "required_by": "refactoring-compatibility-migration",
+      "requirement": "telemetry where available",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-db0f434d164d9714",
+      "required_by": "task:legacy-change",
+      "requirement": "evidence-incidents",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "builtin-runtime"
+      ],
+      "obligation_id": "obl-98160e5beb3f73ff",
+      "required_by": "task:legacy-change",
+      "requirement": "evidence-runtime-observation",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-e962a854ee2dcb9b",
+      "required_by": "task:legacy-change",
+      "requirement": "evidence-static-source-structure",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-tests"
+      ],
+      "obligation_id": "obl-be1b3e8391907c06",
+      "required_by": "task:legacy-change",
+      "requirement": "evidence-tests",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-06fe7b03ace44133",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "a bounded decision question",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-0eae811ab54b943b",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "alternatives including no change where viable",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-e82ef27e7b7f49b2",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-2bc1d1e34300cdfe",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "evidence connecting the proposed action to the condition",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-7f02594a488fe133",
+      "required_by": "universal-explicit-invariants",
+      "requirement": "accepted policy or current relied-upon constraint",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-e747a32ecc17a8e0",
+      "required_by": "universal-explicit-invariants",
+      "requirement": "all mutation/creation paths and authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-9d8c634d190fa202",
+      "required_by": "universal-explicit-invariants",
+      "requirement": "failure and recovery requirements",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-a046dfeb9cd3fd15",
+      "required_by": "universal-explicit-invariants",
+      "requirement": "identified authoritative owner",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-10853c19f01226f6",
+      "required_by": "universal-information-hiding",
+      "requirement": "actual caller needs",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-c1e09438a10093c4",
+      "required_by": "universal-information-hiding",
+      "requirement": "caller needs and decision owner",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-0a506f1cf59a4e05",
+      "required_by": "universal-information-hiding",
+      "requirement": "decision owner and volatility",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-733a86bfcf974e5c",
+      "required_by": "universal-information-hiding",
+      "requirement": "leaked knowledge or coordinated change",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-394110b31c052712",
+      "required_by": "universal-information-hiding",
+      "requirement": "material cost/failure semantics callers require",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-88e0ac180929bdd1",
+      "required_by": "universal-local-reasoning",
+      "requirement": "knowledge and navigation required by callers/maintainers",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-c21a7c21c790fb22",
+      "required_by": "universal-local-reasoning",
+      "requirement": "representative change or use scenario",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-e053f0e1f20ce2aa",
+      "required_by": "universal-local-reasoning",
+      "requirement": "representative change scenario",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-d743f7ec6aee7216",
+      "required_by": "universal-local-reasoning",
+      "requirement": "state, invariant, and dependency ownership",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-ec0bebeb749e3fa9",
+      "required_by": "universal-no-change-option",
+      "requirement": "actual current cost/risk or absence within a stated interval",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a7c3deeb27a6d936",
+      "required_by": "universal-no-change-option",
+      "requirement": "expected future change from accepted plans",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-6c30f81e2a22c6ae",
+      "required_by": "universal-no-change-option",
+      "requirement": "intervention cost and uncertainty",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-543196d64e60fc3a",
+      "required_by": "universal-no-change-option",
+      "requirement": "latent security, safety, data, durability, and compatibility check",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-a89dd32d7271dec4",
+      "required_by": "universal-no-change-option",
+      "requirement": "proc-decide-leave-code-alone",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-authority"
+      ],
+      "obligation_id": "obl-3579d03ad8af3e57",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "accepted desired behavior and semantic authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-3926b51901ac30aa",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "preservation matrix and consumers",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-125d0b69ca2b7b70",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "proc-establish-preservation-boundaries",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-tests"
+      ],
+      "obligation_id": "obl-ce03b1c4566bb9cd",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "tests, characterization, probes, or explicit residual risk",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-02e117562b29cefa",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "accepted ADR, RFC, API, compatibility, generation, build, and test contracts",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-b581a58085de1282",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "current source, configuration, and relevant runtime state",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-5ad348092a91d31f",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "repository instructions from root through target path",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-8d8fc243a9adadfc",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "target repository and task scope",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-5526278eee7fb7d7",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "user instruction and authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-bc386b0d0552a2c6",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "change-type classification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-tests"
+      ],
+      "obligation_id": "obl-a6fcb0b50aa1efa9",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "checkpoint verification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-source"
+      ],
+      "obligation_id": "obl-5363e6b05fa6c7de",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "per-edit change classification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "builtin-contracts"
+      ],
+      "obligation_id": "obl-a328065111f22734",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "preservation boundary and semantic authority",
+      "status": "satisfied"
+    }
+  ],
+  "evidence_records": [
+    {
+      "evidence_class": "evidence-explicit-user-requirements",
+      "id": "builtin-authority",
+      "provenance": [
+        {
+          "locator": "Plane:KICADROUTE-82",
+          "method": "Created under current owner instruction; item body records public rename and compatibility acceptance"
+        }
+      ],
+      "satisfies": [
+        "explicit task authority",
+        "decision owner",
+        "task scope and authority statement",
+        "accepted desired behavior and semantic authority",
+        "expected behavior and authority to observe",
+        "expected contract"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Owner requested a Plane item and implementation of canonical builtin with deprecated krt alias, then deployment and an advisory to other agents. KICADROUTE-82 records the selected acceptance boundary. Authorized name/default/output changes; preserve external Freerouting, router algorithms, qualified binary, existing state and evidence."
+    },
+    {
+      "evidence_class": "evidence-repository-contracts",
+      "id": "builtin-contracts",
+      "provenance": [
+        {
+          "content_sha256": "f13fc7ce29d78cbfc8e709463a659855086ba00534fcc3f1f42d18a23ebdde83",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/docs/routing-engine-migration.md",
+          "method": "Read current source or completed JUnit result"
+        },
+        {
+          "content_sha256": "0a7835bce2b85da490b1d35e6869a8f1d145cd41bfff923bb9e0a8972c141ca0",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/docs/interface.md",
+          "method": "Read current source or completed JUnit result"
+        },
+        {
+          "content_sha256": "53f8c772981a963b89a2ff90e3b61dd6e8e2c4278f7642cbd1d59331309e7d51",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/pyproject.toml",
+          "method": "Read current source or completed JUnit result"
+        }
+      ],
+      "satisfies": [
+        "compatibility contract",
+        "ownership",
+        "rollback",
+        "rollout",
+        "preservation matrix and consumers",
+        "failure and recovery requirements",
+        "accepted policy or current relied-upon constraint",
+        "preservation boundary and semantic authority",
+        "repository version and dependency contract",
+        "repository contract",
+        "reversibility and verification",
+        "actual current cost/risk or absence within a stated interval",
+        "intervention cost and uncertainty",
+        "latent security, safety, data, durability, and compatibility check",
+        "proc-decide-leave-code-alone",
+        "proc-establish-preservation-boundaries",
+        "accepted ADR, RFC, API, compatibility, generation, build, and test contracts",
+        "repository instructions from root through target path",
+        "target repository and task scope",
+        "user instruction and authority",
+        "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+        "evidence connecting the proposed action to the condition"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Existing migration and versioned machine-interface contracts preserve old state krt.generation, manifests, deterministic build IDs, historical receipts and JSON-only stdout. User naming correction supersedes historical public spelling, not stored engine identity. Rollback is reverting CLI/docs commit; no engine/state mutation is required. Rollout lands main, verifies installed symlink and syncs skill header, then advises active agent sessions. Owner rejected the ambiguity between a separate patched KRT binary and the implementation built within kicad-route, so leaving the public name unchanged does not meet the accepted task. Keep one canonical name and one compatibility alias; remove no historical paths, records or accepted schema names. Repository instructions require committed verified work, pushed main and owned worktree cleanup; no repository AGENTS.md files were found. Stop landing if identity compatibility or native validation fails. Public naming semantics change; low-level algorithm and resource acceptance do not."
+    },
+    {
+      "evidence_class": "evidence-runtime-observation",
+      "id": "builtin-runtime",
+      "provenance": [
+        {
+          "content_sha256": "c10c14a61a1588ec4439050c990e4d538d40a235d061e9691af76411b4c629a8",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-native/default.stdout.json",
+          "method": "Read completed native result or JUnit output"
+        },
+        {
+          "content_sha256": "157be93e697df2f8e29d8c45e7b0091614841ea50a9e3323f38b4eb57c0ca39c",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-native/alias.stdout.json",
+          "method": "Read completed native result or JUnit output"
+        },
+        {
+          "content_sha256": "583901de18477f93e4b779429f7f215ca907a9254160530b404a3b9051c94dee",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-doctor.json",
+          "method": "Read completed native result or JUnit output"
+        },
+        {
+          "content_sha256": "d1b4d27d969297dbf1cd3f490a050a73b2eea71df5f42a14d7ff8835313cf244",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-interface.xml",
+          "method": "Read completed native result or JUnit output"
+        }
+      ],
+      "satisfies": [],
+      "schema_version": "evidence-record/1",
+      "summary": "Both actual native multipoint runs, default and explicit deprecated krt, exited0 with processPASS/routingCOMPLETE/validationPASS and measurementtrue. Both result backend and tool identity names are builtin; only explicit krt emits advisory. Existing selected f230 generation and c6 engine source are reused. Offline/no-canary doctor overallPASS and manifest drift checkPASS. Correct-state interface invocation87PASS/3deselected (online reporting commands); initial worktree-state invocation lacked installed runtime and was stopped, then corrected. These are bounded CLI/native observations, not a new performance qualification or full-suite claim. Postlanding deployment remains a later gate."
+    },
+    {
+      "evidence_class": "evidence-static-source-structure",
+      "id": "builtin-source",
+      "provenance": [
+        {
+          "content_sha256": "584e705ee74e2a1f60066ef5f91ecc6add08b0a9b83ddfc120694a4fe3b967c4",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/src/kicad_route/backend_names.py",
+          "method": "Read current source or completed JUnit result"
+        },
+        {
+          "content_sha256": "267c90f9c8c54b18cfad68ed00ebe0013018742dac353a43f8e657dfd5eb366d",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/src/kicad_route/ledger.py",
+          "method": "Read current source or completed JUnit result"
+        },
+        {
+          "content_sha256": "40c60f955e643b651128963cd9720c29e6dbbf4dcd25c68c12616fb0a1972322",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/src/kicad_route/statemanifest.py",
+          "method": "Read current source or completed JUnit result"
+        }
+      ],
+      "satisfies": [
+        "consumer and authority inventory",
+        "consumer inventory",
+        "actual caller needs",
+        "identified authoritative owner",
+        "all mutation/creation paths and authority",
+        "current source, configuration, and relevant runtime state",
+        "state, invariant, and dependency ownership",
+        "adjacent code",
+        "public API and tests",
+        "repository toolchain inspection",
+        "a bounded decision question",
+        "alternatives including no change where viable",
+        "affected behavior and state",
+        "call and effect sketch",
+        "exception paths",
+        "identified change point",
+        "observation points",
+        "side effects",
+        "caller needs and decision owner",
+        "decision owner and volatility",
+        "leaked knowledge or coordinated change",
+        "material cost/failure semantics callers require",
+        "knowledge and navigation required by callers/maintainers",
+        "representative change or use scenario",
+        "representative change scenario",
+        "change-type classification",
+        "per-edit change classification"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Observed CLI parsers and routes, campaign child argv, canary registry iteration, corpus replay through run_namespace, statemanifest build/execution/current IDs and determinism keys, ledger fingerprint nested identities, evidence backend identity, schema1/2 enums and comparison script. One backend_names module owns public canonical and storage compatibility spelling. No owned router source changes. Unknown spellings remain unknown; parser choices reject them. Effects: parse normalizes public CLI spelling before choices; run pins the existing generation and dispatches the same adapter; campaign forwards builtin; old corpus entries normalize through run_namespace; canary all iterates each canonical backend once. Unknown choice remains a usage refusal, tested as one JSON record with exit4; only explicit krt prints stderr advisory. Stable storage conversion happens only inside hash/state boundaries. Added names in both active result schemas retain old enum members. This is an authorized public naming/default change with no algorithm, dependency or engine-source edit."
+    },
+    {
+      "evidence_class": "evidence-tests",
+      "id": "builtin-tests",
+      "provenance": [
+        {
+          "content_sha256": "569dd39eec4af7dd6fa69db2e266586211beb0fc8e1dc235c5e2fb85e632515e",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-focused.xml",
+          "method": "Read current source or completed JUnit result"
+        }
+      ],
+      "satisfies": [
+        "behavior tests",
+        "tests, characterization, probes, or explicit residual risk",
+        "discriminating checks",
+        "checkpoint verification"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Recorded focused invocation:150passed in10.15s across backend_names, campaign_corpus, corpus_env_options, baseline_identity_reuse, engine_acceptance, update_qualification and determinism_generation. This protects alias/parser/stdout, old build/repro identities, coroutine generation pinning and existing comparator quality gates. Native verification and postlanding deployment remain separate gates."
+    }
+  ],
+  "excluded_candidates": [
+    {
+      "id": "architecture-command-event-semantics",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "architecture-event-temporal-semantics",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "architecture-fitness-functions",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-batch-reproducible-derivation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-consistency-model-selection",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-dedup-key-identity-completeness",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['builtin-source']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-end-to-end-integrity-auditing",
+      "reason": "nominated by: risk route 'correctness'; dropped: role 'coding-agent' not in activate_for_roles; task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-end-to-end-request-idempotence",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-event-time-semantics",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-fencing-token-enforcement",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-ingest-population-scoping",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']; evidence class 'evidence-static-source-structure' supplied by ['builtin-source']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-system-of-record-derived-state",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-transaction-guarantee-verification",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-aggregate-invariant-boundary",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-association-constraint",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-authorization-embodied-in-action",
+      "reason": "nominated by: evidence class 'evidence-explicit-user-requirements' supplied by ['builtin-authority']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-explicit-concept",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-factory-lifecycle",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-identity-entity",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-intention-revealing-interface",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-language-model-loop",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-repository-lifecycle",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-service-operation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-value-object",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "go-consumer-owned-interfaces",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['builtin-source']; evidence class 'evidence-explicit-user-requirements' supplied by ['builtin-authority']; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes; route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-context-lifecycle-propagation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-explicit-contextual-errors",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-interface-nil-semantics",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-semantics-before-performance-constructs",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-slice-aliasing-control",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-synchronization-mechanism-fit",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-text-byte-rune-semantics",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "implementation-async-ui-state-design",
+      "reason": "nominated by: evidence class 'evidence-explicit-user-requirements' supplied by ['builtin-authority']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-atomicity-scope",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-attention-budget-presentation",
+      "reason": "nominated by: evidence class 'evidence-explicit-user-requirements' supplied by ['builtin-authority']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-concurrency-ordering-contract",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-config-reference-validation",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['builtin-source']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-duplication-as-evidence",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-error-surface-reduction",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-explicit-failure-policy",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-fail-fast-or-recover",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-minimal-coherent-api",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-non-obvious-commentary",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-normal-result-or-exception",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-obvious-control-flow",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-placement-by-ownership",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-rank-before-truncate",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['builtin-source']; evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-representation-fit",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-unit-of-work-safe-default",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-validation-placement",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-blameless-postmortem",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']; dropped: role 'coding-agent' not in activate_for_roles; task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "operations-contract-conformance-testing",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-designed-failure-modes",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-error-budget",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']; evidence class 'evidence-explicit-user-requirements' supplied by ['builtin-authority']; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "operations-external-capability-verification",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-gate-authoritative-signal",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']; evidence class 'evidence-tests' supplied by ['builtin-tests']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-integration-point-distrust",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-live-interface-compatibility",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-symptom-cause-monitoring",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']; evidence class 'evidence-tests' supplied by ['builtin-tests']; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-toil-ceiling",
+      "reason": "nominated by: evidence class 'evidence-runtime-observation' supplied by ['builtin-runtime']; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "operations-untrusted-request-handling",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-cache-validity",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-earned-bounded-concurrency",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-memory-lifecycle",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-profile-causal-bottleneck",
+      "reason": "nominated by: language bundle 'Python'; dropped: role 'coding-agent' not in activate_for_roles; task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "performance-resource-lifecycle",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "performance-semantic-preservation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-specialization-evidence",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-bounded-async",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-cache-validity",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-compatible-property-evolution",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-concurrency-model-selection",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-data-carrier-versus-domain-object",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-dynamic-mechanism-escalation",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-function-over-stateless-class",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-inheritance-constraints",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-interface-mechanism-selection",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-mutable-ownership",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-protocol-conformance",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-representation-fit",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-runtime-static-boundary",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-special-method-laws",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-streaming-iteration",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-structured-cleanup",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-text-bytes-boundary",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'legacy-change' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "testing-coverage-is-not-adequacy",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "testing-deterministic-async-observation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "testing-no-test-privileged-access",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "testing-test-first-feedback",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'legacy-change' not in activate_for_tasks/task_families"
+    }
+  ],
+  "packet_content_sha256": "e7530e1ad18e7cf22c259fb51e8b64c7090ffa4bb12ed84558d381f29fa8c0d4",
+  "packet_id": "pkt-e7530e1ad18e7cf2",
+  "provenance_links": [
+    {
+      "concept_id": "python-repository-shaped-idiom",
+      "formulation_ids": [
+        "F-CONCEPT-FP-6191dfc584db",
+        "F-CONCEPT-FP-b1d03f6e2bd6"
+      ],
+      "source_support": [
+        {
+          "contribution": "Makes source-version and language evolution assumptions explicit.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/002-preface.md :: Preface",
+          "relationship": "refinement",
+          "source_id": "SRC-FP"
+        },
+        {
+          "contribution": "Frames Pythonic object design in relation to application and library requirements rather than syntax alone.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/018-chapter-11-a-pythonic-object.md :: Chapter Summary",
+          "relationship": "direct_support",
+          "source_id": "SRC-FP"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-repository-contract-precedence",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-901470c5095d",
+        "F-CONCEPT-CC-59bf0838015e",
+        "F-CONCEPT-FSA-0302ef761084"
+      ],
+      "source_support": [
+        {
+          "contribution": "Establishes existing local consistency as leverage that should not be displaced casually.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/022-17-consistency.md :: 17: Consistency",
+          "relationship": "corroboration",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Makes language, platform, project convention, and risk explicit inputs to construction choices.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/009-chapter-4-key-construction-decisions.md :: cc2e.com/0496 Checklist: Major Construction Practices Coding",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Rejects timeless architecture axioms and requires context-specific tradeoff reasoning.",
+          "locator": "books/oreilly-fundamentals-of-software-architecture-2020-1/chapters/003-preface-invalidating-axioms.md :: Axiom",
+          "relationship": "direct_support",
+          "source_id": "SRC-FSA"
+        }
+      ]
+    },
+    {
+      "concept_id": "implementation-repository-language-conformance",
+      "formulation_ids": [
+        "F-CONCEPT-CC-24e6e3121f6c",
+        "F-CONCEPT-EGO-18b7dfc06d5d",
+        "F-CONCEPT-FP-b8b872819c0e"
+      ],
+      "source_support": [
+        {
+          "contribution": "Makes project, language, platform, tools, and architecture inputs to construction choices.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/009-chapter-4-key-construction-decisions.md :: 4.4 Selection of Major Construction Practices",
+          "relationship": "direct_support",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Refines Go choices toward simple, repository-compatible constructs over framework-style machinery.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/006-chapter-2-efficient-introduction-to-go.md :: Simplicity, Safety, and Readability Are Paramount",
+          "relationship": "refinement",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Refines idiomatic Python design by application and library requirements.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/018-chapter-11-a-pythonic-object.md :: Chapter Summary",
+          "relationship": "refinement",
+          "source_id": "SRC-FP"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-evidence-before-intervention",
+      "formulation_ids": [
+        "F-CONCEPT-CC-8730c675fe4f",
+        "F-CONCEPT-EGO-04a5f9442d14",
+        "F-CONCEPT-SDX-4a4d1f2737b8",
+        "F-SRC-SDX-C01-DEBT-DEPENDS-ON-CHANGE",
+        "F-SRC-SDX-C02-HOTSPOTS-FOCUS",
+        "F-SRC-WELC-C01-CHANGE-PRESERVATION",
+        "F-SRC-WELC-C05-TOOL-TRUST"
+      ],
+      "source_support": [
+        {
+          "contribution": "Requires problem, requirements, and architecture evidence before construction.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/008-chapter-3-measure-twice-cut-once-upstream-prerequisites.md :: cc2e.com/0386 Checklist: Upstream Prerequisites",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Makes optimization action depend on explicit workload and resource evidence.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: Resource-Aware Efficiency Requirements",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Shows that poor-looking code creates maintenance debt only in relation to change and context.",
+          "locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/006-chapter-1-why-technical-debt-isn-t-technical.md :: Interest Rate Is a Function of Time",
+          "relationship": "direct_support",
+          "source_id": "SRC-SDX"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-local-reasoning",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-2bc29e652438",
+        "F-CONCEPT-CC-921f8e2d3837",
+        "F-CONCEPT-PP-62449b43723c"
+      ],
+      "source_support": [
+        {
+          "contribution": "Defines complexity through change amplification, cognitive load, and unknown unknowns.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/007-2-the-nature-of-complexity.md :: 2: The Nature of Complexity",
+          "relationship": "direct_support",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Centers human ability to understand a bounded amount of detail during construction.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/011-chapter-5-design-in-construction.md :: Software's Primary Technical Imperative: Managing Complexity",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Connects independent change to localized effects and reduced coordination.",
+          "locator": "books/the-pragmatic-programmer/chapters/007-chapter-2-a-pragmatic-approach.md :: Orthogonality",
+          "relationship": "corroboration",
+          "source_id": "SRC-PP"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-separate-semantic-structural-change",
+      "formulation_ids": [
+        "F-CONCEPT-EGO-6b5a5b5f4309",
+        "F-CONCEPT-REF-93dea0b4cc46",
+        "F-CONCEPT-WELC-9ac8f09782c8"
+      ],
+      "source_support": [
+        {
+          "contribution": "Preserves causal evidence by isolating one performance transformation.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/014-chapter-10-optimization-examples.md :: Optimize One Thing at a Time",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Distinguishes adding function from restructuring and advocates not doing both at the same instant.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: The Two Hats",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Distinguishes feature, repair, design, and optimization intents by behavior preservation.",
+          "locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+          "relationship": "corroboration",
+          "source_id": "SRC-WELC"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-no-change-option",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-542db617dd0a",
+        "F-CONCEPT-REF-47a52fa2ffa2",
+        "F-CONCEPT-SDX-27531eaed8cd"
+      ],
+      "source_support": [
+        {
+          "contribution": "Prioritizes design attention on consequential complexity instead of uniform perfection.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/026-21-decide-what-matters.md :: 21: Decide What Matters",
+          "relationship": "corroboration",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Explicitly retains cases where refactoring is not the appropriate action.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: When Shouldn't You Refactor?",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Separates unattractive static code from code imposing active maintenance interest.",
+          "locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/006-chapter-1-why-technical-debt-isn-t-technical.md :: Interest Rate Is a Function of Time",
+          "relationship": "corroboration",
+          "source_id": "SRC-SDX"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-information-hiding",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-e67566b00059",
+        "F-CONCEPT-CA-0bcc6ee9be58",
+        "F-CONCEPT-CC-3940cef9a909"
+      ],
+      "source_support": [
+        {
+          "contribution": "Defines information leakage and decision ownership as central complexity mechanisms.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/010-5-information-hiding-and-leakage.md :: 5: Information Hiding (and Leakage)",
+          "relationship": "direct_support",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Applies information direction to policy and mechanism boundaries.",
+          "locator": "books/clean-architecture-a-craftsman-guide-to-software-structure-and-design/chapters/028-chapter-17-boundaries-drawing-lines.md :: WHAT ABOUT INPUT AND OUTPUT?",
+          "relationship": "corroboration",
+          "source_id": "SRC-CA"
+        },
+        {
+          "contribution": "Uses hidden design decisions to guide construction decomposition.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/011-chapter-5-design-in-construction.md :: Hide Secrets (Information Hiding)",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-explicit-invariants",
+      "formulation_ids": [
+        "F-CONCEPT-CC-c3a917698570",
+        "F-CONCEPT-DDD-2ac4e8deb2fd",
+        "F-CONCEPT-DDIA2-e2232e87bd24",
+        "F-CONCEPT-PP-18ee8f1485d3",
+        "F-CONCEPT-UT-95f110826c03"
+      ],
+      "source_support": [
+        {
+          "contribution": "Separates internal invariant assertions from normal input and error handling.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/014-chapter-8-defensive-programming.md :: 8.2 Assertions",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Locates transactional domain invariants within an explicit consistency boundary.",
+          "locator": "books/domain-driven-design-tackling-complexity-in-the-heart-of-software-eric-evans/chapters/007-chapter-6-the-life-cycle-of-a-domain-object.md :: Aggregates",
+          "relationship": "corroboration",
+          "source_id": "SRC-DDD"
+        },
+        {
+          "contribution": "Defines transaction consistency as preservation of application-specific invariants and makes clear that the application must correctly define and enforce those invariants; the database cannot infer arbitrary domain rules.",
+          "locator": "books/dokumen-pub-designing-data-intensive-applications-the-big-ideas-behind-reliable-scalable-and-maintainable-systems-2/chapters/012-chapter-8-transactions.md :: Consistency",
+          "relationship": "refinement",
+          "source_id": "SRC-DDIA2"
+        },
+        {
+          "contribution": "Treats preconditions, postconditions, and invariants as explicit program agreements.",
+          "locator": "books/the-pragmatic-programmer/chapters/009-chapter-4-pragmatic-paranoia.md :: Design by Contract",
+          "relationship": "direct_support",
+          "source_id": "SRC-PP"
+        },
+        {
+          "contribution": "Reads a test act phase that needs more than one method call as evidence the API lets clients skip an invariant-maintaining step - an encapsulation breach the owner should close by performing the whole business operation in one method; applies to business-logic APIs, explicitly less to utility or infrastructure code.",
+          "locator": "books/manning-unit-testing-principles-practices-and-patterns-2020-1/chapters/008-chapter-3-the-anatomy-of-a-unit-test.md :: 3.1 How to structure a unit test",
+          "relationship": "refinement",
+          "source_id": "SRC-UT"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-preserve-behavior-by-default",
+      "formulation_ids": [
+        "F-CONCEPT-EGO-cb3c230956bf",
+        "F-CONCEPT-REF-470f9e409dc8",
+        "F-CONCEPT-WELC-c9e182aee017",
+        "F-SRC-REF-C02-TWO-DEFINITIONS",
+        "F-SRC-WELC-C01-CHANGE-PRESERVATION"
+      ],
+      "source_support": [
+        {
+          "contribution": "Requires a functional baseline before efficiency changes.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: Functionality Phase",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Defines refactoring by preservation of externally visible behavior.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: Defining Refactoring",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Distinguishes change intents while centering preservation of existing behavior.",
+          "locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+          "relationship": "corroboration",
+          "source_id": "SRC-WELC"
+        }
+      ]
+    },
+    {
+      "concept_id": "agent-conduct-authority-bounded-action",
+      "formulation_ids": [
+        "F-CONCEPT-CC-8d39ebafa179",
+        "F-CONCEPT-CC-ef6a379be1f7",
+        "F-CONCEPT-EGO-0ea813693bc5",
+        "F-CONCEPT-PP-3cd1576a1ee8"
+      ],
+      "source_support": [
+        {
+          "contribution": "Supplies a practical stop signal when consequential prerequisites cannot be responsibly defended.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/008-chapter-3-measure-twice-cut-once-upstream-prerequisites.md :: Boss-Readiness Test",
+          "relationship": "refinement",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Technical ability to make a change does not confer authority to select or authorize it; proposed changes should pass through explicit evaluation and approval before execution.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/038-chapter-28-managing-construction.md :: Requirements and Design Changes",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Refines authority discipline with a positive stop rule at the accepted target and escalation for wider tradeoffs.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: 5. Are we within RAERs?",
+          "relationship": "refinement",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Requires stating uncertainty, accepting responsibility, and declining or renegotiating unsupported commitments.",
+          "locator": "books/the-pragmatic-programmer/chapters/006-chapter-1-a-pragmatic-philosophy.md :: Take Responsibility",
+          "relationship": "direct_support",
+          "source_id": "SRC-PP"
+        }
+      ]
+    },
+    {
+      "concept_id": "legacy-effect-surface",
+      "formulation_ids": [
+        "F-CONCEPT-WELC-3a871b9131dd",
+        "F-CONCEPT-WELC-4ddf27f69353"
+      ],
+      "source_support": [
+        {
+          "contribution": "Effects propagate through returns, mutation, globals/statics, and downstream calls; tests should be selected from that forward effect graph.",
+          "locator": "books/programming-working-effectively-with-legacy-code/chapters/019-chapter-11-i-need-to-make-a-change-what-methods-should-i-test.md :: Effect Propagation",
+          "relationship": "direct_support",
+          "source_id": "SRC-WELC"
+        },
+        {
+          "contribution": "Effects propagate through returns, mutation, globals/statics, and downstream calls; tests should be selected from that forward effect graph.",
+          "locator": "books/programming-working-effectively-with-legacy-code/chapters/019-chapter-11-i-need-to-make-a-change-what-methods-should-i-test.md :: Effects and Encapsulation",
+          "relationship": "direct_support",
+          "source_id": "SRC-WELC"
+        }
+      ]
+    },
+    {
+      "concept_id": "refactoring-compatibility-migration",
+      "formulation_ids": [
+        "F-CONCEPT-ADPCH3-b7f6aed33730",
+        "F-CONCEPT-REF-906a31b8f3cb",
+        "F-CONCEPT-REF-eefb58a34d08",
+        "F-CONCEPT-RI-478ad78f2eca",
+        "F-CONCEPT-RI-90ab0af56d87",
+        "F-CONCEPT-RI-d4dcbde1f5b5",
+        "F-CONCEPT-SEAG-9c12de42bc04"
+      ],
+      "source_support": [
+        {
+          "contribution": "Explains that public API names survive compilation into independently owned consumer code, including private code the provider cannot update, so a rename cannot be treated as a local find-and-replace.",
+          "locator": "books/bookshelf-ch-three-api-design-patterns/chapters/002-chapter-3-naming.md :: 3.1 Why do names matter?",
+          "relationship": "refinement",
+          "source_id": "SRC-ADPCH3"
+        },
+        {
+          "contribution": "Published callers and database data make an otherwise local refactoring a compatibility and migration problem.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: Changing Interfaces",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Published callers and database data make an otherwise local refactoring a compatibility and migration problem.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: Databases",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Defines the contraction phase - drop superseded structures and remove shims only after every instance runs the new version, and defer NOT NULL and foreign-key constraints until then because old instances would start erroring on actions that were previously valid; feature-toggle review and removal are scheduled here, and shim removal must itself be a versioned migration.",
+          "locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/020-chapter-13-design-for-deployment.md :: Cleanup",
+          "relationship": "refinement",
+          "source_id": "SRC-RI"
+        },
+        {
+          "contribution": "Defines the additive expansion phase of a schema migration - new tables, views, nullable columns, aliases, copies, trigger shims - whose criterion is that nothing added is observable by the currently running application, and requires testing migrations against production-shaped data rather than clean QA data.",
+          "locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/020-chapter-13-design-for-deployment.md :: Relational Database Schemata",
+          "relationship": "refinement",
+          "source_id": "SRC-RI"
+        },
+        {
+          "contribution": "Shows schemaless stores still carry an implicit application schema across every document version ever written - of the four concurrent code/data version combinations only old-code-reads-new-data fails, so code able to read both versions must be fully rolled out before data migration runs, and trickle-then-batch migration amortizes migrations too large for a deployment window.",
+          "locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/020-chapter-13-design-for-deployment.md :: Schemaless Databases",
+          "relationship": "refinement",
+          "source_id": "SRC-RI"
+        },
+        {
+          "contribution": "Requires explicit deprecation ownership, warns that advisory migration delegated to consumers does not finish, and treats deleted subcomponents and declining use as valuable milestones before final removal.",
+          "locator": "books/dokumen-pub-software-engineering-at-google-lessons-learned-from-programming-over-time-1nbsped-1492082791-9781492082798/chapters/023-chapter-15-deprecation.md :: Managing the Deprecation Process",
+          "relationship": "refinement",
+          "source_id": "SRC-SEAG"
+        }
+      ]
+    }
+  ],
+  "question": "How should kicad-route expose builtin as its canonical engine name while preserving krt command compatibility and existing build, determinism and ledger identities?",
+  "required_evidence_classes": [
+    "evidence-incidents",
+    "evidence-runtime-observation",
+    "evidence-static-source-structure",
+    "evidence-tests"
+  ],
+  "retrieval_abstention": {
+    "abstained": false,
+    "reason_codes": []
+  },
+  "retrieval_budget": {
+    "meaning": "Relative doctrine-selection cost; not a byte, word, or tokenizer-measured context limit. Delivery size is governed separately by the selected detail profile.",
+    "minimum_required": 2140,
+    "remaining": 245,
+    "requested": 5000,
+    "scope": "activated-concept-selection-only",
+    "unit": "relative-routing-cost-unit",
+    "used": 4755
+  },
+  "retrieval_context": {
+    "canonical_role": "coding-agent",
+    "detail": "compact",
+    "evidence_ids": [
+      "builtin-authority",
+      "builtin-contracts",
+      "builtin-runtime",
+      "builtin-source",
+      "builtin-tests"
+    ],
+    "languages": [
+      "Python"
+    ],
+    "requested_lenses": [],
+    "requested_role": "coding-agent",
+    "requested_task": "legacy-change",
+    "retrieval_budget": 5000,
+    "risk_class": "correctness",
+    "signals": [
+      "public CLI backend spelling krt retained after owned source migration"
+    ],
+    "task_family": "legacy-change",
+    "task_variants": [
+      "public rename"
+    ]
+  },
+  "retriever_version": "retriever-ec995ecdd083b2c8",
+  "schema_version": "evidence-packet/3"
+}

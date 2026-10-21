@@ -1,0 +1,268 @@
+{
+  "schema_version": "decision-receipt/2",
+  "receipt_id": "kicadroute-82-builtin-name",
+  "question": "How should kicad-route expose builtin as its canonical engine name while preserving krt command compatibility and existing build, determinism and ledger identities?",
+  "scope": [
+    "Public backend naming and compatibility",
+    "Installed CLI and generated skill deployment"
+  ],
+  "status": "verified",
+  "authority_boundary": {
+    "owner": "repository owner",
+    "authority_source": "Current owner request to create a Plane item, implement and deploy the proposed rename, then advise other agents",
+    "authorized_scope": [
+      "Canonical builtin and deprecated krt alias",
+      "Preserve existing engine/state/history and external Freerouting",
+      "Land/push, deploy locally and publish advisory"
+    ]
+  },
+  "evidence": [
+    {
+      "evidence_class": "evidence-explicit-user-requirements",
+      "id": "builtin-authority",
+      "provenance": [
+        {
+          "locator": "Plane:KICADROUTE-82",
+          "method": "Created under current owner instruction; item body records public rename and compatibility acceptance"
+        }
+      ],
+      "satisfies": [
+        "explicit task authority",
+        "decision owner",
+        "task scope and authority statement",
+        "accepted desired behavior and semantic authority",
+        "expected behavior and authority to observe",
+        "expected contract"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Owner requested a Plane item and implementation of canonical builtin with deprecated krt alias, then deployment and an advisory to other agents. KICADROUTE-82 records the selected acceptance boundary. Authorized name/default/output changes; preserve external Freerouting, router algorithms, qualified binary, existing state and evidence."
+    },
+    {
+      "evidence_class": "evidence-repository-contracts",
+      "id": "builtin-contracts",
+      "provenance": [
+        {
+          "content_sha256": "f13fc7ce29d78cbfc8e709463a659855086ba00534fcc3f1f42d18a23ebdde83",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/docs/routing-engine-migration.md",
+          "method": "Read current source or completed JUnit result"
+        },
+        {
+          "content_sha256": "0a7835bce2b85da490b1d35e6869a8f1d145cd41bfff923bb9e0a8972c141ca0",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/docs/interface.md",
+          "method": "Read current source or completed JUnit result"
+        },
+        {
+          "content_sha256": "53f8c772981a963b89a2ff90e3b61dd6e8e2c4278f7642cbd1d59331309e7d51",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/pyproject.toml",
+          "method": "Read current source or completed JUnit result"
+        }
+      ],
+      "satisfies": [
+        "compatibility contract",
+        "ownership",
+        "rollback",
+        "rollout",
+        "preservation matrix and consumers",
+        "failure and recovery requirements",
+        "accepted policy or current relied-upon constraint",
+        "preservation boundary and semantic authority",
+        "repository version and dependency contract",
+        "repository contract",
+        "reversibility and verification",
+        "actual current cost/risk or absence within a stated interval",
+        "intervention cost and uncertainty",
+        "latent security, safety, data, durability, and compatibility check",
+        "proc-decide-leave-code-alone",
+        "proc-establish-preservation-boundaries",
+        "accepted ADR, RFC, API, compatibility, generation, build, and test contracts",
+        "repository instructions from root through target path",
+        "target repository and task scope",
+        "user instruction and authority",
+        "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+        "evidence connecting the proposed action to the condition"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Existing migration and versioned machine-interface contracts preserve old state krt.generation, manifests, deterministic build IDs, historical receipts and JSON-only stdout. User naming correction supersedes historical public spelling, not stored engine identity. Rollback is reverting CLI/docs commit; no engine/state mutation is required. Rollout lands main, verifies installed symlink and syncs skill header, then advises active agent sessions. Owner rejected the ambiguity between a separate patched KRT binary and the implementation built within kicad-route, so leaving the public name unchanged does not meet the accepted task. Keep one canonical name and one compatibility alias; remove no historical paths, records or accepted schema names. Repository instructions require committed verified work, pushed main and owned worktree cleanup; no repository AGENTS.md files were found. Stop landing if identity compatibility or native validation fails. Public naming semantics change; low-level algorithm and resource acceptance do not."
+    },
+    {
+      "evidence_class": "evidence-runtime-observation",
+      "id": "builtin-runtime",
+      "provenance": [
+        {
+          "content_sha256": "c10c14a61a1588ec4439050c990e4d538d40a235d061e9691af76411b4c629a8",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-native/default.stdout.json",
+          "method": "Read completed native result or JUnit output"
+        },
+        {
+          "content_sha256": "157be93e697df2f8e29d8c45e7b0091614841ea50a9e3323f38b4eb57c0ca39c",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-native/alias.stdout.json",
+          "method": "Read completed native result or JUnit output"
+        },
+        {
+          "content_sha256": "583901de18477f93e4b779429f7f215ca907a9254160530b404a3b9051c94dee",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-doctor.json",
+          "method": "Read completed native result or JUnit output"
+        },
+        {
+          "content_sha256": "d1b4d27d969297dbf1cd3f490a050a73b2eea71df5f42a14d7ff8835313cf244",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-interface.xml",
+          "method": "Read completed native result or JUnit output"
+        }
+      ],
+      "satisfies": [],
+      "schema_version": "evidence-record/1",
+      "summary": "Both actual native multipoint runs, default and explicit deprecated krt, exited0 with processPASS/routingCOMPLETE/validationPASS and measurementtrue. Both result backend and tool identity names are builtin; only explicit krt emits advisory. Existing selected f230 generation and c6 engine source are reused. Offline/no-canary doctor overallPASS and manifest drift checkPASS. Correct-state interface invocation87PASS/3deselected (online reporting commands); initial worktree-state invocation lacked installed runtime and was stopped, then corrected. These are bounded CLI/native observations, not a new performance qualification or full-suite claim. Postlanding deployment remains a later gate."
+    },
+    {
+      "evidence_class": "evidence-static-source-structure",
+      "id": "builtin-source",
+      "provenance": [
+        {
+          "content_sha256": "584e705ee74e2a1f60066ef5f91ecc6add08b0a9b83ddfc120694a4fe3b967c4",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/src/kicad_route/backend_names.py",
+          "method": "Read current source or completed JUnit result"
+        },
+        {
+          "content_sha256": "267c90f9c8c54b18cfad68ed00ebe0013018742dac353a43f8e657dfd5eb366d",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/src/kicad_route/ledger.py",
+          "method": "Read current source or completed JUnit result"
+        },
+        {
+          "content_sha256": "40c60f955e643b651128963cd9720c29e6dbbf4dcd25c68c12616fb0a1972322",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/src/kicad_route/statemanifest.py",
+          "method": "Read current source or completed JUnit result"
+        }
+      ],
+      "satisfies": [
+        "consumer and authority inventory",
+        "consumer inventory",
+        "actual caller needs",
+        "identified authoritative owner",
+        "all mutation/creation paths and authority",
+        "current source, configuration, and relevant runtime state",
+        "state, invariant, and dependency ownership",
+        "adjacent code",
+        "public API and tests",
+        "repository toolchain inspection",
+        "a bounded decision question",
+        "alternatives including no change where viable",
+        "affected behavior and state",
+        "call and effect sketch",
+        "exception paths",
+        "identified change point",
+        "observation points",
+        "side effects",
+        "caller needs and decision owner",
+        "decision owner and volatility",
+        "leaked knowledge or coordinated change",
+        "material cost/failure semantics callers require",
+        "knowledge and navigation required by callers/maintainers",
+        "representative change or use scenario",
+        "representative change scenario",
+        "change-type classification",
+        "per-edit change classification"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Observed CLI parsers and routes, campaign child argv, canary registry iteration, corpus replay through run_namespace, statemanifest build/execution/current IDs and determinism keys, ledger fingerprint nested identities, evidence backend identity, schema1/2 enums and comparison script. One backend_names module owns public canonical and storage compatibility spelling. No owned router source changes. Unknown spellings remain unknown; parser choices reject them. Effects: parse normalizes public CLI spelling before choices; run pins the existing generation and dispatches the same adapter; campaign forwards builtin; old corpus entries normalize through run_namespace; canary all iterates each canonical backend once. Unknown choice remains a usage refusal, tested as one JSON record with exit4; only explicit krt prints stderr advisory. Stable storage conversion happens only inside hash/state boundaries. Added names in both active result schemas retain old enum members. This is an authorized public naming/default change with no algorithm, dependency or engine-source edit."
+    },
+    {
+      "evidence_class": "evidence-tests",
+      "id": "builtin-tests",
+      "provenance": [
+        {
+          "content_sha256": "569dd39eec4af7dd6fa69db2e266586211beb0fc8e1dc235c5e2fb85e632515e",
+          "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/agent497-builtin/build/builtin-focused.xml",
+          "method": "Read current source or completed JUnit result"
+        }
+      ],
+      "satisfies": [
+        "behavior tests",
+        "tests, characterization, probes, or explicit residual risk",
+        "discriminating checks",
+        "checkpoint verification"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Recorded focused invocation:150passed in10.15s across backend_names, campaign_corpus, corpus_env_options, baseline_identity_reuse, engine_acceptance, update_qualification and determinism_generation. This protects alias/parser/stdout, old build/repro identities, coroutine generation pinning and existing comparator quality gates. Native verification and postlanding deployment remain separate gates."
+    }
+  ],
+  "assertions": [
+    {
+      "id": "naming-decision",
+      "type": "decision",
+      "text": "Expose builtin as the canonical/default owned-engine backend and preserve krt as a deprecated CLI alias; keep stored identity tokens stable.",
+      "depends_on": [
+        "builtin-authority",
+        "builtin-contracts",
+        "builtin-source"
+      ],
+      "owner": "repository owner",
+      "authority": "Current explicit task request"
+    },
+    {
+      "id": "qualification",
+      "type": "verification",
+      "text": "Focused compatibility tests, actual native default/alias routes, interface/campaign and pair checks establish the bounded naming change. Postlanding installed doctor and generation/manifest checks passed.",
+      "depends_on": [
+        "naming-decision"
+      ],
+      "criteria": [
+        "Canonical new result names",
+        "Old build/proof/ledger continuity",
+        "Native quality and completion",
+        "Installed source and skill verification"
+      ],
+      "evidence": [
+        "builtin-tests",
+        "builtin-runtime"
+      ]
+    }
+  ],
+  "alternatives": [
+    {
+      "option": "builtin canonical plus deprecated krt alias",
+      "disposition": "selected",
+      "evidence": [
+        "builtin-authority",
+        "builtin-contracts"
+      ]
+    },
+    {
+      "option": "Keep krt as canonical",
+      "disposition": "rejected",
+      "evidence": [
+        "builtin-authority"
+      ]
+    },
+    {
+      "option": "Remove krt immediately or migrate stored identity keys",
+      "disposition": "rejected",
+      "evidence": [
+        "builtin-contracts",
+        "builtin-source"
+      ]
+    }
+  ],
+  "source_locators": [
+    "README.md",
+    "docs/routing-engine-migration.md",
+    "docs/interface.md",
+    "reports/backend-naming/verification.json"
+  ],
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "retriever_version": "retriever-ec995ecdd083b2c8",
+  "verification_criteria": [
+    "156 landing-check tests pass",
+    "Actual native default and alias routes complete and validate",
+    "Installed offline/no-canary doctor has no required failures",
+    "No owned router source or state manifest changes"
+  ],
+  "reopening_conditions": [
+    "A consumer cannot accept builtin result names",
+    "An alias fails to preserve prior build identity or saved corpus behavior"
+  ],
+  "residual_risk": [
+    "Seven remaining generic doctrine obligations are explicitly nonmaterial in obligation-disposition.json.",
+    "No complete-suite, cross-version or renewed performance qualification claim.",
+    "Advisory publication does not prove recipient handling."
+  ]
+}

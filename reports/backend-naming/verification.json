@@ -1,0 +1,74 @@
+{
+  "status": "PASS",
+  "source_commit": "8bafe2d563317764e3a7de7b41bcf7d8eb369bf2",
+  "issue": "KICADROUTE-82",
+  "issue_state": "Done",
+  "issue_state_api_readback": true,
+  "landing_check": {
+    "passed": 156,
+    "seconds": 6.88
+  },
+  "other_checks": [
+    {
+      "name": "native/interface",
+      "passed": 87,
+      "deselected": 3
+    },
+    {
+      "name": "evidence/docs",
+      "passed": 37,
+      "deselected": 1
+    },
+    {
+      "name": "native-pair/options",
+      "passed": 3,
+      "deselected": 24
+    }
+  ],
+  "native_routes": [
+    {
+      "invocation": "default",
+      "original_result_sha256": "c10c14a61a1588ec4439050c990e4d538d40a235d061e9691af76411b4c629a8",
+      "backend": "builtin",
+      "settings_backend": "builtin",
+      "tool_backend": "builtin",
+      "process": "PASS",
+      "routing": "COMPLETE",
+      "validation": "PASS",
+      "exit_code": 0,
+      "measurement": true,
+      "deprecation_on_stderr": false
+    },
+    {
+      "invocation": "alias",
+      "original_result_sha256": "157be93e697df2f8e29d8c45e7b0091614841ea50a9e3323f38b4eb57c0ca39c",
+      "backend": "builtin",
+      "settings_backend": "builtin",
+      "tool_backend": "builtin",
+      "process": "PASS",
+      "routing": "COMPLETE",
+      "validation": "PASS",
+      "exit_code": 0,
+      "measurement": true,
+      "deprecation_on_stderr": true
+    }
+  ],
+  "advisory": {
+    "source": {
+      "record_id": "d001d7e1-6070-40bf-a3db-4d5ba7a8920f",
+      "version": 2
+    },
+    "published_to_other_live_agents": 21,
+    "handling_claimed": false
+  },
+  "doctrine": {
+    "packet_id": "pkt-e7530e1ad18e7cf2",
+    "packet_content_sha256": "e7530e1ad18e7cf22c259fb51e8b64c7090ffa4bb12ed84558d381f29fa8c0d4",
+    "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+    "retriever_version": "retriever-ec995ecdd083b2c8",
+    "corpus_version": "corpus-2026-07-12-a11702cc9217"
+  },
+  "doctrine_release": "d3e0c0d4ccd1920b2e045c156f1cf0db4fc5f04f",
+  "original_local_evidence": "/home/halbritt/git/kicad-route/build/agent497-builtin-qualification",
+  "history_note": "Initial worktree-native interface invocation lacked installed runtime; rerun used explicit main state. A stale corpus default-name assertion was updated to builtin. Earlier failures remain in local evidence; this report does not claim a green full-suite invocation."
+}

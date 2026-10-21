@@ -1,0 +1,69 @@
+{
+  "packet_id": "pkt-e7530e1ad18e7cf2",
+  "remaining_material": 0,
+  "unmet": [
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-e5969900d0a1474a",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "CI and build matrix",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "reason": "No CI, interpreter or build-support change is made; verification claims cover the selected installed Python3.12/KiCad10 environment only."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-6beb33575d727362",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "formatter and static-tool configuration",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "reason": "No formatter/static-tool policy changes; syntax execution, focused tests and whitespace review cover these edits."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-7a342184b4a54bb7",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "Python and dependency version matrix",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "reason": "No supported-version or dependency change; full cross-version qualification is outside this public spelling change."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-886b16ae2adaee03",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "formatter linter and type-checker configuration",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "reason": "No lint/type configuration change; no new dependency or language-version feature is used."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-12b075c577f9263b",
+      "required_by": "refactoring-compatibility-migration",
+      "requirement": "telemetry where available",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "reason": "No usage telemetry service is available or required; compatibility is retained indefinitely with no alias removal date inferred."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-db0f434d164d9714",
+      "required_by": "task:legacy-change",
+      "requirement": "evidence-incidents",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "reason": "The owner explicitly identified naming confusion and authorized the remedy; a separate production incident is not needed for this bounded rename."
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a7c3deeb27a6d936",
+      "required_by": "universal-no-change-option",
+      "requirement": "expected future change from accepted plans",
+      "status": "missing",
+      "classification": "nonmaterial",
+      "reason": "No future alias removal or engine redesign is authorized; this change meets the current naming correction and preserves legacy use."
+    }
+  ]
+}

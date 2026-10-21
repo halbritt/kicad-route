@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "source_commit": "8bafe2d563317764e3a7de7b41bcf7d8eb369bf2",
+  "installed_cli": "/home/halbritt/.local/bin/kicad-route",
+  "resolved_cli": "/home/halbritt/git/kicad-route/bin/kicad-route",
+  "source_sha256": "c6c09054f6845442867ed99141ecbcfdc78f39f622cda06ff401e8230bd9bab1",
+  "generation": "/home/halbritt/git/kicad-route/.router-generations/f23025e1b26d406d83e2167aa0c0da9f",
+  "manifest_sha256_before": "87ae9cf328c50c1f3275a480dab2b4a9a951f09d2b2b9c6d91bfac9296221bfd",
+  "manifest_sha256_after": "87ae9cf328c50c1f3275a480dab2b4a9a951f09d2b2b9c6d91bfac9296221bfd",
+  "manifest_drift": [],
+  "builtin_repeat": {
+    "reproducible": true,
+    "measurement": true,
+    "basis": "determinism check 2026-10-20T22:53:29.293454+00:00: identical copper geometry on repeat"
+  },
+  "canonical_backends": [
+    "builtin",
+    "freerouting"
+  ],
+  "skills_refreshed": [
+    "diagnose-routing-failures",
+    "review-routed-board"
+  ],
+  "qualified_binary_rebuilt": false
+}
