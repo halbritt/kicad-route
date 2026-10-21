@@ -248,7 +248,7 @@ def test_canary_backends():
     record("hygiene_canary", res)
     assert r.returncode == 0, r.stdout[-3000:]
     assert {c["check"]: c["status"] for c in res["checks"]} == {
-        "split": "PASS", "bridge": "PASS", "freerouting": "PASS", "krt": "PASS"}
+        "split": "PASS", "bridge": "PASS", "freerouting": "PASS", "builtin": "PASS"}
     for c in res["checks"][2:]:
         assert set(c["needed_copper"]) <= set(c["new_copper_nets"])
         assert not set(c["new_copper_nets"]) & set(canary.SCOPED_OUT)

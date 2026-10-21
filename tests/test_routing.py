@@ -15,6 +15,8 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -211,19 +213,86 @@ def test_unlocked_existing_copper_survives(backend, unlocked_dir):
     assert "max deviation 0 nm" in detail
 
 
-def test_budget_overrun_is_a_process_failure(blocked_dir):
-    """With rescue on, KRT keeps searching the unroutable nets past the budget:
-    the wrapper stops it and reports a process failure, not a candidate.
-    The budget must outlast KRT's start-up: on a loaded host a 15 s budget expired
-    before KRT's first net, KRT honoured the stop file at that checkpoint and
-    wrote the board unrouted (process PASS, exit 2). At 40 s the stop lands in a
-    search on the walled nets, which does not check the stop file."""
-    r, run_dir, result = run("run", "--backend", "krt", "--budget", "40", "--dir", str(blocked_dir),
-                             "--label", "smoke-budget-krt")
-    record("budget_krt", summary(result))
-    assert r.returncode == 1 and result["process"]["status"] == route.FAIL
-    assert "budget" in " ".join(result["process"]["reasons"])
-    assert result["routing"]["status"] == route.NOT_RUN and result["candidate"] is None
+@pytest.mark.parametrize("cooperative", [False, True], ids=["forced-kill", "cooperative-checkpoint"])
+def test_budget_stop_preserves_process_and_native_grading(tmp_path, monkeypatch, cooperative):
+    """A real watchdog kills an unresponsive worker or grades its saved checkpoint.
+
+    The workers control only the response to STOP, rather than relying on which
+    router search happens to be running after a fixed duration. The cooperative
+    worker copies the input board unchanged, so real KiCad must find the same
+    existing findings, preserve every input item, and report the remaining nets.
+    """
+    from kicad_route import common, procgroup
+
+    worker_root = tmp_path / "controlled-worker"
+    script = worker_root / "py_router" / "route.py"
+    script.parent.mkdir(parents=True)
+    script.write_text('''
+import os
+from pathlib import Path
+import shutil
+import signal
+import sys
+import time
+
+cooperative = COOPERATIVE
+Path(__file__).with_suffix(".pid").write_text(str(os.getpid()))
+print("controlled budget worker ready", flush=True)
+if not cooperative:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    while True:
+        time.sleep(0.01)
+while not Path(os.environ["KICAD_STOP_FILE"]).exists():
+    time.sleep(0.01)
+shutil.copy2(sys.argv[1], sys.argv[sys.argv.index("--output") + 1])
+print("saved unchanged input checkpoint after STOP", flush=True)
+'''.replace("COOPERATIVE", repr(cooperative)))
+    monkeypatch.setattr(route, "KRT_DIR", worker_root)
+    monkeypatch.setattr(route, "route_python", lambda: Path(sys.executable))
+    monkeypatch.setattr(common, "_out", tmp_path / "out")
+    monkeypatch.setenv("KICAD_ROUTE_LEDGER", "off")
+    monkeypatch.setattr(procgroup, "TERM_S", 0.25)
+    runner = route.run_budgeted
+
+    def short_test_grace(*args, **kwargs):
+        # Use the real production watchdog, changing only its explicit test grace.
+        # Native facts, locks, baseline DRC, grading and result mapping stay real.
+        return runner(*args, **dict(kwargs, grace=1))
+
+    monkeypatch.setattr(route, "run_budgeted", short_test_grace)
+    original = tree_hash(FIXTURE)
+    result = route.run_attempt(route.run_namespace(
+        "builtin", dir=str(FIXTURE), run_dir=str(tmp_path / "run"), budget=3,
+        label="controlled-budget-" + ("cooperative" if cooperative else "forced")))
+    process = result["process"]
+    command = next(row for row in process["commands"] if str(script) in row.get("argv", []))
+    record("budget_checkpoint" if cooperative else "budget_forced_kill", summary(result))
+    assert command["budget_reached"] is True and command["stop_requested"] is True
+    assert "controlled budget worker ready" in Path(command["log"]).read_text()
+    assert result["measurement"] is False
+    assert tree_hash(FIXTURE) == original
+    pid = int(script.with_suffix(".pid").read_text())
+    assert not procgroup.members(pid), "controlled worker survived the watchdog"
+    if cooperative:
+        assert not command.get("killed") and command["exit_code"] == 0
+        assert process["status"] == route.PASS
+        assert result["routing"]["status"] == route.INCOMPLETE
+        assert result["routing"]["unconnected_in_scope"] > 0
+        assert result["validation"]["status"] == route.PASS
+        assert result["validation"]["parity_performed"] is True
+        assert result["validation"]["drc"]["new_violations"]["count"] == 0
+        assert all(value == route.PASS for value in result["validation"]["preservation"].values())
+        assert result["candidate"] is not None and result["exit_code"] == 2
+        board = Path(result["candidate"]["board"])
+        assert common.sha256(board) == result["validation"]["candidate_board_sha256"]
+        assert any("stopped early" in reason for reason in process["reasons"])
+    else:
+        assert command["killed"] is True and command["exit_code"] != 0
+        assert process["status"] == route.FAIL
+        assert any("budget" in reason for reason in process["reasons"])
+        assert result["routing"]["status"] == route.NOT_RUN
+        assert result["validation"]["status"] == route.NOT_RUN
+        assert result["candidate"] is None and result["exit_code"] == 1
 
 
 def test_validation_detects_tampering(tmp_path, attempt):
@@ -268,7 +337,7 @@ def test_compare_same_and_different_inputs(attempt):
     r2 = cli("compare", same[0], str(blocked))
     record("compare", {"same_input": {"exit_code": r1.returncode, "table": r1.stdout},
                        "different_input": {"exit_code": r2.returncode, "table": r2.stdout}})
-    assert r1.returncode == 0 and "| krt" in r1.stdout and "| freerouting" in r1.stdout
+    assert r1.returncode == 0 and "| builtin" in r1.stdout and "| freerouting" in r1.stdout
     assert r2.returncode == 1 and "different inputs" in r2.stdout
 
 
