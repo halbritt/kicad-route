@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/halbritt/kicad-route/schemas/result-campaign-2.json",
+  "title": "kicad-route safe campaign result, major version 2",
+  "description": "Only native-valid preservation-safe candidates may be best. Exit 1 retains the captured original; invalid attempts remain diagnostic. Legacy schemas are unchanged.",
+  "type": "object",
+  "required": [
+    "schema",
+    "kind",
+    "exit_code",
+    "campaign_dir",
+    "input",
+    "best",
+    "stop_reason",
+    "leaderboard",
+    "selection"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kicad-route/route-campaign/2"
+    },
+    "kind": {
+      "const": "route-campaign"
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2
+      ]
+    },
+    "deprecated": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "field"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "replaced_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "campaign_dir": {
+      "type": "string"
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "fingerprint"
+      ],
+      "properties": {
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "stop_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "leaderboard": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "eligibility"
+        ],
+        "properties": {
+          "eligibility": {
+            "type": "object",
+            "required": [
+              "status",
+              "reasons"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "eligible",
+                  "ineligible"
+                ]
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "best": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "chain",
+            "run_dir",
+            "candidate",
+            "grade",
+            "exit_code"
+          ],
+          "properties": {
+            "chain": {
+              "type": "string"
+            },
+            "run_dir": {
+              "type": "string"
+            },
+            "candidate": {
+              "type": "string"
+            },
+            "grade": {
+              "type": "string"
+            },
+            "exit_code": {
+              "enum": [
+                0,
+                2
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "selection": {
+      "type": "object",
+      "required": [
+        "status",
+        "baseline"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "candidate_selected",
+            "no_eligible_candidate"
+          ]
+        },
+        "baseline": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "board",
+                "dir",
+                "fingerprint"
+              ],
+              "properties": {
+                "board": {
+                  "type": "string"
+                },
+                "dir": {
+                  "type": "string"
+                },
+                "fingerprint": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "exit_code": {
+            "const": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "best": {
+            "type": "null"
+          },
+          "selection": {
+            "properties": {
+              "status": {
+                "const": "no_eligible_candidate"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "exit_code": {
+            "enum": [
+              0,
+              2
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "best": {
+            "type": "object"
+          },
+          "selection": {
+            "properties": {
+              "status": {
+                "const": "candidate_selected"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

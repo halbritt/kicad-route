@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import jsonschema
 
 from helpers import FIXTURE
 from kicad_route import campaign, common, corpus
@@ -246,3 +247,81 @@ def test_invoke_without_timeout_runs_to_the_end(out, tmp_path, monkeypatch):
     rec, text = c.invoke(["run"], "ok")
     assert rec["exit_code"] == 0 and not rec["timed_out"] and text.strip() == "[route] hello"
     assert not c.timeouts
+
+
+@pytest.mark.parametrize("defect", [None, "refill", "shorting_items", "clearance", "net_completion",
+                                   "missing_preservation", "missing_delta"])
+def test_native_grade_evidence_controls_campaign_eligibility(out, defect):
+    c = make_campaign(out)
+    run_dir = out / "run"
+    run_dir.mkdir()
+    preservation = dict.fromkeys([
+        "project_files", "board_outline", "layers", "stackup", "board_setup", "nets_and_netclasses",
+        "pad_connectivity", "footprints", "zones", "keepouts", "copper_graphics", "protected_copper",
+        "new_copper_netclass_geometry", "routing_scope", "net_completion", "pour_integrity"], "PASS")
+    v = {"status": "PASS", "reasons": [], "preservation": preservation,
+         "validated_board_sha256": "a" * 64, "candidate_board_sha256": "a" * 64,
+         "drc_commands": [{"argv": ["kicad-cli", "pcb", "drc", "--refill-zones", "--save-board"], "exit_code": 0},
+                          {"argv": ["kicad-cli", "pcb", "drc", "--schematic-parity", "--severity-all"], "exit_code": 0}],
+         "drc": {"new_violations": {"count": 0, "by_type": {}}, "new_parity": {"count": 0}}}
+    if defect == "refill":
+        v["drc_commands"][0]["exit_code"] = 1
+    elif defect in ("shorting_items", "clearance"):
+        v["drc"]["new_violations"] = {"count": 1, "by_type": {defect: 1}}
+    elif defect == "net_completion":
+        v["preservation"]["net_completion"] = "FAIL"
+    elif defect == "missing_preservation":
+        del v["preservation"]["protected_copper"]
+    elif defect == "missing_delta":
+        del v["drc"]["new_violations"]
+    # Leave exit/status nominal to prove selection uses the underlying required evidence.
+    common.write_json(run_dir / "result.json", {
+        "exit_code": 0, "candidate": {"board": str(run_dir / "candidate.kicad_pcb")},
+        "validation": v, "routing": {"status": "COMPLETE", "unconnected_in_scope": 0,
+                                       "unconnected_total": 0, "unrouted_nets": []}})
+    chain = {"id": "r0", "steps": [{"run_dir": str(run_dir)}]}
+    c.grade(chain)
+    assert (campaign.eligibility(chain)["status"] == "eligible") == (defect is None)
+    if defect in ("shorting_items", "clearance"):
+        assert chain["grade"]["validation"]["new_violation_types"] == {defect: 1}
+
+
+def test_invalid_complete_campaign_retains_captured_original(out, tmp_path, monkeypatch):
+    c = make_campaign(out, rounds=0)
+    source = FIXTURE / "route_demo.kicad_pcb"
+    original = source.read_bytes()
+    # Simulate a native child process at the subprocess boundary. The campaign still
+    # reads its actual machine record, attempt, and grade from disk.
+    script = tmp_path / "invalid_child.py"
+    script.write_text('''import json
+from pathlib import Path
+from kicad_route import cli
+run_dir = Path(''' + repr(str(out / "invalid-run")) + ''')
+run_dir.mkdir()
+candidate_dir = run_dir / "candidate"
+candidate_dir.mkdir()
+(candidate_dir / "route_demo.kicad_pcb").write_text("invalid candidate")
+manifest = json.loads(Path(''' + repr(str(c.dir / "input" / "snapshot.json")) + ''').read_text())
+attempt = {"source": {}, "input_fingerprint": cli.input_fingerprint(manifest),
+           "board": "route_demo.kicad_pcb", "scope": {"nets": ["/A"]}}
+res = {"kind": "route", "exit_code": 3, "run_dir": str(run_dir),
+       "process": {"status": "PASS"}, "runtime_s": 1,
+       "candidate": {"dir": str(candidate_dir), "board": str(candidate_dir / "route_demo.kicad_pcb")},
+       "routing": {"status": "COMPLETE", "unconnected_in_scope": 0, "unrouted_nets": []},
+       "validation": {"status": "FAIL", "reasons": ["new clearance finding"],
+                      "drc": {"new_violations": {"count": 1}, "new_parity": {"count": 0}}}}
+(run_dir / "attempt.json").write_text(json.dumps(attempt))
+(run_dir / "result.json").write_text(json.dumps(res))
+print(json.dumps(res))
+''')
+    monkeypatch.setattr(campaign, "CLI", [sys.executable, str(script)])
+    rec = c.execute()
+    assert rec["best"] is None and rec["exit_code"] == 1
+    assert rec["selection"]["status"] == "no_eligible_candidate"
+    assert rec["stop_reason"] != "complete in round 0"
+    assert len(rec["leaderboard"]) == 1 and rec["leaderboard"][0]["eligibility"]["status"] == "ineligible"
+    baseline = Path(rec["selection"]["baseline"]["board"])
+    assert baseline.read_bytes() == original == source.read_bytes()
+    assert rec["schema"] == "kicad-route/route-campaign/2"
+    schema = json.loads((Path(__file__).parents[1] / "schemas" / "result-campaign-2.json").read_text())
+    jsonschema.validate(rec, schema)

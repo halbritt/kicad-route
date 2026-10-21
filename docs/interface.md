@@ -9,9 +9,11 @@ People reading a result can use [routing.md](routing.md) and the
 JSON Schemas (draft 2020-12):
 
 - [`schemas/result-1.json`](../schemas/result-1.json): `route` and `route-validate`
-  records without pair evidence, and `route-campaign` records.
+  records without pair evidence, and historical `route-campaign/1` records.
 - [`schemas/result-2.json`](../schemas/result-2.json): opt-in pair `route` and
   `route-validate` records.
+- [`schemas/result-campaign-2.json`](../schemas/result-campaign-2.json): safe campaign selection
+  `route-campaign/2` records.
 - [`schemas/refusal-1.json`](../schemas/refusal-1.json): the refusal record (exit 4).
 
 The built-in router's opt-in `run --diff-pairs auto` adds `pairs` to route and re-validation
@@ -100,7 +102,7 @@ Command records carry `"schema": "kicad-route/<kind>/<major>"` and `"kind"`.
 | `route-validate` with pairs | `kicad-route/route-validate/2` | `<run_dir>/revalidate*/<stamp>/result.json` | `validate` | result-2.json |
 | attempt without pairs | `kicad-route/attempt/1` | `<run_dir>/attempt.json` | (file only) | key sets below |
 | attempt with pairs | `kicad-route/attempt/2` | `<run_dir>/attempt.json` | (file only) | key sets below |
-| `route-campaign` | `kicad-route/route-campaign/1` | `OUT/campaigns/<project>/<label>/<stamp>/campaign.json` | `campaign` | result-1.json |
+| `route-campaign` | `kicad-route/route-campaign/2` | `OUT/campaigns/<project>/<label>/<stamp>/campaign.json` | `campaign` | result-campaign-2.json |
 | `refusal` | `kicad-route/refusal/1` | `OUT/refusals/<stamp>-<pid>.json` | any command | refusal-1.json |
 | `route-blocked` | `kicad-route/route-blocked/1` | (stdout only; the receipts are `blocked-by.json`) | `blocked RUN_DIR` | none yet |
 | blocked-by report | `kicad-route/blocked/2` | `OUT/blocked/<board>/<stamp>/blocked-by.json`, `<validate dir>/blocked-by.json` | `blocked --board B` | `schemas/blocked-by.schema.json` (docs/blocked.md) |
@@ -195,7 +197,7 @@ Other commands:
 
 | Command | 0 | 1 | 3 | 4 |
 |---|---|---|---|---|
-| `campaign` | the best chain is complete and valid (2 when it is valid but incomplete) | no chain produced a gradable candidate | the best chain fails validation | refused: a usage or input error, or its round-0 run was refused |
+| `campaign` | the best eligible chain is complete and valid (2 when it is valid but incomplete) | no eligible candidate; captured original retained | unused (invalid attempts are diagnostic only) | refused: a usage or input error, or its round-0 run was refused |
 | `audit` | no findings | a revision could not be graded | findings (rule changes, hidden findings, floor) | refused |
 | `floor` | nothing below the declared floor | | below the declared floor, or a broken declared floor | refused (not a git repository, `--since` not a commit) |
 | `blocked` | receipts written, or nothing is blocked | the diagnosis failed (`--board`: DRC or facts did not run, or the board changed while analysed) | | refused (not a run, not a board) |
@@ -277,7 +279,11 @@ changing its meaning needs `/2`.
 `route-validate`: `schema`, `kind`, `exit_code`, `run_dir`, `against`, `dir`, and the
 same `routing`, `validation`, and opt-in `pairs` fields. `route-campaign`: `schema`, `kind`,
 `exit_code`, `campaign_dir`, `input.fingerprint`, `best` (`chain`, `run_dir`,
-`candidate`, `grade`, `exit_code`; null when no chain was graded). Refusal: every field
+`candidate`, `grade`, `exit_code`; null when no chain is eligible), and
+`selection.status` (`candidate_selected` or `no_eligible_candidate`) with
+`selection.baseline` (captured original `board`, `dir`, `fingerprint`). Each
+`leaderboard` row has `eligibility.status` and `eligibility.reasons`. Retaining the
+original makes no clean-pass claim about its existing findings. Refusal: every field
 of the record above.
 
 Fields whose shape depends on the input: `scope.nets_list` is null above 50 nets,
@@ -315,6 +321,11 @@ and every other process detail, `routing.stats`, the `routing.blocked_by` summar
 - This page keeps the history below.
 
 ### History
+
+- **2, safe campaigns** (2026-10-21): `route-campaign/2` publishes only eligible
+  candidates. Invalid-only campaigns now return exit 1 with `best: null` and
+  `selection.status: no_eligible_candidate`, retaining the captured original.
+  `route-campaign/1` remains readable through the unchanged legacy schema.
 
 - **2, opt-in pairs** (2026-10-18): `route/2` and `route-validate/2` announce pair
   evidence; `schemas/result-2.json` requires the pair array and the route's pair

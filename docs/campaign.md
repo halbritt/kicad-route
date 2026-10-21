@@ -55,7 +55,7 @@ kicad-route campaign --backend builtin --nets '/CAN*' '/USB*' --race 3 --default
 ## How it works
 
 **Round 0** is one ordinary attempt over the campaign scope on the input. If it is
-complete, the campaign stops. Otherwise its unrouted nets (KiCad's view after zone
+complete and eligible, the campaign stops. Otherwise its unrouted nets (KiCad's view after zone
 refill, `routing.unrouted_nets`) start the **backlog**.
 
 **Round k** is a two-step chain:
@@ -73,7 +73,7 @@ refill, `routing.unrouted_nets`) start the **backlog**.
 After each round, the backlog becomes the union of itself and every net that is still
 unrouted. The campaign stops when one of these is true:
 
-- a round is complete;
+- a round has a complete, eligible candidate;
 - the backlog did not grow (the next round would repeat this one with the same
   scopes);
 - `--rounds` hard-first rounds are done;
@@ -119,19 +119,32 @@ campaign cannot mix inputs. Use `--rev` when other people edit the tree.
 
 Every finished chain is graded against the original input: a one-step chain by its
 own `result.json` (its input *is* the original), a longer chain by
-`validate --against`. Chains are ranked in this order:
+`validate --against`. Only eligible chains can become `best`: the native refill
+and DRC commands must succeed, the graded and retained board hashes must match,
+validation and every required preservation check must pass, and introduced DRC
+and parity findings must both be zero. Missing required evidence is ineligible.
+This includes protection of original copper, original complete nets, pours,
+netclass geometry, project rules and fixed poses. Existing findings remain visible
+in each referenced grade; preserving the baseline does not establish a clean board.
+Eligibility relies on the existing native grader and its preservation evidence.
+This selection fix does not establish full native terminal-component correctness
+or resolve truncated native DRC connectivity reports. Missing counts or explicitly
+unidentified terminals remain ineligible; report-saturation reconciliation requires
+separate native evidence before a release claim.
 
-1. a graded candidate before none;
-2. complete and valid (exit 0) before the rest;
-3. no preservation failure before any (a board that moved a footprint or lost
-   protected copper cannot be adopted, whatever its counts);
-4. fewer unconnected items in scope;
-5. fewer new DRC violations plus new parity issues;
-6. shorter runtime (the sum of the steps' wall time and the grading).
+Eligible chains prefer fewer native unconnected items in scope, then fewer distinct
+unrouted nets, shorter runtime, candidate board hash and stable chain ID. Runtime
+is the sum of step wall times and grading. Total-via and total-length metrics are
+not available in the existing campaign grade, so this fix does not invent them.
+Invalid chains remain in the diagnostic leaderboard with explicit eligibility
+reasons; completion never permits them to displace a safe partial result.
 
-The campaign prints the best chain's last run directory and candidate. It exits with
-that chain's graded exit code: 0 complete and valid, 2 valid but incomplete, 3 fails
-validation. If no chain produced a gradable candidate, it exits 1. A usage or input
+The campaign prints the best eligible chain's last run directory and candidate.
+It exits 0 when that chain is complete and valid, or 2 when valid but incomplete.
+If none is eligible, it exits 1 with `best: null` and
+`selection.status: no_eligible_candidate`; `selection.baseline` identifies the
+unchanged input snapshot retained under the campaign's `input/reference/`.
+The versioned record is `kicad-route/route-campaign/2`. A usage or input
 error, or a refused round-0 run (for example the ledger), is a refusal: exit 4 with a
 record under `OUT/refusals/`, and no campaign directory is left
 ([interface.md](interface.md)).

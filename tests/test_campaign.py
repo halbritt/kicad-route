@@ -6,6 +6,8 @@ each attempt returns a candidate. Shared harness: helpers.py and conftest.py.
 """
 import fnmatch
 import json
+
+import pytest
 from pathlib import Path
 
 from helpers import FIXTURE, OUT, cli, record
@@ -46,16 +48,75 @@ def test_net_pattern_matches_exactly_one_name():
     assert rest[:3] == ["--nets", "!ab", "--netclass"]
 
 
-def test_rank_prefers_complete_valid_then_fewer_unconnected():
-    def chain(cid, exit_code, unconnected, new_v=0, pres=(), runtime=10.0):
-        return {"id": cid, "runtime_s": runtime, "grade": {
-            "exit_code": exit_code, "routing": {"unconnected_in_scope": unconnected},
-            "validation": {"new_violations": new_v, "new_parity": 0, "preservation_failures": list(pres)}}}
-    chains = [chain("fail", 1, None) | {"grade": None}, chain("pres", 3, 0, pres=["footprints"]),
-              chain("more", 2, 5), chain("fewer", 3, 2, new_v=1), chain("fewer-clean", 2, 2, runtime=99),
-              chain("done", 0, 0, runtime=500)]
-    assert [c["id"] for c in sorted(chains, key=campaign.rank_key)] == [
-        "done", "fewer-clean", "fewer", "more", "pres", "fail"]
+def graded_chain(cid, unconnected=0, runtime=10.0):
+    return {"id": cid, "round": 0, "strategy": "full", "status": "graded", "steps": [],
+            "runtime_s": runtime, "grade": {
+                "exit_code": 2 if unconnected else 0,
+                "result": "result.json", "candidate": "candidate.kicad_pcb", "against": "root-run",
+                "routing": {"status": "INCOMPLETE" if unconnected else "COMPLETE",
+                            "unconnected_in_scope": unconnected, "unrouted_nets": ["/A"] if unconnected else []},
+                "validation": {"status": "PASS", "native_refill": "PASS", "native_drc": "PASS",
+                               "new_violations": 0, "new_parity": 0, "preservation_failures": []}}}
+
+
+def test_rank_prefers_valid_incomplete_over_complete_new_clearance_error():
+    # KICADROUTE-90: a clearance-invalid complete board previously beat a safe partial board.
+    invalid = graded_chain("invalid-complete")
+    invalid["grade"]["exit_code"] = 3
+    invalid["grade"]["validation"].update(status="FAIL", new_violations=1)
+    valid = graded_chain("valid-incomplete", unconnected=5)
+    assert sorted([invalid, valid], key=campaign.rank_key) == [valid, invalid]
+
+
+@pytest.mark.parametrize(("field", "value", "reason"), [
+    ("native_refill", "FAIL", "refill_not_pass"),
+    ("native_refill", None, "refill_not_pass"),
+    ("native_drc", None, "native_drc_not_pass"),
+    ("new_violations", 1, "new_or_unknown_native_findings"),  # includes shorts and clearance
+    ("new_parity", 1, "new_or_unknown_parity_findings"),
+    ("preservation_failures", ["net_completion"], "failed_or_unknown_preservation"),
+    ("preservation_failures", ["protected_copper"], "failed_or_unknown_preservation"),
+    ("preservation_failures", None, "failed_or_unknown_preservation"),
+])
+def test_ineligible_evidence_cannot_displace_safe_incomplete(field, value, reason):
+    invalid, valid = graded_chain("invalid"), graded_chain("safe", unconnected=8)
+    # An integer exit alone cannot make a board eligible.
+    invalid["grade"]["validation"][field] = value
+    assert campaign.eligibility(invalid)["status"] == "ineligible"
+    assert reason in campaign.eligibility(invalid)["reasons"]
+    assert campaign.rank_key(valid) < campaign.rank_key(invalid)
+    c = campaign.Campaign.__new__(campaign.Campaign)
+    c.chains = [invalid, valid]
+    assert c.best() is valid
+    c.chains = [invalid]
+    assert c.best() is None
+
+
+@pytest.mark.parametrize("routing", [
+    {"unconnected_in_scope": None}, {"unconnected_in_scope": -1},
+    {"status": "NOT_RUN"}, {"unrouted_nets": None},
+    {"unconnected_unidentified": [["unknown terminal"]]},
+])
+def test_unknown_native_connectivity_is_ineligible(routing):
+    chain = graded_chain("unknown")
+    chain["grade"]["routing"].update(routing)
+    assert "unknown_connectivity" in campaign.eligibility(chain)["reasons"]
+
+
+def test_missing_grade_has_no_best_and_remains_diagnostic():
+    c = campaign.Campaign.__new__(campaign.Campaign)
+    c.chains = [graded_chain("ungraded") | {"grade": None}]
+    assert c.best() is None
+    assert campaign.leaderboard(c.chains)[0]["eligibility"] == {
+        "status": "ineligible", "reasons": ["missing_grade"]}
+
+
+def test_rank_valid_candidates_prefers_native_connections_then_stable_ties():
+    more = graded_chain("more", unconnected=5)
+    fewer = graded_chain("fewer", unconnected=2, runtime=99)
+    done_z = graded_chain("z", runtime=500)
+    done_a = graded_chain("a", runtime=500)
+    assert sorted([more, fewer, done_z, done_a], key=campaign.rank_key) == [done_a, done_z, fewer, more]
 
 
 def test_campaign_complete_in_round_0_stops():

@@ -2,8 +2,8 @@
 refusal path (exit 4 with a record), the parser every command uses, and --json
 output (one JSON object on stdout, everything else on stderr).
 
-Schema ids are "kicad-route/<kind>/<major>". Opt-in pair evidence uses major 2;
-unchanged records keep major 1 (docs/interface.md lists the stable fields).
+Schema ids are "kicad-route/<kind>/<major>". Opt-in pair evidence and safe
+campaign selection use major 2; unchanged records keep major 1 (docs/interface.md lists the stable fields).
 The JSON Schemas live in schemas/ at the checkout root.
 """
 import argparse

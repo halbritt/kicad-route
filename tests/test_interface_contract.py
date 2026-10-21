@@ -25,6 +25,8 @@ from kicad_route import cli as route
 CLI = [sys.executable, str(ROOT / "bin" / "kicad-route")]
 RESULT_SCHEMA = json.loads((ROOT / "schemas" / "result-1.json").read_text())
 PAIR_RESULT_SCHEMA = json.loads((ROOT / "schemas" / "result-2.json").read_text())
+CAMPAIGN_SCHEMA = json.loads((ROOT / "schemas" / "result-campaign-2.json").read_text())
+CAMPAIGNS = jsonschema.Draft202012Validator(CAMPAIGN_SCHEMA)
 REFUSAL_SCHEMA = json.loads((ROOT / "schemas" / "refusal-1.json").read_text())
 RESULTS = jsonschema.Draft202012Validator(RESULT_SCHEMA)
 REFUSALS = jsonschema.Draft202012Validator(REFUSAL_SCHEMA)
@@ -361,7 +363,7 @@ def check_invariants(res, process=None):
 
 
 def test_schemas_are_valid_2020_12():
-    for s in (RESULT_SCHEMA, PAIR_RESULT_SCHEMA, REFUSAL_SCHEMA):
+    for s in (RESULT_SCHEMA, PAIR_RESULT_SCHEMA, CAMPAIGN_SCHEMA, REFUSAL_SCHEMA):
         jsonschema.Draft202012Validator.check_schema(s)
         assert s["$schema"] == "https://json-schema.org/draft/2020-12/schema"
 
@@ -427,7 +429,7 @@ def test_records_written_by_commands_carry_schema_ids():
     src = {n: (ROOT / "src" / "kicad_route" / f"{n}.py").read_text() for n in ("cli", "campaign", "floor")}
     for kind in ("route", "route-validate", "route-blocked", "audit", "doctor"):
         assert f'contract.schema_id("{kind}")' in src["cli"], kind
-    assert 'contract.schema_id("route-campaign")' in src["campaign"]
+    assert 'contract.schema_id("route-campaign", major=2)' in src["campaign"]
     assert 'contract.schema_id("floor")' in src["floor"]
     assert "RESULT_LINE" not in src["campaign"] and "VALIDATE_LINE" not in src["campaign"]
 
@@ -487,7 +489,7 @@ def test_json_campaign_reads_child_records():
            "--dir", FIXTURE, "--nets", "/SIG_A*", "--label", "iface-campaign", cwd=OUT, timeout=1800)
     rec = one_json(r.stdout)
     assert "[campaign]" in r.stderr and r.returncode == rec["exit_code"] == 0, r.stderr[-3000:]
-    RESULTS.validate(rec)
+    CAMPAIGNS.validate(rec)
     assert json.loads((OUT / rec["campaign_dir"] / "campaign.json").read_text()) == rec
     step = rec["chains"][0]["steps"][0]
     assert step["status"] == "ok" and "--json" in step["argv"]

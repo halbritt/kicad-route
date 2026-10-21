@@ -25,8 +25,8 @@ Each step runs in machine mode (`--json`): the campaign reads the step's result
 record from its stdout, never its progress lines (docs/interface.md).
 
 Output: OUT/campaigns/<project>/<label>/<stamp>/campaign.json and CAMPAIGN.md.
-Exit status: the best chain's (0 complete and valid, 2 valid but incomplete,
-3 fails validation), 1 when no chain produced a gradable candidate, or 4 when
+Exit status: the best eligible chain's (0 complete and valid, 2 valid but incomplete),
+1 when no chain is eligible (the captured original is retained), or 4 when
 the campaign was refused before any backend ran (its round-0 run was refused,
 or a usage or input error); a refusal leaves no campaign directory.
 """
@@ -150,17 +150,56 @@ def ordering_first(facts, scope, ordering):
 
 # ------------------------------------------------------------------- ranking
 
-def rank_key(chain):
-    """Best first: a graded candidate; complete and valid; no preservation failure (an
-    unadoptable board never wins on counts); fewer unconnected in scope; fewer new DRC
-    and parity findings; shorter runtime."""
+# Every native grade must contain these checks; protection-specific extra checks
+# are also required to pass when present.
+REQUIRED_PRESERVATION = frozenset({
+    "project_files", "board_outline", "layers", "stackup", "board_setup", "nets_and_netclasses",
+    "pad_connectivity", "footprints", "zones", "keepouts", "copper_graphics", "protected_copper",
+    "new_copper_netclass_geometry", "routing_scope", "net_completion", "pour_integrity",
+})
+
+def eligibility(chain):
+    """Fail closed on absent native or preservation evidence, independently of counts."""
     g = chain.get("grade")
     if not g:
-        return (1, 1, 1, math.inf, math.inf, math.inf)
-    v = g["validation"]
-    return (0, g["exit_code"] != 0, len(v["preservation_failures"]) > 0,
-            g["routing"]["unconnected_in_scope"] if g["routing"]["unconnected_in_scope"] is not None else math.inf,
-            v["new_violations"] + v["new_parity"], chain["runtime_s"])
+        return {"status": "ineligible", "reasons": ["missing_grade"]}
+    v, rt = g.get("validation", {}), g.get("routing", {})
+    reasons = []
+    if g.get("exit_code") not in (0, 2):
+        reasons.append("unsuccessful_result")
+    if v.get("status") != common.PASS:
+        reasons.append("validation_not_pass")
+    if v.get("native_refill") != common.PASS:
+        reasons.append("refill_not_pass")
+    if v.get("native_drc") != common.PASS:
+        reasons.append("native_drc_not_pass")
+    if v.get("new_violations") != 0:
+        reasons.append("new_or_unknown_native_findings")
+    if v.get("new_parity") != 0:
+        reasons.append("new_or_unknown_parity_findings")
+    if v.get("preservation_failures") != []:
+        reasons.append("failed_or_unknown_preservation")
+    count = rt.get("unconnected_in_scope")
+    if (type(count) is not int or count < 0 or rt.get("status") not in ("COMPLETE", "INCOMPLETE")
+            or not isinstance(rt.get("unrouted_nets"), list)
+            or (rt.get("status") == "COMPLETE") != (count == 0)
+            or rt.get("unconnected_unidentified")):
+        reasons.append("unknown_connectivity")
+    if any(not isinstance(g.get(k), str) or not g[k] for k in ("result", "candidate", "against")):
+        reasons.append("missing_grade_reference")
+    return {"status": "ineligible" if reasons else "eligible", "reasons": reasons}
+
+
+def rank_key(chain):
+    """Eligible boards first; invalid boards are ranked only for diagnostics."""
+    g = chain.get("grade") or {}
+    v, rt = g.get("validation", {}), g.get("routing", {})
+    return (eligibility(chain)["status"] != "eligible", not bool(g),
+            bool(v.get("preservation_failures")),
+            rt.get("unconnected_in_scope") if rt.get("unconnected_in_scope") is not None else math.inf,
+            (v.get("new_violations") or 0) + (v.get("new_parity") or 0),
+            len(rt["unrouted_nets"]) if isinstance(rt.get("unrouted_nets"), list) else math.inf,
+            chain["runtime_s"], g.get("candidate_sha256") or "", chain["id"])
 
 
 def leaderboard(chains):
@@ -169,10 +208,11 @@ def leaderboard(chains):
         g = c.get("grade") or {}
         rt, v = g.get("routing", {}), g.get("validation", {})
         rows.append({"rank": i, "chain": c["id"], "round": c["round"], "strategy": c["strategy"],
-                     "status": c["status"], "exit_code": g.get("exit_code", 1),
+                     "status": c["status"], "eligibility": eligibility(c), "exit_code": g.get("exit_code", 1),
                      "routing": rt.get("status"), "unconnected_in_scope": rt.get("unconnected_in_scope"),
                      "unconnected_total": rt.get("unconnected_total"),
                      "validation": v.get("status"), "new_violations": v.get("new_violations"),
+                     "new_violation_types": v.get("new_violation_types"),
                      "new_parity": v.get("new_parity"), "preservation_failures": v.get("preservation_failures"),
                      "runtime_s": c["runtime_s"], "end_run": c["steps"][-1].get("run_dir") if c["steps"] else None,
                      "candidate": g.get("candidate")})
@@ -220,7 +260,8 @@ class Campaign:
         self.started = time.monotonic()
         self.deadline = self.started + args.total_budget if args.total_budget else None
         self.cwd = Path.cwd()
-        self.fingerprint = None   # the original input's, from round 0
+        self.fingerprint = None   # the captured original input's
+        self.ref_dir = None
         self.scope = None         # the campaign scope on the original input (net names)
         self.chains, self.rounds, self.backlog_history = [], [], []
         self.stop_reason = None
@@ -417,19 +458,33 @@ class Campaign:
             res_path = self.path(data["dir"]) / "result.json"
             by = "validate --against"
         res = common.load_json(res_path)
+        if res is None:
+            chain.update(status="error", error="native grade result is missing")
+            return
         v, rt = res["validation"], res["routing"]
         drc = v.get("drc") or {}
         end_result = common.load_json(self.path(end["run_dir"]) / "result.json")
+        native = {}
+        for name, flags in (("native_refill", {"--refill-zones", "--save-board"}),
+                            ("native_drc", {"--schematic-parity", "--severity-all"})):
+            commands = [cmd for cmd in v.get("drc_commands", []) if flags <= set(cmd.get("argv", []))]
+            native[name] = common.PASS if len(commands) == 1 and commands[0].get("exit_code") == 0 else common.FAIL
+        if not v.get("validated_board_sha256") or v.get("validated_board_sha256") != v.get("candidate_board_sha256"):
+            native["native_drc"] = common.FAIL
+        preservation = v.get("preservation") or {}
         chain["grade"] = {
             "by": by, "result": common.rel(res_path), "against": first["run_dir"],
             "chain": v.get("chain") or [end["run_dir"]], "exit_code": res["exit_code"],
             "candidate": end_result["candidate"]["board"],
-            "routing": {k: rt.get(k) for k in ("status", "unconnected_in_scope", "unconnected_total", "unrouted_nets")},
+            "candidate_sha256": v.get("candidate_board_sha256"),
+            "routing": {k: rt.get(k) for k in ("status", "unconnected_in_scope", "unconnected_total", "unrouted_nets", "unconnected_unidentified")},
             "validation": {"status": v["status"], "reasons": v.get("reasons", [])[:10],
-                           "new_violations": (drc.get("new_violations") or {}).get("count", 0),
-                           "new_parity": (drc.get("new_parity") or {}).get("count", 0),
-                           "preservation_failures": [k for k, s in (v.get("preservation") or {}).items()
-                                                     if s != common.PASS]}}
+                           **native,
+                           "new_violations": (drc.get("new_violations") or {}).get("count"),
+                           "new_violation_types": (drc.get("new_violations") or {}).get("by_type"),
+                           "new_parity": (drc.get("new_parity") or {}).get("count"),
+                           "preservation_failures": sorted(k for k in REQUIRED_PRESERVATION | preservation.keys()
+                                                           if preservation.get(k) != common.PASS)}}
         chain["status"] = "graded"
         g = chain["grade"]
         log(f"[campaign] {chain['id']}: graded against the original input -> exit {g['exit_code']}, "
@@ -468,16 +523,22 @@ class Campaign:
 
     # ---------------------------------------------------------------- rounds
 
+    def capture_input(self):
+        """Keep the unchanged original even if every routing attempt is ineligible."""
+        if self.ref_dir is None:
+            self.ref_dir, manifest = self.cli.snapshot_input(self.cfg, self.dir / "input")
+            self.fingerprint = self.cli.input_fingerprint(manifest)
+
     def prepare_race(self):
         """Input facts for the race orderings, and the baseline warmed so parallel runs share it."""
         cli = self.cli
         common.ensure_kicad_config()
-        ref_dir, manifest = cli.snapshot_input(self.cfg, self.dir / "input")
+        self.capture_input()
+        ref_dir = self.ref_dir
         facts, rec = cli.board_facts(ref_dir / self.cfg["pcb"], self.dir / "input" / "facts.json")
         if facts is None:
             contract.refuse("input", f"could not read the input board {self.cfg['pcb']} (facts.py exit "
                             f"{rec['exit_code']}): {self.cli.log_tail(self.dir / 'input' / 'facts.log')}")
-        self.fingerprint = cli.input_fingerprint(manifest)
         try:
             self.scope = cli.select_nets(facts, self.args.nets, self.args.netclass)[0]
         except cli.NetSelectionError as e:
@@ -537,13 +598,15 @@ class Campaign:
     def execute(self):
         a = self.args
         log(f"[campaign] {a.strategy} on {self.project} with {a.backend} -> {common.rel(self.dir)}")
+        self.capture_input()
         graded, backlog = self.finish_round(0, self.round0(), None)
         if any(c["status"] == "input_changed" for c in self.chains):
             self.stop_reason = "input changed during the campaign"
         elif not graded:
             self.stop_reason = "round 0 produced no gradable candidate" + (
                 " (total budget reached)" if self.out_of_time() else "")
-        elif any(c["grade"]["routing"]["status"] == "COMPLETE" for c in graded):
+        elif any(eligibility(c)["status"] == "eligible" and c["grade"]["routing"]["status"] == "COMPLETE"
+                 for c in graded):
             self.stop_reason = "complete in round 0"
         rnd = 0
         while self.stop_reason is None:
@@ -564,7 +627,7 @@ class Campaign:
             graded, new_backlog = self.finish_round(rnd, [chain], backlog)
             if chain["status"] == "input_changed":
                 self.stop_reason = "input changed during the campaign"
-            elif graded and graded[0]["grade"]["routing"]["status"] == "COMPLETE":
+            elif graded and eligibility(graded[0])["status"] == "eligible" and graded[0]["grade"]["routing"]["status"] == "COMPLETE":
                 self.stop_reason = f"complete in round {rnd}"
             elif chain["status"] == "stopped":
                 self.stop_reason = "total budget reached"
@@ -576,14 +639,14 @@ class Campaign:
     # ---------------------------------------------------------------- output
 
     def best(self):
-        ranked = sorted(self.chains, key=rank_key)
-        return ranked[0] if ranked and ranked[0].get("grade") else None
+        eligible = [c for c in self.chains if eligibility(c)["status"] == "eligible"]
+        return min(eligible, key=rank_key) if eligible else None
 
     def record(self):
         best = self.best()
         a = self.args
         return {
-            "schema": contract.schema_id("route-campaign"), "kind": "route-campaign", "project": self.project, "label": self.label, "strategy": a.strategy,
+            "schema": contract.schema_id("route-campaign", major=2), "kind": "route-campaign", "project": self.project, "label": self.label, "strategy": a.strategy,
             "backend": a.backend, "campaign_dir": common.rel(self.dir),
             "input": {"dir": str(self.cfg["path"]), "board": self.cfg["pcb"], "rev": a.rev,
                       "fingerprint": self.fingerprint},
@@ -596,6 +659,10 @@ class Campaign:
             "rounds": self.rounds, "backlog_evolution": self.backlog_history, "chains": self.chains,
             "timeouts": list(self.timeouts),
             "leaderboard": leaderboard(self.chains), "stop_reason": self.stop_reason,
+            "selection": {"status": "candidate_selected" if best else "no_eligible_candidate",
+                          "baseline": None if self.ref_dir is None else {
+                              "board": common.rel(self.ref_dir / self.cfg["pcb"]),
+                              "dir": common.rel(self.ref_dir), "fingerprint": self.fingerprint}},
             "best": None if best is None else {
                 "chain": best["id"], "round": best["round"], "strategy": best["strategy"],
                 "run_dir": best["steps"][-1]["run_dir"], "candidate": best["grade"]["candidate"],
@@ -625,7 +692,8 @@ class Campaign:
             log(f"[campaign] best: {rec['best']['run_dir']} (chain {rec['best']['chain']})")
             log(f"[campaign] candidate: {rec['best']['candidate']}")
         else:
-            log("[campaign] best: none (no chain produced a gradable candidate)")
+            log("[campaign] best: none (no eligible candidate; unchanged input retained)")
+            log(f"[campaign] baseline: {rec['selection']['baseline']['board']}")
         log(f"[campaign] result: {rec['campaign_dir']}/campaign.json  (exit {rec['exit_code']})")
         return rec
 
@@ -647,11 +715,15 @@ def render(rec):
                   f"- Candidate: `{b['candidate']}`",
                   f"- Graded against the original input (`{b['graded_against']}`): `{b['grade']}`"]
     else:
-        lines.append("- Best: none (no chain produced a gradable candidate)")
-    lines += ["", "| # | Chain | Exit | Routing | Unconnected | Validation | New violations | Preservation failures"
-                  " | Runtime s | End run |", "|---|---|---|---|---|---|---|---|---|---|"]
+        lines.append("- Best: none (no eligible candidate; unchanged input retained)")
+    if rec["selection"]["baseline"]:
+        lines.append(f"- Captured original: `{rec['selection']['baseline']['board']}`")
+    lines += ["", "| # | Chain | Eligibility | Exit | Routing | Unconnected | Validation | New violations | Preservation failures"
+                  " | Runtime s | End run |", "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rec["leaderboard"]:
-        lines.append(f"| {r['rank']} | {r['chain']} ({r['status']}) | {r['exit_code']} | {r['routing'] or '-'} | "
+        lines.append(f"| {r['rank']} | {r['chain']} ({r['status']}) | {r['eligibility']['status']}"
+                     f"{': ' + ', '.join(r['eligibility']['reasons']) if r['eligibility']['reasons'] else ''}"
+                     f" | {r['exit_code']} | {r['routing'] or '-'} | "
                      f"{r['unconnected_in_scope'] if r['unconnected_in_scope'] is not None else '-'} | "
                      f"{r['validation'] or '-'} | {r['new_violations'] if r['new_violations'] is not None else '-'} | "
                      f"{', '.join(r['preservation_failures'] or []) or '-'} | {r['runtime_s']} | `{r['end_run']}` |")

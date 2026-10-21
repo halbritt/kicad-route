@@ -47,7 +47,7 @@ The exact key sets are in [interface.md](../interface.md#attempt-and-result-key-
 |---|---|---|---|
 | `route` | `kicad-route/route/1` | `<run_dir>/result.json` | `run` |
 | `route-validate` | `kicad-route/route-validate/1` | `<run_dir>/revalidate*/<stamp>/result.json` | `validate` |
-| `route-campaign` | `kicad-route/route-campaign/1` | `OUT/campaigns/…/campaign.json` | `campaign` |
+| `route-campaign` | `kicad-route/route-campaign/2` | `OUT/campaigns/…/campaign.json` | `campaign` |
 | `refusal` | `kicad-route/refusal/1` | `OUT/refusals/<stamp>-<pid>.json` | any command |
 | blocked-by report | `kicad-route/blocked/2` | `blocked-by.json` | `blocked`, validation |
 | `audit`, `floor`, `doctor`, `decoupling`, `barrier-preview` | `kicad-route/<kind>/1` | under `OUT/<kind>/…` | the command of that name |
