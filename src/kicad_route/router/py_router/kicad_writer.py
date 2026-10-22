@@ -1331,223 +1331,131 @@ def assert_balanced_sexpr(text: str, label: str = 'board'):
             f"corrupted the board (#523)")
 
 
+def _removal_target_key(target, kind, canon, *, precise=False):
+    point = (lambda x, y: (x, y)) if precise else pos_key
+    if kind == 'segment':
+        return (frozenset((point(target.start_x, target.start_y),
+                           point(target.end_x, target.end_y))),
+                target.width, target.layer, canon(target.net_id))
+    return (point(target.x, target.y), target.size, target.drill,
+            tuple(target.layers), canon(target.net_id))
+
+
+def _removal_block_key(block, kind, canon, *, precise=False):
+    from kicad_parser import _sexpr_children, _NUM_TOKEN_RE
+
+    children, bare = _sexpr_children(block)
+    point = (lambda x, y: (x, y)) if precise else pos_key
+
+    def field(name):
+        rows = children.get(name, ())
+        return rows[0] if len(rows) == 1 else ()
+
+    def numbers(name, count):
+        args = field(name)
+        if len(args) != count or not all(_NUM_TOKEN_RE.fullmatch(a) for a in args):
+            return None
+        return tuple(float(a) for a in args)
+
+    net = field('net')
+    if not net and 'net' not in children:
+        token = canon(0)
+    elif len(net) == 1 and net[0].startswith('"'):
+        token = _unescape_kicad_string(net[0][1:-1])
+    elif len(net) == 1 and net[0].isdigit():
+        token = canon(int(net[0]))
+    else:
+        return None
+    if any(word != 'locked' for word in bare):
+        return None  # blind/micro via types are not represented by the target model.
+    if kind == 'segment':
+        start, end, width = numbers('start', 2), numbers('end', 2), numbers('width', 1)
+        layers = field('layer') or field('layers')
+        copper = [a[1:-1] for a in layers if a.startswith('"') and a.endswith('.Cu"')]
+        if start is None or end is None or width is None or len(copper) != 1:
+            return None
+        return (frozenset((point(*start), point(*end))), width[0], copper[0], token)
+    if any(name in children for name in ('padstack', 'remove_unused_layers',
+                                         'keep_end_layers', 'zone_layer_connections')):
+        return None  # Nonuniform lands cannot be compared to Via.size/layers alone.
+    at, size, drill = numbers('at', 2), numbers('size', 1), numbers('drill', 1)
+    layers = field('layers')
+    if (at is None or size is None or drill is None or len(layers) != 2
+            or not all(a.startswith('"') and a.endswith('.Cu"') for a in layers)):
+        return None
+    return (point(*at), size[0], drill[0], tuple(a[1:-1] for a in layers), token)
+
+
+def _remove_copper_blocks(content, targets, kind, net_id_to_name, unmatched_out):
+    from kicad_parser import _track_locked, _block_uuid, _sexpr_children
+
+    def canon(nid):
+        return net_id_to_name.get(nid, nid) if net_id_to_name else nid
+
+    # Keep target indices, not a residual bucket prefix: pre/post-transform
+    # callers must retry exactly the objects that this pass did not consume.
+    by_key = {}
+    for index, target in enumerate(targets):
+        if not getattr(target, 'locked', False) and not getattr(target, 'graphic', False):
+            key = _removal_target_key(target, kind, canon)
+            by_key.setdefault(key, []).append(index)
+    consumed = set()
+    out, pos = [], 0
+    for start, end, _ in _sexpr_spans(content, {kind}):
+        block = content[start:end]
+        children, bare = _sexpr_children(block)
+        # Only native depth-1 lock tokens count; a net name can contain the
+        # literal text '(locked no)' before the real '(locked yes)'.
+        lock_tokens = ' '.join('(locked ' + ' '.join(args) + ')'
+                               for args in children.get('locked', ()))
+        if 'locked' in bare or _track_locked('(item ' + lock_tokens + ')'):
+            continue
+        key = _removal_block_key(block, kind, canon)
+        candidates = by_key.get(key, ())
+        uid = _block_uuid(block)
+        # Prefer an explicit identity over a geometry-only generated target.
+        precise_key = _removal_block_key(block, kind, canon, precise=True) if candidates else None
+        chosen = next((i for i in candidates if i not in consumed
+                       and targets[i].uuid and targets[i].uuid == uid
+                       and _removal_target_key(targets[i], kind, canon, precise=True) == precise_key), None)
+        if chosen is None:
+            chosen = next((i for i in candidates if i not in consumed
+                           and not targets[i].uuid), None)
+        if chosen is not None:
+            out.append(content[pos:start])
+            pos = end
+            consumed.add(chosen)
+    out.append(content[pos:])
+    if unmatched_out is not None:
+        unmatched_out.extend(t for i, t in enumerate(targets) if i not in consumed)
+    return ''.join(out), len(consumed)
+
+
 def remove_segments_from_content(content: str, segments: List,
                                  net_id_to_name: Dict = None,
                                  unmatched_out: List = None) -> Tuple[str, int]:
-    """Delete whole ``(segment ...)`` blocks matching the given segments.
+    """Remove unlocked segments by UUID plus full supported geometry/net/layer.
 
-    Used by the dead-end sweep (issue #84) to strip original input-file copper
-    that prune_dead_end_segments flagged as a dead end -- copper the writer would
-    otherwise carry into the output verbatim. A segment is matched by its
-    unordered endpoint pair plus layer and net, which uniquely identifies it
-    (a duplicate with the same endpoints/layer/net is interchangeable). The whole
-    block (including its trailing uuid) is removed, not just the net token.
-
-    Returns ``(modified_content, count_removed)``.
+    UUID-less generated targets use counted full-geometry matching. A supplied
+    UUID never falls back to another twin. Unmatched targets retain their exact
+    object identities for the writer's post-transform retry.
     """
     if not segments:
         return content, 0
-
-    # Net tokens are resolved PER BLOCK, in whichever dialect that block
-    # uses -- never from a file-level gate. The #369 A1 gate (match by the
-    # format the file "uses") still assumed a HOMOGENEOUS file; a MIXED-
-    # dialect board -- which this repo's own chain produces (#748/#749:
-    # segments `(net 6)` beside name-ref pads) -- reads as name-style, so
-    # every numeric segment block silently evaded the strip. Measured on
-    # the #622 bench: a force-rerouted net's stale input diagonal shipped
-    # verbatim and CROSSED the net routed into its vacated corridor (a
-    # hard short at (128.6, 64.2), the route.py same-call-shorts class).
-    # Both a numeric and a name ref now canonicalize to the same key.
-    def _canon(nid):
-        return net_id_to_name.get(nid, nid) if net_id_to_name else nid
-
-    def seg_key(p1, p2, layer, net_token):
-        return (frozenset((p1, p2)), layer, net_token)
-
-    # COUNTED multiset, not a set (#318 follow-up): a board can legitimately
-    # carry N identical-span segments with only K < N of them strip-listed
-    # (sechzig /PWR1V35: two byte-identical slivers, cleanup removed one). A
-    # set-based match deleted EVERY block with the key, including the keeper.
-    from collections import Counter
-    targets = Counter()
-    by_key = {}
-    for s in segments:
-        k = seg_key(pos_key(s.start_x, s.start_y),
-                    pos_key(s.end_x, s.end_y), s.layer, _canon(s.net_id))
-        targets[k] += 1
-        by_key.setdefault(k, []).append(s)
-
-    start_re = re.compile(r'\(start\s+([\d.-]+)\s+([\d.-]+)\)')
-    end_re = re.compile(r'\(end\s+([\d.-]+)\s+([\d.-]+)\)')
-    # Singular, or KiCad 9's mask-exposed (layers "F.Cu" "F.Mask"), which the
-    # parser models on its copper layer (#1158) -- so the strip must find it.
-    layer_re = re.compile(r'\(layer\s+"?([^")]+)"?\)|\(layers\s+"([^"]+\.Cu)"')
-    net_name_re = re.compile(r'\(net\s+"((?:[^"\\]|\\.)*)"\)')
-    net_id_re = re.compile(r'\(net\s+(\d+)\)')
-
-    # Scan top-level (segment ...) blocks with a quote-aware paren matcher. A
-    # plain nested-paren regex breaks on KiCad v10 auto-net names that contain
-    # parentheses, e.g. (net "Net-(R2-Pad1)") -- the inner parens are inside a
-    # string and must not count toward block nesting.
-    out = []
-    pos = 0
-    n = len(content)
-    count = 0
-    while True:
-        j = content.find('(segment', pos)
-        if j < 0:
-            out.append(content[pos:])
-            break
-        out.append(content[pos:j])
-        depth = 0
-        in_str = False
-        k = j
-        while k < n:
-            ch = content[k]
-            if in_str:
-                if ch == '"':
-                    in_str = False
-            elif ch == '"':
-                in_str = True
-            elif ch == '(':
-                depth += 1
-            elif ch == ')':
-                depth -= 1
-                if depth == 0:
-                    k += 1
-                    break
-            k += 1
-        block = content[j:k]
-        ms, me, ml = start_re.search(block), end_re.search(block), layer_re.search(block)
-        keep = True
-        if ms and me and ml:
-            mn = net_name_re.search(block)
-            if mn:
-                # The file stores the ESCAPED name (backslash doubled, quote
-                # backslashed); targets use the parser's unescaped name. Undo
-                # the escapes or every backslash-named net silently evades the
-                # strip and its stale copper ships (neo6502 /GPIO*\* nets,
-                # found by the FILE_LEDGER audit -- #312/#264 family).
-                net_token = _unescape_kicad_string(mn.group(1))
-            else:
-                mi = net_id_re.search(block)
-                net_token = _canon(int(mi.group(1))) if mi else None
-            key = seg_key(pos_key(float(ms.group(1)), float(ms.group(2))),
-                          pos_key(float(me.group(1)), float(me.group(2))),
-                          ml.group(1) or ml.group(2), net_token)
-            if targets.get(key, 0) > 0:
-                targets[key] -= 1
-                keep = False
-                count += 1
-        if keep:
-            out.append(block)
-        pos = k
-    if unmatched_out is not None:
-        # Strip targets whose block was NOT found (e.g. its layer/net token in
-        # the text only matches after the writer's later transforms). The
-        # residual post-transform pass retries EXACTLY these -- passing the
-        # full list again would let round 2 consume a same-key KEEPER block
-        # that round 1 legitimately left (the counted-multiset guarantee).
-        for k, n in targets.items():
-            if n > 0:
-                unmatched_out.extend(by_key[k][:n])
-    return ''.join(out), count
+    return _remove_copper_blocks(content, segments, 'segment', net_id_to_name, unmatched_out)
 
 
 def remove_vias_from_content(content: str, vias: List,
                              net_id_to_name: Dict = None,
                              unmatched_out: List = None) -> Tuple[str, int]:
-    """Delete whole ``(via ...)`` blocks matching the given vias.
+    """Remove unlocked vias by UUID plus position, size, drill, span and net.
 
-    Via twin of remove_segments_from_content: strips original input-file vias
-    of a ripped/re-routed net that are no longer on the final board (#103 rip-
-    existing; without this the old via AND its reroute's replacement both ship,
-    stacking same-net drill pairs). Matched by position + net token; duplicates
-    are interchangeable. Returns ``(modified_content, count_removed)``.
+    UUID-less generated targets use the same counted geometry match. Unsupported
+    via shapes remain unmatched rather than selecting a same-position twin.
     """
     if not vias:
         return content, 0
-
-    # Net tokens resolved PER BLOCK in either dialect -- see the segment
-    # twin above for the mixed-dialect hole this closes (#748/#749 boards:
-    # numeric refs on copper beside name refs elsewhere read as name-style,
-    # so every numeric block evaded the strip).
-    def _canon(nid):
-        return net_id_to_name.get(nid, nid) if net_id_to_name else nid
-
-    # Counted multiset like the segment strip (#318 follow-up): only remove as
-    # many blocks per key as were actually strip-listed.
-    from collections import Counter
-    targets = Counter()
-    _v_by_key = {}
-    for v in vias:
-        _vk = (pos_key(v.x, v.y), _canon(v.net_id))
-        targets[_vk] += 1
-        _v_by_key.setdefault(_vk, []).append(v)
-
-    at_re = re.compile(r'\(at\s+([\d.-]+)\s+([\d.-]+)\)')
-    net_name_re = re.compile(r'\(net\s+"((?:[^"\\]|\\.)*)"\)')
-    net_id_re = re.compile(r'\(net\s+(\d+)\)')
-
-    out = []
-    pos = 0
-    n = len(content)
-    count = 0
-    while True:
-        j = content.find('(via', pos)
-        # skip non-via tokens sharing the prefix: (vias allowed) in rule areas
-        while j >= 0 and j + 4 < n and content[j + 4] not in ' \t\r\n(':
-            j = content.find('(via', j + 4)
-        if j < 0:
-            out.append(content[pos:])
-            break
-        out.append(content[pos:j])
-        depth = 0
-        in_str = False
-        k = j
-        while k < n:
-            ch = content[k]
-            if in_str:
-                if ch == '"':
-                    in_str = False
-            elif ch == '"':
-                in_str = True
-            elif ch == '(':
-                depth += 1
-            elif ch == ')':
-                depth -= 1
-                if depth == 0:
-                    k += 1
-                    break
-            k += 1
-        block = content[j:k]
-        ma = at_re.search(block)
-        keep = True
-        if ma:
-            mn = net_name_re.search(block)
-            if mn:
-                # The file stores the ESCAPED name (backslash doubled, quote
-                # backslashed); targets use the parser's unescaped name. Undo
-                # the escapes or every backslash-named net silently evades the
-                # strip and its stale copper ships (neo6502 /GPIO*\* nets,
-                # found by the FILE_LEDGER audit -- #312/#264 family).
-                net_token = _unescape_kicad_string(mn.group(1))
-            else:
-                mi = net_id_re.search(block)
-                net_token = _canon(int(mi.group(1))) if mi else None
-            _vk = (pos_key(float(ma.group(1)), float(ma.group(2))), net_token)
-            if targets.get(_vk, 0) > 0:
-                targets[_vk] -= 1
-                keep = False
-                count += 1
-        if keep:
-            out.append(block)
-        pos = k
-    if unmatched_out is not None:
-        for _vk, n in targets.items():
-            if n > 0:
-                unmatched_out.extend(_v_by_key[_vk][:n])
-    return ''.join(out), count
+    return _remove_copper_blocks(content, vias, 'via', net_id_to_name, unmatched_out)
 
 
 def swap_via_nets_at_positions(content: str, positions: set,
