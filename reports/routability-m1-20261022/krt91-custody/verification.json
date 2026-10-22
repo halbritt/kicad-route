@@ -1,0 +1,46 @@
+{
+  "production_commit": "30899505ccda4f7f49864ef33cdc0b2d4ae7e602",
+  "composed_commit": "0bc356a",
+  "base": "57c512d435476006f5b2e5af19e550fa9133433d",
+  "root_suite": {
+    "passed": 55,
+    "skipped": 0,
+    "seconds": 117.8
+  },
+  "matching_runtime_public_cli": {
+    "passed": 1,
+    "skipped": 0,
+    "seconds": 36.47
+  },
+  "independent_focused": {
+    "passed": 25,
+    "skipped": 0,
+    "seconds": 10.65
+  },
+  "native_runtime_source_sha256": "9cfc5d5e9369fd044ac6555afe57bdc4ccc829421e5496d42599c2d4a71951b2",
+  "independent_verdict": "READY-native-custody-only",
+  "k91_release": "HOLD",
+  "packet_id": "pkt-57aa160ac7217ab8",
+  "packet_sha256": "57aa160ac7217ab8d1dde9eaf63839b9f3196b1244b84d7f6aa1f717053f7ebc",
+  "retained_files": {
+    "independent-review-summary.json": "54e7b4647f5911ca1906517059cd5ecbd682a33b287dc34735f7a3354ccdfa5c",
+    "root-custody-red.log": "e467ff04839f802e145707e99593605166a84413f3a72417326856ab773a49af",
+    "root-custody-matched-runtime.log": "eff07a37f1995b4b3140ec3c8b5349ec52655a21ec59d992968e96c6dbd1132c",
+    "independent-custom-native.py": "ca4c3139e3a65448a625682130b3ce5344d058534dcaa380b38fdddfc2b582a8",
+    "root-custody-green.log": "ec803b7177b52ba590ae704ab4b20b90f955045301ae5d45813567166284d962",
+    "independent-pytest.log": "e2674ad9c32b8f9e8d2252e4d5eda7e452c1a3b13d29a57dced4c6c52eaa26cd",
+    "root-inventory-red.log": "80cff8ccefb8383e499605a14e00c0f83eb671aae0dab9cb42507dac7b24a1a4",
+    "doctrine/authority.json": "6d8cbd0c5a5838c200c8cebc71e88b3800cc2aa5f118f6c334f64a0078521666",
+    "doctrine/toolchain.json": "36072f4c565fee89705ede69315ba295efb3427b6cc0b7d83d2cb2e9a7d44f59",
+    "doctrine/remaining-obligations.json": "fb035edba4c1d6b661ed560551172b785de97fa24c3224307b236f537e0601cf",
+    "doctrine/preservation.json": "92bb9ae44986f6721957e7c614f9a06bda82f4b5c272c550d54d96699e6dc602",
+    "doctrine/packet.md": "42c32834c706c0c918340737cf951e7725c0823f24ad6f4dcf1a78d1f3b15805",
+    "doctrine/tests.json": "537138ee2b4c79fd9ce78c386d883c100ef518ad6e2aabf4cb0a004724922b92",
+    "doctrine/decision-receipt.json": "6f209e649c6963b880a51c64e053369e7de301c5f6c86c3bff30a88be3fe48bf",
+    "doctrine/packet.json": "5fa7ed4bf356687bdeb3739724faa5036f7f5928be122353d6eddfb001622817",
+    "doctrine/contracts.json": "d01a6f3abb2a273264b8d838758bfc0e8cbfaf73d10459ef1cc24e812c50c0f4",
+    "doctrine/runtime.json": "a08ad8771241c635a6e764ad4111dff713c8db050fc097fe15468dac6ca75433",
+    "doctrine/source.json": "f36b2b04666cdbdb2199a2f5bf0cb7f05c6e2dee4ae3cf92c2a5fe1410356bfc",
+    "doctrine/citation-observations.json": "d4cc1fb16b17f4d294e15f31114f68cabe9f5c1e92778a5688647a16f15777e4"
+  }
+}

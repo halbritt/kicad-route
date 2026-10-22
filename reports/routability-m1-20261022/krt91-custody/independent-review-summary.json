@@ -1,0 +1,40 @@
+{
+  "verdict": "READY",
+  "scope": "30899505ccda4f7f49864ef33cdc0b2d4ae7e602 native custody via inventory correction only; no receipt HOLD waiver",
+  "source_sha256": {
+    "src/kicad_route/copper_ownership.py": "bd1e0dd79c62ca654d7133b3f1693e1ac8e1b27c1646ebe6227c71b4bf532b07",
+    "tests/test_copper_inventory.py": "db0705fc88a414c09dcd544cd874ded2d42b30bb9d1b4999faa8e1c3e39412e7",
+    "docs/interface.md": "d28a9ac1c7d8bf57dd7393440ae908918bcf7ea809e115d007734324018704c4"
+  },
+  "focused_pytest": "25 passed in10.65s (22 native-inventory cases, native exact twin removal, two changed/reminted-input refusal cases)",
+  "independent_saved_native": "4-layer saved board: through F.Cu-B.Cu and blind In1.Cu-B.Cu vias, custom circular per-layer .6/.9/.7/.8mm annuli retained. Native API sets type before layer pair; final round-trip assertions verify both spans.",
+  "controls": [
+    {
+      "scenario": "missing-inner",
+      "outcome": "refused"
+    },
+    {
+      "scenario": "inner-duplicate",
+      "outcome": "refused"
+    },
+    {
+      "scenario": "dict-layer",
+      "outcome": "refused"
+    },
+    {
+      "scenario": "wrong-span",
+      "outcome": "refused"
+    },
+    {
+      "scenario": "string-diameter",
+      "outcome": "refused"
+    },
+    {
+      "scenario": "changed-inner-annulus-survivor",
+      "outcome": "input_lineage_unknown"
+    }
+  ],
+  "remaining": "Root owns matched-runtime public CLI and trunk integration. Receipt findings EI2-EI7 remain HOLD.",
+  "native_board_sha256": "a83205543fbeed24ed85ad9634e21dd2162fc1c6405d5af82cfff4d22338e4a5",
+  "native_facts_sha256": "efa79077d9f5fdd20b3ae958b6e51c5c8387bca0e88617e8fa8c530403bbf383"
+}

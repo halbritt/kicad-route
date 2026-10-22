@@ -1,0 +1,33 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-custody-preservation",
+  "evidence_class": "evidence-repository-contracts",
+  "summary": "No-change leaves reproducibly broken native custody for every ordinary fixture via. Dropping new fields or allowing arbitrary keys would weaken exact identity and is rejected. The selected bounded correction checks and retains the exact current native producer record. It has no install, pin, routing-policy/default, primitive-removal eligibility or authority change. New incomplete/unknown geometries refuse before any disposable publication; same native structure/survivor protections remain. Native old-incomplete data does not silently default. Future K91 receipt work remains separately HOLD. Existing tests publicAPI prepare_disposable and raw inventory checks are protected; public docs explicitly disclose legacy incomplete-facts refusal. This is defect repair with separate independently reviewable commit3089950, not a schema normalization or structural campaign.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/docs/interface.md",
+      "method": "Read exact preservation contract and disclosed supported native geometry"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/tests/test_copper_ownership.py",
+      "method": "Inspect publicAPI native preservation and refusal tests"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/tests/test_copper_inventory.py",
+      "method": "Inspect native positive plus malformed/missing/unknown negative controls"
+    }
+  ],
+  "satisfies": [
+    "actual current cost/risk or absence within a stated interval",
+    "expected future change from accepted plans",
+    "intervention cost and uncertainty",
+    "latent security, safety, data, durability, and compatibility check",
+    "proc-decide-leave-code-alone",
+    "proc-establish-preservation-boundaries",
+    "public API and tests",
+    "inventory of gates and the signals they observe",
+    "proof the check reads that signal rather than a derived view",
+    "the authoritative signal named for each gate",
+    "eval-versus-serving configuration parity"
+  ]
+}

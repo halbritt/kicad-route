@@ -1,0 +1,24 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-custody-contracts",
+  "evidence_class": "evidence-repository-contracts",
+  "summary": "Native facts from3545 require annulus_geometry and ordered per-layer layer_diameters. Copper custody previously required an exact old via field set. Current API promises exact UUID/native-record removal and survivor equality, never arbitrary unknown fields or data loss. This repair requires exactly the current fields and refuses legacy incomplete geometry; no historical compatibility interval admitting incomplete native evidence is promised. One native format is supported and old-incomplete/unknown-field controls refuse. Documented in docs/interface.md.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/docs/interface.md",
+      "method": "Read custody API contract and compare production/test consumer fields",
+      "content_sha256": "d28a9ac1c7d8bf57dd7393440ae908918bcf7ea809e115d007734324018704c4"
+    }
+  ],
+  "satisfies": [
+    "accepted compatibility interval",
+    "consumer and persisted-data inventory",
+    "current explicit schema and encoded-data contract",
+    "number of formats that must coexist",
+    "required forward and backward compatibility directions",
+    "accepted desired behavior and semantic authority",
+    "preservation matrix and consumers",
+    "repository instructions from root through target path",
+    "accepted ADR, RFC, API, compatibility, generation, build, and test contracts"
+  ]
+}

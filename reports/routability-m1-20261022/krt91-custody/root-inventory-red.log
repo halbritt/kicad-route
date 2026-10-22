@@ -1,0 +1,12 @@
+F.....................                                                   [100%]
+=================================== FAILURES ===================================
+_______________ test_exact_native_via_layer_geometry_is_retained _______________
+tests/test_copper_inventory.py:22: in test_exact_native_via_layer_geometry_is_retained
+    actual = custody.inventory(native_inventory)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/kicad_route/copper_ownership.py:83: in inventory
+    raise OwnershipError('unknown copper fields or duplicate/missing UUID')
+E   kicad_route.copper_ownership.OwnershipError: unknown copper fields or duplicate/missing UUID
+=========================== short test summary info ============================
+FAILED tests/test_copper_inventory.py::test_exact_native_via_layer_geometry_is_retained
+1 failed, 21 passed in 0.35s

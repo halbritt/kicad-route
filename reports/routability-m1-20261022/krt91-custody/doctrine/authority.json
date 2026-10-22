@@ -1,0 +1,27 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-custody-authority",
+  "evidence_class": "evidence-explicit-user-requirements",
+  "summary": "Existing owner K91 integration scope authorizes precise native-policy/identity correction and independently verified trunk integration. Native coordinator notice86af6885 requires exact native inventory/schema validation and matched captured runtime; no target route, deployment, defaults or provider fallback in this correction. Root owns integration;449 existing continuation owns receipt EI2-EI7; stop correction if strict inventory or survivor contracts weaken.",
+  "provenance": [
+    {
+      "locator": "conversation:owner-AGENTS.md-and-existing-K91-authorization",
+      "method": "Read current owner instructions and authorized campaign context"
+    },
+    {
+      "locator": "cairn:86af6885-a66c-4a63-87f8-2c4c40e7f4e8@1",
+      "method": "Read exact native selected source"
+    }
+  ],
+  "satisfies": [
+    "affected behavior and state",
+    "decision owner",
+    "explicit task authority",
+    "repository contract",
+    "reversibility and verification",
+    "task scope and authority statement",
+    "user instruction and authority",
+    "target repository and task scope",
+    "preservation boundary and semantic authority"
+  ]
+}

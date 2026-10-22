@@ -1,0 +1,19 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-custody-runtime",
+  "evidence_class": "evidence-runtime-observation",
+  "summary": "Direct KiCad10.0.7 native extraction and saved-twin removal onPython3.12.3 reproduced exact producer fields rejected by old inventory. Captured real positive-current facts via keys include annulus_geometry and layer_diameters. New full native custody55checks pass; separate actual publicCLI run/removal with explicitly selected matching prepared generation succeeds1PASS36.47s. This is bounded native runtime observation, not broad-suite qualification.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-builder-delivery-agent507/artifacts/positive-current/facts/reference-facts.json",
+      "method": "Read complete real native saved-board facts and execute old inventory",
+      "content_sha256": "186683be82a4b5a47a108f93f1b943a8fce01f0e07e56cff94979e649985b95d"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-builder-delivery-agent507/root-custody-matched-runtime.log",
+      "method": "Execute actual publicCLI and exact native scratch removal using explicit matching generation",
+      "content_sha256": "eff07a37f1995b4b3140ec3c8b5349ec52655a21ec59d992968e96c6dbd1132c"
+    }
+  ],
+  "satisfies": []
+}

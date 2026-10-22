@@ -1,0 +1,37 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-custody-tests",
+  "evidence_class": "evidence-tests",
+  "summary": "RED native exact-removal fixture failed at inventory83 on6e41a13 before correction in3.88s; new test exact native inventory failed while21 negative controls passed0.35s. GREEN full copper custody plus native inventory55PASS0skip117.80s on0bc356a; same production/tests cherry-picked3089950. Explicit matching-generation public CLI custody positive independently rerun and completed exit0 (retained log), no target board. Existing tests assert exact generated UUID removal, fixed same-net copper, nontrack/serialized survivor identity, refusal without publication, stale/malformed evidence and source unchanged. These establish bounded fixture behavior, not full K91 release or broad-suite clearance.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-builder-delivery-agent507/root-custody-red.log",
+      "method": "Execute native regression and record exact exit/status log",
+      "content_sha256": "e467ff04839f802e145707e99593605166a84413f3a72417326856ab773a49af"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-builder-delivery-agent507/root-inventory-red.log",
+      "method": "Execute native regression and record exact exit/status log",
+      "content_sha256": "80cff8ccefb8383e499605a14e00c0f83eb671aae0dab9cb42507dac7b24a1a4"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-builder-delivery-agent507/root-custody-green.log",
+      "method": "Execute native regression and record exact exit/status log",
+      "content_sha256": "ec803b7177b52ba590ae704ab4b20b90f955045301ae5d45813567166284d962"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-builder-delivery-agent507/root-custody-matched-runtime.log",
+      "method": "Execute native regression and record exact exit/status log",
+      "content_sha256": "eff07a37f1995b4b3140ec3c8b5349ec52655a21ec59d992968e96c6dbd1132c"
+    }
+  ],
+  "satisfies": [
+    "behavior tests",
+    "tests, characterization, probes, or explicit residual risk",
+    "predeployment compatibility-check result",
+    "checkpoint verification",
+    "a bounded decision question",
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+    "alternatives including no change where viable"
+  ]
+}

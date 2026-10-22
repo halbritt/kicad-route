@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_native_saved_twins_remove_only_generated_whole_net ____________
+tests/test_copper_ownership.py:105: in test_native_saved_twins_remove_only_generated_whole_net
+    seal(run, attempt, result)
+tests/test_copper_ownership.py:97: in seal
+    result['copper_ownership'] = copper_ownership.emit(run, attempt, result)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/kicad_route/copper_ownership.py:194: in emit
+    _, reference, a, b, binding = _bound_inputs(run, attempt, result)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/kicad_route/copper_ownership.py:152: in _bound_inputs
+    inventory(a); inventory(b)
+    ^^^^^^^^^^^^
+src/kicad_route/copper_ownership.py:83: in inventory
+    raise OwnershipError('unknown copper fields or duplicate/missing UUID')
+E   kicad_route.copper_ownership.OwnershipError: unknown copper fields or duplicate/missing UUID
+=========================== short test summary info ============================
+FAILED tests/test_copper_ownership.py::test_native_saved_twins_remove_only_generated_whole_net
+1 failed in 3.88s

@@ -1,0 +1,42 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-custody-source",
+  "evidence_class": "evidence-static-source-structure",
+  "summary": "Producer emits per-layer geometry for saved circular vias; old reader exact-field rejection is the direct incompatibility, not runtime drift. New reader validates exact field shape, full ordered physical span, positive integer diameters, circular geometry and F.Cu size consistency. It retains all fields in the inventory; native removal reextracts entire saved board and compares full survivor records and serialized structure. Reader inputs are borrowed/read-only; returned inventory retains record fields and no new mutation, resource owner or concurrency exists. No structural refactor or model/API expansion beyond this supported native record.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/src/kicad_route/copper_ownership.py",
+      "method": "Inspect exact immutable3089950 source and call path",
+      "content_sha256": "bd1e0dd79c62ca654d7133b3f1693e1ac8e1b27c1646ebe6227c71b4bf532b07"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/src/kicad_route/kicad/facts.py",
+      "method": "Inspect exact immutable3089950 source and call path",
+      "content_sha256": "d47a3fd2eb40518b7beba5457b679b901150c64e3988f86537d67f373bef8c52"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/src/kicad_route/kicad/remove_owned.py",
+      "method": "Inspect exact immutable3089950 source and call path",
+      "content_sha256": "361c2520af37ee6c7a6d39b66054d2e14ee6e77381defe4d62c5fa93d4ae2dfe"
+    }
+  ],
+  "satisfies": [
+    "current source, configuration, and relevant runtime state",
+    "adjacent code",
+    "per-edit change classification",
+    "change-type classification",
+    "identity and equality contract",
+    "nested object graph",
+    "mutation sites",
+    "object and ownership graph",
+    "owner and lifetime",
+    "state, invariant, and dependency ownership",
+    "knowledge and navigation required by callers/maintainers",
+    "representative change or use scenario",
+    "representative change scenario",
+    "runtime invariant",
+    "boundary trust model",
+    "observed defect class",
+    "evidence connecting the proposed action to the condition"
+  ]
+}

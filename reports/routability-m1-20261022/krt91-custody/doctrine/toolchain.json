@@ -1,0 +1,22 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-custody-toolchain",
+  "evidence_class": "evidence-static-source-structure",
+  "summary": "Repository pyproject supportsPython>=3.12, pytest andjsonschema. Actual hostPython3.12.3/KiCad10.0.7; existing native tests and API use current source with system pcbnew. Makefile smoke drives pytest; .github/workflows directory absent; no formatter/typechecker settings in inspected pyproject. This correction uses existing Python list/dict validation style and runtime invariant checks, no new dependency or type-only validation. Claims are limited to exercised native host, not every interpreter/platform in an unprovided CI matrix.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/pyproject.toml",
+      "method": "Inspect supported interpreter/test dependency and tooling configuration",
+      "content_sha256": "4dd0f5d6d606b58f898157a735fb302c921adb651029e769e5efd2b44c4008ed"
+    },
+    {
+      "locator": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-custody-agent507/Makefile",
+      "method": "Inspect repository smoke/check entrypoint"
+    }
+  ],
+  "satisfies": [
+    "Python and dependency version matrix",
+    "formatter linter and type-checker configuration",
+    "repository toolchain inspection"
+  ]
+}
