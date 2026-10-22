@@ -99,6 +99,7 @@ from . import common
 from . import contract
 from . import evidence
 from . import configuration_evidence
+from . import copper_ownership
 from . import engine
 from . import diff_pairs
 from . import floor
@@ -1192,6 +1193,14 @@ def run_attempt(args):
                                                  "upstream_changed_since", "previous_runs", "notes")}
     result["ledger"]["path"] = str(ledger_path(args))
     result["sandbox"] = sandbox_facts
+    if args.backend == "builtin" and proc["status"] == PASS:
+        try:
+            result["copper_ownership"] = copper_ownership.emit(run_dir, attempt, result)
+            result["evidence"]["records"][copper_ownership.MANIFEST] = result["copper_ownership"]["sha256"]
+        except (copper_ownership.OwnershipError, OSError) as exc:
+            # Custody is optional evidence, never a replacement native grade.
+            result["copper_ownership"] = {"status": "unavailable", "reasons": [str(exc)],
+                                         "replay_authority": False}
     common.write_json(run_dir / "result.json", result)
     ledger.append(ledger_path(args), gate, result)
     (run_dir / "RESULT.md").write_text(render_result(result))

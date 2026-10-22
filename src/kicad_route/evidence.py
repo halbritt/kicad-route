@@ -31,7 +31,7 @@ from . import statemanifest
 from . import backend_names
 
 RECORD_FILES = ("attempt.json", "preservation.json", "new-findings.json", "candidate-drc.json",
-                "candidate-facts.json", "reference-terminal-components.json", "candidate-terminal-components.json", "pour-integrity.json", "pair-facts.json", "pairs.json")
+                "candidate-facts.json", "candidate-refill.json", "reference-terminal-components.json", "candidate-terminal-components.json", "pour-integrity.json", "pair-facts.json", "pairs.json")
 
 
 def _canonical_item(kind, item):

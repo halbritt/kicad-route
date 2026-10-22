@@ -158,6 +158,25 @@ REQUIRED_PRESERVATION = frozenset({
     "new_copper_netclass_geometry", "routing_scope", "net_completion", "pour_integrity",
 })
 
+
+def validation_evidence(v):
+    """Shared native-grade evidence projection; eligibility remains the policy."""
+    drc = v.get("drc") or {}
+    native = {}
+    for name, flags in (("native_refill", {"--refill-zones", "--save-board"}),
+                        ("native_drc", {"--schematic-parity", "--severity-all"})):
+        commands = [cmd for cmd in v.get("drc_commands", []) if flags <= set(cmd.get("argv", []))]
+        native[name] = common.PASS if len(commands) == 1 and commands[0].get("exit_code") == 0 else common.FAIL
+    if not v.get("validated_board_sha256") or v.get("validated_board_sha256") != v.get("candidate_board_sha256"):
+        native["native_drc"] = common.FAIL
+    preservation = v.get("preservation") or {}
+    return {"status": v["status"], "reasons": v.get("reasons", [])[:10], **native,
+            "new_violations": (drc.get("new_violations") or {}).get("count"),
+            "new_violation_types": (drc.get("new_violations") or {}).get("by_type"),
+            "new_parity": (drc.get("new_parity") or {}).get("count"),
+            "preservation_failures": sorted(k for k in REQUIRED_PRESERVATION | preservation.keys()
+                                            if preservation.get(k) != common.PASS)}
+
 def eligibility(chain):
     """Fail closed on absent native or preservation evidence, independently of counts."""
     g = chain.get("grade")
@@ -462,29 +481,14 @@ class Campaign:
             chain.update(status="error", error="native grade result is missing")
             return
         v, rt = res["validation"], res["routing"]
-        drc = v.get("drc") or {}
         end_result = common.load_json(self.path(end["run_dir"]) / "result.json")
-        native = {}
-        for name, flags in (("native_refill", {"--refill-zones", "--save-board"}),
-                            ("native_drc", {"--schematic-parity", "--severity-all"})):
-            commands = [cmd for cmd in v.get("drc_commands", []) if flags <= set(cmd.get("argv", []))]
-            native[name] = common.PASS if len(commands) == 1 and commands[0].get("exit_code") == 0 else common.FAIL
-        if not v.get("validated_board_sha256") or v.get("validated_board_sha256") != v.get("candidate_board_sha256"):
-            native["native_drc"] = common.FAIL
-        preservation = v.get("preservation") or {}
         chain["grade"] = {
             "by": by, "result": common.rel(res_path), "against": first["run_dir"],
             "chain": v.get("chain") or [end["run_dir"]], "exit_code": res["exit_code"],
             "candidate": end_result["candidate"]["board"],
             "candidate_sha256": v.get("candidate_board_sha256"),
             "routing": {k: rt.get(k) for k in ("status", "unconnected_in_scope", "unconnected_total", "unrouted_nets", "unconnected_unidentified")},
-            "validation": {"status": v["status"], "reasons": v.get("reasons", [])[:10],
-                           **native,
-                           "new_violations": (drc.get("new_violations") or {}).get("count"),
-                           "new_violation_types": (drc.get("new_violations") or {}).get("by_type"),
-                           "new_parity": (drc.get("new_parity") or {}).get("count"),
-                           "preservation_failures": sorted(k for k in REQUIRED_PRESERVATION | preservation.keys()
-                                                           if preservation.get(k) != common.PASS)}}
+            "validation": validation_evidence(v)}
         chain["status"] = "graded"
         g = chain["grade"]
         log(f"[campaign] {chain['id']}: graded against the original input -> exit {g['exit_code']}, "

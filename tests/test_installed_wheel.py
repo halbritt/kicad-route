@@ -112,3 +112,13 @@ def test_configuration_evidence_inventory_and_schema_ship(wheel_environment):
     record = json.loads(result.stdout)
     assert record['producer'] and record['schema']
     assert 'net_via_sizes' in record['fields'] and 'rules' in record['fields']
+
+
+def test_copper_ownership_native_consumer_and_schema_ship(wheel_environment):
+    directory, venv, env = wheel_environment
+    proc = subprocess.run([venv / 'bin/python', '-c',
+        "from pathlib import Path; from kicad_route import copper_ownership,contract; "
+        "assert (Path(copper_ownership.__file__).parent/'kicad/remove_owned.py').is_file(); "
+        "assert (contract.SCHEMAS_DIR/'copper-ownership-1.json').is_file()"],
+        cwd=directory, env=env, capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr

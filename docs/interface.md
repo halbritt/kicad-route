@@ -404,3 +404,32 @@ and native refill; those later board hashes remain separate. This is evidence
 of one configuration stage. It excludes later per-net clones, nested sub-runs,
 derived runtime maps and native validation. `replay_authority` is always false.
 No repair worker, cohort promotion or upgraded comparison gate is implied.
+
+Owned builtin runs can retain `validate/copper-ownership.json` and a
+`copper_ownership` result reference after native grading. This binds the final
+saved native inventory to input, rules, source identity and grade. It captures
+current-run copper only: all input copper stays fixed, including input generated
+by earlier runs. Existing `--protect human` classification remains unchanged.
+Custody does not change native validity and is not replay authority.
+
+The Python API `copper_ownership.prepare_disposable(run_dir, selected_nets,
+destination, timeout_s)` prepares a new scratch directory from a bound, native
+PASS candidate. It removes every generated primitive of each selected eligible
+net by exact UUID and native record, retaining fixed same-net copper. It refuses
+any changed/reminted input primitive anywhere on the board, pair splits, selected arcs, unsupported via
+spans/types/attributes, stale evidence/rules and existing or symlink destinations.
+Native re-extraction checks all survivors and non-track facts; canonical board
+structure also checks nested pad UUIDs and zone definitions. Failures publish no
+prepared directory. The prepared board has no native routing grade: the API does
+not reroute, adopt, publish or modify the incumbent run.
+
+Prepared receipts explicitly mark inherited fill as stale and require native refill,
+connectivity regeneration and grading before any future promotion. The consumer
+discards scratch-only native project-default writeback, restores the exact bound
+rule bytes, and checks fresh survivor facts under those rules.
+
+Custody retains the exact qualified baseline generation under
+`validate/custody-baseline/`, including its generation receipt and every generation
+file hash. The existing baseline-cache reader binds original input board/rules
+to the graded, refilled reference partition. Preparation verifies this retained
+bundle and does not depend on the external baseline cache.

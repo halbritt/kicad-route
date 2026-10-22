@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kicad-route/copper-ownership/1",
+  "title": "Saved native copper custody, current run only",
+  "type": "object",
+  "required": [
+    "schema",
+    "stage",
+    "coverage",
+    "replay_authority",
+    "binding",
+    "inventory",
+    "nets"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "kicad-route/copper-ownership/1"
+    },
+    "stage": {
+      "const": "final_native_candidate"
+    },
+    "coverage": {
+      "const": "current_run_only_input_fixed"
+    },
+    "replay_authority": {
+      "const": false
+    },
+    "binding": {
+      "type": "object",
+      "required": [
+        "board_sha256",
+        "reference_board_sha256",
+        "reference_facts_sha256",
+        "candidate_facts_sha256",
+        "attempt_sha256",
+        "grade_sha256",
+        "tool_identity_sha256",
+        "rules_files",
+        "scope",
+        "pairs",
+        "records",
+        "baseline"
+      ]
+    },
+    "inventory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "uuid",
+          "collection",
+          "net",
+          "locked"
+        ]
+      }
+    },
+    "nets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "generated_uuids",
+          "eligible",
+          "reasons"
+        ],
+        "properties": {
+          "generated_uuids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

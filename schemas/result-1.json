@@ -414,6 +414,40 @@
         },
         "evidence": {
           "$ref": "#/$defs/evidence"
+        },
+        "copper_ownership": {
+          "type": "object",
+          "required": [
+            "status",
+            "replay_authority"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "bound",
+                "unavailable"
+              ]
+            },
+            "replay_authority": {
+              "const": false
+            },
+            "record": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "coverage": {
+              "const": "current_run_only_input_fixed"
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       },
       "allOf": [
