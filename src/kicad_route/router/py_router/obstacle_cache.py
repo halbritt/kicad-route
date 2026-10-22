@@ -1046,6 +1046,11 @@ def precompute_net_obstacles(pcb_data: PCBData, net_id: int, config: GridRouteCo
             data.blocked_vias_rungs[_r] = (_unique_rows(np.concatenate(_cat)) if _cat
                                            else np.empty((0, 2), dtype=np.int32))
     if not _small_pass:
+        # Bind probe survivor reconstruction to the exact stamp recipe.
+        if getattr(config, 'ripup_blocker_select', 'count') == 'mincut':
+            from hashlib import sha256
+            data._probe_recipe = (sha256(repr(config).encode()).hexdigest(),
+                                  extra_clearance, diagonal_margin)
         # A STABLE identity for every cache object, armed or not. id() cannot
         # serve: CPython recycles ids, and make_local_window mints a
         # short-lived PCBData (and its caches) per tap/rescue, so a freed

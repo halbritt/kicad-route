@@ -910,7 +910,11 @@ impl GridSearch {
                     router.path_attraction_potential(current.gx, current.gy, layer)
                         - router.path_attraction_potential(current.gx, current.gy, current.layer)
                 } else { 0 };
-                let new_g = g + (combined_via_cost + proximity_cost - via_shaping).max(0);
+                let probe_cost = if free_here { 0 } else {
+                    obstacles.get_probe_via_cost(current.gx, current.gy, self.opts.via_rung)
+                };
+                let new_g = g + (combined_via_cost + proximity_cost - via_shaping).max(0)
+                    .saturating_add(probe_cost);
 
                 if new_g < existing_g {
                     if existing_g != i32::MAX {

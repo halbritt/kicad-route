@@ -603,91 +603,19 @@ def rank_blockers(results, algo: str = 'count',
 
 
 def mincut_probe_order(pcb_data, config, working_obstacles, net_id,
-                       rippable_blockers, net_obstacles_cache):
-    """Min-cut probe (#424 audit improvement 1; --ripup-blocker-select=mincut).
+                       rippable_blockers, net_obstacles_cache, *,
+                       routed_results=None, diff_pair_by_net_id=None,
+                       diagnostics=None):
+    """Bounded relaxed-resource ordering hint; never a minimum-cut proof.
 
-    The frontier report is the PERIMETER of the reachable pocket -- per-net
-    cell counts measure exposure, not cut-ness, so ranking guesses. This
-    replaces the guess with a measurement: on a CLONE of the working map
-    (zero mutation risk), lift every rippable candidate's hard blocks, stamp
-    its cells as a large soft cost instead, and run the failed search once.
-    A path now always exists if the net is routable at ANY rip depth -- and
-    because A* minimizes cost, it threads the CHEAPEST crossing set: the
-    (near-)minimal set of nets separating source from target, jointly.
-
-    Returns (ordered_net_ids, feasible): candidates the probe path actually
-    crosses, in first-crossing order (rip these, in this order); feasible
-    False means even the soft-cost search failed -- the separating wall is
-    static (unrippable) copper. Callers should treat that as ADVISORY, not
-    proof the ladder is useless: rip retries also unlock pad-via placement
-    and swaps, topology changes this path probe does not model.
+    The legacy (order, found_path) tuple remains compatible. False means
+    unknown (unsupported coverage, budget, or no raw path), not infeasible.
+    Optional diagnostics disclose why count ordering must be retained.
     """
-    from dataclasses import replace as _replace
-    from obstacle_cache import remove_net_obstacles_from_cache
-    import numpy as np
-
-    cand_ids = [b.net_id for b in rippable_blockers
-                if b.net_id in net_obstacles_cache]
-    if not cand_ids:
-        return [], True
-
-    clone = working_obstacles.clone_fresh()
-    # In the phase-3 cascade the probed net's OWN phase-1 copper is already
-    # stamped in the working map (unlike the SE ladder, where the net has no
-    # copper yet); lift it or the probe collides with itself and reports a
-    # false infeasible.
-    own = net_obstacles_cache.get(net_id)
-    if own is not None:
-        remove_net_obstacles_from_cache(clone, own)
-    cell_sets = {}
-    soft_rows = []
-    cost = config.cell_cost(5.0)   # ~5mm-equiv per cell: cross only if needed
-    _members = getattr(config, 'bus_member_net_ids', None) or set()
-    _res = float(getattr(config, 'bus_rip_resistance', 1.0) or 1.0)
-    for nid in cand_ids:
-        n_cost = int(cost * _res) if (nid in _members and _res > 1.0) else cost
-        data = net_obstacles_cache[nid]
-        cells = getattr(data, 'blocked_cells', None)
-        if cells is None or not len(cells):
-            continue
-        remove_net_obstacles_from_cache(clone, data)
-        cs = set()
-        for i in range(len(cells)):
-            gx, gy, li = cells[i]
-            cs.add((int(gx), int(gy), int(li)))
-            soft_rows.append((int(li), int(gx), int(gy), n_cost))
-        cell_sets[nid] = cs
-    if not soft_rows:
-        return [], True
-    clone.set_layer_proximity_batch(np.array(soft_rows, dtype=np.int32))
-
-    from single_ended_routing import route_net_with_obstacles
-    probe_cfg = _replace(config, max_rip_up_count=0) \
-        if hasattr(config, 'max_rip_up_count') else config
-    result = route_net_with_obstacles(pcb_data, net_id, probe_cfg, clone)
-    if not result or result.get('failed') or not result.get('path'):
-        return [], False
-
-    # Densify the path so cells between waypoints register crossings.
-    path = result['path']
-    dense = []
-    for (x1, y1, l1), (x2, y2, l2) in zip(path, path[1:]):
-        dense.append((x1, y1, l1))
-        if l1 == l2:
-            n = max(abs(x2 - x1), abs(y2 - y1))
-            for k in range(1, n):
-                dense.append((x1 + round((x2 - x1) * k / n),
-                              y1 + round((y2 - y1) * k / n), l1))
-    dense.append(path[-1])
-
-    order = []
-    seen = set()
-    for cell in dense:
-        for nid, cs in cell_sets.items():
-            if nid not in seen and cell in cs:
-                seen.add(nid)
-                order.append(nid)
-    return order, True
+    from blocker_resources import probe_order
+    return probe_order(pcb_data, config, working_obstacles, net_id,
+                       rippable_blockers, net_obstacles_cache, routed_results,
+                       diff_pair_by_net_id, diagnostics if diagnostics is not None else {})
 
 
 def analyze_static_blockers(

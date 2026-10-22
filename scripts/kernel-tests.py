@@ -25,7 +25,7 @@ def main():
                  "s=importlib.util.spec_from_file_location('grid_router',os.environ['KERNEL_EXTENSION']); "
                  "m=importlib.util.module_from_spec(s);s.loader.exec_module(m);sys.modules['grid_router']=m; "
                  "sys.argv=sys.argv[1:];runpy.run_path(sys.argv[0],run_name='__main__')")
-    for name in ('test_kernel.py', 'test_obstacle_addremove_parity.py', 'test_writer_quotes.py'):
+    for name in ('test_kernel.py', 'test_obstacle_addremove_parity.py', 'test_writer_quotes.py', 'test_blocker_resources.py'):
         subprocess.run([sys.executable, '-c', bootstrap, str(ROUTER / 'tests' / name)],
                        env=environment, timeout=60, check=True)
     return 0

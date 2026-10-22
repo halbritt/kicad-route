@@ -8274,10 +8274,10 @@ For differential pair routing, use route_diff.py:
                              "(the true last-mile blocker hugs the failing pad "
                              "but has few cells); 'bidir' = boost nets blocking "
                              "BOTH search directions (genuine separating walls); "
-                             "'mincut' = soft-cost probe on a map clone that "
-                             "reads the actual crossing set (names the true "
-                             "joint cut; falls back to count order when the "
-                             "wall is static copper). Default: count.")
+                             "'mincut' = bounded relaxed-resource probe on a disposable "
+                             "map; an advisory crossing set reorders candidates. "
+                             "Unknown coverage, budget exhaustion or no raw path "
+                             "retains count order. Default: count.")
     parser.add_argument("--routing-clearance-margin", type=float, default=defaults.ROUTING_CLEARANCE_MARGIN,
                         help=f"Diff pairs only (a pair this run routes or restores): "
                              f"multiplier on the track-to-via distance that sets the "

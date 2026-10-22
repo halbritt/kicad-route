@@ -1002,27 +1002,26 @@ def route_single_ended_nets(
                             state.working_obstacles is not None and \
                             state.net_obstacles_cache is not None:
                         from blocking_analysis import mincut_probe_order
+                        _mc_diagnostics = {}
                         _mc_order, _mc_feasible = mincut_probe_order(
                             pcb_data, config, state.working_obstacles, net_id,
-                            rippable_blockers, state.net_obstacles_cache)
+                            rippable_blockers, state.net_obstacles_cache,
+                            routed_results=routed_results,
+                            diff_pair_by_net_id=diff_pair_by_net_id,
+                            diagnostics=_mc_diagnostics)
                         if not _mc_feasible:
-                            # No PATH even with rippable copper soft-costed --
-                            # but a ladder retry is more than a re-search:
-                            # ripping frees space that lets the pad-via and
-                            # swap rescues change the topology, which the
-                            # probe does not model. Keep the ladder, legacy
-                            # order (measured: skipping here lost nets the
-                            # count ladder's side-mechanisms recovered).
-                            print(f"  MINCUT probe: no path with rippable "
-                                  f"copper soft-costed (wall is static) -- "
-                                  f"falling back to count order")
+                            # Unsupported coverage or a bounded-search failure
+                            # never rules out the production repair ladder.
+                            print(f"  MINCUT probe: unknown/no raw path with rippable "
+                                  f"copper soft-costed -- "
+                                  f"falling back to count order: {_mc_diagnostics}")
                         elif _mc_order:
                             _by_id = {b.net_id: b for b in rippable_blockers}
                             _front = [_by_id[n] for n in _mc_order if n in _by_id]
                             _rest = [b for b in rippable_blockers
                                      if b.net_id not in set(_mc_order)]
                             rippable_blockers = _front + _rest
-                            print(f"  MINCUT probe: true cut = "
+                            print(f"  MINCUT probe: crossed resources = "
                                   f"{[b.net_name for b in _front]}")
                     elif _bsel == 'bidir' and rippable_blockers and result:
                         _fwd = result.get('blocked_cells_forward') or []

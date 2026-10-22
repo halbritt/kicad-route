@@ -233,6 +233,8 @@ pub struct GridObstacleMap {
     pub stub_proximity: FxHashMap<u64, i32>,
     /// Layer-specific proximity costs (for track proximity on same layer)
     pub layer_proximity_costs: Vec<FxHashMap<u64, i32>>,
+    pub probe_via_costs: FxHashMap<(usize, u64), i32>,
+    probe_via_rung: Option<usize>,
     /// Number of layers
     #[pyo3(get)]
     pub num_layers: usize,
@@ -277,6 +279,8 @@ impl GridObstacleMap {
             blocked_vias_rungs: Vec::new(),
             stub_proximity: FxHashMap::default(),
             layer_proximity_costs: (0..num_layers).map(|_| FxHashMap::default()).collect(),
+            probe_via_costs: FxHashMap::default(),
+            probe_via_rung: None,
             num_layers,
             bga_zones: Vec::new(),
             bga_proximity_radius: 0,
@@ -334,6 +338,8 @@ impl GridObstacleMap {
             blocked_vias_rungs: self.blocked_vias_rungs.clone(),
             stub_proximity: self.stub_proximity.clone(),
             layer_proximity_costs: self.layer_proximity_costs.clone(),
+            probe_via_costs: self.probe_via_costs.clone(),
+            probe_via_rung: self.probe_via_rung,
             num_layers: self.num_layers,
             bga_zones: self.bga_zones.clone(),
             bga_proximity_radius: self.bga_proximity_radius,
@@ -361,6 +367,8 @@ impl GridObstacleMap {
             blocked_vias_rungs: self.blocked_vias_rungs.clone(),
             stub_proximity: self.stub_proximity.clone(),
             layer_proximity_costs: self.layer_proximity_costs.clone(),
+            probe_via_costs: self.probe_via_costs.clone(),
+            probe_via_rung: self.probe_via_rung,
             num_layers: self.num_layers,
             bga_zones: self.bga_zones.clone(),
             bga_proximity_radius: self.bga_proximity_radius,
@@ -668,7 +676,7 @@ impl GridObstacleMap {
     pub fn is_via_blocked_rung(&self, gx: i32, gy: i32, rung: usize) -> bool {
         if rung >= 1 {
             if let Some(m) = self.blocked_vias_rungs.get(rung - 1) {
-                if !m.is_empty() {
+                if !m.is_empty() || self.probe_via_rung == Some(rung) {
                     let key = pack_xy(gx, gy);
                     if m.contains_key(&key) { return true; }
                     if self.static_via_bitmap.test(gx, gy, 0) { return true; }
@@ -1298,6 +1306,25 @@ impl GridObstacleMap {
             }
         }
         cost
+    }
+
+    /// Probe-only new-drill prices, independent of ordinary proximity tuning.
+    /// Pin the selected legality rung even if lifting emptied its dynamic map.
+    pub fn set_probe_via_costs(&mut self, rung: usize, costs: PyReadonlyArray2<i32>) {
+        self.probe_via_rung = Some(rung);
+        while self.blocked_vias_rungs.len() < rung {
+            self.blocked_vias_rungs.push(FxHashMap::default());
+        }
+        for row in costs.as_array().rows() {
+            if row[2] > 0 {
+                let entry = self.probe_via_costs.entry((rung, pack_xy(row[0], row[1]))).or_insert(0);
+                *entry = (*entry).max(row[2]);
+            }
+        }
+    }
+
+    pub fn get_probe_via_cost(&self, gx: i32, gy: i32, rung: usize) -> i32 {
+        self.probe_via_costs.get(&(rung, pack_xy(gx, gy))).copied().unwrap_or(0)
     }
 
     /// Set layer-specific proximity cost (for track proximity on same layer)

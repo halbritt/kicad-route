@@ -50,3 +50,17 @@ system KiCad Python installed. `tests/test_owned_artwork.py` routes a generated
 narrow copper-artwork passage, keeps F.Cu/B.Cu text and graphics, and checks
 native DRC, preservation and completion. Runtime and aggregate-memory
 qualification remains the benchmark harness's job.
+
+The optional `mincut` blocker ordering uses a bounded raw grid search over
+copied board geometry and a disposable map. It emits no copper and proposes an
+advisory crossing set, not a minimum cut or an infeasibility proof. Exact cached
+multisets are replaced with pad and unscheduled-copper survivors; track spans
+and newly drilled via resources carry separate prices. Unsupported stamp
+recipes, swept track widths, pair repair units, per-net via geometries,
+existing same-net free vias/PTH terminals and live board callbacks retain count
+ordering with an explicit unknown diagnostic. The resource gate covers real
+span-versus-cell searches, the 0.1 mm grid reproduction, fixed pads and base
+walls, overlapping owners and an off-grid diagonal shared branch, via-only
+owners at zero ordinary via-proximity cost, native rung pricing, and unchanged
+source geometry, caches and map membership on failure. These fixtures do not
+establish routing-completion or performance gains on a target board.

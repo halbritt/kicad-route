@@ -1002,26 +1002,30 @@ def try_phase3_ripup(
     # mincut probe in the cascade (advisory, like the SE ladder): NET-level
     # approximation -- the probe routes the multipoint net's endpoint gap on
     # a clone with rippable copper soft-costed, so its crossing set names
-    # the joint cut for the dominant gap (not per failed edge). Feasible
-    # probe reorders; infeasible or empty keeps the ranking above.
+    # a crossing hint for the dominant gap (not per failed edge). A found path
+    # probe reorders; unknown or empty keeps the ranking above.
     if (getattr(config, 'ripup_blocker_select', 'count') == 'mincut'
             and getattr(state, 'working_obstacles', None) is not None
             and getattr(state, 'net_obstacles_cache', None) is not None):
         from blocking_analysis import mincut_probe_order
+        _mc_diagnostics = {}
         _mc_order, _mc_feasible = mincut_probe_order(
             pcb_data, config, state.working_obstacles, net_id,
-            rippable_blockers, state.net_obstacles_cache)
+            rippable_blockers, state.net_obstacles_cache,
+            routed_results=routed_results,
+            diff_pair_by_net_id=diff_pair_by_net_id,
+            diagnostics=_mc_diagnostics)
         if _mc_feasible and _mc_order:
             _by_id = {b.net_id: b for b in rippable_blockers}
             _front = [_by_id[n] for n in _mc_order if n in _by_id]
             _rest = [b for b in rippable_blockers
                      if b.net_id not in set(_mc_order)]
             rippable_blockers = _front + _rest
-            print(f"    MINCUT probe (net-level): cut = "
+            print(f"    MINCUT probe (net-level): crossed resources = "
                   f"{[b.net_name for b in _front]}")
         elif not _mc_feasible:
-            print(f"    MINCUT probe (net-level): no path with rippable "
-                  f"copper soft-costed -- keeping per-edge ranking")
+            print(f"    MINCUT probe (net-level): unknown/no raw path with rippable "
+                  f"copper soft-costed -- keeping per-edge ranking: {_mc_diagnostics}")
 
     # Progressive rip-up: try N=1, then N=2, etc up to max_rip_up_count
     ripped_items = []  # Track nets ripped in this attempt
