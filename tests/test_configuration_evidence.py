@@ -3,6 +3,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from helpers import ROOT
 from kicad_route import common, configuration_evidence
 
@@ -255,3 +257,37 @@ def test_later_batch_execution_cannot_claim_single_batch_configuration(tmp_path)
     assert rec['status'] == 'unsupported'
     assert any('later' in reason for reason in rec['reasons'])
     producer.begin_batch(outer=True)
+
+
+@pytest.mark.parametrize('execution', [
+    {'outer_batches': 1, 'later_subruns': 0},
+    {'outer_batches': 2, 'later_subruns': 0},
+    {'outer_batches': 1, 'later_subruns': 1},
+], ids=['single', 'multiple', 'later'])
+@pytest.mark.parametrize('update', [
+    {}, {'issues': None}, {'issues': 0}, {'issues': False}, {'issues': 'wrong'},
+    {'issues': {}}, {'issues': [None]}, {'issues': ['known issue', 1]},
+], ids=['missing', 'null', 'number', 'boolean', 'string', 'object',
+        'null-element', 'mixed-elements'])
+def test_malformed_issues_remain_mismatch_for_all_batch_counts(tmp_path, execution, update):
+    request, manifest, output, _ = capture(tmp_path)
+    doc = json.loads(manifest.read_text())
+    del doc['issues']
+    doc.update(update, execution=execution)
+    manifest.write_text(json.dumps(doc))
+    result = configuration_evidence.inspect(manifest, request, output)
+    assert result['status'] == 'mismatch'
+    assert 'invalid capture qualification' in result['reasons']
+
+
+@pytest.mark.parametrize('execution,status', [
+    ({'outer_batches': 1, 'later_subruns': 0}, 'bound'),
+    ({'outer_batches': 2, 'later_subruns': 0}, 'unsupported'),
+    ({'outer_batches': 1, 'later_subruns': 1}, 'unsupported'),
+])
+def test_valid_issues_preserve_batch_coverage_status(tmp_path, execution, status):
+    request, manifest, output, _ = capture(tmp_path)
+    doc = json.loads(manifest.read_text())
+    doc['execution'] = execution
+    manifest.write_text(json.dumps(doc))
+    assert configuration_evidence.inspect(manifest, request, output)['status'] == status

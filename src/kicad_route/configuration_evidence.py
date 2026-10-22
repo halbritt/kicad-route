@@ -149,7 +149,8 @@ def inspect(manifest, expected, output):
     elif expected.get('scope') is not None and scope != expected['scope']:
         reasons.append('captured scope differs from wrapper scope')
     issues = doc.get('issues')
-    if doc.get('capture_status') not in ('complete', 'incomplete') or not isinstance(issues, list) or any(not isinstance(v, str) for v in issues):
+    valid_issues = isinstance(issues, list) and all(isinstance(v, str) for v in issues)
+    if doc.get('capture_status') not in ('complete', 'incomplete') or not valid_issues:
         reasons.append('invalid capture qualification')
     if doc.get('capture_status') == 'complete' and issues:
         reasons.append('complete capture contains unsupported values')
@@ -187,7 +188,7 @@ def inspect(manifest, expected, output):
     if (not isinstance(execution, dict) or set(execution) != {'outer_batches', 'later_subruns'}
             or any(type(v) is not int or v < 0 for v in execution.values())):
         reasons.append('missing or malformed batch execution coverage')
-    elif execution != {'outer_batches': 1, 'later_subruns': 0}:
+    elif execution != {'outer_batches': 1, 'later_subruns': 0} and valid_issues:
         issues = [*issues, 'multiple outer batches or later subruns lack resolved configuration coverage']
         doc['capture_status'] = 'incomplete'
     status = 'mismatch' if reasons else ('bound' if doc['capture_status'] == 'complete' else 'unsupported')
