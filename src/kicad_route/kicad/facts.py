@@ -220,17 +220,44 @@ def main(board_path, out_path):
                       "uvia_drill": int(nc.GetuViaDrill()) if nc.HasuViaDrill() else None}
     facts["nets"] = dict(sorted(nets.items()))
 
-    zones, rule_areas = [], []
+    zones, rule_areas, area_errors = [], [], []
+
+    def rule_area(z, owner):
+        """Native zone outlines already include the owning footprint transform."""
+        rec = {"uuid": z.m_Uuid.AsString(), "owner": owner,
+               "name": z.GetZoneName(), "layers": layer_names(z.GetLayerSet()),
+               "no_tracks": bool(z.GetDoNotAllowTracks()), "no_vias": bool(z.GetDoNotAllowVias()),
+               "no_pads": bool(z.GetDoNotAllowPads()),
+               "no_footprints": bool(z.GetDoNotAllowFootprints()),
+               "no_zone_fills": bool(z.GetDoNotAllowZoneFills())}
+        try:
+            poly = z.Outline()
+            rec["outline"] = [xy(poly.CVertex(i)) for i in range(poly.TotalVertices())]
+            polygons = []
+            for n in range(poly.OutlineCount()):
+                rings = [poly.COutline(n), *(poly.CHole(n, h) for h in range(poly.HoleCount(n)))]
+                points = []
+                for ring in rings:
+                    if ring.ArcCount() or not ring.IsClosed() or ring.PointCount() < 3:
+                        raise ValueError("unsupported curved, open or degenerate rule-area ring")
+                    points.append([xy(ring.CPoint(i)) for i in range(ring.PointCount())])
+                polygons.append({"outline": points[0], "holes": points[1:]})
+            if not polygons:
+                raise ValueError("empty rule-area polygon")
+            rec["polygons"] = polygons
+        except (AttributeError, RuntimeError, ValueError, TypeError, IndexError) as exc:
+            rec["polygons"] = None
+            area_errors.append(f"rule area {rec['uuid']}: {exc}")
+        rule_areas.append(rec)
+
     for z in board.Zones():
+        if z.GetIsRuleArea():
+            rule_area(z, {"kind": "board", "uuid": None, "reference": None})
+            continue
         poly = z.Outline()
         outline_pts = [[int(poly.CVertex(i).x), int(poly.CVertex(i).y)] for i in range(poly.TotalVertices())]
         rec = {"name": z.GetZoneName(), "layers": layer_names(z.GetLayerSet()), "outline": outline_pts}
-        if z.GetIsRuleArea():
-            rec.update(no_tracks=z.GetDoNotAllowTracks(), no_vias=z.GetDoNotAllowVias(),
-                       no_pads=z.GetDoNotAllowPads(), no_footprints=z.GetDoNotAllowFootprints(),
-                       no_zone_fills=z.GetDoNotAllowZoneFills())
-            rule_areas.append(rec)
-        else:
+        if not z.GetIsRuleArea():
             rec.update(net=z.GetNetname(), priority=int(z.GetAssignedPriority()),
                        clearance=int(z.GetLocalClearance()) if z.GetLocalClearance() is not None else None,
                        min_thickness=int(z.GetMinThickness()), pad_connection=int(z.GetPadConnection()),
@@ -239,14 +266,37 @@ def main(board_path, out_path):
                        fill_mode=int(z.GetFillMode()), island_removal=int(z.GetIslandRemovalMode()),
                        locked=bool(z.IsLocked()), filled=bool(z.IsFilled()))
             zones.append(rec)
+    try:
+        for fp in board.GetFootprints():
+            for z in fp.Zones():
+                if z.GetIsRuleArea():
+                    rule_area(z, {"kind": "footprint", "uuid": fp.m_Uuid.AsString(),
+                                  "reference": fp.GetReference()})
+    except (AttributeError, RuntimeError, TypeError) as exc:
+        area_errors.append(f"footprint rule-area enumeration unavailable: {exc}")
     facts["zones"] = sorted(zones, key=lambda r: json.dumps(r, sort_keys=True))
     facts["rule_areas"] = sorted(rule_areas, key=lambda r: json.dumps(r, sort_keys=True))
+    facts["rule_areas_coverage"] = "board-and-footprint"
+    facts["rule_areas_status"] = "NOT_RUN" if area_errors else "PASS"
+    facts["rule_areas_reasons"] = area_errors
 
     tracks, vias = [], []
+    copper_stack = list(enabled.CuStack())
     for t in board.GetTracks():
         locked = bool(t.IsLocked())
         if isinstance(t, pcbnew.PCB_VIA):
+            top, bottom = t.TopLayer(), t.BottomLayer()
+            # Custom via padstacks can have a different annulus on each layer.
+            span = (copper_stack[copper_stack.index(top):copper_stack.index(bottom)+1]
+                    if top in copper_stack and bottom in copper_stack else [])
+            stack = t.Padstack()
+            circular = bool(span) and all(
+                stack.Shape(l) == pcbnew.PAD_SHAPE_CIRCLE
+                and stack.Size(l).x == stack.Size(l).y == t.GetWidth(l) for l in span)
             vias.append({"position": xy(t.GetPosition()), "diameter": int(t.GetWidth(pcbnew.F_Cu)),
+                         "annulus_geometry": "circular-layer-discs" if circular else "unsupported",
+                         "layer_diameters": [{"layer": layer_name(l), "diameter": int(t.GetWidth(l))}
+                                             for l in span],
                          "drill": int(t.GetDrillValue()), "via_type": VIA_TYPES.get(int(t.GetViaType()), "unknown"),
                          "layers": [layer_name(t.TopLayer()), layer_name(t.BottomLayer())],
                          "net": t.GetNetname(), "locked": locked, "uuid": t.m_Uuid.AsString()})
