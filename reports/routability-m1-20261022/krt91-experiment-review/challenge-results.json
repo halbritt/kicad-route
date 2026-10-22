@@ -1,0 +1,70 @@
+{
+  "candidate": "6e41a13d3543426c2fbf1e5e9c99c066038c432c",
+  "source_sha256": "98fbe298cbb22aa286570c71b7fa18d29805e90dda33bc3b70a88d43642dd806",
+  "cases": [
+    {
+      "scenario": "positive-current",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "scenario": "positive-historical",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "scenario": "negative-stale-runtime",
+      "status": "ineligible",
+      "reasons": [
+        "effective configuration is mismatch: routing_environment binding mismatch; missing or malformed batch execution coverage",
+        "effective routing layers are absent or exceed the declared trace layers",
+        "missing experiment identity: build.executed_source_sha256",
+        "missing experiment identity: build.producer_sha256",
+        "missing experiment identity: effective.configuration",
+        "missing experiment identity: effective.effective_environment",
+        "missing experiment identity: effective.invocation",
+        "missing experiment identity: effective.net_inventory_sha256",
+        "missing experiment identity: effective.rules_sha256",
+        "missing experiment identity: effective.runtime_policy",
+        "missing experiment identity: effective.scope"
+      ]
+    },
+    {
+      "scenario": "malformed-attempt",
+      "exception": "AttributeError",
+      "message": "'list' object has no attribute 'get'"
+    },
+    {
+      "scenario": "malformed-candidate-facts",
+      "exception": "AttributeError",
+      "message": "'list' object has no attribute 'get'"
+    },
+    {
+      "scenario": "malformed-effective-environment",
+      "status": "refused",
+      "reasons": [
+        "experiment sidecar differs from retained evidence: artifacts.work/effective-configuration.json, comparison_eligible, identity.build.executed_source_sha256, identity.build.producer_sha256, identity.effective, identity_sha256, ineligible_reasons, policy_qualification.effective_layers, policy_qualification.effective_via.via_cost, policy_qualification.effective_via.via_drill, policy_qualification.effective_via.via_size"
+      ]
+    },
+    {
+      "scenario": "resealed-multiple-batches",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "scenario": "resealed-wrong-request",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "scenario": "resealed-incomplete-capture",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "scenario": "resealed-self-cycle",
+      "status": "eligible",
+      "reasons": []
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "verdict": "HOLD",
+  "candidate": "6e41a13d3543426c2fbf1e5e9c99c066038c432c",
+  "scope": "Independent read-only receipt and strict-comparison review; no target routing or native target grading.",
+  "findings": [
+    {
+      "id": "EI2",
+      "finding": "Stored bound status does not independently qualify retained configuration manifest/request. Resealed multiple outer/later batches, wrong request hash, incomplete capture each eligible.",
+      "evidence": "challenge-results.json"
+    },
+    {
+      "id": "EI3",
+      "finding": "Self-referential source candidate path silently truncates origin chain to depth zero and remains eligible.",
+      "evidence": "challenge-results.json"
+    },
+    {
+      "id": "EI4",
+      "finding": "Nonempty JSON lists in attempt or candidate facts cause uncaught AttributeError in public qualify.",
+      "evidence": "challenge-results.json"
+    },
+    {
+      "id": "EI5",
+      "finding": "Policy rejects forbidden-cost physical obstacle layers appended by router, although routable layers and actual native copper conform.",
+      "evidence": "forbidden-obstacle-layers-result.json"
+    },
+    {
+      "id": "EI6",
+      "finding": "Valid candidate native partitions substituted as reference remain eligible after legitimate reseal: reference is not bound to source-to-refilled baseline custody.",
+      "evidence": "extra-challenges.json"
+    },
+    {
+      "id": "EI7",
+      "finding": "Malformed settings budget_s object and inconsistent settings20/command999 budgets remain eligible.",
+      "evidence": "extra-challenges.json"
+    }
+  ],
+  "positive_controls": [
+    "SHA256SUMS manifest verified: all610filesOK",
+    "Real current and historical receipt eligible; real stale runtime ineligible",
+    "All8 retained comparison samples independently qualify and strict algorithm-change comparison passes",
+    "Six comparison controls refuse: same-arm drift, fixed budget/native/input/policy with argv waiver, undeclared argv"
+  ],
+  "limits": [
+    "No assertion of broader full-suite clearance",
+    "No concrete independent broad-argv escape found beyond missing manifest requalification; fixed identity waiver controls refuse",
+    "Origin location/missing-predecessor behavior needs continuation correction and final frozen rereview",
+    "Agent-ee actual retained adapter replay remains parent/boundary owner work"
+  ],
+  "artifact_hashes": {
+    "extra-challenges.json": "0f164929e34f5d1b7fa3819f59eafcd5300bc05a92d5b502acb89d49714ceb72",
+    "forbidden-obstacle-layers-result.json": "30ef26773bc207b9fc57f6a5f6431732a9b13c9a2fb00b72b509e7c1e971828d",
+    "comparison-controls.json": "fe4788215fbb928da30e1d409370aaae936476c625f8eef184e93e1e8aaa7c83",
+    "challenge-results.json": "166d22ef9182926dfad1e0bffb7ec67ac9c3f13dee074fdb0eea51982459ade9"
+  }
+}

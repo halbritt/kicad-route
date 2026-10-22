@@ -1,0 +1,22 @@
+{
+  "actual_policy_status": "PASS",
+  "physical_stack": [
+    "F.Cu",
+    "In1.Cu",
+    "In2.Cu",
+    "B.Cu"
+  ],
+  "routable_layers": [
+    "F.Cu",
+    "B.Cu"
+  ],
+  "raw_config_layers": [
+    "F.Cu",
+    "B.Cu",
+    "In1.Cu",
+    "In2.Cu"
+  ],
+  "reasons": [
+    "effective routing layers are absent or exceed the declared trace layers"
+  ]
+}

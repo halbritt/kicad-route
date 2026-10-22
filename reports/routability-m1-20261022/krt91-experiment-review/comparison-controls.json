@@ -1,0 +1,134 @@
+{
+  "candidate": "6e41a13d3543426c2fbf1e5e9c99c066038c432c",
+  "source_sha256": {
+    "src/kicad_route/experiment.py": "98fbe298cbb22aa286570c71b7fa18d29805e90dda33bc3b70a88d43642dd806",
+    "scripts/compare_router.py": "1cdf97e629b2c9b29b83ce7de2da4cbe1ce54f9e47510c90ceccb8eefbc78081"
+  },
+  "qualification": [
+    {
+      "run": "build/krt91-builder-delivery-agent507/artifacts/comparison/reference-0/run",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "run": "build/krt91-builder-delivery-agent507/artifacts/comparison/reference-1/run",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "run": "build/krt91-builder-delivery-agent507/artifacts/comparison/reference-2/run",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "run": "build/krt91-builder-delivery-agent507/artifacts/comparison/reference-3/run",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "run": "build/krt91-builder-delivery-agent507/artifacts/comparison/candidate-0/run",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "run": "build/krt91-builder-delivery-agent507/artifacts/comparison/candidate-1/run",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "run": "build/krt91-builder-delivery-agent507/artifacts/comparison/candidate-2/run",
+      "status": "eligible",
+      "reasons": []
+    },
+    {
+      "run": "build/krt91-builder-delivery-agent507/artifacts/comparison/candidate-3/run",
+      "status": "eligible",
+      "reasons": []
+    }
+  ],
+  "real_comparison": {
+    "passed": true,
+    "failures": [],
+    "metrics": {
+      "wall_s": {
+        "reference_median": 9.22,
+        "candidate_median": 9.55,
+        "ratio": 1.0357917570498916,
+        "limit": 1.1
+      },
+      "max_rss_kib": {
+        "reference_median": 2023880,
+        "candidate_median": 2043308,
+        "ratio": 1.00959938336265,
+        "limit": 1.1
+      },
+      "process_tree_peak_rss_kib": {
+        "reference_median": 2044300,
+        "candidate_median": 2061064,
+        "ratio": 1.0082003619820965,
+        "limit": 1.1
+      }
+    },
+    "copper_geometry_equal": true,
+    "mode": "algorithm-change",
+    "experiment": {
+      "passed": true,
+      "failures": [],
+      "observed_differences": [
+        "effective.configuration.max_iterations",
+        "effective.invocation.13",
+        "request.max_iterations"
+      ],
+      "declared_differences": [
+        "request.max_iterations",
+        "effective.configuration.max_iterations",
+        "effective.invocation"
+      ],
+      "mode": "algorithm-change"
+    }
+  },
+  "controls": [
+    {
+      "case": "same-arm-algorithm-drift",
+      "passed": false,
+      "failures": [
+        "candidate experiment identity changed between repetitions: effective.configuration.max_iterations"
+      ]
+    },
+    {
+      "case": "immutable-budgets-with-broad-argv-waiver",
+      "passed": false,
+      "failures": [
+        "forbidden experiment difference: budgets.backend_s"
+      ]
+    },
+    {
+      "case": "immutable-native-with-broad-argv-waiver",
+      "passed": false,
+      "failures": [
+        "forbidden experiment difference: native.pcbnew_build"
+      ]
+    },
+    {
+      "case": "immutable-input-with-broad-argv-waiver",
+      "passed": false,
+      "failures": [
+        "forbidden experiment difference: input.board"
+      ]
+    },
+    {
+      "case": "immutable-policy-with-broad-argv-waiver",
+      "passed": false,
+      "failures": [
+        "forbidden experiment difference: policy.declared_sha256"
+      ]
+    },
+    {
+      "case": "undeclared-effective-argv",
+      "passed": false,
+      "failures": [
+        "undeclared experiment difference: effective.invocation.13"
+      ]
+    }
+  ]
+}

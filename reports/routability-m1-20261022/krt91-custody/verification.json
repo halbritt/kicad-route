@@ -42,5 +42,14 @@
     "doctrine/runtime.json": "a08ad8771241c635a6e764ad4111dff713c8db050fc097fe15468dac6ca75433",
     "doctrine/source.json": "f36b2b04666cdbdb2199a2f5bf0cb7f05c6e2dee4ae3cf92c2a5fe1410356bfc",
     "doctrine/citation-observations.json": "d4cc1fb16b17f4d294e15f31114f68cabe9f5c1e92778a5688647a16f15777e4"
+  },
+  "landing": {
+    "passed": 49,
+    "skipped": 0,
+    "seconds": 21.65,
+    "warnings": 1,
+    "pushed_head": "a30162d283f26fc3acfa4b994262e78a9724337f",
+    "worktree_removed": true,
+    "log_sha256": "282b27ed5f9045f593b2ec06405ffd427ea8a6a51c1665cf629a1b8693a38831"
   }
 }

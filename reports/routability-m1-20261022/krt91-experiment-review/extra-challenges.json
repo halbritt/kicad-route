@@ -1,0 +1,118 @@
+{
+  "candidate": "6e41a13d3543426c2fbf1e5e9c99c066038c432c",
+  "experiment_sha256": "98fbe298cbb22aa286570c71b7fa18d29805e90dda33bc3b70a88d43642dd806",
+  "cases": [
+    {
+      "scenario": "reference-terminals-replaced-by-candidate",
+      "status": "eligible",
+      "reasons": [],
+      "budgets": {
+        "backend_s": 20,
+        "stall_s": null,
+        "command_budget_s": 20,
+        "grace_s": 30
+      },
+      "terminals": {
+        "reference": {
+          "board_sha256": "641ae6d98b25b556c5587cf357470bd9104ac0723f24cf97b35a60fa148f3cd3",
+          "inventory_sha256": "52266ddcc3d9d2aada9c9701a813039e726edcefa699c2f2d368d2835a66423e",
+          "terminal_nets": 6,
+          "incomplete_nets": 4,
+          "component_deficit": 5
+        },
+        "candidate": {
+          "board_sha256": "641ae6d98b25b556c5587cf357470bd9104ac0723f24cf97b35a60fa148f3cd3",
+          "inventory_sha256": "52266ddcc3d9d2aada9c9701a813039e726edcefa699c2f2d368d2835a66423e",
+          "terminal_nets": 6,
+          "incomplete_nets": 4,
+          "component_deficit": 5
+        }
+      }
+    },
+    {
+      "scenario": "budgets-unrecorded-command",
+      "status": "ineligible",
+      "reasons": [
+        "missing experiment identity: budgets.grace_s"
+      ],
+      "budgets": {
+        "backend_s": 20,
+        "stall_s": null,
+        "command_budget_s": null,
+        "grace_s": null
+      },
+      "terminals": {
+        "reference": {
+          "board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+          "inventory_sha256": "52266ddcc3d9d2aada9c9701a813039e726edcefa699c2f2d368d2835a66423e",
+          "terminal_nets": 6,
+          "incomplete_nets": 5,
+          "component_deficit": 6
+        },
+        "candidate": {
+          "board_sha256": "641ae6d98b25b556c5587cf357470bd9104ac0723f24cf97b35a60fa148f3cd3",
+          "inventory_sha256": "52266ddcc3d9d2aada9c9701a813039e726edcefa699c2f2d368d2835a66423e",
+          "terminal_nets": 6,
+          "incomplete_nets": 4,
+          "component_deficit": 5
+        }
+      }
+    },
+    {
+      "scenario": "budgets-inconsistent-command",
+      "status": "eligible",
+      "reasons": [],
+      "budgets": {
+        "backend_s": 20,
+        "stall_s": null,
+        "command_budget_s": 999,
+        "grace_s": 30
+      },
+      "terminals": {
+        "reference": {
+          "board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+          "inventory_sha256": "52266ddcc3d9d2aada9c9701a813039e726edcefa699c2f2d368d2835a66423e",
+          "terminal_nets": 6,
+          "incomplete_nets": 5,
+          "component_deficit": 6
+        },
+        "candidate": {
+          "board_sha256": "641ae6d98b25b556c5587cf357470bd9104ac0723f24cf97b35a60fa148f3cd3",
+          "inventory_sha256": "52266ddcc3d9d2aada9c9701a813039e726edcefa699c2f2d368d2835a66423e",
+          "terminal_nets": 6,
+          "incomplete_nets": 4,
+          "component_deficit": 5
+        }
+      }
+    },
+    {
+      "scenario": "budgets-malformed-settings",
+      "status": "eligible",
+      "reasons": [],
+      "budgets": {
+        "backend_s": {
+          "bad": "budget"
+        },
+        "stall_s": null,
+        "command_budget_s": 20,
+        "grace_s": 30
+      },
+      "terminals": {
+        "reference": {
+          "board_sha256": "1477600bf32bf50fc348651c8317f4f6772d208ea3a03ea3eaf955ff25800478",
+          "inventory_sha256": "52266ddcc3d9d2aada9c9701a813039e726edcefa699c2f2d368d2835a66423e",
+          "terminal_nets": 6,
+          "incomplete_nets": 5,
+          "component_deficit": 6
+        },
+        "candidate": {
+          "board_sha256": "641ae6d98b25b556c5587cf357470bd9104ac0723f24cf97b35a60fa148f3cd3",
+          "inventory_sha256": "52266ddcc3d9d2aada9c9701a813039e726edcefa699c2f2d368d2835a66423e",
+          "terminal_nets": 6,
+          "incomplete_nets": 4,
+          "component_deficit": 5
+        }
+      }
+    }
+  ]
+}

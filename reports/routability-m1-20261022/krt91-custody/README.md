@@ -28,9 +28,11 @@ Verification:
   existing inner annulus made generated copper nonremovable. See the retained
   independent summary, test log and native reproduction script.
 
-The required `git-land --check` gate runs native policy, the 22 inventory cases,
-and the real public CLI custody path on the isolated correction. Its result is
-recorded in the integration follow-up. This report does not certify the failing
+The required `git-land --check` gate ran native policy, the 22 inventory cases,
+and the real public CLI custody path on the isolated correction: **49 passed,
+zero skips**, in 21.65 seconds (one native SWIG deprecation warning). It pushed
+`a30162d283f26fc3acfa4b994262e78a9724337f` and removed the integration worktree.
+The retained landing log records this result. This report does not certify the failing
 broad suite, another host, the experiment receipt, or K91 release.
 
 The separate experiment candidate `6e41a13` passed its 57 tests and real eight-run
