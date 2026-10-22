@@ -411,6 +411,11 @@ saved native inventory to input, rules, source identity and grade. It captures
 current-run copper only: all input copper stays fixed, including input generated
 by earlier runs. Existing `--protect human` classification remains unchanged.
 Custody does not change native validity and is not replay authority.
+Via records require the native `annulus_geometry` and `layer_diameters` fields:
+only circular layer discs with an exact, ordered diameter for every physical
+layer in the span are supported. Custody retains these fields when comparing
+survivors. Missing geometry, extra fields and duplicate UUIDs are refused;
+older facts without the complete geometry cannot qualify with this reader.
 
 The Python API `copper_ownership.prepare_disposable(run_dir, selected_nets,
 destination, timeout_s)` prepares a new scratch directory from a bound, native

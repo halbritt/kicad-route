@@ -77,7 +77,8 @@ def inventory(facts):
             if not isinstance(item, dict):
                 raise OwnershipError('malformed copper record')
             base = {'uuid', 'net', 'locked'}
-            fields = (base | {'position', 'diameter', 'drill', 'layers', 'via_type'} if kind == 'vias'
+            fields = (base | {'position', 'diameter', 'drill', 'layers', 'via_type',
+                              'annulus_geometry', 'layer_diameters'} if kind == 'vias'
                       else base | {'start', 'end', 'width', 'layer', 'kind'} | ({'mid'} if item.get('kind') == 'arc' else set()))
             if set(item) != fields or not isinstance(item.get('uuid'), str) or not item['uuid'] or item['uuid'] in out:
                 raise OwnershipError('unknown copper fields or duplicate/missing UUID')
@@ -92,10 +93,34 @@ def inventory(facts):
             if kind == 'vias':
                 if not isinstance(item['layers'], list) or len(item['layers']) != 2 or any(not isinstance(x, str) for x in item['layers']) or not isinstance(item['via_type'], str):
                     raise OwnershipError('invalid via layers/type')
+                _via_layer_geometry(facts, item)
             elif item['kind'] not in ('segment', 'arc') or not isinstance(item['layer'], str):
                 raise OwnershipError('invalid track kind/layer')
             out[item['uuid']] = {'collection': kind, **item}
     return out
+
+
+def _via_layer_geometry(facts, via):
+    """Require the producer's complete, ordered circular annulus inventory."""
+    layers = facts.get('copper_layers')
+    if (not isinstance(layers, list) or not layers
+            or any(not isinstance(layer, dict) or not isinstance(layer.get('name'), str)
+                   or not layer['name'] for layer in layers)):
+        raise OwnershipError('missing physical copper stack')
+    stack = [layer['name'] for layer in layers]
+    span = via['layers']
+    if (len(set(stack)) != len(stack) or any(layer not in stack for layer in span)
+            or stack.index(span[0]) >= stack.index(span[1])):
+        raise OwnershipError('invalid native via span')
+    physical = stack[stack.index(span[0]):stack.index(span[1]) + 1]
+    sizes = via['layer_diameters']
+    if (via['annulus_geometry'] != 'circular-layer-discs'
+            or not isinstance(sizes, list) or len(sizes) != len(physical)
+            or any(not isinstance(size, dict) or set(size) != {'layer', 'diameter'}
+                   or type(size['diameter']) is not int or size['diameter'] <= 0 for size in sizes)
+            or [size['layer'] for size in sizes] != physical
+            or any(size['layer'] == 'F.Cu' and size['diameter'] != via['diameter'] for size in sizes)):
+        raise OwnershipError('unsupported or incomplete native via annulus geometry')
 
 
 def _classification(reference, candidate, scope):
