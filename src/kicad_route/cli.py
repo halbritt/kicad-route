@@ -738,6 +738,17 @@ def validate(run_dir, out_dir=None, origin=None, pour_limits=None):
         if any("pairs" in step for _, step in steps):
             attempt = {**attempt, "pairs": [pair_plans[p] for p in sorted(pair_plans)],
                        "pair_routing": pair_outcomes}
+    return validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits, chain)
+
+
+def validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits=None, chain=None):
+    """Grade an explicit candidate against a caller-verified reference context.
+
+    run_dir and attempt resolve the reference, facts, rules and qualified baseline;
+    cand_dir is the disposable candidate modified by rule restoration and refill.
+    The caller supplies the net scope and a fresh output directory. This performs
+    native grading only; it does not establish ancestry or authorize adoption.
+    """
     out_dir.mkdir(parents=True, exist_ok=False)
     board_name = attempt["board"]
     ref_dir = run_dir / attempt["reference_dir"]

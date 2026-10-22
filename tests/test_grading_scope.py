@@ -391,3 +391,57 @@ def test_validate_rejects_partial_terminal_split_despite_equal_native_open_count
     assert v["status"] == v["net_completion"]["status"] == route.FAIL
     assert v["net_completion"]["nets_lost"] == []
     assert v["net_completion"]["split_components"][0]["original_terminals"] == ["b1", "b2"]
+
+
+@pytest.mark.parametrize("remove_input", [False, True])
+def test_explicit_candidate_context_grades_real_saved_board(tmp_path, monkeypatch, remove_input):
+    """An independent candidate is graded against the supplied original reference."""
+    import pcbnew
+    from helpers import tree_hash
+    from kicad_route import evidence, native_components
+
+    monkeypatch.setattr(common, "_out", tmp_path / "out")
+    common.ensure_kicad_config()
+    run = tmp_path / "original"
+    ref = run / "reference" / "route_demo"
+    ref.parent.mkdir(parents=True)
+    route.copy_project(FIXTURE, ref)
+    candidate = tmp_path / "worker" / "candidate"
+    candidate.parent.mkdir()
+    route.copy_project(ref, candidate)
+    if remove_input:
+        board = pcbnew.LoadBoard(str(candidate / BOARD))
+        board.Remove(next(iter(board.GetTracks())))
+        pcbnew.SaveBoard(str(candidate / BOARD), board, aSkipSettings=True)
+    before_reference = tree_hash(ref)
+    before_candidate = common.sha256(candidate / BOARD)
+    ref_facts, _ = route.board_facts(ref / BOARD, run / "reference-facts.json")
+    assert ref_facts is not None
+    baseline, info = route.baseline_drc(ref, BOARD, "explicit-context",
+                                       pcbnew_build=ref_facts["kicad_version"])
+    assert baseline is not None, info
+    attempt = {"board": BOARD, "schematic": "route_demo.kicad_sch",
+               "reference_dir": "reference/route_demo", "reference_facts": "reference-facts.json",
+               "candidate_dir": "candidate/absent", "input_fingerprint": "explicit-context",
+               "baseline": {"report": info["report"]}, "settings": {"protect": "existing"},
+               "floor": None}
+    scope = set(ref_facts["nets"])
+    out = tmp_path / "worker" / "grade"
+    validation, routing = route.validate_candidate(run, attempt, candidate, scope, out)
+    assert validation["status"] == (route.FAIL if remove_input else route.PASS), validation["reasons"]
+    assert validation["preservation"]["protected_copper"] == (route.FAIL if remove_input else route.PASS)
+    assert validation["delivered_board_sha256"] == before_candidate
+    assert validation["validated_board_sha256"] == validation["candidate_board_sha256"] == common.sha256(candidate / BOARD)
+    assert tree_hash(ref) == before_reference
+    assert not (run / "candidate").exists() and not (run / "attempt.json").exists()
+    assert "chain" not in validation
+    assert validation["parity_performed"] is True
+    assert native_components.coverage(common.load_json(out / "reference-terminal-components.json"))
+    final_terms = common.load_json(out / "candidate-terminal-components.json")
+    assert native_components.coverage(final_terms)
+    assert final_terms["identity"]["board_sha256"] == common.sha256(candidate / BOARD)
+    bound = evidence.block(run, attempt, out, validation)
+    assert bound["input_board_sha256"] == common.sha256(ref / BOARD)
+    assert bound["candidate_board_sha256"] == common.sha256(candidate / BOARD)
+    assert "protected_copper" in validation["preservation"]
+    assert routing["status"] in (route.COMPLETE, route.INCOMPLETE)
