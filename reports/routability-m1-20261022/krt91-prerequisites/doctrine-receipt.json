@@ -1,0 +1,272 @@
+{
+  "schema_version": "decision-receipt/2",
+  "receipt_id": "krt91-native-env-prerequisite-agent507",
+  "question": "How should kicad-route bind native experiment evidence and explicitly permitted differences so routing comparisons refuse incomplete or mismatched policy without expanding solver scope?",
+  "scope": [
+    "native policy and configuration prerequisite commits only",
+    "full K91 sidecar/comparison/consumer qualification remains pending"
+  ],
+  "status": "verified",
+  "authority_boundary": {
+    "owner": "agent-507",
+    "authority_source": "owner session authorization and agent-509 ca6818de@1",
+    "authorized_scope": [
+      "implement/review/integrate bounded K91 correctness prerequisites",
+      "no target route until remaining correctness gates clear"
+    ]
+  },
+  "evidence": [
+    {
+      "schema_version": "evidence-record/1",
+      "id": "k91-authority",
+      "evidence_class": "evidence-explicit-user-requirements",
+      "summary": "Owner coordination authorizes K91 experiment identity and strict comparisons, native board/footprint policy evidence,449 consumer boundary, independent qualification and clean507 integration. One <=900backend-second corrected-policy diagnostic only after correctness gates; no geometry/rules/netlist relaxation or unrelated framework.509ca6818de@1 supplies selected execution scope; no-change would leave named gate unimplemented.",
+      "provenance": [
+        {
+          "locator": "cairn:ca6818de-549e-4442-a19f-cf132aa164fd@1",
+          "method": "Exact native source read with supplied hook; owner authorization checked against active session AGENTS and delegated implementation scope",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        }
+      ],
+      "satisfies": [
+        "user instruction and authority",
+        "target repository and task scope",
+        "explicit task authority",
+        "task scope and authority statement",
+        "decision owner",
+        "accepted desired behavior and semantic authority",
+        "a bounded decision question"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "k91-contracts",
+      "evidence_class": "evidence-repository-contracts",
+      "summary": "Existing CLI run/validate and evidence/compare schemas, immutable router generations, fail-closed native terminal preservation and full retained findings remain authoritative. New sidecar extends existing boundary without replacing native grading or solver. Tests/public source entry points andPython>=3.12 inspected. Source project must stay byte-identical;507 owns router integration and449ownsagent-ee.",
+      "provenance": [
+        {
+          "locator": "/home/halbritt/git/kicad-route/pyproject.toml",
+          "method": "Read supported Python/build/test dependencies",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "4dd0f5d6d606b58f898157a735fb302c921adb651029e769e5efd2b44c4008ed"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+          "method": "Read validate_candidate, toolidentity/effective configuration, compare and shared route-option entry points",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "d43569e4d81a4355712d356efec35ec40167f3318c9155c8172792164dcd01b1"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/installation.py",
+          "method": "Read isolated immutable generation preparation/activation",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/tests/conftest.py",
+          "method": "Read native fixture/source preservation ownership",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "c525e2b90de9ca411053d9f66869ad5cc3e7fbd1920d6bdc0470d0fd16750c46"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/reports/routability-m1-20261021/README.md",
+          "method": "Read retained released90/98 and unintegrated91 state",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "6e3826aa883e7ace28d4b80250b01ee4f53cf16028ae37cc46d3322d28b3dd25"
+        }
+      ],
+      "satisfies": [
+        "repository contract",
+        "repository version and dependency contract",
+        "Python and dependency version matrix",
+        "repository toolchain inspection",
+        "repository instructions from root through target path",
+        "accepted ADR, RFC, API, compatibility, generation, build, and test contracts",
+        "preservation boundary and semantic authority",
+        "change-type classification"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "k91-static",
+      "evidence_class": "evidence-static-source-structure",
+      "summary": "At409d06a experiment writer/reader/strictcomparison functions and policy CLI are absent;prep10ff94b is not an ancestor. Existing configuration_evidence.inspect validates resolved outer batch only, seals request/settings/input/output/source and declares exclusions; K98 native terminal partitions cover235net historic evidence independent of raw499cap. Independent initial audit reproduced inheritedDIRECT_FIRST unbound behavior and agent-ee exactschema/root-sidecar retention gap. Builders own separate files and reviewer is read-only.",
+      "provenance": [
+        {
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/configuration_evidence.py",
+          "method": "Read complete existing qualification/coverage boundary",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "0147cb01c2418b6bd87d4bff89371633d6cc9036821647561796ae5568bedc3a"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+          "method": "Inspected current evidence module and diff versus retainedprep",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "ae818865ecdd317abe9c82129782217817df4ae75548d4b9d85b08cda3b99881"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/scripts/compare_router.py",
+          "method": "Inspected compare signature/argv and oldprep diff",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "ed73080eb02f010a4dedbea63557acfbda95c231b712c8997c8da99f95c4f1bf"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/kicad/facts.py",
+          "method": "Read BOARD-only rule-area extraction and native footprint geometry",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "88c72253d45df989bb173c54d92c6efe81dba4674a42844ade2463afd3fb5f58"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/routability-m1/prep91/identity-prep.bundle",
+          "method": "Verified retained unintegrated candidate identity",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00",
+          "content_sha256": "dea63d6f12d96eb0246946899a9c9e337e0d41c380c8c5959ab48a94456437a2"
+        }
+      ],
+      "satisfies": [
+        "current source, configuration, and relevant runtime state",
+        "adjacent code",
+        "affected behavior and state",
+        "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+        "evidence connecting the proposed action to the condition",
+        "a stated unknown and observation method",
+        "explicit unknowns and consequence",
+        "state, invariant, and dependency ownership",
+        "object and ownership graph",
+        "mutation sites",
+        "knowledge and navigation required by callers/maintainers",
+        "representative change scenario",
+        "representative change or use scenario",
+        "alternatives including no change where viable"
+      ]
+    },
+    {
+      "schema_version": "evidence-record/1",
+      "id": "k91-native-env-checkpoint-tests",
+      "evidence_class": "evidence-tests",
+      "summary": "Narrow prerequisite checkpoint040b7fd combines ambient controls/batch capture53a07c0 with native rule-area/policy3545+d5d7. Root configured a disposable matching owned generation (source9cfc5d5e,42.12s preparation) and independently ran71 native policy/preservation/configuration cases with0failed/0skipped in15.62s (15.996s harness), including actual backend emitter. Independent native-policy review READY after duplicate-key repair; GEOSoracle agrees exactly34track/3via intersections in90track/25via challenge, native44track/22via positive and malformed controls exercised. No experiment writer/strict comparator/agent-ee real replay or target grading/routing claim. Existing defaults/rules/source fixtures unchanged. Full K91 remains pending.",
+      "provenance": [
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/command.json",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486283+00:00",
+          "content_sha256": "7e863f5d4f32c310a896b7d391b8e09caf6f830e4d04660b544a962f32cf422d"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/result.json",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486497+00:00",
+          "content_sha256": "3a078b7ca6294d62dcce70b4b12b462adc929878b20512c1e124e8306681ef83"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/stdout.txt",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486549+00:00",
+          "content_sha256": "2e85844a6095da86a95228062cf974e2774c86b9f625ce63f332a2f795a679c6"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-independent-policy-review-agent507/review-summary.json",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486637+00:00",
+          "content_sha256": "8669c7b43e6a494b455207bacc87751f1ce763ee5fca11418ce8e44522fdf22d"
+        },
+        {
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-runtime-agent507/preparation-result.json",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486761+00:00",
+          "content_sha256": "d5db0cb27b90aff5d5eb272a8ce3a8a46022802c0dc73830193efb19c95010bc"
+        }
+      ],
+      "satisfies": [
+        "behavior tests",
+        "public API and tests",
+        "tests, characterization, probes, or explicit residual risk",
+        "checkpoint verification",
+        "reversibility and verification",
+        "accepted contract and executable observation",
+        "accepted expected behavior",
+        "observable failing condition",
+        "suitable test level",
+        "discriminating check and baseline",
+        "checkpoint and stop condition",
+        "preservation matrix and consumers",
+        "proc-establish-preservation-boundaries",
+        "per-edit change classification"
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "id": "native-env-observation",
+      "type": "observation",
+      "text": "Composed040b7fd passes71 native/configuration/preservation cases using matching disposable runtime; independent native-policy review READY after duplicate-key fix.",
+      "evidence": [
+        "k91-native-env-checkpoint-tests"
+      ]
+    },
+    {
+      "id": "native-env-verification",
+      "type": "verification",
+      "text": "The exercised native-policy and environment-capture prerequisite scope is verified. This does not qualify the incomplete experiment sidecar, strict comparison, agent-ee replay or a target route.",
+      "depends_on": [
+        "native-env-observation"
+      ],
+      "criteria": [
+        "native geometry/coverage refusals and positive controls",
+        "actual backend emitter bound against matching owned source",
+        "preservation regressions remain passing"
+      ],
+      "evidence": [
+        "k91-native-env-checkpoint-tests"
+      ]
+    }
+  ],
+  "alternatives": [
+    {
+      "option": "retain board-only area evidence and incomplete ambient-control binding",
+      "disposition": "rejected",
+      "evidence": [
+        "k91-static",
+        "k91-authority"
+      ]
+    },
+    {
+      "option": "integrate only the exercised native/env prerequisite checkpoint",
+      "disposition": "selected",
+      "evidence": [
+        "k91-native-env-checkpoint-tests"
+      ]
+    },
+    {
+      "option": "claim full K91 release or launch target routing now",
+      "disposition": "deferred",
+      "evidence": [
+        "k91-native-env-checkpoint-tests"
+      ]
+    }
+  ],
+  "source_locators": [
+    "cairn:ca6818de-549e-4442-a19f-cf132aa164fd@1",
+    "integration.json",
+    "independent-review.json",
+    "gate-stdout.txt",
+    "doctrine/checkpoint-packet.json"
+  ],
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "retriever_version": "retriever-ec995ecdd083b2c8",
+  "verification_criteria": [
+    "71 focused composed tests pass with0skips",
+    "native-policy independent READY",
+    "required git-land check passes"
+  ],
+  "reopening_conditions": [
+    "changed native tool/source/geometry coverage",
+    "failed retained identity/comparison/adapter checks",
+    "new native counterexample"
+  ],
+  "residual_risk": [
+    "Full K91 is incomplete; actual consumer and target route are not qualified.",
+    "Arc tracks, curved rings and noncircular via annuli explicitly cannot qualify.",
+    "23 generic unfulfilled doctrine obligations retained separately and not used to justify broader claims."
+  ]
+}

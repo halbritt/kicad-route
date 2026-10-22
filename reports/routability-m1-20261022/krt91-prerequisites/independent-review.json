@@ -1,0 +1,91 @@
+{
+  "review_handle": "K91-R507-EI",
+  "scope": "native rule-area and actual trace/via policy qualifier only",
+  "verdict": "READY",
+  "candidate": "d5d7f23feb652b0e3547e9723aa67cb0e5f054f7",
+  "supersedes": "3545da73613801dbde6484ded777830975b90fec",
+  "resolved_findings": [
+    {
+      "id": "POL1",
+      "problem": "duplicate policy JSON keys could broaden permissions",
+      "verification": "exact duplicate-policy.json now raises ValueError duplicate JSON object key"
+    }
+  ],
+  "sources": {
+    "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-native-policy-agent507/src/kicad_route/experiment_policy.py": "575e7aef8a2ba825ef05211603b16e00c05ebf4439e2976ef0a7884bd330265d",
+    "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-native-policy-agent507/src/kicad_route/kicad/facts.py": "d47a3fd2eb40518b7beba5457b679b901150c64e3988f86537d67f373bef8c52"
+  },
+  "independent_native_geometry": {
+    "tracks": 90,
+    "vias": 25,
+    "expected_track_area_intersections": 34,
+    "expected_via_area_intersections": 3,
+    "oracle": "Shapely 2.2.0 GEOS distance to native saved polygons with holes",
+    "matched_exactly": true,
+    "native_positive_status": "PASS",
+    "positive_tracks": 44,
+    "positive_vias": 22,
+    "malformed_controls": [
+      {
+        "scenario": "missingarea_coverage",
+        "status": "NOT_RUN",
+        "passed": true
+      },
+      {
+        "scenario": "unsupportedannulus",
+        "status": "NOT_RUN",
+        "passed": true
+      },
+      {
+        "scenario": "missingdiameters",
+        "status": "NOT_RUN",
+        "passed": true
+      },
+      {
+        "scenario": "boolwidth",
+        "status": "NOT_RUN",
+        "passed": true
+      },
+      {
+        "scenario": "boolcoordinate",
+        "status": "NOT_RUN",
+        "passed": true
+      },
+      {
+        "scenario": "malformedpolygon",
+        "status": "NOT_RUN",
+        "passed": true
+      }
+    ]
+  },
+  "target_area_crosscheck": {
+    "origin_status": "PASS",
+    "corrected_status": "PASS",
+    "origin_fp_areas": 6,
+    "corrected_fp_areas": 6,
+    "corrected_board_areas": 2,
+    "fp_areas_exactly_preserved": true,
+    "corrected_facts_path": "/home/halbritt/.cache/agent-worktrees/kicad-route/krt91-native-policy-agent507/build/krt91-native-policy-agent507/corrected-policy-facts.json",
+    "corrected_facts_sha256": "7fc7fc23777f21a4430afc152fa5779d241721a0d21dd9d741f45f00aaf26ff2",
+    "origin_board_sha256": "67782a5d8ff7ce3c21dbe90b6f50c2735e4827231f3f474c9db4522de43ca73f"
+  },
+  "tests": {
+    "native_policy": "26 passed",
+    "configuration_53a07c0": "13 passed, 1 skipped (real owned backend emitter unavailable under current installed runtime)"
+  },
+  "composed_acceptance_pending": [
+    "actual new native emitter plus positive experiment receipt and strict compare",
+    "post-refill/origin/input/effective-configuration/budget artifact binding",
+    "agent-ee actual retain-or-refuse replay"
+  ],
+  "unsupported_geometry_policy": "arc tracks/curved rings unsupported and explicit NOT_RUN; never promote unknown",
+  "artifacts": {
+    "geometry-oracle.py": "2b65bdb14c30606f5c931cec80118731ff1e43fc116b0d6cae3b46afcae0b0d6",
+    "geometry-oracle-result.json": "ff3bae826920309e037c384f2b80f0dd2bb21d48b2d4dfb6af32dc35f9c40e8d",
+    "positive-and-negative-controls.py": "d97cc77db3effd0a6f5f8c9fb7cb7274d7647935e8b328b629399eab6e6d9441",
+    "positive-negative-controls-result.json": "da2732f07ec6c95ceac3405792cc9ca27c188cd8abe07eb89766631c36d43d36",
+    "target-area-crosscheck.json": "ef3804c4a01f292cbf86d95b72436fa80c5bba54ab816d40d1b17dac0d4d2e42",
+    "duplicate-policy.json": "e67cb95e30e2eabcfc3deccea245ee47063622b93d7310c04a29a4eff111da03"
+  },
+  "authority": "read-only review; no source edits, target grade or route; root507 owns integration/release"
+}

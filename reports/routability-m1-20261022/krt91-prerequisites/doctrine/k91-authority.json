@@ -1,0 +1,22 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-authority",
+  "evidence_class": "evidence-explicit-user-requirements",
+  "summary": "Owner coordination authorizes K91 experiment identity and strict comparisons, native board/footprint policy evidence,449 consumer boundary, independent qualification and clean507 integration. One <=900backend-second corrected-policy diagnostic only after correctness gates; no geometry/rules/netlist relaxation or unrelated framework.509ca6818de@1 supplies selected execution scope; no-change would leave named gate unimplemented.",
+  "provenance": [
+    {
+      "locator": "cairn:ca6818de-549e-4442-a19f-cf132aa164fd@1",
+      "method": "Exact native source read with supplied hook; owner authorization checked against active session AGENTS and delegated implementation scope",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00"
+    }
+  ],
+  "satisfies": [
+    "user instruction and authority",
+    "target repository and task scope",
+    "explicit task authority",
+    "task scope and authority statement",
+    "decision owner",
+    "accepted desired behavior and semantic authority",
+    "a bounded decision question"
+  ]
+}

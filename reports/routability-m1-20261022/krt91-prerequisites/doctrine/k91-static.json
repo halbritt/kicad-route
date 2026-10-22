@@ -1,0 +1,54 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-static",
+  "evidence_class": "evidence-static-source-structure",
+  "summary": "At409d06a experiment writer/reader/strictcomparison functions and policy CLI are absent;prep10ff94b is not an ancestor. Existing configuration_evidence.inspect validates resolved outer batch only, seals request/settings/input/output/source and declares exclusions; K98 native terminal partitions cover235net historic evidence independent of raw499cap. Independent initial audit reproduced inheritedDIRECT_FIRST unbound behavior and agent-ee exactschema/root-sidecar retention gap. Builders own separate files and reviewer is read-only.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/src/kicad_route/configuration_evidence.py",
+      "method": "Read complete existing qualification/coverage boundary",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "0147cb01c2418b6bd87d4bff89371633d6cc9036821647561796ae5568bedc3a"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+      "method": "Inspected current evidence module and diff versus retainedprep",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "ae818865ecdd317abe9c82129782217817df4ae75548d4b9d85b08cda3b99881"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/scripts/compare_router.py",
+      "method": "Inspected compare signature/argv and oldprep diff",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "ed73080eb02f010a4dedbea63557acfbda95c231b712c8997c8da99f95c4f1bf"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/src/kicad_route/kicad/facts.py",
+      "method": "Read BOARD-only rule-area extraction and native footprint geometry",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "88c72253d45df989bb173c54d92c6efe81dba4674a42844ade2463afd3fb5f58"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/routability-m1/prep91/identity-prep.bundle",
+      "method": "Verified retained unintegrated candidate identity",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "dea63d6f12d96eb0246946899a9c9e337e0d41c380c8c5959ab48a94456437a2"
+    }
+  ],
+  "satisfies": [
+    "current source, configuration, and relevant runtime state",
+    "adjacent code",
+    "affected behavior and state",
+    "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+    "evidence connecting the proposed action to the condition",
+    "a stated unknown and observation method",
+    "explicit unknowns and consequence",
+    "state, invariant, and dependency ownership",
+    "object and ownership graph",
+    "mutation sites",
+    "knowledge and navigation required by callers/maintainers",
+    "representative change scenario",
+    "representative change or use scenario",
+    "alternatives including no change where viable"
+  ]
+}

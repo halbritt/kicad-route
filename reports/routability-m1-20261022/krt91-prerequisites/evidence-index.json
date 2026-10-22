@@ -1,0 +1,24 @@
+{
+  "schema": "kicad-route/evidence-index/1",
+  "files": {
+    "README.md": "b44ab1ffe04ff5b90de84f8be8f59ee5efc5fb364f552ef84979d1a9ce4fb76f",
+    "doctrine/checkpoint-packet.json": "1a62e13f48893d8466da74eb3d8f51d13fae9c9dc3c31c113700839b1b02eb99",
+    "doctrine/checkpoint-packet.md": "e136214e06ae44d36660ea8bf4d5a3f9006ccfaf7f2b503d040e838acb771d32",
+    "doctrine/checkpoint-unmet-obligations.json": "0385c88e952893f1679b4a9ffed9bb9c0bacfc5ac0a2be1083d9d62942469f8e",
+    "doctrine/citation-classification.json": "c9606ee765f9b9df61efe1563d44b86193a6aa1cae2893ebc91a1d3f34b8edb7",
+    "doctrine/citation-observations.json": "2eeb7cc6a328c615bcd317090e422af8bc379e2e0d36be0f0c8ebd299a6189fd",
+    "doctrine/discovery.json": "5fdc9fede177314f033d9425d5836f798e82951f7bf201c506e98826e105336c",
+    "doctrine/discovery.md": "51a01e8dd34087d5903f4aa3263780236b7ae88ee35dfd88195623ca4ae49c8e",
+    "doctrine/k91-authority.json": "d0bf6cc923ddd4be16f041691ac12ba3017afb1c8daab16af22838a8a6bc45b1",
+    "doctrine/k91-contracts.json": "5782c94e5a6bce1d874271e8af2aba18f0ea17c3e0f8301eebccf763ae6193d4",
+    "doctrine/k91-native-env-checkpoint-tests.json": "902af53ef54a2b6368a677e3b64ad52b10c9eea00cf82fb5da57d3b5b0e421bd",
+    "doctrine/k91-static.json": "9642edc11bef52ce4015ccbc4263fbcd70acb56aac115de3e8403dd13885e060",
+    "doctrine-receipt.json": "4124b4c69fc0b83883b4c92b444286cb075fb3df7ba18af035939c8f48746a8b",
+    "gate-command.json": "7e863f5d4f32c310a896b7d391b8e09caf6f830e4d04660b544a962f32cf422d",
+    "gate-result.json": "3a078b7ca6294d62dcce70b4b12b462adc929878b20512c1e124e8306681ef83",
+    "gate-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate-stdout.txt": "2e85844a6095da86a95228062cf974e2774c86b9f625ce63f332a2f795a679c6",
+    "independent-review.json": "8669c7b43e6a494b455207bacc87751f1ce763ee5fca11418ce8e44522fdf22d",
+    "integration.json": "fce14da0838e359d72e416bf428c4d9bd1c0a73173c455a214f9ab28b8e21cd3"
+  }
+}

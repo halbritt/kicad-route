@@ -1,0 +1,29 @@
+{
+  "schema_version": "citation-observations/1",
+  "citations": [
+    {
+      "kind": "concept-id",
+      "identifier": "universal-repository-contract-precedence"
+    },
+    {
+      "kind": "concept-id",
+      "identifier": "universal-evidence-before-intervention"
+    },
+    {
+      "kind": "concept-id",
+      "identifier": "universal-minimize-simultaneous-uncertainty"
+    },
+    {
+      "kind": "concept-id",
+      "identifier": "universal-local-reasoning"
+    },
+    {
+      "kind": "concept-id",
+      "identifier": "universal-preserve-behavior-by-default"
+    },
+    {
+      "kind": "concept-id",
+      "identifier": "universal-separate-semantic-structural-change"
+    }
+  ]
+}

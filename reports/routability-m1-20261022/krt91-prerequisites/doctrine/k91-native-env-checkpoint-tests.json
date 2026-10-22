@@ -1,0 +1,54 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-native-env-checkpoint-tests",
+  "evidence_class": "evidence-tests",
+  "summary": "Narrow prerequisite checkpoint040b7fd combines ambient controls/batch capture53a07c0 with native rule-area/policy3545+d5d7. Root configured a disposable matching owned generation (source9cfc5d5e,42.12s preparation) and independently ran71 native policy/preservation/configuration cases with0failed/0skipped in15.62s (15.996s harness), including actual backend emitter. Independent native-policy review READY after duplicate-key repair; GEOSoracle agrees exactly34track/3via intersections in90track/25via challenge, native44track/22via positive and malformed controls exercised. No experiment writer/strict comparator/agent-ee real replay or target grading/routing claim. Existing defaults/rules/source fixtures unchanged. Full K91 remains pending.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/command.json",
+      "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+      "observed_at": "2026-10-22T09:55:35.486283+00:00",
+      "content_sha256": "7e863f5d4f32c310a896b7d391b8e09caf6f830e4d04660b544a962f32cf422d"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/result.json",
+      "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+      "observed_at": "2026-10-22T09:55:35.486497+00:00",
+      "content_sha256": "3a078b7ca6294d62dcce70b4b12b462adc929878b20512c1e124e8306681ef83"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/stdout.txt",
+      "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+      "observed_at": "2026-10-22T09:55:35.486549+00:00",
+      "content_sha256": "2e85844a6095da86a95228062cf974e2774c86b9f625ce63f332a2f795a679c6"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-independent-policy-review-agent507/review-summary.json",
+      "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+      "observed_at": "2026-10-22T09:55:35.486637+00:00",
+      "content_sha256": "8669c7b43e6a494b455207bacc87751f1ce763ee5fca11418ce8e44522fdf22d"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/build/krt91-runtime-agent507/preparation-result.json",
+      "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+      "observed_at": "2026-10-22T09:55:35.486761+00:00",
+      "content_sha256": "d5db0cb27b90aff5d5eb272a8ce3a8a46022802c0dc73830193efb19c95010bc"
+    }
+  ],
+  "satisfies": [
+    "behavior tests",
+    "public API and tests",
+    "tests, characterization, probes, or explicit residual risk",
+    "checkpoint verification",
+    "reversibility and verification",
+    "accepted contract and executable observation",
+    "accepted expected behavior",
+    "observable failing condition",
+    "suitable test level",
+    "discriminating check and baseline",
+    "checkpoint and stop condition",
+    "preservation matrix and consumers",
+    "proc-establish-preservation-boundaries",
+    "per-edit change classification"
+  ]
+}

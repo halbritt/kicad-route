@@ -1,0 +1,48 @@
+{
+  "schema_version": "evidence-record/1",
+  "id": "k91-contracts",
+  "evidence_class": "evidence-repository-contracts",
+  "summary": "Existing CLI run/validate and evidence/compare schemas, immutable router generations, fail-closed native terminal preservation and full retained findings remain authoritative. New sidecar extends existing boundary without replacing native grading or solver. Tests/public source entry points andPython>=3.12 inspected. Source project must stay byte-identical;507 owns router integration and449ownsagent-ee.",
+  "provenance": [
+    {
+      "locator": "/home/halbritt/git/kicad-route/pyproject.toml",
+      "method": "Read supported Python/build/test dependencies",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "4dd0f5d6d606b58f898157a735fb302c921adb651029e769e5efd2b44c4008ed"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+      "method": "Read validate_candidate, toolidentity/effective configuration, compare and shared route-option entry points",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "d43569e4d81a4355712d356efec35ec40167f3318c9155c8172792164dcd01b1"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/src/kicad_route/installation.py",
+      "method": "Read isolated immutable generation preparation/activation",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/tests/conftest.py",
+      "method": "Read native fixture/source preservation ownership",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "c525e2b90de9ca411053d9f66869ad5cc3e7fbd1920d6bdc0470d0fd16750c46"
+    },
+    {
+      "locator": "/home/halbritt/git/kicad-route/reports/routability-m1-20261021/README.md",
+      "method": "Read retained released90/98 and unintegrated91 state",
+      "observed_at": "2026-10-22T07:22:39.352697+00:00",
+      "content_sha256": "6e3826aa883e7ace28d4b80250b01ee4f53cf16028ae37cc46d3322d28b3dd25"
+    }
+  ],
+  "satisfies": [
+    "repository contract",
+    "repository version and dependency contract",
+    "Python and dependency version matrix",
+    "repository toolchain inspection",
+    "repository instructions from root through target path",
+    "accepted ADR, RFC, API, compatibility, generation, build, and test contracts",
+    "preservation boundary and semantic authority",
+    "change-type classification"
+  ]
+}

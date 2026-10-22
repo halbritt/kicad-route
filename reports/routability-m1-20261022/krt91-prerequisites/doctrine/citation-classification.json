@@ -1,0 +1,78 @@
+{
+  "schema_version": "citation-classification/2",
+  "packet_id": "pkt-f2738561084bd181",
+  "packet_content_sha256": "f2738561084bd181b7e07bc5aec32d850089623aa262d5b24cd3be9b3a0b8fd9",
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+  "index_content_hash": "0772a6d3a482dde28e3c38f6f2169dd551ca147300d044bd0d8473b6671e7b74",
+  "receipt_id": "krt91-native-env-prerequisite-agent507",
+  "output_citation_channel": "structured",
+  "citations": [
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-repository-contract-precedence",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-evidence-before-intervention",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-minimize-simultaneous-uncertainty",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-local-reasoning",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-preserve-behavior-by-default",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "output",
+      "kind": "concept-id",
+      "identifier": "universal-separate-semantic-structural-change",
+      "classification": "valid-packet-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "cairn:ca6818de-549e-4442-a19f-cf132aa164fd@1",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "integration.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "independent-review.json",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "gate-stdout.txt",
+      "classification": "foreign-citation"
+    },
+    {
+      "origin": "receipt",
+      "kind": "source-locator",
+      "identifier": "doctrine/checkpoint-packet.json",
+      "classification": "foreign-citation"
+    }
+  ]
+}

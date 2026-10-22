@@ -1,0 +1,2050 @@
+{
+  "activated_concepts": [
+    "python-repository-shaped-idiom",
+    "universal-repository-contract-precedence",
+    "implementation-repository-language-conformance",
+    "python-structured-cleanup",
+    "python-text-bytes-boundary",
+    "universal-minimize-simultaneous-uncertainty",
+    "universal-evidence-before-intervention",
+    "universal-local-reasoning",
+    "universal-separate-semantic-structural-change",
+    "python-mutable-ownership",
+    "universal-no-change-option",
+    "universal-preserve-behavior-by-default",
+    "agent-conduct-authority-bounded-action",
+    "testing-test-first-feedback"
+  ],
+  "activated_lenses": [
+    "lens-python"
+  ],
+  "activated_procedures": [
+    "proc-assess-authority-to-act",
+    "proc-determine-abstraction-earned",
+    "proc-determine-tests-characterization",
+    "proc-place-new-behavior",
+    "proc-plan-implementation"
+  ],
+  "activated_prohibitions": [
+    "prohibit-authority-inference-from-access",
+    "prohibit-boundary-without-force",
+    "prohibit-concurrency-first-optimization",
+    "prohibit-coverage-as-adequacy-proof",
+    "prohibit-generic-doctrine-over-local-contract",
+    "prohibit-go-error-discard",
+    "prohibit-implicit-resource-lifecycle",
+    "prohibit-indirection-by-slogan",
+    "prohibit-mutable-default-state",
+    "prohibit-python-hints-as-runtime-validation",
+    "prohibit-size-only-decomposition",
+    "prohibit-syntax-only-abstraction",
+    "prohibit-test-change-without-contract-reconciliation",
+    "prohibit-unknown-consequential-implementation",
+    "prohibit-unspecified-performance-optimization"
+  ],
+  "activation_reasons": [
+    {
+      "id": "python-repository-shaped-idiom",
+      "reasons": [
+        "language bundle 'Python'",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-repository-contract-precedence",
+      "reasons": [
+        "always-load core concept",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "implementation-repository-language-conformance",
+      "reasons": [
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "python-structured-cleanup",
+      "reasons": [
+        "language bundle 'Python'",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "python-text-bytes-boundary",
+      "reasons": [
+        "language bundle 'Python'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-minimize-simultaneous-uncertainty",
+      "reasons": [
+        "question term 'experiment'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-evidence-before-intervention",
+      "reasons": [
+        "always-load core concept",
+        "question term 'evidence'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-local-reasoning",
+      "reasons": [
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-separate-semantic-structural-change",
+      "reasons": [
+        "always-load core concept",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "python-mutable-ownership",
+      "reasons": [
+        "language bundle 'Python'",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "universal-no-change-option",
+      "reasons": [
+        "always-load core concept"
+      ]
+    },
+    {
+      "id": "universal-preserve-behavior-by-default",
+      "reasons": [
+        "always-load core concept",
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "agent-conduct-authority-bounded-action",
+      "reasons": [
+        "always-load core concept",
+        "role bundle intersected with task bundle"
+      ]
+    },
+    {
+      "id": "testing-test-first-feedback",
+      "reasons": [
+        "risk route 'correctness'",
+        "role bundle intersected with task bundle",
+        "task variant 'implement-contract'"
+      ]
+    },
+    {
+      "id": "lens-python",
+      "reasons": [
+        "language 'Python'"
+      ]
+    },
+    {
+      "id": "proc-assess-authority-to-act",
+      "reasons": [
+        "procedure for task family 'implementation'"
+      ]
+    },
+    {
+      "id": "proc-determine-abstraction-earned",
+      "reasons": [
+        "procedure for task family 'implementation'"
+      ]
+    },
+    {
+      "id": "proc-determine-tests-characterization",
+      "reasons": [
+        "procedure for task family 'implementation'"
+      ]
+    },
+    {
+      "id": "proc-place-new-behavior",
+      "reasons": [
+        "procedure for task family 'implementation'"
+      ]
+    },
+    {
+      "id": "proc-plan-implementation",
+      "reasons": [
+        "procedure for task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-authority-inference-from-access",
+      "reasons": [
+        "core prohibition"
+      ]
+    },
+    {
+      "id": "prohibit-boundary-without-force",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-concurrency-first-optimization",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-coverage-as-adequacy-proof",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-generic-doctrine-over-local-contract",
+      "reasons": [
+        "core prohibition"
+      ]
+    },
+    {
+      "id": "prohibit-go-error-discard",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-implicit-resource-lifecycle",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-indirection-by-slogan",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-mutable-default-state",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-python-hints-as-runtime-validation",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-size-only-decomposition",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-syntax-only-abstraction",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-test-change-without-contract-reconciliation",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-unknown-consequential-implementation",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "prohibit-unspecified-performance-optimization",
+      "reasons": [
+        "applies to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "evidence-explicit-user-requirements",
+      "reasons": [
+        "required by task family 'implementation'"
+      ]
+    },
+    {
+      "id": "evidence-repository-contracts",
+      "reasons": [
+        "required by task family 'implementation'"
+      ]
+    },
+    {
+      "id": "evidence-static-source-structure",
+      "reasons": [
+        "required by task family 'implementation'"
+      ]
+    },
+    {
+      "id": "evidence-tests",
+      "reasons": [
+        "required by task family 'implementation'"
+      ]
+    },
+    {
+      "id": "change-feature-implementation",
+      "reasons": [
+        "applicable to task family 'implementation'"
+      ]
+    },
+    {
+      "id": "authority-model.yaml",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    },
+    {
+      "id": "change-types.yaml",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    },
+    {
+      "id": "universal-doctrine.md",
+      "reasons": [
+        "always-load doctrine artifact"
+      ]
+    }
+  ],
+  "applicable_change_types": [
+    "change-feature-implementation"
+  ],
+  "authority_constraints": {
+    "artifact": "authority-model.yaml",
+    "constraints": [
+      "accepted architecture and task semantics remain fixed unless challenge authority is explicit",
+      "verify implementation but do not self-accept"
+    ],
+    "usual_ceiling": "execute"
+  },
+  "budget_excluded": [
+    {
+      "cost": 380,
+      "id": "architecture-command-event-semantics",
+      "reason": "requires 380 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 390,
+      "id": "data-batch-reproducible-derivation",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 410,
+      "id": "data-consistency-model-selection",
+      "reason": "requires 410 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 410,
+      "id": "data-end-to-end-request-idempotence",
+      "reason": "requires 410 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 400,
+      "id": "data-event-time-semantics",
+      "reason": "requires 400 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 390,
+      "id": "data-fencing-token-enforcement",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 390,
+      "id": "data-system-of-record-derived-state",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 430,
+      "id": "data-transaction-guarantee-verification",
+      "reason": "requires 430 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 770,
+      "id": "debugging-causal-repair",
+      "reason": "requires 770 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 390,
+      "id": "debugging-hypothesis-led-investigation",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 370,
+      "id": "implementation-atomicity-scope",
+      "reason": "requires 370 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 380,
+      "id": "implementation-concurrency-ordering-contract",
+      "reason": "requires 380 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 370,
+      "id": "implementation-duplication-as-evidence",
+      "reason": "requires 370 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 740,
+      "id": "implementation-error-surface-reduction",
+      "reason": "requires 740 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 420,
+      "id": "implementation-explicit-failure-policy",
+      "reason": "requires 420 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 760,
+      "id": "implementation-fail-fast-or-recover",
+      "reason": "requires 760 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 390,
+      "id": "implementation-minimal-coherent-api",
+      "reason": "requires 390 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 320,
+      "id": "implementation-obvious-control-flow",
+      "reason": "requires 320 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 360,
+      "id": "implementation-placement-by-ownership",
+      "reason": "requires 360 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 350,
+      "id": "implementation-representation-fit",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 380,
+      "id": "implementation-unit-of-work-safe-default",
+      "reason": "requires 380 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 360,
+      "id": "implementation-validation-placement",
+      "reason": "requires 360 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 430,
+      "id": "operations-untrusted-request-handling",
+      "reason": "requires 430 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 340,
+      "id": "python-inheritance-constraints",
+      "reason": "requires 340 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 350,
+      "id": "python-interface-mechanism-selection",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 340,
+      "id": "python-protocol-conformance",
+      "reason": "requires 340 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 350,
+      "id": "python-representation-fit",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 350,
+      "id": "python-runtime-static-boundary",
+      "reason": "requires 350 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 340,
+      "id": "python-special-method-laws",
+      "reason": "requires 340 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 360,
+      "id": "python-streaming-iteration",
+      "reason": "requires 360 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 660,
+      "id": "testing-coverage-is-not-adequacy",
+      "reason": "requires 660 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 420,
+      "id": "testing-no-test-privileged-access",
+      "reason": "requires 420 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 370,
+      "id": "universal-explicit-invariants",
+      "reason": "requires 370 relative routing-cost units with prerequisites; only 240 remain"
+    },
+    {
+      "cost": 360,
+      "id": "universal-information-hiding",
+      "reason": "requires 360 relative routing-cost units with prerequisites; only 240 remain"
+    }
+  ],
+  "conflicts": [
+    "conflict-deep-modules-vs-small-units",
+    "conflict-refactor-now-vs-leave-alone",
+    "conflict-uniformity-vs-context-sensitive-design",
+    "conflict-upfront-vs-evolutionary-architecture"
+  ],
+  "corpus_version": "corpus-2026-07-12-a11702cc9217",
+  "demoted_stubs": [
+    {
+      "citation_locator": "books/concurrency-in-go/chapters/005-chapter-1-an-introduction-to-concurrency.md :: Deadlocks, Livelocks, and Starvation",
+      "claim": "Concurrent correctness requires progress as well as race freedom: designs must account for deadlock, livelock, starvation, lock ordering, and fairness across every contended resource.",
+      "concept_id": "implementation-concurrency-progress-contract",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/code-complete-2nd-edition-v413hav/chapters/008-chapter-3-measure-twice-cut-once-upstream-prerequisites.md :: cc2e.com/0386 Checklist: Upstream Prerequisites",
+      "claim": "Consequential coding should begin only after the intended outcome, affected contracts, placement constraints, failure and resource policy, verification route, and integration path are understood at a depth proportional to consequence and uncertainty.",
+      "concept_id": "implementation-readiness",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/100-go-mistakes-and-how-to-avoid-them-teiva-harsanyi-bibis-ir/chapters/015-chapter-11-testing.md :: 11.2 #83: Not enabling the -race flag",
+      "claim": "Tests and characterization should protect observable contracts, invariants, boundary values, state transitions, failure and resource paths, and repaired regressions at the smallest level that can observe them without binding to irrelevant internals.",
+      "concept_id": "implementation-risk-driven-tests",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/release-it-design-and-deploy-production-ready-software-pdfdrive/chapters/014-chapter-8-processes-on-machines.md :: Configuration",
+      "claim": "Production credentials are high-value secrets requiring dedicated custody - kept out of source control, images, and installation directories; readable only by the owning account or held in a vault whose decryption keys live elsewhere; expunged from process memory promptly; and excluded from core dumps and support bundles.",
+      "concept_id": "operations-credential-custody",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Improving Design",
+      "claim": "Unless change is authorized, externally observable behavior remains invariant across structural work.",
+      "concept_id": "refactoring-behavior-preservation",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+      "claim": "A change label is valid only when its purpose and allowable observable delta match the actual work.",
+      "concept_id": "refactoring-change-type-classification",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/programming-working-effectively-with-legacy-code/chapters/021-chapter-13-i-need-to-make-a-change-but-i-don-t-know-what-tests-to-write.md :: When You Find Bugs",
+      "claim": "The agent must stop when it can no longer state what changed, what remains invariant, why a check failed, or whether it has authority.",
+      "concept_id": "refactoring-stop-backtrack-escalate",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/017-appendix-a1-the-hazards-of-productivity-and-performance-metrics.md :: Adaptive Behavior and the Destruction of a Data Source",
+      "claim": "Commit, LOC, ownership, defect-attribution, hotspot, and knowledge-map data must never be converted into individual productivity or performance judgments.",
+      "concept_id": "repository-assessment-metrics-not-performance",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/manning-unit-testing-principles-practices-and-patterns-2020-1/chapters/015-chapter-8-why-integration-testing.md :: 8.1 What is an integration test?",
+      "claim": "Keep integration tests few and targeted - cover as many edge cases as possible with unit tests, then use integration tests for the longest happy path that touches all out-of-process dependencies plus only those edge cases unit tests cannot exercise, letting fail-fast crashes stand in for tests of wiring bugs that manifest immediately without corrupting state.",
+      "concept_id": "testing-integration-scope-selection",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/manning-unit-testing-principles-practices-and-patterns-2020-1/chapters/006-chapter-1-the-goal-of-unit-testing.md :: 1.2 The goal of unit testing",
+      "claim": "A test belongs in the suite only while its regression-protection and design value clearly exceeds its recurring costs of refactoring alongside the code, execution on every change, false-alarm triage, and reading, because test code is itself a liability.",
+      "concept_id": "testing-suite-net-value",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/manning-unit-testing-principles-practices-and-patterns-2020-1/chapters/007-chapter-2-what-is-a-unit-test.md :: 2.3.1 Unit testing one class at a time",
+      "claim": "A unit test should verify one unit of observable behavior meaningful in the problem domain - which may span a method, a class, or several classes - rather than one unit of code per class.",
+      "concept_id": "testing-unit-of-behavior",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/clean-architecture-a-craftsman-guide-to-software-structure-and-design/chapters/023-chapter-13-component-cohesion.md :: THE COMMON CLOSURE PRINCIPLE",
+      "claim": "Structure is costly when one conceptual change repeatedly forces disproportionate, risky, or cross-owner edits; restructuring is justified only when it reduces that demonstrated amplification.",
+      "concept_id": "universal-change-amplification",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/100-go-mistakes-and-how-to-avoid-them-teiva-harsanyi-bibis-ir/chapters/006-chapter-2-code-and-project-organization.md :: 2.5 #5: Interface pollution",
+      "claim": "Introduce or retain an abstraction only when it hides coherent knowledge or mechanism and reduces total caller reasoning, coordinated change, or substitution cost more than its interface and indirection add.",
+      "concept_id": "universal-earned-abstraction",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/007-chapter-2-identify-code-with-high-interest-rates.md :: Follow Up on Improvements to Rails",
+      "claim": "A claim that work improves performance, maintainability, reliability, architecture fitness, or process needs a preserved baseline and evidence on that same dimension.",
+      "concept_id": "universal-measure-claimed-improvement",
+      "tier": 4
+    },
+    {
+      "citation_locator": "books/dokumen-pub-software-engineering-at-google-lessons-learned-from-programming-over-time-1nbsped-1492082791-9781492082798/chapters/017-chapter-9-code-review.md :: Write Small Changes",
+      "claim": "Choose the smallest coherent step that can be independently understood, verified, and reversed or safely advanced.",
+      "concept_id": "universal-reversible-reviewable-change",
+      "tier": 4
+    }
+  ],
+  "doctrine_artifacts": [
+    "authority-model.yaml",
+    "change-types.yaml",
+    "universal-doctrine.md"
+  ],
+  "doctrine_version": "doctrine-f6bbb5196a3f8bf9",
+  "evidence_obligations": [
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-3a2a7453bce3e4ac",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "affected behavior and state",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-authority"
+      ],
+      "obligation_id": "obl-5d35aa1fcf61e87f",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "decision owner",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-authority"
+      ],
+      "obligation_id": "obl-c0d5aab60ce5ddc0",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "explicit task authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-6bfd28264a777f3b",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "repository contract",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-b78bc0267cf64262",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "reversibility and verification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-authority"
+      ],
+      "obligation_id": "obl-63c1022e995c36ad",
+      "required_by": "agent-conduct-authority-bounded-action",
+      "requirement": "task scope and authority statement",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-e5969900d0a1474a",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "CI and build matrix",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-694a6fe4ba00387a",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "adjacent code",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-93e5516757747391",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "behavior tests",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-6beb33575d727362",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "formatter and static-tool configuration",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-5a3747c72eb92fd3",
+      "required_by": "implementation-repository-language-conformance",
+      "requirement": "repository version and dependency contract",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-ed729ace2ba83b77",
+      "required_by": "python-mutable-ownership",
+      "requirement": "concurrency",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-c9337452b0edfa33",
+      "required_by": "python-mutable-ownership",
+      "requirement": "identity and equality contract",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-315deea4a753d213",
+      "required_by": "python-mutable-ownership",
+      "requirement": "lifetime and size",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-cb0eed1457c77f98",
+      "required_by": "python-mutable-ownership",
+      "requirement": "mutation sites",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a2c90d1d82d1a459",
+      "required_by": "python-mutable-ownership",
+      "requirement": "nested object graph",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-2944a68f95f6881b",
+      "required_by": "python-mutable-ownership",
+      "requirement": "object and ownership graph",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-7a342184b4a54bb7",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "Python and dependency version matrix",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-98dce0cbd8d4d928",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "adjacent code",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-886b16ae2adaee03",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "formatter linter and type-checker configuration",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-9532e1849c7db686",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "public API and tests",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-bfc19e3ba2d1d451",
+      "required_by": "python-repository-shaped-idiom",
+      "requirement": "repository toolchain inspection",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-acf7d5264d06112f",
+      "required_by": "python-structured-cleanup",
+      "requirement": "acquisition and release paths",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-ab25f6e64ed25e78",
+      "required_by": "python-structured-cleanup",
+      "requirement": "exception and cancellation behavior",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-1b29a58262baaf69",
+      "required_by": "python-structured-cleanup",
+      "requirement": "nesting order",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-7cba9db416b2433e",
+      "required_by": "python-structured-cleanup",
+      "requirement": "owner and lifetime",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-4103a6c27d8238f5",
+      "required_by": "python-structured-cleanup",
+      "requirement": "resource ownership and failure policy",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-d2573b0d4d8293f7",
+      "required_by": "python-text-bytes-boundary",
+      "requirement": "external format and domain text contract",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-547f84d7398569bf",
+      "required_by": "python-text-bytes-boundary",
+      "requirement": "normalization requirements",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-0ae1be4d7859dd39",
+      "required_by": "python-text-bytes-boundary",
+      "requirement": "protocol or file metadata",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-1ee5a03cb67562cf",
+      "required_by": "python-text-bytes-boundary",
+      "requirement": "representative non-ASCII data",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-2ceada95d4c08a3e",
+      "required_by": "python-text-bytes-boundary",
+      "requirement": "round-trip and failure tests",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "k91-authority"
+      ],
+      "obligation_id": "obl-7500c939b83c158e",
+      "required_by": "task:implementation",
+      "requirement": "evidence-explicit-user-requirements",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-42f365691ac77380",
+      "required_by": "task:implementation",
+      "requirement": "evidence-repository-contracts",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-3df8fe5717b62734",
+      "required_by": "task:implementation",
+      "requirement": "evidence-static-source-structure",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-7e17d5a5b7ef022f",
+      "required_by": "task:implementation",
+      "requirement": "evidence-tests",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-218fa8b82c8d1ad3",
+      "required_by": "testing-test-first-feedback",
+      "requirement": "accepted contract and executable observation",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-1f43b960d9e2a582",
+      "required_by": "testing-test-first-feedback",
+      "requirement": "accepted expected behavior",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-94770077ee122d6a",
+      "required_by": "testing-test-first-feedback",
+      "requirement": "design uncertainty assessment",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-8c8a20d5bef005dd",
+      "required_by": "testing-test-first-feedback",
+      "requirement": "observable failing condition",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-ea6e4fefec7c9a46",
+      "required_by": "testing-test-first-feedback",
+      "requirement": "suitable test level",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-authority"
+      ],
+      "obligation_id": "obl-06fe7b03ace44133",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "a bounded decision question",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-0eae811ab54b943b",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "alternatives including no change where viable",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-e82ef27e7b7f49b2",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-2bc1d1e34300cdfe",
+      "required_by": "universal-evidence-before-intervention",
+      "requirement": "evidence connecting the proposed action to the condition",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-88e0ac180929bdd1",
+      "required_by": "universal-local-reasoning",
+      "requirement": "knowledge and navigation required by callers/maintainers",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-c21a7c21c790fb22",
+      "required_by": "universal-local-reasoning",
+      "requirement": "representative change or use scenario",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-e053f0e1f20ce2aa",
+      "required_by": "universal-local-reasoning",
+      "requirement": "representative change scenario",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-d743f7ec6aee7216",
+      "required_by": "universal-local-reasoning",
+      "requirement": "state, invariant, and dependency ownership",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-dad2c80b5961db7d",
+      "required_by": "universal-minimize-simultaneous-uncertainty",
+      "requirement": "a stated unknown and observation method",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-4cd931817e1a83d4",
+      "required_by": "universal-minimize-simultaneous-uncertainty",
+      "requirement": "checkpoint and stop condition",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-ff00dbad94220c49",
+      "required_by": "universal-minimize-simultaneous-uncertainty",
+      "requirement": "discriminating check and baseline",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-ac93801bd6d5140c",
+      "required_by": "universal-minimize-simultaneous-uncertainty",
+      "requirement": "explicit unknowns and consequence",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-ec0bebeb749e3fa9",
+      "required_by": "universal-no-change-option",
+      "requirement": "actual current cost/risk or absence within a stated interval",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a7c3deeb27a6d936",
+      "required_by": "universal-no-change-option",
+      "requirement": "expected future change from accepted plans",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-6c30f81e2a22c6ae",
+      "required_by": "universal-no-change-option",
+      "requirement": "intervention cost and uncertainty",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-543196d64e60fc3a",
+      "required_by": "universal-no-change-option",
+      "requirement": "latent security, safety, data, durability, and compatibility check",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "obligation_id": "obl-a89dd32d7271dec4",
+      "required_by": "universal-no-change-option",
+      "requirement": "proc-decide-leave-code-alone",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [
+        "k91-authority"
+      ],
+      "obligation_id": "obl-3579d03ad8af3e57",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "accepted desired behavior and semantic authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-3926b51901ac30aa",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "preservation matrix and consumers",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-125d0b69ca2b7b70",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "proc-establish-preservation-boundaries",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-ce03b1c4566bb9cd",
+      "required_by": "universal-preserve-behavior-by-default",
+      "requirement": "tests, characterization, probes, or explicit residual risk",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-02e117562b29cefa",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "accepted ADR, RFC, API, compatibility, generation, build, and test contracts",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-static"
+      ],
+      "obligation_id": "obl-b581a58085de1282",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "current source, configuration, and relevant runtime state",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-5ad348092a91d31f",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "repository instructions from root through target path",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-authority"
+      ],
+      "obligation_id": "obl-8d8fc243a9adadfc",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "target repository and task scope",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-authority"
+      ],
+      "obligation_id": "obl-5526278eee7fb7d7",
+      "required_by": "universal-repository-contract-precedence",
+      "requirement": "user instruction and authority",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-bc386b0d0552a2c6",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "change-type classification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-a6fcb0b50aa1efa9",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "checkpoint verification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-native-env-checkpoint-tests"
+      ],
+      "obligation_id": "obl-5363e6b05fa6c7de",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "per-edit change classification",
+      "status": "satisfied"
+    },
+    {
+      "evidence_ids": [
+        "k91-contracts"
+      ],
+      "obligation_id": "obl-a328065111f22734",
+      "required_by": "universal-separate-semantic-structural-change",
+      "requirement": "preservation boundary and semantic authority",
+      "status": "satisfied"
+    }
+  ],
+  "evidence_records": [
+    {
+      "evidence_class": "evidence-explicit-user-requirements",
+      "id": "k91-authority",
+      "provenance": [
+        {
+          "locator": "cairn:ca6818de-549e-4442-a19f-cf132aa164fd@1",
+          "method": "Exact native source read with supplied hook; owner authorization checked against active session AGENTS and delegated implementation scope",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        }
+      ],
+      "satisfies": [
+        "user instruction and authority",
+        "target repository and task scope",
+        "explicit task authority",
+        "task scope and authority statement",
+        "decision owner",
+        "accepted desired behavior and semantic authority",
+        "a bounded decision question"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Owner coordination authorizes K91 experiment identity and strict comparisons, native board/footprint policy evidence,449 consumer boundary, independent qualification and clean507 integration. One <=900backend-second corrected-policy diagnostic only after correctness gates; no geometry/rules/netlist relaxation or unrelated framework.509ca6818de@1 supplies selected execution scope; no-change would leave named gate unimplemented."
+    },
+    {
+      "evidence_class": "evidence-repository-contracts",
+      "id": "k91-contracts",
+      "provenance": [
+        {
+          "content_sha256": "4dd0f5d6d606b58f898157a735fb302c921adb651029e769e5efd2b44c4008ed",
+          "locator": "/home/halbritt/git/kicad-route/pyproject.toml",
+          "method": "Read supported Python/build/test dependencies",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        },
+        {
+          "content_sha256": "d43569e4d81a4355712d356efec35ec40167f3318c9155c8172792164dcd01b1",
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/cli.py",
+          "method": "Read validate_candidate, toolidentity/effective configuration, compare and shared route-option entry points",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        },
+        {
+          "content_sha256": "f3aa9698bd2c5b63e8e3933f300c17b8cb59dedca41ee21031f1690eda5e88b7",
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/installation.py",
+          "method": "Read isolated immutable generation preparation/activation",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        },
+        {
+          "content_sha256": "c525e2b90de9ca411053d9f66869ad5cc3e7fbd1920d6bdc0470d0fd16750c46",
+          "locator": "/home/halbritt/git/kicad-route/tests/conftest.py",
+          "method": "Read native fixture/source preservation ownership",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        },
+        {
+          "content_sha256": "6e3826aa883e7ace28d4b80250b01ee4f53cf16028ae37cc46d3322d28b3dd25",
+          "locator": "/home/halbritt/git/kicad-route/reports/routability-m1-20261021/README.md",
+          "method": "Read retained released90/98 and unintegrated91 state",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        }
+      ],
+      "satisfies": [
+        "repository contract",
+        "repository version and dependency contract",
+        "Python and dependency version matrix",
+        "repository toolchain inspection",
+        "repository instructions from root through target path",
+        "accepted ADR, RFC, API, compatibility, generation, build, and test contracts",
+        "preservation boundary and semantic authority",
+        "change-type classification"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Existing CLI run/validate and evidence/compare schemas, immutable router generations, fail-closed native terminal preservation and full retained findings remain authoritative. New sidecar extends existing boundary without replacing native grading or solver. Tests/public source entry points andPython>=3.12 inspected. Source project must stay byte-identical;507 owns router integration and449ownsagent-ee."
+    },
+    {
+      "evidence_class": "evidence-tests",
+      "id": "k91-native-env-checkpoint-tests",
+      "provenance": [
+        {
+          "content_sha256": "7e863f5d4f32c310a896b7d391b8e09caf6f830e4d04660b544a962f32cf422d",
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/command.json",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486283+00:00"
+        },
+        {
+          "content_sha256": "3a078b7ca6294d62dcce70b4b12b462adc929878b20512c1e124e8306681ef83",
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/result.json",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486497+00:00"
+        },
+        {
+          "content_sha256": "2e85844a6095da86a95228062cf974e2774c86b9f625ce63f332a2f795a679c6",
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-composed-gate-agent507/stdout.txt",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486549+00:00"
+        },
+        {
+          "content_sha256": "8669c7b43e6a494b455207bacc87751f1ce763ee5fca11418ce8e44522fdf22d",
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-independent-policy-review-agent507/review-summary.json",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486637+00:00"
+        },
+        {
+          "content_sha256": "d5db0cb27b90aff5d5eb272a8ce3a8a46022802c0dc73830193efb19c95010bc",
+          "locator": "/home/halbritt/git/kicad-route/build/krt91-runtime-agent507/preparation-result.json",
+          "method": "Read retained command/result/native independent evidence; limited claims to exercised prerequisite scope",
+          "observed_at": "2026-10-22T09:55:35.486761+00:00"
+        }
+      ],
+      "satisfies": [
+        "behavior tests",
+        "public API and tests",
+        "tests, characterization, probes, or explicit residual risk",
+        "checkpoint verification",
+        "reversibility and verification",
+        "accepted contract and executable observation",
+        "accepted expected behavior",
+        "observable failing condition",
+        "suitable test level",
+        "discriminating check and baseline",
+        "checkpoint and stop condition",
+        "preservation matrix and consumers",
+        "proc-establish-preservation-boundaries",
+        "per-edit change classification"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "Narrow prerequisite checkpoint040b7fd combines ambient controls/batch capture53a07c0 with native rule-area/policy3545+d5d7. Root configured a disposable matching owned generation (source9cfc5d5e,42.12s preparation) and independently ran71 native policy/preservation/configuration cases with0failed/0skipped in15.62s (15.996s harness), including actual backend emitter. Independent native-policy review READY after duplicate-key repair; GEOSoracle agrees exactly34track/3via intersections in90track/25via challenge, native44track/22via positive and malformed controls exercised. No experiment writer/strict comparator/agent-ee real replay or target grading/routing claim. Existing defaults/rules/source fixtures unchanged. Full K91 remains pending."
+    },
+    {
+      "evidence_class": "evidence-static-source-structure",
+      "id": "k91-static",
+      "provenance": [
+        {
+          "content_sha256": "0147cb01c2418b6bd87d4bff89371633d6cc9036821647561796ae5568bedc3a",
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/configuration_evidence.py",
+          "method": "Read complete existing qualification/coverage boundary",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        },
+        {
+          "content_sha256": "ae818865ecdd317abe9c82129782217817df4ae75548d4b9d85b08cda3b99881",
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/evidence.py",
+          "method": "Inspected current evidence module and diff versus retainedprep",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        },
+        {
+          "content_sha256": "ed73080eb02f010a4dedbea63557acfbda95c231b712c8997c8da99f95c4f1bf",
+          "locator": "/home/halbritt/git/kicad-route/scripts/compare_router.py",
+          "method": "Inspected compare signature/argv and oldprep diff",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        },
+        {
+          "content_sha256": "88c72253d45df989bb173c54d92c6efe81dba4674a42844ade2463afd3fb5f58",
+          "locator": "/home/halbritt/git/kicad-route/src/kicad_route/kicad/facts.py",
+          "method": "Read BOARD-only rule-area extraction and native footprint geometry",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        },
+        {
+          "content_sha256": "dea63d6f12d96eb0246946899a9c9e337e0d41c380c8c5959ab48a94456437a2",
+          "locator": "/home/halbritt/git/kicad-route/build/routability-m1/prep91/identity-prep.bundle",
+          "method": "Verified retained unintegrated candidate identity",
+          "observed_at": "2026-10-22T07:22:39.352697+00:00"
+        }
+      ],
+      "satisfies": [
+        "current source, configuration, and relevant runtime state",
+        "adjacent code",
+        "affected behavior and state",
+        "claim-relative observation such as accepted requirement, reproduction, incident, recurring change, operational constraint, or representative measurement",
+        "evidence connecting the proposed action to the condition",
+        "a stated unknown and observation method",
+        "explicit unknowns and consequence",
+        "state, invariant, and dependency ownership",
+        "object and ownership graph",
+        "mutation sites",
+        "knowledge and navigation required by callers/maintainers",
+        "representative change scenario",
+        "representative change or use scenario",
+        "alternatives including no change where viable"
+      ],
+      "schema_version": "evidence-record/1",
+      "summary": "At409d06a experiment writer/reader/strictcomparison functions and policy CLI are absent;prep10ff94b is not an ancestor. Existing configuration_evidence.inspect validates resolved outer batch only, seals request/settings/input/output/source and declares exclusions; K98 native terminal partitions cover235net historic evidence independent of raw499cap. Independent initial audit reproduced inheritedDIRECT_FIRST unbound behavior and agent-ee exactschema/root-sidecar retention gap. Builders own separate files and reviewer is read-only."
+    }
+  ],
+  "excluded_candidates": [
+    {
+      "id": "architecture-event-temporal-semantics",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "architecture-fitness-functions",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-dedup-key-identity-completeness",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['k91-static']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-end-to-end-integrity-auditing",
+      "reason": "nominated by: risk route 'correctness'; dropped: role 'coding-agent' not in activate_for_roles; task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "data-ingest-population-scoping",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['k91-static']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-aggregate-invariant-boundary",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-association-constraint",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-authorization-embodied-in-action",
+      "reason": "nominated by: evidence class 'evidence-explicit-user-requirements' supplied by ['k91-authority']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-explicit-concept",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-factory-lifecycle",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-identity-entity",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-intention-revealing-interface",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-language-model-loop",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-repository-lifecycle",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-service-operation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "domain-value-object",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "go-channel-capacity-contract",
+      "reason": "nominated by: role bundle intersected with task bundle; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-consumer-owned-interfaces",
+      "reason": "nominated by: role bundle intersected with task bundle; evidence class 'evidence-static-source-structure' supplied by ['k91-static']; evidence class 'evidence-explicit-user-requirements' supplied by ['k91-authority']; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-context-lifecycle-propagation",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-explicit-contextual-errors",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-goroutine-resource-lifecycle",
+      "reason": "nominated by: role bundle intersected with task bundle; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-interface-nil-semantics",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-package-api-simplicity",
+      "reason": "nominated by: role bundle intersected with task bundle; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-semantics-before-performance-constructs",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-slice-aliasing-control",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-synchronization-mechanism-fit",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "go-text-byte-rune-semantics",
+      "reason": "nominated by: role bundle intersected with task bundle; risk route 'correctness'; dropped: route languages ['go'] include neither 'language-independent' nor a requested language ['Python']"
+    },
+    {
+      "id": "implementation-async-ui-state-design",
+      "reason": "nominated by: evidence class 'evidence-explicit-user-requirements' supplied by ['k91-authority']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-attention-budget-presentation",
+      "reason": "nominated by: evidence class 'evidence-explicit-user-requirements' supplied by ['k91-authority']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-config-reference-validation",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['k91-static']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-non-obvious-commentary",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-normal-result-or-exception",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "implementation-rank-before-truncate",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['k91-static']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "legacy-effect-surface",
+      "reason": "nominated by: evidence class 'evidence-static-source-structure' supplied by ['k91-static']; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-contract-conformance-testing",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-designed-failure-modes",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-error-budget",
+      "reason": "nominated by: evidence class 'evidence-explicit-user-requirements' supplied by ['k91-authority']; dropped: task 'implementation' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "operations-external-capability-verification",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-gate-authoritative-signal",
+      "reason": "nominated by: evidence class 'evidence-tests' supplied by ['k91-native-env-checkpoint-tests']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-integration-point-distrust",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-live-interface-compatibility",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "operations-symptom-cause-monitoring",
+      "reason": "nominated by: evidence class 'evidence-tests' supplied by ['k91-native-env-checkpoint-tests']; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-cache-validity",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-earned-bounded-concurrency",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-memory-lifecycle",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-profile-causal-bottleneck",
+      "reason": "nominated by: language bundle 'Python'; dropped: role 'coding-agent' not in activate_for_roles; task 'implementation' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "performance-resource-lifecycle",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'implementation' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "performance-semantic-preservation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "performance-specialization-evidence",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-bounded-async",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'implementation' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-cache-validity",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-compatible-property-evolution",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-concurrency-model-selection",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'implementation' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-data-carrier-versus-domain-object",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'implementation' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "python-dynamic-mechanism-escalation",
+      "reason": "nominated by: language bundle 'Python'; risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    },
+    {
+      "id": "python-function-over-stateless-class",
+      "reason": "nominated by: language bundle 'Python'; dropped: task 'implementation' not in activate_for_tasks/task_families; risk class 'correctness' not in activate_for_risk_classes"
+    },
+    {
+      "id": "testing-deterministic-async-observation",
+      "reason": "nominated by: risk route 'correctness'; dropped: task 'implementation' not in activate_for_tasks/task_families"
+    }
+  ],
+  "packet_content_sha256": "f2738561084bd181b7e07bc5aec32d850089623aa262d5b24cd3be9b3a0b8fd9",
+  "packet_id": "pkt-f2738561084bd181",
+  "provenance_links": [
+    {
+      "concept_id": "python-repository-shaped-idiom",
+      "formulation_ids": [
+        "F-CONCEPT-FP-6191dfc584db",
+        "F-CONCEPT-FP-b1d03f6e2bd6"
+      ],
+      "source_support": [
+        {
+          "contribution": "Makes source-version and language evolution assumptions explicit.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/002-preface.md :: Preface",
+          "relationship": "refinement",
+          "source_id": "SRC-FP"
+        },
+        {
+          "contribution": "Frames Pythonic object design in relation to application and library requirements rather than syntax alone.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/018-chapter-11-a-pythonic-object.md :: Chapter Summary",
+          "relationship": "direct_support",
+          "source_id": "SRC-FP"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-repository-contract-precedence",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-901470c5095d",
+        "F-CONCEPT-CC-59bf0838015e",
+        "F-CONCEPT-FSA-0302ef761084"
+      ],
+      "source_support": [
+        {
+          "contribution": "Establishes existing local consistency as leverage that should not be displaced casually.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/022-17-consistency.md :: 17: Consistency",
+          "relationship": "corroboration",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Makes language, platform, project convention, and risk explicit inputs to construction choices.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/009-chapter-4-key-construction-decisions.md :: cc2e.com/0496 Checklist: Major Construction Practices Coding",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Rejects timeless architecture axioms and requires context-specific tradeoff reasoning.",
+          "locator": "books/oreilly-fundamentals-of-software-architecture-2020-1/chapters/003-preface-invalidating-axioms.md :: Axiom",
+          "relationship": "direct_support",
+          "source_id": "SRC-FSA"
+        }
+      ]
+    },
+    {
+      "concept_id": "implementation-repository-language-conformance",
+      "formulation_ids": [
+        "F-CONCEPT-CC-24e6e3121f6c",
+        "F-CONCEPT-EGO-18b7dfc06d5d",
+        "F-CONCEPT-FP-b8b872819c0e"
+      ],
+      "source_support": [
+        {
+          "contribution": "Makes project, language, platform, tools, and architecture inputs to construction choices.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/009-chapter-4-key-construction-decisions.md :: 4.4 Selection of Major Construction Practices",
+          "relationship": "direct_support",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Refines Go choices toward simple, repository-compatible constructs over framework-style machinery.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/006-chapter-2-efficient-introduction-to-go.md :: Simplicity, Safety, and Readability Are Paramount",
+          "relationship": "refinement",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Refines idiomatic Python design by application and library requirements.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/018-chapter-11-a-pythonic-object.md :: Chapter Summary",
+          "relationship": "refinement",
+          "source_id": "SRC-FP"
+        }
+      ]
+    },
+    {
+      "concept_id": "python-structured-cleanup",
+      "formulation_ids": [
+        "F-CONCEPT-FP-d43a46525e1e",
+        "F-CONCEPT-FP-dfdfca29c6cd"
+      ],
+      "source_support": [
+        {
+          "contribution": "Defines paired setup and teardown through the context-manager protocol across exceptions.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/025-chapter-18-context-managers-and-else-blocks.md :: Context Managers and with Blocks",
+          "relationship": "direct_support",
+          "source_id": "SRC-FP"
+        },
+        {
+          "contribution": "Extends structured ownership and cleanup to asynchronous resources.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/029-chapter-22-asynchronous-programming.md :: Asynchronous Context Managers",
+          "relationship": "refinement",
+          "source_id": "SRC-FP"
+        }
+      ]
+    },
+    {
+      "concept_id": "python-text-bytes-boundary",
+      "formulation_ids": [
+        "F-CONCEPT-FP-8345f212d53e",
+        "F-CONCEPT-FP-d44b91126f6a"
+      ],
+      "source_support": [
+        {
+          "contribution": "Demonstrates why environment defaults are insufficient evidence for portable text handling.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/009-chapter-4-text-versus-bytes.md :: Beware of Encoding Defaults",
+          "relationship": "refinement",
+          "source_id": "SRC-FP"
+        },
+        {
+          "contribution": "Establishes a Unicode sandwich with explicit decoding at ingress and encoding at egress.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/009-chapter-4-text-versus-bytes.md :: Handling Text Files",
+          "relationship": "direct_support",
+          "source_id": "SRC-FP"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-minimize-simultaneous-uncertainty",
+      "formulation_ids": [
+        "F-CONCEPT-CC-8dae51f003ad",
+        "F-CONCEPT-PP-576799738c3f",
+        "F-CONCEPT-REF-ffdba6dd9a1f",
+        "F-SRC-REF-C05-SMALL-STEPS",
+        "F-SRC-REF-C15-STOP-WHEN-UNSURE",
+        "F-SRC-WELC-C02-COVER-EDIT"
+      ],
+      "source_support": [
+        {
+          "contribution": "Uses bounded prototypes to answer specific design uncertainties.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/011-chapter-5-design-in-construction.md :: Experimental Prototyping",
+          "relationship": "direct_support",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Treats thin integrated slices as feedback that redirects implementation.",
+          "locator": "books/the-pragmatic-programmer/chapters/007-chapter-2-a-pragmatic-approach.md :: Tracer Bullets Don't Always Hit Their Target",
+          "relationship": "corroboration",
+          "source_id": "SRC-PP"
+        },
+        {
+          "contribution": "Advocates the smallest verified structural steps and decomposition after failure.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/009-chapter-5-toward-a-catalog-of-refactorings.md :: Format of the Refactorings",
+          "relationship": "corroboration",
+          "source_id": "SRC-REF"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-evidence-before-intervention",
+      "formulation_ids": [
+        "F-CONCEPT-CC-8730c675fe4f",
+        "F-CONCEPT-EGO-04a5f9442d14",
+        "F-CONCEPT-SDX-4a4d1f2737b8",
+        "F-SRC-SDX-C01-DEBT-DEPENDS-ON-CHANGE",
+        "F-SRC-SDX-C02-HOTSPOTS-FOCUS",
+        "F-SRC-WELC-C01-CHANGE-PRESERVATION",
+        "F-SRC-WELC-C05-TOOL-TRUST"
+      ],
+      "source_support": [
+        {
+          "contribution": "Requires problem, requirements, and architecture evidence before construction.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/008-chapter-3-measure-twice-cut-once-upstream-prerequisites.md :: cc2e.com/0386 Checklist: Upstream Prerequisites",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Makes optimization action depend on explicit workload and resource evidence.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: Resource-Aware Efficiency Requirements",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Shows that poor-looking code creates maintenance debt only in relation to change and context.",
+          "locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/006-chapter-1-why-technical-debt-isn-t-technical.md :: Interest Rate Is a Function of Time",
+          "relationship": "direct_support",
+          "source_id": "SRC-SDX"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-local-reasoning",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-2bc29e652438",
+        "F-CONCEPT-CC-921f8e2d3837",
+        "F-CONCEPT-PP-62449b43723c"
+      ],
+      "source_support": [
+        {
+          "contribution": "Defines complexity through change amplification, cognitive load, and unknown unknowns.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/007-2-the-nature-of-complexity.md :: 2: The Nature of Complexity",
+          "relationship": "direct_support",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Centers human ability to understand a bounded amount of detail during construction.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/011-chapter-5-design-in-construction.md :: Software's Primary Technical Imperative: Managing Complexity",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Connects independent change to localized effects and reduced coordination.",
+          "locator": "books/the-pragmatic-programmer/chapters/007-chapter-2-a-pragmatic-approach.md :: Orthogonality",
+          "relationship": "corroboration",
+          "source_id": "SRC-PP"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-separate-semantic-structural-change",
+      "formulation_ids": [
+        "F-CONCEPT-EGO-6b5a5b5f4309",
+        "F-CONCEPT-REF-93dea0b4cc46",
+        "F-CONCEPT-WELC-9ac8f09782c8"
+      ],
+      "source_support": [
+        {
+          "contribution": "Preserves causal evidence by isolating one performance transformation.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/014-chapter-10-optimization-examples.md :: Optimize One Thing at a Time",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Distinguishes adding function from restructuring and advocates not doing both at the same instant.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: The Two Hats",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Distinguishes feature, repair, design, and optimization intents by behavior preservation.",
+          "locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+          "relationship": "corroboration",
+          "source_id": "SRC-WELC"
+        }
+      ]
+    },
+    {
+      "concept_id": "python-mutable-ownership",
+      "formulation_ids": [
+        "F-CONCEPT-FP-a18a1d9f3e15",
+        "F-CONCEPT-FP-c65f79886e4b"
+      ],
+      "source_support": [
+        {
+          "contribution": "Requires deliberate alias or copy behavior for mutable arguments stored by an object.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/011-chapter-6-object-references-mutability-and-recycling.md :: Defensive Programming with Mutable Parameters",
+          "relationship": "direct_support",
+          "source_id": "SRC-FP"
+        },
+        {
+          "contribution": "Identifies shared default objects as cross-call state and prescribes per-call creation.",
+          "locator": "books/fluent-python-2nd-edition-z-lib-org/chapters/011-chapter-6-object-references-mutability-and-recycling.md :: Mutable Types as Parameter Defaults: Bad Idea",
+          "relationship": "refinement",
+          "source_id": "SRC-FP"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-no-change-option",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-542db617dd0a",
+        "F-CONCEPT-REF-47a52fa2ffa2",
+        "F-CONCEPT-SDX-27531eaed8cd"
+      ],
+      "source_support": [
+        {
+          "contribution": "Prioritizes design attention on consequential complexity instead of uniform perfection.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/026-21-decide-what-matters.md :: 21: Decide What Matters",
+          "relationship": "corroboration",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Explicitly retains cases where refactoring is not the appropriate action.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: When Shouldn't You Refactor?",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Separates unattractive static code from code imposing active maintenance interest.",
+          "locator": "books/dokumen-pub-software-design-x-rays-fix-technical-debt-with-behavioral-code-analysis-1nbsped-1680502727-978-1680502725/chapters/006-chapter-1-why-technical-debt-isn-t-technical.md :: Interest Rate Is a Function of Time",
+          "relationship": "corroboration",
+          "source_id": "SRC-SDX"
+        }
+      ]
+    },
+    {
+      "concept_id": "universal-preserve-behavior-by-default",
+      "formulation_ids": [
+        "F-CONCEPT-EGO-cb3c230956bf",
+        "F-CONCEPT-REF-470f9e409dc8",
+        "F-CONCEPT-WELC-c9e182aee017",
+        "F-SRC-REF-C02-TWO-DEFINITIONS",
+        "F-SRC-WELC-C01-CHANGE-PRESERVATION"
+      ],
+      "source_support": [
+        {
+          "contribution": "Requires a functional baseline before efficiency changes.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: Functionality Phase",
+          "relationship": "corroboration",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Defines refactoring by preservation of externally visible behavior.",
+          "locator": "books/refactoring-improving-the-design-of-existing-code/chapters/006-chapter-2-principles-in-refactoring.md :: Defining Refactoring",
+          "relationship": "direct_support",
+          "source_id": "SRC-REF"
+        },
+        {
+          "contribution": "Distinguishes change intents while centering preservation of existing behavior.",
+          "locator": "books/programming-working-effectively-with-legacy-code/chapters/008-chapter-1-changing-software.md :: Four Reasons to Change Software",
+          "relationship": "corroboration",
+          "source_id": "SRC-WELC"
+        }
+      ]
+    },
+    {
+      "concept_id": "agent-conduct-authority-bounded-action",
+      "formulation_ids": [
+        "F-CONCEPT-CC-8d39ebafa179",
+        "F-CONCEPT-CC-ef6a379be1f7",
+        "F-CONCEPT-EGO-0ea813693bc5",
+        "F-CONCEPT-PP-3cd1576a1ee8"
+      ],
+      "source_support": [
+        {
+          "contribution": "Supplies a practical stop signal when consequential prerequisites cannot be responsibly defended.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/008-chapter-3-measure-twice-cut-once-upstream-prerequisites.md :: Boss-Readiness Test",
+          "relationship": "refinement",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Technical ability to make a change does not confer authority to select or authorize it; proposed changes should pass through explicit evaluation and approval before execution.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/038-chapter-28-managing-construction.md :: Requirements and Design Changes",
+          "relationship": "corroboration",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Refines authority discipline with a positive stop rule at the accepted target and escalation for wider tradeoffs.",
+          "locator": "books/efficient-go-data-driven-performance-optimization-bartlomiej-plotka-z-library/chapters/007-chapter-3-conquering-efficiency.md :: 5. Are we within RAERs?",
+          "relationship": "refinement",
+          "source_id": "SRC-EGO"
+        },
+        {
+          "contribution": "Requires stating uncertainty, accepting responsibility, and declining or renegotiating unsupported commitments.",
+          "locator": "books/the-pragmatic-programmer/chapters/006-chapter-1-a-pragmatic-philosophy.md :: Take Responsibility",
+          "relationship": "direct_support",
+          "source_id": "SRC-PP"
+        }
+      ]
+    },
+    {
+      "concept_id": "testing-test-first-feedback",
+      "formulation_ids": [
+        "F-CONCEPT-APOSD-8ae6a0e491cc",
+        "F-CONCEPT-CC-122f0ecf84a1",
+        "F-CONCEPT-PP-ad47ad2743b0"
+      ],
+      "source_support": [
+        {
+          "contribution": "Supports failing-test-first for repair while warning that feature-by-feature TDD can displace broader interface design.",
+          "locator": "books/dokumen-pub-a-philosophy-of-software-design-2nd-edition-2nbsped-173210221x-9781732102217/chapters/024-19-software-trends.md :: 19: Software Trends",
+          "relationship": "tension",
+          "source_id": "SRC-APOSD"
+        },
+        {
+          "contribution": "Presents test-first as a feedback technique while retaining contextual validity for test-last.",
+          "locator": "books/code-complete-2nd-edition-v413hav/chapters/031-chapter-22-developer-testing.md :: Test First or Test Last?",
+          "relationship": "direct_support",
+          "source_id": "SRC-CC"
+        },
+        {
+          "contribution": "Connects unit tests developed with code to contract and testability feedback.",
+          "locator": "books/the-pragmatic-programmer/chapters/011-chapter-6-while-you-are-coding.md :: Unit Testing",
+          "relationship": "corroboration",
+          "source_id": "SRC-PP"
+        }
+      ]
+    }
+  ],
+  "question": "How should kicad-route bind native experiment evidence and explicitly permitted differences so routing comparisons refuse incomplete or mismatched policy without expanding solver scope?",
+  "required_evidence_classes": [
+    "evidence-explicit-user-requirements",
+    "evidence-repository-contracts",
+    "evidence-static-source-structure",
+    "evidence-tests"
+  ],
+  "retrieval_abstention": {
+    "abstained": false,
+    "reason_codes": []
+  },
+  "retrieval_budget": {
+    "meaning": "Relative doctrine-selection cost; not a byte, word, or tokenizer-measured context limit. Delivery size is governed separately by the selected detail profile.",
+    "minimum_required": 2140,
+    "remaining": 225,
+    "requested": 5000,
+    "scope": "activated-concept-selection-only",
+    "unit": "relative-routing-cost-unit",
+    "used": 4775
+  },
+  "retrieval_context": {
+    "canonical_role": "coding-agent",
+    "detail": "compact",
+    "evidence_ids": [
+      "k91-authority",
+      "k91-contracts",
+      "k91-native-env-checkpoint-tests",
+      "k91-static"
+    ],
+    "languages": [
+      "Python"
+    ],
+    "requested_lenses": [],
+    "requested_role": "coding-agent",
+    "requested_task": "implementation",
+    "retrieval_budget": 5000,
+    "risk_class": "correctness",
+    "signals": [
+      "native board and footprint rule-area evidence",
+      "versioned experiment sidecar and strict comparison boundary"
+    ],
+    "task_family": "implementation",
+    "task_variants": [
+      "implement-contract"
+    ]
+  },
+  "retriever_version": "retriever-ec995ecdd083b2c8",
+  "schema_version": "evidence-packet/3"
+}

@@ -1,0 +1,46 @@
+{
+  "schema": "kicad-route/krt91-prerequisite-checkpoint/1",
+  "base": "409d06ab1d71ba0ec03331126b81214f31cd70a1",
+  "implementation_candidate": "040b7fd",
+  "source_commits": [
+    "53a07c0",
+    "3545da73613801dbde6484ded777830975b90fec",
+    "d5d7f23feb652b0e3547e9723aa67cb0e5f054f7"
+  ],
+  "scope": [
+    "complete saved native board and footprint rule areas",
+    "actual straight-track and circular per-layer via policy qualification",
+    "ambient routing controls and explicit batch coverage in configuration evidence"
+  ],
+  "composed_tests": {
+    "passed": 71,
+    "failed": 0,
+    "skipped": 0,
+    "pytest_runtime_s": 15.62,
+    "harness_runtime_s": 15.995749760884792
+  },
+  "independent_review": "READY for native-policy scope only",
+  "runtime": {
+    "status": "PASS",
+    "generation": "/home/halbritt/git/kicad-route/build/krt91-runtime-agent507/state/.router-generations/6f67a8663d834c3aa94c1a36381dcad0",
+    "source_sha256": "9cfc5d5e9369fd044ac6555afe57bdc4ccc829421e5496d42599c2d4a71951b2",
+    "runtime_s": 42.123553895857185,
+    "manifest": "/home/halbritt/git/kicad-route/build/krt91-runtime-agent507/state/manifest.json"
+  },
+  "sources": {
+    "src/kicad_route/experiment_policy.py": "575e7aef8a2ba825ef05211603b16e00c05ebf4439e2976ef0a7884bd330265d",
+    "src/kicad_route/kicad/facts.py": "d47a3fd2eb40518b7beba5457b679b901150c64e3988f86537d67f373bef8c52",
+    "src/kicad_route/configuration_evidence.py": "9ae628521d6f1e9602f3d4da6e40829336c31855010f546fd21e45cd585e1469",
+    "src/kicad_route/router/py_router/effective_config_evidence.py": "fe9254c32d895f936e97f03f34f9a6edbb16fcad086179f62325cf0eeeb1722e",
+    "src/kicad_route/router/py_router/route.py": "73fcddf34b99667dc0df4759457968e614bbd8047c50077a1a6b5ac65ab58c3c"
+  },
+  "not_released": [
+    "KICADROUTE-91 experiment sidecar and strict comparison",
+    "actual agent-ee retained receipt replay",
+    "fresh corrected-policy target native grading",
+    "single bounded target routing diagnostic"
+  ],
+  "policy_geometry_limit": "unsupported arc tracks, curved boundaries or noncircular annuli return NOT_RUN",
+  "production_installation_changed": false,
+  "target_route_runs": 0
+}

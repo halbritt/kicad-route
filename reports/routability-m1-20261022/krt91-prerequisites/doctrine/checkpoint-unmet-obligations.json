@@ -1,0 +1,209 @@
+[
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-e5969900d0a1474a",
+    "required_by": "implementation-repository-language-conformance",
+    "requirement": "CI and build matrix",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-6beb33575d727362",
+    "required_by": "implementation-repository-language-conformance",
+    "requirement": "formatter and static-tool configuration",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-ed729ace2ba83b77",
+    "required_by": "python-mutable-ownership",
+    "requirement": "concurrency",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-c9337452b0edfa33",
+    "required_by": "python-mutable-ownership",
+    "requirement": "identity and equality contract",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-315deea4a753d213",
+    "required_by": "python-mutable-ownership",
+    "requirement": "lifetime and size",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-a2c90d1d82d1a459",
+    "required_by": "python-mutable-ownership",
+    "requirement": "nested object graph",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-886b16ae2adaee03",
+    "required_by": "python-repository-shaped-idiom",
+    "requirement": "formatter linter and type-checker configuration",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-acf7d5264d06112f",
+    "required_by": "python-structured-cleanup",
+    "requirement": "acquisition and release paths",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-ab25f6e64ed25e78",
+    "required_by": "python-structured-cleanup",
+    "requirement": "exception and cancellation behavior",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-1b29a58262baaf69",
+    "required_by": "python-structured-cleanup",
+    "requirement": "nesting order",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-7cba9db416b2433e",
+    "required_by": "python-structured-cleanup",
+    "requirement": "owner and lifetime",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-4103a6c27d8238f5",
+    "required_by": "python-structured-cleanup",
+    "requirement": "resource ownership and failure policy",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-d2573b0d4d8293f7",
+    "required_by": "python-text-bytes-boundary",
+    "requirement": "external format and domain text contract",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-547f84d7398569bf",
+    "required_by": "python-text-bytes-boundary",
+    "requirement": "normalization requirements",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-0ae1be4d7859dd39",
+    "required_by": "python-text-bytes-boundary",
+    "requirement": "protocol or file metadata",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-1ee5a03cb67562cf",
+    "required_by": "python-text-bytes-boundary",
+    "requirement": "representative non-ASCII data",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-2ceada95d4c08a3e",
+    "required_by": "python-text-bytes-boundary",
+    "requirement": "round-trip and failure tests",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-94770077ee122d6a",
+    "required_by": "testing-test-first-feedback",
+    "requirement": "design uncertainty assessment",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-ec0bebeb749e3fa9",
+    "required_by": "universal-no-change-option",
+    "requirement": "actual current cost/risk or absence within a stated interval",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-a7c3deeb27a6d936",
+    "required_by": "universal-no-change-option",
+    "requirement": "expected future change from accepted plans",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-6c30f81e2a22c6ae",
+    "required_by": "universal-no-change-option",
+    "requirement": "intervention cost and uncertainty",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-543196d64e60fc3a",
+    "required_by": "universal-no-change-option",
+    "requirement": "latent security, safety, data, durability, and compatibility check",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  },
+  {
+    "evidence_ids": [],
+    "obligation_id": "obl-a89dd32d7271dec4",
+    "required_by": "universal-no-change-option",
+    "requirement": "proc-decide-leave-code-alone",
+    "status": "missing",
+    "classification": "nonmaterial_to_prerequisite_checkpoint",
+    "rationale": "No claim is made for the missing experiment sidecar, comparison, adapter qualification, production routing, general concurrency/text conversion, performance or broader language/tooling redesign. The bounded native-policy/env checkpoint uses the accepted repository contract, exact source review, native controls and 71-case composed gate. Full K91 remains pending."
+  }
+]
