@@ -346,6 +346,9 @@
               "items": {
                 "type": "string"
               }
+            },
+            "effective_configuration": {
+              "$ref": "#/$defs/effective-configuration-evidence"
             }
           }
         },
@@ -1277,6 +1280,51 @@
           ],
           "pattern": "^[0-9a-f]{64}$",
           "description": "Original backend output bytes, before candidate preparation and native grading."
+        }
+      }
+    },
+    "effective-configuration-evidence": {
+      "type": "object",
+      "required": [
+        "status",
+        "reasons",
+        "replay_authority",
+        "record",
+        "coverage",
+        "output_stage"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "bound",
+            "missing",
+            "unsupported",
+            "mismatch"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "replay_authority": {
+          "const": false
+        },
+        "record": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "coverage": {
+          "const": "resolved_outer_batch_only"
+        },
+        "output_stage": {
+          "const": "backend_output_before_wrapper_lock_restore_and_native_refill"
         }
       }
     }

@@ -22,6 +22,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "kicad_route.router" = ["LICENSE", "VERSION", "UPSTREAM.json", "requirements.txt",
     "rust_router/Cargo.toml", "rust_router/Cargo.lock", "rust_router/src/*.rs",
+    "py_router/effective_config_fields.json",
     ".claude/skills/*/SKILL.md", "py_router/stage3d/*.json", "py_router/stage3d/*.mjs",
     "py_router/stage3d/page/*", "py_router/stage3d/vendor/three/LICENSE",
     "py_router/stage3d/vendor/three/VERSION.txt", "py_router/stage3d/vendor/three/build/*.js",

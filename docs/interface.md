@@ -381,3 +381,26 @@ in the final receipt includes the recorded repeat check.
 Each smoke invocation uses a fresh generation under `OUT/smoke/`; it does not
 remove pre-existing scratch directories. Retaining prior generations makes a
 failed or interrupted smoke run inspectable without deleting earlier evidence.
+
+Owned single-ended runs may retain `process.effective_configuration` and hashed
+`work/effective-configuration*.json` evidence. Its status is `bound`, `missing`,
+`unsupported` or `mismatch`; this qualification does not change native routing
+validity or existing measurement/comparison gates. Older runtimes and paths
+that return before normal-pass configuration setup (including already-connected
+boards) can report `missing` and continue normally.
+
+The versioned `kicad-route/effective-configuration/1` manifest captures the
+resolved outer `GridRouteConfig` after rule, per-net width/via, layer and pour
+resolution and before the normal pass/history setup. It records typed plain
+values, rule-table context, net-ID/name inventory, selected environment values
+and effective controls. The wrapper checks source, request/settings, invocation,
+input/rules and final backend-output hashes, captured scope and the named net
+inventory against native input facts. Numeric net IDs are captured evidence;
+the wrapper does not independently validate their allocation. Unknown fields or
+objects remain visible as incomplete evidence.
+
+The output hash is sealed after CLI postpasses, before wrapper lock restoration
+and native refill; those later board hashes remain separate. This is evidence
+of one configuration stage. It excludes later per-net clones, nested sub-runs,
+derived runtime maps and native validation. `replay_authority` is always false.
+No repair worker, cohort promotion or upgraded comparison gate is implied.

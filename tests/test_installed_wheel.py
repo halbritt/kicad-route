@@ -98,3 +98,17 @@ def test_installed_native_terminal_extractor_executes_packaged_producer(wheel_en
     result = json.loads(proc.stdout)
     assert result["status"] == "PASS", result["reasons"]
     assert result["sealed"] and result["inventory"] > 0
+
+
+def test_configuration_evidence_inventory_and_schema_ship(wheel_environment):
+    directory, venv, env = wheel_environment
+    result = subprocess.run([venv / 'bin/python', '-c',
+        "import json; from kicad_route import engine,contract,configuration_evidence; "
+        "p=engine.SOURCE_ROOT/'py_router'; "
+        "print(json.dumps({'fields':json.loads((p/'effective_config_fields.json').read_text()),"
+        "'producer':(p/'effective_config_evidence.py').is_file(),"
+        "'schema':(contract.SCHEMAS_DIR/'effective-configuration-1.json').is_file()}))"],
+        cwd=directory, env=env, capture_output=True, text=True, check=True, timeout=30)
+    record = json.loads(result.stdout)
+    assert record['producer'] and record['schema']
+    assert 'net_via_sizes' in record['fields'] and 'rules' in record['fields']

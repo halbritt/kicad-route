@@ -87,6 +87,10 @@ def block(run_dir, attempt, grade_dir, validation, backend_output_sha256=None, r
     for name in RECORD_FILES[1:]:
         if (grade_dir / name).exists():
             records[os.path.relpath(grade_dir / name, base)] = _sha(grade_dir / name)
+    for name in ("effective-configuration-request.json", "effective-configuration.json"):
+        path = run_dir / "work" / name
+        if path.is_file():
+            records[os.path.relpath(path, base)] = _sha(path)
     return {
         "input_board_sha256": files.get(attempt["board"]),
         "input_fingerprint": attempt.get("input_fingerprint"),

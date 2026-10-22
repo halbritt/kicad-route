@@ -1425,6 +1425,9 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # previous board in the same (GUI) process.
     from routing_diagnostics import reset_hint_condenser
     reset_hint_condenser()
+    if final_reconcile:
+        batch_route._configuration_evidence = None
+
     # Every OUTERMOST entry starts the summary sink clean, not only a
     # --json-out one: the GUI calls batch_route once per click in ONE
     # process with no json_out, and a sink that survived the previous
@@ -3201,6 +3204,19 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     if env_knobs.PACKAGE_PROXIMITY:
         config.package_proximity_zones = package_proximity_zones(
             pcb_data, config.bga_proximity_radius)
+    # Capture this resolved outer configuration before normal-pass/history setup.
+    # Later per-net clones/sub-runs are explicitly outside this evidence scope.
+    _configuration_evidence = None
+    if final_reconcile and os.environ.get('KICAD_EFFECTIVE_CONFIG_REQUEST'):
+        try:
+            from effective_config_evidence import capture as _capture_configuration
+            _configuration_evidence = _capture_configuration(
+                config, pcb_data, input_file,
+                sorted(pcb_data.nets[n].name for n in sweep_scope_ids
+                       if n in pcb_data.nets and pcb_data.nets[n].name))
+        except (OSError, ValueError, TypeError) as _capture_error:
+            print(f"  configuration evidence unavailable: {_capture_error}")
+
     _bga_cells = compute_bga_proximity_cost_cells(config, len(config.layers))
     if len(_bga_cells):
         track_proximity_cache[BGA_PROXIMITY_CACHE_KEY] = _bga_cells
@@ -7876,6 +7892,9 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     if final_reconcile:
         _emit_summary_min(_gate_report, pour_cuts=_pour_cuts)
 
+    if final_reconcile:
+        batch_route._configuration_evidence = _configuration_evidence
+
     if return_results:
         return successful, failed, total_time, results_data
     return successful, failed, total_time
@@ -9031,6 +9050,18 @@ For differential pair routing, use route_diff.py:
                         "`kicad-cli pcb drc --refill-zones`)")
         except Exception as _e:
             print(f"  (--write-fill skipped: {_e})")
+    # Seal after every CLI output postpass, including retract/fill. Exit 3
+    # still retains truthful configuration evidence for its diagnostic board.
+    _captured_configuration = getattr(batch_route, '_configuration_evidence', None)
+    if _captured_configuration is not None and args.output_file:
+        try:
+            from effective_config_evidence import finish as _finish_configuration
+            _request = os.environ['KICAD_EFFECTIVE_CONFIG_REQUEST']
+            _destination = os.path.join(os.path.dirname(_request), 'effective-configuration.json')
+            _finish_configuration(_captured_configuration, args.output_file, _destination)
+        except (OSError, ValueError, TypeError) as _capture_error:
+            print(f"  configuration evidence unavailable: {_capture_error}")
+
     # #857: --strict-sizes turns any delivery below a requested size, or any
     # fab-tier escalation, into a non-zero exit so a harness needs no grep.
     if getattr(args, 'strict_sizes', False):

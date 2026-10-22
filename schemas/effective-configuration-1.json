@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/halbritt/kicad-route/schemas/effective-configuration-1.json",
+  "title": "Resolved outer batch configuration evidence (not replay authority)",
+  "type": "object",
+  "required": [
+    "schema",
+    "capture_status",
+    "issues",
+    "replay_authority",
+    "coverage",
+    "not_captured",
+    "stage",
+    "units",
+    "source_sha256",
+    "producer_sha256",
+    "request_sha256",
+    "invocation",
+    "selected_environment",
+    "effective_environment",
+    "input",
+    "net_inventory",
+    "scope",
+    "field_names",
+    "configuration",
+    "rules",
+    "runtime_policy",
+    "runtime_field_presence",
+    "output"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kicad-route/effective-configuration/1"
+    },
+    "capture_status": {
+      "enum": [
+        "complete",
+        "incomplete"
+      ]
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "replay_authority": {
+      "const": false
+    },
+    "coverage": {
+      "const": "resolved_outer_batch_only"
+    },
+    "not_captured": {
+      "const": [
+        "per_net_search_clones",
+        "later_subruns",
+        "derived_runtime_maps",
+        "native_validation"
+      ]
+    },
+    "stage": {
+      "const": "after_rule_width_pour_resolution_before_normal_pass"
+    },
+    "units": {
+      "type": "object",
+      "required": [
+        "geometry",
+        "grid_coordinates",
+        "time",
+        "costs"
+      ]
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "producer_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "request_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "invocation": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "selected_environment": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "effective_environment": {
+      "type": "object"
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "board_sha256",
+        "rules"
+      ],
+      "properties": {
+        "board_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rules": {
+          "type": "object",
+          "required": [
+            ".kicad_pro",
+            ".kicad_dru"
+          ]
+        }
+      }
+    },
+    "net_inventory": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "minItems": 2,
+        "maxItems": 2
+      }
+    },
+    "scope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "field_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "configuration": {
+      "type": "object",
+      "required": [
+        "track_width",
+        "clearance",
+        "via_size",
+        "via_drill",
+        "grid_step",
+        "via_cost",
+        "layers",
+        "max_iterations",
+        "max_probe_iterations",
+        "heuristic_weight",
+        "plan_probe",
+        "turn_cost",
+        "bga_exclusion_zones",
+        "stub_proximity_radius",
+        "stub_proximity_cost",
+        "via_proximity_cost",
+        "bga_proximity_radius",
+        "bga_proximity_cost",
+        "package_proximity_zones",
+        "direction_order",
+        "diff_pair_gap",
+        "diff_pair_centerline_setback",
+        "diff_pair_setback_no_ladder",
+        "diff_pair_setback_floor",
+        "diff_pair_uncouple_factor",
+        "min_turning_radius",
+        "debug_lines",
+        "verbose",
+        "max_rip_up_count",
+        "ripup_abandon_metric",
+        "ripup_blocker_select",
+        "bus_rip_resistance",
+        "max_setback_angle",
+        "track_proximity_distance",
+        "stub_layer_swap",
+        "track_proximity_cost",
+        "keep_away",
+        "keep_away_free",
+        "keep_away_cost",
+        "target_swap_crossing_penalty",
+        "crossing_layer_check",
+        "routing_clearance_margin",
+        "hole_to_hole_clearance",
+        "board_edge_clearance",
+        "same_net_pad_clearance",
+        "hole_clearance",
+        "max_turn_angle",
+        "power_tap_neckdown",
+        "via_rung",
+        "run_via",
+        "neckdown_length",
+        "neckdown_taper_length",
+        "gnd_via_enabled",
+        "vertical_attraction_radius",
+        "vertical_attraction_cost",
+        "ripped_route_avoidance_radius",
+        "ripped_route_avoidance_cost",
+        "length_match_groups",
+        "length_match_tolerance",
+        "meander_amplitude",
+        "meander_spacing",
+        "diff_chamfer_extra",
+        "diff_pair_intra_match",
+        "ac_couple_match",
+        "diff_pair_hybrid_escape",
+        "time_matching",
+        "time_match_tolerance",
+        "debug_memory",
+        "add_teardrops",
+        "impedance_target",
+        "layer_widths",
+        "coplanar_gap",
+        "coplanar_net_ids",
+        "coplanar_layer_widths",
+        "net_layer_widths",
+        "reserve_layer_widths",
+        "power_net_widths",
+        "net_track_widths",
+        "netclass_width_floors",
+        "layer_costs",
+        "collect_stats",
+        "proximity_heuristic_factor",
+        "direction_preference_cost",
+        "bus_enabled",
+        "bus_detection_radius",
+        "bus_min_nets",
+        "bus_attraction_radius",
+        "bus_attraction_bonus",
+        "guide_corridor_enabled",
+        "guide_corridor_layer",
+        "guide_corridor_spacing",
+        "corridor_waypoints",
+        "keepout_enabled",
+        "keepout_layer",
+        "net_clearances",
+        "net_clearance_floor",
+        "layer_clearances",
+        "board_copper_layers",
+        "track_clearances",
+        "net_via_sizes",
+        "pour_barriers"
+      ]
+    },
+    "rules": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "runtime_policy": {
+      "type": "object"
+    },
+    "runtime_field_presence": {
+      "type": "object",
+      "required": [
+        "_keep_input_copper",
+        "ordering_strategy",
+        "final_reconcile"
+      ],
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": [
+        "board_sha256",
+        "stage"
+      ],
+      "properties": {
+        "board_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stage": {
+          "const": "backend_output_before_wrapper_lock_restore_and_native_refill"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "capture_status": {
+            "const": "complete"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "issues": {
+            "maxItems": 0
+          },
+          "field_names": {
+            "const": [
+              "track_width",
+              "clearance",
+              "via_size",
+              "via_drill",
+              "grid_step",
+              "via_cost",
+              "layers",
+              "max_iterations",
+              "max_probe_iterations",
+              "heuristic_weight",
+              "plan_probe",
+              "turn_cost",
+              "bga_exclusion_zones",
+              "stub_proximity_radius",
+              "stub_proximity_cost",
+              "via_proximity_cost",
+              "bga_proximity_radius",
+              "bga_proximity_cost",
+              "package_proximity_zones",
+              "direction_order",
+              "diff_pair_gap",
+              "diff_pair_centerline_setback",
+              "diff_pair_setback_no_ladder",
+              "diff_pair_setback_floor",
+              "diff_pair_uncouple_factor",
+              "min_turning_radius",
+              "debug_lines",
+              "verbose",
+              "max_rip_up_count",
+              "ripup_abandon_metric",
+              "ripup_blocker_select",
+              "bus_rip_resistance",
+              "max_setback_angle",
+              "track_proximity_distance",
+              "stub_layer_swap",
+              "track_proximity_cost",
+              "keep_away",
+              "keep_away_free",
+              "keep_away_cost",
+              "target_swap_crossing_penalty",
+              "crossing_layer_check",
+              "routing_clearance_margin",
+              "hole_to_hole_clearance",
+              "board_edge_clearance",
+              "same_net_pad_clearance",
+              "hole_clearance",
+              "max_turn_angle",
+              "power_tap_neckdown",
+              "via_rung",
+              "run_via",
+              "neckdown_length",
+              "neckdown_taper_length",
+              "gnd_via_enabled",
+              "vertical_attraction_radius",
+              "vertical_attraction_cost",
+              "ripped_route_avoidance_radius",
+              "ripped_route_avoidance_cost",
+              "length_match_groups",
+              "length_match_tolerance",
+              "meander_amplitude",
+              "meander_spacing",
+              "diff_chamfer_extra",
+              "diff_pair_intra_match",
+              "ac_couple_match",
+              "diff_pair_hybrid_escape",
+              "time_matching",
+              "time_match_tolerance",
+              "debug_memory",
+              "add_teardrops",
+              "impedance_target",
+              "layer_widths",
+              "coplanar_gap",
+              "coplanar_net_ids",
+              "coplanar_layer_widths",
+              "net_layer_widths",
+              "reserve_layer_widths",
+              "power_net_widths",
+              "net_track_widths",
+              "netclass_width_floors",
+              "layer_costs",
+              "collect_stats",
+              "proximity_heuristic_factor",
+              "direction_preference_cost",
+              "bus_enabled",
+              "bus_detection_radius",
+              "bus_min_nets",
+              "bus_attraction_radius",
+              "bus_attraction_bonus",
+              "guide_corridor_enabled",
+              "guide_corridor_layer",
+              "guide_corridor_spacing",
+              "corridor_waypoints",
+              "keepout_enabled",
+              "keepout_layer",
+              "net_clearances",
+              "net_clearance_floor",
+              "layer_clearances",
+              "board_copper_layers",
+              "track_clearances",
+              "rules",
+              "net_via_sizes",
+              "pour_barriers"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

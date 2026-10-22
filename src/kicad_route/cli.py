@@ -98,6 +98,7 @@ from . import blocked
 from . import common
 from . import contract
 from . import evidence
+from . import configuration_evidence
 from . import engine
 from . import diff_pairs
 from . import floor
@@ -1477,6 +1478,16 @@ def krt_route(work, board, scope, facts, settings):
             return {"status": FAIL, "reasons": [f"could not lock existing copper (see {lr['log']})"],
                     "commands": [common.public(lr)], "exit_code": None, "output_board": None}
     env.update(krt_artwork_environment(work, board, facts))
+    # An environment request preserves CLI compatibility with older owned runtimes.
+    # Such runtimes ignore it and remain explicitly unqualified for this evidence.
+    (work / configuration_evidence.MANIFEST).unlink(missing_ok=True)
+    config_request = configuration_evidence.request(
+        board, output, argv[1:], {**common.tool_env(), **env}, KRT_DIR, settings,
+        scope=scope, facts=facts)
+    request_path = work / configuration_evidence.REQUEST
+    common.write_json(request_path, config_request)
+    config_request['request_sha256'] = common.sha256(request_path)
+    env['KICAD_EFFECTIVE_CONFIG_REQUEST'] = str(request_path.resolve())
     rec = run_budgeted(argv, work, work / "krt.log", settings["budget_s"], env, stop_file=stop,
                        monitor=stall.Monitor("krt", work / "krt.log", settings.get("stall_s")))
     text = Path(work / "krt.log").read_text(errors="replace")
@@ -1517,6 +1528,8 @@ def krt_route(work, board, scope, facts, settings):
                                "budget reached: KRT stopped early and wrote the board as it stood")
     if proc["status"] == PASS and not output.exists():
         proc.update(status=FAIL, reasons=proc["reasons"] + ["KRT wrote no output board"])
+    proc['effective_configuration'] = configuration_evidence.inspect(
+        work / configuration_evidence.MANIFEST, config_request, output)
     if locks is not None and proc["status"] == PASS:
         rr = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "locks.py", "restore", output, work / "locks.json"],
                          work, work / "restore-locks.log", timeout=600)
@@ -1524,6 +1537,9 @@ def krt_route(work, board, scope, facts, settings):
         locks["restore"] = tagged_json(rr["output"], "LOCKS_JSON")
         if rr["exit_code"] != 0:
             proc.update(status=FAIL, reasons=proc["reasons"] + [f"could not restore lock flags (see {rr['log']})"])
+    # Separate raw-backend binding from later restored/refilled board hashes.
+    proc['effective_configuration']['wrapper_output_board_sha256'] = (
+        common.sha256(output) if output.is_file() else None)
     proc["existing_copper_locks"] = locks
     # What KRT wrote beside its output is recorded, never used.
     writeback = []
