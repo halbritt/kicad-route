@@ -56,7 +56,53 @@ The ratio was 1.73, so the plan's provisional 1.10 overhead target was **not
 met**. The small sample and substantial timing variation do not establish a
 stable regression estimate. Process peak RSS was 42,744 KiB across both arms;
 it cannot establish a per-arm memory ratio. No further probes or target-board
-campaign were run to search for a more favorable result.
+campaign were run in that experiment to search for a more favorable result.
+
+## Follow-up: reuse bounded decoded resources
+
+Base revision: `a71397d7d90637098703e3c8b6fca528fa9bc2e9`. A separate, bounded
+profile of the same ten probes found six decodes per probe: the original cache
+three times, its rebuilt validation contribution twice, and its survivor once.
+For the span arm this expanded 2,570 rows. The first profiled call was dominated
+by imports; its timing is not comparable to a warm explicit-cell call. Across
+the other eight instrumented calls, the span/explicit medians were 1.662/1.378
+ms. These measurements identify redundant work, not a stable speedup target.
+
+The helper now returns bounded decoded arrays from validation and passes them
+directly to multiset comparison and ownership extraction. This reduces the
+fixture to three logical decodes and 1,028 expanded rows. Reuse lasts only for
+the current probe; there is no global or board-attached memo. Small-via and all
+rung channels still undergo exact row-multiplicity comparison. Ownership sets
+alone deduplicate; authoritative map updates still use the original and
+survivor cache payloads. Limits, refusal reasons, search costs and native code
+are unchanged.
+
+A regression failed before the change with original/rebuilt/survivor decode
+multiplicities of 3/2/1. It now checks at most one decode per unchanged
+contribution, preserved source state, and rejection of a cache missing a
+duplicate even though its unique footprint is unchanged. The selected-Python
+kernel gate rebuilt this checkout's extension and passed six kernel tests,
+all parity modes, three writer tests and all 18 resource tests. The changed
+source/test digest before this receipt was
+`2e6b99a0ee47b3acd376d64d7d8343fe3692d79557b28053b031d14e086f2bde`.
+
+Root repeated the retained, uninstrumented ten-probe comparison **once**:
+
+| Representation | Median | Samples, milliseconds |
+| --- | ---: | --- |
+| Spans | 1.290 ms | 6.426, 2.106, 1.290, 1.275, 1.269 |
+| Explicit cells | 1.396 ms | 1.863, 1.780, 1.396, 1.255, 1.219 |
+
+All ten probes retained owner 2, 419 search iterations and unchanged source
+state. The observed ratio, 0.924, is below the provisional 1.10 threshold for
+this run only. The earlier profile and this run have different instrumentation,
+and neither is a paired before/after performance qualification. Shared-process
+peak RSS was 44,872 KiB; per-arm memory remains unqualified. No target-board
+campaign, native board-output gain, expanded supported cases or default change
+is claimed. K92 remains in progress.
+
+Retained commands, profile, regression log and comparison results are under
+`/home/halbritt/.local/share/agent-ee/reviews/2026-10-21-krt92-followup-agent510/`.
 
 ## Remaining qualification
 

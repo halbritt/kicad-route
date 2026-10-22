@@ -137,6 +137,38 @@ class BlockerResourceTests(unittest.TestCase):
         self.assertEqual(self.run_probe(fixture, routed_results={2: {
             'new_segments': [original], 'new_vias': []}})[0], ([], False))
 
+    def test_each_decoded_view_is_reused_without_losing_duplicate_contributions(self):
+        from collections import Counter
+        import obstacle_cache
+        fixture = self.fixture()
+        pcb, cfg, board, cache, _ = fixture
+        scheduled = pcb.segments[0]
+        obstacle_cache.remove_net_obstacles_from_cache(board, cache[2])
+        pcb.segments.append(deepcopy(scheduled))
+        cache[2] = precompute_net_obstacles(pcb, 2, cfg)
+        add_net_obstacles_from_cache(board, cache[2])
+        route = {2: {'new_segments': [scheduled], 'new_vias': []}}
+        decoded = []
+        expand = obstacle_cache._cache_cells_and_vias
+
+        def track_decode(data):
+            decoded.append(data)
+            return expand(data)
+
+        with patch.object(obstacle_cache, '_cache_cells_and_vias', side_effect=track_decode):
+            result, diagnostics = self.run_probe(fixture, routed_results=route)
+        self.assertEqual(result, ([], False))
+        self.assertEqual(diagnostics['reason'], 'no_path_or_budget')
+        self.assertEqual(Counter(map(id, decoded)), {id(data): 1 for data in decoded})
+        self.assertLessEqual(len(decoded), 3)  # original, rebuilt, survivor
+
+        # The same unique footprint with one missing contribution is stale:
+        # validating unique ownership instead of the multiset must not pass.
+        cache[2].blocked_cell_spans = cache[2].blocked_cell_spans[:
+            len(cache[2].blocked_cell_spans) // 2].copy()
+        self.assertEqual(self.run_probe(fixture, routed_results=route)[1]['reason'],
+                         'cache_geometry_mismatch')
+
     def test_diagonal_offgrid_shared_branch_remains_hard(self):
         fixture = self.fixture()
         pcb, cfg, board, cache, _ = fixture

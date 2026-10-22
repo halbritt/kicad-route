@@ -12,8 +12,8 @@ class UnsupportedProbe(ValueError):
     pass
 
 
-def _resources(data, rung):
-    """Unique ownership sets; removal always uses the original cached multiset."""
+def _decode_resources(data, rung):
+    """Bound expansion before decoding the ordinary track/via multiset once."""
     from obstacle_cache import _cache_cells_and_vias
     spans = (data.blocked_cell_spans, data.blocked_via_spans)
     count = len(data.blocked_cells) + len(data.blocked_vias)
@@ -23,18 +23,26 @@ def _resources(data, rung):
     count += sum(len(a) for a in data.blocked_vias_rungs.values())
     if count > MAX_RESOURCE_CELLS:
         raise UnsupportedProbe('resource_expansion_limit')
-    cells, vias = _cache_cells_and_vias(data)
+    decoded = _cache_cells_and_vias(data)
+    cells, vias = decoded
     if rung:
         vias = data.blocked_vias_rungs.get(rung)
         if vias is None:
             raise UnsupportedProbe('missing_rung_cache')
     if len(cells) + len(vias) > MAX_RESOURCE_CELLS:
         raise UnsupportedProbe('resource_expansion_limit')
+    return decoded
+
+
+def _resources(data, rung, decoded):
+    """Unique ownership only; authoritative map updates retain cached multisets."""
+    cells, vias = decoded
+    if rung:
+        vias = data.blocked_vias_rungs[rung]
     return set(map(tuple, cells.tolist())), set(map(tuple, vias.tolist()))
 
 
-def _same_cache(left, right):
-    from obstacle_cache import _cache_cells_and_vias
+def _same_cache(left, right, left_decoded, right_decoded):
 
     def same_rows(a, b):
         if a.shape != b.shape:
@@ -44,7 +52,7 @@ def _same_cache(left, right):
         return np.array_equal(a[np.lexsort(a.T)], b[np.lexsort(b.T)])
 
     return (all(same_rows(a, b) for a, b in
-                zip(_cache_cells_and_vias(left), _cache_cells_and_vias(right)))
+                zip(left_decoded, right_decoded))
             and same_rows(left.blocked_vias_small, right.blocked_vias_small)
             and left.blocked_vias_rungs.keys() == right.blocked_vias_rungs.keys()
             and all(same_rows(left.blocked_vias_rungs[r], right.blocked_vias_rungs[r])
@@ -101,12 +109,12 @@ def probe_order(pcb_data, config, working, net_id, blockers, cache,
             recipe = getattr(data, '_probe_recipe', None)
             if not recipe or recipe[0] != sha256(repr(config).encode()).hexdigest():
                 raise UnsupportedProbe('unbound_stamp_recipe')
-            _resources(data, rung)
+            decoded = _decode_resources(data, rung)
             rebuilt = precompute_net_obstacles(board, nid, cfg, recipe[1], recipe[2])
-            _resources(rebuilt, rung)
-            if not _same_cache(rebuilt, data):
+            rebuilt_decoded = _decode_resources(rebuilt, rung)
+            if not _same_cache(rebuilt, data, rebuilt_decoded, decoded):
                 raise UnsupportedProbe('cache_geometry_mismatch')
-            return recipe
+            return recipe, decoded
 
         own = cache.get(net_id)
         if own is not None:
@@ -133,11 +141,12 @@ def probe_order(pcb_data, config, working, net_id, blockers, cache,
                                   or getattr(v, 'locked', False) or getattr(v, 'graphic', False)
                                   for v in removed):
                 return unknown('unsupported_route_membership')
-            recipe = validate_cache(nid, data)
-            cells, vias = _resources(data, rung)
+            recipe, decoded = validate_cache(nid, data)
+            cells, vias = _resources(data, rung, decoded)
             remove_route_from_pcb_data(board, result)
             survivor = precompute_net_obstacles(board, nid, cfg, recipe[1], recipe[2])
-            hard_cells, hard_vias = _resources(survivor, rung)
+            survivor_decoded = _decode_resources(survivor, rung)
+            hard_cells, hard_vias = _resources(survivor, rung, survivor_decoded)
             remove_net_obstacles_from_cache(clone, data)
             add_net_obstacles_from_cache(clone, survivor)
             cells -= hard_cells
