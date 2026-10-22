@@ -1,0 +1,515 @@
+{
+  "review_handle": "K91-R507-EI-ISSUES",
+  "candidate": "c22581d17a782cf294c00461ade1a960fc5c48c2",
+  "source_sha256_before": "08f81a88c9d911d474c45515cad1303bbf7eb6f15438f6c7c278d69c6e075d59",
+  "source_sha256_after": "08f81a88c9d911d474c45515cad1303bbf7eb6f15438f6c7c278d69c6e075d59",
+  "old_red": "TypeError: Value after * must be an iterable, not NoneType",
+  "malformed_cases": [
+    {
+      "scenario": "missing",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "missing",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "missing",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "missing",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "null",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "null",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "null",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "null",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "int",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "int",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "int",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "int",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "false",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "false",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "false",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "false",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "string",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "string",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "string",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "string",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "object",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "object",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "object",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "object",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "null-element",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "null-element",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "null-element",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "null-element",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "nested-list",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "nested-list",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "nested-list",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "nested-list",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "mixed-list",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "mixed-list",
+      "execution": {
+        "outer_batches": 2,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "mixed-list",
+      "execution": {
+        "outer_batches": 1,
+        "later_subruns": 1
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "mixed-list",
+      "execution": {
+        "outer_batches": 0,
+        "later_subruns": 0
+      },
+      "status": "mismatch",
+      "reasons": [
+        "invalid capture qualification",
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    }
+  ],
+  "valid_controls": [
+    {
+      "scenario": "complete-single",
+      "status": "bound",
+      "reasons": [],
+      "passed": true
+    },
+    {
+      "scenario": "complete-multiple",
+      "status": "unsupported",
+      "reasons": [
+        "multiple outer batches or later subruns lack resolved configuration coverage"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "complete-later",
+      "status": "unsupported",
+      "reasons": [
+        "multiple outer batches or later subruns lack resolved configuration coverage"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "incomplete-single",
+      "status": "unsupported",
+      "reasons": [
+        "prior missing capture"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "incomplete-multiple",
+      "status": "unsupported",
+      "reasons": [
+        "prior missing capture",
+        "multiple outer batches or later subruns lack resolved configuration coverage"
+      ],
+      "passed": true
+    },
+    {
+      "scenario": "complete-with-issue",
+      "status": "mismatch",
+      "reasons": [
+        "complete capture contains unsupported values"
+      ],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

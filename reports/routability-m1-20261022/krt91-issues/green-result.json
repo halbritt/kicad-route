@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/usr/bin/python3",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_configuration_evidence.py",
+    "tests/test_experiment_policy_native.py",
+    "tests/test_preservation_facts.py"
+  ],
+  "exit_code": 0,
+  "runtime_s": 14.490834799129516
+}

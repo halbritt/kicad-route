@@ -1,0 +1,39 @@
+{
+  "schema": "kicad-route/krt91-issues-correction/1",
+  "base": "a5fa636dc49fbb3ff84dcb0c001195986a856ce8",
+  "implementation": "c22581d17a782cf294c00461ade1a960fc5c48c2",
+  "source_notice": "cairn:6b9e1c65-8a13-4ec5-b315-0923f3c19476@1",
+  "reproduced_before_fix": "null issues plus two outer batches raises TypeError instead of returning mismatch",
+  "required_statuses": {
+    "malformed_issues": "mismatch",
+    "valid_single_outer_batch": "bound",
+    "valid_multiple_or_later_batches": "unsupported"
+  },
+  "new_cases": {
+    "malformed": 24,
+    "valid_controls": 3
+  },
+  "composed_gate": {
+    "passed": 98,
+    "failed": 0,
+    "skipped": 0,
+    "pytest_runtime_s": 14.21,
+    "harness_runtime_s": 14.490834799129516
+  },
+  "engine_source_sha256": "9cfc5d5e9369fd044ac6555afe57bdc4ccc829421e5496d42599c2d4a71951b2",
+  "engine_changed": false,
+  "target_grading_or_routing": false,
+  "full_k91_released": false,
+  "files": {
+    "src/kicad_route/configuration_evidence.py": "08f81a88c9d911d474c45515cad1303bbf7eb6f15438f6c7c278d69c6e075d59",
+    "tests/test_configuration_evidence.py": "df3da36bdcb54d37be62b98add53f66b51c4f28ce451bfefad2f77bdc9f18ff2"
+  },
+  "independent_review": {
+    "status": "READY",
+    "candidate": "c22581d17a782cf294c00461ade1a960fc5c48c2",
+    "malformed_controls": 36,
+    "valid_controls": 6,
+    "focused_tests_passed": 27,
+    "record_sha256": "9b9729ddc75e40f139109a3c298d9d2140eda5179a5e23281efd49e4052b186c"
+  }
+}
