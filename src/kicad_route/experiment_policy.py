@@ -38,10 +38,19 @@ def _policy(p):
     return p
 
 
+def _json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('duplicate JSON object key')
+        result[key] = value
+    return result
+
+
 def load(path):
     """Read a caller declaration; malformed or unsupported declarations raise."""
     try:
-        return _policy(json.loads(Path(path).read_text()))
+        return _policy(json.loads(Path(path).read_text(), object_pairs_hook=_json_object))
     except json.JSONDecodeError as exc:
         raise ValueError(f'invalid policy JSON: {exc}') from exc
 

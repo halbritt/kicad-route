@@ -264,3 +264,24 @@ def test_transformed_footprint_area_restricts_actual_back_track(tmp_path):
     result = experiment_policy.validate(policy_for(f), f)
     assert result['status'] == 'FAIL', result
     assert any('track' in r and 'rule area' in r for r in result['reasons'])
+
+
+@pytest.mark.parametrize('duplicate', [
+    '"allowed_trace_layers":["F.Cu"],"allowed_trace_layers":["F.Cu","B.Cu"]',
+    '"allowed_via_spans":[],"allowed_via_spans":[["F.Cu","B.Cu"]]',
+    '"allowed_trace_layers":[{"layer":"F.Cu","layer":"B.Cu"}]',
+])
+def test_policy_load_rejects_duplicate_json_keys(tmp_path, duplicate):
+    from kicad_route import experiment_policy
+    # Public declaration boundary: duplicate outer permissions previously used
+    # the last, broader value. Nested duplicate keys must be rejected as well.
+    fields = ['"schema":"routability-policy/1"', '"experiment_class":"current-policy"',
+              '"rule_areas_sha256":"' + '0' * 64 + '"', duplicate]
+    if not duplicate.startswith('"allowed_trace_layers"'):
+        fields.append('"allowed_trace_layers":["F.Cu"]')
+    if not duplicate.startswith('"allowed_via_spans"'):
+        fields.append('"allowed_via_spans":[]')
+    path = tmp_path / 'duplicate-policy.json'
+    path.write_text('{' + ','.join(fields) + '}')
+    with pytest.raises(ValueError, match='duplicate JSON object key'):
+        experiment_policy.load(path)
