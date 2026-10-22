@@ -46,6 +46,8 @@ def request(board, output, argv, environment, source_root, settings=None, *, sco
                 suffix: _sha(board.with_suffix(suffix)) for suffix in ('.kicad_pro', '.kicad_dru')}},
             'output': str(Path(output).resolve()), 'invocation': [str(a) for a in argv],
             'selected_environment': {name: environment.get(name) for name in ENVIRONMENT_NAMES},
+            'routing_environment': {key: value for key, value in sorted(environment.items())
+                if key.startswith('KICAD_') and key != 'KICAD_EFFECTIVE_CONFIG_REQUEST' and value is not None},
             'settings_sha256': sha256(json.dumps(settings or {}, sort_keys=True,
                 separators=(',', ':'), allow_nan=False).encode()).hexdigest()}
 
@@ -92,6 +94,7 @@ def inspect(manifest, expected, output):
               'producer_sha256': expected['producer_sha256'], 'field_names': expected['field_names'],
               'input': expected['input'], 'invocation': expected['invocation'],
               'selected_environment': expected['selected_environment'],
+              'routing_environment': expected['routing_environment'],
               'requested_output': expected['output'], 'replay_authority': False,
               'coverage': 'resolved_outer_batch_only',
               'not_captured': EXCLUDED_STAGES, 'units': UNITS,
@@ -180,6 +183,13 @@ def inspect(manifest, expected, output):
         check_values(doc)
     except ValueError as error:
         reasons.append(str(error))
+    execution = doc.get('execution')
+    if (not isinstance(execution, dict) or set(execution) != {'outer_batches', 'later_subruns'}
+            or any(type(v) is not int or v < 0 for v in execution.values())):
+        reasons.append('missing or malformed batch execution coverage')
+    elif execution != {'outer_batches': 1, 'later_subruns': 0}:
+        issues = [*issues, 'multiple outer batches or later subruns lack resolved configuration coverage']
+        doc['capture_status'] = 'incomplete'
     status = 'mismatch' if reasons else ('bound' if doc['capture_status'] == 'complete' else 'unsupported')
     record.update(status=status, reasons=reasons or issues,
                   named_inventory_binding='native_input_facts' if expected.get('named_nets') is not None else 'shape_only',

@@ -20,6 +20,18 @@ RUNTIME_FIELDS = ('_keep_input_copper', 'ordering_strategy', 'final_reconcile')
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 
 
+_BATCHES = {'outer_batches': 0, 'later_subruns': 0}
+
+
+def begin_execution():
+    """Start the one CLI invocation whose output will carry this receipt."""
+    _BATCHES.update(outer_batches=0, later_subruns=0)
+
+
+def begin_batch(*, outer):
+    _BATCHES['outer_batches' if outer else 'later_subruns'] += 1
+
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False)
 
@@ -113,6 +125,8 @@ def capture(config, pcb_data, input_file, scope, *, argv=None, environment=None,
             'request_sha256': file_sha(request_path) if request_path else None,
             'invocation': list(sys.argv if argv is None else argv),
             'selected_environment': {name: environment.get(name) for name in ENVIRONMENT_NAMES},
+            'routing_environment': {key: value for key, value in sorted(environment.items())
+                if key.startswith('KICAD_') and key != 'KICAD_EFFECTIVE_CONFIG_REQUEST' and value is not None},
             'effective_environment': effective_knobs,
             'input': {'board_sha256': file_sha(board), 'rules': {
                 suffix: file_sha(board.with_suffix(suffix)) for suffix in ('.kicad_pro', '.kicad_dru')}},
@@ -125,7 +139,7 @@ def capture(config, pcb_data, input_file, scope, *, argv=None, environment=None,
 
 def finish(record, output_file, destination):
     destination = Path(destination)
-    doc = dict(record, output={'board_sha256': file_sha(output_file),
+    doc = dict(record, execution=dict(_BATCHES), output={'board_sha256': file_sha(output_file),
                              'stage': 'backend_output_before_wrapper_lock_restore_and_native_refill'})
     if doc['output']['board_sha256'] is None:
         doc['capture_status'] = 'incomplete'

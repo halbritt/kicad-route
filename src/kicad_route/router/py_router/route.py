@@ -1425,6 +1425,9 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # previous board in the same (GUI) process.
     from routing_diagnostics import reset_hint_condenser
     reset_hint_condenser()
+    if os.environ.get('KICAD_EFFECTIVE_CONFIG_REQUEST'):
+        from effective_config_evidence import begin_batch as _configuration_batch
+        _configuration_batch(outer=final_reconcile)
     if final_reconcile:
         batch_route._configuration_evidence = None
 
@@ -8834,6 +8837,9 @@ For differential pair routing, use route_diff.py:
     # --preview: the engine already supports this -- return_results=True with
     # an empty output_file routes fully, mutates only the in-memory PCBData
     # and writes nothing. This just exposes it on the CLI (#459 follow-on).
+    if os.environ.get('KICAD_EFFECTIVE_CONFIG_REQUEST'):
+        from effective_config_evidence import begin_execution as _configuration_execution
+        _configuration_execution()
     _preview_out = batch_route(args.input_file,
                 "" if args.preview else args.output_file, net_names,
                 return_results=args.preview,

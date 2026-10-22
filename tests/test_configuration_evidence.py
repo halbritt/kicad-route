@@ -13,14 +13,14 @@ from design_rules import DesignRules
 from kicad_parser import PCBData, BoardInfo, Net
 
 
-def capture(tmp_path):
+def capture(tmp_path, *, environment=None):
     board = tmp_path / 'board.kicad_pcb'
     board.write_text('input board')
     output = tmp_path / 'out.kicad_pcb'
     output.write_text('actual saved output')
     board.with_suffix('.kicad_pro').write_text('{}')
     argv = ['route.py', str(board), '--output', str(output)]
-    environment = {'KICAD_TERMINAL_ESCALATION': '0'}
+    environment = environment if environment is not None else {'KICAD_TERMINAL_ESCALATION': '0'}
     request = configuration_evidence.request(board, output, argv, environment,
                                              ROOT / 'src/kicad_route/router')
     request_path = tmp_path / 'request.json'
@@ -34,6 +34,8 @@ def capture(tmp_path):
         cli={'track_width': .27})
     pcb = PCBData(BoardInfo({0: 'F.Cu', 31: 'B.Cu'}, ['F.Cu', 'B.Cu']),
                   {7: Net(7, '/power')}, {}, [], [], {})
+    producer.begin_execution()
+    producer.begin_batch(outer=True)
     doc = producer.capture(cfg, pcb, str(board), ['power'], argv=argv,
         environment=environment, request_path=request_path)
     manifest = tmp_path / 'effective-configuration.json'
@@ -224,3 +226,32 @@ def test_complete_manifest_matches_versioned_schema(tmp_path):
     _, manifest, _, _ = capture(tmp_path)
     schema = json.loads((ROOT / 'schemas/effective-configuration-1.json').read_text())
     jsonschema.validate(json.loads(manifest.read_text()), schema)
+
+
+def test_ambient_routing_controls_are_bound_not_only_caller_overrides(tmp_path):
+    environment = {'KICAD_DIRECT_FIRST': '0', 'KICAD_PLANE_FRAGILITY_COST': '2.0'}
+    request, manifest, output, _ = capture(tmp_path, environment=environment)
+    assert configuration_evidence.inspect(manifest, request, output)['status'] == 'bound'
+    changed = configuration_evidence.request(tmp_path / 'board.kicad_pcb', output,
+        request['invocation'], {**environment, 'KICAD_DIRECT_FIRST': '1'},
+        ROOT / 'src/kicad_route/router')
+    assert changed != {k: v for k, v in request.items() if k != 'request_sha256'}
+    changed['request_sha256'] = request['request_sha256']
+    assert configuration_evidence.inspect(manifest, changed, output)['status'] == 'mismatch'
+    doc = json.loads(manifest.read_text())
+    doc['routing_environment']['KICAD_PLANE_FRAGILITY_COST'] = '0'
+    manifest.write_text(json.dumps(doc))
+    assert configuration_evidence.inspect(manifest, request, output)['status'] == 'mismatch'
+
+
+def test_later_batch_execution_cannot_claim_single_batch_configuration(tmp_path):
+    producer.begin_batch(outer=True)
+    request, manifest, output, _ = capture(tmp_path)
+    assert configuration_evidence.inspect(manifest, request, output)['status'] == 'bound'
+    doc = json.loads(manifest.read_text())
+    producer.begin_batch(outer=False)
+    producer.finish(doc, str(output), manifest)
+    rec = configuration_evidence.inspect(manifest, request, output)
+    assert rec['status'] == 'unsupported'
+    assert any('later' in reason for reason in rec['reasons'])
+    producer.begin_batch(outer=True)
