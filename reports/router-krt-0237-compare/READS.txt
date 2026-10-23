@@ -1,0 +1,139 @@
+$ git branch --show-current
+wt/krt0237-router
+
+exit=0
+$ git rev-parse HEAD b5774496d8466b67ffa0362b6665fee2108155a3 HEAD^{tree} b5774496d8466b67ffa0362b6665fee2108155a3^{tree}
+dfead0f4f38e6e07df68f1734d522c645e8babf5
+b5774496d8466b67ffa0362b6665fee2108155a3
+19c41f8c6adeda1f4c3add34a4ba3302a0ec5e1d
+19c41f8c6adeda1f4c3add34a4ba3302a0ec5e1d
+
+exit=0
+$ git diff --stat b5774496d8466b67ffa0362b6665fee2108155a3..HEAD
+
+exit=0
+$ cat src/kicad_route/router/VERSION
+0.23.1
+
+exit=0
+$ jq '{upstream,upstream_base,upstream_release,fork,fork_commit,fixes,selective_adoptions,adoption_review_head,adoption_inventory}' src/kicad_route/router/UPSTREAM.json
+{
+  "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
+  "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
+  "upstream_release": "v0.23.1",
+  "fork": "https://github.com/halbritt/KiCadRoutingTools",
+  "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
+  "fixes": {
+    "KICADROUTE-64": "4b316ba",
+    "KICADROUTE-63": "0494a05"
+  },
+  "selective_adoptions": {
+    "KICADROUTE-83": {
+      "commits": [
+        "fd59a050e258581d5938c4d9456bbfeb13240e67"
+      ],
+      "scope": "pass-rules"
+    },
+    "KICADROUTE-84": {
+      "commits": [
+        "8c3e833179615dbe5e3cd205e68b03e25a6f73e8",
+        "29be549c9747855315957ccc160d69746a3d66cb",
+        "20a8e1b83b00e410f2adf60861ee536d3e57dabc",
+        "0e0029f450fa609447bcb62d16a9381cbc9d9d5d",
+        "ca96bc28f39d3c5e5f014950e8ed9664a755a8f1"
+      ],
+      "scope": "layer-stub-safety"
+    },
+    "KICADROUTE-85": {
+      "commits": [
+        "a0489b30621460e35f9d390f929fab215f7cc7f3"
+      ],
+      "scope": "pair-keepouts"
+    },
+    "KICADROUTE-86": {
+      "commits": [
+        "9ac916bc16d6edcd554bf4dc8640f30379386447",
+        "ed17b29f7eaec4822ba12178a65eca5c3a452e40"
+      ],
+      "scope": "obstacle-lifecycle"
+    },
+    "KICADROUTE-87": {
+      "commits": [
+        "0b3b6a2d19666c3411252f314d3ca8d12f1766fa"
+      ],
+      "scope": "rescue-custody"
+    },
+    "KICADROUTE-88": {
+      "commits": [
+        "2ddfc187a1bd4aa0f33263de3d5194a4c6205809"
+      ],
+      "scope": "parser-lifecycle"
+    }
+  },
+  "adoption_review_head": "0b3b6a2d19666c3411252f314d3ca8d12f1766fa",
+  "adoption_inventory": "reports/upstream-fixes-20261021/source-closure.json"
+}
+
+exit=0
+$ ls -l /home/halbritt/.local/bin/kicad-route
+lrwxrwxrwx 1 halbritt halbritt 46 Oct 17 08:15 /home/halbritt/.local/bin/kicad-route -> /home/halbritt/git/kicad-route/bin/kicad-route
+
+exit=0
+$ jq '{ref,tag,object,tagged_at:.tagger.date}' /tmp/agent-ee-burndown-20261017/workers/krt0237-router/scratch/tag-ref.json /tmp/agent-ee-burndown-20261017/workers/krt0237-router/scratch/tag.json
+{
+  "ref": "refs/tags/v0.23.7",
+  "tag": null,
+  "object": {
+    "sha": "d966606a734069c16772b96f394cbf3bc5e0a4e7",
+    "type": "tag",
+    "url": "https://api.github.com/repos/drandyhaas/KiCadRoutingTools/git/tags/d966606a734069c16772b96f394cbf3bc5e0a4e7"
+  },
+  "tagged_at": null
+}
+{
+  "ref": null,
+  "tag": "v0.23.7",
+  "object": {
+    "sha": "83646c8b56c3571067c359cf5524167abfef4c0f",
+    "type": "commit",
+    "url": "https://api.github.com/repos/drandyhaas/KiCadRoutingTools/git/commits/83646c8b56c3571067c359cf5524167abfef4c0f"
+  },
+  "tagged_at": "2026-10-23T04:31:01Z"
+}
+
+exit=0
+$ jq '{status,ahead_by,behind_by,total_commits,first_page_files:(.files|length)}' /tmp/agent-ee-burndown-20261017/workers/krt0237-router/scratch/compare-1.json
+{
+  "status": "ahead",
+  "ahead_by": 564,
+  "behind_by": 0,
+  "total_commits": 564,
+  "first_page_files": 300
+}
+
+exit=0
+$ jq -s '{pages:length,commits:([.[].commits[]]|length),unique_commits:([.[].commits[].sha]|unique|length)}' /tmp/agent-ee-burndown-20261017/workers/krt0237-router/scratch/compare-{1..6}.json
+{
+  "pages": 6,
+  "commits": 564,
+  "unique_commits": 564
+}
+
+exit=0
+$ sed -n 39p /home/halbritt/git/agent-ee/src/agent_ee/kicad_route_attempt.py
+PIN = 'b5774496d8466b67ffa0362b6665fee2108155a3'
+
+exit=0
+$ jq -r '.boards[]|[.board,.metrics.wall_s.reference_median,.metrics.wall_s.candidate_median]|@tsv' reports/upstream-fixes-20261021/benchmark-verification.json
+diff-pair	4.71	4.58
+four-layer	3.64	3.72
+multipoint	2.95	2.96
+route-demo	4.12	4.12
+
+exit=0
+
+No runtime checks or tests were executed. These are source/identity reads.
+
+$ git grep -n -E '^(<<<<<<< |>>>>>>> |=======$)'
+(no output)
+exit=1
