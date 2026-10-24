@@ -274,6 +274,10 @@ def leg_electrically_short(term_a: Tuple[Pad, Pad], term_b: Tuple[Pad, Pad],
     matter. Measured by the SHORTER of the leg's P-run and N-run: if either track
     cannot sustain a coupled section, route the leg single-ended. term_a/term_b
     are (P pad, N pad) tuples (oriented to current polarity)."""
+    # A geometric/electrical heuristic cannot waive a caller's coupling policy.
+    # This only requests a coupled attempt; all geometry and output gates remain.
+    if not config.defer_short_pairs:
+        return False
     threshold = diff_pair_min_coupled_length(config)
     p_dist = math.hypot(term_a[0].global_x - term_b[0].global_x,
                         term_a[0].global_y - term_b[0].global_y)

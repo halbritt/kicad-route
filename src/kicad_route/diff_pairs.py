@@ -157,7 +157,7 @@ def route(work, board, scope, facts, settings, api):
         output = directory / board.name
         argv = [api.route_python(), api.KRT_DIR / "py_router" / "route_diff.py", source,
                 "--output", output, "--track-width", str(pair["width_mm"]),
-                "--diff-pair-gap", str(pair["gap_mm"]), "--no-fix-drc-settings",
+                "--diff-pair-gap", str(pair["gap_mm"]), "--no-short-pair-deferral", "--no-fix-drc-settings",
                 "--keep-input-copper", "--no-stub-layer-swap", "--no-gnd-vias"]
         if settings.get("max_iterations"):
             argv += ["--max-iterations", str(settings["max_iterations"])]

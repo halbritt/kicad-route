@@ -91,7 +91,7 @@ def test_native_pair_routing_and_evidence(pair_attempt):
     record("diff_pair", result)
     assert process.returncode == 0, result
     assert result["schema"] == "kicad-route/route/2"
-    assert set(result) == BASE_RESULT_KEYS | {"pairs"}
+    assert set(result) == BASE_RESULT_KEYS | {"pairs", "copper_ownership"}
     attempt = json.loads((directory / "attempt.json").read_text())
     assert attempt["schema"] == "kicad-route/attempt/2"
     assert set(attempt) == BASE_ATTEMPT_KEYS | {"schema", "pairs", "pair_routing"}
@@ -118,6 +118,27 @@ def test_native_pair_routing_and_evidence(pair_attempt):
     facts = json.loads((directory / "validate" / "candidate-facts.json").read_text())
     assert not any(t["locked"] for t in facts["tracks"])
     jsonschema.validate(result, PAIR_RESULT_SCHEMA)
+
+
+def test_short_native_pair_keeps_explicit_coupling_policy(tmp_path):
+    import pcbnew
+    directory = pair_project(tmp_path / 'short-pair')
+    path = directory / 'pair.kicad_pcb'
+    board = pcbnew.LoadBoard(str(path))
+    next(fp for fp in board.GetFootprints() if fp.GetReference() == 'J2').SetPosition(
+        pcbnew.VECTOR2I(pcbnew.FromMM(112), pcbnew.FromMM(112)))
+    project = path.with_suffix('.kicad_pro').read_bytes()
+    pcbnew.SaveBoard(str(path), board)
+    path.with_suffix('.kicad_pro').write_bytes(project)
+    before = tree_hash(directory)
+    process, _, result = run('run', '--backend', 'builtin', '--diff-pairs', 'auto',
+                             '--dir', str(directory), '--budget', '60', '--label', 'short-pair')
+    assert process.returncode == 0, result
+    assert tree_hash(directory) == before
+    pair, = result['pairs']
+    assert pair['routed'] and pair['backend_status'] == 'COUPLED'
+    assert result['routing']['status'] == 'COMPLETE'
+    assert result['validation']['status'] == 'PASS'
 
 
 def test_pair_revalidation_measures_current_candidate(pair_attempt, tmp_path):

@@ -357,7 +357,8 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
                 # rip machinery skips matches, and they persist to the output
                 # .kicad_pro so later steps honor them without the flag.
                 cancel_check=None,
-                progress_callback=None) -> Tuple[int, int, float]:
+                progress_callback=None,
+                defer_short_pairs: bool = True) -> Tuple[int, int, float]:
     """
     Route differential pairs using the Rust router.
 
@@ -371,6 +372,7 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
         layers: List of copper layers to route on
         diff_pair_gap: Gap between P and N traces of differential pairs in mm (default: 0.101)
         diff_pair_centerline_setback: Distance in front of stubs to start centerline (default: 2x P-N spacing)
+        defer_short_pairs: If false, attempt coupled short legs instead of waiving coupling by length heuristic.
         min_turning_radius: Minimum turning radius for pose-based routing in mm (default: 0.2)
         polarity_swap_nets: Glob patterns naming the pairs ALLOWED to resolve a
             P/N mismatch by swapping pad net assignments (#279). None/empty =
@@ -750,6 +752,7 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
     config_kwargs.update(
         diff_pair_gap=diff_pair_gap,
         diff_pair_centerline_setback=diff_pair_centerline_setback,
+        defer_short_pairs=defer_short_pairs,
         min_turning_radius=min_turning_radius,
         max_setback_angle=max_setback_angle,
         max_turn_angle=max_turn_angle,
@@ -2260,6 +2263,8 @@ Examples:
     parser.add_argument("--diff-pair-gap", type=float, default=None,
                         help="Gap between P and N traces of differential pairs in mm "
                              "(default: the board Default net-class diff_pair_gap, else 0.101)")
+    parser.add_argument("--no-short-pair-deferral", action="store_true",
+                        help="Attempt coupled routing even for short legs; do not waive coupling by length heuristic")
     parser.add_argument("--diff-pair-centerline-setback", type=float, default=None,
                         help="Distance in front of stubs to start centerline route in mm (default: 2x P-N spacing)")
     parser.add_argument("--min-turning-radius", type=float, default=0.2,
@@ -2635,6 +2640,7 @@ Examples:
                 diff_pair_width_from_class=not _dp_width_explicit,
                 diff_pair_gap_from_class=not _dp_gap_explicit,
                 diff_pair_centerline_setback=args.diff_pair_centerline_setback,
+                defer_short_pairs=not args.no_short_pair_deferral,
                 min_turning_radius=args.min_turning_radius,
                 debug_lines=args.debug_lines,
                 verbose=args.verbose,

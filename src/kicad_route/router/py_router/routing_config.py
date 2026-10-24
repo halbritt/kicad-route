@@ -133,6 +133,7 @@ class GridRouteConfig:
     # Differential pair routing parameters
     diff_pair_gap: float = 0.101  # mm - gap between P and N traces (center-to-center = track_width + gap)
     diff_pair_centerline_setback: float = None  # mm - distance in front of stubs to start centerline route (None = 2 * spacing)
+    defer_short_pairs: bool = True  # Explicit coupling policy overrides short-leg single-ended deferral.
     diff_pair_setback_no_ladder: bool = False  # when True, _setback_ladder yields ONLY
     # the configured setback (no 0.75/0.5/floor/1.5/2x expansion) -- used by the pinch
     # retry in _maybe_swap_to_hybrid so each attempt routes at the EXACT setback asked.

@@ -30,6 +30,15 @@ Each pair gets its own `route_diff.py` process with explicit class width and gap
 unchanged project rules, no DRC-settings writeback, no ground-via generation,
 no stub layer swaps, and existing copper protected according to `--protect`.
 Pairs run in sorted positive-name order and share the attempt's backend budget.
+The adapter passes `--no-short-pair-deferral`: the backend's estimated short
+length cannot waive the explicitly selected coupling policy. A short pair gets
+a coupled attempt with the same native geometry rules. This flag does not make
+a failed attempt acceptable or turn hybrid terminal escapes into coupled ones.
+Cleanup also trims generated track tails that pass through a terminal pad and
+end beyond it. The cut stays on the existing centerline inside actual pad
+copper on the same layer, and must preserve terminal connectivity. Locked and
+protected input copper remains unchanged. Native verification still grades
+the saved result, including dangling copper and pair-gap rules.
 The adapter accepts only a complete coupled report for both members; it discards
 partial, hybrid-terminal, deferred and single-ended fallback output, including
 any collateral edits. Missing summaries/pair reports and process failures are process failures

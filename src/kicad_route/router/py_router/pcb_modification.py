@@ -3227,7 +3227,8 @@ def trim_dangles_past_body_anchor(results, pcb_data: PCBData, scope_net_ids=None
 
     Only trims when the free end has degree 1 and is itself unanchored (the
     same tests the pruner uses), and only back to a same-net via on the body
-    or another same-net segment endpoint teeing into the body. In-run
+    or another same-net segment endpoint teeing into the body, or a pad whose
+    actual copper contains the projected anchor on this layer. In-run
     segments are shortened in place; original input segments are replaced
     (old one returned for the writer's strip list, shortened copy appended to
     ``results`` as cleanup copper). Returns (n_trimmed, originals_to_strip).
@@ -3252,6 +3253,7 @@ def trim_dangles_past_body_anchor(results, pcb_data: PCBData, scope_net_ids=None
 
     from check_connected import check_net_connectivity
     from check_drc import point_to_pad_distance
+    from net_queries import expand_pad_layers
 
     n_trimmed = 0
     originals_to_strip: List[Segment] = []
@@ -3310,8 +3312,11 @@ def trim_dangles_past_body_anchor(results, pcb_data: PCBData, scope_net_ids=None
                 # ending on a rect pad's corner read as dangling, and a stub
                 # merely NEAR an elongated pad read as anchored). The free
                 # end touching real pad copper is never a dangle.
+                layer_pads = [p for p in pads_n
+                              if p.pad_type != 'np_thru_hole'
+                              and s.layer in expand_pad_layers(p.layers, [s.layer])]
                 if any(point_to_pad_distance(fx, fy, p) <= s.width / 2
-                       for p in pads_n):
+                       for p in layer_pads):
                     continue
                 # A free end inside a same-net zone outline may be carried by
                 # the FILL (plane region-join tracks end bare in fill by
@@ -3332,6 +3337,18 @@ def trim_dangles_past_body_anchor(results, pcb_data: PCBData, scope_net_ids=None
                 seg_len = math.sqrt(L2)
                 lo_d = max(tol, 0.05)
                 cands = []  # t values
+                pad_cands = set()
+                for p in layer_pads:
+                    t = ((p.global_x - s.start_x) * dx + (p.global_y - s.start_y) * dy) / L2
+                    if t * seg_len <= lo_d or (1 - t) * seg_len <= lo_d:
+                        continue
+                    px, py = s.start_x + t * dx, s.start_y + t * dy
+                    # Stay on the existing centerline and inside real pad
+                    # copper. Cap overlap or a bounding circle is insufficient
+                    # authority to shorten a terminal connection.
+                    if point_to_pad_distance(px, py, p) <= 0:
+                        cands.append(t)
+                        pad_cands.add(t)
                 for vx, vy, vsize in via_pts:
                     t = ((vx - s.start_x) * dx + (vy - s.start_y) * dy) / L2
                     d_from_start = t * seg_len
@@ -3358,7 +3375,7 @@ def trim_dangles_past_body_anchor(results, pcb_data: PCBData, scope_net_ids=None
                 t_anchor = min(cands) if free_is_start else max(cands)
                 nx, ny = s.start_x + t_anchor * dx, s.start_y + t_anchor * dy
                 tail_len = math.hypot(fx - nx, fy - ny)
-                if tail_len <= max(tol, 3 * s.width):
+                if tail_len <= (tol if t_anchor in pad_cands else max(tol, 3 * s.width)):
                     continue  # sub-visible nib; not worth churn
                 # Connectivity gate (parity with every other subtractive
                 # pass): the trim must not strand a pad under the

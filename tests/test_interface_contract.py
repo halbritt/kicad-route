@@ -465,7 +465,9 @@ def test_json_runs_with_explicit_run_dirs_do_not_interfere():
         attempt = json.loads((rd / "attempt.json").read_text())
         assert attempt["schema"] == "kicad-route/attempt/1"
         assert set(attempt) == BASE_ATTEMPT_KEYS | {"schema"}
-        assert set(res) == BASE_RESULT_KEYS
+        expected_keys = BASE_RESULT_KEYS | ({"copper_ownership"}
+                        if name == "builtin" and res["process"]["status"] == "PASS" else set())
+        assert set(res) == expected_keys
         assert not {"diff_pairs", "pairs"} & res["settings"].keys()
         RESULTS.validate(res)
         check_invariants(res)
