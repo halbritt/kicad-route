@@ -78,6 +78,7 @@ docs/hygiene.md.
 """
 import argparse
 import collections
+import math
 import datetime as dt
 import fnmatch
 import json
@@ -1002,6 +1003,12 @@ def run_attempt(args):
         contract.refuse("usage", "--backend-env takes KEY=VALUE")
     if getattr(args, "diff_pairs", None) and (args.backend != "builtin" or args.backend_arg):
         contract.refuse("usage", "--diff-pairs auto requires the builtin engine and does not accept --backend-arg")
+    grid_step = getattr(args, "grid_step", None)
+    if grid_step is not None:
+        if args.backend != "builtin" or not math.isfinite(grid_step) or grid_step < 0.000001:
+            contract.refuse("usage", "--grid-step requires builtin and a finite resolution of at least 0.000001 mm")
+        if any(arg == "--grid-step" or arg.startswith("--grid-step=") for arg in args.backend_arg or []):
+            contract.refuse("usage", "--grid-step cannot also be supplied through --backend-arg")
     run_dir = make_run_dir(args, project)
     started = time.monotonic()
     fingerprint = None
@@ -1064,6 +1071,8 @@ def run_attempt(args):
                 "stall_s": getattr(args, "stall", None), **scope_info}
     if pairs is not None:
         settings.update(diff_pairs="auto", pairs=[dict(p) for p in pairs])
+    if grid_step is not None:
+        settings["grid_step_mm"] = grid_step
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
     floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
     if floor_rec and floor_rec["floor_violated"]:
@@ -1473,6 +1482,8 @@ def krt_route(work, board, scope, facts, settings):
         env.update(KRT_PROTECT_EXISTING_ENV)
     if settings.get("max_iterations"):
         argv += ["--max-iterations", str(settings["max_iterations"])]
+    if settings.get("grid_step_mm") is not None:
+        argv += ["--grid-step", str(settings["grid_step_mm"])]
     if settings.get("default_clearance_mm"):
         default = max((n["clearance"] for n in facts["nets"].values() if n["netclass"] == "Default"
                        and n["clearance"]), default=0) / NM
@@ -2512,6 +2523,8 @@ def add_route_args(p):
                         "for both backends). Use when the input has custom rules a backend cannot read")
     p.add_argument("--clearance-margin", type=float, metavar="MM",
                    help="Freerouting only: add MM to every clearance it plans with (tighten only)")
+    p.add_argument("--grid-step", type=float, metavar="MM",
+                   help="builtin routing search resolution, also for auto differential pairs; native rules are unchanged")
     p.add_argument("--protect", choices=["existing", "locked", "human"], default="existing",
                    help="existing (default): all input copper must survive; locked: only locked copper, "
                         "the backend may rip up unlocked copper; human: on a kicad-route candidate, only "

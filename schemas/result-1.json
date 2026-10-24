@@ -279,6 +279,10 @@
                   "type": "null"
                 }
               ]
+            },
+            "grid_step_mm": {
+              "type": "number",
+              "minimum": 1e-06
             }
           }
         },

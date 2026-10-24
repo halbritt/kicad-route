@@ -161,6 +161,8 @@ def route(work, board, scope, facts, settings, api):
                 "--keep-input-copper", "--no-stub-layer-swap", "--no-gnd-vias"]
         if settings.get("max_iterations"):
             argv += ["--max-iterations", str(settings["max_iterations"])]
+        if settings.get("grid_step_mm") is not None:
+            argv += ["--grid-step", str(settings["grid_step_mm"])]
         if settings.get("default_clearance_mm"):
             default = max((net["clearance"] or 0 for net in facts["nets"].values()
                            if net["netclass"] == "Default"), default=0) / NM

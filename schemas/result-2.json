@@ -287,6 +287,10 @@
               "items": {
                 "$ref": "#/$defs/pair-plan"
               }
+            },
+            "grid_step_mm": {
+              "type": "number",
+              "minimum": 1e-06
             }
           }
         },

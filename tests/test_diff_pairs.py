@@ -81,7 +81,7 @@ def pair_attempt(tmp_path_factory):
     directory = pair_project(tmp_path_factory.mktemp("diff-pair") / "pair", single=True)
     before = tree_hash(directory)
     attempt = run("run", "--backend", "krt", "--diff-pairs", "auto", "--dir", str(directory),
-                  "--budget", "120", "--label", "diff-pair")
+                  "--budget", "120", "--label", "diff-pair", "--grid-step", "0.025")
     assert tree_hash(directory) == before
     return attempt
 
@@ -96,6 +96,7 @@ def test_native_pair_routing_and_evidence(pair_attempt):
     assert attempt["schema"] == "kicad-route/attempt/2"
     assert set(attempt) == BASE_ATTEMPT_KEYS | {"schema", "pairs", "pair_routing"}
     assert result["settings"]["diff_pairs"] == "auto"
+    assert result["settings"]["grid_step_mm"] == 0.025
     assert result["settings"]["pairs"]
     assert result["validation"]["status"] == "PASS", result["validation"]
     assert all(value == "PASS" for value in result["validation"]["preservation"].values())
@@ -113,6 +114,8 @@ def test_native_pair_routing_and_evidence(pair_attempt):
     diff = next(c["argv"] for c in commands if any(str(a).endswith("route_diff.py") for a in c["argv"]))
     single = next(c["argv"] for c in commands if any(str(a).endswith("/route.py") for a in c["argv"]))
     assert diff[diff.index("--diff-pair-gap") + 1] == "0.35"
+    assert diff[diff.index("--grid-step") + 1] == "0.025"
+    assert single[single.index("--grid-step") + 1] == "0.025"
     assert single[single.index("--nets") + 1:] == ["/AUX"]
     # The separate remaining-net pass neither moves nor unlocks the pair permanently.
     facts = json.loads((directory / "validate" / "candidate-facts.json").read_text())
@@ -315,3 +318,16 @@ def test_incompatible_pair_options_are_usage_refusals(tmp_path, args):
     assert process.returncode == 4
     assert json.loads(process.stdout)["reason_class"] == "usage"
     assert not (tmp_path / "must-not-exist").exists()
+
+
+@pytest.mark.parametrize('args', [
+    ['--grid-step', '0'], ['--grid-step', '-0.1'], ['--grid-step', 'nan'],
+    ['--grid-step', 'inf'], ['--grid-step', '0.0000001'],
+    ['--backend', 'freerouting', '--grid-step', '0.025'],
+    ['--grid-step', '0.025', '--backend-arg=--grid-step=0.1'],
+])
+def test_grid_resolution_refuses_invalid_or_ambiguous_controls(args):
+    process = cli('run', '--backend', 'builtin', '--dir', str(FIXTURE), '--json', *args)
+    assert process.returncode == 4, process.stdout + process.stderr
+    assert '--grid-step' in process.stdout + process.stderr
+    assert json.loads(process.stdout)["reason_class"] == "usage"
