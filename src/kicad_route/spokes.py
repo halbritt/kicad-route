@@ -28,6 +28,7 @@ docs/spokes.md for its limits.
 """
 import json
 import math
+import copy
 from pathlib import Path
 
 from . import common
@@ -56,20 +57,57 @@ def _script(args, cwd, log_path, timeout=900):
 
 # ------------------------------------------------------------- run hook
 
-def around_route(per_pad, work, board, route):
+def select_pad_layers(plan, keys):
+    """Copy a native plan, retaining exactly the requested UUID@layer pads.
+
+    The original corridor geometry, ranking and per-pad count are unchanged.
+    Unknown or ambiguous identities fail before any board is modified.
+    """
+    wanted = set(keys)
+    if not wanted:
+        raise ValueError("thermal pad selection is empty")
+    selected = [p for p in plan["pads"] if f"{p['uuid']}@{p['layer']}" in wanted]
+    found = [f"{p['uuid']}@{p['layer']}" for p in selected]
+    if len(found) != len(set(found)) or set(found) != wanted:
+        raise ValueError("thermal pad selection is missing or ambiguous in the native plan")
+    result = copy.deepcopy(plan)
+    result["pads"] = copy.deepcopy(selected)
+    result["pad_count"] = len(selected)
+    result["corridors_live"] = sum(p["live_spokes"] for p in selected)
+    result["corridors_selected"] = sum(p["selected"] for p in selected)
+    result["selected_pad_layers"] = sorted(wanted)
+    return result
+
+
+def around_route(per_pad, work, board, route, *, pad_layers=None):
     """Run `route()` (a backend call returning its process record) with spoke corridors
     reserved on `board` (the work input). per_pad None: no reservation, just route;
     0: the board's min_resolved_spokes; N: N corridors per pad. The strip runs on the
     backend's output board, so the candidate carries no corridor; a strip that fails
     leaves them in place, which the keepouts preservation check then fails."""
-    if per_pad is None:
+    if per_pad is None and not pad_layers:
         return route()
+    if per_pad is None:
+        per_pad = 0
     rec = {"per_pad_requested": per_pad or "min_resolved_spokes", "plan": common.rel(work / "spokes-plan.json"),
            "commands": [], "reasons": []}
     plan_args = ["plan", board, work / "spokes-plan.json"] + (["--per-pad", str(per_pad)] if per_pad else [])
     pr, ptag = _script(plan_args, work, work / "spokes-plan.log")
     rec["commands"].append(common.public(pr))
     if pr["exit_code"] == 0 and ptag:
+        if pad_layers:
+            plan_path = work / "spokes-plan.json"
+            plan = common.load_json(plan_path)
+            try:
+                selected = select_pad_layers(plan, pad_layers)
+            except (ValueError, KeyError, TypeError) as e:
+                rec["reasons"].append(str(e))
+                return {"status": FAIL, "reasons": rec["reasons"], "commands": rec["commands"],
+                        "exit_code": None, "output_board": None, "spoke_reservation": rec}
+            common.write_json(work / "spokes-plan-all.json", plan)
+            common.write_json(plan_path, selected)
+            ptag = selected
+            rec["selected_pad_layers"] = selected["selected_pad_layers"]
         rec.update(per_pad=ptag["per_pad"], min_resolved_spokes=ptag["min_resolved_spokes"],
                    clearance_mm=ptag["clearance"] / NM, pads=ptag["pad_count"],
                    corridors_live=ptag["corridors_live"], warnings=ptag["warnings"])
@@ -351,6 +389,9 @@ def add_run_option(rp):
                     help="keep new tracks/vias out of N thermal-spoke corridors per zone-connected pad "
                          "(default N: the board's min_resolved_spokes) while routing; the corridors are "
                          "removed before grading (docs/spokes.md)")
+    rp.add_argument("--reserve-spoke-pad", action="append", metavar="UUID@LAYER",
+                    help="reserve corridors only for this exact native thermal pad/layer; repeat for "
+                         "several pads. Implies --reserve-spokes; native spoke requirements are unchanged")
 
 
 def add_parser(sub):

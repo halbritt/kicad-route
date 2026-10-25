@@ -303,7 +303,8 @@ ALL_ROUTE = ["--nets", "/SIG_A*", "!GND", "--netclass", "Power", "--budget", "77
              "--backend-arg=--x=1", "--backend-arg=-y", "--backend-env", "K=V", "--floor-history"]
 
 
-@pytest.mark.parametrize("spokes", [["--reserve-spokes", "2"], ["--reserve-spokes"], []])
+@pytest.mark.parametrize("spokes", [["--reserve-spokes", "2"], ["--reserve-spokes"], [],
+    ["--reserve-spoke-pad", "pad-one@F.Cu", "--reserve-spoke-pad", "pad-two@B.Cu"]])
 def test_route_argv_reproduces_every_routing_option(spokes):
     argv = ALL_ROUTE + spokes
     a = route.build_parser().parse_args(["run", "--backend", "krt", *argv])

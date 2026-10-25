@@ -1069,6 +1069,10 @@ def run_attempt(args):
                 "reserve_spokes": args.reserve_spokes,
                 "barrier": None,
                 "stall_s": getattr(args, "stall", None), **scope_info}
+    spoke_pad_layers = sorted(set(getattr(args, "reserve_spoke_pad", None) or []))
+    if spoke_pad_layers:
+        settings["reserve_spoke_pads"] = spoke_pad_layers
+        settings["reserve_spokes"] = args.reserve_spokes or 0
     if pairs is not None:
         settings.update(diff_pairs="auto", pairs=[dict(p) for p in pairs])
     if grid_step is not None:
@@ -1153,7 +1157,8 @@ def run_attempt(args):
     # --barrier-from: collision keepouts injected the same way, outside the spoke corridors
     proc = barrier.around_route(barrier_rec, work, work_board, lambda: spokes.around_route(
         args.reserve_spokes, work, work_board,
-        lambda: backend["route"](work, work_board, scope, ref_facts, routing_settings)))
+        lambda: backend["route"](work, work_board, scope, ref_facts, routing_settings),
+        pad_layers=spoke_pad_layers))
     proc["runtime_s"] = round(time.monotonic() - t0, 3)
     if pairs is not None:
         attempt["pair_routing"] = proc.pop("pair_routing", {})

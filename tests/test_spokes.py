@@ -159,6 +159,60 @@ def test_reserve_strip_round_trip(fzone_dir, tmp_path):
     assert tag["stripped"] == 0 and board.read_bytes() == original
 
 
+def test_targeted_spokes_native_round_trip(fzone_dir, tmp_path):
+    """A selected SMD pad retains its two corridors without reserving other pads."""
+    plan = plan_of(fzone_dir / BOARD, tmp_path / "all.json")
+    pad = next(p for p in plan["pads"] if p["ref"] == "C1")
+    key = f"{pad['uuid']}@{pad['layer']}"
+    before = json.dumps(plan, sort_keys=True)
+    selected = spokes.select_pad_layers(plan, [key])
+    assert json.dumps(plan, sort_keys=True) == before
+    assert selected["pads"] == [pad]
+    board = tmp_path / "target" / BOARD
+    shutil.copytree(fzone_dir, board.parent)
+    original = board.read_bytes()
+    common.write_json(tmp_path / "selected.json", selected)
+    r, tag = script("reserve", board, tmp_path / "selected.json")
+    assert r.returncode == 0 and tag["reserved"] == 2
+    facts = board_facts(board, tmp_path / "selected-facts.json")
+    reserved = [a for a in facts["rule_areas"] if a["name"].startswith("kicad-route:spoke:")]
+    assert len(reserved) == 2 and all(":C1:2:F.Cu:" in a["name"] for a in reserved)
+    r, tag = script("strip", board)
+    assert r.returncode == 0 and tag["stripped"] == 2 and board.read_bytes() == original
+    # A stale identity cannot silently become an untargeted or empty reservation.
+    with pytest.raises(ValueError):
+        spokes.select_pad_layers(plan, [key, "missing@F.Cu"])
+    with pytest.raises(ValueError):
+        spokes.select_pad_layers(plan, [f"{pad['uuid']}@B.Cu"])
+    with pytest.raises(ValueError):
+        spokes.select_pad_layers(plan, [])
+
+
+def test_targeted_spokes_wrapper(fzone_dir, tmp_path):
+    """The real wrapper injects/strips only the target; unknown identity never routes."""
+    plan = plan_of(fzone_dir / BOARD, tmp_path / "all.json")
+    pad = next(p for p in plan["pads"] if p["ref"] == "C1")
+    key = f"{pad['uuid']}@{pad['layer']}"
+    work = tmp_path / "work"
+    shutil.copytree(fzone_dir, work)
+    board = work / BOARD
+    original = board.read_bytes()
+    calls = []
+
+    def backend():
+        calls.append(1)
+        facts = board_facts(board, tmp_path / "callback-facts.json")
+        ours = [a for a in facts["rule_areas"] if a["name"].startswith("kicad-route:spoke:")]
+        assert len(ours) == 2 and all(":C1:2:F.Cu:" in a["name"] for a in ours)
+        return {"status": "PASS", "reasons": [], "output_board": board}
+
+    result = spokes.around_route(None, work, board, backend, pad_layers=[key])
+    assert result["status"] == "PASS" and len(calls) == 1 and board.read_bytes() == original
+    assert result["spoke_reservation"]["reserved"] == result["spoke_reservation"]["stripped"] == 2
+    result = spokes.around_route(None, work, board, backend, pad_layers=["missing@F.Cu"])
+    assert result["status"] == "FAIL" and len(calls) == 1 and board.read_bytes() == original
+
+
 @pytest.mark.parametrize("backend", ["krt", "freerouting"])
 def test_run_with_reserved_spokes(backend):
     """A reserved attempt on the fixture (J1.2/J2.2 spokes in the B.Cu pour): the backend

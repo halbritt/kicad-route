@@ -98,6 +98,24 @@ Recorded:
   clearance, warnings and the commands that ran.
 - Work files: `work/spokes-plan.json`, `spokes-{plan,reserve,strip}.log`.
 
+### Targeting a native thermal finding
+
+`run --reserve-spoke-pad UUID@F.Cu` reserves corridors only for that exact native
+pad and copper layer. Repeat the option for several pads. It implies
+`--reserve-spokes` with the board's normal count unless an explicit count is also
+given. Native DRC and pour-integrity requirements are unchanged. An absent or
+ambiguous pad/layer identity fails before routing; it never becomes an empty
+reservation or falls back to all pads.
+
+Use the pad UUID from the native `starved_thermal` finding and its layer, or the
+matching entry in `kicad-route spokes RUN_DIR`. This permits a bounded retry to
+protect the demonstrated weak connection without reserving unnecessary corridors
+around every other pad. It does not establish that the retry will route, and the
+final saved board still needs every normal validation check. The original full
+plan stays in `work/spokes-plan-all.json`; the selected plan, attempt settings
+and process result record the exact targeted identities. Campaign and corpus
+replay forward the option through their existing routing-argument handling.
+
 A failed plan or reservation is a process failure (exit 1, no routing). A failed
 strip is added to `process.reasons` and fails `keepouts`.
 
