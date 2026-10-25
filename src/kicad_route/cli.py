@@ -2634,6 +2634,8 @@ def add_route_args(p):
     p.add_argument("--bus-min-nets", type=int, metavar="N", help="minimum raw bus cluster size (default 2; geometric filtering may require more)")
     p.add_argument("--length-match-group", action="append", nargs="+", metavar="NET",
                    help="builtin: match an explicit group of two-terminal single-ended nets; repeat for multiple groups")
+    p.add_argument("--length-match-group-json", dest="length_match_group", action="append", type=json.loads,
+                   metavar="JSON", help="same group as a JSON array of exact names; supports names beginning with '-' and replay")
     p.add_argument("--group-match-tolerance", type=float, metavar="MM", help="required native group path skew (default 0.1 mm)")
     p.add_argument("--group-meander-amplitude", type=float, metavar="MM", help="single-ended group meander amplitude (default 1 mm)")
     p.add_argument("--group-meander-spacing", type=float, metavar="WIDTHS", help="single-ended meander arm center spacing in track widths (default 2)")
@@ -2704,7 +2706,7 @@ def _route_actions(adder=add_route_args):
 
 def route_option_dests():
     """Namespace names of every add_route_args option (the attempt; not the environment)."""
-    return [a.dest for a in _route_actions()]
+    return list(dict.fromkeys(a.dest for a in _route_actions()))
 
 
 def route_argv(args, skip=SCOPE_DESTS):
@@ -2719,7 +2721,10 @@ def route_argv(args, skip=SCOPE_DESTS):
         flag = act.option_strings[0]
         if v is None or v is False or v == []:
             continue
-        if isinstance(act, argparse._StoreTrueAction):
+        if act.dest == "length_match_group":
+            if flag == "--length-match-group-json":
+                argv += [f"{flag}={json.dumps(group)}" for group in v]
+        elif isinstance(act, argparse._StoreTrueAction):
             argv.append(flag)
         elif isinstance(act, argparse._AppendAction):
             argv += [f"{flag}={x}" for x in v]       # =: values may start with '-'

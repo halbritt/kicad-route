@@ -22,6 +22,12 @@ backend's raw matching patterns use standard `*`, `?` and bracket classes;
 `[*]`, `[?]` and `[[]` select literal glob characters. The public operation
 performs that encoding for exact names automatically.
 
+Use `--length-match-group-json '["-DQ0", "--help"]'` when a name begins with
+a hyphen, or when serializing a request. It accepts one JSON array per group;
+repeat it for multiple groups. Both input forms share validation and may be
+mixed in order. Saved campaign/corpus commands use the JSON form so group
+boundaries and exact names survive replay.
+
 `settings.length_match` records the explicit groups, `tolerance_mm`,
 `amplitude_mm` and `spacing_widths`. The maintained engine adds meanders.
 `validation.length_matching` independently checks the saved/refilled native

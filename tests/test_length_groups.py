@@ -33,6 +33,57 @@ Path(sys.argv[3]).write_text(json.dumps([find_nets_matching_patterns(r['names'],
         capture_output=True, timeout=30)
     assert [sorted(row) for row in json.loads(output.read_text())] == [sorted(g['expected']) for g in inputs]
 
+
+def test_group_replay_preserves_members_and_group_order(tmp_path):
+    from kicad_route import cli as router, corpus
+    parser = router.build_parser()
+    args = parser.parse_args(['run', '--length-match-group', 'DQ0', 'DQ1',
+                              '--length-match-group', 'DQ2', 'DQ3'])
+    replay = parser.parse_args(['run', *router.route_argv(args)])
+    assert replay.length_match_group == [['DQ0', 'DQ1'], ['DQ2', 'DQ3']]
+    entry = dict(name='groups', board='group.kicad_pcb', reference_dir='reference',
+                 attempt={'backend': 'builtin', 'length_match_group': args.length_match_group}, _dir=tmp_path)
+    replay = parser.parse_args(['run', *router.route_argv(corpus.attempt_args(entry))])
+    assert replay.length_match_group == args.length_match_group
+    names = ['-DQ0', '--help', 'A[0]', 'name with spaces', 'name"quoted']
+    args = parser.parse_args(['run', '--length-match-group', 'DQ0', 'DQ1',
+                              '--length-match-group-json', json.dumps(names)])
+    replay = parser.parse_args(['run', *router.route_argv(args)])
+    assert replay.length_match_group == [['DQ0', 'DQ1'], names]
+    assert len(router.route_option_dests()) == len(set(router.route_option_dests()))
+
+
+def test_public_json_groups_accept_option_like_names(tmp_path):
+    source = tmp_path / 'input'
+    shutil.copytree(ROOT / 'fixtures/group_matching', source)
+    mapping = tmp_path / 'rename.json'
+    mapping.write_text(json.dumps({'DQ0': '-DQ0', 'DQ1': '--help'}))
+    project = (source / 'group.kicad_pro').read_bytes()
+    subprocess.run([sys.executable, str(ROOT / 'src/kicad_route/kicad/rename_nets.py'),
+                    str(source / 'group.kicad_pcb'), str(mapping)], check=True,
+                    capture_output=True, timeout=30)
+    (source / 'group.kicad_pro').write_bytes(project)
+    (source / 'group.kicad_dru').write_text('(version 1)\n'
+        '(rule "signal width floor" (constraint track_width (min 0.25mm)))\n'
+        '(rule "required group skew" (condition "A.fromTo(\'J1-1\', \'J2-1\') || A.fromTo(\'J3-1\', \'J4-1\')") '
+        '(constraint skew (max 0.1mm)))\n')
+    before = tree_hash(source)
+    done, directory, result = run('run', '--dir', str(source), '--diff-pairs', 'auto',
+        '--length-match-group-json', json.dumps(['-DQ0', '--help']),
+        '--group-match-tolerance', '.1', '--group-meander-amplitude', '3',
+        '--grid-step', '.1', '--budget', '180')
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert tree_hash(source) == before
+    assert result['settings']['length_match']['groups'] == [['-DQ0', '--help']]
+    measured = result['validation']['length_matching']
+    assert measured['status'] == 'PASS'
+    assert {p['net'] for p in measured['groups'][0]['paths']} == {'-DQ0', '--help'}
+    summary = json.loads(next((directory / 'work').rglob('krt-out/summary.json')).read_text())
+    assert sorted(summary['length_match_groups'][0]['members']) == ['--help', '-DQ0']
+    native = json.loads((directory / 'validate/candidate-drc.json').read_text())
+    assert native['violations'] == [] and native['unconnected_items'] == []
+
+
 ARGS = ('--diff-pairs', 'auto', '--length-match-group', 'DQ0', 'DQ1', 'DQ2', 'DQ3',
         '--group-match-tolerance', '.1', '--group-meander-amplitude', '3',
         '--grid-step', '.1', '--budget', '180')
@@ -236,6 +287,13 @@ k.SaveBoard(sys.argv[1],b)
 
 
 @pytest.mark.parametrize('options', [
+    ['--length-match-group-json', 'not JSON'],
+    ['--length-match-group-json', '{}'],
+    ['--length-match-group-json', 'null'],
+    ['--length-match-group-json', '[]'],
+    ['--length-match-group-json', '["DQ0"]'],
+    ['--length-match-group-json', '["DQ0", "DQ0"]'],
+    ['--length-match-group-json', '["DQ0", "MISSING"]'],
     ['--group-match-tolerance', '.1'],
     ['--length-match-group', 'DQ0'],
     ['--length-match-group', 'DQ0', 'DQ0'],
