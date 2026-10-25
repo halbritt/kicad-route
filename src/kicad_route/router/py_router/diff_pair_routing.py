@@ -5224,6 +5224,18 @@ def _process_via_positions(simplified_path, p_float_path, n_float_path, coord, c
             n_exit_x = p_exit_x - out_perp_x * out_perp_sign * diff_pair_spacing
             n_exit_y = p_exit_y - out_perp_y * out_perp_sign * diff_pair_spacing
 
+        # Straight transitions have no inner member. Preserve the pair center
+        # instead of biasing both tracks toward an arbitrarily chosen via.
+        if abs(cross) < 1e-9 and in_dir_x * out_dir_x + in_dir_y * out_dir_y > 0:
+            p_approach_x = cx + in_perp_x * p_sign * spacing_mm
+            p_approach_y = cy + in_perp_y * p_sign * spacing_mm
+            n_approach_x = cx + in_perp_x * n_sign * spacing_mm
+            n_approach_y = cy + in_perp_y * n_sign * spacing_mm
+            p_exit_x = cx + out_perp_x * p_sign * spacing_mm
+            p_exit_y = cy + out_perp_y * p_sign * spacing_mm
+            n_exit_x = cx + out_perp_x * n_sign * spacing_mm
+            n_exit_y = cy + out_perp_y * n_sign * spacing_mm
+
         # Update position at index i to approach position
         p_float_path[i] = (p_approach_x, p_approach_y, layer1)
         n_float_path[i] = (n_approach_x, n_approach_y, layer1)

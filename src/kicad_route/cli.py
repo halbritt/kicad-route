@@ -867,6 +867,15 @@ def validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits=N
                                  pair_widths={name: round(pair["width_mm"] * NM)
                                               for pair in attempt.get("pairs", []) for name in (pair["p"], pair["n"])})
     if "pairs" in attempt:
+        pair_layers = attempt["settings"].get("pair_layers")
+        if pair_layers is not None:
+            paired_nets = {name for pair in attempt["pairs"] for name in (pair["p"], pair["n"])}
+            input_tracks = {track["uuid"] for track in ref_facts["tracks"]}
+            forbidden = [track["uuid"] for track in cand_facts["tracks"]
+                         if track["net"] in paired_nets and track["uuid"] not in input_tracks
+                         and track["layer"] not in pair_layers]
+            if forbidden:
+                v["reasons"].append(f"{len(forbidden)} new pair tracks outside permitted pair layers")
         native, rec = diff_pairs.probe(board, out_dir / "pair-facts.json", sys.modules[__name__])
         if native is None:
             v["reasons"].append(f"native differential-pair measurements failed (see {rec['log']})")
@@ -1013,6 +1022,12 @@ def run_attempt(args):
         matching = diff_pairs.matching_settings(args)
     except ValueError as exc:
         contract.refuse("usage", str(exc))
+    pair_layers = getattr(args, "pair_layers", None)
+    if pair_layers is not None:
+        if getattr(args, "diff_pairs", None) != "auto":
+            contract.refuse("usage", "--pair-layers requires --diff-pairs auto")
+        if len(set(pair_layers)) != len(pair_layers):
+            contract.refuse("usage", "--pair-layers must not repeat layers")
     grid_step = getattr(args, "grid_step", None)
     if grid_step is not None:
         if args.backend != "builtin" or not math.isfinite(grid_step) or grid_step < 0.000001:
@@ -1047,6 +1062,10 @@ def run_attempt(args):
     if ref_facts is None:
         refuse("input", f"could not read the input board {board_name} (facts.py exit {rec['exit_code']}): "
                         f"{log_tail(run_dir / 'facts' / 'reference-facts.log')}")
+    if pair_layers is not None:
+        enabled = {layer["name"] for layer in ref_facts["copper_layers"]}
+        if not set(pair_layers) <= enabled:
+            refuse("input", "--pair-layers must name enabled native copper layers")
     try:
         scope, scope_info = select_nets(ref_facts, args.nets, args.netclass)
     except NetSelectionError as e:
@@ -1089,6 +1108,8 @@ def run_attempt(args):
         settings.update(diff_pairs="auto", pairs=[dict(p) for p in pairs])
     if matching is not None:
         settings["intra_pair_match"] = matching
+    if pair_layers is not None:
+        settings["pair_layers"] = pair_layers
     if grid_step is not None:
         settings["grid_step_mm"] = grid_step
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
@@ -2537,6 +2558,8 @@ def add_route_args(p):
     p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
     p.add_argument("--diff-pairs", choices=["auto"], help="builtin: detect native differential pairs, route pairs first, "
                    "and exclude all pair members from single-ended routing (default off)")
+    p.add_argument("--pair-layers", nargs="+", metavar="LAYER",
+                   help="auto pairs: permitted native copper layers (default F.Cu B.Cu)")
     p.add_argument("--diff-pair-intra-match", action="store_true",
                    help="auto pairs: add meanders to new pair copper and require saved lengths within tolerance")
     p.add_argument("--length-match-tolerance", type=float, metavar="MM",

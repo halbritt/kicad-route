@@ -1585,6 +1585,56 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
                             scope_net_ids=_length_match_scope_ids,
                             report=_length_match_report)
 
+    # Reconcile generated copper before geometry cleanup and final pair tuning.
+    # Stub layer-swap vias ride all_swap_vias, not any result's new_vias, and
+    # the writer emits them -- so to the sync they are originals (see route.py).
+    # Dropping them severs every layer-swapped leg from its pad in pcb_data, and
+    # the dead-end sweep that runs next then trims the whole leg off the board.
+    sync_pcb_data_segments(pcb_data, routed_results, original_segment_ids, state, config,
+                           original_via_ids=(original_via_ids
+                                             | {id(v) for v in all_swap_vias}))
+
+    # #521: coupled pair copper is an invariant later chain steps cannot
+    # reproduce (P/N geometry, gap, polarity) -- mark routed members protected
+    # so downstream rip steps skip them. Engine-side: the GUI diff tab and the
+    # AI-plan executor inherit the noting; the writeback next to the DRC-floor
+    # persistence records it in the sibling .kicad_pro.
+    from protected_nets import note_protection_candidates
+    _prot = protection_candidates(routed_results, pcb_data,
+                                  pairs=diff_pair_ids_to_route)
+    if _prot:
+        note_protection_candidates(_prot)
+
+    # ----- Post-route cleanup (#215): the ONE shared pipeline ---------------
+    # Same passes, ordering and strip plumbing as route.py's single-ended
+    # cleanup (cleanup_pipeline.py), scoped to the diff-pair nets so other
+    # copper is untouched. snap/phantom/neck are off for parity with this
+    # front's historical pass set. octolinear IS enabled (deliberately, #318):
+    # its re-bend keeps the anchor endpoints coincident and its clears() gate
+    # includes the partner net, so a grazing terminal jog the prune must now
+    # KEEP (tightened coincidence gate) gets re-bent clear instead of shipping
+    # as a violation.
+    from cleanup_pipeline import run_post_route_cleanup
+    # ONLY fully-routed pairs: a failed / single-ended-deferred pair's fanout stubs
+    # have free ends by design (the single-ended follow-up connects them), so a
+    # dead-end sweep there would strip copper the next pass needs.
+    from diff_pair_custody import _member_connected as _dpc_member_connected
+    dp_scope = diff_cleanup_scope(
+        diff_pair_ids_to_route, routed_results, state.diff_pair_single_ended_nets,
+        lambda nid: _dpc_member_connected(pcb_data, nid))
+    _dp_cleanup = run_post_route_cleanup(
+        results, pcb_data, dp_scope, config,
+        label='Diff-pair ', snap=False, phantom=False, neck=False,
+        keep_input_copper=keep_input_copper,
+        progress_callback=progress_callback)
+    cleanup_input_strip = _dp_cleanup.input_strip_segments
+    # #508 finding 11: the pipeline's removed input VIAS were dropped on the
+    # floor here -- the orphan-island sweep deletes them from pcb_data, but
+    # neither the writer nor the GUI ever heard, so the output kept via
+    # barrels the router had withdrawn (firing: cm4_underwater step4_diff).
+    cleanup_input_strip_vias = list(
+        getattr(_dp_cleanup, 'input_strip_vias', None) or [])
+
     # Apply intra-pair P/N length matching if configured
     intra_pair_reports = []
     if config.diff_pair_intra_match:
@@ -1645,55 +1695,9 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
                     'bridges': _xn.bridge_refs,
                 })
 
-    # Sync pcb_data with length-matched segments
-    # Stub layer-swap vias ride all_swap_vias, not any result's new_vias, and
-    # the writer emits them -- so to the sync they are originals (see route.py).
-    # Dropping them severs every layer-swapped leg from its pad in pcb_data, and
-    # the dead-end sweep that runs next then trims the whole leg off the board.
-    sync_pcb_data_segments(pcb_data, routed_results, original_segment_ids, state, config,
-                           original_via_ids=(original_via_ids
-                                             | {id(v) for v in all_swap_vias}))
-
-    # #521: coupled pair copper is an invariant later chain steps cannot
-    # reproduce (P/N geometry, gap, polarity) -- mark routed members protected
-    # so downstream rip steps skip them. Engine-side: the GUI diff tab and the
-    # AI-plan executor inherit the noting; the writeback next to the DRC-floor
-    # persistence records it in the sibling .kicad_pro.
-    from protected_nets import note_protection_candidates
-    _prot = protection_candidates(routed_results, pcb_data,
-                                  pairs=diff_pair_ids_to_route)
-    if _prot:
-        note_protection_candidates(_prot)
-
-    # ----- Post-route cleanup (#215): the ONE shared pipeline ---------------
-    # Same passes, ordering and strip plumbing as route.py's single-ended
-    # cleanup (cleanup_pipeline.py), scoped to the diff-pair nets so other
-    # copper is untouched. snap/phantom/neck are off for parity with this
-    # front's historical pass set. octolinear IS enabled (deliberately, #318):
-    # its re-bend keeps the anchor endpoints coincident and its clears() gate
-    # includes the partner net, so a grazing terminal jog the prune must now
-    # KEEP (tightened coincidence gate) gets re-bent clear instead of shipping
-    # as a violation.
-    from cleanup_pipeline import run_post_route_cleanup
-    # ONLY fully-routed pairs: a failed / single-ended-deferred pair's fanout stubs
-    # have free ends by design (the single-ended follow-up connects them), so a
-    # dead-end sweep there would strip copper the next pass needs.
-    from diff_pair_custody import _member_connected as _dpc_member_connected
-    dp_scope = diff_cleanup_scope(
-        diff_pair_ids_to_route, routed_results, state.diff_pair_single_ended_nets,
-        lambda nid: _dpc_member_connected(pcb_data, nid))
-    _dp_cleanup = run_post_route_cleanup(
-        results, pcb_data, dp_scope, config,
-        label='Diff-pair ', snap=False, phantom=False, neck=False,
-        keep_input_copper=keep_input_copper,
-        progress_callback=progress_callback)
-    cleanup_input_strip = _dp_cleanup.input_strip_segments
-    # #508 finding 11: the pipeline's removed input VIAS were dropped on the
-    # floor here -- the orphan-island sweep deletes them from pcb_data, but
-    # neither the writer nor the GUI ever heard, so the output kept via
-    # barrels the router had withdrawn (firing: cm4_underwater step4_diff).
-    cleanup_input_strip_vias = list(
-        getattr(_dp_cleanup, 'input_strip_vias', None) or [])
+    if config.diff_pair_intra_match or (config.ac_couple_match and ac_xnets):
+        sync_pcb_data_segments(pcb_data, routed_results, original_segment_ids, state, config,
+                              original_via_ids=(original_via_ids | {id(v) for v in all_swap_vias}))
 
     # Build summary data
     import json

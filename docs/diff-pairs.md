@@ -86,6 +86,25 @@ Zero `gap_violations` means native DRC reported none under the unchanged input
 rules; it does not assert a coupling percentage, a skew limit or impedance.
 The test fixture supplies an explicit native gap rule.
 
+## Layer transitions
+
+`--pair-layers F.Cu In1.Cu In2.Cu B.Cu` permits new pair tracks on those
+enabled native copper layers. The default remains `F.Cu B.Cu`. Duplicate,
+disabled or non-copper layers are refused, as is use without `--diff-pairs auto`.
+The selection is recorded in `settings.pair_layers` and forwarded through
+campaign/corpus replay. Final validation independently rejects new pair tracks
+outside the selection. Preserved input copper may occupy other layers;
+through-vias span the board even when not every layer is selected for tracks.
+
+Straight via transitions retain the pair centerline and symmetric fanout.
+Cleanup precedes intra-pair and AC matching so those tuners consume cleaned
+geometry. This does not qualify AC, inter-pair or propagation-time matching.
+The native `fixtures/pair_transition` article and `tests/test_pair_transition.py`
+exercise a four-layer board with orthogonal launches and an outer-layer barrier:
+the coupled route must use inner copper, preserve authored rules, and satisfy
+both native DRC and the separate planar-copper matching tolerance. Outer-only
+routing and changed-layer revalidation are negative controls.
+
 The opt-in `settings` adds `diff_pairs: "auto"` and `pairs` (the deterministic pair
 plan). `attempt.json` carries `schema: "kicad-route/attempt/2"` and adds `pairs`
 and `pair_routing` to the base `attempt/1` key set. Without the option, the attempt

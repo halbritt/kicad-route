@@ -186,6 +186,8 @@ def route(work, board, scope, facts, settings, api):
                 "--diff-pair-gap", str(pair["gap_mm"]), "--no-short-pair-deferral", "--no-fix-drc-settings",
                 "--keep-input-copper", "--no-stub-layer-swap", "--no-gnd-vias"]
         matching = settings.get("intra_pair_match")
+        if settings.get("pair_layers") is not None:
+            argv += ["--layers", *settings["pair_layers"]]
         if matching is not None:
             argv += ["--diff-pair-intra-match", "--length-match-tolerance", str(matching["tolerance_mm"]),
                      "--meander-amplitude", str(matching["amplitude_mm"])]

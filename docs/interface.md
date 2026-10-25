@@ -445,8 +445,9 @@ bundle and does not depend on the external baseline cache.
 With `--diff-pairs auto`, `--diff-pair-intra-match` requests meanders on newly
 routed pair copper. Optional `--length-match-tolerance MM` (default 0.1) and
 `--meander-amplitude MM` (default 1.0) must be finite and at least 0.000001 mm.
-They require the matching switch. The native project rules remain unchanged;
-the tighter of a native skew rule and the requested tolerance must pass.
+They require the matching switch. The native project rules remain unchanged.
+Both the native electrical-length/skew rules and the requested planar-copper
+tolerance must pass independently; they measure different quantities.
 
 Settings record `intra_pair_match: {tolerance_mm, amplitude_mm}`. Each pair
 adds `matching: {tolerance_mm, status, measurement}` where status is PASS,
@@ -455,3 +456,8 @@ of the backend's matching claim. `validate` measures it again. A matching failur
 fails validation (exit 3) even when routing connectivity is COMPLETE. Existing
 protected pair copper is preserved and graded, not retuned. Matching does not
 establish impedance, propagation time, return path or multi-terminal path length.
+
+Optional `--pair-layers LAYER...` records `settings.pair_layers` and limits new
+pair tracks to the specified enabled native copper layers. It requires
+`--diff-pairs auto`. Validation independently checks saved track layers;
+preserved input copper and through-via spans are not restricted by this option.
