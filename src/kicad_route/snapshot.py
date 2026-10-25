@@ -45,6 +45,8 @@ def resolve_sheet(project_dir, name, by=None):
 def sheet_files(project_dir, root):
     """Schematic files reachable from the root, the sheet-instance count, and
     references whose exact filename does not exist."""
+    if root is None:
+        return [], 0, []
     files, instances, problems = [], 1, []
     seen = {}
 

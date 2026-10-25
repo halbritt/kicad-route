@@ -124,7 +124,7 @@ remain under `work/diff-NNN/`, `work/single/`, and `work/diff-out/`.
 rule, verifies a later ordinary-net pass, checks native DRC and preservation,
 re-validates the pair, and tests an impassable keepout wall and detection refusals.
 
-## Nominal impedance on one outer layer
+## Nominal impedance on one signal layer
 
 An opt-in impedance request uses the declared native stackup to solve a pair
 width before routing. The solved width feeds the same offset, fanout and obstacle
@@ -138,10 +138,12 @@ kicad-route run --dir fixtures/pair_impedance --backend builtin \
   --impedance-uncoupled 3 --grid-step .025 --budget 180
 ```
 
-All four impedance controls are required. This initial capability supports one
-explicit outer signal layer, a positive copper/dielectric thickness and Er in
-the saved stackup, and the named adjacent filled reference plane. Unsupported
-multilayer, arc, via and coplanar geometry cannot pass this model. These remain
+All four impedance controls are required. One explicit outer signal layer uses
+the adjacent filled reference plane. One symmetric inner signal layer uses
+both immediately adjacent filled reference planes, each on the declared net.
+Copper and dielectric thickness and Er must be explicit. Inner dielectric
+heights must agree within one native nanometre, and Er values must be equal.
+Asymmetric, multilayer, arc, via and coplanar geometry cannot pass this model. These remain
 separate engineering capabilities, not interchangeable analytic approximations.
 
 `facts/impedance-plan.json` records the target, source board hash and solved
@@ -157,9 +159,24 @@ graded as a coupled trunk.
 The native polygon comparison uses a conservative 0.001 mm approximation bound.
 Revalidation repeats these checks against the current saved candidate.
 
-These are nominal uncoated microstrip calculations. Pad launches, solder mask,
+These are nominal uncoated microstrip or symmetric homogeneous stripline calculations. Pad launches, solder mask,
 fabrication tolerances, frequency-dependent material data, transitions and
 physical measurements need separate evidence. The terminal-escape allowance
 does not extend the impedance claim to that copper. The fixture assumptions,
 including the rejected exploratory escape bound, are documented with the native
 input in `fixtures/pair_impedance/README.md`.
+
+
+The inner-layer software article is `fixtures/pair_stripline` (`--pair-layers
+In1.Cu --impedance-uncoupled 4`, with the other controls above). Both native
+reference fills are checked. A PTH launch may use only its own pad plus the
+smallest explicit zone clearance and a reported numerical allowance of the
+native polygon error plus 0.001 mm. This is not permission for a plane split
+or an oversized terminal opening. Outer-layer coverage has no such exception.
+The input fixture retains its footprint-library dependency; PCB-only snapshots
+use the same library capture operation as projects with schematics.
+
+For inner coupled trunks, coverage includes the complete corridor between the
+outer edges of both traces. A split only between the pair members is rejected
+as well as a split beneath either trace. Terminal antipad permission does not
+apply to this coupled corridor.

@@ -114,6 +114,19 @@ def test_working_tree_snapshot_reads_the_working_tree(repo_with_sibling, tmp_pat
     assert link["dirty_files"], "an edited in-repo sibling is reported as dirty"
 
 
+def test_pcb_only_snapshot_keeps_local_and_revision_bound_sibling_libraries(repo_with_sibling, tmp_path):
+    repo, first, _ = repo_with_sibling
+    config = cfg_for(repo / 'proj', rev=first)
+    config['schematic'] = None
+    ref, manifest = snap(config, tmp_path / 'run')
+    assert (ref.parent / 'shared_lib/fp.pretty/R.kicad_mod').read_text() == '(footprint R v1)\n'
+    assert manifest['sheet_instances'] == 0
+    assert manifest['schematic_files'] == []
+    assert manifest['library_issues'] == []
+    assert manifest['revision_export']['commit'] == first
+    assert all(link['pinned'] for link in manifest['library_links'])
+
+
 def test_rev_untracked_sibling_is_an_issue_not_a_working_tree_read(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()

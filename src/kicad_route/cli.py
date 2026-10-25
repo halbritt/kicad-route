@@ -178,24 +178,10 @@ def resolve_input(args):
 
 def snapshot_input(cfg, run_dir):
     """reference/<proj>: the project snapshot (sheets, rules, library tables, linked libraries)."""
-    if cfg.get("schematic"):
-        dst, manifest = make_snapshot(cfg, run_dir)
-        ref_root = run_dir / "reference"
-        (run_dir / "snapshot").rename(ref_root)
-        return ref_root / dst.name, manifest
-    # No schematic: copy the board directory's KiCad files only (parity becomes UNSUPPORTED).
-    src, commit, _ = (export_revision(cfg, run_dir) if cfg.get("rev") else (cfg["path"], None, None))
-    dst = run_dir / "reference" / cfg["path"].name
-    dst.mkdir(parents=True)
-    for f in src.iterdir():
-        if f.is_file() and (f.suffix in KICAD_SUFFIXES or f.name.endswith("-lib-table")):
-            shutil.copy2(f, dst / f.name)
-    manifest = {"project": cfg["name"], "source_dir": str(cfg["path"]),
-                "source": f"git revision {cfg['rev']} ({commit})" if commit else "working tree",
-                "source_git_head": commit or common.git(cfg["path"], "rev-parse", "HEAD"),
-                "files": {p.name: common.sha256(p) for p in sorted(dst.iterdir()) if p.is_file()}}
-    common.write_json(run_dir / "snapshot.json", manifest)  # the reference hashes, as make_snapshot records them
-    return dst, manifest
+    dst, manifest = make_snapshot(cfg, run_dir)
+    ref_root = run_dir / "reference"
+    (run_dir / "snapshot").rename(ref_root)
+    return ref_root / dst.name, manifest
 
 
 def input_fingerprint(manifest):
@@ -2581,7 +2567,7 @@ def add_route_args(p):
     p.add_argument("--diff-pairs", choices=["auto"], help="builtin: detect native differential pairs, route pairs first, "
                    "and exclude all pair members from single-ended routing (default off)")
     p.add_argument("--pair-impedance", type=float, metavar="OHM",
-                   help="synthesize nominal differential microstrip width on one explicit outer pair layer")
+                   help="synthesize nominal differential width on one explicit outer or symmetric inner pair layer")
     p.add_argument("--impedance-tolerance", type=float, metavar="PERCENT",
                    help="required nominal impedance tolerance; all impedance controls must be supplied")
     p.add_argument("--impedance-reference", metavar="NET", help="exact adjacent reference-plane net")
