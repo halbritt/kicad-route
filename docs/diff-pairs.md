@@ -180,3 +180,29 @@ For inner coupled trunks, coverage includes the complete corridor between the
 outer edges of both traces. A split only between the pair members is rejected
 as well as a split beneath either trace. Terminal antipad permission does not
 apply to this coupled corridor.
+
+## Single-ended buses alongside pairs
+
+`--bus` enables the maintained geometric bus detector, middle-out ordering and
+shared-corridor/neighbor attraction for the single-ended routing pass. It can
+be combined with `--diff-pairs auto`: pair members are routed first, protected,
+and excluded from bus scope. Omission keeps the previous routing behavior.
+
+Optional `--bus-detection-radius MM` and `--bus-attraction-radius MM` default to
+5 mm; `--bus-attraction-bonus N` defaults to 5000 and `--bus-min-nets N` to 2.
+The existing geometric filter can require at least three coherent members even
+when the raw clustering minimum is two. These are search preferences; no native
+rule, net identity or authored placement changes. Invalid/nonfinite bounds,
+controls without `--bus`, conflicting raw backend flags and other backends
+refuse before routing.
+
+The actual single-ended process retains its native net-story diagnostic and
+reports observed groups under `process.bus_routing`, including the diagnostic
+and raw-board hashes. Missing diagnostics cannot establish a successful bus
+operation. Geometric membership is not electrical bus identity, length/time
+matching or signal-integrity acceptance. Final saved connectivity, geometry and
+preservation are still graded independently by native checks.
+
+`fixtures/bus_routing` and `tests/test_bus_routing.py` exercise eight lanes, a
+third terminal, an unrelated parallel connection, a native obstacle, paired
+scope separation, invalid controls and rejection of a missing saved lane.

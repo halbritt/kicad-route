@@ -994,6 +994,29 @@ def ledger_path(args):
     return Path(given).expanduser().resolve() if given else out_path("ledger.jsonl")
 
 
+def bus_settings(args):
+    """Opt-in geometric search controls; native electrical rules remain unchanged."""
+    defaults = {"detection_radius": 5.0, "attraction_radius": 5.0,
+                "attraction_bonus": 5000, "min_nets": 2}
+    values = {key: getattr(args, "bus_" + key, None) for key in defaults}
+    if not getattr(args, "bus", False):
+        if any(value is not None for value in values.values()):
+            raise ValueError("bus controls require --bus")
+        return None
+    if args.backend != "builtin":
+        raise ValueError("--bus requires the builtin engine")
+    values = {key: defaults[key] if value is None else value for key, value in values.items()}
+    if any(not math.isfinite(values[key]) or values[key] < 0.000001
+           for key in ("detection_radius", "attraction_radius")):
+        raise ValueError("bus radii must be finite and at least 0.000001 mm")
+    if values["min_nets"] < 2 or values["attraction_bonus"] < 0:
+        raise ValueError("bus minimum nets must be at least two and attraction bonus nonnegative")
+    flags = {"--bus", *("--bus-" + key.replace("_", "-") for key in defaults), "--ordering"}
+    if any(arg.split("=", 1)[0] in flags for arg in args.backend_arg or []):
+        raise ValueError("--bus controls cannot also be supplied through --backend-arg")
+    return values
+
+
 @common.tool_environment_scope()
 def run_attempt(args):
     engine.require_runtime()
@@ -1015,6 +1038,7 @@ def run_attempt(args):
     try:
         matching = diff_pairs.matching_settings(args)
         impedance = pair_impedance.settings(args)
+        bus = bus_settings(args)
     except ValueError as exc:
         contract.refuse("usage", str(exc))
     pair_layers = getattr(args, "pair_layers", None)
@@ -1120,6 +1144,8 @@ def run_attempt(args):
         settings["pair_impedance"] = impedance_plan
     if grid_step is not None:
         settings["grid_step_mm"] = grid_step
+    if bus is not None:
+        settings["bus"] = bus
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
     floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
     if floor_rec and floor_rec["floor_violated"]:
@@ -1544,6 +1570,11 @@ def krt_route(work, board, scope, facts, settings):
         argv += ["--nets", *netnames.krt_patterns(scope, facts["nets"])]  # exact, argparse-safe
     argv += settings["backend_args"]
     env.update(settings.get("backend_env") or {})
+    if settings.get("bus") is not None:
+        argv += ["--bus"]
+        for key, value in settings["bus"].items():
+            argv += ["--bus-" + key.replace("_", "-"), str(value)]
+        env["KICAD_NET_STORY"] = "1"
     locks = None
     if settings["protect"] in ("existing", "human"):
         # KRT never touches locked copper, but its rescue path reworks unlocked input
@@ -1608,6 +1639,17 @@ def krt_route(work, board, scope, facts, settings):
                                "budget reached: KRT stopped early and wrote the board as it stood")
     if proc["status"] == PASS and not output.exists():
         proc.update(status=FAIL, reasons=proc["reasons"] + ["KRT wrote no output board"])
+    if proc["status"] == PASS and settings.get("bus") is not None:
+        story_path = output.with_name(output.stem + "_netstory.json")
+        story = load_json(story_path)
+        if (not isinstance(story, dict) or not isinstance(story.get("bus_groups"), dict)
+                or story.get("board") != str(output)):
+            proc.update(status=FAIL, reasons=proc["reasons"] + ["KRT wrote no matching bus-routing diagnostics"])
+        else:
+            proc["bus_routing"] = {"groups": story["bus_groups"],
+                "diagnostics": str(story_path), "sha256": common.sha256(story_path),
+                "raw_board_sha256": common.sha256(output),
+                "meaning": "Geometric grouping and corridor search; no electrical bus identity or timing claim"}
     proc['effective_configuration'] = configuration_evidence.inspect(
         work / configuration_evidence.MANIFEST, config_request, output)
     if locks is not None and proc["status"] == PASS:
@@ -2566,6 +2608,11 @@ def add_route_args(p):
     p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
     p.add_argument("--diff-pairs", choices=["auto"], help="builtin: detect native differential pairs, route pairs first, "
                    "and exclude all pair members from single-ended routing (default off)")
+    p.add_argument("--bus", action="store_true", help="builtin: group single-ended nets geometrically and plan shared routing corridors")
+    p.add_argument("--bus-detection-radius", type=float, metavar="MM", help="bus endpoint clustering radius (default 5 mm)")
+    p.add_argument("--bus-attraction-radius", type=float, metavar="MM", help="bus neighbor attraction radius (default 5 mm)")
+    p.add_argument("--bus-attraction-bonus", type=int, metavar="N", help="bus search cost bonus (default 5000)")
+    p.add_argument("--bus-min-nets", type=int, metavar="N", help="minimum raw bus cluster size (default 2; geometric filtering may require more)")
     p.add_argument("--pair-impedance", type=float, metavar="OHM",
                    help="synthesize nominal differential width on one explicit outer or symmetric inner pair layer")
     p.add_argument("--impedance-tolerance", type=float, metavar="PERCENT",
