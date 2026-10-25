@@ -8,6 +8,31 @@ import pytest
 
 from helpers import ROOT, cli, run, tree_hash
 
+
+def test_engine_whole_name_globs_and_public_literal_encoding(tmp_path):
+    from kicad_route import cli as router, length_groups
+    names = ['A[0]', 'A*', 'A.', '!RST', '\\!RST', 'A?', 'A0', '-P', '/x/A*', '/x/A0']
+    groups = [['A[0]', 'A*'], ['!RST', '\\!RST'], ['A?', '-P'], ['/x/A*', 'A0']]
+    inputs = []
+    for group in groups:
+        args = length_groups.backend_args(dict(groups=[group], tolerance_mm=.1, amplitude_mm=1, spacing_widths=2))
+        inputs.append(dict(patterns=args[1:args.index('--length-match-tolerance')], expected=group))
+    inputs += [dict(patterns=['A[0-9]'], expected=['A0']),
+               dict(patterns=['/x/A*'], expected=['/x/A*', '/x/A0']),
+               dict(patterns=['A?'], expected=['A*', 'A.', 'A?', 'A0']),
+               dict(patterns=['a0'], expected=[])]
+    request = tmp_path / 'request.json'; output = tmp_path / 'result.json'
+    request.write_text(json.dumps(dict(names=names, inputs=inputs)))
+    subprocess.run([str(router.route_python()), '-c', '''import json,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from length_matching import find_nets_matching_patterns
+r=json.loads(Path(sys.argv[2]).read_text())
+Path(sys.argv[3]).write_text(json.dumps([find_nets_matching_patterns(r['names'],g['patterns']) for g in r['inputs']]))
+''', str(router.KRT_DIR / 'py_router'), str(request), str(output)], check=True,
+        capture_output=True, timeout=30)
+    assert [sorted(row) for row in json.loads(output.read_text())] == [sorted(g['expected']) for g in inputs]
+
 ARGS = ('--diff-pairs', 'auto', '--length-match-group', 'DQ0', 'DQ1', 'DQ2', 'DQ3',
         '--group-match-tolerance', '.1', '--group-meander-amplitude', '3',
         '--grid-step', '.1', '--budget', '180')
@@ -133,6 +158,34 @@ def test_revalidation_reads_native_paths_again_without_overwriting_evidence(matc
     assert measured['status'] == 'PASS'
     assert measured['board_sha256'] == result['validation']['candidate_board_sha256']
     assert len(measured['groups'][0]['measurements']) == 4
+
+
+def test_exact_group_names_preserve_active_low_and_literal_glob_characters(tmp_path):
+    source = tmp_path / 'input'
+    shutil.copytree(ROOT / 'fixtures/group_matching', source)
+    mapping = tmp_path / 'rename.json'
+    mapping.write_text(json.dumps({'DQ0': '!DQ0', 'DQ1': 'DQ*', 'DQ2': 'DQ.', 'DQ3': '/sheet/DQ*'}))
+    project = (source / 'group.kicad_pro').read_bytes()
+    subprocess.run([sys.executable, str(ROOT / 'src/kicad_route/kicad/rename_nets.py'),
+                    str(source / 'group.kicad_pcb'), str(mapping)], check=True,
+                    capture_output=True, timeout=30)
+    (source / 'group.kicad_pro').write_bytes(project)
+    (source / 'group.kicad_dru').write_text('(version 1)\n'
+        '(rule "signal width floor" (constraint track_width (min 0.25mm)))\n'
+        '(rule "required group skew" (condition "A.fromTo(\'J1-1\', \'J2-1\') || A.fromTo(\'J3-1\', \'J4-1\')") '
+        '(constraint skew (max 0.1mm)))\n')
+    before = tree_hash(source)
+    done, directory, result = run('run', '--dir', str(source), '--diff-pairs', 'auto',
+        '--length-match-group', '!DQ0', 'DQ*', '--group-match-tolerance', '.1',
+        '--group-meander-amplitude', '3', '--grid-step', '.1', '--budget', '180')
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert tree_hash(source) == before
+    assert result['validation']['length_matching']['status'] == 'PASS'
+    summary = json.loads(next((directory / 'work').rglob('krt-out/summary.json')).read_text())
+    group, = summary['length_match_groups']
+    assert group['members'] == ['!DQ0', 'DQ*']
+    native = json.loads((directory / 'validate/candidate-drc.json').read_text())
+    assert native['violations'] == [] and native['unconnected_items'] == []
 
 
 def test_group_tail_preserves_pair_coupling_and_separate_matching_controls(tmp_path):

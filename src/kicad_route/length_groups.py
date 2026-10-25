@@ -82,10 +82,13 @@ def paths(spec, facts, scope, pairs=()):
     return result
 
 
-def backend_args(spec, facts):
+def backend_args(spec):
     argv = []
     for group in spec['groups']:
-        argv += ['--length-match-group', *netnames.krt_patterns(group, facts['nets'])]
+        # Matching globs cover the whole name and have no ! exclusion syntax.
+        patterns = [netnames.exact(name) for name in group]
+        patterns = [pattern[1:] if name.startswith('!') else pattern for name, pattern in zip(group, patterns)]
+        argv += ['--length-match-group', *patterns]
     return argv + ['--length-match-tolerance', str(spec['tolerance_mm']),
                    '--meander-amplitude', str(spec['amplitude_mm']),
                    '--meander-spacing', str(spec['spacing_widths'])]

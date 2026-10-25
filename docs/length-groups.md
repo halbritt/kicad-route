@@ -15,6 +15,13 @@ underscores or periods so they are exact native `fromTo` selectors. Duplicate
 members, orphan controls and conflicting raw backend matching flags refuse
 before routing. Other native geometry and rule checks remain active.
 
+Literal active-low names and glob characters are escaped for matching's
+case-sensitive, whole-name shell-glob semantics. Matching does not inherit
+the routing filter's leaf-name expansion or `!` exclusion syntax. The maintained
+backend's raw matching patterns use standard `*`, `?` and bracket classes;
+`[*]`, `[?]` and `[[]` select literal glob characters. The public operation
+performs that encoding for exact names automatically.
+
 `settings.length_match` records the explicit groups, `tolerance_mm`,
 `amplitude_mm` and `spacing_widths`. The maintained engine adds meanders.
 `validation.length_matching` independently checks the saved/refilled native

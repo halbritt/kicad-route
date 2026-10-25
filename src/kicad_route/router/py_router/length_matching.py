@@ -2341,41 +2341,8 @@ def apply_time_matching_to_group(
 
 
 def match_net_pattern(net_name: str, pattern: str) -> bool:
-    """
-    Check if net name matches a pattern.
-
-    Patterns support:
-    - * : matches any characters
-    - [0-9] : matches digit range
-
-    Args:
-        net_name: Actual net name
-        pattern: Pattern with wildcards
-
-    Returns:
-        True if matches
-    """
-    # Convert pattern to regex
-    # First, handle [0-9] style ranges
-    regex_pattern = pattern
-
-    # Escape special regex chars except * and []
-    # Process backslash first to avoid re-escaping
-    regex_pattern = regex_pattern.replace('\\', '\\\\')
-    for char in '.^$+?{}|()':
-        regex_pattern = regex_pattern.replace(char, '\\' + char)
-
-    # Convert * to .*
-    regex_pattern = regex_pattern.replace('*', '.*')
-
-    # Anchor the pattern
-    regex_pattern = '^' + regex_pattern + '$'
-
-    try:
-        return bool(re.match(regex_pattern, net_name))
-    except re.error:
-        # Fall back to simple fnmatch
-        return fnmatch.fnmatchcase(net_name, pattern)
+    """Case-sensitive whole-name glob; [*], [?] and [[] select literal tokens."""
+    return fnmatch.fnmatchcase(net_name, pattern)
 
 
 def find_nets_matching_patterns(all_net_names: List[str], patterns: List[str]) -> List[str]:

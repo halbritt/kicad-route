@@ -1593,7 +1593,7 @@ def krt_route(work, board, scope, facts, settings):
             argv += ["--bus-" + key.replace("_", "-"), str(value)]
         env["KICAD_NET_STORY"] = "1"
     if settings.get("length_match") is not None:
-        argv += length_groups.backend_args(settings['length_match'], facts)
+        argv += length_groups.backend_args(settings['length_match'])
     locks = None
     if settings["protect"] in ("existing", "human"):
         # KRT never touches locked copper, but its rescue path reworks unlocked input
