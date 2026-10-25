@@ -1138,6 +1138,12 @@ def run_attempt(args):
                      for pair, planned in zip(pairs, impedance_plan["pairs"])]
         except ValueError as exc:
             refuse("input", str(exc))
+    paired_names = {name for pair in pairs or () for name in (pair['p'], pair['n'])}
+    if group_matching and any(set(group) & paired_names for group in group_matching['groups']):
+        if matching and matching != {key: group_matching[key] for key in ('tolerance_mm', 'amplitude_mm')}:
+            refuse('input', 'coupled group and intra-pair matching share backend tolerance and amplitude; declare identical controls')
+        if impedance_plan and len({(pair['width_mm'], pair['gap_mm']) for pair in pairs}) != 1:
+            refuse('input', 'coupled groups with different solved impedance geometries are not yet supported')
     if backend.get("preflight"):  # what the backend's bridge cannot carry, before it starts
         msg = backend["preflight"](ref_dir / board_name, ref_facts, run_dir)
         if msg:
@@ -2638,13 +2644,13 @@ def add_route_args(p):
     p.add_argument("--bus-attraction-bonus", type=int, metavar="N", help="bus search cost bonus (default 5000)")
     p.add_argument("--bus-min-nets", type=int, metavar="N", help="minimum raw bus cluster size (default 2; geometric filtering may require more)")
     p.add_argument("--length-match-group", action="append", nargs="+", metavar="NET",
-                   help="builtin: match an explicit group of two-terminal single-ended nets; repeat for multiple groups")
+                   help="builtin: match explicit two-terminal nets or complete coupled pairs; repeat for multiple groups")
     p.add_argument("--length-match-group-json", dest="length_match_group", action="append", type=json.loads,
                    metavar="JSON", help="same group as a JSON array of exact names; supports names beginning with '-' and replay")
     p.add_argument("--group-match-tolerance", type=float, metavar="MM", help="required native group path skew (default 0.1 mm)")
     p.add_argument("--group-delay-tolerance", type=float, metavar="PS", help="match nominal delay using authored native tuning profiles; excludes mm tolerance")
-    p.add_argument("--group-meander-amplitude", type=float, metavar="MM", help="single-ended group meander amplitude (default 1 mm)")
-    p.add_argument("--group-meander-spacing", type=float, metavar="WIDTHS", help="single-ended meander arm center spacing in track widths (default 2)")
+    p.add_argument("--group-meander-amplitude", type=float, metavar="MM", help="group meander amplitude (default 1 mm)")
+    p.add_argument("--group-meander-spacing", type=float, metavar="WIDTHS", help="group meander arm center spacing in track widths (default 2)")
     p.add_argument("--pair-impedance", type=float, metavar="OHM",
                    help="synthesize nominal differential width on one explicit outer or symmetric inner pair layer")
     p.add_argument("--impedance-tolerance", type=float, metavar="PERCENT",

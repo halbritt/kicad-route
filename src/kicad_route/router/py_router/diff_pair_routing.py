@@ -4927,6 +4927,7 @@ def route_diff_pair_with_obstacles(pcb_data: PCBData, diff_pair: DiffPairNet,
         'debug_stub_arrows': debug_stub_arrows,  # For User.4 layer
         # Additional data for length matching meander regeneration
         'is_diff_pair': True,
+        'pair_geometry': {'track_width': config.track_width, 'diff_pair_gap': config.diff_pair_gap},
         'centerline_path_grid': simplified_path,  # Grid coords for meander insertion
         'p_sign': p_sign,
         'n_sign': n_sign,

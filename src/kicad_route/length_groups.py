@@ -1,4 +1,4 @@
-"""Explicit single-ended length groups, graded on final native fromTo paths."""
+"""Explicit length groups, graded on final native fromTo paths."""
 import argparse
 import json
 import math
@@ -68,12 +68,19 @@ def paths(spec, facts, scope, pairs=()):
     paired = {name for pair in pairs for name in (pair['p'], pair['n'])}
     result = []
     for group in spec['groups']:
+        coupled = set(group) & paired
+        if coupled:
+            if coupled != set(group):
+                raise ValueError('a coupled pair member cannot share a matching group with a single-ended net')
+            members = [pair for pair in pairs if {pair['p'], pair['n']} & coupled]
+            if len(members) < 2 or any(not {p['p'], p['n']} <= coupled for p in members):
+                raise ValueError('a coupled matching group needs both members of at least two pairs')
+            if 'tolerance_ps' in spec:
+                raise ValueError('coupled group delay profiles are not yet qualified; use length matching')
         resolved = []
         for name in group:
             if name not in facts['nets'] or name not in scope:
                 raise ValueError(f'length group member {name!r} is missing or outside routing scope')
-            if name in paired:
-                raise ValueError(f'length group member {name!r} is a coupled pair member; this operation is single-ended')
             if any(zone.get('net') == name for zone in facts.get('zones', [])):
                 raise ValueError(f'length group member {name!r} has zone copper, outside the trace-path measurement model')
             if any(item.get('net') == name for item in facts.get('copper_graphics', [])):
@@ -202,7 +209,7 @@ def check(board, output, spec, *, preflight=False):
                 requirement=spec, groups=groups,
                 **(dict(profiles=models, project_sha256=common.sha256(board.with_suffix('.kicad_pro'))) if time_domain else {}),
                 measurement='KiCad fromTo paths; zero-length findings prove measurement coverage, native skew decides acceptance',
-                limits='Explicit two-terminal single-ended groups; nominal authored profile delays only; no SI, inter-pair or AC-composed matching claim')
+                limits='Explicit two-terminal path groups; nominal authored single-ended profile delays only; no SI or AC-composed matching claim')
 
 
 def main():

@@ -1,14 +1,16 @@
-# Single-ended length groups
+# Native path-length groups
 
 `run --length-match-group DQ0 DQ1 DQ2 DQ3` requests matching of exact net names
 with the builtin engine. Repeat the flag for multiple groups. Optional
 `--group-match-tolerance MM`, `--group-meander-amplitude MM` and
 `--group-meander-spacing WIDTHS` default to 0.1 mm, 1 mm and 2 track widths.
 Spacing is meander arm center spacing. Controls must be finite and positive;
-spacing must be at least one width. They are separate from intra-pair controls.
+spacing must be at least one width. Single-ended groups use controls separate
+from intra-pair tuning; coupled groups share the backend tuning controls below.
 
 Every member must exist inside the requested routing scope, have exactly two
-native pad terminals, and be outside detected coupled pairs. Zone and graphical
+native pad terminals. A group may contain single-ended nets or complete detected
+pairs, as described below. Zone and graphical
 copper on a member are refused because this operation measures trace paths.
 Terminal reference and pad-number tokens must contain only letters, digits,
 underscores or periods so they are exact native `fromTo` selectors. Duplicate
@@ -49,9 +51,9 @@ terminal-to-terminal length.
 
 The executable article is [fixtures/group_matching](../fixtures/group_matching).
 This capability covers geometric two-terminal single-ended length matching.
-Propagation-time matching, inter-pair matching, AC-composed paths and multipoint
-path selection require separate qualification; this operation makes no claim
-for them or for signal integrity or manufacturing readiness.
+Nominal propagation delay and coupled pair groups have their own qualifications
+below. AC-composed and multipoint path selection remain separate work; these
+operations do not establish signal integrity or manufacturing readiness.
 
 ## Nominal propagation delay
 
@@ -86,3 +88,46 @@ calibrate a physical model, establish impedance, account for process variation,
 or prove signal integrity. KiCad does not automatically refresh delay values
 when the stackup changes. Existing geometric matching is unchanged; AC-composed,
 inter-pair and package-delay qualification remain separate work.
+
+## Coupled pair-to-pair length matching
+
+With `--diff-pairs auto`, an explicit length group can contain both members of
+at least two native pairs:
+
+```sh
+kicad-route run --dir fixtures/inter_pair_matching --diff-pairs auto \
+  --pair-layers F.Cu --grid-step .025 \
+  --length-match-group-json '["A_P","A_N","B_P","B_N"]' \
+  --group-match-tolerance .1 --group-meander-amplitude 8 --budget 180
+```
+
+The request constrains every member's useful native path. It does not measure an
+average of P/N legs. Coupled groups cannot mix single-ended members, omit a
+partner, or contain only one pair. Single-ended groups can coexist with separate
+coupled groups in the same request. Delay-profile matching of coupled groups
+and different solved impedance geometries remain unqualified combinations and
+refuse explicitly.
+
+Selected pairs share one backend invocation when coupled group tuning is
+requested, so their centerlines remain available until tuning completes. Each
+pair retains its effective native width/gap during meander reconstruction.
+Already connected pairs set the target and retain their copper. If a new pair
+fails coupled routing, the entire batch output is discarded, including any
+collateral changes. After a successful batch, pair copper is locked for later
+single-ended routing, then original lock states are restored. Ordinary runs
+without a coupled group retain the existing sequential pair passes.
+
+The backend uses one tolerance/amplitude for its group and intra-pair tuners.
+If both public controls are requested, declare identical values; conflicting
+controls refuse before routing. Authored native rules remain independent and
+can impose tighter limits. Final native useful-path coverage, group skew,
+per-pair geometry, connectivity and all original rules decide acceptance.
+
+The four-layer `fixtures/inter_pair_matching` article has unequal fixed
+50/60 mm pair paths. Its explicit software assumptions include a 3 mm uncoupled
+budget (about 5 percent of the nominal useful path), not a physical SI claim.
+The earlier arbitrary 1 mm assumption is retained as an honest rejection case:
+one paired meander produces 2.0833 mm of native uncoupled bend extent. No result
+under the stricter rule is accepted. Native differing-class geometry, existing
+long-pair preservation, insufficient room, partial membership, conflicting
+controls and atomic failure recovery are executable qualification cases.

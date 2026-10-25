@@ -1,0 +1,67 @@
+(footprint "Terminal2"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(locked yes)
+	(layer "F.Cu")
+	(property "Reference" "J1"
+		(at 0 -2 0)
+		(layer "F.SilkS")
+		(uuid "36229c92-a68b-447f-a27d-13470e937620")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Value" "Qualification terminal pair"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "a2ab71fc-7053-4716-9264-cea1189e3cda")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "5db98a2f-0773-44a2-ad6a-eb2742f554a9")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "a234c768-f9ea-40bd-8bcb-e3c0b1abc736")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(pad "1" smd rect
+		(at 0 0)
+		(size 0.25 0.25)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "371998db-228d-4ca7-8280-7d0887692606")
+	)
+	(pad "2" smd rect
+		(at 0 0.6)
+		(size 0.25 0.25)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "c9b30f8c-225b-4a24-85d8-678d9f9e5158")
+	)
+	(embedded_fonts no)
+)

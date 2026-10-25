@@ -3,7 +3,7 @@ import math
 import shutil
 import time
 
-from . import common, netnames, stall
+from . import common, length_groups, netnames, stall
 
 NM = 1_000_000
 
@@ -146,7 +146,7 @@ def route(work, board, scope, facts, settings, api):
         restores.append(record)
         return True
 
-    def lock_pair(target, directory, pair):
+    def lock_pairs(target, directory, pairs):
         keys_path = directory / "keys.json"
         rec = common.run_cmd([api.pcbnew_python(), api.KICAD_SCRIPTS / "locks.py", "keys", target, keys_path],
                              directory, directory / "keys.log", timeout=600)
@@ -154,7 +154,8 @@ def route(work, board, scope, facts, settings, api):
         if rec["exit_code"] != 0:
             return False
         keys = common.load_json(keys_path)["keys"]
-        common.write_json(keys_path, [key for key in keys if key[1] in (pair["p"], pair["n"])])
+        members = {name for pair in pairs for name in (pair['p'], pair['n'])}
+        common.write_json(keys_path, [key for key in keys if key[1] in members])
         return lock(target, directory, keys_path)
 
     # Protect the design's copper before the first pair pass, using the same designation as route.py.
@@ -165,32 +166,52 @@ def route(work, board, scope, facts, settings, api):
         if not lock(board, initial, only):
             return fail("could not lock existing copper before differential routing")
     current = board
-    for index, pair in enumerate(settings["pairs"]):
-        p, n = pair["p"], pair["n"]
+    paired = {name for pair in settings['pairs'] for name in (pair['p'], pair['n'])}
+    matching_groups = settings.get('length_match')
+    coupled_groups = ([group for group in matching_groups['groups'] if set(group) <= paired]
+                      if matching_groups else [])
+    # Centerlines exist only inside one backend invocation. Keep the selected
+    # pair group together until tuning finishes; ordinary routing stays sequential.
+    batches = [settings['pairs']] if coupled_groups else [[pair] for pair in settings['pairs']]
+    for index, batch in enumerate(batches):
+        names = [name for pair in batch for name in (pair['p'], pair['n'])]
         directory = work / f"diff-{index:03d}"
         directory.mkdir()
-        if pair.get("initially_connected"):
-            outcomes[p] = {"status": "ALREADY_CONNECTED"}
-            if not lock_pair(current, directory, pair):
+        existing = [pair for pair in batch if pair.get('initially_connected')]
+        pending = [pair for pair in batch if not pair.get('initially_connected')]
+        if existing:
+            for pair in existing:
+                outcomes[pair['p']] = {"status": "ALREADY_CONNECTED"}
+            protected = directory / 'existing'
+            protected.mkdir()
+            if not lock_pairs(current, protected, existing):
                 return fail("could not protect pre-existing differential copper")
+        if not pending:
             continue
         remaining = settings["budget_s"] - (time.monotonic() - started)
         if remaining <= 0:
-            outcomes[p] = {"status": "BUDGET_EXHAUSTED"}
+            for pair in pending:
+                outcomes[pair['p']] = {"status": "BUDGET_EXHAUSTED"}
             continue
         api.copy_project(current.parent, directory / "input")
         source = directory / "input" / board.name
         output = directory / board.name
         argv = [api.route_python(), api.KRT_DIR / "py_router" / "route_diff.py", source,
-                "--output", output, "--track-width", str(pair["width_mm"]),
-                "--diff-pair-gap", str(pair["gap_mm"]), "--no-short-pair-deferral", "--no-fix-drc-settings",
+                "--output", output, "--no-short-pair-deferral", "--no-fix-drc-settings",
                 "--keep-input-copper", "--no-stub-layer-swap", "--no-gnd-vias"]
+        geometries = {(pair['width_mm'], pair['gap_mm']) for pair in batch}
+        if len(geometries) == 1:
+            width, gap = next(iter(geometries))
+            argv += ['--track-width', str(width), '--diff-pair-gap', str(gap)]
+        # Otherwise the backend resolves each pair's authored native class.
         matching = settings.get("intra_pair_match")
         if settings.get("pair_layers") is not None:
             argv += ["--layers", *settings["pair_layers"]]
         if matching is not None:
             argv += ["--diff-pair-intra-match", "--length-match-tolerance", str(matching["tolerance_mm"]),
                      "--meander-amplitude", str(matching["amplitude_mm"])]
+        if coupled_groups:
+            argv += length_groups.backend_args({**matching_groups, 'groups': coupled_groups})
         if settings.get("max_iterations"):
             argv += ["--max-iterations", str(settings["max_iterations"])]
         if settings.get("grid_step_mm") is not None:
@@ -199,7 +220,7 @@ def route(work, board, scope, facts, settings, api):
             default = max((net["clearance"] or 0 for net in facts["nets"].values()
                            if net["netclass"] == "Default"), default=0) / NM
             argv += ["--clearance", str(max(default, settings["default_clearance_mm"]))]
-        argv += ["--nets", *netnames.krt_patterns([p, n], facts["nets"])]
+        argv += ["--nets", *netnames.krt_patterns(names, facts["nets"])]
         env = {**api.KRT_ENV, **api.KRT_PROTECT_EXISTING_ENV, **settings["backend_env"]}
         env.update(api.krt_artwork_environment(directory, source, facts))
         log = directory / "route.log"
@@ -211,30 +232,37 @@ def route(work, board, scope, facts, settings, api):
         proc["unsupported_reported"].extend(api.krt_unsupported_rules(text))
         report = api.tagged_json(text, "JSON_SUMMARY")
         if rec.get("error") or rec.get("killed") or rec.get("exit_code") != 0 or not output.exists():
-            outcomes[p] = {"status": "PROCESS_FAILED"}
-            return fail(f"KRT differential router failed for {p}, {n} (see {common.rel(log)})")
+            for pair in pending:
+                outcomes[pair['p']] = {"status": "PROCESS_FAILED"}
+            return fail(f"KRT differential router failed for {names} (see {common.rel(log)})")
         if not isinstance(report, dict) or not isinstance(report.get("pair_reports"), list):
-            outcomes[p] = {"status": "PROCESS_FAILED"}
-            return fail(f"KRT differential router wrote no usable pair report for {p}, {n}")
-        member = next((r for r in report["pair_reports"] if isinstance(r, dict) and
-                       (r.get("p_net"), r.get("n_net")) == (p, n)), None)
-        if member is None:
-            outcomes[p] = {"status": "PROCESS_FAILED", "report": report}
-            return fail(f"KRT differential router omitted the pair report for {p}, {n}")
-        accepted = (member.get("outcome") == "coupled" and
+            for pair in pending:
+                outcomes[pair['p']] = {"status": "PROCESS_FAILED"}
+            return fail(f"KRT differential router wrote no usable pair report for {names}")
+        accepted = True
+        for pair in pending:
+            p, n = pair['p'], pair['n']
+            member = next((r for r in report["pair_reports"] if isinstance(r, dict) and
+                           (r.get("p_net"), r.get("n_net")) == (p, n)), None)
+            if member is None:
+                for affected in pending:
+                    outcomes[affected['p']] = {"status": "PROCESS_FAILED", "report": report}
+                return fail(f"KRT differential router omitted the pair report for {p}, {n}")
+            accepted = accepted and (member.get("outcome") == "coupled" and
                     member.get("escape") != "hybrid" and
                     member.get("coupled_terminals") is not False and
                     not member.get("member_audit_mismatch") and not member.get("no_coupled_trunk") and
                     not member.get("incomplete_members") and
                     not (report.get("single_ended_fallback") or {}).get("routed"))
-        outcomes[p] = {"status": "COUPLED" if accepted else "REJECTED", "report": report}
+        for pair in pending:
+            outcomes[pair['p']] = {"status": "COUPLED" if accepted else "REJECTED", "report": report}
         if not accepted:
             continue  # Discard internal single-ended fallback and incomplete output, including its side effects.
         # Carry ORIGINAL project rules to the next pass, never KRT's sibling writebacks.
         api.copy_project(current.parent, directory / "accepted")
         current = directory / "accepted" / board.name
         shutil.copyfile(output, current)
-        if not lock_pair(current, directory, pair):
+        if not lock_pairs(current, directory, batch):
             return fail("could not protect differential copper before the next routing pass")
 
     paired = {name for pair in settings["pairs"] for name in (pair["p"], pair["n"])}
@@ -244,6 +272,12 @@ def route(work, board, scope, facts, settings, api):
         directory = work / "single"
         directory.mkdir()
         tail_settings = {**settings, "diff_pairs": None, "mode": "selected", "budget_s": remaining}
+        if matching_groups:
+            groups = [group for group in matching_groups['groups'] if set(group) <= set(single)]
+            if groups:
+                tail_settings['length_match'] = {**matching_groups, 'groups': groups}
+            else:
+                tail_settings.pop('length_match', None)
         # Earlier pair passes already applied --protect human's original designation.
         tail_settings.pop("protect_only", None)
         if settings["protect"] == "human":

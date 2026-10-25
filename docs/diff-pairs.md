@@ -26,10 +26,13 @@ Before routing, exit 4 refuses:
   `--backend-arg` with this option. Verbatim backend arguments could override
   pair selection or geometry. `--backend-env` remains available and recorded.
 
-Each pair gets its own `route_diff.py` process with explicit class width and gap,
+Ordinary pair routing gives each pair its own `route_diff.py` process with explicit class width and gap,
 unchanged project rules, no DRC-settings writeback, no ground-via generation,
 no stub layer swaps, and existing copper protected according to `--protect`.
 Pairs run in sorted positive-name order and share the attempt's backend budget.
+Explicit [coupled length groups](length-groups.md#coupled-pair-to-pair-length-matching)
+keep selected pairs in one process so tuning can use all their centerlines;
+final native rules still grade every pair and useful path.
 The adapter passes `--no-short-pair-deferral`: the backend's estimated short
 length cannot waive the explicitly selected coupling policy. A short pair gets
 a coupled attempt with the same native geometry rules. This flag does not make

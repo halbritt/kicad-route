@@ -10,7 +10,7 @@ import fnmatch
 import math
 import re
 from typing import List, Tuple, Optional, Dict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from kicad_parser import Segment, PCBData
 from routing_config import GridRouteConfig
@@ -3365,6 +3365,13 @@ def get_safe_amplitude_for_diff_pair(
     return 0
 
 
+def _pair_tuning_config(result, config):
+    # Routing may have resolved a per-pair netclass width/gap. Regeneration must
+    # use that same geometry, rather than the shared run's default class.
+    geometry = result.get('pair_geometry')
+    return replace(config, **geometry) if geometry is not None else config
+
+
 def apply_meanders_to_diff_pair(
     result: dict,
     extra_length: float,
@@ -3393,6 +3400,7 @@ def apply_meanders_to_diff_pair(
     """
     from routing_config import GridCoord
 
+    config = _pair_tuning_config(result, config)
     # Extract data from result
     centerline_grid = result.get('centerline_path_grid')
     if not centerline_grid or len(centerline_grid) < 2:
@@ -3701,6 +3709,8 @@ def apply_intra_pair_length_matching(
     Returns:
         Modified result dict with adjusted segments
     """
+    config = _pair_tuning_config(result, config)
+
     def _stat(st, reason=None, delta=None, before=None):
         if status is not None:
             status.update({'status': st, 'reason': reason,
