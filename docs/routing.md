@@ -59,6 +59,14 @@ MCP is not used: both backends have working local CLIs, and agents drive kicad-r
 through its CLI (or a project's make targets). Neither backend contacts the network
 during an attempt (below).
 
+When the project omits a Default-class via diameter, the built-in router uses
+0.60 mm, matching KiCad 10's implicit class. The former 0.50 mm fallback could
+complete connections but fail the native net-class preservation check. Declared
+project values still take precedence. `test_native_default_geometry.py` checks
+fallback dimensions against the installed native API; the retained four-layer
+reproduction is `build/native-default-vias` (zero opens, all preservation checks
+pass after this correction).
+
 ### What the adapters switch off
 
 The built-in router relaxes by default. The adapter (`KRT_FLAGS` / `KRT_ENV` in `kicad_route/cli.py`) passes
