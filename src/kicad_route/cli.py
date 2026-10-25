@@ -102,7 +102,7 @@ from . import evidence
 from . import configuration_evidence
 from . import copper_ownership
 from . import engine
-from . import diff_pairs, pair_impedance
+from . import diff_pairs, pair_impedance, length_groups
 from . import floor
 from . import provenance
 from . import sandbox  # --require-readonly-state, doctor's sandbox block (docs/sandbox.md)
@@ -882,6 +882,15 @@ def validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits=N
                 v["reasons"].append(str(exc))
         common.write_json(out_dir / "pairs.json", pair_records)
         diff_pairs.apply_routing(routing, pair_records)
+    if attempt['settings'].get('length_match') is not None:
+        try:
+            measured = length_groups.run(board, out_dir / 'length-matching.json',
+                                         attempt['settings']['length_match'], sys.modules[__name__])
+            v['length_matching'] = measured
+            if measured.get('status') != PASS or measured.get('board_sha256') != common.sha256(board):
+                v['reasons'].append('final native group matching failed: ' + '; '.join(measured.get('defects', [])))
+        except ValueError as exc:
+            v['reasons'].append(str(exc))
     baseline_report = run_dir / attempt["baseline"]["report"] if attempt["baseline"].get("report") else None
     expected = baselinecache.identity(attempt["input_fingerprint"], board_name,
                                       pcbnew_build=ref_facts.get("kicad_version")) if attempt.get("input_fingerprint") else None
@@ -1039,6 +1048,7 @@ def run_attempt(args):
         matching = diff_pairs.matching_settings(args)
         impedance = pair_impedance.settings(args)
         bus = bus_settings(args)
+        group_matching = length_groups.settings(args)
     except ValueError as exc:
         contract.refuse("usage", str(exc))
     pair_layers = getattr(args, "pair_layers", None)
@@ -1107,6 +1117,11 @@ def run_attempt(args):
             refuse("state", "KRT route_diff.py is not installed")
     if matching is not None and not pairs:
         refuse("input", "intra-pair matching requires at least one detected differential pair")
+    if group_matching is not None:
+        try:
+            length_groups.paths(group_matching, ref_facts, set(scope), pairs or ())
+        except ValueError as exc:
+            refuse("input", str(exc))
     impedance_plan = None
     if impedance is not None:
         try:
@@ -1146,6 +1161,8 @@ def run_attempt(args):
         settings["grid_step_mm"] = grid_step
     if bus is not None:
         settings["bus"] = bus
+    if group_matching is not None:
+        settings["length_match"] = group_matching
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
     floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
     if floor_rec and floor_rec["floor_violated"]:
@@ -1575,6 +1592,8 @@ def krt_route(work, board, scope, facts, settings):
         for key, value in settings["bus"].items():
             argv += ["--bus-" + key.replace("_", "-"), str(value)]
         env["KICAD_NET_STORY"] = "1"
+    if settings.get("length_match") is not None:
+        argv += length_groups.backend_args(settings['length_match'], facts)
     locks = None
     if settings["protect"] in ("existing", "human"):
         # KRT never touches locked copper, but its rescue path reworks unlocked input
@@ -2613,6 +2632,11 @@ def add_route_args(p):
     p.add_argument("--bus-attraction-radius", type=float, metavar="MM", help="bus neighbor attraction radius (default 5 mm)")
     p.add_argument("--bus-attraction-bonus", type=int, metavar="N", help="bus search cost bonus (default 5000)")
     p.add_argument("--bus-min-nets", type=int, metavar="N", help="minimum raw bus cluster size (default 2; geometric filtering may require more)")
+    p.add_argument("--length-match-group", action="append", nargs="+", metavar="NET",
+                   help="builtin: match an explicit group of two-terminal single-ended nets; repeat for multiple groups")
+    p.add_argument("--group-match-tolerance", type=float, metavar="MM", help="required native group path skew (default 0.1 mm)")
+    p.add_argument("--group-meander-amplitude", type=float, metavar="MM", help="single-ended group meander amplitude (default 1 mm)")
+    p.add_argument("--group-meander-spacing", type=float, metavar="WIDTHS", help="single-ended meander arm center spacing in track widths (default 2)")
     p.add_argument("--pair-impedance", type=float, metavar="OHM",
                    help="synthesize nominal differential width on one explicit outer or symmetric inner pair layer")
     p.add_argument("--impedance-tolerance", type=float, metavar="PERCENT",

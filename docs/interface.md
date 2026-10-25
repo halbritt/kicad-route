@@ -442,6 +442,10 @@ bundle and does not depend on the external baseline cache.
 
 ### Intra-pair length matching
 
+Single-ended groups use a separate operation described in
+[length-groups.md](length-groups.md); its controls do not change intra-pair
+matching settings.
+
 With `--diff-pairs auto`, `--diff-pair-intra-match` requests meanders on newly
 routed pair copper. Optional `--length-match-tolerance MM` (default 0.1) and
 `--meander-amplitude MM` (default 1.0) must be finite and at least 0.000001 mm.

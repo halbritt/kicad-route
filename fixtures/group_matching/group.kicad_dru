@@ -1,0 +1,3 @@
+(version 1)
+(rule "signal width floor" (constraint track_width (min 0.25mm)))
+(rule "required group skew" (condition "A.NetName == 'DQ0' || A.NetName == 'DQ1' || A.NetName == 'DQ2' || A.NetName == 'DQ3'") (constraint skew (max 0.1mm)))

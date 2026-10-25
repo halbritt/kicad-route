@@ -59,6 +59,7 @@ From a KiCad project directory:
 kicad-route run --backend builtin                          # all nets, 300 s budget
 kicad-route run --backend builtin --diff-pairs auto        # native-class pairs first, then other nets
 kicad-route run --backend builtin --diff-pairs auto --grid-step 0.025  # finer search for narrow pad escapes
+kicad-route run --backend builtin --length-match-group DQ0 DQ1 DQ2 DQ3 --group-match-tolerance 0.1
 kicad-route run --backend builtin --diff-pairs auto --pair-layers F.Cu In1.Cu In2.Cu B.Cu  # enabled pair track layers
 kicad-route run --backend freerouting --nets "/CAN*" --clearance-margin 0.01
 kicad-route run --backend builtin --rev HEAD --budget 1500 # route the committed state
