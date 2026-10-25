@@ -102,7 +102,7 @@ from . import evidence
 from . import configuration_evidence
 from . import copper_ownership
 from . import engine
-from . import diff_pairs
+from . import diff_pairs, pair_impedance
 from . import floor
 from . import provenance
 from . import sandbox  # --require-readonly-state, doctor's sandbox block (docs/sandbox.md)
@@ -886,6 +886,14 @@ def validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits=N
                 v["reasons"].append(f"intra-pair matching failed for {pair['p']}, {pair['n']}: "
                                     f"saved skew {pair['skew']} mm exceeds or cannot establish "
                                     f"{pair['matching']['tolerance_mm']} mm tolerance")
+        if attempt["settings"].get("pair_impedance") is not None:
+            try:
+                measured = pair_impedance.run(board, out_dir / "impedance.json",
+                    attempt["settings"]["pair_impedance"], sys.modules[__name__], check=True)
+                if measured["status"] != "PASS" or measured.get("board_sha256") != common.sha256(board):
+                    v["reasons"].append("saved impedance geometry/reference verification failed")
+            except ValueError as exc:
+                v["reasons"].append(str(exc))
         common.write_json(out_dir / "pairs.json", pair_records)
         diff_pairs.apply_routing(routing, pair_records)
     baseline_report = run_dir / attempt["baseline"]["report"] if attempt["baseline"].get("report") else None
@@ -1020,6 +1028,7 @@ def run_attempt(args):
         contract.refuse("usage", "--diff-pairs auto requires the builtin engine and does not accept --backend-arg")
     try:
         matching = diff_pairs.matching_settings(args)
+        impedance = pair_impedance.settings(args)
     except ValueError as exc:
         contract.refuse("usage", str(exc))
     pair_layers = getattr(args, "pair_layers", None)
@@ -1088,6 +1097,17 @@ def run_attempt(args):
             refuse("state", "KRT route_diff.py is not installed")
     if matching is not None and not pairs:
         refuse("input", "intra-pair matching requires at least one detected differential pair")
+    impedance_plan = None
+    if impedance is not None:
+        try:
+            impedance_plan = pair_impedance.run(ref_dir / board_name, run_dir / "facts" / "impedance-plan.json",
+                {"layers": pair_layers, "pairs": pairs, "requirement": impedance}, sys.modules[__name__])
+            if impedance_plan["status"] != "PASS":
+                raise ValueError("; ".join(impedance_plan["defects"]))
+            pairs = [{**pair, "width_mm": planned["width_mm"]}
+                     for pair, planned in zip(pairs, impedance_plan["pairs"])]
+        except ValueError as exc:
+            refuse("input", str(exc))
     if backend.get("preflight"):  # what the backend's bridge cannot carry, before it starts
         msg = backend["preflight"](ref_dir / board_name, ref_facts, run_dir)
         if msg:
@@ -1110,6 +1130,8 @@ def run_attempt(args):
         settings["intra_pair_match"] = matching
     if pair_layers is not None:
         settings["pair_layers"] = pair_layers
+    if impedance_plan is not None:
+        settings["pair_impedance"] = impedance_plan
     if grid_step is not None:
         settings["grid_step_mm"] = grid_step
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
@@ -2558,6 +2580,13 @@ def add_route_args(p):
     p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
     p.add_argument("--diff-pairs", choices=["auto"], help="builtin: detect native differential pairs, route pairs first, "
                    "and exclude all pair members from single-ended routing (default off)")
+    p.add_argument("--pair-impedance", type=float, metavar="OHM",
+                   help="synthesize nominal differential microstrip width on one explicit outer pair layer")
+    p.add_argument("--impedance-tolerance", type=float, metavar="PERCENT",
+                   help="required nominal impedance tolerance; all impedance controls must be supplied")
+    p.add_argument("--impedance-reference", metavar="NET", help="exact adjacent reference-plane net")
+    p.add_argument("--impedance-uncoupled", type=float, metavar="MM",
+                   help="maximum total terminal-escape length per member outside the nominal coupled geometry")
     p.add_argument("--pair-layers", nargs="+", metavar="LAYER",
                    help="auto pairs: permitted native copper layers (default F.Cu B.Cu)")
     p.add_argument("--diff-pair-intra-match", action="store_true",

@@ -52,8 +52,9 @@ selection. Lock flags are restored before grading. Pairs already connected in
 the input are preserved and measured with `backend_status: ALREADY_CONNECTED`;
 this records existing connectivity, not a claim that this invocation constructed
 coupled copper. Native DRC and all preservation checks still grade the candidate.
-New pair tracks use their native **diff-pair width**, rather than the class's
-ordinary track width, for the net-class geometry preservation check.
+New pair tracks use their native **diff-pair width** (or the explicitly requested
+impedance-solved width), rather than the class's ordinary track width, for the
+net-class geometry preservation check.
 
 ## Pair evidence
 
@@ -122,3 +123,43 @@ remain under `work/diff-NNN/`, `work/single/`, and `work/diff-out/`.
 `tests/test_diff_pairs.py` builds a two-terminal CAN fixture with a native gap
 rule, verifies a later ordinary-net pass, checks native DRC and preservation,
 re-validates the pair, and tests an impassable keepout wall and detection refusals.
+
+## Nominal impedance on one outer layer
+
+An opt-in impedance request uses the declared native stackup to solve a pair
+width before routing. The solved width feeds the same offset, fanout and obstacle
+geometry as the ordinary fixed-width route. The native class width remains a
+floor and all authored rules remain intact.
+
+```sh
+kicad-route run --dir fixtures/pair_impedance --backend builtin \
+  --diff-pairs auto --pair-layers F.Cu --pair-impedance 100 \
+  --impedance-tolerance 10 --impedance-reference GND \
+  --impedance-uncoupled 3 --grid-step .025 --budget 180
+```
+
+All four impedance controls are required. This initial capability supports one
+explicit outer signal layer, a positive copper/dielectric thickness and Er in
+the saved stackup, and the named adjacent filled reference plane. Unsupported
+multilayer, arc, via and coplanar geometry cannot pass this model. These remain
+separate engineering capabilities, not interchangeable analytic approximations.
+
+`facts/impedance-plan.json` records the target, source board hash and solved
+geometry. `validate/impedance.json` measures actual saved native segments and
+filled reference copper. Each member's total coupled and terminal-escape lengths
+are reported separately. Coupled trunks must match the declared gap within
+0.001 mm and satisfy the requested calculated-impedance tolerance; the total
+remaining length must fit `--impedance-uncoupled` and form pad-connected
+terminal escapes; a middle-of-trunk discontinuity cannot use that allowance. All target tracks must respect
+the native pair-width floor and lie over filled copper belonging to the named
+reference. Terminal escapes may use a narrower width; their impedance is not
+graded as a coupled trunk.
+The native polygon comparison uses a conservative 0.001 mm approximation bound.
+Revalidation repeats these checks against the current saved candidate.
+
+These are nominal uncoated microstrip calculations. Pad launches, solder mask,
+fabrication tolerances, frequency-dependent material data, transitions and
+physical measurements need separate evidence. The terminal-escape allowance
+does not extend the impedance claim to that copper. The fixture assumptions,
+including the rejected exploratory escape bound, are documented with the native
+input in `fixtures/pair_impedance/README.md`.

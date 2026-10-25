@@ -1,0 +1,13 @@
+(version 1)
+(rule "CAN probe pair gap"
+  (condition "A.NetClass == 'CAN'")
+  (constraint diff_pair_gap (min 0.34mm) (max 0.36mm)))
+(rule "agent_ee_netclass_CAN"
+  (condition "A.NetClass == 'CAN'")
+  (constraint track_width (min 0.25mm)))
+(rule "agent_ee_can-length"
+  (condition "A.NetName == 'CAN+' || A.NetName == 'CAN-'")
+  (constraint length (max 15.1mm)))
+(rule "agent_ee_can-skew"
+  (condition "A.NetName == 'CAN+' || A.NetName == 'CAN-'")
+  (constraint skew (max 0.15mm)))
