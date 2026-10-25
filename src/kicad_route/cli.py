@@ -870,7 +870,13 @@ def validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits=N
         native, rec = diff_pairs.probe(board, out_dir / "pair-facts.json", sys.modules[__name__])
         if native is None:
             v["reasons"].append(f"native differential-pair measurements failed (see {rec['log']})")
-        pair_records = diff_pairs.grade(attempt["pairs"], attempt.get("pair_routing", {}), native, cand)
+        pair_records = diff_pairs.grade(attempt["pairs"], attempt.get("pair_routing", {}), native, cand,
+                                        attempt["settings"].get("intra_pair_match"))
+        for pair in pair_records:
+            if pair.get("matching", {}).get("status", "PASS") != "PASS":
+                v["reasons"].append(f"intra-pair matching failed for {pair['p']}, {pair['n']}: "
+                                    f"saved skew {pair['skew']} mm exceeds or cannot establish "
+                                    f"{pair['matching']['tolerance_mm']} mm tolerance")
         common.write_json(out_dir / "pairs.json", pair_records)
         diff_pairs.apply_routing(routing, pair_records)
     baseline_report = run_dir / attempt["baseline"]["report"] if attempt["baseline"].get("report") else None
@@ -1003,6 +1009,10 @@ def run_attempt(args):
         contract.refuse("usage", "--backend-env takes KEY=VALUE")
     if getattr(args, "diff_pairs", None) and (args.backend != "builtin" or args.backend_arg):
         contract.refuse("usage", "--diff-pairs auto requires the builtin engine and does not accept --backend-arg")
+    try:
+        matching = diff_pairs.matching_settings(args)
+    except ValueError as exc:
+        contract.refuse("usage", str(exc))
     grid_step = getattr(args, "grid_step", None)
     if grid_step is not None:
         if args.backend != "builtin" or not math.isfinite(grid_step) or grid_step < 0.000001:
@@ -1057,6 +1067,8 @@ def run_attempt(args):
             refuse("input", "--default-clearance exceeds a native pair gap; KRT would silently raise that gap")
         if not (KRT_DIR / "py_router" / "route_diff.py").is_file():
             refuse("state", "KRT route_diff.py is not installed")
+    if matching is not None and not pairs:
+        refuse("input", "intra-pair matching requires at least one detected differential pair")
     if backend.get("preflight"):  # what the backend's bridge cannot carry, before it starts
         msg = backend["preflight"](ref_dir / board_name, ref_facts, run_dir)
         if msg:
@@ -1075,6 +1087,8 @@ def run_attempt(args):
         settings["reserve_spokes"] = args.reserve_spokes or 0
     if pairs is not None:
         settings.update(diff_pairs="auto", pairs=[dict(p) for p in pairs])
+    if matching is not None:
+        settings["intra_pair_match"] = matching
     if grid_step is not None:
         settings["grid_step_mm"] = grid_step
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
@@ -1212,7 +1226,8 @@ def run_attempt(args):
     if pairs is not None:
         result["pairs"] = load_json(run_dir / "validate" / "pairs.json")
         if result["pairs"] is None:
-            result["pairs"] = diff_pairs.grade(pairs, attempt.get("pair_routing", {}), None, None)
+            result["pairs"] = diff_pairs.grade(pairs, attempt.get("pair_routing", {}), None, None,
+                                               settings.get("intra_pair_match"))
     result["exit_code"] = overall_exit(proc, routing, validation)
     result["ledger"] = {k: gate.get(k) for k in ("fingerprint", "short", "forced", "forced_over",
                                                  "upstream_changed_since", "previous_runs", "notes")}
@@ -2405,7 +2420,8 @@ def validate_record(args):
            "exit_code": overall_exit(proc, routing, validation)}
     pairs = load_json(out / "pairs.json")
     if pairs is None and "pairs" in graded_attempt:
-        pairs = diff_pairs.grade(graded_attempt["pairs"], graded_attempt.get("pair_routing", {}), None, None)
+        pairs = diff_pairs.grade(graded_attempt["pairs"], graded_attempt.get("pair_routing", {}), None, None,
+                                        graded_attempt["settings"].get("intra_pair_match"))
     if pairs is not None:
         rec["schema"] = contract.schema_id("route-validate", 2)
         rec["pairs"] = pairs
@@ -2521,6 +2537,12 @@ def add_route_args(p):
     p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
     p.add_argument("--diff-pairs", choices=["auto"], help="builtin: detect native differential pairs, route pairs first, "
                    "and exclude all pair members from single-ended routing (default off)")
+    p.add_argument("--diff-pair-intra-match", action="store_true",
+                   help="auto pairs: add meanders to new pair copper and require saved lengths within tolerance")
+    p.add_argument("--length-match-tolerance", type=float, metavar="MM",
+                   help="intra-pair matching tolerance (default 0.1 mm); does not relax native rules")
+    p.add_argument("--meander-amplitude", type=float, metavar="MM",
+                   help="maximum matching meander amplitude (default 1 mm)")
     p.add_argument("--max-iterations", type=int, help="builtin A* iteration cap per search")
     p.add_argument("--passes", type=int, help="Freerouting maximum routing passes")
     p.add_argument("--default-clearance", type=float, metavar="MM",

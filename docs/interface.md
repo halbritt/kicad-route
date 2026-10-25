@@ -438,3 +438,20 @@ Custody retains the exact qualified baseline generation under
 file hash. The existing baseline-cache reader binds original input board/rules
 to the graded, refilled reference partition. Preparation verifies this retained
 bundle and does not depend on the external baseline cache.
+
+
+### Intra-pair length matching
+
+With `--diff-pairs auto`, `--diff-pair-intra-match` requests meanders on newly
+routed pair copper. Optional `--length-match-tolerance MM` (default 0.1) and
+`--meander-amplitude MM` (default 1.0) must be finite and at least 0.000001 mm.
+They require the matching switch. The native project rules remain unchanged;
+the tighter of a native skew rule and the requested tolerance must pass.
+
+Settings record `intra_pair_match: {tolerance_mm, amplitude_mm}`. Each pair
+adds `matching: {tolerance_mm, status, measurement}` where status is PASS,
+FAIL or NOT_RUN. The measurement is the saved native copper length, independent
+of the backend's matching claim. `validate` measures it again. A matching failure
+fails validation (exit 3) even when routing connectivity is COMPLETE. Existing
+protected pair copper is preserved and graded, not retuned. Matching does not
+establish impedance, propagation time, return path or multi-terminal path length.

@@ -8,6 +8,24 @@ from . import common, netnames, stall
 NM = 1_000_000
 
 
+def matching_settings(args):
+    """Validate opt-in search controls independently of native design rules."""
+    enabled = getattr(args, "diff_pair_intra_match", False)
+    tolerance = getattr(args, "length_match_tolerance", None)
+    amplitude = getattr(args, "meander_amplitude", None)
+    if not enabled:
+        if tolerance is not None or amplitude is not None:
+            raise ValueError("matching controls require --diff-pair-intra-match")
+        return None
+    if getattr(args, "diff_pairs", None) != "auto":
+        raise ValueError("--diff-pair-intra-match requires --diff-pairs auto")
+    result = {"tolerance_mm": 0.1 if tolerance is None else tolerance,
+              "amplitude_mm": 1.0 if amplitude is None else amplitude}
+    if any(not math.isfinite(value) or value < 0.000001 for value in result.values()):
+        raise ValueError("matching tolerance and amplitude must be finite and at least 0.000001 mm")
+    return result
+
+
 def probe(board, output, api):
     rec = common.run_cmd([api.pcbnew_python(), api.KICAD_SCRIPTS / "pairs.py", board, output],
                          board.parent, output.with_suffix(".log"), timeout=600)
@@ -56,7 +74,7 @@ def open_nets(drc, known):
     return found
 
 
-def grade(pairs, outcomes, nets, drc):
+def grade(pairs, outcomes, nets, drc, matching=None):
     """Missing native evidence stays unknown; backend claims never establish connectivity."""
     opened = open_nets(drc, nets) if nets is not None and drc is not None else None
     records = []
@@ -80,13 +98,21 @@ def grade(pairs, outcomes, nets, drc):
         coupled = outcome.get("status") in ("COUPLED", "ALREADY_CONNECTED")
         routed = bool(coupled and opened is not None and not {p, n} & opened and
                       all(length is not None for length in lengths) and gaps == 0)
+        match = None
+        if matching is not None:
+            skew = abs(nets[p]["length"] - nets[n]["length"]) / NM if None not in lengths else None
+            matched = skew is not None and skew <= matching["tolerance_mm"]
+            match = {"tolerance_mm": matching["tolerance_mm"],
+                     "status": "PASS" if matched else "FAIL" if skew is not None else "NOT_RUN",
+                     "measurement": "saved native copper length"}
         records.append({**pair, "routed": routed,
                         "length_p": lengths[0], "length_n": lengths[1],
                         "skew": round(abs(lengths[0] - lengths[1]), 6) if None not in lengths else None,
                         "gap_violations": gaps,
                         "status": "ROUTED" if routed else "INCOMPLETE" if opened is not None else "NOT_RUN",
                         "backend_status": outcome.get("status", "NOT_RUN"),
-                        "backend_report": outcome.get("report")})
+                        "backend_report": outcome.get("report"),
+                        **({"matching": match} if match is not None else {})})
     return records
 
 
@@ -159,6 +185,10 @@ def route(work, board, scope, facts, settings, api):
                 "--output", output, "--track-width", str(pair["width_mm"]),
                 "--diff-pair-gap", str(pair["gap_mm"]), "--no-short-pair-deferral", "--no-fix-drc-settings",
                 "--keep-input-copper", "--no-stub-layer-swap", "--no-gnd-vias"]
+        matching = settings.get("intra_pair_match")
+        if matching is not None:
+            argv += ["--diff-pair-intra-match", "--length-match-tolerance", str(matching["tolerance_mm"]),
+                     "--meander-amplitude", str(matching["amplitude_mm"])]
         if settings.get("max_iterations"):
             argv += ["--max-iterations", str(settings["max_iterations"])]
         if settings.get("grid_step_mm") is not None:

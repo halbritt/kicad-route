@@ -331,3 +331,73 @@ def test_grid_resolution_refuses_invalid_or_ambiguous_controls(args):
     assert process.returncode == 4, process.stdout + process.stderr
     assert '--grid-step' in process.stdout + process.stderr
     assert json.loads(process.stdout)["reason_class"] == "usage"
+
+
+@pytest.mark.parametrize("amplitude,accepted", [(1, False), (2, True)])
+def test_asymmetric_intra_pair_matching_uses_saved_copper(tmp_path, amplitude, accepted):
+    from pathlib import Path
+    source = Path(__file__).resolve().parents[1] / "fixtures/pair-skew"
+    directory = tmp_path / "skew"
+    shutil.copytree(source, directory)
+    before = tree_hash(directory)
+    process, run_dir, result = run("run", "--backend", "builtin", "--diff-pairs", "auto",
+        "--diff-pair-intra-match", "--length-match-tolerance", "0.1",
+        "--meander-amplitude", str(amplitude), "--grid-step", "0.025",
+        "--dir", str(directory), "--budget", "180", "--label", f"match-{amplitude}")
+    assert tree_hash(directory) == before
+    assert result["settings"]["intra_pair_match"] == {"tolerance_mm": .1, "amplitude_mm": amplitude}
+    pair, = result["pairs"]
+    assert pair["matching"]["status"] == ("PASS" if accepted else "FAIL")
+    assert pair["routed"] is True  # Connectivity is distinct from requested matching.
+    drc = json.loads((run_dir / "validate/candidate-drc.json").read_text())
+    assert not drc["unconnected_items"]
+    assert bool(drc["violations"]) is not accepted
+    if accepted:
+        assert process.returncode == 0, result
+        assert pair["skew"] < .1
+        assert result["validation"]["status"] == "PASS"
+    else:
+        assert process.returncode != 0
+        assert pair["skew"] > .15
+        assert {v["type"] for v in drc["violations"]} == {"skew_out_of_range"}
+    rechecked = cli("validate", str(run_dir), "--json")
+    assert json.loads(rechecked.stdout)["pairs"][0]["matching"] == pair["matching"]
+    assert (rechecked.returncode == 0) is accepted
+    jsonschema.validate(result, PAIR_RESULT_SCHEMA)
+    if accepted:
+        # A tighter requested target must fail independently of native DRC and
+        # the historical backend success report. No copper or rules are edited.
+        attempt_path = run_dir / "attempt.json"
+        attempt = json.loads(attempt_path.read_text())
+        attempt["settings"]["intra_pair_match"]["tolerance_mm"] = .000001
+        attempt_path.write_text(json.dumps(attempt))
+        tighter = cli("validate", str(run_dir), "--json")
+        tightened = json.loads(tighter.stdout)
+        assert tighter.returncode == 3, tightened
+        assert tightened["pairs"][0]["matching"]["status"] == "FAIL"
+        assert tightened["routing"]["status"] == "COMPLETE"
+        assert any("intra-pair matching failed" in reason for reason in tightened["validation"]["reasons"])
+        jsonschema.validate(tightened, PAIR_RESULT_SCHEMA)
+
+
+@pytest.mark.parametrize("extra", [
+    ["--meander-amplitude", "2"], ["--length-match-tolerance", "0.1"],
+    ["--diff-pair-intra-match"],
+    ["--diff-pairs", "auto", "--diff-pair-intra-match", "--meander-amplitude", "nan"],
+    ["--diff-pairs", "auto", "--diff-pair-intra-match", "--length-match-tolerance", "0"],
+])
+def test_invalid_matching_controls_refused(extra, tmp_path):
+    process = cli("run", "--backend", "builtin", "--dir", str(FIXTURE),
+                  "--run-dir", str(tmp_path / "refused"), "--json", *extra)
+    assert process.returncode == 4, process.stdout + process.stderr
+    assert not (tmp_path / "refused").exists()
+
+
+def test_saved_length_over_target_overrides_backend_match():
+    pair = {"p": "D+", "n": "D-"}
+    outcomes = {"D+": {"status": "COUPLED", "report": {"intra_pair_matching": [{"status": "matched"}]}}}
+    nets = {"D+": {"length": 10000000}, "D-": {"length": 10120000}}
+    records = diff_pairs.grade([pair], outcomes, nets,
+                              {"violations": [], "unconnected_items": []}, {"tolerance_mm": .1})
+    assert records[0]["matching"]["status"] == "FAIL"
+    assert records[0]["routed"] is True
