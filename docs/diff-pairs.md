@@ -209,3 +209,43 @@ preservation are still graded independently by native checks.
 `fixtures/bus_routing` and `tests/test_bus_routing.py` exercise eight lanes, a
 third terminal, an unrelated parallel connection, a native obstacle, paired
 scope separation, invalid controls and rejection of a missing saved lane.
+
+## Matching paths through series parts
+
+Declare each complete chain by its populated series-part references:
+
+```sh
+kicad-route run --dir fixtures/ac_matching --backend builtin \
+  --diff-pairs auto --pair-layers F.Cu \
+  --ac-couple-chain-json '["C1","C2"]' \
+  --ac-match-tolerance .1 --ac-meander-amplitude 3 --budget 180
+```
+
+Repeat `--ac-couple-chain-json` for separate chains. Native preflight requires
+two copper pads per series part, symmetric same-polarity bridges between
+complete pairs, and one connected, nonbranching chain. Missing or DNP parts,
+crossed polarities, repeated bridges, shared chains and unlisted two-pad
+continuations refuse. Every net segment must have exactly two native terminals.
+
+The paired segments remain together during tuning. Only declared chains are
+tuned. Existing connected copper contributes to the target and remains protected;
+the matcher can adjust a newly routed segment without modifying an earlier one.
+Small corrections use a single triangular bump when a full folded meander would
+overshoot. The same obstacle and amplitude checks apply to its actual geometry.
+Different native pair classes retain their own widths and gaps.
+
+`validate/ac-matching.json` records every independently measured native `fromTo`
+path, summed P and N lengths, skew, and the conservative bound on printed
+rounding. Acceptance requires skew plus that bound within the requested tolerance.
+Missing/ignored measurements, incomplete connectivity or excess skew fail even
+when the routing process succeeds. Revalidation repeats the measurement; source
+PCB, project and rule hashes bind the result. Original native rules are preserved
+and continue to be checked separately.
+
+AC, coupled-group and intra-pair matching currently share backend tolerance and
+amplitude, so combined requests must agree. All requested conditions must still
+pass independently. Different solved impedance geometries remain unqualified.
+The measured quantity is useful copper length across declared series parts;
+capacitor internal delay, package length, frequency response and physical signal
+integrity are not included. The four-layer qualification article routes on F.Cu;
+broader multilayer composition remains a separate qualification obligation.

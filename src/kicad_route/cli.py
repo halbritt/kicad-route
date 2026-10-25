@@ -102,7 +102,7 @@ from . import evidence
 from . import configuration_evidence
 from . import copper_ownership
 from . import engine
-from . import diff_pairs, pair_impedance, length_groups
+from . import diff_pairs, pair_impedance, length_groups, ac_matching
 from . import floor
 from . import provenance
 from . import sandbox  # --require-readonly-state, doctor's sandbox block (docs/sandbox.md)
@@ -891,6 +891,15 @@ def validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits=N
                 v['reasons'].append('final native group matching failed: ' + '; '.join(measured.get('defects', [])))
         except ValueError as exc:
             v['reasons'].append(str(exc))
+    if attempt['settings'].get('ac_match') is not None:
+        try:
+            measured = ac_matching.run(board, out_dir / 'ac-matching.json',
+                attempt['settings']['ac_match'], attempt['pairs'], sys.modules[__name__])
+            v['ac_matching'] = measured
+            if measured.get('status') != PASS or measured.get('board_sha256') != common.sha256(board):
+                v['reasons'].append('final native AC matching failed: ' + '; '.join(measured.get('defects', [])))
+        except ValueError as exc:
+            v['reasons'].append(str(exc))
     baseline_report = run_dir / attempt["baseline"]["report"] if attempt["baseline"].get("report") else None
     expected = baselinecache.identity(attempt["input_fingerprint"], board_name,
                                       pcbnew_build=ref_facts.get("kicad_version")) if attempt.get("input_fingerprint") else None
@@ -1049,6 +1058,7 @@ def run_attempt(args):
         impedance = pair_impedance.settings(args)
         bus = bus_settings(args)
         group_matching = length_groups.settings(args)
+        ac_match = ac_matching.settings(args)
     except ValueError as exc:
         contract.refuse("usage", str(exc))
     pair_layers = getattr(args, "pair_layers", None)
@@ -1127,6 +1137,14 @@ def run_attempt(args):
                     raise ValueError('; '.join(preflight['defects']))
         except ValueError as exc:
             refuse("input", str(exc))
+    if ac_match is not None:
+        try:
+            preflight = ac_matching.run(ref_dir / board_name, run_dir / 'facts' / 'ac-plan.json',
+                ac_match, pairs or [], sys.modules[__name__], preflight=True)
+            if preflight['status'] != PASS:
+                raise ValueError('; '.join(preflight['defects']))
+        except ValueError as exc:
+            refuse('input', str(exc))
     impedance_plan = None
     if impedance is not None:
         try:
@@ -1139,6 +1157,14 @@ def run_attempt(args):
         except ValueError as exc:
             refuse("input", str(exc))
     paired_names = {name for pair in pairs or () for name in (pair['p'], pair['n'])}
+    coupled_groups = group_matching and any(set(group) & paired_names for group in group_matching['groups'])
+    if ac_match:
+        controls = {key: ac_match[key] for key in ('tolerance_mm', 'amplitude_mm')}
+        if any(other and {key: other[key] for key in controls} != controls
+               for other in (matching, group_matching if coupled_groups else None)):
+            refuse('input', 'AC, coupled-group and intra-pair tuning share backend tolerance and amplitude; declare identical controls')
+        if impedance_plan and len({(pair['width_mm'], pair['gap_mm']) for pair in pairs}) != 1:
+            refuse('input', 'AC chains with different solved impedance geometries are not yet supported')
     if group_matching and any(set(group) & paired_names for group in group_matching['groups']):
         if matching and matching != {key: group_matching[key] for key in ('tolerance_mm', 'amplitude_mm')}:
             refuse('input', 'coupled group and intra-pair matching share backend tolerance and amplitude; declare identical controls')
@@ -1174,6 +1200,8 @@ def run_attempt(args):
         settings["bus"] = bus
     if group_matching is not None:
         settings["length_match"] = group_matching
+    if ac_match is not None:
+        settings['ac_match'] = ac_match
     log(f"[route] scope: {scope_info['mode']} ({len(scope)} of {len(ref_facts['nets'])} nets)")
     floor_rec = floor.preflight(cfg, ref_dir, board_name, with_history=args.floor_history)
     if floor_rec and floor_rec["floor_violated"]:
@@ -2651,6 +2679,10 @@ def add_route_args(p):
     p.add_argument("--group-delay-tolerance", type=float, metavar="PS", help="match nominal delay using authored native tuning profiles; excludes mm tolerance")
     p.add_argument("--group-meander-amplitude", type=float, metavar="MM", help="group meander amplitude (default 1 mm)")
     p.add_argument("--group-meander-spacing", type=float, metavar="WIDTHS", help="group meander arm center spacing in track widths (default 2)")
+    p.add_argument('--ac-couple-chain-json', dest='ac_couple_chain', action='append', type=json.loads,
+                   metavar='JSON', help='auto pairs: explicit series-part references defining a complete P/N chain; repeat for separate chains')
+    p.add_argument('--ac-match-tolerance', type=float, metavar='MM', help='required summed native copper-path skew (default 0.1 mm)')
+    p.add_argument('--ac-meander-amplitude', type=float, metavar='MM', help='AC matching amplitude (default 1 mm)')
     p.add_argument("--pair-impedance", type=float, metavar="OHM",
                    help="synthesize nominal differential width on one explicit outer or symmetric inner pair layer")
     p.add_argument("--impedance-tolerance", type=float, metavar="PERCENT",
@@ -2736,6 +2768,8 @@ def route_argv(args, skip=SCOPE_DESTS):
         if act.dest == "length_match_group":
             if flag == "--length-match-group-json":
                 argv += [f"{flag}={json.dumps(group)}" for group in v]
+        elif act.dest == 'ac_couple_chain':
+            argv += [f'{flag}={json.dumps(refs)}' for refs in v]
         elif isinstance(act, argparse._StoreTrueAction):
             argv.append(flag)
         elif isinstance(act, argparse._AppendAction):

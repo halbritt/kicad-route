@@ -22,6 +22,7 @@ KRT_TOOL = {'scope': ['routing', 'combined'], 'kind': 'actor'}
 
 import env_knobs
 import sys
+import json
 import os
 from dataclasses import replace
 
@@ -343,6 +344,7 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
                 diff_chamfer_extra: float = defaults.DIFF_PAIR_CHAMFER_EXTRA,
                 diff_pair_intra_match: bool = False,
                 ac_couple_match: bool = False,
+                ac_couple_chains: Optional[List[List[str]]] = None,
                 debug_memory: bool = False,
                 mps_reverse_rounds: bool = False,
                 mps_layer_swap: bool = False,
@@ -819,6 +821,16 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
     if config.ac_couple_match:
         from diff_xnet import find_ac_coupled_xnets
         ac_xnets, ac_warnings = find_ac_coupled_xnets(pcb_data, diff_pairs)
+        if ac_couple_chains is not None:
+            # The public workflow proves topology natively and requests exact
+            # bridge groups. Do not tune other automatically detected chains.
+            selected = []
+            for refs in ac_couple_chains:
+                matches = [xn for xn in ac_xnets if set(xn.bridge_refs) == set(refs)]
+                if len(matches) != 1:
+                    raise ValueError(f'AC chain detection differs from explicit references: {refs!r}')
+                selected.append(matches[0])
+            ac_xnets = selected
         for _w in ac_warnings:
             print(f"  WARNING: {_w}")
         for _xn in ac_xnets:
@@ -2330,6 +2342,8 @@ Examples:
                         help="End-to-end length-match AC-coupled differential pairs split by series DC-blocking "
                              "caps (#196): auto-detect the cap chain, match the concatenated P path vs the N path, "
                              "and place the compensating meanders on whichever segment has room. Off by default.")
+    parser.add_argument('--ac-couple-chain-json', action='append', type=json.loads,
+                        help='with AC matching, restrict tuning to these exact series-part references')
 
     # Rip-up and retry options
     parser.add_argument("--max-ripup", type=int, default=defaults.MAX_RIPUP,
@@ -2677,6 +2691,7 @@ Examples:
                 diff_chamfer_extra=args.diff_chamfer_extra,
                 diff_pair_intra_match=args.diff_pair_intra_match,
                 ac_couple_match=args.ac_couple_match,
+                ac_couple_chains=args.ac_couple_chain_json,
                 debug_memory=args.debug_memory,
                 mps_reverse_rounds=args.mps_reverse_rounds,
                 mps_layer_swap=args.mps_layer_swap,

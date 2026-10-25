@@ -1,0 +1,1 @@
+(fp_lib_table (version 7) (lib (name "AcQualification")(type "KiCad")(uri "${KIPRJMOD}/AcQualification.pretty")(options "")(descr "capacitor-chain qualification footprints")))

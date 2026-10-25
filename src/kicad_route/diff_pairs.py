@@ -1,5 +1,6 @@
 """Opt-in pair detection, sequential KRT passes, and native candidate evidence."""
 import math
+import json
 import shutil
 import time
 
@@ -172,7 +173,8 @@ def route(work, board, scope, facts, settings, api):
                       if matching_groups else [])
     # Centerlines exist only inside one backend invocation. Keep the selected
     # pair group together until tuning finishes; ordinary routing stays sequential.
-    batches = [settings['pairs']] if coupled_groups else [[pair] for pair in settings['pairs']]
+    ac_match = settings.get('ac_match')
+    batches = [settings['pairs']] if coupled_groups or ac_match else [[pair] for pair in settings['pairs']]
     for index, batch in enumerate(batches):
         names = [name for pair in batch for name in (pair['p'], pair['n'])]
         directory = work / f"diff-{index:03d}"
@@ -212,6 +214,11 @@ def route(work, board, scope, facts, settings, api):
                      "--meander-amplitude", str(matching["amplitude_mm"])]
         if coupled_groups:
             argv += length_groups.backend_args({**matching_groups, 'groups': coupled_groups})
+        if ac_match:
+            argv += ['--ac-couple-match', '--length-match-tolerance', str(ac_match['tolerance_mm']),
+                     '--meander-amplitude', str(ac_match['amplitude_mm'])]
+            for refs in ac_match['chains']:
+                argv += ['--ac-couple-chain-json', json.dumps(refs)]
         if settings.get("max_iterations"):
             argv += ["--max-iterations", str(settings["max_iterations"])]
         if settings.get("grid_step_mm") is not None:

@@ -1,0 +1,5 @@
+(version 1)
+(rule "required pair width" (condition "A.NetClass == 'CAN'") (constraint track_width (min 0.15mm) (max 0.15mm)))
+(rule "required coupled gap" (condition "A.NetClass == 'CAN'") (constraint diff_pair_gap (min 0.24mm) (max 0.26mm)))
+(rule "local skew budget" (condition "A.NetClass == 'CAN'") (constraint skew (max 0.2mm) (within_diff_pairs)))
+(rule "terminal escape budget" (condition "A.NetClass == 'CAN'") (constraint diff_pair_uncoupled (max 4mm)))
