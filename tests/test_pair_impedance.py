@@ -80,11 +80,11 @@ elif mutation=='reference-slot':
 elif mutation=='midroute-neck':
  t=max((t for t in b.GetTracks() if t.GetNetname()=='CAN+'),key=lambda t:t.GetLength())
  a,e=t.GetStart(),t.GetEnd();assert a.y==e.y
- lo,hi=sorted([a.x,e.x]);mid=(lo+hi)//2;net=t.GetNetCode();width=t.GetWidth();layer=t.GetLayer()
+ lo,hi=sorted([a.x,e.x]);y=int(a.y);mid=(lo+hi)//2;net=t.GetNetCode();width=t.GetWidth();layer=t.GetLayer()
  b.Remove(t)
  for start,end,w in [(lo,mid-50000,width),(mid-50000,mid+50000,250000),(mid+50000,hi,width)]:
   t=k.PCB_TRACK(b);t.SetNetCode(net);t.SetLayer(layer);t.SetWidth(w)
-  t.SetStart(k.VECTOR2I(start,a.y));t.SetEnd(k.VECTOR2I(end,a.y));b.Add(t)
+  t.SetStart(k.VECTOR2I(start,y));t.SetEnd(k.VECTOR2I(end,y));b.Add(t)
 k.SaveBoard(sys.argv[1],b)
 """
         subprocess.run([sys.executable, '-c', code, str(candidate), mutation],
@@ -96,7 +96,9 @@ k.SaveBoard(sys.argv[1],b)
     measured = json.loads(sorted((copied / 'revalidate').glob('*/impedance.json'))[-1].read_text())
     assert measured['status'] == 'FAIL' and measured['defects']
     if mutation == 'midroute-neck':
-        assert any('not a pad-connected terminal escape' in d for d in measured['defects'])
+        assert result['routing']['unconnected_total'] == 0
+        assert all(row['uncoupled_mm'] < 3 for row in measured['nets'])
+        assert all('not a pad-connected terminal escape' in d for d in measured['defects'])
     if mutation == 'reference-slot':
         assert result['routing']['unconnected_total'] == 0
         assert any('not fully over' in d for d in measured['defects'])
