@@ -250,6 +250,7 @@ def _route(tmp, tag, text):
     env = dict(os.environ, KICAD_PLANE_FINALIZE='0')
     r = run_check([sys.executable, '-X', 'utf8', tool('route.py'), inp, out,
                    '--nets', '*', '--layers', 'In1.Cu', 'In2.Cu',
+                   '--via-size', '0.5',  # the rescue_board ring's explicit control geometry
                    '--keep-input-copper', '--escalation', 'off',
                    '--no-fix-drc-settings',
                    '--hole-to-hole-clearance', str(H2H_ROUTE)], accept=True, env=env)

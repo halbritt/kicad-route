@@ -21,4 +21,7 @@ def rescue_board(lock=True):
     b.pad('C2', 4, 25, 'NET_C', sx=1.6, sy=1.6, tht=True)
     b.seg(4, 15, round(px - d, 4), round(py - d, 4), 'NET_C', layer='B.Cu', locked=True)
     b.seg(4, 15, 4, 25, 'NET_C', layer='B.Cu', locked=True)
-    return b.text(), ['--nets', '*', '--layers', 'In1.Cu', 'In2.Cu']
+    # The 0.66 mm ring offset above admits a 0.5 mm via only at the pad.
+    # Declare that fixture geometry instead of inheriting the router default
+    # (now 0.6 mm, which correctly cannot fit and never enters the rescue).
+    return b.text(), ['--nets', '*', '--layers', 'In1.Cu', 'In2.Cu', '--via-size', '0.5']
