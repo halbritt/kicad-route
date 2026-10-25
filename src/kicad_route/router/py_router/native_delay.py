@@ -80,7 +80,7 @@ def profiles(board_path, names, *, required=False):
         tokens = re.findall(r'"(?:\\.|[^"\\])*"|\baddsublayer\b', layer_text)
         sheets = 1 + tokens.count('addsublayer')
         for field in ('thickness', 'epsilon_r'):
-            values = [float(layer_text[x:y].split()[1][:-1])
+            values = [float(layer_text[x:y][1:-1].split()[1])
                       for x, y, _ in expression_spans(layer_text, {field})]
             if len(values) != sheets or any(not math.isfinite(v) or v <= 0 for v in values):
                 raise ValueError(f'delay matching requires explicit positive {field} for every dielectric sheet')

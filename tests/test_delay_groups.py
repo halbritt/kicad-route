@@ -107,3 +107,12 @@ def test_delay_and_length_tolerances_cannot_silently_override_each_other():
     done = cli('run', '--dir', str(FIXTURE), *ARGS, '--group-match-tolerance', '.1')
     assert done.returncode == 4
     assert 'either mm or ps' in done.stdout + done.stderr
+
+
+def test_native_dielectric_numeric_whitespace_is_preserved(tmp_path):
+    source = tmp_path / 'input'; shutil.copytree(FIXTURE, source)
+    board = source / 'delay.kicad_pcb'
+    board.write_text(board.read_text().replace('(epsilon_r 4)', '(epsilon_r\n 4\n )', 1))
+    done, _, result = run('run', '--dir', str(source), *ARGS)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert result['validation']['length_matching']['status'] == 'PASS'
