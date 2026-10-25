@@ -52,3 +52,37 @@ This capability covers geometric two-terminal single-ended length matching.
 Propagation-time matching, inter-pair matching, AC-composed paths and multipoint
 path selection require separate qualification; this operation makes no claim
 for them or for signal integrity or manufacturing readiness.
+
+## Nominal propagation delay
+
+Use `--group-delay-tolerance PS` instead of `--group-match-tolerance MM` to
+match the explicit group against its authored KiCad 10 tuning profiles. For example:
+
+```sh
+kicad-route run --dir fixtures/delay_matching \
+  --length-match-group-json '["DQ0","DQ1"]' \
+  --group-delay-tolerance 1 --group-meander-amplitude 3 --grid-step .1
+```
+
+Every member must resolve to an enabled single-ended native tuning profile.
+Declare the complete native stackup, including every dielectric sheet's thickness
+and permittivity, positive per-layer widths/delays, and via delay. Native via-height
+calculation must remain enabled. The profile's delay fields use KiCad internal
+attoseconds/mm; the public tolerance is in picoseconds. The native project schema
+must retain the assignments when loaded: KiCad migrates old net-settings schemas
+by clearing tuning-profile names. Missing or ineffective inputs refuse before
+routing. Saved tracks on unmodelled layers or with different widths fail.
+
+The meander engine uses these rates and the signal's used via span, including
+native endpoint-copper thickness semantics and declared transition overrides.
+Already connected in-scope members set the target and retain their valid geometry.
+Final native `fromTo` delay and skew checks independently grade useful paths.
+Every member must produce a positive delay measurement; absent/ignored checks,
+opens and excessive skew fail. The result binds both PCB and project hashes.
+
+This operation matches nominal authored delays. The designer must substantiate
+profile values against the actual stackup and signal geometry; it does not
+calibrate a physical model, establish impedance, account for process variation,
+or prove signal integrity. KiCad does not automatically refresh delay values
+when the stackup changes. Existing geometric matching is unchanged; AC-composed,
+inter-pair and package-delay qualification remain separate work.

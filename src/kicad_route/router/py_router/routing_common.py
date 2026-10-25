@@ -777,7 +777,6 @@ def run_length_matching(
             net_name = pcb_data.nets[net_id].name
             net_name_to_result[net_name] = result
 
-    all_routed_names = list(net_name_to_result.keys())
     # #1247: the `auto` grouper's input is this call's scope, never the
     # pre-existing nets registered as rip candidates.
     auto_input_names = []
@@ -836,7 +835,11 @@ def run_length_matching(
                                 all_processed_vias.extend(result['new_vias'])
         else:
             # Find nets matching the patterns in this group
-            matching_nets = find_nets_matching_patterns(all_routed_names, group)
+            # Connected in-scope members still set a group's target. The matcher
+            # seeds their saved copper without modifying it.
+            matching_pool = [n.name for nid, n in pcb_data.nets.items()
+                             if n.name and (scope_net_ids is None or nid in scope_net_ids)]
+            matching_nets = find_nets_matching_patterns(matching_pool, group)
             formed_groups.append({'name': ' '.join(group), 'source': 'patterns',
                                   'patterns': list(group),
                                   'members': sorted(matching_nets)})

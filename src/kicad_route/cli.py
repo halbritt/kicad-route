@@ -1120,6 +1120,11 @@ def run_attempt(args):
     if group_matching is not None:
         try:
             length_groups.paths(group_matching, ref_facts, set(scope), pairs or ())
+            if 'tolerance_ps' in group_matching:
+                preflight = length_groups.run(ref_dir / board_name, run_dir / 'facts' / 'delay-plan.json',
+                    group_matching, sys.modules[__name__], preflight=True)
+                if preflight['status'] != PASS:
+                    raise ValueError('; '.join(preflight['defects']))
         except ValueError as exc:
             refuse("input", str(exc))
     impedance_plan = None
@@ -2637,6 +2642,7 @@ def add_route_args(p):
     p.add_argument("--length-match-group-json", dest="length_match_group", action="append", type=json.loads,
                    metavar="JSON", help="same group as a JSON array of exact names; supports names beginning with '-' and replay")
     p.add_argument("--group-match-tolerance", type=float, metavar="MM", help="required native group path skew (default 0.1 mm)")
+    p.add_argument("--group-delay-tolerance", type=float, metavar="PS", help="match nominal delay using authored native tuning profiles; excludes mm tolerance")
     p.add_argument("--group-meander-amplitude", type=float, metavar="MM", help="single-ended group meander amplitude (default 1 mm)")
     p.add_argument("--group-meander-spacing", type=float, metavar="WIDTHS", help="single-ended meander arm center spacing in track widths (default 2)")
     p.add_argument("--pair-impedance", type=float, metavar="OHM",

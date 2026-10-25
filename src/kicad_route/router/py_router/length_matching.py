@@ -2228,6 +2228,14 @@ def apply_time_matching_to_group(
     diff_pair_count = sum(1 for r in group_results.values() if r.get('is_diff_pair'))
     single_count = len(group_results) - diff_pair_count
 
+    from native_delay import profiles, estimate, rate
+    native = profiles(pcb_data.source_path, list(group_results)) if pcb_data and pcb_data.source_path else None
+
+    def measure(name, segments, vias):
+        if native is not None:
+            return estimate(pcb_data, native[name], segments, vias)
+        return calculate_route_propagation_time_ps(segments, vias, pcb_data)
+
     # Calculate propagation time for each net and find primary layers
     net_times: Dict[str, float] = {}
     net_primary_layers: Dict[str, str] = {}
@@ -2239,7 +2247,7 @@ def apply_time_matching_to_group(
         # longest coupled leg (the matching span). Single-ended results fall
         # through unchanged (no leg net ids).
         net_times[net_name] = multipoint_span_metric(
-            result, lambda s, v: calculate_route_propagation_time_ps(s, v, pcb_data))
+            result, lambda s, v: measure(net_name, s, v))
         net_primary_layers[net_name] = get_route_primary_layer(segments)
 
     # A member's time includes its pads' pad-to-die DELAY (#1248): KiCad 10's
@@ -2300,7 +2308,8 @@ def apply_time_matching_to_group(
             continue
 
         primary_layer = net_primary_layers[net_name]
-        ps_per_mm = get_layer_ps_per_mm(pcb_data, primary_layer)
+        ps_per_mm = (rate(native[net_name], primary_layer) if native is not None else
+                     get_layer_ps_per_mm(pcb_data, primary_layer))
         extra_length = delta_time / ps_per_mm
 
         suffix = " (diff pair)" if result.get('is_diff_pair') else ""
@@ -2308,7 +2317,7 @@ def apply_time_matching_to_group(
 
         # Create metric functions that capture pcb_data
         def time_metric(segments, vias):
-            return calculate_route_propagation_time_ps(segments, vias, pcb_data)
+            return measure(net_name, segments, vias)
 
         def time_to_length(delta_ps):
             return delta_ps / ps_per_mm

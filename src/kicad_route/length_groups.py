@@ -19,11 +19,16 @@ def settings(args):
         ('amplitude_mm', 'group_meander_amplitude'),
         ('spacing_widths', 'group_meander_spacing'))}
     if groups is None:
-        if any(value is not None for value in controls.values()):
+        if any(value is not None for value in controls.values()) or getattr(args, 'group_delay_tolerance', None) is not None:
             raise ValueError('group matching controls require --length-match-group')
         return None
     if args.backend != 'builtin':
         raise ValueError('length groups require the builtin engine')
+    delay = getattr(args, 'group_delay_tolerance', None)
+    if delay is not None:
+        if controls.pop('tolerance_mm') is not None:
+            raise ValueError('choose group skew in either mm or ps, not both')
+        controls['tolerance_ps'] = delay
     defaults = dict(tolerance_mm=.1, amplitude_mm=1., spacing_widths=2.)
     controls = {key: defaults[key] if value is None else value for key, value in controls.items()}
     result = normalize(dict(groups=groups, **controls))
@@ -36,8 +41,10 @@ def settings(args):
 
 def normalize(spec):
     fields = {'groups', 'tolerance_mm', 'amplitude_mm', 'spacing_widths'}
+    if isinstance(spec, dict) and 'tolerance_ps' in spec:
+        fields = fields - {'tolerance_mm'} | {'tolerance_ps'}
     if not isinstance(spec, dict) or set(spec) != fields:
-        raise ValueError('length matching requires groups, tolerance_mm, amplitude_mm and spacing_widths')
+        raise ValueError('length matching requires groups, tolerance_mm or tolerance_ps, amplitude_mm and spacing_widths')
     groups = spec['groups']
     if not isinstance(groups, list) or not groups:
         raise ValueError('length matching requires at least one explicit group')
@@ -89,15 +96,20 @@ def backend_args(spec):
         patterns = [netnames.exact(name) for name in group]
         patterns = [pattern[1:] if name.startswith('!') else pattern for name, pattern in zip(group, patterns)]
         argv += ['--length-match-group', *patterns]
-    return argv + ['--length-match-tolerance', str(spec['tolerance_mm']),
+    argv += (['--time-matching', '--time-match-tolerance', str(spec['tolerance_ps'])] if 'tolerance_ps' in spec else
+             ['--length-match-tolerance', str(spec['tolerance_mm'])])
+    return argv + [
                    '--meander-amplitude', str(spec['amplitude_mm']),
                    '--meander-spacing', str(spec['spacing_widths'])]
 
 
-def run(board, output, spec, api):
+def run(board, output, spec, api, *, preflight=False):
     request = output.with_suffix('.request.json')
     common.write_json(request, spec)
-    rec = common.run_cmd([api.pcbnew_python(), '-B', Path(__file__), board, request, output],
+    argv = [api.pcbnew_python(), '-B', Path(__file__), board, request, output]
+    if preflight:
+        argv.append('--preflight')
+    rec = common.run_cmd(argv,
                          board.parent, output.with_suffix('.log'), timeout=600)
     report = common.load_json(output)
     if rec['exit_code'] not in (0, 2) or not isinstance(report, dict):
@@ -105,7 +117,7 @@ def run(board, output, spec, api):
     return report
 
 
-def check(board, output, spec):
+def check(board, output, spec, *, preflight=False):
     from kicad_route import cli
     spec = normalize(spec)
     board = board.resolve()
@@ -115,6 +127,19 @@ def check(board, output, spec):
     root.mkdir(parents=True)
     common.set_out(root / 'tools')
     board_sha = common.sha256(board)
+    models = None
+    time_domain = 'tolerance_ps' in spec
+    unit = 'ps' if time_domain else 'mm'
+    tolerance = spec['tolerance_' + unit]
+    if time_domain:
+        from kicad_route import engine
+        sys.path.insert(0, str(engine.ROOT / 'py_router'))
+        from native_delay import profiles, check_geometry
+        models = profiles(board, sorted({n for group in spec['groups'] for n in group}), required=True)
+        check_geometry(board, models)
+    if preflight:
+        return dict(status='PASS', board_sha256=board_sha, requirement=spec, profiles=models)
+
     facts, info = cli.board_facts(board, root / 'facts.json')
     if facts is None:
         raise ValueError(f'native matching terminal inventory failed (see {info["log"]})')
@@ -135,7 +160,7 @@ def check(board, output, spec):
         # Those findings establish coverage; the native skew check uses full
         # precision and is the acceptance result. Original rules are unchanged.
         rules.write_text(original + '\n' + f'(rule "{rule}" (condition {json.dumps(condition)}) '
-            f'(constraint length (max 0mm)) (constraint skew (max {spec["tolerance_mm"]}mm)))\n')
+            f'(constraint length (max 0{unit})) (constraint skew (max {tolerance}{unit})))\n')
         native, info = cli.kicad_drc(copied, work, 'paths', False)
         entry = dict(paths=members, status='FAIL', measurements=[], skew_violations=[],
                      native=info, rule=rule)
@@ -168,15 +193,16 @@ def check(board, output, spec):
         elif native['unconnected_items']:
             defects.append(f'group {index}: native board has unconnected items')
         elif entry['skew_violations']:
-            defects.append(f'group {index}: final native paths exceed {spec["tolerance_mm"]} mm skew')
+            defects.append(f'group {index}: final native paths exceed {tolerance} {unit} skew')
         elif len(defects) == first_defect:
             entry['status'] = 'PASS'
     if common.sha256(board) != board_sha:
         defects.append('input board changed during native group verification')
     return dict(status='FAIL' if defects else 'PASS', defects=defects, board_sha256=board_sha,
                 requirement=spec, groups=groups,
+                **(dict(profiles=models, project_sha256=common.sha256(board.with_suffix('.kicad_pro'))) if time_domain else {}),
                 measurement='KiCad fromTo paths; zero-length findings prove measurement coverage, native skew decides acceptance',
-                limits='Explicit two-terminal single-ended groups; no delay, inter-pair or AC-composed matching claim')
+                limits='Explicit two-terminal single-ended groups; nominal authored profile delays only; no SI, inter-pair or AC-composed matching claim')
 
 
 def main():
@@ -184,9 +210,10 @@ def main():
     parser.add_argument('board', type=Path)
     parser.add_argument('request', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--preflight', action='store_true')
     args = parser.parse_args()
     try:
-        result = check(args.board, args.output, common.load_json(args.request))
+        result = check(args.board, args.output, common.load_json(args.request), preflight=args.preflight)
     except ValueError as exc:
         result = dict(status='FAIL', board_sha256=common.sha256(args.board), defects=[str(exc)])
     common.write_json(args.output, result)
