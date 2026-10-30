@@ -1085,8 +1085,10 @@ def remove_generated_duplicates(results, pcb_data: PCBData, scope_net_ids=None, 
     Unlike strict collapse, this also applies to poured nets: the kept track
     has the same net, layer, width and endpoints, so no copper region changes.
     Input tracks and locked/graphic objects remain immutable. There is no
-    tolerance or coordinate projection, and every write list stays in sync.
+    tolerance or coordinate projection: compare integer nanometres at the
+    writer's six-decimal precision. Every write list stays in sync.
     """
+    from decimal import Decimal
     if max_segments < 0:
         raise ValueError('duplicate track population limit must be nonnegative')
     population = len(pcb_data.segments) + sum(len(r.get('new_segments') or []) for r in results)
@@ -1104,7 +1106,8 @@ def remove_generated_duplicates(results, pcb_data: PCBData, scope_net_ids=None, 
     for s in pcb_data.segments:
         if not eligible(s):
             continue
-        ends = sorted(((s.start_x, s.start_y), (s.end_x, s.end_y)))
+        ends = sorted(tuple(int(Decimal(format(v,'.6f'))*1_000_000) for v in point)
+                      for point in ((s.start_x,s.start_y),(s.end_x,s.end_y)))
         key = (s.net_id, s.layer, s.width, *ends)
         previous = representatives.get(key)
         if previous is None:

@@ -23,6 +23,16 @@ def board(segments):
 
 
 class GeneratedDuplicateTests(unittest.TestCase):
+    def test_raw_float_difference_that_emits_identical_nanometres_is_one_track(self):
+        first=segment(start_x=118.075,start_y=114.325,end_x=117.925,end_y=114.325,layer='F.Cu')
+        second=segment(start_x=118.075,start_y=114.325,end_x=117.92500000000001,end_y=114.325,layer='F.Cu')
+        self.assertNotEqual(first.end_x,second.end_x)
+        self.assertEqual(format(first.end_x,'.6f'),format(second.end_x,'.6f'))
+        pcb=board([first,second]);results=[{'new_segments':[first,second]}]
+        self.assertEqual(modification.remove_generated_duplicates(results,pcb,{5}),1)
+        self.assertEqual(pcb.segments,[first])
+        self.assertIs(pcb.segments[0],first)
+
     def test_cleanup_deduplicates_pieces_created_by_its_final_t_split(self):
         from cleanup_pipeline import run_post_route_cleanup
         from kicad_parser import Net, Pad
