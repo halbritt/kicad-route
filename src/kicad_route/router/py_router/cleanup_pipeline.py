@@ -52,6 +52,7 @@ from pcb_modification import (
     close_soft_joints,
     merge_collinear_segments,
     repair_generated_terminal_centrelines,
+    remove_generated_duplicates,
     split_generated_t_junctions,
     CLOSE_SOFT_JOINT_KINDS,
 )
@@ -223,6 +224,9 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                                   Changes only segmentation, preserving input
                                   copper. Finite work/output limits leave the
                                   whole pass unchanged and are reported.
+     13. remove_generated_duplicates -- drop generated exact copies, including
+                                  pieces created by T splitting on poured nets;
+                                  input copies remain unchanged.
 
     ``label`` prefixes the progress prints (e.g. "Diff-pair "). The pass
     switches exist for front parity, not taste:
@@ -653,7 +657,7 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
             print(f"{label}Merged {_mc_stats.get('joints', 0)} collinear joint(s) "
                   f"on {_mc_nets} net(s): -{_mc_n} redundant segment(s) (#811)")
 
-    # Final representation pass: preserve exact T vertices in both fronts.
+    # Preserve exact T vertices in both fronts before removing duplicate pieces.
     # A short tap weld otherwise
     # overlaps both neighbours at both ends, which native KiCad may count as
     # dangling. Only generated unlocked anchors split; no copper is added,
@@ -669,6 +673,16 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
         print(f"{label}T junction pass unchanged: {_tj_stats['limit_reached']} limit reached; "
               f"{_tj_stats['comparisons']} comparisons, "
               f"{_tj_stats['replacement_pieces']} planned pieces")
+
+    _du_stats = {}
+    _du = remove_generated_duplicates(results, pcb_data, scope_net_ids, stats=_du_stats)
+    counts['generated_duplicates_removed'] = _du
+    counts['generated_duplicates_limit_reached'] = _du_stats['limit_reached']
+    if _du:
+        print(f"{label}Removed {_du} exact generated duplicate track(s)")
+    if _du_stats['limit_reached']:
+        print(f"{label}Generated duplicate pass unchanged: segment population limit")
+    _trace('generated_duplicates')
 
     # The passes above edit pcb_data's copper in place; anything cached
     # against the old copper must not answer for the new.

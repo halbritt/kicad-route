@@ -1078,6 +1078,66 @@ def _board_min_track_width(pcb_data, scope_net_ids, config) -> float:
         shipped=True) or 0.1
 
 
+def remove_generated_duplicates(results, pcb_data: PCBData, scope_net_ids=None, *,
+                                max_segments=100_000, stats=None) -> int:
+    """Drop only generated copies of exactly identical track copper.
+
+    Unlike strict collapse, this also applies to poured nets: the kept track
+    has the same net, layer, width and endpoints, so no copper region changes.
+    Input tracks and locked/graphic objects remain immutable. There is no
+    tolerance or coordinate projection, and every write list stays in sync.
+    """
+    if max_segments < 0:
+        raise ValueError('duplicate track population limit must be nonnegative')
+    population = len(pcb_data.segments) + sum(len(r.get('new_segments') or []) for r in results)
+    if stats is not None:
+        stats['limit_reached'] = population > max_segments
+    if population > max_segments:
+        return 0
+    owned = {id(s) for r in results for s in (r.get('new_segments') or [])}
+    representatives, removed = {}, set()
+    def eligible(s):
+        return (s.net_id and not getattr(s, 'graphic', False)
+                and (scope_net_ids is None or s.net_id in scope_net_ids))
+    def writable(s):
+        return eligible(s) and id(s) in owned and not _locked(s)
+    for s in pcb_data.segments:
+        if not eligible(s):
+            continue
+        ends = sorted(((s.start_x, s.start_y), (s.end_x, s.end_y)))
+        key = (s.net_id, s.layer, s.width, *ends)
+        previous = representatives.get(key)
+        if previous is None:
+            representatives[key] = s
+        elif previous is s:
+            continue
+        elif writable(s):
+            removed.add(id(s))
+        elif writable(previous):
+            removed.add(id(previous))
+            representatives[key] = s
+    def retained(items, seen):
+        kept = []
+        for s in items:
+            if id(s) in removed or (writable(s) and id(s) in seen):
+                continue
+            seen.add(id(s))
+            kept.append(s)
+        return kept
+    board_segments = retained(pcb_data.segments, set())
+    seen = set()
+    write_lists = [retained(r.get('new_segments') or [], seen) for r in results]
+    count = max(len(pcb_data.segments)-len(board_segments),
+                sum(len(r.get('new_segments') or [])-len(kept) for r, kept in zip(results,write_lists)))
+    if count:
+        pcb_data.segments = board_segments
+        for result, kept in zip(results,write_lists):
+            if result.get('new_segments'):
+                result['new_segments'] = kept
+        bump_copper_epoch(pcb_data)
+    return count
+
+
 def repair_generated_terminal_centrelines(results, pcb_data: PCBData, scope_net_ids,
                                            config, *, protect_net_ids=None,
                                            max_comparisons=250_000, max_repairs=16,
