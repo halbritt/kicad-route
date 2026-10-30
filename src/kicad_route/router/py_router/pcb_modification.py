@@ -1078,6 +1078,97 @@ def _board_min_track_width(pcb_data, scope_net_ids, config) -> float:
         shipped=True) or 0.1
 
 
+def split_generated_t_junctions(results, pcb_data: PCBData, scope_net_ids=None, *,
+                                max_comparisons=250_000,
+                                max_replacement_pieces=50_000, stats=None) -> int:
+    """Give generated tracks explicit vertices at exact same-net T junctions.
+
+    A tiny tap weld can overlap both neighbouring tracks at both ends. KiCad
+    credits each neighbour to only one end of the weld; without a shared T
+    vertex both credits can land on the same end and the other is dangling.
+    Split only this run's unlocked tracks, never input copper or graphics.
+    This changes segmentation, not the serialized copper union or its length.
+
+    Collinearity is exact at the writer's six-decimal millimetre precision.
+    Nearby endpoints are not projected onto a track. Both the board model and
+    every owning result receive the same replacement objects. Plan before
+    allocating replacement segments: on either finite work/output limit, leave
+    the entire pass unchanged. Native validation then retains any refusal.
+    ``stats`` receives examined comparisons, planned pieces and limit reason.
+    """
+    from bisect import bisect_left, bisect_right
+    from collections import defaultdict
+    from dataclasses import replace
+    from decimal import Decimal
+
+    def point(x, y):
+        return tuple(int(Decimal(format(v, '.6f')) * 1_000_000) for v in (x, y))
+
+    if max_comparisons < 0 or max_replacement_pieces < 0:
+        raise ValueError('T junction budgets must be nonnegative')
+    if stats is None:
+        stats = {}
+    stats.update(comparisons=0, replacement_pieces=0, limit_reached='')
+    owned = {id(s) for r in results for s in (r.get('new_segments') or [])}
+    vertices = defaultdict(set)
+    coordinates = {}
+    for s in pcb_data.segments:
+        if scope_net_ids is not None and s.net_id not in scope_net_ids:
+            continue
+        a, b = point(s.start_x, s.start_y), point(s.end_x, s.end_y)
+        coordinates[id(s)] = a, b
+        vertices[s.net_id, s.layer].update((a, b))
+    vertices = {key: sorted(points) for key, points in vertices.items()}
+    plans = {}
+    count = 0
+    for s in pcb_data.segments:
+        if (id(s) not in owned or id(s) not in coordinates
+                or _locked(s) or getattr(s, 'graphic', False)):
+            continue
+        a, b = coordinates[id(s)]
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        length_squared = dx*dx + dy*dy
+        if not length_squared:
+            continue
+        points = vertices[s.net_id, s.layer]
+        low = bisect_left(points, (min(a[0], b[0]), -math.inf))
+        high = bisect_right(points, (max(a[0], b[0]), math.inf))
+        if stats['comparisons'] + high - low > max_comparisons:
+            stats['limit_reached'] = 'comparisons'
+            return 0
+        stats['comparisons'] += high - low
+        cuts = []
+        for index in range(low, high):
+            p = points[index]
+            px, py = p[0]-a[0], p[1]-a[1]
+            along = px*dx + py*dy
+            if px*dy == py*dx and 0 < along < length_squared:
+                extra_pieces = 1 if cuts else 2
+                if stats['replacement_pieces'] + extra_pieces > max_replacement_pieces:
+                    stats['limit_reached'] = 'replacement_pieces'
+                    return 0
+                stats['replacement_pieces'] += extra_pieces
+                cuts.append((along, p))
+        if not cuts:
+            continue
+        plans[id(s)] = (s, [a] + [p for _, p in sorted(cuts)] + [b])
+        count += len(cuts)
+    replacements = {}
+    for identity, (s, chain) in plans.items():
+        replacements[identity] = [replace(s, start_x=p[0]/1e6, start_y=p[1]/1e6,
+            end_x=q[0]/1e6, end_y=q[1]/1e6, uuid='', start_x_str='', start_y_str='',
+            end_x_str='', end_y_str='') for p, q in zip(chain, chain[1:])]
+    if replacements:
+        def expand(segments):
+            return [piece for s in segments for piece in replacements.get(id(s), [s])]
+        pcb_data.segments = expand(pcb_data.segments)
+        for result in results:
+            if result.get('new_segments'):
+                result['new_segments'] = expand(result['new_segments'])
+        bump_copper_epoch(pcb_data)
+    return count
+
+
 def snap_stub_gaps(results, pcb_data: PCBData, scope_net_ids, config,
                    max_gap_factor: float = 1.5) -> int:
     """Close small gaps where a routed dead end stopped just short of same-net

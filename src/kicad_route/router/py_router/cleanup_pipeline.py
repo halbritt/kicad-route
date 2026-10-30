@@ -51,6 +51,7 @@ from pcb_modification import (
     smooth_octolinear_chains,
     close_soft_joints,
     merge_collinear_segments,
+    split_generated_t_junctions,
     CLOSE_SOFT_JOINT_KINDS,
 )
 
@@ -195,14 +196,19 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                                   joint, so every joint close firmed stands.
      11. merge_collinear_segments -- #811: join collinear same-net/layer/width
                                   pieces into one track. Runs AFTER close on
-                                  purpose, and is the only pass allowed to:
+                                  purpose:
                                   it MOVES NO COPPER (a vertex merges only
                                   when it lies within 1nm of the line joining
                                   its neighbours), so it cannot reopen a joint
                                   close just bridged -- it absorbs the bridge
-                                  into the track instead. It must run last to
+                                  into the track instead. It runs late to
                                   catch the joints close, smooth and the cycle
                                   prune each leave behind.
+     12. split_generated_t_junctions -- give generated tracks explicit vertices
+                                  at exact same-net/layer branch endpoints.
+                                  Changes only segmentation, preserving input
+                                  copper. Finite work/output limits leave the
+                                  whole pass unchanged and are reported.
 
     ``label`` prefixes the progress prints (e.g. "Diff-pair "). The pass
     switches exist for front parity, not taste:
@@ -600,7 +606,7 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                      if _fc_stats.get('vias') else "")
                   + " left by smoothing / joint bridging")
 
-    # #811 FINAL pass. Geometry-preserving by construction (see the pass
+    # #811 Geometry-preserving by construction (see the pass
     # docstring), which is what lets it run after close_soft_joints and what
     # makes it safe on every front without a per-front switch. KICAD_MERGE_
     # COLLINEAR=0 ablates it for A/B isolation.
@@ -616,6 +622,23 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
         if _mc_n:
             print(f"{label}Merged {_mc_stats.get('joints', 0)} collinear joint(s) "
                   f"on {_mc_nets} net(s): -{_mc_n} redundant segment(s) (#811)")
+
+    # Final representation pass: preserve exact T vertices in both fronts.
+    # A short tap weld otherwise
+    # overlaps both neighbours at both ends, which native KiCad may count as
+    # dangling. Only generated unlocked anchors split; no copper is added,
+    # removed or moved, including when the net has a plane.
+    _tj_stats = {}
+    _tj = split_generated_t_junctions(results, pcb_data, scope_net_ids, stats=_tj_stats)
+    counts['t_junctions_split'] = _tj
+    counts['t_junctions_limit_reached'] = _tj_stats['limit_reached']
+    _trace('t_junctions')
+    if _tj:
+        print(f"{label}Made {_tj} exact T junction(s) explicit in generated tracks")
+    if _tj_stats['limit_reached']:
+        print(f"{label}T junction pass unchanged: {_tj_stats['limit_reached']} limit reached; "
+              f"{_tj_stats['comparisons']} comparisons, "
+              f"{_tj_stats['replacement_pieces']} planned pieces")
 
     # The passes above edit pcb_data's copper in place; anything cached
     # against the old copper must not answer for the new.
