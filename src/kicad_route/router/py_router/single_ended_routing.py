@@ -4793,6 +4793,52 @@ def inprogress_via_ring_cells(v, net_id: int, config: GridRouteConfig,
             if 0 < ex * ex + ey * ey <= radius_sq]
 
 
+def _tap_terminals_already_cross(pcb_data, pending_segments, net_id, start, end,
+                                 *, max_segments=4096, max_pairs=4096):
+    """Prove direct centreline contact before emitting a singleton tap weld.
+
+    Pending main/tap copper is not yet in pcb_data. Neither same-cell occupancy,
+    conductor width nor zone contact proves this connection. Only owner tracks
+    on the same layer whose saved centrelines intersect can suppress the weld.
+    On either work limit, retain the ordinary weld instead of claiming contact.
+    """
+    from decimal import Decimal
+    from geometry_utils import point_to_segment_distance, segments_intersect_2d
+    if start[2] != end[2]:
+        return False
+    owners = [[], []]
+    seen = set()
+    scanned = 0
+    for collection in (pcb_data.segments, pending_segments):
+        for segment in collection:
+            scanned += 1
+            if scanned > max_segments:
+                return False
+            if (id(segment) in seen or segment.net_id != net_id
+                    or segment.layer != start[2] or getattr(segment, 'graphic', False)):
+                continue
+            seen.add(id(segment))
+            coordinates = (segment.start_x, segment.start_y, segment.end_x, segment.end_y)
+            # The emitter writes six decimal mm places. Test intersection on
+            # that integer-nm geometry, without a physical overlap tolerance.
+            saved = tuple(int(Decimal(format(value, '.6f')) * 1_000_000)
+                          for value in coordinates)
+            for index, terminal in enumerate((start, end)):
+                # Allow only floating arithmetic noise in the unrounded owner
+                # projection (0.001 nm), not the router's cell/overlap tolerance.
+                if point_to_segment_distance(*terminal[:2], *coordinates) <= 1e-9:
+                    owners[index].append((saved[:2], saved[2:]))
+    pairs = 0
+    for source in owners[0]:
+        for target in owners[1]:
+            pairs += 1
+            if pairs > max_pairs:
+                return False
+            if segments_intersect_2d(*source, *target, tolerance=0):
+                return True
+    return False
+
+
 def _route_multipoint_taps_impl(
     pcb_data: PCBData,
     net_id: int,
@@ -5337,13 +5383,14 @@ def _route_multipoint_taps_impl(
         if _fill_end is not None:
             end_original = _fill_end
             path_end_layer = _fill_end[2]
-        segments, vias = _path_to_segments_vias(
-            path, coord, layer_names, net_id, config,
-            (tap_x, tap_y, tap_layer),  # start_original (actual tap point used)
-            end_original,
-            through_hole_positions,
-            pcb_data
-        )
+        start_original = (tap_x, tap_y, tap_layer)
+        if len(path) == 1 and _tap_terminals_already_cross(
+                pcb_data, all_segments, net_id, start_original, end_original):
+            segments, vias = [], []
+        else:
+            segments, vias = _path_to_segments_vias(
+                path, coord, layer_names, net_id, config,
+                start_original, end_original, through_hole_positions, pcb_data)
         segments = _assign_wide_route_widths(
             segments, config, net_id, obstacles, coord, layer_names,
             track_margin, necked_down, uniform_width, neck_start=False)
