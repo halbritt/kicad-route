@@ -51,6 +51,7 @@ from pcb_modification import (
     smooth_octolinear_chains,
     close_soft_joints,
     merge_collinear_segments,
+    repair_generated_terminal_centrelines,
     split_generated_t_junctions,
     CLOSE_SOFT_JOINT_KINDS,
 )
@@ -95,21 +96,30 @@ def strict_collapse_deferred() -> bool:
     return _STRICT_COLLAPSE_DEFERRED[0] > 0
 
 
-def _smooth_skip_net_ids(pcb_data):
-    """Nets the #536 octolinear smoothing pass must never touch: protected
-    nets (length/time-matched groups, coupled diff pairs, KiCad-locked
-    copper -- prior steps via the .kicad_pro plus THIS step's not-yet-
-    consumed registrations) and impedance-declared nets. Their geometry is
-    the spec: meanders exist on purpose, and smoothing one pair leg destroys
-    the coupling. Peeks at protected_nets._notes WITHOUT consuming -- the
-    writeback site owns the consume."""
+def _declared_geometry_net_ids(pcb_data):
+    """Whole-net geometry declarations, including pending registrations.
+
+    Length/time matching, pair coupling and impedance are net invariants.
+    A locked individual input track is separately immutable; it does not
+    prevent a new generated terminal from attaching to its centreline.
+    Only the writeback site consumes the pending records.
+    """
     import protected_nets as _pn
-    names = set(_pn.protection_map(pcb_data))
+    names = set(_pn.read_for_pcb_data(pcb_data))
     names |= set(_pn._notes.get(_pn.PRO_KEY, {}) or {})
     names |= set(_pn.read_impedance_for_pcb_data(pcb_data))
     names |= set(_pn._notes.get(_pn.IMPEDANCE_KEY, {}) or {})
     return {nid for nid, net in pcb_data.nets.items()
             if getattr(net, 'name', None) in names}
+
+
+def _smooth_skip_net_ids(pcb_data):
+    """Smoothing also excludes entire nets with KiCad-locked copper (#536)."""
+    import protected_nets as _pn
+    locked = _pn.locked_net_names(pcb_data)
+    return _declared_geometry_net_ids(pcb_data) | {
+        nid for nid, net in pcb_data.nets.items()
+        if getattr(net, 'name', None) in locked}
 
 
 @dataclass
@@ -180,6 +190,10 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                                   shape pass, still before close (it removes
                                   copper); skips protected / impedance nets
                                   (_smooth_skip_net_ids).
+     9c. repair_generated_terminal_centrelines -- continue a native-dangling
+                                  generated terminal to its target centreline,
+                                  retaining strict connectivity and checking
+                                  the added copper before changing either model.
      10. close_soft_joints     -- LAST ADDITIVE copper step (#319 ordering):
                                   bridge any remaining same-net soft joint.
                                   The subtractive passes above run with the
@@ -555,6 +569,22 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                   f"{_sm_stats.get('spans', 0)} staircase span(s) on "
                   f"{_sm_nets} net(s), -{_sm_stats.get('saved_mm', 0.0):.2f} mm "
                   f"of copper (#536)")
+
+    _tc_stats = {}
+    _tc = repair_generated_terminal_centrelines(
+        results, pcb_data, scope_net_ids, config,
+        protect_net_ids=(set(protect_net_ids or ())
+                         | _declared_geometry_net_ids(pcb_data)), stats=_tc_stats)
+    counts['terminal_centrelines_repaired'] = _tc
+    counts['terminal_centrelines_limit_reached'] = _tc_stats['limit_reached']
+    _trace('terminal_centrelines')
+    if _tc:
+        print(f"{label}Continued {_tc} generated terminal(s) to their target centreline")
+    if _tc_stats['limit_reached']:
+        print(f"{label}Terminal centreline pass stopped at {_tc_stats['limit_reached']} limit")
+    if _tc_stats['unsupported_channels']:
+        print(f"{label}Terminal centreline pass unchanged for unsupported channels: "
+              + ', '.join(_tc_stats['unsupported_channels']))
 
     # FINAL copper step (#319 ordering): nothing below may remove copper.
     # KICAD_NO_SOFT_JOINT_BRIDGE=1 is an A/B ablation knob (like

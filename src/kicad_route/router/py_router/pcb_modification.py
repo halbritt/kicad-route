@@ -1078,6 +1078,194 @@ def _board_min_track_width(pcb_data, scope_net_ids, config) -> float:
         shipped=True) or 0.1
 
 
+def repair_generated_terminal_centrelines(results, pcb_data: PCBData, scope_net_ids,
+                                           config, *, protect_net_ids=None,
+                                           max_comparisons=250_000, max_repairs=16,
+                                           stats=None) -> int:
+    """Extend a generated terminal to its target centreline, preserving input.
+
+    A short last grid edge can touch the target physically yet dangle under
+    KiCad's endpoint-credit rule. Deleting it can break strict connectivity.
+    For an unambiguous two-track termination, continue the generated predecessor
+    along its existing heading to the finite target segment and remove the last
+    edge. Only forward extensions of at most half the track width qualify.
+    Native validation still grades the resulting board without exceptions.
+    Layer/track rule maps, user keepouts/corridors and protected-pour barriers
+    are outside this narrow repair; their presence leaves it unchanged.
+    """
+    from collections import defaultdict
+    from dataclasses import replace
+    from decimal import Decimal
+    from fractions import Fraction
+    from check_weird import _check_kicad_dangling
+    from check_drc import (board_edge_geometry, check_segment_board_edge_poly,
+                           check_segment_board_edge, npth_slot_capsules,
+                           segment_to_npth_slots_distance)
+    from check_connected import point_in_polygon
+    from geometry_utils import point_to_segment_distance, segment_to_segment_distance
+    from single_ended_routing import _seg_foreign_hole_dist
+    from obstacle_map import resolve_hole_clearance
+
+    if max_comparisons < 0 or max_repairs < 0:
+        raise ValueError('terminal repair budgets must be nonnegative')
+    if stats is None:
+        stats = {}
+    stats.update(comparisons=0, limit_reached='', unsupported_channels=[])
+    stats['unsupported_channels'] = [name for name in (
+        'layer_clearances', 'track_clearances', 'keepout_enabled',
+        'guide_corridor_enabled', 'pour_barriers') if getattr(config, name, None)]
+    if stats['unsupported_channels']:
+        return 0
+    owned = {id(s) for r in results for s in (r.get('new_segments') or [])}
+    grouped = defaultdict(list)
+    for s in pcb_data.segments:
+        if scope_net_ids is None or s.net_id in scope_net_ids:
+            grouped[s.net_id].append(s)
+    zoned = {z.net_id for z in (pcb_data.zones or [])}
+    layers = pcb_data.board_info.copper_layers
+    rings, outer, cutouts = board_edge_geometry(pcb_data.board_info)
+    bounds = pcb_data.board_info.board_bounds
+    if not rings and not bounds:
+        return 0
+    slots = npth_slot_capsules(pcb_data)
+    hole_floor = resolve_hole_clearance(pcb_data, config)
+    count = 0
+
+    def ends(s):
+        return (s.start_x, s.start_y), (s.end_x, s.end_y)
+
+    def distance(p, s):
+        return point_to_segment_distance(*p, s.start_x, s.start_y, s.end_x, s.end_y)
+
+    def writable(s):
+        return id(s) in owned and not _locked(s) and not getattr(s, 'graphic', False)
+
+    def findings(segs, vias, pads, nid):
+        found = []
+        _check_kicad_dangling(nid, '', segs, vias, pads, [], layers, found)
+        return {(f['layer'], f['x'], f['y']) for f in found}
+
+    for nid, initial in grouped.items():
+        if nid == 0 or nid in zoned or (protect_net_ids and nid in protect_net_ids):
+            continue
+        pads = pcb_data.pads_by_net.get(nid, [])
+        vias = [v for v in pcb_data.vias if v.net_id == nid]
+        if len(pads) < 2 or len(initial)+len(pads)+len(vias) > STRICT_REMOVAL_MAX_SEGS:
+            continue
+        # Both prediction scans plus a bounded whole-net model per repair.
+        if stats['comparisons'] + len(initial)**2 > max_comparisons:
+            stats['limit_reached'] = 'comparisons'
+            break
+        stats['comparisons'] += len(initial)**2
+        pending = sorted(findings(initial, vias, pads, nid))
+        for layer, fx, fy in pending:
+            if count >= max_repairs:
+                stats['limit_reached'] = 'repairs'
+                return count
+            segs = [s for s in pcb_data.segments if s.net_id == nid]
+            if stats['comparisons'] + 3*len(segs)**2 > max_comparisons:
+                stats['limit_reached'] = 'comparisons'
+                return count
+            stats['comparisons'] += 3*len(segs)**2
+            at_free = [s for s in segs if s.layer == layer and (fx, fy) in ends(s)]
+            if len(at_free) != 1:
+                continue
+            stub = at_free[0]
+            p, q = ends(stub)
+            if p == (fx, fy):
+                p, q = q, p
+            if not writable(stub) or math.dist(p, q) > stub.width/2:
+                continue
+            touching = [s for s in segs if s is not stub and s.layer == layer
+                        and any(distance(e, s) <= (s.width+stub.width)/2 + 1e-9 for e in (p, q))]
+            if len(touching) != 2:
+                continue
+            parents = [s for s in touching if p in ends(s)]
+            if len(parents) != 1:
+                continue
+            parent = parents[0]
+            target = next(s for s in touching if s is not parent)
+            if (not writable(parent) or parent.width != stub.width
+                    or ends(parent)[0] == ends(parent)[1]
+                    or getattr(target, 'graphic', False)
+                    or distance(q, target) > COINCIDENCE_TOL):
+                continue
+            a = next(e for e in ends(parent) if e != p)
+            # Intersect at the writer's nanometre precision; never project an
+            # input endpoint or rotate the generated predecessor's heading.
+            aa, pp, cc, dd = [tuple(int(Decimal(format(v, '.6f'))*1_000_000) for v in e)
+                              for e in (a, p, *ends(target))]
+            dx, dy = pp[0]-aa[0], pp[1]-aa[1]
+            ex, ey = dd[0]-cc[0], dd[1]-cc[1]
+            den = dx*ey-dy*ex
+            if not den:
+                continue
+            alpha = Fraction((cc[0]-aa[0])*ey-(cc[1]-aa[1])*ex, den)
+            beta = Fraction((cc[0]-aa[0])*dy-(cc[1]-aa[1])*dx, den)
+            hit = (round(aa[0]+alpha*dx)/1e6, round(aa[1]+alpha*dy)/1e6)
+            if (alpha <= 1 or not 0 < beta < 1 or math.dist(p, hit) > stub.width/2
+                    or distance(hit, target) > .000001):
+                continue
+            new = replace(parent, uuid='', start_x_str='', start_y_str='',
+                          end_x_str='', end_y_str='')
+            if ends(parent)[0] == p:
+                new.start_x, new.start_y = hit
+            else:
+                new.end_x, new.end_y = hit
+            extension = replace(new, start_x=p[0], start_y=p[1], end_x=hit[0], end_y=hit[1])
+            clearance = (config.obstacle_clearance(nid) if hasattr(config, 'obstacle_clearance')
+                         else config.clearance)
+            net_clearances = getattr(config, 'net_clearances', None)
+            if not _connector_clear(*p, *hit, new.width, layer, nid, pcb_data,
+                                    clearance, net_clearances=net_clearances):
+                continue
+            hole_clearance = max(clearance, hole_floor)
+            if _seg_foreign_hole_dist(pcb_data, nid, *p, *hit,
+                                      base_clearance=hole_clearance) < hole_clearance+new.width/2:
+                continue
+            edge = max(clearance, config.board_edge_clearance)
+            if segment_to_npth_slots_distance(slots, *p, *hit) < edge+new.width/2:
+                continue
+            edge_bad = (check_segment_board_edge_poly(extension, rings, outer, cutouts, edge,
+                                                       clearance_margin=0)[0] if rings else
+                        check_segment_board_edge(extension, bounds, edge, clearance_margin=0)[0])
+            if edge_bad:
+                continue
+            blocked = False
+            for ko in pcb_data.board_info.keepouts:
+                kl = ko.get('layers') or set()
+                if ko.get('tracks_allowed', True) or (kl and not (kl & {layer, '*.Cu', 'F&B.Cu', 'F&B'})):
+                    continue
+                poly = ko.get('polygon') or []
+                if len(poly) >= 3 and (any(point_in_polygon(*e, poly) for e in (p, hit))
+                        or any(segment_to_segment_distance(*p, *hit, *u, *v) < new.width/2+clearance
+                               for u, v in zip(poly, poly[1:]+poly[:1]))):
+                    blocked = True
+                    break
+            if blocked:
+                continue
+            trial = [new if s is parent else s for s in segs if s is not stub]
+            before = StrictRemovalModel(nid, segs, vias, pads, layers)
+            after = StrictRemovalModel(nid, trial, vias, pads, layers)
+            if (not before.valid or not after.valid or after._base_phys_disc > before._base_phys_disc
+                    or after._base_copper > before._base_copper):
+                continue
+            old_findings = findings(segs, vias, pads, nid)
+            new_findings = findings(trial, vias, pads, nid)
+            if not new_findings < old_findings:
+                continue
+            def apply(items):
+                return [new if s is parent else s for s in items if s is not stub]
+            pcb_data.segments = apply(pcb_data.segments)
+            for result in results:
+                if result.get('new_segments'):
+                    result['new_segments'] = apply(result['new_segments'])
+            owned.discard(id(parent)); owned.discard(id(stub)); owned.add(id(new))
+            bump_copper_epoch(pcb_data)
+            count += 1
+    return count
+
+
 def split_generated_t_junctions(results, pcb_data: PCBData, scope_net_ids=None, *,
                                 max_comparisons=250_000,
                                 max_replacement_pieces=50_000, stats=None) -> int:
