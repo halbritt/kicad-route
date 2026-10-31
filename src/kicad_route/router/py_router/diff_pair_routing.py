@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import env_knobs
 import math
+from decimal import Decimal
 import numpy as np
 from typing import List, Optional, Tuple, Dict
 
@@ -1428,6 +1429,37 @@ def _neck_pair_partner_grazes(p_segs, n_segs, config, pcb_data):
     return necked, hard
 
 
+def _trim_direct_terminal_retrace(path, terminal, extension, config, layer_names):
+    """Remove a path prefix that doubles back over its direct connector.
+
+    The terminal stays fixed. Only equal-width, same-layer copper that
+    retraces the connector at the writer's precision can be shortened.
+    Explicit extensions retain their prescribed geometry. The caller's
+    path and its point objects are borrowed and never modified.
+    """
+    if terminal is None or extension > .001:
+        return path
+
+    def saved_xy(point):
+        return tuple(int(Decimal(format(v, '.6f')) * 1_000_000) for v in point[:2])
+
+    ax, ay = saved_xy(terminal)
+    first = 0
+    while first + 1 < len(path):
+        tip, following = path[first:first + 2]
+        if (tip[2] != following[2]
+                or config.get_track_width(layer_names[tip[2]]) != config.track_width):
+            break
+        bx, by = saved_xy(tip)
+        cx, cy = saved_xy(following)
+        dx, dy = bx - ax, by - ay
+        ex, ey = cx - ax, cy - ay
+        if dx * ey != dy * ex or not 0 <= dx * ex + dy * ey < dx * dx + dy * dy:
+            break
+        first += 1
+    return path[first:] if first else path
+
+
 def _float_path_to_geometry(float_path, net_id, original_start, original_end, sign,
                             src_stub_dir, tgt_stub_dir, src_extension, tgt_extension,
                             config, layer_names, omit_connectors=False,
@@ -1460,13 +1492,21 @@ def _float_path_to_geometry(float_path, net_id, original_start, original_end, si
     segs = []
     vias = []
     connector_lines = []  # Debug lines for connectors
-    num_segments = len(float_path) - 1
-
     if omit_connectors:
         # Hybrid mode: emit only the coupled middle; the terminal joins are done
         # single-ended afterwards, so suppress both connector segments.
         original_start = None
         original_end = None
+
+    # Offset terminal points can sit beyond the next miter, making the
+    # connector and first path segment retrace one another. Resolve that
+    # generated backtrack before any segments or length measurements exist.
+    float_path = _trim_direct_terminal_retrace(
+        float_path, original_start, src_extension, config, layer_names)
+    if original_end is not None:
+        float_path = list(reversed(_trim_direct_terminal_retrace(
+            list(reversed(float_path)), original_end, tgt_extension, config, layer_names)))
+    num_segments = len(float_path) - 1
 
     # Add connecting segment from original start if needed
     if original_start and len(float_path) > 0:
