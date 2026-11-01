@@ -544,27 +544,6 @@ def _own_net_npth_hole_dist(pcb_data, net_id, x1, y1, x2, y2) -> float:
     return best
 
 
-def _bridge_clears(pcb_data, nid, x1, y1, x2, y2, layer, w, clr, npth_clr) -> bool:
-    """Does a new short track on ``nid`` clear every other net's copper and holes?"""
-    from single_ended_routing import (_seg_foreign_pad_dist, _seg_foreign_seg_dist,
-                                      _seg_foreign_via_dist, _seg_foreign_hole_dist)
-    d = min(_seg_foreign_pad_dist(pcb_data, nid, x1, y1, x2, y2, layer,
-                                  base_clearance=clr),
-            _seg_foreign_seg_dist(pcb_data, nid, x1, y1, x2, y2, layer),
-            _seg_foreign_via_dist(pcb_data, nid, x1, y1, x2, y2, layer))
-    hd = _seg_foreign_hole_dist(pcb_data, nid, x1, y1, x2, y2)
-    # _seg_foreign_hole_dist filters `nid != net_id` ("own-net holes are
-    # excluded"), which is right for a PLATED barrel -- that copper is the
-    # net. It is wrong for an UNPLATED one: an NPTH pad has no copper
-    # whatever net it is tagged with (#328), so a net-tied mounting hole is
-    # a hole this bridge must clear like any other. Without this the gate
-    # was structurally blind to the one hole a same-net bridge is most
-    # likely to cross.
-    hd = min(hd, _own_net_npth_hole_dist(pcb_data, nid, x1, y1, x2, y2))
-    return (d >= clr + w / 2.0 - 1e-4 and
-            hd >= npth_clr + w / 2.0 - 1e-4)
-
-
 def close_soft_joints(results, pcb_data: PCBData, scope_net_ids, config,
                       clearance: float = None) -> int:
     """Bridge same-net SOFT JOINTS with a TINY coincident segment (#soft-joint).
@@ -586,6 +565,8 @@ def close_soft_joints(results, pcb_data: PCBData, scope_net_ids, config,
     from collections import defaultdict
     from routing_constants import SOFT_JOINT_MIN_GAP
     from check_drc import point_to_pad_distance
+    from single_ended_routing import (_seg_foreign_pad_dist, _seg_foreign_seg_dist,
+                                       _seg_foreign_via_dist, _seg_foreign_hole_dist)
     from routing_defaults import NPTH_TO_TRACK_CLEARANCE
     clr = config.clearance if clearance is None else clearance
     # NPTH holes are graded at the higher NPTH-to-track fab floor, not the
@@ -664,7 +645,21 @@ def close_soft_joints(results, pcb_data: PCBData, scope_net_ids, config,
                 (x, y, s.width, getattr(s, 'graphic', False), id(s)))
 
     def clears(nid, x1, y1, x2, y2, layer, w):
-        return _bridge_clears(pcb_data, nid, x1, y1, x2, y2, layer, w, clr, npth_clr)
+        d = min(_seg_foreign_pad_dist(pcb_data, nid, x1, y1, x2, y2, layer,
+                                      base_clearance=clr),
+                _seg_foreign_seg_dist(pcb_data, nid, x1, y1, x2, y2, layer),
+                _seg_foreign_via_dist(pcb_data, nid, x1, y1, x2, y2, layer))
+        hd = _seg_foreign_hole_dist(pcb_data, nid, x1, y1, x2, y2)
+        # _seg_foreign_hole_dist filters `nid != net_id` ("own-net holes are
+        # excluded"), which is right for a PLATED barrel -- that copper is the
+        # net. It is wrong for an UNPLATED one: an NPTH pad has no copper
+        # whatever net it is tagged with (#328), so a net-tied mounting hole is
+        # a hole this bridge must clear like any other. Without this the gate
+        # was structurally blind to the one hole a same-net bridge is most
+        # likely to cross.
+        hd = min(hd, _own_net_npth_hole_dist(pcb_data, nid, x1, y1, x2, y2))
+        return (d >= clr + w / 2.0 - 1e-4 and
+                hd >= npth_clr + w / 2.0 - 1e-4)
 
     new_conns = []
     for (net_id, layer), ends in dangles.items():
@@ -3089,12 +3084,15 @@ def strict_removable_segments(model) -> set:
 
 
 def _bridges_replacing_via(via, segments):
-    """Track that joins ``segments`` where only ``via``'s copper now does.
+    """Track joining ``segments`` that lies wholly inside copper already there, or ``None``.
 
-    Each bridge runs from the via centre to the closest point on a segment's
-    centreline, at that segment's width. Callers grade it against other nets' copper,
-    because a wide bridge can leave the via's disk and the segment.
+    Each bridge runs from the via centre to the closest point on a segment's centreline.
+    Its sides stay inside the via's disk and its far end inside the segment, so it adds no
+    copper beyond the via and that segment, and no new exposure to other nets, holes or
+    the board edge. It is never narrower than the narrowest track already at the via.
     """
+    radius = (getattr(via, 'size', 0.6) or 0.6) / 2.0
+    narrowest = min(segment.width for segment in segments)
     bridges, ends = [], []
     for segment in segments:
         dx, dy = segment.end_x - segment.start_x, segment.end_y - segment.start_y
@@ -3102,23 +3100,27 @@ def _bridges_replacing_via(via, segments):
         t = 0.0 if not length_sq else max(0.0, min(1.0, (
             (via.x - segment.start_x) * dx + (via.y - segment.start_y) * dy) / length_sq))
         end = (segment.start_x + t * dx, segment.start_y + t * dy)
-        if (math.hypot(end[0] - via.x, end[1] - via.y) < 1e-3
-                or any(math.hypot(end[0] - x, end[1] - y) < 1e-3 for x, y in ends)):
+        reach = math.hypot(end[0] - via.x, end[1] - via.y)
+        if reach < 1e-3 or any(math.hypot(end[0] - x, end[1] - y) < 1e-3 for x, y in ends):
             continue
+        if reach >= radius:
+            return None
+        width = min(segment.width, 2.0 * math.sqrt(radius * radius - reach * reach))
+        if width < narrowest - 1e-9:
+            return None
         ends.append(end)
-        bridges.append(Segment(via.x, via.y, end[0], end[1], segment.width, segment.layer, via.net_id))
-    return bridges
+        bridges.append(Segment(via.x, via.y, end[0], end[1], width, segment.layer, via.net_id))
+    return bridges or None
 
 
 def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
-                                max_rounds: int = 32, stats=None, added=None,
-                                clearance=None):
+                                max_rounds: int = 32, stats=None, added=None):
     """Remove every via check_weird calls dangling or floating on ``net_ids``,
     with the dead branch it ends (#1166). Mutates ``board.segments`` /
-    ``board.vias``; returns ``(removed segments, removed vias)``. With a
-    ``clearance``, a via whose copper alone joins tracks on its one layer is
-    replaced by track between them that clears other nets' copper, which is
-    appended to ``board.segments`` and to ``added``.
+    ``board.vias``; returns ``(removed segments, removed vias)``. A via whose
+    copper alone joins tracks on its one layer is replaced by track between them
+    that stays inside its copper, which is appended to ``board.segments`` and to
+    ``added``.
 
     A via reached on one layer only joins nothing (KiCad's ``via_dangling``),
     and no other pass removes one: prune_dead_end_segments and the sweep
@@ -3149,7 +3151,6 @@ def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
                              _check_unsupported_vias)
     from check_connected import (check_net_connectivity, _point_in_pad,
                                  point_in_polygon)
-    from routing_defaults import NPTH_TO_TRACK_CLEARANCE
     copper = list(getattr(board.board_info, 'copper_layers', None)
                   or ['F.Cu', 'B.Cu'])
     removed_s, removed_v = [], []
@@ -3260,11 +3261,8 @@ def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
                 if worse(after):
                     # The via's copper may be all that joins tracks on its one
                     # layer. Join them with track, inside that same copper.
-                    joined = (_bridges_replacing_via(v, tsegs)
-                              if clearance is not None and tsegs and not gone_s else [])
-                    if not joined or not all(_bridge_clears(
-                            board, nid, s.start_x, s.start_y, s.end_x, s.end_y, s.layer, s.width,
-                            clearance, max(clearance, NPTH_TO_TRACK_CLEARANCE)) for s in joined):
+                    joined = _bridges_replacing_via(v, tsegs) if tsegs and not gone_s else None
+                    if not joined:
                         continue
                     t_segs = segs + joined
                     after = grade(nid, t_segs, t_vias, pads, zones)
