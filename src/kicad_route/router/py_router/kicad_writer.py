@@ -1445,6 +1445,22 @@ def remove_segments_from_content(content: str, segments: List,
     return _remove_copper_blocks(content, segments, 'segment', net_id_to_name, unmatched_out)
 
 
+def replace_copper_in_content(content, removed_segments, removed_vias, new_segments, net_names):
+    """Apply one late copper edit to board text, in the file's own net-token dialect."""
+    from kicad_parser import board_uses_name_nets
+    names = net_names if board_uses_name_nets(content) else None
+    if removed_segments:
+        content, _ = remove_segments_from_content(content, removed_segments, net_id_to_name=names)
+    if removed_vias:
+        content, _ = remove_vias_from_content(content, removed_vias, net_id_to_name=names)
+    if new_segments:
+        lines = [generate_segment_sexpr((s.start_x, s.start_y), (s.end_x, s.end_y), s.width, s.layer,
+                                        s.net_id, names.get(s.net_id) if names else None) for s in new_segments]
+        end = content.rfind(')')
+        content = content[:end] + '\n'.join(lines) + '\n' + content[end:]
+    return content
+
+
 def remove_vias_from_content(content: str, vias: List,
                              net_id_to_name: Dict = None,
                              unmatched_out: List = None) -> Tuple[str, int]:

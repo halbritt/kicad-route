@@ -989,7 +989,7 @@ def _late_soft_joint_bridge984(pcb_data, output_file, return_results,
 
 def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
                                  results_data, write_model, input_signature,
-                                 scope_names, keep_input_copper):
+                                 scope_names, keep_input_copper, clearance):
     """#1166: remove the vias check_weird calls dangling (reached on one layer)
     or floating on the run's nets, with the dead branch each ends, from the
     board this run SHIPS -- after every pass that lays or removes copper,
@@ -1039,7 +1039,8 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
         _stats = {}
         joined = []
         removed, dropped = sweep_dangling_via_branches(
-            board, scope, protected_ids=protected, stats=_stats, added=joined)
+            board, scope, protected_ids=protected, stats=_stats, added=joined,
+            clearance=clearance)
         if not (removed or dropped):
             return 0, 0
         gone = {id(x) for x in removed + dropped}
@@ -1061,22 +1062,10 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
                 rd.setdefault('results', []).append({'new_segments': joined, 'new_vias': []})
             bump_copper_epoch(pcb_data)
         else:
-            from kicad_parser import is_kicad_10 as _k10_1166
-            from kicad_writer import (generate_segment_sexpr as _gss1166,
-                                      remove_segments_from_content as _rsc1166,
-                                      remove_vias_from_content as _rvc1166)
+            from kicad_writer import replace_copper_in_content
             with open(output_file, 'r', encoding='utf-8') as _f:
                 _c = _f.read()
-            _map = name_of if _k10_1166(_c) else None
-            if removed:
-                _c, _ = _rsc1166(_c, removed, net_id_to_name=_map)
-            if dropped:
-                _c, _ = _rvc1166(_c, dropped, net_id_to_name=_map)
-            if joined:
-                _sx = [_gss1166((s.start_x, s.start_y), (s.end_x, s.end_y), s.width, s.layer,
-                                s.net_id, _map.get(s.net_id) if _map else None) for s in joined]
-                _lp = _c.rfind(')')
-                _c = _c[:_lp] + '\n'.join(_sx) + '\n' + _c[_lp:]
+            _c = replace_copper_in_content(_c, removed, dropped, joined, name_of)
             with open(output_file, 'w', encoding='utf-8') as _f:
                 _f.write(_c)
         print(f"  Dangling vias (#1166, end of run): removed {len(dropped)} "
@@ -2414,7 +2403,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
             if final_reconcile and not skip_routing:
                 _late_dangling_via_sweep1166(
                     pcb_data, output_file, True, _rd659, None, _input_sig1069,
-                    _scope1166, keep_input_copper)
+                    _scope1166, keep_input_copper, config.clearance)
             _late_orphan_sweep659(pcb_data, output_file, True, _rd659,
                                   None, keep_input_copper, skip_routing)
             return 0, 0, 0.0, _rd659
@@ -2422,7 +2411,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
         if final_reconcile and not skip_routing:
             _late_dangling_via_sweep1166(
                 pcb_data, output_file, False, None, None, _input_sig1069,
-                _scope1166, keep_input_copper)
+                _scope1166, keep_input_copper, config.clearance)
         _late_orphan_sweep659(pcb_data, output_file, False, None,
                               None, keep_input_copper, skip_routing)
         return 0, 0, 0.0
@@ -7340,7 +7329,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
             _gui_write_model, _input_sig1069,
             {pcb_data.nets[_n].name for _n in sweep_scope_ids
              if _n in pcb_data.nets},
-            keep_input_copper)
+            keep_input_copper, config.clearance)
 
     _late_orphan_sweep659(
         pcb_data, output_file, return_results,
