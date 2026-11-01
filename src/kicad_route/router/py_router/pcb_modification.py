@@ -3261,7 +3261,9 @@ def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
                 if worse(after):
                     # The via's copper may be all that joins tracks on its one
                     # layer. Join them with track, inside that same copper.
-                    joined = _bridges_replacing_via(v, tsegs) if tsegs and not gone_s else None
+                    # Only when tracks alone reach the via: a pad or plane touching its
+                    # copper could lose connection width that no bridge restores.
+                    joined = _bridges_replacing_via(v, tsegs) if tsegs and not gone_s and not fixed else None
                     if not joined:
                         continue
                     t_segs = segs + joined

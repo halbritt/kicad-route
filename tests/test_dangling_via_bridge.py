@@ -96,17 +96,20 @@ class ViaJoiningOneLayerTests(unittest.TestCase):
         self.assertGreater(added[0].width, narrow.width)
         self.assertLessEqual(math.hypot(.225, added[0].width / 2), .3 + 1e-9)
 
-    def test_pad_that_only_the_via_reached_keeps_the_via(self):
-        # Review counterexample: a same-net pad touches the via's disk and nothing else.
-        trunk, branch = track(0, -3, 0, 0), Segment(.225, 0, .225, 3, .2, 'F.Cu', NET)
-        via = Via(0, 0, .6, .3, ['F.Cu', 'B.Cu'], NET)
-        beside = pad('C', -.34, 0)
-        beside.size_x = beside.size_y = .2
-        beside.shape = 'circle'
-        pcb = board([trunk, branch], [via], [pad('A', 0, -3), pad('B', .225, 3), beside])
-        added = []
-        self.assertEqual(sweep_dangling_via_branches(pcb, {NET}, added=added), ([], []))
-        self.assertEqual((pcb.vias, added), ([via], []))
+    def test_pad_touching_the_via_copper_keeps_the_via(self):
+        # Review counterexamples: a same-net pad reaches the via's disk, whether or not it also
+        # reaches a track, and removing the disk would narrow or break its connection.
+        for x in (-.34, -.29):
+            with self.subTest(x=x):
+                trunk, branch = track(0, -3, 0, 0), Segment(.225, 0, .225, 3, .5, 'F.Cu', NET)
+                via = Via(0, 0, .6, .3, ['F.Cu', 'B.Cu'], NET)
+                beside = pad('C', x, 0)
+                beside.size_x = beside.size_y = .2
+                beside.shape = 'circle'
+                pcb = board([trunk, branch], [via], [pad('A', 0, -3), pad('B', .225, 3), beside])
+                added = []
+                self.assertEqual(sweep_dangling_via_branches(pcb, {NET}, added=added), ([], []))
+                self.assertEqual((pcb.vias, added), ([via], []))
 
     def test_bridge_removed_by_a_later_round_is_not_emitted(self):
         # Review counterexample: removing the second via carries the first via's bridge away.
