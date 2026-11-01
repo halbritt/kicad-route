@@ -3083,11 +3083,36 @@ def strict_removable_segments(model) -> set:
     return out
 
 
+def _bridges_replacing_via(via, segments):
+    """Track that joins ``segments`` where only ``via``'s copper now does.
+
+    Each bridge runs from the via centre to the closest point on a segment's
+    centreline, at the narrowest of their widths, so its copper stays inside the
+    via's disk and that segment and adds no new clearance exposure.
+    """
+    bridges, ends = [], []
+    width = min(segment.width for segment in segments)
+    for segment in segments:
+        dx, dy = segment.end_x - segment.start_x, segment.end_y - segment.start_y
+        length_sq = dx * dx + dy * dy
+        t = 0.0 if not length_sq else max(0.0, min(1.0, (
+            (via.x - segment.start_x) * dx + (via.y - segment.start_y) * dy) / length_sq))
+        end = (segment.start_x + t * dx, segment.start_y + t * dy)
+        if (math.hypot(end[0] - via.x, end[1] - via.y) < 1e-3
+                or any(math.hypot(end[0] - x, end[1] - y) < 1e-3 for x, y in ends)):
+            continue
+        ends.append(end)
+        bridges.append(Segment(via.x, via.y, end[0], end[1], width, segment.layer, via.net_id))
+    return bridges
+
+
 def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
-                                max_rounds: int = 32, stats=None):
+                                max_rounds: int = 32, stats=None, added=None):
     """Remove every via check_weird calls dangling or floating on ``net_ids``,
     with the dead branch it ends (#1166). Mutates ``board.segments`` /
-    ``board.vias``; returns ``(removed segments, removed vias)``.
+    ``board.vias``; returns ``(removed segments, removed vias)``. A via whose
+    copper alone joins tracks on its one layer is replaced by track between
+    them, which is appended to ``board.segments`` and to ``added``.
 
     A via reached on one layer only joins nothing (KiCad's ``via_dangling``),
     and no other pass removes one: prune_dead_end_segments and the sweep
@@ -3121,6 +3146,7 @@ def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
     copper = list(getattr(board.board_info, 'copper_layers', None)
                   or ['F.Cu', 'B.Cu'])
     removed_s, removed_v = [], []
+    added = [] if added is None else added
     tol = 1e-3
 
     def grade(nid, segs, vias, pads, zones):
@@ -3220,12 +3246,25 @@ def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
                 # No pad less connected, no dangling end where there was
                 # none (a branch another track tees into would free that
                 # track's end), no more dangling vias, no new soft joint.
-                if (after[0] > base[0] or (after[1] - base[1])
-                        or after[2] > base[2] or (after[3] - base[3])):
-                    continue
+                def worse(graded):
+                    return (graded[0] > base[0] or (graded[1] - base[1])
+                            or graded[2] > base[2] or (graded[3] - base[3]))
+                joined = []
+                if worse(after):
+                    # The via's copper may be all that joins tracks on its one
+                    # layer. Join them with track, inside that same copper.
+                    joined = _bridges_replacing_via(v, tsegs) if tsegs and not gone_s else []
+                    if not joined:
+                        continue
+                    t_segs = segs + joined
+                    after = grade(nid, t_segs, t_vias, pads, zones)
+                    if worse(after):
+                        continue
                 segs, vias, base = t_segs, t_vias, after
                 removed_s.extend(gone_s)
                 removed_v.append(v)
+                added.extend(joined)
+                board.segments.extend(joined)
                 progressed = True
         if removed_s or removed_v:
             gs = {id(x) for x in removed_s}

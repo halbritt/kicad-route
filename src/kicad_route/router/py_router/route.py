@@ -1037,8 +1037,9 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
                 owned.add(id(item))
         scope = {nid for nid, nm in name_of.items() if nm in set(scope_names)}
         _stats = {}
+        joined = []
         removed, dropped = sweep_dangling_via_branches(
-            board, scope, protected_ids=protected, stats=_stats)
+            board, scope, protected_ids=protected, stats=_stats, added=joined)
         if not (removed or dropped):
             return 0, 0
         gone = {id(x) for x in removed + dropped}
@@ -1054,12 +1055,15 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
                 x for x in removed if id(x) not in owned)
             rd.setdefault('vias_to_remove', []).extend(
                 x for x in dropped if id(x) not in owned)
-            pcb_data.segments = [x for x in pcb_data.segments if id(x) not in gone]
+            pcb_data.segments = [x for x in pcb_data.segments if id(x) not in gone] + joined
             pcb_data.vias = [x for x in pcb_data.vias if id(x) not in gone]
+            if joined:
+                rd.setdefault('results', []).append({'new_segments': joined, 'new_vias': []})
             bump_copper_epoch(pcb_data)
         else:
             from kicad_parser import is_kicad_10 as _k10_1166
-            from kicad_writer import (remove_segments_from_content as _rsc1166,
+            from kicad_writer import (generate_segment_sexpr as _gss1166,
+                                      remove_segments_from_content as _rsc1166,
                                       remove_vias_from_content as _rvc1166)
             with open(output_file, 'r', encoding='utf-8') as _f:
                 _c = _f.read()
@@ -1068,12 +1072,17 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
                 _c, _ = _rsc1166(_c, removed, net_id_to_name=_map)
             if dropped:
                 _c, _ = _rvc1166(_c, dropped, net_id_to_name=_map)
+            if joined:
+                _sx = [_gss1166((s.start_x, s.start_y), (s.end_x, s.end_y), s.width, s.layer,
+                                s.net_id, _map.get(s.net_id) if _map else None) for s in joined]
+                _lp = _c.rfind(')')
+                _c = _c[:_lp] + '\n'.join(_sx) + '\n' + _c[_lp:]
             with open(output_file, 'w', encoding='utf-8') as _f:
                 _f.write(_c)
         print(f"  Dangling vias (#1166, end of run): removed {len(dropped)} "
               f"via(s) joining fewer than two layers and {len(removed)} "
-              f"segment(s) of the branches they ended, on "
-              f"{_stats.get('nets', 0)} net(s)")
+              f"segment(s) of the branches they ended, replaced by {len(joined)} "
+              f"bridge(s), on {_stats.get('nets', 0)} net(s)")
         return len(removed), len(dropped)
     except Exception as _e:                                     # noqa: BLE001
         print(f"  (end-of-run dangling-via sweep skipped: "
