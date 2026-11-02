@@ -3083,24 +3083,24 @@ def strict_removable_segments(model) -> set:
     return out
 
 
-def _only_tracks_rely_on_via(via, fixed, segments, pads, zones):
-    """Whether every plane and pad touching the via's copper keeps its connection without it.
+def _only_tracks_rely_on_via(via, via_tracks, pads, zones):
+    """Whether every pad touching the via's copper keeps its connection without it.
 
-    A same-net pad beside the via is fine when a track of its own ends inside it. The pad then
-    stays connected through that track and the bridge, at no less than the track's width.
+    A same-net pad beside the via is fine when one of the tracks reaching the via also ends
+    inside the pad. The pad then stays joined through that track and the bridge, at no less
+    than the track's width. A net with a plane keeps the via, whose rim may reach the plane.
     """
-    from check_connected import _point_in_pad, point_in_polygon
-    if any(z.layer in fixed and point_in_polygon(via.x, via.y, z.polygon) for z in zones):
+    from check_connected import _point_in_pad
+    if zones:
         return False
     radius = (getattr(via, 'size', 0.6) or 0.6) / 2.0
     for pad in pads:
         if not _point_in_pad(via.x, via.y, pad, margin=radius):
             continue
         layers = set(pad.layers or ())
-        own_track = any(segment.layer in layers and (
-            _point_in_pad(segment.start_x, segment.start_y, pad, margin=0.0)
-            or _point_in_pad(segment.end_x, segment.end_y, pad, margin=0.0)) for segment in segments)
-        if not own_track:
+        if not any(track.layer in layers and (
+                _point_in_pad(track.start_x, track.start_y, pad, margin=0.0)
+                or _point_in_pad(track.end_x, track.end_y, pad, margin=0.0)) for track in via_tracks):
             return False
     return True
 
@@ -3283,10 +3283,8 @@ def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
                 if worse(after):
                     # The via's copper may be all that joins tracks on its one
                     # layer. Join them with track, inside that same copper.
-                    # A plane touching the via's copper, or a pad with no track of its own,
-                    # could lose connection width that no bridge restores.
                     joined = (_bridges_replacing_via(v, tsegs)
-                              if tsegs and not gone_s and _only_tracks_rely_on_via(v, fixed, segs, pads, zones)
+                              if tsegs and not gone_s and _only_tracks_rely_on_via(v, tsegs, pads, zones)
                               else None)
                     if not joined:
                         continue

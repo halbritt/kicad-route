@@ -2,6 +2,7 @@
 import math
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src/kicad_route/router/py_router'))
@@ -139,6 +140,32 @@ class ViaBesidePadTests(unittest.TestCase):
         self.assertEqual(len(added), 2)
         connected = check_net_connectivity(NET, pcb.segments, pcb.vias, pcb.pads_by_net[NET], [])
         self.assertFalse(connected.get('disconnected_pads'))
+
+
+    def test_pad_whose_only_track_misses_the_via_keeps_the_via(self):
+        # Review counterexample: a stub inside the pad that reaches neither the via nor a bridge.
+        beside = pad('C', -.29, 0)
+        beside.size_x = beside.size_y = .2
+        beside.shape = 'circle'
+        stub = Segment(-.36, 0, -.36, .01, .1, 'F.Cu', NET)
+        trunk, branch = track(0, -3, 0, 0), Segment(.225, 0, .225, 3, .5, 'F.Cu', NET)
+        via = Via(0, 0, .6, .3, ['F.Cu', 'B.Cu'], NET)
+        pcb = board([trunk, branch, stub], [via], [pad('A', 0, -3), pad('B', .225, 3), beside])
+        added = []
+        self.assertEqual(sweep_dangling_via_branches(pcb, {NET}, added=added), ([], []))
+        self.assertEqual((pcb.vias, added), ([via], []))
+
+    def test_net_with_a_plane_keeps_the_via(self):
+        # Review counterexample: a plane overlaps the via's rim without containing its centre.
+        beside = pad('U', 0, .465)
+        beside.size_x, beside.size_y = .5, .35
+        stub, onward = track(0, .465, 0, .15), track(.1, -.1, 3, -.1)
+        via = Via(0, 0, .6, .3, ['F.Cu', 'B.Cu'], NET)
+        pcb = board([stub, onward], [via], [beside, pad('R', 3, -.1)])
+        pcb.zones = [SimpleNamespace(net_id=NET, layer='F.Cu', polygon=[(-2, -2), (-.26, -2), (-.26, 2), (-2, 2)])]
+        added = []
+        self.assertEqual(sweep_dangling_via_branches(pcb, {NET}, added=added), ([], []))
+        self.assertEqual((pcb.vias, added), ([via], []))
 
 
 class LateCopperEditTests(unittest.TestCase):
