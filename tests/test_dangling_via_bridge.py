@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src/kicad_route/router/py_router'))
-from kicad_parser import BoardInfo, Pad, PCBData, Segment, Via
+from kicad_parser import BoardInfo, extract_segments, Pad, PCBData, Segment, Via, Zone
 from pcb_modification import sweep_dangling_via_branches, trim_tracks_past_their_pads
 from check_connected import check_net_connectivity
 from kicad_writer import replace_copper_in_content
@@ -185,6 +185,62 @@ class TrackPastItsPadTests(unittest.TestCase):
                          [(130.7, 115.375, 129.825, 115.375, .2)])
         self.assertFalse(check_net_connectivity(NET, pcb.segments, pcb.vias, pcb.pads_by_net[NET], []).get('disconnected_pads'))
         self.assertNotIn(through, pcb.segments)
+
+    def test_both_overruns_of_one_track_are_trimmed_into_one_edit(self):
+        # Sol review 2026-11-01: one invocation left the second overrun dangling.
+        through = track(0, 0, 10, 0)
+        pcb = board([through], [], [pad('A', 4, 0), pad('B', 6, 0)])
+        removed, shortened = trim_tracks_past_their_pads(pcb, {NET})
+        self.assertEqual(removed, [through])
+        self.assertEqual([(s.start_x, s.end_x) for s in shortened], [(4, 6)])
+
+    def assert_left_alone(self, pcb, kept):
+        self.assertEqual(trim_tracks_past_their_pads(pcb, {NET}), ([], []))
+        self.assertIn(kept, pcb.segments)
+
+    def test_second_pad_overlapping_the_tail_keeps_the_track(self):
+        # Sol review: KiCad lost this pad's only contact, while the point test credited it.
+        source, offset = pad('A', 0, 0), pad('B', 8.09, .09)
+        target = pad('C', 8, 0)
+        for small in (target, offset):
+            small.size_x = small.size_y = .1
+            small.shape = 'circle'
+        through = Segment(0, 0, 10, 0, .1, 'F.Cu', NET)
+        self.assert_left_alone(board([through], [], [source, target, offset]), through)
+
+    def test_drilled_pad_is_not_cut_to_its_copper_centre(self):
+        # Sol review: an offset hole carried the connection, and a cut at the copper centre lost it.
+        through, pcb = self.board_with_overshoot()
+        pcb.pads_by_net[NET][0].drill = .3
+        self.assert_left_alone(pcb, through)
+
+    def test_zone_on_the_tracks_layer_keeps_the_track(self):
+        # Sol review: the outline credited the zone, while the tail held the only fill contact.
+        through, pcb = self.board_with_overshoot()
+        pcb.zones = [Zone(NET, '/V3V3', 'F.Cu', [(129, 118), (130, 118), (130, 119), (129, 119)])]
+        self.assert_left_alone(pcb, through)
+
+    def test_zone_on_another_layer_does_not_stop_the_trim(self):
+        through, pcb = self.board_with_overshoot()
+        pcb.zones = [Zone(NET, '/V3V3', 'B.Cu', [(120, 110), (140, 110), (140, 120), (120, 120)])]
+        self.assertEqual(trim_tracks_past_their_pads(pcb, {NET})[0], [through])
+
+    def test_track_whose_end_cap_touches_another_tracks_middle_keeps_its_tail(self):
+        # Sol review: a locked loop's only contact was the end cap of the "free" track.
+        beside = track(129.3, 113, 129.3, 118)
+        through, pcb = self.board_with_overshoot(beside)
+        pcb.pads_by_net[NET].append(pad('R1', 129.3, 118))
+        self.assert_left_alone(pcb, through)
+
+    def test_arc_chord_is_left_alone(self):
+        # Sol review: the writer removes (segment) blocks only, so the arc stayed and a track was added.
+        content = ('(kicad_pcb (version 20241229)\n(net 0 "")\n(net 5 "N")\n(arc (start 130.7 115.375) '
+                   '(mid 130.1 115.4) (end 129.475 115.375) (width 0.2) (layer "F.Cu") (net 5) (uuid "a"))\n)')
+        chords = extract_segments(content)
+        self.assertTrue(chords and all(s.from_arc for s in chords))
+        u2 = pad('U2', 129.825, 115.39)
+        pcb = board(chords, [], [u2, pad('J2', 130.7, 115.375)])
+        self.assertEqual(trim_tracks_past_their_pads(pcb, {NET}), ([], []))
 
     def test_track_ending_inside_its_pad_is_unchanged(self):
         inside = track(130.7, 115.375, 129.7, 115.375)

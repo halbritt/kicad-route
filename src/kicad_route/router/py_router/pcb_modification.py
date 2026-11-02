@@ -3135,16 +3135,64 @@ def _bridges_replacing_via(via, segments):
     return bridges or None
 
 
-def trim_tracks_past_their_pads(board, net_ids, protected_ids=frozenset()):
-    """Shorten a track that runs through a same-net pad and stops just beyond it.
+def _past_pad_cut(s, segs, vias, pads):
+    """``s`` with one free end cut back to a surface pad of its net, or None.
 
-    KiCad reports the free end as track_dangling. The tail past the pad carries nothing, so the
-    track now ends at the point of its centreline nearest the pad's centre. This only removes
-    copper. Mutates ``board.segments``; returns ``(removed segments, shortened replacements)``.
-    A tail that another track, via or pad touches is left alone, as are nets with an open pad.
+    The cut is the point of the centreline nearest the pad's centre, and it stands only when the
+    removed tail's own outline touches no other track, via or pad of the net.
     """
-    from check_connected import check_net_connectivity, _point_in_pad, point_in_polygon
-    tol = 1e-3
+    from check_connected import _point_in_pad
+    from geometry_utils import segment_to_segment_distance
+    tol, half = 1e-3, s.width / 2.0
+
+    def on_layer(p):
+        return (s.layer in (p.layers or ()) or (p.drill and p.drill > 0)
+                or any('*' in layer for layer in (p.layers or ())))
+
+    def tail_touches(a, b, cut_pad):
+        if any(o is not s and o.layer == s.layer and segment_to_segment_distance(
+                a[0], a[1], b[0], b[1], o.start_x, o.start_y, o.end_x, o.end_y) < half + o.width / 2.0 + tol
+               for o in segs):
+            return True
+        if any(point_to_segment_distance(v.x, v.y, a[0], a[1], b[0], b[1]) < v.size / 2.0 + half + tol for v in vias):
+            return True
+        step = 0.01
+        samples = max(1, math.ceil(math.hypot(b[0] - a[0], b[1] - a[1]) / step))
+        points = [(a[0] + (b[0] - a[0]) * i / samples, a[1] + (b[1] - a[1]) * i / samples) for i in range(samples + 1)]
+        return any(_point_in_pad(x, y, p, margin=half + step) for p in pads
+                   if p is not cut_pad and on_layer(p) for x, y in points)
+
+    for free, kept in (((s.start_x, s.start_y), (s.end_x, s.end_y)), ((s.end_x, s.end_y), (s.start_x, s.start_y))):
+        dx, dy = kept[0] - free[0], kept[1] - free[1]
+        length_sq = dx * dx + dy * dy
+        # KiCad counts an end as reaching a pad strictly inside half the track's width.
+        if not length_sq or any(_point_in_pad(free[0], free[1], p, margin=half - 1e-6) for p in pads if on_layer(p)):
+            continue
+        best = None
+        for p in pads:
+            if (p.drill and p.drill > 0) or s.layer not in (p.layers or ()):
+                continue
+            t = ((p.global_x - free[0]) * dx + (p.global_y - free[1]) * dy) / length_sq
+            point = (free[0] + t * dx, free[1] + t * dy)
+            if 0.0 < t < 1.0 and _point_in_pad(point[0], point[1], p) and (best is None or t < best[0]):
+                best = (t, point, p)
+        if best is None or math.hypot(best[1][0] - kept[0], best[1][1] - kept[1]) < tol:
+            continue
+        if not tail_touches(free, best[1], best[2]):
+            return Segment(kept[0], kept[1], best[1][0], best[1][1], s.width, s.layer, s.net_id)
+    return None
+
+
+def trim_tracks_past_their_pads(board, net_ids, protected_ids=frozenset()):
+    """Shorten a track that runs through a surface pad of its net and stops just beyond it.
+
+    KiCad reports the free end as track_dangling. Only removes copper, and only a tail that touches
+    nothing else (see _past_pad_cut). A net with a zone on the track's layer, drilled pads (the hole,
+    not the copper centre, can carry the connection), arc chords (the file has no segment to edit),
+    locked and ``protected_ids`` tracks, and nets with an open pad are left alone. Mutates
+    ``board.segments``; returns ``(removed segments, shortened replacements)``.
+    """
+    from check_connected import check_net_connectivity
     removed, shortened = [], []
     for nid in sorted(net_ids):
         pads = board.pads_by_net.get(nid, [])
@@ -3153,52 +3201,20 @@ def trim_tracks_past_their_pads(board, net_ids, protected_ids=frozenset()):
         segs = [s for s in board.segments if s.net_id == nid]
         if not pads or check_net_connectivity(nid, segs, vias, pads, zones).get('disconnected_pads'):
             continue
-
-        def touched(point, layer, excluded):
-            """Does anything other than ``excluded`` reach this point on ``layer``?"""
-            return (any(o is not excluded and o.layer == layer and point_to_segment_distance(
-                        point[0], point[1], o.start_x, o.start_y, o.end_x, o.end_y) < o.width / 2.0 + tol
-                        for o in segs)
-                    or any(math.hypot(v.x - point[0], v.y - point[1]) < (getattr(v, 'size', 0.6) or 0.6) / 2.0
-                           for v in vias)
-                    or any(z.layer == layer and point_in_polygon(point[0], point[1], z.polygon) for z in zones))
-
         for s in list(segs):
-            if getattr(s, 'locked', False) or getattr(s, 'graphic', False) or id(s) in protected_ids:
+            if (getattr(s, 'locked', False) or getattr(s, 'graphic', False) or s.from_arc or id(s) in protected_ids
+                    or any(z.layer == s.layer for z in zones)):
                 continue
-            for free, kept in (((s.start_x, s.start_y), (s.end_x, s.end_y)),
-                               ((s.end_x, s.end_y), (s.start_x, s.start_y))):
-                on_layer = [p for p in pads if s.layer in (p.layers or ())
-                            or any('*' in layer for layer in (p.layers or ()))
-                            or (p.drill and p.drill > 0)]
-                if touched(free, s.layer, s) or any(_point_in_pad(free[0], free[1], p, margin=0.0) for p in on_layer):
-                    continue
-                dx, dy = kept[0] - free[0], kept[1] - free[1]
-                length_sq = dx * dx + dy * dy
-                best = None
-                for p in on_layer:
-                    t = ((p.global_x - free[0]) * dx + (p.global_y - free[1]) * dy) / length_sq if length_sq else 0.0
-                    point = (free[0] + t * dx, free[1] + t * dy)
-                    if 0.0 < t < 1.0 and _point_in_pad(point[0], point[1], p, margin=0.0) and (best is None or t < best[0]):
-                        best = (t, point)
-                if best is None or math.hypot(best[1][0] - kept[0], best[1][1] - kept[1]) < tol:
-                    continue
-                # Nothing but this track may reach the tail being removed.
-                def to_tail(x, y):
-                    return point_to_segment_distance(x, y, free[0], free[1], best[1][0], best[1][1])
-                if (any(o is not s and o.layer == s.layer
-                        and min(to_tail(o.start_x, o.start_y), to_tail(o.end_x, o.end_y)) < (o.width + s.width) / 2.0
-                        for o in segs)
-                        or any(to_tail(v.x, v.y) < (getattr(v, 'size', 0.6) or 0.6) / 2.0 for v in vias)):
-                    continue
-                replacement = Segment(kept[0], kept[1], best[1][0], best[1][1], s.width, s.layer, nid)
-                trial = [o for o in segs if o is not s] + [replacement]
-                if check_net_connectivity(nid, trial, vias, pads, zones).get('disconnected_pads'):
-                    continue
-                segs = trial
-                removed.append(s)
-                shortened.append(replacement)
-                break
+            others = [o for o in segs if o is not s]
+            current, cut = s, _past_pad_cut(s, segs, vias, pads)
+            while cut is not None:
+                current = cut
+                cut = _past_pad_cut(current, others + [current], vias, pads)
+            if current is s or check_net_connectivity(nid, others + [current], vias, pads, zones).get('disconnected_pads'):
+                continue
+            segs = others + [current]
+            removed.append(s)
+            shortened.append(current)
     if removed:
         gone = {id(s) for s in removed}
         board.segments = [s for s in board.segments if id(s) not in gone] + shortened

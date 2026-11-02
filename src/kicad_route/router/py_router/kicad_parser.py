@@ -602,6 +602,9 @@ class Segment:
     # check_drc graded the short clean. The obstacle map stamps this interior
     # and check_drc grades containment in it.
     graphic_ring: Optional[Tuple[Tuple[float, float], ...]] = None
+    # A chord of a linearised (arc ...) track: the file has no (segment) block
+    # for it, so an edit of this one chord cannot be written.
+    from_arc: bool = False
 
 
 @dataclass
@@ -6047,8 +6050,9 @@ def extract_segments(content: str, name_to_id: Dict[str, int] = None) -> List[Se
         # -- dropped, they fragmented arc-routed (human) boards into false gaps.
         # (The router never emits arcs; this only matters for ingested boards.)
         for (p0, p1) in _arc_to_segments((sx, sy), (mx, my), (ex, ey)):
-            out.append(_seg(p0[0], p0[1], p1[0], p1[1], width, layer, net_id,
-                            uuid, locked))
+            chord = _seg(p0[0], p0[1], p1[0], p1[1], width, layer, net_id, uuid, locked)
+            chord.from_arc = True
+            out.append(chord)
 
     blocks, unbalanced = _track_blocks(content)
     for off in unbalanced:
@@ -8673,6 +8677,7 @@ def build_pcb_data_from_board(board, guide_layer: str = "User.1",
                     layer=get_layer_name(track.GetLayer()),
                     net_id=track.GetNetCode(),
                     locked=bool(track.IsLocked()),
+                    from_arc=True,
                 ))
         elif track_class == "PCB_VIA":
             # GetFrontWidth() FIRST (#605). KiCad 9/10 padstack vias can
