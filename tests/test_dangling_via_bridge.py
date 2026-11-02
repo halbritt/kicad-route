@@ -124,6 +124,23 @@ class ViaJoiningOneLayerTests(unittest.TestCase):
         self.assertEqual(set(map(id, dropped)), {id(first), id(second)})
 
 
+class ViaBesidePadTests(unittest.TestCase):
+    def test_pad_with_its_own_track_does_not_keep_the_via(self):
+        # Retained I2C trial 2026-11-02: U2.3 has a stub from its centre to just beside a via
+        # whose disk also touches the pad. The next track starts elsewhere on the disk.
+        beside = pad('U', 0, .475)
+        beside.size_x, beside.size_y = .5, .35
+        stub, onward = track(0, .475, 0, .15), track(.1, -.1, 3, -.1)
+        via = Via(0, 0, .6, .3, ['F.Cu', 'B.Cu'], NET)
+        pcb = board([stub, onward], [via], [beside, pad('R', 3, -.1)])
+        added = []
+        removed, dropped = sweep_dangling_via_branches(pcb, {NET}, added=added)
+        self.assertEqual((removed, dropped), ([], [via]))
+        self.assertEqual(len(added), 2)
+        connected = check_net_connectivity(NET, pcb.segments, pcb.vias, pcb.pads_by_net[NET], [])
+        self.assertFalse(connected.get('disconnected_pads'))
+
+
 class LateCopperEditTests(unittest.TestCase):
     BOARD = ('(kicad_pcb (version {version})\n{table}'
              '(segment (start 0 0) (end 10 0) (width 0.2) (layer "F.Cu") (net {net}) (uuid "a"))\n'
