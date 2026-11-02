@@ -3170,7 +3170,8 @@ def _past_pad_cut(s, segs, vias, pads):
             continue
         best = None
         for p in pads:
-            if (p.drill and p.drill > 0) or s.layer not in (p.layers or ()):
+            if ((p.drill and p.drill > 0) or s.layer not in (p.layers or ())
+                    or p.shape not in ('rect', 'roundrect', 'circle', 'oval')):
                 continue
             t = ((p.global_x - free[0]) * dx + (p.global_y - free[1]) * dy) / length_sq
             point = (free[0] + t * dx, free[1] + t * dy)
@@ -3187,9 +3188,10 @@ def trim_tracks_past_their_pads(board, net_ids, protected_ids=frozenset()):
     """Shorten a track that runs through a surface pad of its net and stops just beyond it.
 
     KiCad reports the free end as track_dangling. Only removes copper, and only a tail that touches
-    nothing else (see _past_pad_cut). A net with a zone on the track's layer, drilled pads (the hole,
-    not the copper centre, can carry the connection), arc chords (the file has no segment to edit),
-    locked and ``protected_ids`` tracks, and nets with an open pad are left alone. Mutates
+    nothing else (see _past_pad_cut). Left alone: a layer of the net with a zone or an arc track (the
+    chords do not bound the arc, and the file has no segment to edit), a cut at a drilled pad (the
+    hole, not the copper centre, can carry the connection) or a custom pad (the model can fill a
+    hollow outline), locked and ``protected_ids`` tracks, and nets with an open pad. Mutates
     ``board.segments``; returns ``(removed segments, shortened replacements)``.
     """
     from check_connected import check_net_connectivity
@@ -3202,8 +3204,9 @@ def trim_tracks_past_their_pads(board, net_ids, protected_ids=frozenset()):
         if not pads or check_net_connectivity(nid, segs, vias, pads, zones).get('disconnected_pads'):
             continue
         for s in list(segs):
-            if (getattr(s, 'locked', False) or getattr(s, 'graphic', False) or s.from_arc or id(s) in protected_ids
-                    or any(z.layer == s.layer for z in zones)):
+            if (getattr(s, 'locked', False) or getattr(s, 'graphic', False) or id(s) in protected_ids
+                    or any(z.layer == s.layer for z in zones)
+                    or any(o.from_arc and o.layer == s.layer for o in segs)):
                 continue
             others = [o for o in segs if o is not s]
             current, cut = s, _past_pad_cut(s, segs, vias, pads)

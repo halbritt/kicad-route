@@ -242,6 +242,21 @@ class TrackPastItsPadTests(unittest.TestCase):
         pcb = board(chords, [], [u2, pad('J2', 130.7, 115.375)])
         self.assertEqual(trim_tracks_past_their_pads(pcb, {NET}), ([], []))
 
+    def test_custom_pad_is_not_a_cut_target(self):
+        # Sol re-review: the parser fills a hollow custom outline, and the cut lost the rim contact.
+        through, pcb = self.board_with_overshoot()
+        pcb.pads_by_net[NET][0].shape = 'custom'
+        self.assert_left_alone(pcb, through)
+
+    def test_arc_on_the_layer_keeps_every_track_there(self):
+        # Sol re-review: a real arc overlapped the tail between its parsed chords.
+        through, pcb = self.board_with_overshoot()
+        chord = track(120, 100, 121, 101)
+        chord.from_arc = True
+        pcb.segments.append(chord)
+        pcb.pads_by_net[NET].append(pad('R1', 120, 100))
+        self.assert_left_alone(pcb, through)
+
     def test_track_ending_inside_its_pad_is_unchanged(self):
         inside = track(130.7, 115.375, 129.7, 115.375)
         u2 = pad('U2', 129.825, 115.375)

@@ -1041,7 +1041,9 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
         removed, dropped = sweep_dangling_via_branches(
             board, scope, protected_ids=protected, stats=_stats, added=joined)
         bridges, swept = len(joined), len(removed)
-        trimmed, shortened = trim_tracks_past_their_pads(board, scope, protected_ids=protected)
+        # Only a board parsed from the written file marks every arc chord.
+        trimmed, shortened = ([], []) if return_results else trim_tracks_past_their_pads(
+            board, scope, protected_ids=protected)
         removed, joined = removed + trimmed, joined + shortened
         if not (removed or dropped):
             return 0, 0
