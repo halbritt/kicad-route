@@ -7,7 +7,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src/kicad_route/router/py_router'))
 from kicad_parser import BoardInfo, Pad, PCBData, Segment, Via
-from pcb_modification import sweep_dangling_via_branches
+from pcb_modification import sweep_dangling_via_branches, trim_tracks_past_their_pads
 from check_connected import check_net_connectivity
 from kicad_writer import replace_copper_in_content
 
@@ -166,6 +166,50 @@ class ViaBesidePadTests(unittest.TestCase):
         added = []
         self.assertEqual(sweep_dangling_via_branches(pcb, {NET}, added=added), ([], []))
         self.assertEqual((pcb.vias, added), ([via], []))
+
+
+class TrackPastItsPadTests(unittest.TestCase):
+    def board_with_overshoot(self, *others):
+        # Retained I2C trial 2026-11-02: SDA runs through U2.3 and stops 0.1 mm beyond its edge.
+        through = track(130.7, 115.375, 129.475, 115.375)
+        far = track(133.75, 115.375, 130.7, 115.375)
+        u2 = pad('U2', 129.825, 115.375)
+        u2.size_x, u2.size_y = .5, .35
+        return through, board([far, through, *others], [], [u2, pad('J2', 133.75, 115.375)])
+
+    def test_track_past_its_pad_ends_at_the_pad_centre(self):
+        through, pcb = self.board_with_overshoot()
+        removed, shortened = trim_tracks_past_their_pads(pcb, {NET})
+        self.assertEqual(removed, [through])
+        self.assertEqual([(s.start_x, s.start_y, s.end_x, s.end_y, s.width) for s in shortened],
+                         [(130.7, 115.375, 129.825, 115.375, .2)])
+        self.assertFalse(check_net_connectivity(NET, pcb.segments, pcb.vias, pcb.pads_by_net[NET], []).get('disconnected_pads'))
+        self.assertNotIn(through, pcb.segments)
+
+    def test_track_ending_inside_its_pad_is_unchanged(self):
+        inside = track(130.7, 115.375, 129.7, 115.375)
+        u2 = pad('U2', 129.825, 115.375)
+        u2.size_x, u2.size_y = .5, .35
+        pcb = board([inside], [], [u2, pad('J2', 130.7, 115.375)])
+        self.assertEqual(trim_tracks_past_their_pads(pcb, {NET}), ([], []))
+
+    def test_tail_that_another_track_reaches_is_kept(self):
+        joined_tail = track(129.5, 115.375, 129.5, 117)
+        through, pcb = self.board_with_overshoot(joined_tail)
+        pcb.pads_by_net[NET].append(pad('R1', 129.5, 117))
+        self.assertEqual(trim_tracks_past_their_pads(pcb, {NET}), ([], []))
+        self.assertIn(through, pcb.segments)
+
+    def test_via_on_the_tail_keeps_the_track(self):
+        through, pcb = self.board_with_overshoot()
+        pcb.vias.append(Via(129.5, 115.375, .6, .3, ['F.Cu', 'B.Cu'], NET))
+        self.assertEqual(trim_tracks_past_their_pads(pcb, {NET}), ([], []))
+        self.assertIn(through, pcb.segments)
+
+    def test_locked_track_is_kept(self):
+        through, pcb = self.board_with_overshoot()
+        through.locked = True
+        self.assertEqual(trim_tracks_past_their_pads(pcb, {NET}), ([], []))
 
 
 class LateCopperEditTests(unittest.TestCase):

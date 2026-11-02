@@ -1005,7 +1005,7 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
     import copy as _copy
     from collections import Counter
     from improvement_gate import copper_item_key
-    from pcb_modification import sweep_dangling_via_branches
+    from pcb_modification import sweep_dangling_via_branches, trim_tracks_past_their_pads
     try:
         rd = None
         if return_results:
@@ -1040,6 +1040,9 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
         joined = []
         removed, dropped = sweep_dangling_via_branches(
             board, scope, protected_ids=protected, stats=_stats, added=joined)
+        bridges, swept = len(joined), len(removed)
+        trimmed, shortened = trim_tracks_past_their_pads(board, scope, protected_ids=protected)
+        removed, joined = removed + trimmed, joined + shortened
         if not (removed or dropped):
             return 0, 0
         gone = {id(x) for x in removed + dropped}
@@ -1068,9 +1071,10 @@ def _late_dangling_via_sweep1166(pcb_data, output_file, return_results,
             with open(output_file, 'w', encoding='utf-8') as _f:
                 _f.write(_c)
         print(f"  Dangling vias (#1166, end of run): removed {len(dropped)} "
-              f"via(s) joining fewer than two layers and {len(removed)} "
-              f"segment(s) of the branches they ended, replaced by {len(joined)} "
-              f"bridge(s), on {_stats.get('nets', 0)} net(s)")
+              f"via(s) joining fewer than two layers and {swept} "
+              f"segment(s) of the branches they ended, replaced by {bridges} "
+              f"bridge(s), on {_stats.get('nets', 0)} net(s); shortened "
+              f"{len(trimmed)} track(s) that ran past their pad")
         return len(removed), len(dropped)
     except Exception as _e:                                     # noqa: BLE001
         print(f"  (end-of-run dangling-via sweep skipped: "

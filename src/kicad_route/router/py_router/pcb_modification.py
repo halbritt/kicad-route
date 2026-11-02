@@ -3135,6 +3135,76 @@ def _bridges_replacing_via(via, segments):
     return bridges or None
 
 
+def trim_tracks_past_their_pads(board, net_ids, protected_ids=frozenset()):
+    """Shorten a track that runs through a same-net pad and stops just beyond it.
+
+    KiCad reports the free end as track_dangling. The tail past the pad carries nothing, so the
+    track now ends at the point of its centreline nearest the pad's centre. This only removes
+    copper. Mutates ``board.segments``; returns ``(removed segments, shortened replacements)``.
+    A tail that another track, via or pad touches is left alone, as are nets with an open pad.
+    """
+    from check_connected import check_net_connectivity, _point_in_pad, point_in_polygon
+    tol = 1e-3
+    removed, shortened = [], []
+    for nid in sorted(net_ids):
+        pads = board.pads_by_net.get(nid, [])
+        zones = [z for z in (getattr(board, 'zones', None) or []) if z.net_id == nid]
+        vias = [v for v in board.vias if v.net_id == nid]
+        segs = [s for s in board.segments if s.net_id == nid]
+        if not pads or check_net_connectivity(nid, segs, vias, pads, zones).get('disconnected_pads'):
+            continue
+
+        def touched(point, layer, excluded):
+            """Does anything other than ``excluded`` reach this point on ``layer``?"""
+            return (any(o is not excluded and o.layer == layer and point_to_segment_distance(
+                        point[0], point[1], o.start_x, o.start_y, o.end_x, o.end_y) < o.width / 2.0 + tol
+                        for o in segs)
+                    or any(math.hypot(v.x - point[0], v.y - point[1]) < (getattr(v, 'size', 0.6) or 0.6) / 2.0
+                           for v in vias)
+                    or any(z.layer == layer and point_in_polygon(point[0], point[1], z.polygon) for z in zones))
+
+        for s in list(segs):
+            if getattr(s, 'locked', False) or getattr(s, 'graphic', False) or id(s) in protected_ids:
+                continue
+            for free, kept in (((s.start_x, s.start_y), (s.end_x, s.end_y)),
+                               ((s.end_x, s.end_y), (s.start_x, s.start_y))):
+                on_layer = [p for p in pads if s.layer in (p.layers or ())
+                            or any('*' in layer for layer in (p.layers or ()))
+                            or (p.drill and p.drill > 0)]
+                if touched(free, s.layer, s) or any(_point_in_pad(free[0], free[1], p, margin=0.0) for p in on_layer):
+                    continue
+                dx, dy = kept[0] - free[0], kept[1] - free[1]
+                length_sq = dx * dx + dy * dy
+                best = None
+                for p in on_layer:
+                    t = ((p.global_x - free[0]) * dx + (p.global_y - free[1]) * dy) / length_sq if length_sq else 0.0
+                    point = (free[0] + t * dx, free[1] + t * dy)
+                    if 0.0 < t < 1.0 and _point_in_pad(point[0], point[1], p, margin=0.0) and (best is None or t < best[0]):
+                        best = (t, point)
+                if best is None or math.hypot(best[1][0] - kept[0], best[1][1] - kept[1]) < tol:
+                    continue
+                # Nothing but this track may reach the tail being removed.
+                def to_tail(x, y):
+                    return point_to_segment_distance(x, y, free[0], free[1], best[1][0], best[1][1])
+                if (any(o is not s and o.layer == s.layer
+                        and min(to_tail(o.start_x, o.start_y), to_tail(o.end_x, o.end_y)) < (o.width + s.width) / 2.0
+                        for o in segs)
+                        or any(to_tail(v.x, v.y) < (getattr(v, 'size', 0.6) or 0.6) / 2.0 for v in vias)):
+                    continue
+                replacement = Segment(kept[0], kept[1], best[1][0], best[1][1], s.width, s.layer, nid)
+                trial = [o for o in segs if o is not s] + [replacement]
+                if check_net_connectivity(nid, trial, vias, pads, zones).get('disconnected_pads'):
+                    continue
+                segs = trial
+                removed.append(s)
+                shortened.append(replacement)
+                break
+    if removed:
+        gone = {id(s) for s in removed}
+        board.segments = [s for s in board.segments if id(s) not in gone] + shortened
+    return removed, shortened
+
+
 def sweep_dangling_via_branches(board, net_ids, protected_ids=frozenset(),
                                 max_rounds: int = 32, stats=None, added=None):
     """Remove every via check_weird calls dangling or floating on ``net_ids``,
