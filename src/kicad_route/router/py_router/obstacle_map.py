@@ -4383,7 +4383,7 @@ def _add_pad_obstacle(obstacles: GridObstacleMap, pad, coord: GridCoord,
         expanded_layers = expand_pad_layers(pad.layers, config.layers)
         clr_groups = _clr_groups(expanded_layers)
         on_copper = any(l.endswith('.Cu') for l in expanded_layers)
-        via_margin = config.via_size / 2 + _via_clr(expanded_layers) + extra_clearance
+        via_margin = config.via_copper_reach(_via_clr(expanded_layers)) + extra_clearance
 
         def _emit(poly, m, via_pass, layer_idxs=None):
             gx_lo, gy_lo, nx, ny, inside, edist = _rasterize_polygon_box(poly, coord, m)
@@ -4458,7 +4458,7 @@ def _add_pad_obstacle(obstacles: GridObstacleMap, pad, coord: GridCoord,
 
     # Via blocking near pads - block vias if pad is on any copper layer
     if any(layer.endswith('.Cu') for layer in expanded_layers):
-        via_margin = config.via_size / 2 + _via_clr(expanded_layers) + extra_clearance
+        via_margin = config.via_copper_reach(_via_clr(expanded_layers)) + extra_clearance
         via_cells = pad_blocked_cells_array(gx, gy, half_width, half_height, via_margin,
                                             config.grid_step, corner_radius, corner_buffer,
                                             off_x, off_y, rotation_deg=pad.rect_rotation)
@@ -4503,7 +4503,7 @@ def _pad_via_keepout_cells(pad, coord: GridCoord, config: GridRouteConfig,
     else:
         corner_radius = 0
     corner_buffer = coord.grid_step * 0.75 if extra_clearance > 0 else None
-    via_margin = config.via_size / 2 + clearance + extra_clearance
+    via_margin = config.via_copper_reach(clearance) + extra_clearance
     return pad_blocked_cells_array(gx, gy, half_width, half_height, via_margin,
                                    config.grid_step, corner_radius, corner_buffer,
                                    off_x, off_y, rotation_deg=pad.rect_rotation)
