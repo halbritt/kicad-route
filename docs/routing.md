@@ -263,7 +263,7 @@ From `kicad/facts.py` (KiCad's own loader; serialisation differences do not coun
 | `nets_and_netclasses` | net names and the effective net class KiCad resolves for each |
 | `pad_connectivity` | every pad's net |
 | `footprints` | library id, position, orientation, side, lock, pad geometry; each difference names the changed attributes (`changed`) and, for pads, which pads and fields |
-| `zones` | outline, net, layers, priority, clearance, thermal and fill settings (fill polygons are regenerated) |
+| `zones` | outline, net, layers, priority, clearance, thermal and fill settings (fill polygons are regenerated). Teardrop zones are not compared: KiCad derives them from a pad's or via's teardrop setting and the track that reaches it, saves them without a UUID and rebuilds them on save and refill. The facts count them (`teardrop_zones`) |
 | `keepouts` | rule-area outlines, layers and restrictions |
 | `copper_graphics` | non-track copper shapes; copper text, text boxes, tables and other items with their content, position, size and bounding box |
 | `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation; a track or arc may come back with start and end swapped), and every locked one still locked (a dropped lock flag FAILs); designated = locked items, plus all input copper with `--protect existing`, or the chain's human copper with `--protect human` ([`provenance.md`](provenance.md)) |
@@ -501,6 +501,19 @@ writer is not required to normalize segment order or derive UUIDs.
   later step cannot move copper an earlier step placed, so route the hardest nets first
   (on a real board, finishing 16 leftover nets on a fully locked candidate routed 0 of 16
   on both backends; routing them first on the original input routed 11).
+- Copper text of any kind (text, knockout text, text boxes, footprint fields, dimensions,
+  tables, barcodes) is an obstacle the size of its native bounding box, on any copper
+  layer and under any layer name the board gives it. The box is conservative: the gaps
+  between letters and the corners around rotated text are closed to routing. A Bezier
+  curve on copper, and a graphic on `*.Cu`, are still refused before routing.
+- A footprint may draw copper without a net that covers one of its own pads (an SOT-89
+  tab drawn as a polygon over the tab's pad). KiCad grades that copper as foreign to
+  every net, so the unrouted board already carries a pad-to-polygon clearance error and
+  any track or via that reaches the pad is graded `clearance` (actual 0) or
+  `shorting_items` against `<no net>`; both have been seen for this contact. The
+  built-in router treats such copper as the pad's own and routes onto it,
+  vias included, so the candidate fails validation with those findings. Nothing joins
+  two nets. Making the tab a custom-shape pad in the footprint removes the findings.
 - Board facts and the bridge depend on KiCad's SWIG module (see Decisions).
 
 ## Fixture and evidence

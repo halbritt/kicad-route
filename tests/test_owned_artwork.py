@@ -213,6 +213,10 @@ def test_teardrops_kicad_adds_to_routed_pads_are_not_changed_zone_definitions(tm
     assert reference['teardrop_zones'] == 0
     assert candidate['teardrop_zones'] > 0, 'KiCad built no teardrop: the board no longer exercises the case'
     assert candidate['zones'] == reference['zones']
+    # KiCad writes those zones without a UUID; the terminal comparison must still run.
+    assert result['validation']['net_completion']['status'] == 'PASS', result['validation']['net_completion']
+    assert result['validation']['status'] == 'PASS', result['validation']['reasons']
+    assert process.returncode == 0
 
 
 def test_unsupported_copper_is_refused_without_relocation(tmp_path):

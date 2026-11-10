@@ -62,6 +62,11 @@ def serialized_inventory(path):
                         raise ValueError("duplicate serialized pad UUID")
                     inventory[uid] = {"net": net_name(pad), "number": str(pad[1]), "footprint": fp_uuid}
         elif node[0] in ("segment", "arc", "via", "zone"):
+            if node[0] == "zone" and find(find(node, "attr") or [], "teardrop") is not None:
+                # KiCad saves a teardrop zone without a UUID and gives it a new one
+                # at every load: it is derived from a pad's teardrop setting and the
+                # track that reaches it, so there is no identity to compare.
+                continue
             copper_nets[find(node, "uuid")[1]] = net_name(node)
     return inventory, copper_nets, jumpers
 
@@ -77,7 +82,8 @@ def read(path):
                        "footprint": p.GetParentFootprint().m_Uuid.AsString()} for uid, p in pads.items()}
     if inventory != serialized:
         raise ValueError("native pad inventory differs from serialized UUID/net inventory")
-    native_copper = {it.m_Uuid.AsString(): it.GetNetname() for it in [*board.GetTracks(), *board.Zones()]}
+    native_copper = {it.m_Uuid.AsString(): it.GetNetname() for it in board.GetTracks()}
+    native_copper.update({z.m_Uuid.AsString(): z.GetNetname() for z in board.Zones() if not z.IsTeardropArea()})
     if native_copper != copper_nets:
         raise ValueError("native copper net assignments differ from the saved board")
     # SWIG exposes JumperPadGroups as an opaque pointer in KiCad 10.0.7.
