@@ -7132,15 +7132,18 @@ def _copper_text_obstacles(content):
     evidence = json.loads(Path(evidence_path).read_text())
     if evidence.get('signature') != copper_text_signature(content):
         raise ValueError('Copper text changed since native bounding-box preflight')
-    texts = evidence.get('texts', [])
-    if len(texts) != len(blocks):
-        raise ValueError('Native copper-text evidence does not cover every input text object')
+    # The native side lists what KiCad plots on copper: a hidden field is a text
+    # block here and no entry there, and a dimension is one entry for several
+    # blocks. The signature above binds the list to this exact text, so the two
+    # are not counted against each other.
     segments = []
-    for text in texts:
+    for text in evidence.get('texts', []):
         x, y, width, height = [float(n) / IU_PER_MM for n in text['bbox']]
-        layer = text['layer']
+        # `copper_layer` is KiCad's canonical name. `layer` is the board's own name
+        # for it, which a design may have renamed ("top_copper").
+        layer = text.get('copper_layer') or text['layer']
         if not layer.endswith('.Cu') or width < 0 or height < 0:
-            raise ValueError('Invalid native copper-text bounds')
+            raise ValueError(f'Invalid native copper-text bounds for {text.get("uuid")} on {layer!r}')
         if width == 0 or height == 0:
             continue
         ring = ((x, y), (x+width, y), (x+width, y+height), (x, y+height))

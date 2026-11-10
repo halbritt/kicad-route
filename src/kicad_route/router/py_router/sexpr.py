@@ -40,12 +40,19 @@ def expression_spans(content: str, tags):
     return sorted(spans)
 
 
+# Copper artwork whose outline only KiCad can compute. The wrapper supplies each
+# item's native bounding box; the parser never approximates glyphs, table grids,
+# dimension arrows or barcode modules. Tag spellings cover KiCad 6 to 10 files.
+COPPER_ARTWORK_TAGS = frozenset({'gr_text', 'fp_text', 'property', 'gr_text_box', 'fp_text_box',
+                                 'dimension', 'table', 'gr_table', 'barcode', 'gr_barcode'})
+
+
 def copper_text_blocks(content):
     result = []
-    for start, end, tag in expression_spans(content, {'gr_text', 'fp_text', 'property'}):
+    for start, end, tag in expression_spans(content, COPPER_ARTWORK_TAGS):
         block = content[start:end]
         for a, b, _ in expression_spans(block, {'layer'}):
-            match = re.fullmatch(r'\(layer\s+"([^"]+)"\s*\)', block[a:b])
+            match = re.fullmatch(r'\(layer\s+"([^"]+)"(?:\s+knockout)?\s*\)', block[a:b])
             if match and match.group(1).endswith('.Cu'):
                 result.append(block)
                 break
@@ -76,10 +83,8 @@ def copper_text_signature(content):
 
 def unsupported_copper(content):
     supported = {'gr_line', 'gr_arc', 'gr_poly', 'gr_rect', 'gr_circle',
-                 'fp_line', 'fp_arc', 'fp_poly', 'fp_rect', 'fp_circle',
-                 'gr_text', 'fp_text', 'property'}
-    tags = supported | {'gr_curve', 'fp_curve', 'gr_text_box', 'fp_text_box',
-                        'dimension', 'gr_table', 'gr_barcode'}
+                 'fp_line', 'fp_arc', 'fp_poly', 'fp_rect', 'fp_circle'} | COPPER_ARTWORK_TAGS
+    tags = supported | {'gr_curve', 'fp_curve'}
     for start, end, tag in expression_spans(content, tags):
         block = content[start:end]
         for a, b, _ in expression_spans(block, {'layer', 'layers'}):

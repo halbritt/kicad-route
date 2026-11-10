@@ -189,18 +189,29 @@ def main(board_path, out_path):
     facts["copper_graphics"] = sorted(copper_graphics, key=lambda r: json.dumps(r, sort_keys=True))
     facts["footprints"] = dict(sorted(footprints.items()))
 
-    # Conservative routing obstacles for text; these come from KiCad's font
-    # renderer, including rotation, alignment, mirroring and knockout.
+    # Conservative routing obstacles for copper artwork the s-expression parser does
+    # not draw itself: text, text boxes, footprint fields, dimensions, tables and
+    # barcodes. The bounds come from KiCad's own renderer, including rotation,
+    # alignment, mirroring and knockout. `copper_layer` is KiCad's canonical layer
+    # name (F.Cu, In1.Cu, ...): `layer` follows the board's own layer names, which a
+    # design may rename (a board whose F.Cu is called "top_copper" is ordinary).
     text_items = list(board.GetDrawings())
     for fp in board.GetFootprints():
         text_items.extend(fp.GraphicalItems())
-        text_items.extend((fp.Reference(), fp.Value()))
+        text_items.extend(fp.GetFields())
     routing_text = {}
     for item in text_items:
-        if isinstance(item, pcbnew.EDA_TEXT) and item.IsOnCopperLayer():
-            rec = item_record(item)
-            rec['uuid'] = item.m_Uuid.AsString()
-            routing_text[rec['uuid']] = rec
+        if not item.IsOnCopperLayer():
+            continue
+        is_text = isinstance(item, pcbnew.EDA_TEXT)
+        if isinstance(item, pcbnew.PCB_SHAPE) and not is_text:
+            continue  # plain shapes are read from the board file by the router
+        if is_text and not item.IsVisible():
+            continue  # a hidden field is not copper
+        rec = item_record(item)
+        rec['uuid'] = item.m_Uuid.AsString()
+        rec['copper_layer'] = pcbnew.LayerName(item.GetLayer())
+        routing_text[rec['uuid']] = rec
     facts['routing_copper_text'] = sorted(routing_text.values(), key=lambda r: r['uuid'])
 
     nets = {}

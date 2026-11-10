@@ -9,7 +9,7 @@ from helpers import FIXTURE, run, tree_hash
 from kicad_route import cli as route
 
 
-def artwork_project(directory):
+def artwork_project(directory, extra=None):
     directory.mkdir(parents=True)
     board = pcbnew.LoadBoard(str(FIXTURE / 'route_demo.kicad_pcb'))
     for item in [*board.GetTracks(), *board.GetFootprints(), *board.Zones()]:
@@ -76,6 +76,8 @@ def artwork_project(directory):
         text.SetTextThickness(pcbnew.FromMM(.1))
         text.SetLayer(layer)
         board.Add(text)
+    if extra:
+        extra(board, xy)
     board.Save(str(directory / 'artwork.kicad_pcb'))
     shutil.copyfile(FIXTURE / 'route_demo.kicad_pro', directory / 'artwork.kicad_pro')
     return directory
@@ -120,6 +122,74 @@ def test_native_copper_artwork_survives_routing_through_its_passage(tmp_path):
     tracks = [row for row in facts['tracks'] if row['net'] == '/ART']
     assert tracks
     assert any(row['start'][1] != 112_000_000 or row['end'][1] != 112_000_000 for row in tracks)
+
+
+def every_kind_of_copper_text(board, xy):
+    """Copper artwork only KiCad can outline, on a board that renames its copper layers."""
+    board.SetLayerName(pcbnew.F_Cu, 'top_copper')
+    board.SetLayerName(pcbnew.B_Cu, 'bottom_copper')
+    knockout = pcbnew.PCB_TEXT(board)
+    knockout.SetText('KO')
+    knockout.SetPosition(xy(125, 105))
+    knockout.SetTextSize(xy(.5, .5))
+    knockout.SetTextThickness(pcbnew.FromMM(.1))
+    knockout.SetLayer(pcbnew.F_Cu)
+    knockout.SetIsKnockout(True)
+    board.Add(knockout)
+    slanted = pcbnew.PCB_TEXT(board)
+    slanted.SetText('REV A')
+    slanted.SetPosition(xy(132, 104))
+    slanted.SetTextSize(xy(.8, .8))
+    slanted.SetTextThickness(pcbnew.FromMM(.12))
+    slanted.SetTextAngleDegrees(30)
+    slanted.SetLayer(pcbnew.B_Cu)
+    slanted.SetMirrored(True)
+    board.Add(slanted)
+    box = pcbnew.PCB_TEXTBOX(board)
+    box.SetText('BOX')
+    box.SetStart(xy(130, 119))
+    box.SetEnd(xy(134, 121))
+    box.SetTextSize(xy(.6, .6))
+    box.SetTextThickness(pcbnew.FromMM(.1))
+    box.SetLayer(pcbnew.F_Cu)
+    board.Add(box)
+    dimension = pcbnew.PCB_DIM_ALIGNED(board, pcbnew.PCB_DIM_ALIGNED_T)
+    dimension.SetStart(xy(112, 122))
+    dimension.SetEnd(xy(118, 122))
+    dimension.SetHeight(pcbnew.FromMM(1))
+    dimension.SetLayer(pcbnew.F_Cu)
+    dimension.Update()
+    board.Add(dimension)
+    j2 = board.FindFootprintByReference('J2')
+    j2.Reference().SetLayer(pcbnew.F_Cu)
+    j2.Reference().SetPosition(xy(140, 109))
+    j2.Reference().SetTextSize(xy(.6, .6))
+    j2.Reference().SetTextThickness(pcbnew.FromMM(.1))
+    j2.Value().SetLayer(pcbnew.F_Cu)   # a hidden field on copper is not copper
+    j2.Value().SetPosition(xy(125, 112))
+    j2.Value().SetVisible(False)
+
+
+def test_every_kind_of_copper_text_is_an_obstacle_on_renamed_layers(tmp_path):
+    directory = artwork_project(tmp_path / 'project', extra=every_kind_of_copper_text)
+    saved = (directory / 'artwork.kicad_pcb').read_text()
+    for token in ('"top_copper"', 'knockout', '(gr_text_box', '(dimension', '(hide yes)'):
+        assert token in saved, token
+    process, run_dir, result = run('run', '--backend', 'builtin', '--dir', str(directory),
+                                  '--budget', '60', '--label', 'copper-text-kinds')
+    assert result['process']['status'] == 'PASS', (result['process'], process.stderr[-2000:])
+    assert result['routing']['status'] == 'COMPLETE', result['routing']
+    assert result['validation']['drc']['new_violations']['count'] == 0, result['validation']['drc']
+    assert result['validation']['preservation']['copper_graphics'] == 'PASS'
+    facts = json.loads((run_dir / 'validate/candidate-facts.json').read_text())
+    rows = facts['routing_copper_text']
+    assert {row['layer'] for row in rows} == {'top_copper', 'bottom_copper'}
+    assert {row['copper_layer'] for row in rows} == {'F.Cu', 'B.Cu'}
+    classes = {row['class'] for row in rows}
+    assert {'PCB_TEXT', 'PCB_TEXTBOX', 'PCB_DIM_ALIGNED', 'PCB_FIELD'} <= classes, classes
+    assert not any(row['class'] == 'PCB_FIELD' and row.get('text') != 'J2' for row in rows), rows
+    tracks = [row for row in facts['tracks'] if row['net'] == '/ART']
+    assert tracks
 
 
 def test_unsupported_copper_is_refused_without_relocation(tmp_path):
