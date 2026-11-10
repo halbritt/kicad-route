@@ -1209,7 +1209,7 @@ def _collect_pad_obstacles(pad, coord: GridCoord, layer_map: Dict[str, int],
         expanded_layers = expand_pad_layers(pad.layers, config.layers)
         clr_groups = _clr_groups(expanded_layers)
         on_copper = any(l.endswith('.Cu') for l in expanded_layers)
-        via_margin = config.via_copper_reach(_via_clr(expanded_layers)) + config.grid_step / 2
+        via_margin = config.via_copper_reach(_via_clr(expanded_layers), config.grid_step / 2)
         for poly in pad_polys:
             for g_clr, g_idxs in clr_groups.items():
                 margin = config.track_width / 2 + g_clr + extra_clearance
@@ -1262,7 +1262,7 @@ def _collect_pad_obstacles(pad, coord: GridCoord, layer_map: Dict[str, int],
     # Via blocking around pads
     if any(layer.endswith('.Cu') for layer in expanded_layers):
         # Add half grid step buffer to account for grid quantization errors
-        via_margin = config.via_copper_reach(_via_clr(expanded_layers)) + config.grid_step / 2
+        via_margin = config.via_copper_reach(_via_clr(expanded_layers), config.grid_step / 2)
         blocked_vias.append(pad_blocked_cells_array(gx, gy, half_width, half_height,
                                                     via_margin, config.grid_step, corner_radius,
                                                     off_x=off_x, off_y=off_y,

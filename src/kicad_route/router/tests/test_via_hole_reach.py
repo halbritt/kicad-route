@@ -58,11 +58,11 @@ def main():
     check('copper term governs at the class clearance',
           abs(plain.via_copper_reach(0.2) - 0.5) < 1e-9, f'{plain.via_copper_reach(0.2)}')
     check('hole term governs under a small pad override',
-          abs(plain.via_copper_reach(0.0508) - 0.4) < 1e-9, f'{plain.via_copper_reach(0.0508)}')
+          abs(plain.via_copper_reach(0.0508) - 0.401) < 1e-9, f'{plain.via_copper_reach(0.0508)}')
     check('no declared hole minimum leaves the copper term',
           abs(config(0).via_copper_reach(0.0508) - 0.3508) < 1e-9)
     check('an explicit hole clearance outranks the board value',
-          abs(config(0.25, hole_clearance=0.4).via_copper_reach(0.0508) - 0.55) < 1e-9)
+          abs(config(0.25, hole_clearance=0.4).via_copper_reach(0.0508) - 0.551) < 1e-9)
     for grid in (0.025, 0.05, 0.1):
         gap = nearest_free_via_gap(config(0.25, grid=grid), pad(0.0508))
         check(f'via hole stays 0.25 mm from an overridden pad at grid {grid}', gap >= 0.25 - 1e-6, f'{gap:.4f}')
