@@ -192,6 +192,29 @@ def test_every_kind_of_copper_text_is_an_obstacle_on_renamed_layers(tmp_path):
     assert tracks
 
 
+TEARDROPS = ('(teardrops (best_length_ratio 0.5) (max_length 1) (best_width_ratio 1) (max_width 2) '
+             '(curved_edges no) (filter_ratio 0.9) (enabled yes) (allow_two_segments yes) '
+             '(prefer_zone_connections yes))')
+
+
+def test_teardrops_kicad_adds_to_routed_pads_are_not_changed_zone_definitions(tmp_path):
+    directory = artwork_project(tmp_path / 'project')
+    board = directory / 'artwork.kicad_pcb'
+    text = board.read_text()
+    pad_layers = '(layers "F.Cu")'   # only pads write the plural form on this board
+    assert text.count(pad_layers) == 2
+    board.write_text(text.replace(pad_layers, pad_layers + ' ' + TEARDROPS))
+    process, run_dir, result = run('run', '--backend', 'builtin', '--dir', str(directory),
+                                  '--budget', '60', '--label', 'pad-teardrops')
+    assert result['routing']['status'] == 'COMPLETE', result['routing']
+    assert result['validation']['preservation']['zones'] == 'PASS', result['validation']['reasons']
+    reference = json.loads((run_dir / 'facts/reference-facts.json').read_text())
+    candidate = json.loads((run_dir / 'validate/candidate-facts.json').read_text())
+    assert reference['teardrop_zones'] == 0
+    assert candidate['teardrop_zones'] > 0, 'KiCad built no teardrop: the board no longer exercises the case'
+    assert candidate['zones'] == reference['zones']
+
+
 def test_unsupported_copper_is_refused_without_relocation(tmp_path):
     board = tmp_path / 'curve.kicad_pcb'
     board.write_text('(kicad_pcb (gr_curve (pts (xy 1 2) (xy 2 3) (xy 3 2) (xy 4 3)) (layer "F.Cu")))')

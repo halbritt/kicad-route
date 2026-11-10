@@ -261,9 +261,18 @@ def main(board_path, out_path):
             area_errors.append(f"rule area {rec['uuid']}: {exc}")
         rule_areas.append(rec)
 
+    teardrops = 0
     for z in board.Zones():
         if z.GetIsRuleArea():
             rule_area(z, {"kind": "board", "uuid": None, "reference": None})
+            continue
+        if z.IsTeardropArea():
+            # KiCad derives a teardrop zone from a pad's or via's own teardrop setting and
+            # the track that reaches it, and rebuilds them whenever it saves or refills
+            # the board. It is copper that belongs to a track, not a zone a designer
+            # defined: routing a board whose pads enable teardrops adds one per joined
+            # pad. Counted, and left out of the zone definitions that must be preserved.
+            teardrops += 1
             continue
         poly = z.Outline()
         outline_pts = [[int(poly.CVertex(i).x), int(poly.CVertex(i).y)] for i in range(poly.TotalVertices())]
@@ -286,6 +295,7 @@ def main(board_path, out_path):
     except (AttributeError, RuntimeError, TypeError) as exc:
         area_errors.append(f"footprint rule-area enumeration unavailable: {exc}")
     facts["zones"] = sorted(zones, key=lambda r: json.dumps(r, sort_keys=True))
+    facts["teardrop_zones"] = teardrops
     facts["rule_areas"] = sorted(rule_areas, key=lambda r: json.dumps(r, sort_keys=True))
     facts["rule_areas_coverage"] = "board-and-footprint"
     facts["rule_areas_status"] = "NOT_RUN" if area_errors else "PASS"
