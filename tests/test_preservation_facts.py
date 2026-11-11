@@ -163,7 +163,10 @@ def test_new_via_checked_against_its_type(tmp_path, vtype, dia, drill, ok):
     cand = base_facts(vias=[via(MM, locked=False, uuid="n", via_type=vtype, diameter=dia, drill=drill,
                                 layers=layers)])
     c = run_checks(tmp_path, base_facts(), cand)["new_copper_netclass_geometry"]
-    assert c["status"] == (PASS if ok else FAIL), c
+    # A size below the net class is reported and fails nothing: KiCad's DRC enforces the board's
+    # minimums and custom rules, and a class size is what KiCad draws with by default.
+    assert c["status"] == PASS, c
+    assert bool(c["differences"]) == (not ok) and ("below their class" in c["detail"]) == (not ok), c
     if not ok:
         want = [0.3, 0.1] if vtype == "micro" else [0.6, 0.3]
         assert c["differences"][0]["required_mm"] == want and c["differences"][0]["via_type"] == vtype
@@ -179,7 +182,30 @@ def test_microvia_without_class_size_and_partial_sizes(tmp_path):
     nets = {"N1": dict(NET, via_diameter=None)}
     cand = base_facts(nets=nets, vias=[via(MM, locked=False, drill=200_000)])
     c = run_checks(tmp_path, base_facts(nets=nets), cand)["new_copper_netclass_geometry"]
-    assert c["status"] == FAIL and c["differences"][0]["required_mm"] == [0, 0.3]
+    assert c["status"] == PASS and c["differences"][0]["required_mm"] == [0, 0.3]
+
+
+def test_copper_below_its_class_is_reported_with_its_nets_and_never_fails(tmp_path):
+    """Six of ten designer-routed boards of the lab carry tracks below their net class width
+    (0.2 mm on a 0.4 mm power class at fine-pitch pins), none below the board minimum, and KiCad's
+    own DRC accepts them. The comparison is a report: the count and the nets are in the route
+    statistics, the first differences in the check."""
+    narrow = seg(0, MM, locked=False, uuid="t1", width=NET["track_width"] - 50_000)
+    small = via(MM, locked=False, uuid="v1", diameter=NET["via_diameter"] - 100_000)
+    cand = base_facts(tracks=[narrow], vias=[small])
+    for side in ("ref", "cand"):
+        (tmp_path / side).mkdir(exist_ok=True)
+    checks, stats = route.preservation(base_facts(), cand, tmp_path / "ref", tmp_path / "cand", "board.kicad_pcb",
+                                       "existing", {"N1"})
+    check = next(c for c in checks if c["check"] == "new_copper_netclass_geometry")
+    assert check["status"] == PASS and "2 below their class" in check["detail"], check
+    assert {d["item"] for d in check["differences"]} == {"track", "via"}
+    assert stats["below_class"] == {"tracks": 1, "vias": 1, "nets": ["N1"]}
+    # copper at its class says so too: nothing below
+    cand = base_facts(tracks=[seg(0, MM, locked=False, uuid="t1")], vias=[via(MM, locked=False, uuid="v1")])
+    _, stats = route.preservation(base_facts(), cand, tmp_path / "ref", tmp_path / "cand", "board.kicad_pcb",
+                                  "existing", {"N1"})
+    assert stats["below_class"] == {"tracks": 0, "vias": 0, "nets": []}
 
 
 # ---------------------------------------------------------- KICADROUTE-23: arcs

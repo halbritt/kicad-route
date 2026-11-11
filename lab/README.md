@@ -40,6 +40,7 @@ existing`, as a caller does, and writes one record per thing that went wrong
 | `grading` | a kicad-route check on the candidate that failed (a class size, a moved part, a starved pour) |
 | `quality` | the board passes every rule and is still not what its designer would accept: `plane_layer_tracks`, tracks on an inner layer the designer kept for planes (under 2 % of their track length there, more than 2 % of the router's) |
 | `process` | the backend failed, or reported that it delivered something below a requirement |
+| `advisory` | listed and never counted against a board: `below_class`, new copper below its net class size. KiCad's DRC enforces the board's minimums and rules; six of ten designers' boards of the corpus have such tracks |
 
 A board is clean when it has none of the first four and the process ran.
 A table cell is `open / new errors`, plus the failed grading checks.

@@ -58,8 +58,10 @@ use. KiCad's DRC does not enforce them as minimums; it enforces `rules.min_*` an
 custom rules. They change for design reasons, for example a class widened for one
 revision and then put back. So `floor` and `audit` leave them out of the high-water
 mark. `floor --netclass-sizes` includes them. A person who wants one held can
-declare it, and declared entries are always honoured. Routing attempts still check
-new copper against these values (`new_copper_netclass_geometry`).
+declare it, and declared entries are always honoured. Routing attempts compare new
+copper with these values and report what is below them
+(`new_copper_netclass_geometry`); they fail a candidate only through the board's own
+minimums and rules, which KiCad's DRC grades.
 
 ## `kicad-route floor`
 

@@ -331,8 +331,11 @@ def test_validation_detects_tampering(tmp_path, attempt):
     record("tampering", {"exit_code": r.returncode, "validation": res["validation"], "routing": res["routing"]})
     assert r.returncode == 3
     p = res["validation"]["preservation"]
-    for check in ("footprints", "protected_copper", "new_copper_netclass_geometry", "project_files"):
+    for check in ("footprints", "protected_copper", "project_files"):
         assert p[check] == route.FAIL, check
+    # the narrowed /VIN track is below its class: reported with its net, and not what fails the board
+    assert p["new_copper_netclass_geometry"] == route.PASS
+    assert res["routing"]["stats"]["below_class"]["nets"] == ["/VIN"], res["routing"]["stats"]
 
 
 def test_compare_same_and_different_inputs(attempt):

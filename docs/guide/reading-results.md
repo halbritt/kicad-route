@@ -126,7 +126,7 @@ what they protect:
 | | `zones`, `keepouts` | a zone's outline or settings, or a rule area, changed |
 | | `copper_graphics` | copper text, shapes or other non-track copper changed |
 | New and old copper | `protected_copper` | a designated track or via is missing, moved, or lost its lock flag |
-| | `new_copper_netclass_geometry` | a new track is narrower than its class, or a new via smaller than its class |
+| | `new_copper_netclass_geometry` | never fails: it lists new tracks narrower than their net class and new vias smaller than theirs (`routing.stats.below_class` has the count and the nets). KiCad's DRC, under the board's own minimums and rules, decides whether they are too small |
 | | `routing_scope` | new copper appeared on a net outside the scope (or on no net) |
 | | `net_completion` | an originally joined set of terminal pads is split, or complete native evidence is unavailable (the ratchet) |
 | | `existing_unlocked_copper` | never (informational): how much unlocked input copper changed under `--protect locked` or `human` |

@@ -84,20 +84,21 @@ original lock flags on the built-in router's output by exact geometry (`kicad/lo
 these, the built-in router steps down fab tiers, necks wide nets into pads, moves passives to rescue a
 net, and writes lowered DRC minimums into its output `.kicad_pro` (seen on the fixture:
 `min_hole_clearance` 0.25 → 0.2 with a "FAB FLOOR RELAXED" warning). One behaviour
-cannot be switched off from the CLI and is caught by the grader instead: a track
-drawn narrower than its class where it meets a pad or a plane tap
-(`new_copper_netclass_geometry`). Upstream's engine also moves the designer's copper
-text and graphics to silkscreen; the engine here keeps them on copper (a local
-change, see [`upstream-engine.md`](upstream-engine.md)), and `copper_graphics`
-checks that they are where they were.
+cannot be switched off from the CLI: a track drawn narrower than its class where it
+meets a pad or a plane tap. It is reported (`new_copper_netclass_geometry`,
+`routing.stats.below_class`) and KiCad's DRC decides whether the board's own rules
+allow it. Upstream's engine also moves the designer's copper text and graphics to
+silkscreen; the engine here keeps them on copper (a local change, see
+[`upstream-engine.md`](upstream-engine.md)), and `copper_graphics` checks that they
+are where they were.
 
 `KICAD_CLASS_VIA_ONLY=1` is this project's own switch in the engine (AGENTEE-650).
 The engine reads each net's class via and routes a two-pad net with it. A net with
 more than two pads it searches with the Default class's via, and enlarges a via
 afterwards only where the class via happens to fit; the rest it delivers at the
 Default size and reports. On a two-layer board with a power class of 1.0 mm vias
-that left 15 to 25 of them at 0.6 mm, and `new_copper_netclass_geometry` rejected
-an otherwise complete, clean board. With the switch such a net is searched with its
+that left 15 to 25 of them at 0.6 mm on an otherwise complete, clean board
+(`new_copper_netclass_geometry` names them). With the switch such a net is searched with its
 own via, and the rescue gives it no pad escape, whose via is the run's: the net gets
 its class via or stays open. That board then routes complete with every via at its
 class size. The switch does nothing on a board whose classes share one via size.
@@ -282,7 +283,7 @@ From `kicad/facts.py` (KiCad's own loader; serialisation differences do not coun
 | `keepouts` | rule-area outlines, layers and restrictions |
 | `copper_graphics` | non-track copper shapes; copper text, text boxes, tables and other items with their content, position, size and bounding box |
 | `protected_copper` | designated tracks/vias still present with the same geometry (1 µm tolerance for Specctra quantisation; a track or arc may come back with start and end swapped), and every locked one still locked (a dropped lock flag FAILs); designated = locked items, plus all input copper with `--protect existing`, or the chain's human copper with `--protect human` ([`provenance.md`](provenance.md)) |
-| `new_copper_netclass_geometry` | every new track at least its net class width, every new via at least its class diameter and drill (microvias against the class microvia diameter and drill; through, blind and buried vias against the via sizes) |
+| `new_copper_netclass_geometry` | a report, always PASS: the new tracks narrower than their net class and the new vias smaller than theirs (microvias against the class microvia diameter and drill; through, blind and buried vias against the via sizes), with the count and the nets in `routing.stats.below_class`. A net class holds the sizes KiCad draws with by default; KiCad's DRC enforces Board Setup's minimums and the board's custom rules, and those decide what is too small |
 | `routing_scope` | new copper only on in-scope nets; new copper with no net (`<no net>`) is always outside the scope |
 | `net_completion` | every originally joined set of terminal pads stays joined, including subsets of incomplete nets (the completion ratchet; all protect modes) |
 | `existing_unlocked_copper` | with `--protect locked`/`human`: how much unlocked input copper was removed or changed (informational, always PASS) |
@@ -654,7 +655,8 @@ or `work/`). It proves:
   budget overrun is a process failure (exit 1);
 - a tampered candidate (footprint moved 0.5 mm, a locked via deleted, a Power track
   narrowed to 0.3 mm, a project clearance lowered) fails `validate` on `footprints`,
-  `protected_copper`, `new_copper_netclass_geometry` and `project_files`;
+  `protected_copper` and `project_files`, and the narrowed track is reported under
+  `routing.stats.below_class`;
 - `compare` refuses to call different inputs comparable;
 - a `--dir` chain graded with `validate --against` is judged against the first input;
 - `audit` of a commit that lowers a rule and moves a part flags the rule change, grades

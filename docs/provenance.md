@@ -80,8 +80,8 @@ and `unattributed` (the part of `human` that no step produced). It also holds
   Agent copper is not designated. `existing_unlocked_copper` reports how much of it was
   removed or changed. That check is informational only and always passes.
 - **`routing_scope`:** new copper is also allowed on nets that carried agent copper,
-  because the built-in router reroutes the agent nets it rips. All new copper is still checked against
-  its net class (`new_copper_netclass_geometry`).
+  because the built-in router reroutes the agent nets it rips. All new copper is still compared with
+  its net class, and what is below it is reported (`new_copper_netclass_geometry`).
 - **`validate <last> --against <first>`:** protection comes from the origin run,
   usually `existing` (all of the original input's copper). That is the human set by
   definition.

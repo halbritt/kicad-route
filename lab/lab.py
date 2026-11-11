@@ -281,6 +281,12 @@ def collect(entry, run_root, record):
     if run_dir is not None:
         for board in sorted((run_dir / 'candidate').glob('*/' + entry['name'] + '.kicad_pcb')):
             issues += layer_issues(entry, board)
+    below = ((result.get('routing') or {}).get('stats') or {}).get('below_class') or {}
+    if below.get('tracks') or below.get('vias'):
+        # reported, never counted against a board: KiCad's DRC enforces the board's minimums, not class sizes
+        issues.append({'kind': 'advisory', 'type': 'below_class',
+                       'detail': f"{below.get('tracks', 0)} new tracks and {below.get('vias', 0)} new vias below their "
+                                 f"net class, on {len(below.get('nets') or [])} nets: " + ', '.join((below.get('nets') or [])[:8])})
     return issues
 
 

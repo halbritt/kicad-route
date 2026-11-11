@@ -272,8 +272,8 @@ def test_reserved_corridors_hold_under_pressure(backend, fzone_dir):
     The candidate is graded in full. KRT completes the routing and its candidate
     passes every check (exit 0). /VIN has three pads; until AGENTEE-650 the engine
     searched such a net with the Default via and shipped one /VIN via at 0.6/0.3 mm
-    where the Power class asks 0.8/0.4 mm, and new_copper_netclass_geometry failed
-    (exit 3). Freerouting leaves /VIN open but its candidate passes every check
+    where the Power class asks 0.8/0.4 mm (that check failed a candidate then; it
+    reports now). Freerouting leaves /VIN open but its candidate passes every check
     (exit 2): a backend limit on this variant, with or without reservation, so it
     is pinned, not asserted away. DRC must pass for both."""
     extra = (["--default-clearance", "0.4"] if backend == "krt" else

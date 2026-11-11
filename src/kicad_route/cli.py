@@ -575,8 +575,13 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
               f"{out['vias']['unprotected_existing']} {what} vias removed or changed (allowed: not protected)",
               status=PASS)
 
-    # New copper must meet the net class of its net and stay inside the routing scope;
-    # copper with no net belongs to no in-scope net, so it always fails routing_scope.
+    # New copper must stay inside the routing scope; copper with no net belongs to no in-scope
+    # net, so it always fails routing_scope. New copper below the sizes of its net class is
+    # reported and fails nothing: a net class holds the sizes KiCad draws with by default, and
+    # KiCad's DRC enforces Board Setup's minimums and the board's custom rules, not those. Six of
+    # ten designer-routed boards of the lab carry tracks below their class width (0.2 mm on a
+    # 0.4 mm power class at the pins of a fine-pitch part, for one), none below the board
+    # minimum. A size the board really needs is one of its rules, and DRC grades that.
     under, outside = [], []
     nets = cand["nets"]
     tol = GEOMETRY_TOLERANCE_NM  # Specctra/KiCad quantisation, e.g. a 0.29972 mm drill read back as 0.299
@@ -606,15 +611,21 @@ def preservation(ref, cand, ref_dir, cand_dir, board_name, protect, scope, resto
         if not v["net"] or v["net"] not in scope:
             outside.append({"item": "via", "net": v["net"] or netnames.NO_NET,
                             "position_mm": [c / NM for c in v["position"]]})
-    check("new_copper_netclass_geometry", not under,
-          f"{len(out['tracks']['new'])} new tracks and {len(out['vias']['new'])} new vias checked against "
+    check("new_copper_netclass_geometry", True,
+          f"{len(out['tracks']['new'])} new tracks and {len(out['vias']['new'])} new vias compared with "
           f"their net class width / via (microvia) diameter / drill (1 um quantisation tolerance)"
-          + (f"; {len(under)} below" if under else ""), under[:20])
+          + (f"; {len(under)} below their class (reported, not a failure: KiCad's DRC enforces the board's "
+             f"minimums and custom rules, and a net class size is neither)" if under else ""),
+          under[:20], status=PASS)
     outside_nets = sorted({o["net"] for o in outside})
     check("routing_scope", not outside, f"new copper only on the {len(scope)} in-scope nets"
           + (f"; outside scope: {', '.join(outside_nets[:10])}" if outside else ""), outside[:20])
 
     stats = route_stats(out["tracks"]["new"], out["vias"]["new"])
+    # never suppressed: how much new copper is below its net class, and on which nets
+    stats["below_class"] = {"tracks": sum(u["item"] == "track" for u in under),
+                            "vias": sum(u["item"] == "via" for u in under),
+                            "nets": sorted({u["net"] for u in under if u["net"]})[:50]}
     stats["removed_existing_tracks"] = out["tracks"]["unprotected_removed_or_changed"] + len(out["tracks"]["protected_missing"])
     stats["removed_existing_vias"] = out["vias"]["unprotected_removed_or_changed"] + len(out["vias"]["protected_missing"])
     return checks, stats
@@ -1725,7 +1736,7 @@ def krt_unsupported(facts, ref_dir, settings):
     if settings.get("clearance_margin_mm"):
         notes.append("--clearance-margin is not supported by KRT and was not applied (use --default-clearance)")
     notes.append("KRT's cleanup may neck wide new segments near foreign pads without a flag; the "
-                 "new_copper_netclass_geometry check reports any new copper below its net class")
+                 "new_copper_netclass_geometry check reports any new copper below its net class (reported, not failed)")
     return notes
 
 
