@@ -214,7 +214,9 @@ class Monitor:
         with open(self.heartbeat_path, "a") as f:
             f.write(json.dumps(rec) + "\n")
 
-    def wait(self, proc, budget):
+    def wait(self, proc, budget, expired=None):
+        """Until the process exits. subprocess.TimeoutExpired after `budget` seconds, on a stall,
+        or as soon as `expired()` says so (a budget that is counted on another clock)."""
         self._start = self._last_progress = time.monotonic()
         self.heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
         self.heartbeat_path.write_text("")
@@ -237,7 +239,7 @@ class Monitor:
                 self._stall = {"phase": self.parser.phase, "metric": dict(self.parser.metric),
                                "no_progress_s": round(now - self._last_progress, 1)}
                 raise subprocess.TimeoutExpired(proc.args, budget)
-            if now >= deadline:
+            if now >= deadline or (expired is not None and expired()):
                 raise subprocess.TimeoutExpired(proc.args, budget)
 
     def finish(self):

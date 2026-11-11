@@ -5,6 +5,7 @@ conftest.py; unit-level checks run in process, integration checks through the CL
 import json
 import shutil
 import sys
+import time
 
 import pytest
 
@@ -139,6 +140,49 @@ def test_a_backend_is_asked_to_stop_before_its_budget_ends(tmp_path):
     rec = route.run_budgeted([sys.executable, script, "30"], tmp_path, log, 8,
                              {"KICAD_STOP_FILE": str(stop)}, stop_file=stop, grace=1)
     assert rec["killed"] and 8.5 <= rec["duration_s"] <= 12, rec["duration_s"]
+
+
+BUSY_WRITER = r'''
+import os, sys, time
+from pathlib import Path
+stop = Path(os.environ["KICAD_STOP_FILE"])
+print("[1/2] Routing /A (id=1)", flush=True)
+busy = sys.argv[1] == "busy"
+while not stop.exists():
+    if busy:
+        sum(i * i for i in range(20000))     # uses the processor
+    else:
+        time.sleep(0.05)                     # waits: no processor time to speak of
+print("CHECKPOINT STOP (KICAD_STOP_FILE): writing the board", flush=True)
+print("Successfully wrote the board", flush=True)
+'''
+
+
+def test_a_processor_time_budget_counts_what_the_backend_used(tmp_path):
+    """--budget-clock cpu: the stop request comes when the backend has USED the budget less its
+    reserve, however long that took on the wall clock. On a shared host a wall-time budget bought
+    30 % less routing in one lab run than in the run it was compared with."""
+    script = tmp_path / "busy_writer.py"
+    script.write_text(BUSY_WRITER)
+    stop, log = tmp_path / "STOP", tmp_path / "krt.log"
+    rec = route.run_budgeted([sys.executable, script, "busy"], tmp_path, log, 4,
+                             {"KICAD_STOP_FILE": str(stop)}, stop_file=stop, grace=1, clock="cpu")
+    assert rec["budget_clock"] == "cpu" and rec["stop_requested"] and not rec.get("killed"), rec
+    assert rec["exit_code"] == 0 and "Successfully wrote the board" in log.read_text()
+    assert 2.7 <= rec["cpu_s"] <= 4.5, rec["cpu_s"]              # asked at 4 - 1 s of processor time
+    assert "wall_cap_reached" not in rec
+    # a backend that only waits uses none: the wall clock ends the run at its cap (here 1.5 x 4 s)
+    stop.unlink()
+    start = time.monotonic()
+    rec = route.run_budgeted([sys.executable, script, "idle"], tmp_path, log, 4,
+                             {"KICAD_STOP_FILE": str(stop)}, stop_file=stop, grace=1, clock="cpu", wall_factor=1.5)
+    assert rec["wall_cap_reached"] and rec["stop_requested"] and rec["exit_code"] == 0, rec
+    assert rec["cpu_s"] < 1 and 5.5 <= time.monotonic() - start <= 9
+    # the default clock is the wall clock, and says nothing about a clock in its record
+    stop.unlink()
+    rec = route.run_budgeted([sys.executable, script, "idle"], tmp_path, log, 4,
+                             {"KICAD_STOP_FILE": str(stop)}, stop_file=stop, grace=1)
+    assert "budget_clock" not in rec and 2.5 <= rec["stop_s"] <= 4.0, rec
 
 
 def test_stall_on_blocked_fixture(blocked_dir):

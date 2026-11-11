@@ -223,10 +223,16 @@ def frozen(checkout):
             tmp.rename(dest)
         except OSError:                                      # another run of this commit got there first
             shutil.rmtree(tmp, ignore_errors=True)
-    # the built engine environment is not in git: the copy uses the checkout's
-    for venv in checkout.glob('.venv-*'):
-        link = dest / venv.name
-        if venv.is_dir() and not link.exists():
+    # the built engine environment is not in git: the copy uses the checkout's, or, for a checkout
+    # installed with `kicad-route update`, the environment of its newest router generation
+    venvs = {v.name: v for v in checkout.glob('.venv-*') if v.is_dir()}
+    if '.venv-krt' not in venvs:
+        built = sorted(checkout.glob('.router-generations/*/venv'), key=lambda v: v.stat().st_mtime)
+        if built:
+            venvs['.venv-krt'] = built[-1]
+    for name, venv in venvs.items():
+        link = dest / name
+        if not link.exists():
             try:
                 link.symlink_to(venv.resolve(), target_is_directory=True)
             except FileExistsError:
@@ -282,13 +288,17 @@ def finding_key(row):
     return (row.get('type'), tuple(sorted(str(i.get('description')) for i in row.get('items', []))))
 
 
-def run_timed(argv, cwd, limit, log_path):
-    """Run to the limit, then kill the whole process group. -> (exit code or None, processor seconds)."""
+WALL_FACTOR = 6     # kicad-route's own cap: with a processor-time budget a run ends at 6 x budget on the wall clock
+
+
+def run_timed(argv, cwd, limit, log_path, clock='cpu'):
+    """Run to the limit (processor seconds of the process, or wall seconds), then kill the whole
+    process group. -> (exit code or None, processor seconds)."""
     tick = os.sysconf('SC_CLK_TCK')
     cpu = 0.0
     with open(log_path, 'wb') as out:
         proc = subprocess.Popen(argv, cwd=cwd, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
-        deadline = time.monotonic() + limit
+        start = time.monotonic()
         while True:
             try:    # user and system time of the process and of the children it waited for
                 fields = Path(f'/proc/{proc.pid}/stat').read_text().rsplit(')', 1)[1].split()
@@ -299,7 +309,8 @@ def run_timed(argv, cwd, limit, log_path):
                 proc.wait(timeout=1)
                 return proc.returncode, round(cpu, 1)
             except subprocess.TimeoutExpired:
-                if time.monotonic() >= deadline:
+                wall = time.monotonic() - start
+                if (cpu >= limit or wall >= WALL_FACTOR * limit) if clock == 'cpu' else wall >= limit:
                     try:
                         os.killpg(proc.pid, signal.SIGKILL)
                     except ProcessLookupError:
@@ -308,7 +319,7 @@ def run_timed(argv, cwd, limit, log_path):
                     return None, round(cpu, 1)
 
 
-def stock_one(entry, tag, clone, budget, extra):
+def stock_one(entry, tag, clone, budget, extra, clock='cpu'):
     """Unmodified upstream route.py on the input; issues from native DRC against the input's own."""
     run_root = LAB / 'runs' / tag / entry['name']
     if run_root.exists():
@@ -321,14 +332,15 @@ def stock_one(entry, tag, clone, budget, extra):
     routed = run_root / 'routed' / file_name
     routed.parent.mkdir()
     argv = [str(clone / '.venv-bench/bin/python'), '-X', 'utf8', 'py_router/route.py', str(staged), str(routed), *extra]
-    # The same wall time kicad-route gives its backend: the budget, then the grace before it kills
-    # (cli.run_budgeted). Stock route.py takes no stop request, so a run that needs longer has no board.
+    # The same time kicad-route gives its backend, on the same clock: the budget, then the grace before
+    # it kills (cli.run_budgeted). Stock route.py takes no stop request, so a run that needs longer has no board.
     limit = budget + max(30, budget // 5)
     start = time.monotonic()
     issues = []
-    exit_code, cpu = run_timed(argv, clone, limit, run_root / 'route.log')
+    exit_code, cpu = run_timed(argv, clone, limit, run_root / 'route.log', clock)
     if exit_code is None:
-        issues.append({'kind': 'process', 'type': 'no_board_in_time', 'detail': f'not finished after {limit} s'})
+        issues.append({'kind': 'process', 'type': 'no_board_in_time',
+                       'detail': f"not finished after {limit} {'processor' if clock == 'cpu' else 'wall'} seconds"})
     seconds = round(time.monotonic() - start, 1)
     stats = {}
     if routed.is_file():
@@ -381,22 +393,25 @@ def finish(entry, run_root, issues, stats, seconds, exit_code, have_result, reco
     return summary
 
 
-def route_one(entry, tag, engine, budget, extra):
+def route_one(entry, tag, engine, budget, extra, clock='cpu'):
     if (engine / 'py_router/route.py').is_file():
-        return stock_one(entry, tag, engine, budget, extra)
+        return stock_one(entry, tag, engine, budget, extra, clock)
     run_root = LAB / 'runs' / tag / entry['name']
     if run_root.exists():
         shutil.rmtree(run_root)
     run_root.mkdir(parents=True)
     argv = [sys.executable, '-B', str(engine / 'bin/kicad-route'), '--out', str(run_root / 'kr'), '--json', 'run',
             '--backend', 'builtin', '--dir', str(entry['_dir'] / 'input'), '--board', entry['name'] + '.kicad_pcb',
-            '--name', entry['name'], '--label', 'lab', '--protect', 'existing', '--budget', str(budget), *extra]
+            '--name', entry['name'], '--label', 'lab', '--protect', 'existing', '--budget', str(budget),
+            '--budget-clock', clock, *extra]
     env = dict(os.environ, KICAD_ROUTE_LEDGER='off', PYTHONDONTWRITEBYTECODE='1')
     env.pop('KICAD_ROUTE_STATE', None)
     start = time.monotonic()
     record = {'argv': argv}
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, env=env, cwd=run_root, timeout=budget * 2 + 900)
+        # the run's own limits end it; this only catches a hang (grading may take minutes on a big board)
+        proc = subprocess.run(argv, capture_output=True, text=True, env=env, cwd=run_root,
+                              timeout=budget * (WALL_FACTOR + 1 if clock == 'cpu' else 2) + 1800)
         record['exit_code'] = proc.returncode
         (run_root / 'stderr.log').write_text(proc.stderr)
         try:
@@ -426,10 +441,10 @@ def run(args):
     if not args.stock:
         engine = frozen(engine)
         identity['routed_from'] = str(engine)
-    write_json(root / 'run.json', {'tag': args.tag, 'engine': identity, 'budget_s': args.budget,
+    write_json(root / 'run.json', {'tag': args.tag, 'engine': identity, 'budget_s': args.budget, 'clock': args.clock,
                                    'extra': args.extra, 'started_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(route_one, e, args.tag, engine, args.budget, args.extra): e for e in chosen}
+        futures = {pool.submit(route_one, e, args.tag, engine, args.budget, args.extra, args.clock): e for e in chosen}
         for future in concurrent.futures.as_completed(futures):
             s = future.result()
             print(f"  {s['name']}: {'clean' if s['clean'] else 'ISSUES'} open {s['open']} errors {s['errors']} "
@@ -496,7 +511,8 @@ def show(args):
         engine = info.get('engine') or {}
         print(f"\n{tag}: {sum(1 for s in done.values() if s['clean'])} of {len(done)} clean; engine {engine.get('engine_version')} "
               f"{(engine.get('commit') or '')[:8]}{' +' + str(engine['dirty_files']) + ' dirty' if engine.get('dirty_files') else ''}; "
-              f"budget {info.get('budget_s')} s {' '.join(info.get('extra') or [])}" + host_load(done))
+              f"budget {info.get('budget_s')} {'processor' if info.get('clock') == 'cpu' else 'wall'} s "
+              f"{' '.join(info.get('extra') or [])}" + host_load(done))
     print('\nCells are open connections / new DRC errors (+ failed grading checks). Bold is clean.')
 
 
@@ -579,6 +595,8 @@ def main():
     p.add_argument('--engine', default=str(HERE))
     p.add_argument('--stock')
     p.add_argument('--budget', type=int, default=300)
+    p.add_argument('--clock', choices=['cpu', 'wall'], default='cpu',
+                   help='what the budget counts: the engine\'s processor seconds (default) or wall seconds')
     p.add_argument('--jobs', type=int, default=3)
     p.set_defaults(fn=run, extra=[])
     p = sub.add_parser('show')

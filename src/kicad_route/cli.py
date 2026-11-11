@@ -1227,6 +1227,8 @@ def run_attempt(args):
         recipe = resolve_recipe(getattr(args, "recipe", None), ref_facts.get("copper_layer_count"))
         if recipe != "default":
             settings["recipe"] = recipe
+        if getattr(args, "budget_clock", "wall") == "cpu":
+            settings["budget_clock"] = "cpu"
     if bus is not None:
         settings["bus"] = bus
     if group_matching is not None:
@@ -1477,15 +1479,36 @@ def stop_reserve(budget):
     return min(STOP_RESERVE_MAX_S, budget * STOP_RESERVE_FRACTION)
 
 
-def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, grace=None, monitor=None):
-    """Run a backend with a wall-clock budget. A backend with a stop file is asked for a
+# With a processor-time budget the wall clock still ends the run, at this multiple of the budget:
+# a backend that is blocked, or starved of the processor altogether, must not run for ever.
+CPU_CLOCK_WALL_FACTOR = 6
+
+
+def process_cpu_s(pid):
+    """Processor seconds (user and system) a running process has used, with the children it has
+    waited for. None when the process is gone or the kernel's record cannot be read."""
+    try:
+        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+        return sum(int(v) for v in fields[11:15]) / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, grace=None, monitor=None,
+                 clock="wall", wall_factor=CPU_CLOCK_WALL_FACTOR):
+    """Run a backend with a budget. A backend with a stop file is asked for a
     clean stop stop_reserve(budget) before the budget ends; a grace period after the budget
     it is killed. Without a stop file it runs to the budget and is killed 5 s later.
     A stall.Monitor tails the log for heartbeats and, with a stall limit, treats
     no progress for that long like the budget (with a grace of at most the limit).
     The backend leads its own process group: terminate/kill signal the whole group,
     and whatever it leaves running in the group after it exits is killed too
-    (procgroup.py), so no backend child outlives the call."""
+    (procgroup.py), so no backend child outlives the call.
+
+    clock="wall" counts seconds on the wall clock. clock="cpu" counts the processor seconds the
+    backend has used (process_cpu_s), so the same budget buys the same routing on a busy host as
+    on an idle one; the grace is processor seconds too, and the wall clock ends the run at
+    wall_factor times the budget whatever the backend got."""
     env = common.tool_env()
     env.update(env_extra or {})
     if monitor is not None:
@@ -1495,7 +1518,31 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
     log_path.parent.mkdir(parents=True, exist_ok=True)
     rec = {"argv": [str(a) for a in argv], "cwd": common.rel(cwd), "log": common.rel(log_path),
            "env": {k: v for k, v in (env_extra or {}).items()}, "budget_s": budget}
+    if clock == "cpu":
+        rec["budget_clock"] = "cpu"
     start = time.monotonic()
+    wall_end = start + wall_factor * budget
+
+    def wait(seconds):
+        """Return when the backend exits; subprocess.TimeoutExpired when `seconds` of the budget's
+        clock have passed, or (processor clock) when the wall clock reaches its cap."""
+        if clock != "cpu":
+            return monitor.wait(proc, seconds) if monitor is not None else proc.wait(timeout=seconds)
+        target = (process_cpu_s(proc.pid) or 0.0) + seconds
+
+        def expired():
+            if time.monotonic() >= wall_end:
+                rec["wall_cap_reached"] = True
+                return True
+            return (process_cpu_s(proc.pid) or 0.0) >= target
+        if monitor is not None:
+            return monitor.wait(proc, max(1.0, wall_end - time.monotonic()), expired=expired)
+        while True:
+            try:
+                return proc.wait(timeout=0.25)
+            except subprocess.TimeoutExpired:
+                if expired():
+                    raise
     cpu_before = os.times()
     with open(log_path, "wb") as out:
         try:
@@ -1506,7 +1553,7 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
             return rec
         try:
             try:
-                (monitor.wait(proc, ask_at) if monitor is not None else proc.wait(timeout=ask_at))
+                wait(ask_at)
             except subprocess.TimeoutExpired:
                 if monitor is not None and monitor.stalled:
                     rec["stalled"] = True
@@ -1520,7 +1567,11 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
                     rec["stop_requested"] = True
                 rec["stop_s"] = round(time.monotonic() - start, 3)
                 try:
-                    proc.wait(timeout=left + grace if stop_file else 5)
+                    if clock == "cpu" and stop_file and not rec.get("wall_cap_reached"):
+                        monitor, wall_end = None, wall_end + grace   # the stall limit has done its work
+                        wait(left + grace)
+                    else:
+                        proc.wait(timeout=left + grace if stop_file else 5)
                 except subprocess.TimeoutExpired:
                     procgroup.terminate(proc)
                     rec["killed"] = True
@@ -1781,7 +1832,8 @@ def krt_route(work, board, scope, facts, settings):
     config_request['request_sha256'] = common.sha256(request_path)
     env['KICAD_EFFECTIVE_CONFIG_REQUEST'] = str(request_path.resolve())
     rec = run_budgeted(argv, work, work / "krt.log", settings["budget_s"], env, stop_file=stop,
-                       monitor=stall.Monitor("krt", work / "krt.log", settings.get("stall_s")))
+                       monitor=stall.Monitor("krt", work / "krt.log", settings.get("stall_s")),
+                       clock=settings.get("budget_clock", "wall"))
     text = Path(work / "krt.log").read_text(errors="replace")
     report = load_json(summary) or tagged_json(text, "JSON_SUMMARY")
     proc = {"status": PASS, "reasons": [], "exit_code": rec.get("exit_code"), "commands": [rec],
@@ -2788,6 +2840,11 @@ def add_route_args(p):
     p.add_argument("--netclass", nargs="+", metavar="CLASS",
                    help="net-CLASS selection: nets whose effective KiCad net class is CLASS")
     p.add_argument("--budget", type=int, default=300, help="wall-clock seconds for the backend (default 300)")
+    p.add_argument("--budget-clock", choices=["wall", "cpu"], default="wall",
+                   help="builtin only: what --budget counts. wall (default): seconds on the clock. cpu: the "
+                        "processor seconds the backend used, so a busy host does not shorten the routing; the "
+                        f"run still ends on the wall clock at {CPU_CLOCK_WALL_FACTOR} times the budget. The pair "
+                        "pass of --diff-pairs keeps the wall clock")
     p.add_argument("--diff-pairs", choices=["auto"], help="builtin: detect native differential pairs, route pairs first, "
                    "and exclude all pair members from single-ended routing (default off)")
     p.add_argument("--bus", action="store_true", help="builtin: group single-ended nets geometrically and plan shared routing corridors")

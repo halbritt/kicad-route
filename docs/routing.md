@@ -371,7 +371,15 @@ The candidate's project is the input's own, unchanged.
 `--budget` seconds is when the run should be over, so the built-in router is asked to
 stop before it: a quarter of the budget earlier, at most 120 s. It then leaves the
 pass it is in, skips the passes that remain and writes the board with what it has,
-which on a board of some hundred connections takes a minute or more. Asked only at
+which on a board of some hundred connections takes a minute or more.
+
+`--budget-clock cpu` makes the budget count the processor seconds the built-in router
+used instead of seconds on the clock. The engine is deterministic, so with this clock
+the same budget gives the same board on a busy host as on an idle one; with the wall
+clock two runs of one commit on a board of 350 connections came out at 88 and 122
+open connections, because the stop request landed at different points of the same
+pass. The wall clock still ends such a run, at six times the budget. The result
+records the clock in `settings.budget_clock` and each command's `cpu_s`. Asked only at
 the budget, two four-layer boards honoured the request, were still writing when the
 grace period ended, and were killed with nothing delivered. The engine looks for the
 stop request in every pass (`test_stop_file_later_passes.py`); the upstream engine

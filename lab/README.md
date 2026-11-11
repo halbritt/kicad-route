@@ -74,11 +74,15 @@ KiCadRoutingTools clone and scores its boards by the same native DRC. Keep
 that tag beside ours in `show`: the router is worth its upkeep only while it
 routes these boards better than upstream does.
 
-Both get the same wall time: `--budget` seconds, then the grace kicad-route
+Both get the same time: `--budget` seconds, then the grace kicad-route
 allows before it kills a backend. Stock `route.py` cannot be asked to stop and
 write what it has, so where it needs longer its cell says so and has no board.
-Compare columns only at the same budget. A budget is wall time, so a busy
-host routes less in it. Each cell therefore also gives the processor seconds
-the engine itself used, and the table's footer the host's load range during
-the run: two cells with the same wall time and very different engine seconds
-did not get the same amount of routing.
+Compare columns only at the same budget.
+
+A budget counts the engine's processor seconds (`kicad-route run
+--budget-clock cpu`; `--clock wall` for wall seconds), because the host is
+shared: the engine is deterministic, and two runs of one commit on the largest
+board of the corpus came out at 88 and 122 open connections only because a
+wall-time stop landed at different points of the same pass. Each cell gives
+the processor seconds the engine used, and the table's footer the host's load
+range during the run.
