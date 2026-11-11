@@ -1,0 +1,84 @@
+# Router lab
+
+One job: find what the router gets wrong on real boards, and show whether a
+change fixed it without breaking something else.
+
+```sh
+lab/lab.py add stickhub ~/boards/StickHub/StickHub.kicad_pcb      # once per board
+lab/lab.py run before                                            # route every board with this checkout
+lab/lab.py issues before stickhub                                # every issue, one line each
+# ... change the engine ...
+lab/lab.py run after
+lab/lab.py diff before after                                     # issues gone, issues new
+lab/lab.py show before after upstream                            # the table
+lab/lab.py run upstream --stock ~/src/KiCadRoutingTools -- --escalation board --no-fix-drc-settings
+```
+
+## What a board is
+
+A designer's board with its own rule files. `add` keeps two copies under
+`$KICAD_ROUTE_LAB/corpus/NAME` (default `~/.local/share/kicad-route-lab`):
+
+- `reference/`: the board as its designer routed it. Its native DRC is the
+  yardstick: a board the designer routed with no error is one the router should
+  route with no error.
+- `input/`: the same board with tracks, vias and teardrops removed. Pours,
+  parts and rules stay. This is what the router gets.
+
+The corpus is never committed. The boards are other people's designs.
+
+## What an issue is
+
+`run` routes each input through `kicad-route run --backend builtin --protect
+existing`, as a caller does, and writes one record per thing that went wrong
+(`runs/TAG/NAME/issues.json`):
+
+| Kind | Meaning |
+|---|---|
+| `open` | a connection the router left unrouted, with both ends |
+| `drc` | a native DRC finding the unrouted input did not have, with its items and positions |
+| `grading` | a kicad-route check on the candidate that failed (a class size, a moved part, a starved pour) |
+| `quality` | the board passes every rule and is still not what its designer would accept: `plane_layer_tracks`, tracks on an inner layer the designer kept for planes (under 2 % of their track length there, more than 2 % of the router's) |
+| `process` | the backend failed, or reported that it delivered something below a requirement |
+
+A board is clean when it has none of the first four and the process ran.
+A table cell is `open / new errors`, plus the failed grading checks.
+
+A run is of one commit. `run` copies the checkout's committed files to
+`$KICAD_ROUTE_LAB/snap/frozen-COMMIT` and routes with the copy, so the checkout
+can be edited while a run of an hour is going; uncommitted changes to tracked
+files are refused. (kicad-route binds its grading to the hashes of its own
+source files. An edit during a run once made three boards fail a completion
+check the router had no part in.) The engine's built environment
+(`.venv-krt`) is not in git; the copy links to the checkout's, and `run.json`
+records the hash of the built extension.
+
+## The loop
+
+1. `run` a tag for the checkout as it is.
+2. Pick the issue class that costs the most boards. Read its lines with `issues`.
+   The run directory printed with each board holds the routed candidate
+   (`kr/runs/NAME/lab/STAMP/candidate/`), the engine's log (`work/`), the
+   findings (`validate/new-findings.json`); `kicad-route blocked RUN_DIR` names
+   what lies across a connection left open.
+3. Fix the engine for the class, not for the board. Put the smallest board
+   that shows the defect into `src/kicad_route/router/tests/` as a regression
+   script (see `synth.py`).
+4. `run` a new tag and `diff` it against the last one. A change lands when
+   its issues are gone and no board has a new one.
+
+## The opponent
+
+`run --stock CLONE` routes the same inputs with an unmodified
+KiCadRoutingTools clone and scores its boards by the same native DRC. Keep
+that tag beside ours in `show`: the router is worth its upkeep only while it
+routes these boards better than upstream does.
+
+Both get the same wall time: `--budget` seconds, then the grace kicad-route
+allows before it kills a backend. Stock `route.py` cannot be asked to stop and
+write what it has, so where it needs longer its cell says so and has no board.
+Compare columns only at the same budget. A budget is wall time, so a busy
+host routes less in it. Each cell therefore also gives the processor seconds
+the engine itself used, and the table's footer the host's load range during
+the run: two cells with the same wall time and very different engine seconds
+did not get the same amount of routing.
