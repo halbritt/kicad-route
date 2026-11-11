@@ -175,10 +175,14 @@ def native(board,out):
 
 @pytest.mark.parametrize('amplitude,expected', [('3', True), ('.001', False)])
 def test_small_composed_skew_uses_legal_tuning_geometry(amplitude,expected):
-    root=OUT/('ac-small-skew-'+amplitude);root.mkdir(parents=True)
+    from kicad_route import cli as route
+    # A run that was interrupted leaves its directory; the test starts from an empty one.
+    root=OUT/('ac-small-skew-'+amplitude);shutil.rmtree(root,ignore_errors=True);root.mkdir(parents=True)
     inputs=root/'input';shutil.copytree(FIXTURE,inputs)
     before=tree_hash(inputs);out=root/'candidate';shutil.copytree(inputs,out)
-    cmd=[str(ROOT/'.venv-krt/bin/python'),str(ROOT/'src/kicad_route/router/py_router/route_diff.py'),
+    # the interpreter this checkout routes with: an installed checkout keeps it in its router
+    # generation, and a .venv-krt left beside it from an older install has no engine in it
+    cmd=[str(route.route_python()),str(ROOT/'src/kicad_route/router/py_router/route_diff.py'),
          str(inputs/'chain.kicad_pcb'),'--output',str(out/'chain.kicad_pcb'),
          '--layers','F.Cu','--track-width','.15','--diff-pair-gap','.25',
          '--diff-pair-intra-match','--ac-couple-match','--length-match-tolerance','.1',
