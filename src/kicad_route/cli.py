@@ -1501,6 +1501,7 @@ KRT_ENV = {
     "KICAD_IMPEDANCE_NECKDOWN": "0",
     "KICAD_RESCUE_CAP_MOVE": "0",      # never move passives to rescue a net
     "KICAD_DYNAMIC_ITERATIONS": "0",   # --max-iterations is a hard cap
+    "KICAD_CLASS_VIA_ONLY": "1",   # a net with more than two pads is searched at its own class via
     "KICAD_CLI": "/usr/bin/kicad-cli",
 }
 KRT_PROTECT_EXISTING_ENV = {"KICAD_RIP_PREEXISTING": "0", "KICAD_FINALIZE_RIP": "0"}

@@ -73,7 +73,8 @@ The built-in router relaxes by default. The adapter (`KRT_FLAGS` / `KRT_ENV` in 
 `--escalation off --fab-tier standard --strict-sizes --no-power-tap-neckdown
 --no-fix-drc-settings`, plus `--keep-input-copper --no-stub-layer-swap` for
 `--protect existing`, and sets `KICAD_INRUN_FLOOR_SYNC=0 KICAD_TERMINAL_ESCALATION=0
-KICAD_IMPEDANCE_NECKDOWN=0 KICAD_RESCUE_CAP_MOVE=0 KICAD_DYNAMIC_ITERATIONS=0`
+KICAD_IMPEDANCE_NECKDOWN=0 KICAD_RESCUE_CAP_MOVE=0 KICAD_DYNAMIC_ITERATIONS=0
+KICAD_CLASS_VIA_ONLY=1`
 (and `KICAD_RIP_PREEXISTING=0 KICAD_FINALIZE_RIP=0` for `--protect existing`). Those
 flags were not enough on a real 4-layer board: the built-in router's net rescue still moved 138 existing
 segments and vias ("STUB-SWAP RESCUE: GND stub B.Cu -> In1.Cu") and reworked copper on
@@ -87,6 +88,18 @@ cannot be switched off from the CLI in v0.23.x and are caught by the grader inst
 cleanup pass that may neck new wide segments near foreign pads
 (`new_copper_netclass_geometry`), and moving copper text to silkscreen
 (`copper_graphics`).
+
+`KICAD_CLASS_VIA_ONLY=1` is this project's own switch in the engine (AGENTEE-650).
+The engine reads each net's class via and routes a two-pad net with it. A net with
+more than two pads it searches with the Default class's via, and enlarges a via
+afterwards only where the class via happens to fit; the rest it delivers at the
+Default size and reports. On a two-layer board with a power class of 1.0 mm vias
+that left 15 to 25 of them at 0.6 mm, and `new_copper_netclass_geometry` rejected
+an otherwise complete, clean board. With the switch such a net is searched with its
+own via, and the rescue gives it no pad escape, whose via is the run's: the net gets
+its class via or stays open. That board then routes complete with every via at its
+class size. The switch does nothing on a board whose classes share one via size.
+`src/kicad_route/router/tests/test_multipoint_class_via.py` holds both behaviours.
 
 Freerouting is run with `-da` (analytics off), `--api_server.enabled=false`,
 `--router.automatic_neckdown=false` (no narrowing into pins),

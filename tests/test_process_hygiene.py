@@ -165,6 +165,11 @@ def test_krt_overrun_knobs_are_never_forced():
     assert "KICAD_NET_RESCUE" not in route.KRT_ENV and "KICAD_PLANE_FINALIZE" not in route.KRT_ENV
 
 
+def test_a_net_with_its_own_class_via_is_never_given_a_smaller_one():
+    """AGENTEE-650: every built-in run asks the engine for the class via or none."""
+    assert route.KRT_ENV["KICAD_CLASS_VIA_ONLY"] == "1"
+
+
 # ------------------------------------------------------------ KICADROUTE-36
 
 def test_latest_link_survives_concurrent_runs(tmp_path, monkeypatch):

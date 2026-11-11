@@ -125,6 +125,12 @@ def refresh() -> None:
     # post-rescue whole-net retry with track width + via size marching down
     # together toward the fab floor. =0 disables for A/B debugging.
     g['TERMINAL_ESCALATION'] = _s('KICAD_TERMINAL_ESCALATION', '1') != '0'
+    # kicad-route (AGENTEE-650): a net whose class has its own via (config.net_via_sizes)
+    # gets that via or none. A net with more than two pads is SEARCHED at it, as a
+    # two-pad net is, and the rescue gives it no pad escape, whose engine draws the
+    # run's via. Off, such a net is searched at the run's via and a via is enlarged
+    # afterwards only where the class via happens to fit; the rest ship below their class.
+    g['CLASS_VIA_ONLY'] = _opt_in('KICAD_CLASS_VIA_ONLY')
     # PR #535's idea as a #189 escalation rung: when the in-pad unblock via
     # fails (or #581 forbids via-in-pad), search this radius (mm) around the
     # boxed pad for the first spot where a through-via is legal on every
