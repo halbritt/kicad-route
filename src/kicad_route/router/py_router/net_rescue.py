@@ -1372,7 +1372,14 @@ def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
         # #666: post-route it strands moved caps' joints, measured 6->13).
         tap_results = []
         num_start = num0
-        if env_knobs.BARE_PAD_ESCAPE:
+        # AGENTEE-650: the escape engine draws the run's via and may clamp it into the
+        # pad. A net with its own class via gets that via or none, so it gets no escape.
+        _own_via_only = (env_knobs.CLASS_VIA_ONLY
+                         and config.net_via(net_id) != (config.via_size, config.via_drill))
+        if _own_via_only:
+            print("    bare-ball escape skipped: the net has its own class via "
+                  "(KICAD_CLASS_VIA_ONLY)")
+        if env_knobs.BARE_PAD_ESCAPE and not _own_via_only:
             from plane_pad_tap import tap_pad_with_escalation
             from kicad_parser import Segment as _Seg, Via as _Via
             try:

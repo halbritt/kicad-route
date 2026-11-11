@@ -35,4 +35,5 @@ def test_owned_source_starts_without_git_metadata(tmp_path, monkeypatch):
     version = engine.identity()
     assert len(version["source_sha256"]) == 64
     assert version["commit"] is None
-    assert version["upstream"]["fork_commit"] == "0494a05e30063b849c9cf1b9ac02098073d82216"
+    assert len(version["upstream"]["upstream_commit"]) == 40
+    assert version["upstream"]["local_changes"]

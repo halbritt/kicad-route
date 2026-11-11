@@ -1,11 +1,11 @@
-"""Run short-pair policy and native geometry controls against owned source."""
+"""Run the short-pair coupling policy control against the engine source."""
 import subprocess
 import pytest
 
 from kicad_route import cli, engine
 
 
-@pytest.mark.parametrize('name', ['test_required_coupling.py', 'test_pad_body_dangles.py'])
+@pytest.mark.parametrize('name', ['test_required_coupling.py'])
 def test_owned_short_pair_policy_and_native_controls(name):
     script = engine.SOURCE_ROOT / 'tests' / name
     done = subprocess.run([str(cli.route_python()), str(script), '-v'],

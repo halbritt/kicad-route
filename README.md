@@ -45,8 +45,9 @@ from the included source, and runs the integration tests. Re-run it to update.
 
 ## Use
 
-`builtin` is the default backend. Its maintained Python and Rust source is part of
-kicad-route, derived from [KRT (KiCadRoutingTools)](https://github.com/drandyhaas/KiCadRoutingTools);
+`builtin` is the default backend. Its Python and Rust source is part of kicad-route:
+upstream [KRT (KiCadRoutingTools)](https://github.com/drandyhaas/KiCadRoutingTools) at a
+recorded commit plus a small set of local changes ([`docs/upstream-engine.md`](docs/upstream-engine.md));
 it does not require a separate KRT checkout or download. `--backend krt` remains a
 deprecated alias and warns on stderr; new results identify the backend as `builtin`.
 Existing receipts remain readable. State-manifest and determinism `krt` keys,
@@ -109,8 +110,12 @@ sandboxes, and a glossary. The pages below are the reference.
 - [`docs/routing.md`](docs/routing.md) — backends and what the adapters switch off,
   run layout and result semantics, native grading, preservation checks, `audit`,
   installation and updates, decisions, known limitations, fixture evidence.
-- [`docs/routing-engine-migration.md`](docs/routing-engine-migration.md) — patched
-  baseline, source provenance, owned build and migration acceptance requirements.
+- [`docs/upstream-engine.md`](docs/upstream-engine.md) — the builtin router is upstream
+  KRT at a recorded commit plus a small listed set of local changes; the one command
+  that moves it to a newer upstream commit.
+- [`docs/routing-engine-migration.md`](docs/routing-engine-migration.md) — how the
+  router came into this repository (2026-10-20), its build and that migration's
+  acceptance requirements.
 - [`docs/campaign.md`](docs/campaign.md) — `campaign`: automated hard-nets-first chains,
   backlog rounds, ranking, race orderings.
 - [`docs/floor.md`](docs/floor.md) — rule high-water mark and the declared rule floor
@@ -125,6 +130,9 @@ sandboxes, and a glossary. The pages below are the reference.
 - [`docs/decoupling.md`](docs/decoupling.md) — `kicad-route decoupling`: read-only audit of bypass
   capacitor cells (pin → capacitor → plane, or a direct pin via that bypasses the capacitor).
 - [`docs/barrier.md`](docs/barrier.md) — `--barrier-from RUN_DIR`: reroute with a small temporary keepout where a run's new copper collided (removed before grading).
+- [`docs/closed.md`](docs/closed.md) — what a board closes to new copper without a rule area (solder-mask
+  apertures that are not pad openings, copper without a net): closed with temporary keepouts on every run,
+  removed before grading.
 - [`docs/provenance.md`](docs/provenance.md) — `--protect human`: in a `--dir` chain only the
   designer's copper is protected, and the `net_completion` ratchet.
 - [`docs/planes.md`](docs/planes.md) — exact `agent-ee.plane-plan/1` zone production,

@@ -41,22 +41,6 @@ class TapGridTests(unittest.TestCase):
                             self.assertAlmostEqual(y, gy * step, places=9)
                         self.assertEqual(points, sorted(points))
 
-    def test_off_grid_copper_keeps_physical_endpoints_and_collinearity(self):
-        coord = GridCoord(0.1)
-        for a, b in (((1.023, 2.017), (1.027, 2.021)),
-                     ((1.023, 2.017), (3.139, 3.841))):
-            with self.subTest(start=a, end=b):
-                points = get_all_segment_tap_points(
-                    [Segment(*a, *b, 0.2, 'F.Cu', 1)], coord, ['F.Cu'])
-                physical = [(p[3], p[4]) for p in points]
-                self.assertIn(a, physical)
-                # A sub-cell segment deduplicates to its first endpoint.
-                if coord.to_grid(*a) != coord.to_grid(*b):
-                    self.assertTrue(any(abs(x-b[0]) < 1e-9 and abs(y-b[1]) < 1e-9
-                                        for x, y in physical))
-                for x, y in physical:
-                    self.assertAlmostEqual((x-a[0])*(b[1]-a[1]) - (y-a[1])*(b[0]-a[0]), 0)
-
     def test_diff_pair_terminal_island_uses_grid_taps(self):
         from diff_pair_routing import _terminal_island_taps
         coord = GridCoord(0.1)

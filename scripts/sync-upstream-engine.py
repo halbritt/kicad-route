@@ -2,6 +2,7 @@
 """Move the routing engine onto a newer upstream KRT commit, keeping the local changes.
 
     scripts/sync-upstream-engine.py [--upstream CLONE] [--ref REF] [--status] [--upstream-only] [--no-fetch]
+    scripts/sync-upstream-engine.py --refresh-config-fields
 
 The engine in src/kicad_route/router/ is upstream KRT at the commit recorded in its
 UPSTREAM.json (`upstream_commit`) plus a small set of local changes. This command
@@ -14,7 +15,10 @@ UPSTREAM.json (`upstream_commit`) plus a small set of local changes. This comman
 4. merges every carried file three ways (ours, old, new) in place, adds files upstream
    added, removes unchanged files upstream no longer has or the entry points no longer
    import, and leaves local files alone,
-5. records the new commit in UPSTREAM.json and prints what conflicted.
+5. rewrites the two files that restate GridRouteConfig's fields from the merged class:
+   py_router/effective_config_fields.json and the field lists in
+   schemas/effective-configuration-1.json (what a run's configuration record is checked against),
+6. records the new commit in UPSTREAM.json and prints what conflicted.
 
 A conflicted file holds standard `<<<<<<<`/`|||||||`/`=======`/`>>>>>>>` markers (ours, old
 upstream, new upstream). The exit status is 1 while any conflict is left. Nothing is
@@ -27,6 +31,7 @@ which is the local change set UPSTREAM.json describes.
 changes (local files stay). It is for measuring what upstream alone does with this package.
 """
 import argparse
+import ast
 import importlib.util
 import json
 import os
@@ -104,6 +109,47 @@ def merge(ours, old, new):
     return done.returncode
 
 
+def config_fields():
+    """GridRouteConfig's dataclass fields in declaration order, read from source (nothing is imported)."""
+    tree = ast.parse((ENGINE / "py_router" / "routing_config.py").read_text())
+    cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "GridRouteConfig")
+    return [node.target.id for node in cls.body
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+            and "ClassVar" not in ast.unparse(node.annotation)]
+
+
+CONFIG_SCHEMA = ROOT / "schemas" / "effective-configuration-1.json"
+
+
+def config_field_files(fields):
+    """{path: text} of the two files that restate GridRouteConfig's fields: the engine's
+    inventory, and the configuration record schema (the field names of a complete record, and
+    the required configuration keys: every field but `rules`, which the record carries
+    beside the configuration)."""
+    schema = json.loads(CONFIG_SCHEMA.read_text())
+    schema["properties"]["configuration"]["required"] = [name for name in fields if name != "rules"]
+    for clause in schema.get("allOf", ()):          # a complete record names exactly these fields
+        names = clause.get("then", {}).get("properties", {}).get("field_names")
+        if names and "const" in names:
+            names["const"] = list(fields)
+    return {ENGINE / "py_router" / "effective_config_fields.json": json.dumps(fields, indent=2) + "\n",
+            CONFIG_SCHEMA: json.dumps(schema, indent=2) + "\n"}
+
+
+def refresh_config_fields():
+    """Rewrite both field lists when the merged config parses; True when either changed."""
+    try:
+        files = config_field_files(config_fields())
+    except (SyntaxError, StopIteration):          # conflict markers: refresh after resolving
+        return None
+    changed = False
+    for path, text in files.items():
+        if not path.is_file() or path.read_text() != text:
+            path.write_text(text)
+            changed = True
+    return changed
+
+
 def plan(old_tree, new_tree, closure, local_files):
     """(action, path) rows; nothing is written. `local_files` are kicad-route's own
     (UPSTREAM.json): never merged, even where upstream has a file of the same name."""
@@ -154,6 +200,10 @@ def status(old_tree, closure, record):
     problems += [f"unchanged upstream file outside the carried set: {path}" for path in by_action.get("remove", [])]
     problems += [f"changed locally but not described in local_changes: {path}"
                  for path in sorted(set(changed) - described)]
+    for path, text in config_field_files(config_fields()).items():
+        if not path.is_file() or path.read_text() != text:
+            problems.append(f"{path.relative_to(ROOT)} does not restate GridRouteConfig's fields "
+                            "(run this command with --refresh-config-fields)")
     for problem in problems:
         print("PROBLEM " + problem)
     return 1 if problems else 0
@@ -172,8 +222,15 @@ def main():
     parser.add_argument("--upstream-only", action="store_true",
                         help="take upstream's version of every upstream file, dropping the local changes")
     parser.add_argument("--no-fetch", action="store_true", help="use the clone as it is")
+    parser.add_argument("--refresh-config-fields", action="store_true",
+                        help="only rewrite the two files that restate GridRouteConfig's fields and stop")
     args = parser.parse_args()
 
+    if args.refresh_config_fields:
+        changed = refresh_config_fields()
+        print("config field lists: " + {True: "rewritten", False: "already current",
+                                        None: "routing_config.py does not parse"}[changed])
+        return 1 if changed is None else 0
     record = json.loads(RECORD.read_text())
     clone = ensure_clone(args.upstream, record["upstream"], fetch=not args.no_fetch)
     closure = closure_module()
@@ -213,6 +270,7 @@ def main():
             if child.is_dir() and not any(child.iterdir()):
                 child.rmdir()
 
+    refreshed = refresh_config_fields()
     record["upstream_commit"] = new_commit
     record["upstream_describe"] = git(clone, "describe", "--tags", "--always", new_commit)
     record["upstream_commit_date"] = git(clone, "log", "-1", "--format=%cI", new_commit)
@@ -223,6 +281,12 @@ def main():
     if missing:
         print("  entry points upstream no longer has: " + " ".join(missing)
               + "  (fix ENTRYPOINTS in scripts/routing_closure.py)")
+    if refreshed:
+        print("  GridRouteConfig's fields changed: effective_config_fields.json and the "
+              "effective-configuration schema rewritten")
+    elif refreshed is None:
+        print("  config field lists NOT refreshed: routing_config.py does not parse yet; "
+              "run with --refresh-config-fields after resolving")
     for path, why in conflicts:
         print(f"CONFLICT {ENGINE.relative_to(ROOT) / path}: {why}")
     print(f"old tree: {old_tree}\nnew tree: {new_tree}")

@@ -1,5 +1,11 @@
 # Routing engine ownership
 
+> This page records the migration of 2026-10-20. Since AGENTEE-642 (2026-11-10) the
+> engine is upstream KRT at a recorded commit plus a listed set of local changes, and
+> it moves with upstream by one command: see [`upstream-engine.md`](upstream-engine.md).
+> The baseline commits, fix lists and qualification results below describe the engine
+> as it was extracted, not the engine as it is now.
+
 The owner authorized moving the supported KRT routing implementation into
 `kicad-route` on 2026-10-20. This supersedes the external-backend acquisition
 policy for KRT. Freerouting remains an external backend.

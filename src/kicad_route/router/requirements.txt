@@ -63,5 +63,7 @@ Pillow>=9.2.0
 # run and measured on (awx/modal_whole.py pins 9.15.6755): it sets recent
 # CP-SAT parameters (max_num_deterministic_batches, share_glue_clauses), and
 # CP-SAT's plans move between versions.
-ortools>=9.15
+# kicad-route: not installed here. Only upstream's bus step (awx/, not carried in
+# this package) imports it; route.py and route_diff.py never do.
+# ortools>=9.15
 

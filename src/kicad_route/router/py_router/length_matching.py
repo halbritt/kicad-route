@@ -10,7 +10,7 @@ import fnmatch
 import math
 import re
 from typing import List, Tuple, Optional, Dict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from kicad_parser import Segment, PCBData
 from routing_config import GridRouteConfig
@@ -619,6 +619,14 @@ def get_bump_segments(
     return segments
 
 
+def _triangle_bump_segments(cx, cy, ux, uy, px, py, direction, height):
+    """One 90-degree peak, with no parallel risers or minimum riser pitch."""
+    tip_x = cx + (ux + px * direction) * height
+    tip_y = cy + (uy + py * direction) * height
+    return [(cx, cy, tip_x, tip_y),
+            (tip_x, tip_y, cx + 2 * ux * height, cy + 2 * uy * height)]
+
+
 def get_safe_amplitude_at_point(
     cx: float, cy: float,
     ux: float, uy: float,
@@ -636,7 +644,8 @@ def get_safe_amplitude_at_point(
     paired_net_id: int = None,
     clearance_index: 'ClearanceIndex' = None,
     own_width: float = 0.0,
-    chamfer: float = None
+    chamfer: float = None,
+    triangular: bool = False,
 ) -> float:
     """
     Find the maximum safe amplitude for a meander bump at a specific point.
@@ -753,7 +762,9 @@ def get_safe_amplitude_at_point(
 
     for test_amp in test_amplitudes:
         # Generate bump segments for this amplitude
-        bump_segs = get_bump_segments(cx, cy, ux, uy, px, py, direction, test_amp, chamfer, is_first_bump)
+        bump_segs = (_triangle_bump_segments(cx, cy, ux, uy, px, py, direction, test_amp)
+                     if triangular else
+                     get_bump_segments(cx, cy, ux, uy, px, py, direction, test_amp, chamfer, is_first_bump))
 
         conflict_found = False
 
@@ -1066,6 +1077,38 @@ def generate_trombone_meander(
     # width so adjacent arms keep their spacing at any width (#501)
     chamfer = resolve_meander_chamfer(config, segment.net_id, segment.layer, segment.width)
     min_amplitude = MIN_AMPLITUDE  # mm - minimum useful amplitude
+
+    # A full folded bump has four chamfers and two >=0.1mm risers. For
+    # smaller corrections it overshoots even at its minimum height. A single
+    # triangular peak adds 2*(sqrt(2)-1)*height without parallel arms. Check
+    # exactly the geometry that will be emitted, including its return leg.
+    minimum_fold_extra = 4 * (math.sqrt(2) - 1) * chamfer + .2
+    height = extra_length / (2 * (math.sqrt(2) - 1))
+    if (min_bumps <= 1 and 0 < extra_length < minimum_fold_extra
+            and MIN_SEGMENT_LENGTH <= height <= amplitude
+            and seg_len > 4 * height):
+        for fraction in (.5, .25, .75):
+            offset = (seg_len - 2 * height) * fraction
+            sx, sy = segment.start_x + ux * offset, segment.start_y + uy * offset
+            for side in (1, -1):
+                if pcb_data is not None and config is not None:
+                    safe = get_safe_amplitude_at_point(
+                        sx, sy, ux, uy, px, py, side, height, height,
+                        segment.layer, pcb_data, segment.net_id, config,
+                        extra_segments=extra_segments, extra_vias=extra_vias,
+                        paired_net_id=paired_net_id, clearance_index=clearance_index,
+                        own_width=segment.width, triangular=True)
+                    if safe < height:
+                        continue
+                peak = _triangle_bump_segments(sx, sy, ux, uy, px, py, side, height)
+                coordinates = [(segment.start_x, segment.start_y, sx, sy), *peak,
+                               (*peak[-1][2:], segment.end_x, segment.end_y)]
+                return [Segment(start_x=a, start_y=b, end_x=c, end_y=d,
+                                width=segment.width, layer=segment.layer, net_id=segment.net_id)
+                        for a, b, c, d in coordinates], 1
+
+    if amplitude < 2 * chamfer + .1:
+        return [segment], 0  # Do not grow an unfit bump past the requested limit.
 
     # Horizontal distance consumed by one bump (just the chamfers' horizontal components)
     bump_width = 4 * chamfer
@@ -2465,6 +2508,14 @@ def apply_time_matching_to_group(
     diff_pair_count = sum(1 for r in group_results.values() if r.get('is_diff_pair'))
     single_count = len(group_results) - diff_pair_count
 
+    from native_delay import profiles, estimate, rate
+    native = profiles(pcb_data.source_path, list(group_results)) if pcb_data and pcb_data.source_path else None
+
+    def measure(name, segments, vias):
+        if native is not None:
+            return estimate(pcb_data, native[name], segments, vias)
+        return calculate_route_propagation_time_ps(segments, vias, pcb_data)
+
     # Calculate propagation time for each net and find primary layers
     net_times: Dict[str, float] = {}
     net_primary_layers: Dict[str, str] = {}
@@ -2476,7 +2527,7 @@ def apply_time_matching_to_group(
         # longest coupled leg (the matching span). Single-ended results fall
         # through unchanged (no leg net ids).
         net_times[net_name] = multipoint_span_metric(
-            result, lambda s, v: calculate_route_propagation_time_ps(s, v, pcb_data))
+            result, lambda s, v: measure(net_name, s, v))
         net_primary_layers[net_name] = get_route_primary_layer(segments)
 
     # A member's time includes its pads' pad-to-die DELAY (#1248): KiCad 10's
@@ -2537,7 +2588,8 @@ def apply_time_matching_to_group(
             continue
 
         primary_layer = net_primary_layers[net_name]
-        ps_per_mm = get_layer_ps_per_mm(pcb_data, primary_layer)
+        ps_per_mm = (rate(native[net_name], primary_layer) if native is not None else
+                     get_layer_ps_per_mm(pcb_data, primary_layer))
         extra_length = delta_time / ps_per_mm
 
         suffix = " (diff pair)" if result.get('is_diff_pair') else ""
@@ -2545,7 +2597,7 @@ def apply_time_matching_to_group(
 
         # Create metric functions that capture pcb_data
         def time_metric(segments, vias):
-            return calculate_route_propagation_time_ps(segments, vias, pcb_data)
+            return measure(net_name, segments, vias)
 
         def time_to_length(delta_ps):
             return delta_ps / ps_per_mm
@@ -2578,41 +2630,8 @@ def apply_time_matching_to_group(
 
 
 def match_net_pattern(net_name: str, pattern: str) -> bool:
-    """
-    Check if net name matches a pattern.
-
-    Patterns support:
-    - * : matches any characters
-    - [0-9] : matches digit range
-
-    Args:
-        net_name: Actual net name
-        pattern: Pattern with wildcards
-
-    Returns:
-        True if matches
-    """
-    # Convert pattern to regex
-    # First, handle [0-9] style ranges
-    regex_pattern = pattern
-
-    # Escape special regex chars except * and []
-    # Process backslash first to avoid re-escaping
-    regex_pattern = regex_pattern.replace('\\', '\\\\')
-    for char in '.^$+?{}|()':
-        regex_pattern = regex_pattern.replace(char, '\\' + char)
-
-    # Convert * to .*
-    regex_pattern = regex_pattern.replace('*', '.*')
-
-    # Anchor the pattern
-    regex_pattern = '^' + regex_pattern + '$'
-
-    try:
-        return bool(re.match(regex_pattern, net_name))
-    except re.error:
-        # Fall back to simple fnmatch
-        return fnmatch.fnmatchcase(net_name, pattern)
+    """Case-sensitive whole-name glob; [*], [?] and [[] select literal tokens."""
+    return fnmatch.fnmatchcase(net_name, pattern)
 
 
 def find_nets_matching_patterns(all_net_names: List[str], patterns: List[str]) -> List[str]:
@@ -3634,6 +3653,13 @@ def get_safe_amplitude_for_diff_pair(
     return 0
 
 
+def _pair_tuning_config(result, config):
+    # Routing may have resolved a per-pair netclass width/gap. Regeneration must
+    # use that same geometry, rather than the shared run's default class.
+    geometry = result.get('pair_geometry')
+    return replace(config, **geometry) if geometry is not None else config
+
+
 def apply_meanders_to_diff_pair(
     result: dict,
     extra_length: float,
@@ -3670,6 +3696,7 @@ def apply_meanders_to_diff_pair(
               f"({result['pair_narrowed_to']:.4f}mm) - no centreline meanders")
         return result, 0
 
+    config = _pair_tuning_config(result, config)
     # Extract data from result
     centerline_grid = result.get('centerline_path_grid')
     if not centerline_grid or len(centerline_grid) < 2:
@@ -3922,9 +3949,15 @@ def _lengthen_net_with_meanders(
     # Pick a bump count + initial amplitude that should hit the delta in one
     # shot, then refine by scaling below.
     max_extra_per_bump = 2 * max_amplitude - 2.34 * chamfer  # ~1.766mm at amplitude=1.0
-    num_bumps_needed = max(1, int(math.ceil(delta / max_extra_per_bump)))
-    initial_amplitude = (delta / num_bumps_needed + 2.34 * chamfer) / 2
-    initial_amplitude = max(min_amplitude, min(initial_amplitude, max_amplitude))
+    if delta < 4 * (math.sqrt(2) - 1) * chamfer + .2:
+        num_bumps_needed = 1
+        initial_amplitude = min(max_amplitude, delta / (2 * (math.sqrt(2) - 1)))
+    else:
+        if max_extra_per_bump <= 0:
+            return segments, current_length, 0
+        num_bumps_needed = max(1, int(math.ceil(delta / max_extra_per_bump)))
+        initial_amplitude = (delta / num_bumps_needed + 2.34 * chamfer) / 2
+        initial_amplitude = min(max_amplitude, max(min_amplitude, initial_amplitude))
 
     # paired_net_id uses reduced clearance for the coupled partner track, and
     # min_bumps gets exactly the calculated number of bumps.
@@ -4088,6 +4121,8 @@ def apply_intra_pair_length_matching(
     Returns:
         Modified result dict with adjusted segments
     """
+    config = _pair_tuning_config(result, config)
+
     def _stat(st, reason=None, delta=None, before=None):
         if status is not None:
             status.update({'status': st, 'reason': reason,
@@ -4715,9 +4750,17 @@ def apply_ac_coupled_length_matching(xnet, routed_results, config, pcb_data):
     for m in xnet.members:
         res = routed_results.get(m.p_net_id)
         if res is None or routed_results.get(m.n_net_id) is None:
-            print(f"    AC-couple {name}: member '{m.base_name}' not fully routed; "
-                  f"skipping end-to-end match")
-            return None
+            names = [m.p_net_name, m.n_net_name]
+            seeded = _seed_group_members_from_board(names, set(), pcb_data)
+            if set(seeded) != set(names):
+                print(f"    AC-couple {name}: member '{m.base_name}' not fully routed; "
+                      f"skipping end-to-end match")
+                return None
+            # Existing copper contributes its path length but is never emitted
+            # again or lengthened. Final native checks still prove connectivity.
+            res = dict(from_board=True,
+                       new_segments=[s for row in seeded.values() for s in row['new_segments']],
+                       new_vias=[v for row in seeded.values() for v in row['new_vias']])
         md = _ac_coupled_member_lengths(res, m.p_net_id, m.n_net_id, pcb_data)
         md['base'] = m.base_name
         members.append(md)
@@ -4747,8 +4790,11 @@ def apply_ac_coupled_length_matching(xnet, routed_results, config, pcb_data):
     #            most routed S copper (proxy for the most meander room).
     plan = [0.0] * len(members)
     remaining = need
+    mutable = [i for i, md in enumerate(members) if not md['result'].get('from_board')]
+    if not mutable:
+        return delta
     by_headroom = sorted(
-        range(len(members)),
+        mutable,
         key=lambda i: members[i][f'{L}_len'] - members[i][f'{S}_len'],
         reverse=True,
     )
@@ -4762,7 +4808,7 @@ def apply_ac_coupled_length_matching(xnet, routed_results, config, pcb_data):
         plan[i] += a
         remaining -= a
     if remaining > tol:
-        spill = max(range(len(members)), key=lambda i: members[i][f'{S}_routed'])
+        spill = max(mutable, key=lambda i: members[i][f'{S}_routed'])
         plan[spill] += remaining
         remaining = 0.0
 
@@ -4778,7 +4824,7 @@ def apply_ac_coupled_length_matching(xnet, routed_results, config, pcb_data):
         new_segs, new_len, bumps = _lengthen_net_with_meanders(
             md[f'{S}_segs'], s_id, l_id, md[f'{S}_vias'],
             md[f'{S}_stub'] + md[f'{S}_die'],  # fixed offsets (#1248)
-            cur, cur + want, want, config, pcb_data,
+            cur, cur + want, want, _pair_tuning_config(md['result'], config), pcb_data,
         )
         if bumps <= 0:
             print(f"      {md['base']}: could not fit meanders on {S.upper()} "

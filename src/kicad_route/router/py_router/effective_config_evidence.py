@@ -72,6 +72,29 @@ def _typed(value, location, issues):
     return {'unsupported_type': f'{type(value).__module__}.{type(value).__name__}'}
 
 
+def _scoped_clearance(value, issues):
+    """`GridRouteConfig.scoped_clearance`: an evaluator of the board's class/type-scoped
+    clearance rules for this call's routed nets, not plain data. Its inputs are recorded:
+    the rules it holds by name (their text is in `rules.table`), the fab floor it pins them
+    to, and one representative net of each routed group."""
+    if value is None:
+        return None
+    try:
+        return {'derived': 'kicad_dru.ScopedClearanceInstall',
+                'rules': _typed([rule.name for rule in value.sc.rules], 'configuration.scoped_clearance.rules', issues),
+                'fab_floor': _typed(float(value.fab_floor), 'configuration.scoped_clearance.fab_floor', issues),
+                'routed_group_representatives': _typed(
+                    [int(n) for n in value.reps], 'configuration.scoped_clearance.representatives', issues)}
+    except (AttributeError, TypeError, ValueError):
+        issues.append(f'unsupported value at configuration.scoped_clearance: '
+                      f'{type(value).__module__}.{type(value).__name__}')
+        return {'unsupported_type': f'{type(value).__module__}.{type(value).__name__}'}
+
+
+# Configuration fields that hold a derived evaluator instead of plain data, and how each is recorded.
+DERIVED_FIELDS = {'scoped_clearance': _scoped_clearance}
+
+
 def capture(config, pcb_data, input_file, scope, *, argv=None, environment=None, request_path=None):
     from routing_config import GridRouteConfig
     from design_rules import DesignRules
@@ -87,7 +110,8 @@ def capture(config, pcb_data, input_file, scope, *, argv=None, environment=None,
     actual = [f.name for f in fields(config)]
     if type(config) is not GridRouteConfig or actual != supported:
         issues.append('unsupported configuration field inventory')
-    configuration = {name: _typed(getattr(config, name), f'configuration.{name}', issues)
+    configuration = {name: (DERIVED_FIELDS[name](getattr(config, name), issues) if name in DERIVED_FIELDS
+                            else _typed(getattr(config, name), f'configuration.{name}', issues))
                      for name in actual if name != 'rules'}
     rules = config.rules
     if rules is None:

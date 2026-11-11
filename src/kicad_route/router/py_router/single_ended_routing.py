@@ -5148,7 +5148,10 @@ def _draw_at_own_via(vias, pcb_data, net_id: int, config, obstacles) -> None:
     the vias change. A via whose cell is legal for the class via is drawn at
     it; the rest keep the run's via and are disclosed as a descent in the
     design_rules ledger. A via another mechanism already sized (an in-pad or
-    rung-1 shrink) keeps its size."""
+    rung-1 shrink) keeps its size.
+
+    Under KICAD_CLASS_VIA_ONLY=1 (AGENTEE-650) the net was searched at its
+    own via already, ``config`` is that per-net config, and this is a no-op."""
     sizes = getattr(config, 'net_via_sizes', None) or {}
     own = sizes.get(net_id)
     if not own or not vias:
@@ -5238,6 +5241,9 @@ def _route_multipoint_main_impl(
         - 'mst_edges': List of (idx_a, idx_b, length) for all MST edges
         Or {'failed': True, 'iterations': N} on failure
     """
+    if env_knobs.CLASS_VIA_ONLY:
+        # AGENTEE-650: search this net at its own via, as route_net_with_obstacles does.
+        config = _per_net_via_config(config, pcb_data, net_id)
     if GridRouter is None:
         print("  GridRouter not available")
         return None
@@ -6132,6 +6138,8 @@ def route_multipoint_taps(
     via-in-pad unblock on the same map (an unblock via registered there and
     not committed to pcb_data was a free via no probe here could name;
     _register_unblock_via registers none any more)."""
+    if env_knobs.CLASS_VIA_ONLY:
+        config = _per_net_via_config(config, pcb_data, net_id)      # AGENTEE-650
     ring_cells: list = []
     # Ledger-only (KICAD_OBSTACLE_LEDGER=1): checks the contract above on
     # whatever map this is, which the ref-count ledger cannot (it books only

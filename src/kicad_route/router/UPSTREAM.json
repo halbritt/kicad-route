@@ -3,71 +3,132 @@
   "license": "MIT",
   "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
   "upstream_commit": "772003a6bff8cda7a8611d7ff6a7b72451849c64",
-  "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
-  "upstream_release": "v0.23.1",
-  "fork": "https://github.com/halbritt/KiCadRoutingTools",
-  "fork_commit": "0494a05e30063b849c9cf1b9ac02098073d82216",
-  "fork_tree": "288b2baca668892c812c82f0e7db4c2b2b0a50c1",
-  "fixes": {
-    "KICADROUTE-64": "4b316ba",
-    "KICADROUTE-63": "0494a05"
-  },
-  "source_inventory": "reports/routing-engine/source-closure.json",
-  "additional_license_notices": [
-    "py_router/stage3d/vendor/three/LICENSE"
-  ],
-  "ownership": "Maintained as part of kicad-route; upstream is provenance, not a runtime source selector.",
-  "selective_adoptions": {
-    "KICADROUTE-83": {
-      "commits": [
-        "fd59a050e258581d5938c4d9456bbfeb13240e67"
+  "upstream_describe": "v0.23.9-1-g772003a6",
+  "upstream_commit_date": "2026-11-09T22:18:14-05:00",
+  "ownership": "Upstream KRT at upstream_commit plus the local changes listed here; part of kicad-route, not a runtime source selector. scripts/sync-upstream-engine.py moves it to a newer upstream commit (docs/upstream-engine.md).",
+  "carried": "The static import closure of the entry points in scripts/routing_closure.py (route.py, route_diff.py and the diagnostic tools the krt-* skills name) plus its asset list. Upstream's GUI plugin, placer and plan tools, bus step (awx/), tests, documentation and release files are not carried.",
+  "local_changes": [
+    {
+      "id": "copper-artwork",
+      "purpose": "Input copper text and graphics stay on copper (upstream's writer moves them to silkscreen); copper text, at KiCad's own bounds, and a pad-less footprint's copper are router obstacles; copper the parser cannot model is refused before search.",
+      "files": [
+        "py_router/kicad_writer.py",
+        "py_router/kicad_parser.py"
       ],
-      "scope": "pass-rules"
+      "local_code": [
+        "py_router/sexpr.py"
+      ]
     },
-    "KICADROUTE-84": {
-      "commits": [
-        "8c3e833179615dbe5e3cd205e68b03e25a6f73e8",
-        "29be549c9747855315957ccc160d69746a3d66cb",
-        "20a8e1b83b00e410f2adf60861ee536d3e57dabc",
-        "0e0029f450fa609447bcb62d16a9381cbc9d9d5d",
-        "ca96bc28f39d3c5e5f014950e8ed9664a755a8f1"
+    {
+      "id": "locked-copper-removal",
+      "purpose": "The writer's text removal never takes a locked track or via block, and never searches for a locked target, so locked copper cannot go with an unlocked twin.",
+      "files": [
+        "py_router/kicad_writer.py"
       ],
-      "scope": "layer-stub-safety"
+      "local_code": [
+        "py_router/sexpr.py"
+      ]
     },
-    "KICADROUTE-85": {
-      "commits": [
-        "a0489b30621460e35f9d390f929fab215f7cc7f3"
-      ],
-      "scope": "pair-keepouts"
+    {
+      "id": "via-hole-to-pad",
+      "purpose": "A new via's hole keeps the board's copper-to-hole minimum from a foreign pad where the pad's clearance alone would let it closer (GridRouteConfig.via_copper_reach).",
+      "files": [
+        "py_router/routing_config.py",
+        "py_router/obstacle_cache.py",
+        "py_router/obstacle_map.py"
+      ]
     },
-    "KICADROUTE-86": {
-      "commits": [
-        "9ac916bc16d6edcd554bf4dc8640f30379386447",
-        "ed17b29f7eaec4822ba12178a65eca5c3a452e40"
-      ],
-      "scope": "obstacle-lifecycle"
+    {
+      "id": "default-via-size",
+      "purpose": "The fallback via diameter is 0.6 mm, KiCad's implicit Default net class, so a project that states no class is not routed below what KiCad grades.",
+      "files": [
+        "py_router/routing_defaults.py",
+        "py_router/route.py"
+      ]
     },
-    "KICADROUTE-87": {
-      "commits": [
-        "0b3b6a2d19666c3411252f314d3ca8d12f1766fa"
+    {
+      "id": "configuration-record",
+      "purpose": "On request (KICAD_EFFECTIVE_CONFIG_REQUEST) route.py writes the resolved outer configuration of the run beside the request; kicad-route and agent-ee read it.",
+      "files": [
+        "py_router/route.py"
       ],
-      "scope": "rescue-custody"
+      "local_code": [
+        "py_router/effective_config_evidence.py",
+        "py_router/effective_config_fields.json"
+      ]
     },
-    "KICADROUTE-88": {
-      "commits": [
-        "2ddfc187a1bd4aa0f33263de3d5194a4c6205809"
+    {
+      "id": "short-pair-coupling",
+      "purpose": "route_diff.py --no-short-pair-deferral: a short leg of a declared pair is still attempted coupled instead of being waived to single-ended by a length heuristic.",
+      "files": [
+        "py_router/routing_config.py",
+        "py_router/diff_pair_multipoint.py",
+        "py_router/route_diff.py"
+      ]
+    },
+    {
+      "id": "pair-geometry",
+      "purpose": "A straight pair layer transition keeps the pair centred; a pair connector that doubles back over its terminal is trimmed before segments exist; each pair result records the width and gap it was routed at.",
+      "files": [
+        "py_router/diff_pair_routing.py"
+      ]
+    },
+    {
+      "id": "length-and-delay-matching",
+      "purpose": "Group matching against KiCad's native delay profiles, literal net names in groups, a single triangular bump for corrections smaller than a folded bump, pair tuning at the pair's own width and gap, and explicit AC-coupled chains (route_diff.py --ac-couple-chain-json) whose already routed members set the target.",
+      "files": [
+        "py_router/length_matching.py",
+        "py_router/route_diff.py"
       ],
-      "scope": "parser-lifecycle"
+      "local_code": [
+        "py_router/native_delay.py"
+      ]
+    },
+    {
+      "id": "requirements",
+      "purpose": "ortools is not installed: only upstream's bus step (awx/, not carried) imports it.",
+      "files": [
+        "requirements.txt"
+      ]
+    },
+    {
+      "id": "class-via",
+      "purpose": "With KICAD_CLASS_VIA_ONLY=1 a net of more than two pads is searched with its own net class's via, and the rescue gives a net with its own class via no pad escape (whose via is the run's): the net gets its class via or stays open. Upstream searches such a net with the Default via and enlarges a via afterwards only where the class via happens to fit.",
+      "files": [
+        "py_router/env_knobs.py",
+        "py_router/single_ended_routing.py",
+        "py_router/net_rescue.py"
+      ],
+      "tests": [
+        "tests/test_multipoint_class_via.py"
+      ]
+    },
+    {
+      "id": "stop-request",
+      "purpose": "The stop file (KICAD_STOP_FILE) ends every pass, not only the first: after the single-ended loop the passes that take a cancel hook get one that looks for the file, the blocks that remain are skipped, and the board is written as it stands. Upstream looks for the file between the nets of the single-ended loop only, so a run that finished that loop in time ran on through Phase 3, the rescue and the plane repair however long they took.",
+      "files": [
+        "py_router/env_knobs.py",
+        "py_router/route.py"
+      ],
+      "tests": [
+        "tests/test_stop_file_later_passes.py"
+      ]
+    },
+    {
+      "id": "pad-anchored-dangle-trim",
+      "purpose": "The dangle trim (#347) also takes a same-net pad the track runs over as an anchor, with no minimum tail: a pair whose pads are closer than the pair router's two setbacks is routed as a loop, the loop is pruned, and each member is left running 0.5 to 0.7 mm past its far pad, which KiCad reports as track_dangling. Upstream anchors on a via or another track's end only, and leaves a tail under three track widths.",
+      "files": [
+        "py_router/pcb_modification.py"
+      ],
+      "tests": [
+        "tests/test_dangle_trim_at_pad.py"
+      ]
     }
-  },
-  "adoption_review_head": "0b3b6a2d19666c3411252f314d3ca8d12f1766fa",
-  "adoption_note": "Selected headless fixes only; extraction baseline above is unchanged. Parser caches use parse-local context rather than upstream global memo. Owned quote-aware copper-preserving writer, unsupported-copper refusal and tap/weld repairs remain authoritative.",
-  "adoption_inventory": "reports/upstream-fixes-20261021/source-closure.json",
+  ],
   "local_files": [
     "UPSTREAM.json",
     "__init__.py",
     "build_router.py",
-    "py_router/blocker_resources.py",
     "py_router/effective_config_evidence.py",
     "py_router/effective_config_fields.json",
     "py_router/native_delay.py",
@@ -75,25 +136,28 @@
     "tests/native_lifecycle_support.py",
     "tests/regression_utils.py",
     "tests/stub_swap_fixtures.py",
-    "tests/test_blocker_resources.py",
+    "tests/test_dangle_trim_at_pad.py",
     "tests/test_diff_keepout_member_clearance.py",
     "tests/test_kernel.py",
     "tests/test_krt64_tap_grid.py",
+    "tests/test_multipoint_class_via.py",
     "tests/test_no_stub_swap_reaches_config.py",
     "tests/test_obstacle_lifecycle.py",
-    "tests/test_pad_body_dangles.py",
-    "tests/test_parser_cache.py",
     "tests/test_parser_legacy_tokens.py",
     "tests/test_pass_rule_floors.py",
     "tests/test_pour_launch_forbidden_layer_welds.py",
     "tests/test_required_coupling.py",
     "tests/test_rescue_custody.py",
     "tests/test_routable_layers.py",
+    "tests/test_stop_file_later_passes.py",
     "tests/test_stub_swap_via_hole_to_hole.py",
     "tests/test_via_hole_reach.py",
     "tests/test_writer_quotes.py",
     "tests/test_writer_removal_identity.py"
   ],
-  "upstream_describe": "v0.23.9-1-g772003a6",
-  "upstream_commit_date": "2026-11-09T22:18:14-05:00"
+  "local_files_note": "__init__.py and build_router.py replace upstream files of the same name: the package marker, and the source-only builder (cargo --locked into the routing venv, no prebuilt download) that kicad-route update and agent-ee's image run.",
+  "history": {
+    "extracted_from": "295f9ee197517e8323726853361eb137cc08ba9e (v0.23.1), 2026-10-20, through the fork commit 0494a05e30063b849c9cf1b9ac02098073d82216",
+    "moved_to_upstream_head": "AGENTEE-642, 2026-11-10: 31 locally changed upstream files reduced to the changes above; the rest is upstream's own now or was dropped (docs/upstream-engine.md)."
+  }
 }

@@ -331,6 +331,8 @@ def build_base_obstacle_map(pcb_data: PCBData, config: GridRouteConfig,
                 seg_clearance = config.layer_clearance(seg.layer, _obstacle_clearance(seg.net_id),
                                                        seg.net_id)
                 via_block_mm = config.via_size / 2 + seg_width / 2 + seg_clearance + extra_clearance
+                via_block_mm = config.via_hole_floor(      # kicad-route: hole term
+                    via_block_mm, seg_width / 2 + extra_clearance)
                 # SPANS, like the main loop below: both producers feed
                 # _seg_via_batch and it is concatenated as one array, so a
                 # cell (N,2) here beside a span (N,3) there is a hard
@@ -359,6 +361,9 @@ def build_base_obstacle_map(pcb_data: PCBData, config: GridRouteConfig,
                         + extra_on_layer(extra_clearance, seg.layer))
         # For via blocking by segments: via half-size + segment half-width + clearance
         via_block_mm = config.via_size / 2 + seg_width / 2 + seg_clearance + extra_clearance
+        # kicad-route: a future via's HOLE keeps the board's hole minimum from
+        # this track too (GridRouteConfig.via_hole_floor; as the per-net cache).
+        via_block_mm = config.via_hole_floor(via_block_mm, seg_width / 2 + extra_clearance)
         # FFI batching (2026-08-14 profiling): one Rust call per segment was
         # 7.5M crossings / ~90s across a rescue-heavy step. Accumulate the
         # (memoized, read-only) cell arrays and stamp once per build below --
@@ -499,6 +504,17 @@ def build_base_obstacle_map(pcb_data: PCBData, config: GridRouteConfig,
         # For via-to-via: via size + routing via size + clearance. #498: two via
         # barrels meet on EVERY stack layer, so the requirement is the stack max.
         via_via_mm = via_size / 2 + config.via_size / 2 + config.stack_clearance(via_clearance, via.net_id)
+        # kicad-route: this via's HOLE keeps the board's hole minimum from a
+        # future track and via, and a future via's hole from this via's copper
+        # (GridRouteConfig.via_hole_floor; as the per-net cache). Raise-only.
+        if config.hole_minimum() > 0:
+            _vd = via.drill if getattr(via, 'drill', 0) and via.drill > 0 else config.via_drill
+            via_track_expansion_grid = [
+                max(_n, coord.to_grid_dist_safe(config.via_hole_floor(
+                    0.0, config.route_reserve_width(_ln) / 2 + extra_on_layer(extra_clearance, _ln),
+                    via_drill=_vd)))
+                for _n, _ln in zip(via_track_expansion_grid, config.layers)]
+            via_via_mm = config.via_via_hole_floor(via_via_mm, via_size, _vd)
         # True via-via clearance radius in cells as a FLOAT (no floor): the disc
         # threshold is radius**2, so this blocks exactly the cells within the real
         # clearance. Flooring (to_grid_dist) lost up to ~1 cell and let two vias sit
@@ -4764,7 +4780,7 @@ def _add_pad_obstacle(obstacles: GridObstacleMap, pad, coord: GridCoord,
         expanded_layers = expand_pad_layers(pad.layers, config.layers)
         clr_groups = _clr_groups(expanded_layers)
         on_copper = any(l.endswith('.Cu') for l in expanded_layers)
-        via_margin = config.via_size / 2 + _via_clr(expanded_layers) + extra_clearance
+        via_margin = config.via_copper_reach(_via_clr(expanded_layers)) + extra_clearance
 
         def _emit(poly, m, via_pass, layer_idxs=None):
             gx_lo, gy_lo, nx, ny, inside, edist = _rasterize_polygon_box(poly, coord, m)
@@ -4839,7 +4855,7 @@ def _add_pad_obstacle(obstacles: GridObstacleMap, pad, coord: GridCoord,
 
     # Via blocking near pads - block vias if pad is on any copper layer
     if any(layer.endswith('.Cu') for layer in expanded_layers):
-        via_margin = config.via_size / 2 + _via_clr(expanded_layers) + extra_clearance
+        via_margin = config.via_copper_reach(_via_clr(expanded_layers)) + extra_clearance
         via_cells = pad_blocked_cells_array(gx, gy, half_width, half_height, via_margin,
                                             config.grid_step, corner_radius, corner_buffer,
                                             off_x, off_y, rotation_deg=pad.rect_rotation)
@@ -4884,7 +4900,7 @@ def _pad_via_keepout_cells(pad, coord: GridCoord, config: GridRouteConfig,
     else:
         corner_radius = 0
     corner_buffer = coord.grid_step * 0.75 if extra_clearance > 0 else None
-    via_margin = config.via_size / 2 + clearance + extra_clearance
+    via_margin = config.via_copper_reach(clearance) + extra_clearance
     return pad_blocked_cells_array(gx, gy, half_width, half_height, via_margin,
                                    config.grid_step, corner_radius, corner_buffer,
                                    off_x, off_y, rotation_deg=pad.rect_rotation)

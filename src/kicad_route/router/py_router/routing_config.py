@@ -216,6 +216,7 @@ class GridRouteConfig:
     # Differential pair routing parameters
     diff_pair_gap: float = 0.101  # mm - gap between P and N traces (center-to-center = track_width + gap)
     diff_pair_centerline_setback: float = None  # mm - distance in front of stubs to start centerline route (None = 2 * spacing)
+    defer_short_pairs: bool = True  # Explicit coupling policy overrides short-leg single-ended deferral.
     diff_pair_setback_no_ladder: bool = False  # when True, _setback_ladder yields ONLY
     # the configured setback (no 0.75/0.5/floor/1.5/2x expansion) -- used by the pinch
     # retry in _maybe_swap_to_hybrid so each attempt routes at the EXACT setback asked.
@@ -604,6 +605,69 @@ class GridRouteConfig:
         bm = (rules.board_min.get('min_clearance', 0.0) if rules is not None
               and getattr(rules, 'board_min', None) else 0.0)
         return override_clearance(base, bm, pad, other_pad)
+
+    def hole_minimum(self) -> float:
+        """The board's copper-to-hole minimum (KiCad's ``min_hole_clearance``):
+        an explicit ``hole_clearance``, else what the board's rules declare.
+        0 when neither does."""
+        hole = self.hole_clearance or 0.0
+        if hole <= 0 and self.rules is not None:
+            hole = (getattr(self.rules, 'board_min', None) or {}).get('min_hole_clearance', 0.0) or 0.0
+        return hole if hole > 0 else 0.0
+
+    def via_hole_reach(self, via_drill: float = None) -> float:
+        """How far a via's CENTRE must stay from foreign copper for its HOLE
+        to hold the board's copper-to-hole minimum (KiCad's
+        ``min_hole_clearance``): via_drill/2 + that minimum, plus 1 um so a via
+        on the boundary is not graded on a rounding. 0 when the board declares
+        no hole minimum. ``via_drill`` is an existing via's own drill; the
+        run's via otherwise."""
+        hole = self.hole_minimum()
+        drill = self.via_drill if via_drill is None else via_drill
+        return drill / 2 + hole + 0.001 if hole > 0 else 0.0
+
+    def via_hole_floor(self, spacing: float, other_half: float, via_drill: float = None) -> float:
+        """``spacing``, a via-to-copper centre spacing built from the copper
+        clearance (via radius + clearance + the other item's half-width), raised
+        so the via's HOLE keeps the board's hole minimum from that copper as
+        well: :meth:`via_hole_reach` + ``other_half``.
+
+        KiCad grades the hole of every via against foreign copper. The copper
+        term implies it only while annular ring + clearance >= the hole
+        minimum; a 0.45/0.20 via at 0.10 clearance on a board with a 0.25 hole
+        minimum is 0.025 short, which a fine grid ships as hole_clearance
+        errors at every via a track or via passes at the copper clearance.
+        Raise-only: unchanged when the board declares no hole minimum or the
+        copper term already covers it."""
+        reach = self.via_hole_reach(via_drill)
+        return max(spacing, reach + other_half) if reach > 0 else spacing
+
+    def via_via_hole_floor(self, spacing: float, via_size: float, via_drill: float) -> float:
+        """:meth:`via_hole_floor` for an existing via (``via_size``/``via_drill``)
+        against a future via of this run, both ways round: each one's hole from
+        the other one's copper."""
+        if self.hole_minimum() <= 0:
+            return spacing
+        return max(spacing, self.via_hole_reach(via_drill) + self.via_size / 2,
+                   self.via_hole_reach() + via_size / 2)
+
+    def via_copper_reach(self, clearance: float, cushion: float = 0.0) -> float:
+        """How far a new via's CENTRE must stay from foreign copper whose pair
+        clearance is ``clearance``: far enough for the via's own copper
+        (via_size/2 + clearance + ``cushion``) AND for its hole
+        (:meth:`via_hole_reach`).
+
+        The hole term is normally implied by the copper term, because the
+        annular ring plus the clearance exceeds the hole minimum. It is not
+        implied when the clearance is small -- a pad or footprint clearance
+        override of 0.05 mm lets via copper sit 0.05 mm from the pad, which puts
+        a 0.15 mm ring's hole 0.2 mm from it on a board that requires 0.25 mm.
+        KiCad grades the hole of every via, not only unplated holes. Raise-only:
+        with no declared hole minimum the result is the copper term. ``cushion``
+        is the caller's quantisation margin on the copper term; the hole term is
+        measured from the real pad outline and takes none, so a coarse grid
+        keeps the via sites it had."""
+        return max(self.via_size / 2 + clearance + cushion, self.via_hole_reach())
 
     def track_obstacle_clearance(self, net_id: int, resolved: float) -> float:
         """Track-rule seg-vs-seg clearance against obstacle net ``net_id``:

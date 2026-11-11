@@ -27,7 +27,7 @@ def checksum(path):
 
 def write(path, value):
     Path(path).write_text(json.dumps(value, indent=2, sort_keys=True,
-                                   default=lambda item: sorted(item) if isinstance(item, set) else item.item()) + '\n')
+                                   default=lambda item: sorted(item) if isinstance(item, (set, frozenset)) else item.item()) + '\n')
 
 
 def fixture(directory, variant):

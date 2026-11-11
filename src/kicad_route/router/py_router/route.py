@@ -2172,6 +2172,26 @@ def _edge_for_project(config) -> float:
     return config.board_edge_clearance if declared is None else declared
 
 
+class _StopFlag:
+    """Whether the run has been told to stop: by a checkpoint of the
+    single-ended loop, or by the caller's stop file (KICAD_STOP_FILE) at any
+    later moment. kicad-route's deadline; latches on state.checkpoint_stop."""
+
+    def __init__(self, state):
+        self._state = state
+
+    def __bool__(self):
+        if getattr(self._state, 'checkpoint_stop', False):
+            return True
+        if env_knobs.stop_requested():
+            print("\nSTOP requested (KICAD_STOP_FILE): leaving the pass that "
+                  "runs and skipping the passes that remain; the board is "
+                  "written as it stands")
+            self._state.checkpoint_stop = True
+            return True
+        return False
+
+
 def batch_route(input_file: str, output_file: str, net_names: List[str],
                 layers: List[str] = None,
                 # #530: cap every auto-read net class at this clearance (the
@@ -2413,7 +2433,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
             off the copper. A later step never reapplies widths from such a
             record (#1630).
         clearance: Clearance between tracks in mm (default: defaults.CLEARANCE, 0.25)
-        via_size: Via outer diameter in mm (default: defaults.VIA_SIZE, 0.5)
+        via_size: Via outer diameter in mm (default: defaults.VIA_SIZE, 0.6)
         via_drill: Via drill size in mm (default: defaults.VIA_DRILL, 0.3)
         grid_step: Grid resolution in mm (default: 0.1)
         via_cost: Penalty for placing a via in 0.1mm grid steps (default: defaults.VIA_COST, 75 = 7.5mm; mm-equivalent at any grid_step)
@@ -2471,6 +2491,12 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # previous board in the same (GUI) process.
     from routing_diagnostics import reset_hint_condenser
     reset_hint_condenser()
+    if os.environ.get('KICAD_EFFECTIVE_CONFIG_REQUEST'):
+        from effective_config_evidence import begin_batch as _configuration_batch
+        _configuration_batch(outer=final_reconcile)
+    if final_reconcile:
+        batch_route._configuration_evidence = None
+
     # Every OUTERMOST entry starts the summary sink clean, not only a
     # --json-out one: the GUI calls batch_route once per click in ONE
     # process with no json_out, and a sink that survived the previous
@@ -4400,6 +4426,19 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     if env_knobs.PACKAGE_PROXIMITY:
         config.package_proximity_zones = package_proximity_zones(
             pcb_data, config.bga_proximity_radius)
+    # Capture this resolved outer configuration before normal-pass/history setup.
+    # Later per-net clones/sub-runs are explicitly outside this evidence scope.
+    _configuration_evidence = None
+    if final_reconcile and os.environ.get('KICAD_EFFECTIVE_CONFIG_REQUEST'):
+        try:
+            from effective_config_evidence import capture as _capture_configuration
+            _configuration_evidence = _capture_configuration(
+                config, pcb_data, input_file,
+                sorted(pcb_data.nets[n].name for n in sweep_scope_ids
+                       if n in pcb_data.nets and pcb_data.nets[n].name))
+        except (OSError, ValueError, TypeError) as _capture_error:
+            print(f"  configuration evidence unavailable: {_capture_error}")
+
     _bga_cells = compute_bga_proximity_cost_cells(config, len(config.layers))
     if len(_bga_cells):
         track_proximity_cache[BGA_PROXIMITY_CACHE_KEY] = _bga_cells
@@ -4513,7 +4552,16 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # Checkpoint abort (KICAD_STOP_AFTER / KICAD_STOP_FILE, set by the SE
     # loop): skip every later routing/repair pass and fall through to the
     # WRITE, so the partial board ships exactly as it stood at the stop.
-    _ckpt_stop = getattr(state, 'checkpoint_stop', False)
+    #
+    # kicad-route (deadline): the caller's stop file counts after the SE loop
+    # too. _ckpt_stop is asked before every later pass, and the passes that
+    # search (reroute loop, Phase 3, the rescue, the plane repair) ask it
+    # between two nets through the cancel hook they already carry. Until
+    # this, a run whose SE loop finished inside its budget ran on through a
+    # rescue of any length, was killed there, and delivered no board.
+    _ckpt_stop = _StopFlag(state)
+    _user_cancel = cancel_check
+    cancel_check = lambda: bool(_ckpt_stop) or bool(_user_cancel and _user_cancel())
     if _ckpt_stop:
         print("Checkpoint stop: skipping reroute/length-match/Phase 3/rescue/"
               "cleanup/reconciliation; writing the board as-is")
@@ -5154,7 +5202,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # snapshot (dead-end sweep, grazes, etc.) before writing -- shows what
     # cleanup would retire (e.g. a stale escape stub the island-launch
     # route no longer uses). The freeze then fires inside the pipeline.
-    _ckpt_cleanup = _ckpt_stop and env_knobs.STOP_CLEANUP
+    _ckpt_cleanup = bool(_ckpt_stop) and env_knobs.STOP_CLEANUP
     if _ckpt_stop and not _ckpt_cleanup:
         _freeze_committed()
     # #473: nets still carrying unfinished pads keep ALL their copper
@@ -9901,6 +9949,9 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                           pad_contacts=_pad_contacts_left,
                           pad_grazes=_pad_grazes_left)
 
+    if final_reconcile:
+        batch_route._configuration_evidence = _configuration_evidence
+
     if return_results:
         return successful, failed, total_time, results_data
     return successful, failed, total_time
@@ -10869,6 +10920,9 @@ For differential pair routing, use route_diff.py:
     # --preview: the engine already supports this -- return_results=True with
     # an empty output_file routes fully, mutates only the in-memory PCBData
     # and writes nothing. This just exposes it on the CLI (#459 follow-on).
+    if os.environ.get('KICAD_EFFECTIVE_CONFIG_REQUEST'):
+        from effective_config_evidence import begin_execution as _configuration_execution
+        _configuration_execution()
     _preview_out = batch_route(args.input_file,
                 "" if args.preview else args.output_file, net_names,
                 return_results=args.preview,
@@ -11106,6 +11160,18 @@ For differential pair routing, use route_diff.py:
                         "`kicad-cli pcb drc --refill-zones`)")
         except Exception as _e:
             print(f"  (--write-fill skipped: {_e})")
+    # Seal after every CLI output postpass, including retract/fill. Exit 3
+    # still retains truthful configuration evidence for its diagnostic board.
+    _captured_configuration = getattr(batch_route, '_configuration_evidence', None)
+    if _captured_configuration is not None and args.output_file:
+        try:
+            from effective_config_evidence import finish as _finish_configuration
+            _request = os.environ['KICAD_EFFECTIVE_CONFIG_REQUEST']
+            _destination = os.path.join(os.path.dirname(_request), 'effective-configuration.json')
+            _finish_configuration(_captured_configuration, args.output_file, _destination)
+        except (OSError, ValueError, TypeError) as _capture_error:
+            print(f"  configuration evidence unavailable: {_capture_error}")
+
     # #857: --strict-sizes turns any delivery below a requested size, or any
     # fab-tier escalation, into a non-zero exit so a harness needs no grep.
     # The shared helper every routing CLI ends with; batch_route already

@@ -163,8 +163,12 @@ def test_base_map_threads_the_extra_clearance():
 def _route_diff(board, *extra):
     out = os.path.join(os.path.dirname(board), "routed.kicad_pcb")
     r = subprocess.run([sys.executable, "-X", "utf8", "py_router/route_diff.py", board, out,
+                        # No --strict-sizes: on this board the engine necks 1.4 mm of /CLK+ by
+                        # 0.02 mm against its partner (#318) and now reports it (exit 3); the
+                        # engine before it laid the same neck unreported. This test is about
+                        # keep-outs, and kicad-route grades widths natively.
                         "--nets", "/CLK+", "/CLK-"] + ["--escalation", "off", "--fab-tier", "standard",
-                                         "--strict-sizes", "--no-fix-drc-settings"] + list(extra),
+                                         "--no-fix-drc-settings"] + list(extra),
                        cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
                        errors="replace", env=ENV, timeout=900)
     assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]

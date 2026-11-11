@@ -80,6 +80,49 @@ def copper_text_signature(content):
     return hashlib.sha256(json.dumps(tokens, ensure_ascii=True).encode()).hexdigest()
 
 
+def copper_text_obstacles(content):
+    """Copper text as router obstacles, at KiCad's own conservative bounds.
+
+    Fonts, justification, rotation and knockout belong to KiCad. The wrapper
+    supplies native bounds from its isolated snapshot (KICAD_ROUTE_COPPER_TEXT)
+    instead of approximating glyph geometry here; they are bound to the exact
+    input text. A direct engine caller must supply the same evidence or gets
+    a limitation before search begins. Returns kicad_parser.Segment rows.
+    """
+    import os
+    from pathlib import Path
+    from kicad_parser import Segment, IU_PER_MM
+    if not copper_text_blocks(content):
+        return []
+    evidence_path = os.environ.get('KICAD_ROUTE_COPPER_TEXT')
+    if not evidence_path:
+        raise ValueError('Copper text requires native bounding-box evidence; run through kicad-route')
+    evidence = json.loads(Path(evidence_path).read_text())
+    if evidence.get('signature') != copper_text_signature(content):
+        raise ValueError('Copper text changed since native bounding-box preflight')
+    # The native side lists what KiCad plots on copper: a hidden field is a text
+    # block here and no entry there, and a dimension is one entry for several
+    # blocks. The signature above binds the list to this exact text, so the two
+    # are not counted against each other.
+    segments = []
+    for text in evidence.get('texts', []):
+        x, y, width, height = [float(n) / IU_PER_MM for n in text['bbox']]
+        # `copper_layer` is KiCad's canonical name. `layer` is the board's own name
+        # for it, which a design may have renamed ("top_copper").
+        layer = text.get('copper_layer') or text['layer']
+        if not layer.endswith('.Cu') or width < 0 or height < 0:
+            raise ValueError(f'Invalid native copper-text bounds for {text.get("uuid")} on {layer!r}')
+        if width == 0 or height == 0:
+            continue
+        ring = ((x, y), (x+width, y), (x+width, y+height), (x, y+height))
+        # The bounding rectangle is intentionally conservative: its interior
+        # stays unavailable even between letters and in enclosed glyph holes.
+        for a, b in zip(ring, ring[1:] + ring[:1]):
+            segments.append(Segment(*a, *b, 0.0, layer, 0,
+                uuid=text['uuid'], graphic=True, drawn_width=0.0,
+                graphic_kind='rect', graphic_filled=True, graphic_ring=ring))
+    return segments
+
 
 def unsupported_copper(content):
     supported = {'gr_line', 'gr_arc', 'gr_poly', 'gr_rect', 'gr_circle',
@@ -93,3 +136,41 @@ def unsupported_copper(content):
             if copper and (tag not in supported or '*.Cu' in copper):
                 return f'KRT cannot model {tag} on {", ".join(copper)}; retained copper artwork is never relocated'
     return None
+
+
+def locked_block(block):
+    """Whether a track or via block carries KiCad's lock at its own level.
+
+    Only a depth-1 `(locked yes)`, `(locked)` or bare `locked` word counts:
+    the same text inside a quoted net name is not a lock, and does not hide a
+    real one that follows it.
+    """
+    if 'locked' not in block:
+        return False
+    from kicad_parser import _sexpr_children
+    children, bare = _sexpr_children(block)
+    return 'locked' in bare or any(
+        not args or args[0] in ('yes', 'true') for args in children.get('locked', ()))
+
+
+def keeps_locked_targets(remove):
+    """Wrap a writer removal function so a locked target is never searched for.
+
+    `remove(content, targets, net_id_to_name=None, unmatched_out=None, ...)`
+    matches by geometry and net, so a locked target could take an unlocked twin
+    with it. A locked target is handed back in `unmatched_out` instead.
+    """
+    import functools
+
+    @functools.wraps(remove)
+    def guarded(content, targets, *args, **kwargs):
+        held = [t for t in targets or () if getattr(t, 'locked', False)]
+        if not held:
+            return remove(content, targets, *args, **kwargs)
+        unmatched = kwargs.get('unmatched_out')
+        if unmatched is None and len(args) >= 2:
+            unmatched = args[1]
+        if unmatched is not None:
+            unmatched.extend(held)
+        return remove(content, [t for t in targets if not getattr(t, 'locked', False)], *args, **kwargs)
+    return guarded

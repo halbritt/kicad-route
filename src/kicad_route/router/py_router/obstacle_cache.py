@@ -842,6 +842,8 @@ def precompute_net_obstacles(pcb_data: PCBData, net_id: int, config: GridRouteCo
         expansion_mm_by_layer[layer_name] = max(coord.grid_step, expansion_mm)
         # Segment via-block: future ROUTE via (config.via_size) near this net's copper.
         via_block_mm = config.via_size / 2 + layer_width / 2 + clr_l + extra_clearance
+        # kicad-route: the future via's HOLE keeps the board's hole minimum too.
+        via_block_mm = config.via_hole_floor(via_block_mm, layer_width / 2 + extra_clearance)
         via_block_mm_by_layer[layer_name] = via_block_mm
 
     # Process segments. Keep-out from the segment's ACTUAL width in BOTH
@@ -869,6 +871,8 @@ def precompute_net_obstacles(pcb_data: PCBData, net_id: int, config: GridRouteCo
                 via_block_mm = (config.via_size / 2 + seg_w / 2
                                 + config.layer_clearance(seg.layer, obs_clearance, net_id)  # #498
                                 + extra_clearance)
+                via_block_mm = config.via_hole_floor(      # kicad-route: hole term
+                    via_block_mm, seg_w / 2 + extra_clearance)
                 _vs = segment_blocked_spans(          # #815
                     seg.start_x, seg.start_y, seg.end_x, seg.end_y,
                     via_block_mm, coord.grid_step)
@@ -889,6 +893,8 @@ def precompute_net_obstacles(pcb_data: PCBData, net_id: int, config: GridRouteCo
                                + config.route_reserve_width(seg.layer) / 2
                                + extra_on_layer(extra_clearance, seg.layer))
             via_block_mm = config.via_size / 2 + own_half + _clr_l + extra_clearance
+            via_block_mm = config.via_hole_floor(          # kicad-route: hole term
+                via_block_mm, own_half + extra_clearance)
         _collect_segment_obstacles(seg, coord, layer_idx, expansion_mm,
                                    blocked_cell_spans_set, blocked_via_spans_set,
                                    via_block_mm)
@@ -933,6 +939,16 @@ def precompute_net_obstacles(pcb_data: PCBData, net_id: int, config: GridRouteCo
         # #498: barrels meet on every stack layer -> stack max.
         via_via_radius = max(1.0, (vs / 2 + config.via_size / 2
                                    + config.stack_clearance(obs_clearance, net_id)) * coord.inv_step)
+        # kicad-route: this via's HOLE keeps the board's hole minimum from a
+        # future track and a future via, and a future via's hole from this
+        # via's copper (GridRouteConfig.via_hole_floor). Raise-only.
+        if config.hole_minimum() > 0:
+            _vd = via.drill if getattr(via, 'drill', 0) and via.drill > 0 else config.via_drill
+            via_track_list = [max(_n, coord.to_grid_dist_safe(config.via_hole_floor(
+                0.0, lw / 2 + extra_on_layer(extra_clearance, ln), via_drill=_vd)))
+                for _n, ln, lw in zip(via_track_list, config.layers, layer_widths)]
+            via_via_radius = max(via_via_radius, config.via_via_hole_floor(
+                0.0, vs, _vd) * coord.inv_step)
         _collect_via_obstacles(via, coord, num_layers, via_track_list,
                                 via_via_radius, diagonal_margin,
                                 blocked_cells_set, blocked_vias_set,
@@ -1210,7 +1226,7 @@ def _collect_pad_obstacles(pad, coord: GridCoord, layer_map: Dict[str, int],
         expanded_layers = expand_pad_layers(pad.layers, config.layers)
         clr_groups = _clr_groups(expanded_layers)
         on_copper = any(l.endswith('.Cu') for l in expanded_layers)
-        via_margin = config.via_size / 2 + _via_clr(expanded_layers) + config.grid_step / 2
+        via_margin = config.via_copper_reach(_via_clr(expanded_layers), config.grid_step / 2)
         for poly in pad_polys:
             for (g_clr, g_ex), g_idxs in clr_groups.items():
                 margin = g_clr + g_ex
@@ -1263,7 +1279,7 @@ def _collect_pad_obstacles(pad, coord: GridCoord, layer_map: Dict[str, int],
     # Via blocking around pads
     if any(layer.endswith('.Cu') for layer in expanded_layers):
         # Add half grid step buffer to account for grid quantization errors
-        via_margin = config.via_size / 2 + _via_clr(expanded_layers) + config.grid_step / 2
+        via_margin = config.via_copper_reach(_via_clr(expanded_layers), config.grid_step / 2)
         blocked_vias.append(pad_blocked_cells_array(gx, gy, half_width, half_height,
                                                     via_margin, config.grid_step, corner_radius,
                                                     off_x=off_x, off_y=off_y,

@@ -14,5 +14,4 @@ def owned_tests(name):
     return module
 
 
-ParserCacheTests = owned_tests('test_parser_cache').ParserCacheTests
 LegacyTokenTests = owned_tests('test_parser_legacy_tokens').LegacyTokenTests

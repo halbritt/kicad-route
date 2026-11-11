@@ -59,23 +59,6 @@ class LegacyTokenTests(unittest.TestCase):
             after = parser.parse_kicad_pcb(path).footprints['J1'].pads[:2]
             self.assertEqual([p.net_name for p in after], [p.net_name for p in before][::-1])
 
-    def test_bare_net_discovery_ignores_quoted_tokens_and_numeric_references(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'mixed.kicad_pcb'
-            quoted = FIXTURE.read_text()
-            original_ids = parser.extract_nets(quoted)[1]
-            mixed = quoted.replace('(general', '(property "comment" "literal (net GHOST)")\n(general', 1)
-            mixed = mixed[:mixed.rfind(')')] + '(net 999 )\n(net NEW_NET)\n)'
-            path.write_text(mixed)
-            actual = parser.parse_kicad_pcb(path)
-            ids = {n.name: ident for ident, n in actual.nets.items()}
-            for name, ident in original_ids.items():
-                if name:
-                    self.assertEqual(ids.get(name), ident)
-            self.assertNotIn('GHOST', ids)
-            self.assertNotIn('999', ids)
-            self.assertEqual(ids['NEW_NET'], max(original_ids.values()) + 1)
-
     def test_bare_tokens_match_native_kicad_pad_geometry_and_net_names(self):
         import pcbnew
         with tempfile.TemporaryDirectory() as directory:

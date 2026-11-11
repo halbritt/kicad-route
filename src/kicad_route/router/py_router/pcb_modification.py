@@ -3808,6 +3808,23 @@ def trim_dangles_past_body_anchor(results, pcb_data: PCBData, scope_net_ids=None
                     cx_, cy_ = s.start_x + t * dx, s.start_y + t * dy
                     if math.hypot(vx - cx_, vy - cy_) < (vsize + s.width) / 2 - 1e-6:
                         cands.append(t)
+                # kicad-route: a same-net pad the body runs over anchors it as a
+                # via does. The pair router can leave a track that passes over
+                # its terminal pad and ends beyond it (a pair shorter than its
+                # two setbacks is routed as a loop, and the loop's prune keeps
+                # the run-out). KiCad reports that end as dangling whatever its
+                # length, so a pad anchor has no minimum tail.
+                pad_ts = set()
+                for p in pads_n:
+                    px = getattr(p, 'global_x', getattr(p, 'x', 0.0))
+                    py = getattr(p, 'global_y', getattr(p, 'y', 0.0))
+                    t = ((px - s.start_x) * dx + (py - s.start_y) * dy) / L2
+                    if t * seg_len <= lo_d or (1 - t) * seg_len <= lo_d:
+                        continue
+                    if endpoint_reaches_pad(s.start_x + t * dx, s.start_y + t * dy,
+                                            s.width / 2, (s.layer,), p):
+                        cands.append(t)
+                        pad_ts.add(t)
                 for o in all_net_segs:
                     if o is s or o.layer != s.layer:
                         continue
@@ -3831,7 +3848,7 @@ def trim_dangles_past_body_anchor(results, pcb_data: PCBData, scope_net_ids=None
                 t_anchor = min(cands) if free_is_start else max(cands)
                 nx, ny = s.start_x + t_anchor * dx, s.start_y + t_anchor * dy
                 tail_len = math.hypot(fx - nx, fy - ny)
-                if tail_len <= max(tol, 3 * s.width):
+                if tail_len <= (tol if t_anchor in pad_ts else max(tol, 3 * s.width)):
                     continue  # sub-visible nib; not worth churn
                 # Connectivity gate (parity with every other subtractive
                 # pass): the trim must not strand a pad under the

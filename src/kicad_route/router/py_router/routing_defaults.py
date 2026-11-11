@@ -8,7 +8,7 @@ the CLI (route.py) and the GUI (swig_gui.py) to ensure consistency.
 # Track/Via parameters
 TRACK_WIDTH = 0.3  # mm
 CLEARANCE = 0.25  # mm
-VIA_SIZE = 0.5  # mm
+VIA_SIZE = 0.6  # mm; KiCad's implicit Default class when the project omits it
 VIA_DRILL = 0.3  # mm
 
 # Fab tier and escalation policy (#857/#530): THE one place these defaults

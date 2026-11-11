@@ -10,6 +10,7 @@ from typing import List, Dict, Tuple, Optional
 from kicad_parser import Pad, is_kicad_10, _unescape_kicad_string
 from routing_utils import pos_key, POSITION_DECIMALS
 from geometry_utils import PARTIAL_VIA_TYPES
+from sexpr import locked_block as _kr_locked_block, keeps_locked_targets as _kr_keeps_locked_targets
 
 
 def _escape_net_name(name: Optional[str]) -> Optional[str]:
@@ -44,6 +45,12 @@ def move_copper_text_to_silkscreen(content: str) -> str:
     Returns:
         Modified content with text layers changed
     """
+    # kicad-route: input copper is never relocated. The parser models copper
+    # text as an obstacle instead (kicad_parser._copper_text_obstacles), and a
+    # malformed board is refused here, before either writer emits anything.
+    from sexpr import expression_spans as _kr_spans
+    _kr_spans(content, set())
+    return content
     count = 0
 
     # Find all gr_text blocks by finding "(gr_text" and matching to closing paren
@@ -233,6 +240,9 @@ def move_copper_graphics_to_silkscreen(content: str) -> str:
     parser; a footprint with NO pads is a logo, which keeps #146's treatment
     exactly. Board-level `gr_*` is untouched by this change.
     """
+    # kicad-route: input copper is never relocated; the parser models every
+    # copper graphic as an obstacle (see move_copper_text_to_silkscreen).
+    return content
     kept = 0
     count = 0
     for tag in _COPPER_GRAPHIC_TAGS:
@@ -1735,6 +1745,7 @@ def match_stack_members(targets, items, strict_width: bool = False):
     return taken, unmatched
 
 
+@_kr_keeps_locked_targets      # kicad-route: locked copper is never a strip target
 def remove_segments_from_content(content: str, segments: List,
                                  net_id_to_name: Dict = None,
                                  unmatched_out: List = None,
@@ -1824,6 +1835,10 @@ def remove_segments_from_content(content: str, segments: List,
             key = seg_key(pos_key(float(ms.group(1)), float(ms.group(2))),
                           pos_key(float(me.group(1)), float(me.group(2))),
                           ml.group(1) or ml.group(2), net_token)
+        # kicad-route: a locked block is never removed, whichever twin of
+        # it (same span, layer and net) the strip list names.
+        if key is not None and _kr_locked_block(block):
+            key = None
         spans.append((j, k))
         items.append((key, float(mw.group(1)) if mw else None))
         pos = k
@@ -1847,6 +1862,7 @@ def remove_segments_from_content(content: str, segments: List,
     return ''.join(out), len(gone)
 
 
+@_kr_keeps_locked_targets      # kicad-route: as the segment twin
 def remove_vias_from_content(content: str, vias: List,
                              net_id_to_name: Dict = None,
                              unmatched_out: List = None) -> Tuple[str, int]:
@@ -1901,6 +1917,8 @@ def remove_vias_from_content(content: str, vias: List,
         block = content[j:k]
         ma = at_re.search(block)
         keep = True
+        if ma and _kr_locked_block(block):      # kicad-route: see the segment twin
+            ma = None
         if ma:
             mn = net_name_re.search(block)
             if mn:

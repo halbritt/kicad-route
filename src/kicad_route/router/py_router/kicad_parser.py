@@ -6873,11 +6873,9 @@ def extract_segments(content: str, name_to_id: Dict[str, int] = None) -> List[Se
             fp_text = _gcontent[_fstart:_fend]
             if not _FP_SHAPE_RE.search(fp_text):
                 continue
-            # A pad-LESS footprint is a logo the writer relocates to silk
-            # (#146); modelling copper that is about to leave copper would
-            # cost routing area for nothing. See footprint_copper_is_functional.
-            if not footprint_copper_is_functional(footprint_pad_count(fp_text)):
-                continue
+            # kicad-route: a pad-LESS footprint's copper (a logo) is modelled
+            # too. Upstream skips it because its writer relocates it to silk
+            # (#146); here input copper stays where it is (kicad_writer).
             _pose = footprint_pose(fp_text)
             if _pose is None:
                 # Copper dropped in silence is the failure mode this whole
@@ -7908,6 +7906,12 @@ def parse_kicad_pcb(filepath: str, guide_layer: str = "User.1",
 def _parse_kicad_pcb(filepath: str, guide_layer: str,
                      keepout_layer: str) -> PCBData:
     content = read_board_text(filepath)
+    # kicad-route: copper this parser cannot model is refused before any
+    # search; it is never moved off copper to make room (sexpr.py).
+    from sexpr import unsupported_copper, copper_text_obstacles
+    limitation = unsupported_copper(content)
+    if limitation:
+        raise ValueError(limitation)
 
     kicad_version = detect_kicad_version(content)
     if 0 < kicad_version < FIRST_SUPPORTED_BOARD_VERSION:
@@ -7962,6 +7966,8 @@ def _parse_kicad_pcb(filepath: str, guide_layer: str,
             _fp.owns_board_outline = _structural
     vias = extract_vias(content, name_to_id)
     segments = extract_segments(content, name_to_id)
+    # kicad-route: copper text is an obstacle, at KiCad's own bounds for it.
+    segments.extend(copper_text_obstacles(content))
     zones = extract_zones(content, name_to_id)
     propagate_via_cluster_nets(content, vias, segments, footprints, zones,
                                board_info.copper_layers)

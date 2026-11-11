@@ -22,6 +22,7 @@ KRT_TOOL = {'scope': ['routing', 'combined'], 'kind': 'actor'}
 
 import env_knobs
 import sys
+import json
 import os
 from dataclasses import replace
 
@@ -596,6 +597,7 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
                 diff_pair_intra_match: bool = False,
                 intra_pair_tolerance: Optional[float] = None,
                 ac_couple_match: bool = False,
+                ac_couple_chains: Optional[List[List[str]]] = None,
                 debug_memory: bool = False,
                 mps_reverse_rounds: bool = False,
                 mps_layer_swap: bool = False,
@@ -628,7 +630,8 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
                 # graze/cycle passes, the seam re-asks, the plane-fragility
                 # field). 1 changes nothing here: a diff-pair step has no
                 # recovery tail for route.py's level 1 to skip.
-                quick: int = 0) -> Tuple[int, int, float]:
+                quick: int = 0,
+                defer_short_pairs: bool = True) -> Tuple[int, int, float]:
     """
     Route differential pairs using the Rust router.
 
@@ -642,6 +645,7 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
         layers: List of copper layers to route on
         diff_pair_gap: Gap between P and N traces of differential pairs in mm (default: 0.101)
         diff_pair_centerline_setback: Distance in front of stubs to start centerline (default: 2x P-N spacing)
+        defer_short_pairs: If false, attempt coupled short legs instead of waiving coupling by length heuristic.
         min_turning_radius: Minimum turning radius for pose-based routing in mm (default: 0.2)
         impedance_declare_only: with `impedance`, RECORD the target ohms (with
             the gap each pair is built at) as a ``declare_only`` net_impedance
@@ -1328,6 +1332,7 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
     config_kwargs.update(
         diff_pair_gap=diff_pair_gap,
         diff_pair_centerline_setback=diff_pair_centerline_setback,
+        defer_short_pairs=defer_short_pairs,
         min_turning_radius=min_turning_radius,
         max_setback_angle=max_setback_angle,
         max_turn_angle=max_turn_angle,
@@ -1398,6 +1403,16 @@ def batch_route_diff_pairs(input_file: str, output_file: str, net_names: List[st
     if config.ac_couple_match:
         from diff_xnet import find_ac_coupled_xnets
         ac_xnets, ac_warnings = find_ac_coupled_xnets(pcb_data, diff_pairs)
+        if ac_couple_chains is not None:
+            # The public workflow proves topology natively and requests exact
+            # bridge groups. Do not tune other automatically detected chains.
+            selected = []
+            for refs in ac_couple_chains:
+                matches = [xn for xn in ac_xnets if set(xn.bridge_refs) == set(refs)]
+                if len(matches) != 1:
+                    raise ValueError(f'AC chain detection differs from explicit references: {refs!r}')
+                selected.append(matches[0])
+            ac_xnets = selected
         for _w in ac_warnings:
             print(f"  WARNING: {_w}")
         for _xn in ac_xnets:
@@ -3252,6 +3267,8 @@ Examples:
     parser.add_argument("--diff-pair-gap", type=float, default=None,
                         help="Gap between P and N traces of differential pairs in mm "
                              "(default: the board Default net-class diff_pair_gap, else 0.101)")
+    parser.add_argument("--no-short-pair-deferral", action="store_true",
+                        help="Attempt coupled routing even for short legs; do not waive coupling by length heuristic")
     parser.add_argument("--diff-pair-centerline-setback", type=float, default=None,
                         help="Distance in front of stubs to start centerline route in mm (default: 2x P-N spacing)")
     parser.add_argument("--min-turning-radius", type=float, default=0.2,
@@ -3322,6 +3339,8 @@ Examples:
                         help="End-to-end length-match AC-coupled differential pairs split by series DC-blocking "
                              "caps (#196): auto-detect the cap chain, match the concatenated P path vs the N path, "
                              "and place the compensating meanders on whichever segment has room. Off by default.")
+    parser.add_argument('--ac-couple-chain-json', action='append', type=json.loads,
+                        help='with AC matching, restrict tuning to these exact series-part references')
 
     parser.add_argument("--quick", nargs='?', const=1, default=0, type=int,
                         choices=(0, 1, 2), metavar='LEVEL',
@@ -3690,6 +3709,7 @@ Examples:
                 diff_pair_width_from_class=not _dp_width_explicit,
                 diff_pair_gap_from_class=not _dp_gap_explicit,
                 diff_pair_centerline_setback=args.diff_pair_centerline_setback,
+                defer_short_pairs=not args.no_short_pair_deferral,
                 min_turning_radius=args.min_turning_radius,
                 debug_lines=args.debug_lines,
                 verbose=args.verbose,
@@ -3725,6 +3745,7 @@ Examples:
                 diff_chamfer_extra=args.diff_chamfer_extra,
                 diff_pair_intra_match=args.diff_pair_intra_match,
                 ac_couple_match=args.ac_couple_match,
+                ac_couple_chains=args.ac_couple_chain_json,
                 debug_memory=args.debug_memory,
                 mps_reverse_rounds=args.mps_reverse_rounds,
                 mps_layer_swap=args.mps_layer_swap,

@@ -256,7 +256,9 @@ pcbnew.BOARD.Save=altered
 def test_real_owned_route_emits_consumable_final_custody(tmp_path):
     import os
     from kicad_route import copper_ownership as c
-    selected = Path(os.environ.get('KERNEL_PYTHON', '/home/halbritt/git/kicad-route/.router-generations/84b30dc286f44df6b465ae8d40aa1363/venv/bin/python'))
+    from kicad_route import cli
+    # the interpreter this checkout routes with, not one host's install of an older engine
+    selected = Path(os.environ.get('KERNEL_PYTHON') or cli.route_python())
     if not selected.exists():
         pytest.skip('selected routing interpreter unavailable')
     project = tmp_path / 'input'
