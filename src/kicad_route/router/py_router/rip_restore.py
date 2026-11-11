@@ -17,7 +17,10 @@ freed corridor (that is WHY the #134 pass leaves such nets ripped). So:
      the net's pads that individually clear current copper, so the pad
      keeps its landing site for later passes (pcb_data-only insertion; an
      unrouted net's stubs are stamped per-prepare from pcb_data, so no
-     direct obstacle-map surgery and no #309 ref-count exposure).
+     direct obstacle-map surgery and no #309 ref-count exposure). No result
+     owns a stub this run laid, so the result whose commit makes the net
+     need it (a pad reached only through it) adopts it and it ships with
+     that route (`pcb_modification.adopt_restored_stubs`).
 
 The saved payload rides pcb_data._rip_saved, recorded by rip_up_net for
 every rip and popped by restore_net -- so any net still ripped at terminal
@@ -57,11 +60,14 @@ def _conflict_sweep(pcb_data: PCBData, config: GridRouteConfig,
         # KiCad pairwise max of the two nets' resolutions; #498: a .kicad_dru
         # rule for the layer the coppers meet on replaces that (stack max for
         # via-via, where they meet on every layer).
+        # #1491: each net's stamp orders its class/type-scoped rule against
+        # the layer rule by file position, as the router stamped it.
         v = max(clr_of(a_net), clr_of(b_net))
         if layer is not None and hasattr(config, 'layer_clearance'):
-            return config.layer_clearance(layer, v)
+            return max(config.layer_clearance(layer, v, a_net),
+                       config.layer_clearance(layer, v, b_net))
         if layer is None and hasattr(config, 'stack_clearance'):
-            return config.stack_clearance(v)
+            return max(config.stack_clearance(v, a_net), config.stack_clearance(v, b_net))
         return v
 
     def _track_pair_clr(a_net, b_net, layer):
@@ -91,6 +97,11 @@ def _conflict_sweep(pcb_data: PCBData, config: GridRouteConfig,
         board_segs.extend(_isegs)
         board_vias.extend(_ivias)
 
+    # #1609: a pair that is BOTH unmoved input copper stood that far apart on
+    # the input board, so it is never the reason to refuse.
+    from rip_up_reroute import input_pair_unmoved
+    held = input_pair_unmoved(pcb_data) or (lambda a, b: False)
+
     owners: set = set()
     for cand in segments:
         c_clr_half = cand.width / 2
@@ -101,7 +112,7 @@ def _conflict_sweep(pcb_data: PCBData, config: GridRouteConfig,
             need = c_clr_half + s.width / 2 + _track_pair_clr(cand.net_id, s.net_id, cand.layer)
             if any(point_to_segment_distance(px, py, s.start_x, s.start_y,
                                              s.end_x, s.end_y) < need
-                   for px, py in _seg_points(cand)):
+                   for px, py in _seg_points(cand)) and not held(cand, s):
                 owners.add(s.net_id)
                 if not collect:
                     return owners
@@ -109,16 +120,29 @@ def _conflict_sweep(pcb_data: PCBData, config: GridRouteConfig,
             if v.net_id in own_ids or v.net_id in owners:
                 continue
             need = c_clr_half + v.size / 2 + _pair_clr(cand.net_id, v.net_id, cand.layer)
-            if any(math.hypot(px - v.x, py - v.y) < need for px, py in _seg_points(cand)):
+            if any(math.hypot(px - v.x, py - v.y) < need
+                   for px, py in _seg_points(cand)) and not held(cand, v):
                 owners.add(v.net_id)
                 if not collect:
                     return owners
+    # A via pair is graded on its DRILLS too: the hole-to-hole floor is
+    # independent of copper and of net, and between two fab-tier vias
+    # (0.25-0.3/0.15) it is the binding measure -- a restored 0.3/0.15 via
+    # cleared a foreign 0.25/0.15 via-in-pad by copper and sat 0.156 mm
+    # inside a 0.5 hole-to-hole floor. A pair of vias the step was HANDED
+    # stood on the input board, so it is never the reason to refuse (#980).
+    h2h = getattr(config, 'hole_to_hole_clearance', 0.0) or 0.0
+    _inp = getattr(pcb_data, '_input_copper', None)
+    inp_ids = _inp[0] if _inp else frozenset()
     for cv in vias:
         for v in board_vias:
             if v.net_id in own_ids or v.net_id in owners:
                 continue
             need = cv.size / 2 + v.size / 2 + _pair_clr(cv.net_id, v.net_id)
-            if math.hypot(cv.x - v.x, cv.y - v.y) < need:
+            if h2h > 0 and cv.drill > 0 and v.drill > 0 \
+                    and not (id(cv) in inp_ids and id(v) in inp_ids):
+                need = max(need, cv.drill / 2 + v.drill / 2 + h2h)
+            if math.hypot(cv.x - v.x, cv.y - v.y) < need and not held(cv, v):
                 owners.add(v.net_id)
                 if not collect:
                     return owners
@@ -127,7 +151,7 @@ def _conflict_sweep(pcb_data: PCBData, config: GridRouteConfig,
                 continue
             need = cv.size / 2 + s.width / 2 + _pair_clr(cv.net_id, s.net_id, s.layer)
             if point_to_segment_distance(cv.x, cv.y, s.start_x, s.start_y,
-                                         s.end_x, s.end_y) < need:
+                                         s.end_x, s.end_y) < need and not held(cv, s):
                 owners.add(s.net_id)
                 if not collect:
                     return owners
@@ -291,6 +315,20 @@ def try_terminal_restore(pcb_data: PCBData, config: GridRouteConfig,
     # extending pcb_data with copper the map never sees.
     pcb_data.segments.extend(kept_s)
     pcb_data.vias.extend(kept_v)
+    # Stubs this run laid are owned by no result now, so they would never be
+    # written, and the copper sync would take them back off the board: the
+    # result whose commit makes the net need them adopts them
+    # (`pcb_modification.adopt_restored_stubs`). Copper the step was handed is
+    # in the file already.
+    _inp = getattr(pcb_data, '_input_copper', None)
+    _inp_ids = _inp[0] if _inp else frozenset()
+    if not saved_result.get('is_existing_route'):
+        _ledger = getattr(pcb_data, '_stub_restores', None)
+        if _ledger is None:
+            _ledger = pcb_data._stub_restores = {}
+        for _o in kept_s + kept_v:
+            if id(_o) not in _inp_ids:
+                _ledger.setdefault(_o.net_id, []).append(_o)
     from obstacle_cache import refresh_net_obstacles
     refresh_net_obstacles(working_obstacles, net_obstacles_cache, pcb_data,
                           config, sorted(own))

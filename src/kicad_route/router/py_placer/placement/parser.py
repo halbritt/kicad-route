@@ -350,7 +350,8 @@ def _nested_even_odd(geoms):
 
 
 def _outline_shapes_by_side(fp_text: str, layer_re: str,
-                            even_odd: bool = False) -> Dict[str, tuple]:
+                            even_odd: bool = False,
+                            with_parts: bool = False) -> Dict[str, tuple]:
     """The TRUE drawn outline of one footprint on `layer_re`, per side (#1094).
 
     `{side: (shapely geometry in the local frame, how)}`, where `how` is
@@ -369,6 +370,10 @@ def _outline_shapes_by_side(fp_text: str, layer_re: str,
     (`_nested_even_odd`: a contour inside another is a hole). Off, every
     closed contour is united -- a .Fab drawing's inner circle is a detail
     of the body (a button, a lens), not a hole through it.
+
+    `with_parts`: each value is `(geometry, how, parts)`, `parts` the closed
+    shapes the outline was composed from (one per drawn area or closed
+    chain; the hull alone when the drawing did not close).
     """
     from shapely.geometry import LineString, Point, Polygon, box
     from shapely.ops import polygonize, unary_union
@@ -555,10 +560,9 @@ def _outline_shapes_by_side(fp_text: str, layer_re: str,
             # a T that stops 15 um short, crossing ends, a stray parallel
             # line read closed here while KiCad flags malformed_courtyard
             # (it still tests a pin against the contours that do close).
-            # tests/fixtures/1212_courtyard_chaining.json holds kicad-cli's
-            # verdict on 178 drawings; the test asserts no drawing KiCad
-            # closes reads open here. NOT modelled: a drawing that closes
-            # plus debris no join absorbs (a stray piece outside it, a
+            # Measured against kicad-cli's verdict on 178 drawings (#1212):
+            # no drawing KiCad closes reads open here. NOT modelled: a
+            # drawing that closes plus debris no join absorbs (a stray piece outside it, a
             # there-and-back spike, a flat fp_rect or 2-point fp_poly)
             # reads as the hull here, its pins `courtyard_malformed`
             # (listed, not gating), where KiCad flags it malformed AND
@@ -573,14 +577,16 @@ def _outline_shapes_by_side(fp_text: str, layer_re: str,
                 if retry:
                     cand = composed(retry, side)
                     if covers(cand, pts, _OUTLINE_JOIN_REACH_MM):
-                        shape, tol = cand, _OUTLINE_JOIN_REACH_MM
+                        shape, tol, parts = cand, _OUTLINE_JOIN_REACH_MM, retry
                         break
         if pts and not covers(shape, pts, tol):
             from shapely.geometry import MultiPoint
             shape, how = MultiPoint(pts).convex_hull, OUTLINE_HULL
+            parts = [shape]
         if shape is None or shape.is_empty or shape.area <= 0:
             continue
-        out[side] = (shape, how)
+        out[side] = ((shape, how, tuple(parts) + tuple(united.get(side, ())))
+                     if with_parts else (shape, how))
     return out
 
 
@@ -633,6 +639,194 @@ def extract_courtyard_shapes(pcb_file: str) -> Dict[str, Dict[str, tuple]]:
 def extract_fab_shapes(pcb_file: str) -> Dict[str, Dict[str, tuple]]:
     """Per-side .Fab body OUTLINES; `extract_fab_sides`' twin (#1094)."""
     return _extract_outline_shapes(pcb_file, _FAB_LAYER, '.Fab"')
+
+
+def extract_silk_shapes(pcb_file: str) -> Dict[str, Dict[str, tuple]]:
+    """Per-side F/B.SilkS OUTLINES, `{ref: {side: (geometry, how)}}` (#1401);
+    `extract_silk_sides`' shape-keeping twin. `how` is `OUTLINE_POLYGON` when
+    the silk CLOSES into a loop (a drawn housing) and `OUTLINE_HULL` when it
+    does not (corner brackets, side ticks), where the convex hull of what was
+    drawn stands in. Only the first is an outline a part can be said to sit
+    inside."""
+    return _extract_outline_shapes(pcb_file, _SILK_LAYER, '.SilkS"')
+
+
+#: Horizontal slabs a courtyard shape that is not axis-aligned (an arc, a
+#: diagonal) is covered by (`shape_boxes`): each slab's box spans what the
+#: shape holds in it, so the cover is never smaller than the shape.
+COVER_SLABS = 8
+#: Box coordinates are rounded OUTWARD to this grid (mm) before boxes are
+#: united, so two shapes meeting on one drawn line share its coordinate; a
+#: coordinate within a nanometre of the grid is on it.
+_BOX_GRID = 1e-6
+
+
+def _polygons(geom):
+    """The polygons of a shapely geometry, at any nesting."""
+    if geom is None or geom.is_empty:
+        return []
+    if geom.geom_type == 'Polygon':
+        return [geom]
+    return [q for g in getattr(geom, 'geoms', ()) for q in _polygons(g)]
+
+
+def _rectilinear(poly) -> bool:
+    cs = list(poly.exterior.coords)
+    return all(abs(a[0] - b[0]) < 1e-9 or abs(a[1] - b[1]) < 1e-9
+               for a, b in zip(cs, cs[1:]))
+
+
+def shape_boxes(geom) -> list:
+    """Axis-aligned boxes covering `geom` (local frame): exactly when its
+    outline is axis-aligned, otherwise outward, slab by slab
+    (`COVER_SLABS`). A hole is covered."""
+    from shapely.geometry import Polygon, box
+    out = []
+    for poly in _polygons(geom):
+        shell = Polygon(poly.exterior)
+        x0, y0, x1, y1 = shell.bounds
+        if shell.area >= (x1 - x0) * (y1 - y0) - 1e-9:
+            out.append((x0, y0, x1, y1))
+            continue
+        if _rectilinear(shell):
+            ys = sorted({c[1] for c in shell.exterior.coords})
+        else:
+            ys = [y0 + (y1 - y0) * k / COVER_SLABS
+                  for k in range(COVER_SLABS + 1)]
+        for ya, yb in zip(ys, ys[1:]):
+            for q in _polygons(shell.intersection(box(x0, ya, x1, yb))):
+                bx0, _by0, bx1, _by1 = q.bounds
+                if bx1 > bx0:
+                    out.append((bx0, ya, bx1, yb))
+    return out
+
+
+def union_boxes(boxes) -> list:
+    """The union of axis-aligned boxes as DISJOINT boxes (they may share an
+    edge): cut into vertical slabs at every box's x, the covered y spans of
+    each slab merged, and a span carried on while the next slab has it too.
+    Sorted."""
+    g = _BOX_GRID
+    bs = [(math.floor(b[0] / g + 1e-3) * g, math.floor(b[1] / g + 1e-3) * g,
+           math.ceil(b[2] / g - 1e-3) * g, math.ceil(b[3] / g - 1e-3) * g)
+          for b in boxes]
+    bs = [tuple(round(v, 9) for v in b) for b in bs]
+    bs = [b for b in bs if b[2] > b[0] and b[3] > b[1]]
+    xs = sorted({v for b in bs for v in (b[0], b[2])})
+    out, open_ = [], {}
+    for xa, xb in zip(xs, xs[1:]):
+        spans = []
+        for b in sorted((b[1], b[3]) for b in bs
+                        if b[0] <= xa and b[2] >= xb):
+            if spans and b[0] <= spans[-1][1]:
+                spans[-1] = (spans[-1][0], max(spans[-1][1], b[1]))
+            else:
+                spans.append(b)
+        now = {}
+        for sp in spans:
+            now[sp] = open_.pop(sp, xa)
+        for sp, start in open_.items():
+            out.append((start, sp[0], xa, sp[1]))
+        open_ = now
+    for sp, start in open_.items():
+        out.append((start, sp[0], xs[-1], sp[1]))
+    return sorted(out)
+
+
+_BOX_CACHE: Dict[tuple, Dict[str, Dict[str, tuple]]] = {}
+
+_CRTYD_AREA = re.compile(r'\((?:fp_rect|fp_circle)\b' + _FP_ELEMENT_GAP
+                         + _CRTYD_LAYER, re.DOTALL)
+_CRTYD_ENDS = re.compile(r'\(fp_(?:line|arc)\s+\(start\s+' + _NUM + r'\s+'
+                         + _NUM + r'\)' + r'(?:\s+\(mid\s+' + _NUM + r'\s+'
+                         + _NUM + r'\))?\s+\(end\s+' + _NUM + r'\s+' + _NUM
+                         + r'\)' + _FP_ELEMENT_GAP + _CRTYD_LAYER, re.DOTALL)
+
+
+def _may_not_be_a_box(fp_text: str) -> bool:
+    """Whether one footprint's courtyard can be other than one box on a side:
+    two drawn areas, an area and a drawn loop, line and arc pieces that close
+    more than one loop (edges - vertices + components, their ends the
+    vertices), or one polygon or loop of more than four corners. A cheap
+    screen: what passes is measured."""
+    areas: Dict[str, int] = {}
+    for m in _CRTYD_AREA.finditer(fp_text):
+        areas[m.group(1)] = areas.get(m.group(1), 0) + 1
+    for pm in re.finditer(r'\(fp_poly\b', fp_text):
+        body = fp_text[pm.start():find_matching_paren(fp_text, pm.start())]
+        lm = re.search(_CRTYD_LAYER, body)
+        if lm:
+            if len(re.findall(r'\(xy\s', body)) > 4:
+                return True
+            areas[lm.group(1)] = areas.get(lm.group(1), 0) + 1
+    chains: Dict[str, dict] = {}
+    edges: Dict[str, int] = {}
+    for m in _CRTYD_ENDS.finditer(fp_text):
+        parent = chains.setdefault(m.group(7), {})
+
+        def find(k):
+            while parent.setdefault(k, k) != k:
+                k = parent[k]
+            return k
+        a = (round(float(m.group(1)), 3), round(float(m.group(2)), 3))
+        b = (round(float(m.group(5)), 3), round(float(m.group(6)), 3))
+        parent[find(a)] = find(b)
+        edges[m.group(7)] = edges.get(m.group(7), 0) + 1
+    for side in set(areas) | set(chains):
+        parent = chains.get(side, {})
+        loops = (edges.get(side, 0) - len(parent)
+                 + len({k for k in parent if parent[k] == k}))
+        if areas.get(side, 0) + loops >= 2 or edges.get(side, 0) > 4:
+            return True
+    return False
+
+
+def extract_courtyard_boxes(pcb_file: str) -> Dict[str, Dict[str, tuple]]:
+    """`{ref: {side: boxes}}` for each courtyard drawn as several shapes, or
+    as one axis-aligned shape (an L, a U, a step), whose union is not its
+    bounding box: the disjoint boxes (`union_boxes`) covering its shapes
+    (`shape_boxes`), in the footprint's local frame. Their bounding box is
+    `extract_courtyard_sides`' box. A courtyard of one shape that is not
+    axis-aligned (a chamfer, a circle), one that does not close, or one
+    whose shapes fill their bounding box is absent: the placer seats it on
+    that box, as it always did."""
+    import os as _os
+    try:
+        st = _os.stat(pcb_file)
+        key = (_os.path.abspath(pcb_file), st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = None
+    if key is not None and key in _BOX_CACHE:
+        return dict(_BOX_CACHE[key])
+    from shapely.geometry import box
+    from shapely.ops import unary_union
+    result: Dict[str, Dict[str, tuple]] = {}
+    for ref, fp_text in _file_blocks(pcb_file):
+        if '.CrtYd"' not in fp_text or not _may_not_be_a_box(fp_text):
+            continue
+        by_side = _outline_shapes_by_side(fp_text, _CRTYD_LAYER,
+                                          even_odd=True, with_parts=True)
+        for side, (shape, how, parts) in by_side.items():
+            # a shape inside another adds nothing to the occupancy (a ring's
+            # inner circle is a hole the boxes cover anyway)
+            parts = [g for i, g in enumerate(parts)
+                     if not any(j != i and h.buffer(1e-6).contains(g)
+                                and not (g.buffer(1e-6).contains(h) and j > i)
+                                for j, h in enumerate(parts))]
+            if how != OUTLINE_POLYGON or not parts or (
+                    len(parts) == 1 and not all(_rectilinear(q) and not q.interiors
+                                                for q in _polygons(parts[0]))):
+                continue
+            boxes = union_boxes(b for g in parts for b in shape_boxes(g))
+            # never less than the outline the grade reads
+            if len(boxes) >= 2 and unary_union([box(*b) for b in boxes]).buffer(
+                    1e-9).contains(shape):
+                result.setdefault(ref, {})[side] = tuple(boxes)
+    if key is not None:
+        if len(_BOX_CACHE) > 16:
+            _BOX_CACHE.clear()
+        _BOX_CACHE[key] = result
+    return dict(result)
 
 
 def extract_courtyard_bboxes(pcb_file: str) -> Dict[str, Bbox]:
@@ -693,6 +887,13 @@ _START_END = re.compile(r'\(start\s+' + _NUM + r'\s+' + _NUM + r'\)\s*'
                         r'\(end\s+' + _NUM + r'\s+' + _NUM + r'\)')
 
 
+def is_edge_marker_text(node: str) -> bool:
+    """Whether one footprint text node is a "PCB Edge" marker text, as
+    `edge_marker_of` reads one (#1715: a pile keeps its angle to the part)."""
+    m = _MARKER_TEXT_HEAD.match(node)
+    return bool(m and EDGE_MARKER_TEXT.search(m.group(1)))
+
+
 def edge_marker_of(fp_text: str) -> Optional[EdgeMarker]:
     """The `EdgeMarker` one footprint block draws, or None when it draws no
     marker text."""
@@ -750,43 +951,34 @@ def courtyard_for_side(sides: Optional[Dict[str, Bbox]],
 
 
 def warn_missing_courtyards(refs, label: str = 'placement',
-                            sources: Optional[Dict[str, str]] = None) -> None:
-    """Print a one-line warning naming refs that have no courtyard at all.
+                            estimates=None) -> None:
+    """Say what placement does with the pad-bearing parts that draw no
+    courtyard (`refs`), up front, before anything is placed.
 
-    Those parts fall back to `compute_footprint_bbox_local`, which is the union
-    of PAD rects with no courtyard margin at all — a 0402's IPC courtyard is
-    ~2.9x1.5mm against a ~1.9x0.9mm pad box — so the part is modelled smaller
-    than it is and can be packed to a courtyard violation. Silence was the
-    complaint in #456 item 3; the geometry itself is unchanged.
-
-    `sources` ({ref: occupancy source}, `placement.body`) is the ARMED case
-    (`body_model`, #1182): a courtyard-less part with a drawn body does not
-    fall back to its pads, so only `pad_bbox` parts are named, and the line
-    says what the others are spaced on instead.
+    Placement seats such a part on an ESTIMATED courtyard (#1300,
+    `body.estimated_courtyards`): what it occupies, its .Fab body, else its
+    silk, else its pads, united with its pads -- the occupancy
+    check_assembly grades it on. `estimates` ({ref: CourtyardEstimate}) are
+    those estimates; their refs are named in one NOTE, per basis (`fab` /
+    `silk` / `pad_bbox`, `body.format_estimates`). A drawn courtyard is
+    authoritative and replaces the estimate, so there is nothing to
+    synthesize. Only a ref with no estimate (a container, a part the
+    placer's fallback keeps on its pads) is modelled by its bare pad box,
+    `compute_footprint_bbox_local`, with no margin at all: that one is the
+    WARNING, since it can be packed into its neighbour's body. Silence was
+    the complaint in #456 item 3; a warning that called every such part a
+    pad box led a user to draw courtyards of their own (#1466).
     """
-    refs = sorted(refs)
+    from placement.body import format_estimates
+    refs = set(refs)
+    estimates = {r: e for r, e in (estimates or {}).items() if r in refs}
+    note = format_estimates(estimates, label)
+    if note:
+        print(note)
+    refs = sorted(r for r in refs if r not in estimates)
     if not refs:
         return
-    if sources is not None:
-        drawn = sorted(r for r in refs
-                       if sources.get(r) not in (None, 'pad_bbox'))
-        if drawn:
-            mix: Dict[str, int] = {}
-            for r in drawn:
-                mix[sources[r]] = mix.get(sources[r], 0) + 1
-            print(f"  NOTE [{label}]: {len(drawn)} footprint(s) without a "
-                  f"courtyard are spaced on their drawn body united with "
-                  f"their pads (body model: "
-                  + ', '.join(f"{n} {s}" for s, n in sorted(mix.items()))
-                  + ")"
-                  + ("; a fab_marking is a .Fab pin-1 dot or line, not a "
-                     "body (#1201): those are spaced on the marking united "
-                     "with their pads, as before"
-                     if 'fab_marking' in mix else ''))
-        refs = [r for r in refs if r not in drawn]
-        if not refs:
-            return
     shown = ', '.join(refs[:12]) + (', ...' if len(refs) > 12 else '')
     print(f"  WARNING [{label}]: {len(refs)} footprint(s) have no courtyard "
-          f"(F/B.CrtYd) and fall back to their pad bounding box, which carries "
-          f"no courtyard margin: {shown}")
+          f"(F/B.CrtYd) and no estimate, so they fall back to their pad "
+          f"bounding box, which carries no courtyard margin: {shown}")

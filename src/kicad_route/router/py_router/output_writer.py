@@ -17,6 +17,7 @@ from kicad_writer import (
     generate_segment_sexpr, generate_via_sexpr, generate_gr_line_sexpr, via_net_name,
     generate_gr_text_sexpr, swap_segment_nets_at_positions,
     swap_via_nets_at_positions, swap_pad_nets_in_content, modify_segment_layers,
+    move_copper_text_to_silkscreen, move_copper_graphics_to_silkscreen,
     add_teardrops_to_pads, remove_segments_from_content,
     strip_zero_length_edge_cuts)
 from connectivity import find_connected_segment_positions
@@ -58,7 +59,15 @@ def write_routed_output(
         exclusion_zone_lines: Debug lines for exclusion zones
         boundary_debug_labels: Debug labels for boundary positions
         skip_routing: Whether routing was skipped (debug only mode)
-        add_teardrops: Whether to add teardrop settings to all pads
+        add_teardrops: Whether to add teardrop settings to every pad and every
+            via (the via pass runs last, so this run's own vias get them too)
+        all_swap_segments: Stub segments synthesized by bare-pad target swaps,
+            written with the new copper
+        segments_to_remove: Input-file segments to strip from the output (the
+            dead-end sweep, #84, and later passes' removals of pre-existing copper)
+        vias_to_remove: Input-file vias to strip (e.g. the old vias of
+            ripped/re-routed nets, #103), so an old via and its replacement do
+            not both ship
 
     Returns:
         True if output was written successfully
@@ -80,8 +89,9 @@ def write_routed_output(
     from kicad_parser import read_board_text
     content = read_board_text(input_file, quiet=True)
 
-    from sexpr import expression_spans
-    expression_spans(content, set())
+    # Move text from copper layers to silkscreen (prevents routing interference)
+    content = move_copper_text_to_silkscreen(content)
+    content = move_copper_graphics_to_silkscreen(content)
     content = strip_zero_length_edge_cuts(content)
 
     # Add teardrops to all pads if requested. Pads are never ADDED by a routing
@@ -421,8 +431,10 @@ def _generate_routing_text(results: List[Dict], all_swap_vias: List,
                 via.layers, via.net_id, getattr(via, 'free', False),
                 net_name=_net_name(via.net_id),
                 # Keep a re-placed via's own protection spec; a genuinely new
-                # via follows the board's convention (#489 §8).
-                tenting_attrs=_via_attrs(via)
+                # via has none, emits no token and inherits the board's setup.
+                tenting_attrs=_via_attrs(via),
+                # ...and its blind/micro type word (a new via is through).
+                via_type=getattr(via, 'via_type', None)
             ) + "\n"
 
     # Add vias from stub layer swapping
@@ -434,8 +446,10 @@ def _generate_routing_text(results: List[Dict], all_swap_vias: List,
                 via.layers, via.net_id, getattr(via, 'free', False),
                 net_name=_net_name(via.net_id),
                 # Keep a re-placed via's own protection spec; a genuinely new
-                # via follows the board's convention (#489 §8).
-                tenting_attrs=_via_attrs(via)
+                # via has none, emits no token and inherits the board's setup.
+                tenting_attrs=_via_attrs(via),
+                # ...and its blind/micro type word (a new via is through).
+                via_type=getattr(via, 'via_type', None)
             ) + "\n"
 
     # Add stub segments synthesized by bare-pad target swaps

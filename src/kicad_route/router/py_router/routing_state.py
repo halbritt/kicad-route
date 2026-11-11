@@ -423,6 +423,13 @@ def get_net_history_summary(state: RoutingState, net_id: int, pcb_data: 'PCBData
             if hint:
                 lines.append(f"       {hint}")
 
+        elif event == "boxed_in_static" and details.get("verdict") == "pad_entry_allowance":
+            # #1452: not boxed in at the geometry -- the escalation policy
+            # refused the neck the route needed.
+            lines.append(f"[{seq}] Neck refused (--escalation off): edge spans "
+                         f"{details.get('span_mm', '?')} mm, pad-entry allowance "
+                         f"{details.get('allowance_mm', '?')} mm")
+
         elif event == "boxed_in_static":
             geom = details.get("geometry") or {}
             iters = details.get("iterations", "?")
@@ -432,9 +439,17 @@ def get_net_history_summary(state: RoutingState, net_id: int, pcb_data: 'PCBData
                                  ("track", geom.get("track_width")),
                                  ("via", geom.get("via_diameter")))
                     if isinstance(v, (int, float))]
+            _og = details.get("on_grid_step")
+            from routing_diagnostics import _on_grid_words
             lines.append(f"[{seq}] Boxed in at this geometry after "
                          f"{iters} iteration(s)"
-                         + (f" ({', '.join(bits)} mm)" if bits else ""))
+                         + (f" ({', '.join(bits)} mm)" if bits else "")
+                         # #1763: the lever, when the pads are off the grid
+                         + (f"; {details.get('pads_off_grid')} pad(s) off the "
+                            f"run grid -- re-route this net scoped (--nets) at "
+                            f"--grid-step {_og:g}, which puts them "
+                            + _on_grid_words(details.get('on_grid_axes') or '')
+                            if isinstance(_og, (int, float)) else ""))
 
         elif event == "sealed_by_snpc":
             # #907. The remedy is a FLAG, so name the flag and its value --

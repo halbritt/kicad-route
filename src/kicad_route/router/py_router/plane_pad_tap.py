@@ -290,6 +290,17 @@ def _polygon_overlaps_window(points, min_x, min_y, max_x, max_y) -> bool:
 _TAP_INDEX_CELL = 8.0  # mm bucket size
 
 
+def _filled_ring_bbox(seg):
+    """The bounding box of the FILLED shape `seg` traces (`graphic_ring`,
+    #1181), or None for any other segment."""
+    ring = getattr(seg, 'graphic_ring', None)
+    if not ring or len(ring) < 3:
+        return None
+    xs = [p[0] for p in ring]
+    ys = [p[1] for p in ring]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
 def _cells_for_bbox(min_x, min_y, max_x, max_y):
     cell = _TAP_INDEX_CELL
     cx0, cy0 = int(math.floor(min_x / cell)), int(math.floor(min_y / cell))
@@ -305,8 +316,15 @@ def _build_tap_spatial_index(pcb_data: PCBData):
     pad_b: Dict[Tuple[int, int], list] = {}
     for s in pcb_data.segments:
         r = s.width / 2
-        for k in _cells_for_bbox(min(s.start_x, s.end_x) - r, min(s.start_y, s.end_y) - r,
-                                 max(s.start_x, s.end_x) + r, max(s.start_y, s.end_y) + r):
+        bb = (min(s.start_x, s.end_x) - r, min(s.start_y, s.end_y) - r,
+              max(s.start_x, s.end_x) + r, max(s.start_y, s.end_y) + r)
+        ring_bb = _filled_ring_bbox(s)
+        if ring_bb is not None:
+            # #1545: a filled shape's edge is found by every window its
+            # interior reaches (see make_local_window).
+            bb = (min(bb[0], ring_bb[0]), min(bb[1], ring_bb[1]),
+                  max(bb[2], ring_bb[2]), max(bb[3], ring_bb[3]))
+        for k in _cells_for_bbox(*bb):
             seg_b.setdefault(k, []).append(s)
     for v in pcb_data.vias:
         r = v.size
@@ -402,8 +420,24 @@ def make_local_window(pcb_data: PCBData, cx: float, cy: float,
     local = copy.copy(pcb_data)
     local.vias = [v for v in _query_bucket(via_b, wmin_x, wmin_y, wmax_x, wmax_y)
                   if in_window(v.x, v.y, v.size)]
+    # A FILLED shape the window reaches comes whole (#1545): its interior is
+    # copper (#1181), and the obstacle builders find a shape by its perimeter
+    # segments, which can all lie outside a window inside the shape.
+    _ring_hit: Dict[tuple, bool] = {}
+
+    def _keep(s):
+        if _segment_overlaps_window(s, wmin_x, wmin_y, wmax_x, wmax_y):
+            return True
+        ring = getattr(s, 'graphic_ring', None)
+        if not ring or len(ring) < 3:
+            return False
+        hit = _ring_hit.get(ring)
+        if hit is None:
+            hit = _ring_hit[ring] = _polygon_overlaps_window(
+                ring, wmin_x, wmin_y, wmax_x, wmax_y)
+        return hit
     local.segments = [s for s in _query_bucket(seg_b, wmin_x, wmin_y, wmax_x, wmax_y)
-                      if _segment_overlaps_window(s, wmin_x, wmin_y, wmax_x, wmax_y)]
+                      if _keep(s)]
     pads_by_net: Dict[int, List[Pad]] = {}
     for nid, p in _query_bucket(pad_b, wmin_x, wmin_y, wmax_x, wmax_y):
         if in_window(p.global_x, p.global_y, max(p.size_x, p.size_y)):
@@ -431,9 +465,9 @@ def make_local_window(pcb_data: PCBData, cx: float, cy: float,
 
     board_info = copy.copy(pcb_data.board_info)
     board_info.board_bounds = (min_x, min_y, max_x, max_y)
-    # Real board bounds, so the edge-band pad exemption (#338) can tell a pad
-    # at the TRUE board edge from one merely straddling the synthetic window
-    # boundary (the latter must not punch reach holes in the window fence).
+    # Real board bounds: a window side strictly inside them is synthetic, and
+    # on a polygonal board (whose outline the window keeps) the track edge
+    # band fences exactly those sides (_add_board_edge_track_obstacles).
     board_info.parent_board_bounds = (getattr(pcb_data.board_info,
                                               'parent_board_bounds', None)
                                       or bb)
@@ -519,7 +553,8 @@ def inflight_copper_dicts(pcb_data: PCBData):
         for v in vias:
             extra_vias.append({'x': v.x, 'y': v.y, 'size': v.size,
                                'drill': v.drill, 'layers': list(v.layers),
-                               'net_id': v.net_id})
+                               'net_id': v.net_id,
+                               'via_type': getattr(v, 'via_type', 'through')})
         for s in segments:
             extra_segments.append({'start': (s.start_x, s.start_y),
                                    'end': (s.end_x, s.end_y),
@@ -581,6 +616,7 @@ class SharedViaMaps:
     def _key(config: GridRouteConfig, same_net_pad_clearance: float) -> Tuple:
         return (config.grid_step, config.clearance, config.via_size,
                 config.via_drill, config.hole_to_hole_clearance,
+                config.hole_clearance,  # #1514: the via map's NPTH floor
                 config.board_edge_clearance, same_net_pad_clearance)
 
     def get(self, config: GridRouteConfig, same_net_pad_clearance: float = -1.0):
@@ -1256,6 +1292,21 @@ def try_tap_pad(
         def zone_filter(x, y):
             return any(point_in_polygon(x, y, poly) for poly in _net_zone_polys)
 
+    # A net-filtered keep-out that forbids the net's vias (net_keepouts): this
+    # search places on maps of its own, which the per-route region stamp never
+    # reaches, so skip the sites inside such a region and go on to the next
+    # one. The pour islands this run must not cut (#1260) likewise.
+    # tap_pad_with_escalation still audits the result, which also covers
+    # the via -> pad trace and the edge clamp's move.
+    from net_keepouts import via_site_filter
+    from pour_guard import barrier_via_site_filter
+    _site_oks = [f for f in (via_site_filter(pcb_data, net_id, via_size),
+                             barrier_via_site_filter(config, pcb_data, via_size),
+                             zone_filter) if f is not None]
+    if _site_oks:
+        def zone_filter(x, y):
+            return all(ok(x, y) for ok in _site_oks)
+
     ghost_pref = None
     if corridor_ghosts is not None:
         # #517 arm 2: soft preference for via sites OUTSIDE vacated ripped
@@ -1353,6 +1404,55 @@ def try_tap_pad(
     return _gate(TapResult(success=True, via=via, segments=segments))
 
 
+def _tap_in_net_keepout(pcb_data: PCBData, net_id: int, result: TapResult) -> List[Dict]:
+    """The net-filtered keep-outs (net_keepouts) that a tap's new copper (its
+    via and traces) puts `net_id` inside, as `net_keepouts.audit` rows; []
+    when it is clean. Judged by net_keepouts.audit, the geometry KiCad's DRC
+    grades.
+
+    The tap places on maps of its own, which the per-route region stamp
+    (net_keepouts.stamp) never reaches, and its callers lay the copper
+    outside any stamped route: the #189 via-in-pad unblock (a free via in an
+    allowed block), the #666 bare-ball escape of the net rescue, plane taps.
+    A boxed power pad beside a mask opening only GND may cross got such an
+    escape via 0.13 mm inside the region; a bottom-side pad under it got an
+    in-pad dogbone whose barrel reached the region's top-side copper. KiCad
+    grades both items_not_allowed (and, there, solder_mask_bridge).
+    try_tap_pad's via search already skips sites inside such a region
+    (net_keepouts.via_site_filter); this also judges the via -> pad trace and
+    a via the edge clamp moved."""
+    if not getattr(pcb_data, '_net_keepouts', None):
+        return []
+    from net_keepouts import audit
+    segs, vias = _tap_copper(net_id, result)
+    return audit(pcb_data, segs, vias) or []
+
+
+def _tap_copper(net_id: int, result: TapResult) -> Tuple[List[Segment], List[Via]]:
+    vias = []
+    if result.via is not None:
+        v = result.via
+        vias.append(Via(x=v['x'], y=v['y'], size=v['size'], drill=v['drill'],
+                        layers=v.get('layers', ['F.Cu', 'B.Cu']), net_id=net_id))
+    segs = [Segment(start_x=sd['start'][0], start_y=sd['start'][1],
+                    end_x=sd['end'][0], end_y=sd['end'][1],
+                    width=sd['width'], layer=sd['layer'], net_id=net_id)
+            for sd in (result.segments or [])]
+    return segs, vias
+
+
+def _tap_cuts_barrier(config: GridRouteConfig, pcb_data: PCBData, net_id: int,
+                      result: TapResult, pad: Optional[Pad] = None) -> Optional[str]:
+    """The net of a pour barrier (#1260) a tap's new copper enters, else None.
+    The part of the via -> pad trace lying on `pad`'s own copper is not
+    measured: the pour already clears the pad there."""
+    if not getattr(config, 'pour_barriers', None):
+        return None
+    from pour_guard import barrier_entered
+    return barrier_entered(config, pcb_data, *_tap_copper(net_id, result),
+                           own_pads=(pad,) if pad is not None else ())
+
+
 def tap_pad_with_escalation(
     pad: Pad,
     pad_layer: Optional[str],
@@ -1391,6 +1491,8 @@ def tap_pad_with_escalation(
     fine-pitch neighborhoods also benefit from the fine parameters).
     """
     last_failure = TapResult(success=False)
+    ko_refused: List[Dict] = []     # the last rung a net keep-out refused
+    barrier_refused: Optional[str] = None
     if try_default:
         result = try_tap_pad(
             pad, pad_layer, net_id, pcb_data, config, max_search_radius,
@@ -1400,6 +1502,14 @@ def tap_pad_with_escalation(
             shared_via_maps=shared_via_maps, pour_trace_only=pour_trace_only,
             plane_oracle=plane_oracle, corridor_ghosts=corridor_ghosts,
             ghost_exclude_ids=ghost_exclude_ids, plane_tap=plane_tap)
+        if result.success:
+            _ko = _tap_in_net_keepout(pcb_data, net_id, result)
+            if _ko:
+                ko_refused, result = _ko, TapResult(success=False)
+        if result.success:
+            _cut = _tap_cuts_barrier(config, pcb_data, net_id, result, pad)
+            if _cut:
+                barrier_refused, result = _cut, TapResult(success=False)
         if result.success:
             result.params_label = 'default'
             result.clearance_used = config.clearance
@@ -1436,10 +1546,11 @@ def tap_pad_with_escalation(
         n_layers = len(pcb_data.board_info.copper_layers) or 2
         # escalation_rungs: empty under --escalation off (the via then stays
         # at the caller's size), raised to the board's minimums under board.
+        _net_floors = config.rule_floors(getattr(pad, 'net_id', 0) or 0)
         cvs, cvd, vstatus, vrung = clamp_via_to_pad(
             via_size, via_drill, pad,
-            escalation_rungs(n_layers, extra_floors=config.rule_floors(
-                getattr(pad, 'net_id', 0) or 0)))
+            escalation_rungs(n_layers, extra_floors=_net_floors),
+            rule_floors=_net_floors)
         # Only adopt the clamp when it genuinely produces a SMALLER via than the
         # caller's -- a pad the caller's via already fits ('fits'), or a pad so
         # small the clamp can't shrink below the fab floor it's already at, leaves
@@ -1461,6 +1572,15 @@ def tap_pad_with_escalation(
                 plane_oracle=plane_oracle, corridor_ghosts=corridor_ghosts,
                 ghost_exclude_ids=ghost_exclude_ids, plane_tap=plane_tap)
             if result.success:
+                _ko = _tap_in_net_keepout(pcb_data, net_id, result)
+                if _ko:
+                    ko_refused, result = _ko, TapResult(success=False)
+            if result.success:
+                _cut = _tap_cuts_barrier(fine_config, pcb_data, net_id, result,
+                                         pad)
+                if _cut:
+                    barrier_refused, result = _cut, TapResult(success=False)
+            if result.success:
                 result.params_label = 'fine'
                 result.clearance_used = fine_config.clearance
                 note_clearance_used(pcb_data, fine_config.clearance,
@@ -1470,6 +1590,14 @@ def tap_pad_with_escalation(
                 return result
             last_failure = result
 
+    if ko_refused:
+        print(f"    tap of {pad.component_ref}.{pad.pad_number} refused: its copper "
+              f"is inside net keep-out(s) " + '; '.join(
+                  f"{r['region']}: {r['net']} ({r['tracks']} track(s), {r['vias']} via(s))"
+                  for r in ko_refused))
+    if barrier_refused:
+        print(f"    tap of {pad.component_ref}.{pad.pad_number} refused: its copper "
+              f"would cut the {barrier_refused} pour (#1260)")
     # Return the last failure so a rip-up caller sees its via_blocked /
     # blocked_cells diagnostics.
     return last_failure
@@ -1507,6 +1635,8 @@ def find_unconnected_plane_pads(
         if off_board is not None and off_board(pad.global_x, pad.global_y):
             skipped_off_board += 1
             continue
+        if pad.sense:
+            continue    # #1279: a sense pad joins its net at the join pad only
         if pad_is_plated_through(pad):
             continue
         if '*.Cu' in pad.layers or any(zl in pad.layers for zl in zone_layers):

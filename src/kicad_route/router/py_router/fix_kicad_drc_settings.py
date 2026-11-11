@@ -103,8 +103,9 @@ WARNING_CATS = ["starved_thermal"]
 # Severity rank for "only loosen" comparisons (higher = stricter).
 _SEV_RANK = {"error": 2, "warning": 1, "ignore": 0}
 
-# The change strings the most recent fix_project_for_output wrote (a routing
-# main reads this right after the call to put them in its run summary).
+# The change strings the most recent fix_project_for_output wrote. Kept for a
+# run summary to publish; nothing reads it today (no JSON_SUMMARY carries a
+# project_writes key).
 LAST_PROJECT_WRITES = []
 
 # Net-class fields a writeback may lower, for EVERY class including Default.
@@ -362,10 +363,21 @@ def project_grading_clearance(proj: dict):
     multichannel_mixer (class 0.2, min_clearance 0.3): kicad-cli reports 12
     clearance errors on the designer's own board; graded at the class alone,
     check_drc and board_score read clean."""
-    cls = project_copper_clearance(proj)
     mc = ((proj.get("board") or {}).get("design_settings") or {}) \
         .get("rules", {}).get("min_clearance")
-    mc = float(mc) if isinstance(mc, (int, float)) and mc > 0 else None
+    return grading_clearance(project_copper_clearance(proj), mc)
+
+
+def grading_clearance(class_clearance, min_clearance):
+    """``(clearance, source)``: the Default class clearance floored at Board
+    Setup ``min_clearance``, KiCad's grading rule (#1210), from the two
+    values however they were read. A missing or non-positive value is unset;
+    ``(None, None)`` when both are. One rule for
+    :func:`project_grading_clearance` and the placement graders'
+    ``list_nets.board_grading_clearance`` (#1338)."""
+    def _mm(v):
+        return float(v) if isinstance(v, (int, float)) and v > 0 else None
+    cls, mc = _mm(class_clearance), _mm(min_clearance)
     if mc is not None and (cls is None or mc > cls + 1e-9):
         return mc, "board minimum clearance"
     if cls is None:
@@ -485,6 +497,12 @@ def connection_width_floor(pcb_data, track_width=None, *,
     path = getattr(pcb_data, 'source_path', '') or ''
     provider = getattr(pcb_data, 'live_rules_provider', None)
     live = provider() if callable(provider) else None
+    # The rules this reader has always taken from the live board: one that
+    # declares only the edge clearance (which the fill model reads from the
+    # same channel) still sends it to the file.
+    live = {k: v for k, v in (live or {}).items()
+            if k in ('min_track_width', 'min_connection',
+                     'min_hole_clearance')} or None
     if live is not None:
         floor = web_min_connection(
             {'board': {'design_settings': {'rules': dict(live)}}})
@@ -1177,8 +1195,12 @@ def _fab_floor_disclosure(output_pcb: str, rules_before: dict, proj: dict,
         was, now = rules_before.get(key), rules_after.get(key)
         # Baseline is the board's ORIGINAL declaration where we know it, and
         # the immediate input otherwise (first step of a chain, or a project
-        # that predates the origin key).
-        base = origin.get(key, was)
+        # that predates the origin key). Once an origin is recorded, a key it
+        # lacks is one the board never declared: the input's value is then
+        # one an earlier step wrote, and reporting it as "the ORIGINAL" is
+        # how a bare pour's invented min_via_drill 0.6 became route.py's
+        # "via drill: 0.6 -> 0.5 ... ORIGINAL 0.6mm" (#1319).
+        base = origin.get(key) if origin else was
         if not isinstance(now, (int, float)) or not isinstance(base, (int, float)):
             continue
         if now < base - _FLOOR_EPS:
@@ -1245,6 +1267,122 @@ def _fab_floor_disclosure(output_pcb: str, rules_before: dict, proj: dict,
     return lines
 
 
+def board_size_values(pcb) -> dict:
+    """Every size a measurable fab floor is a statement about, per
+    :data:`FAB_FLOOR_KEYS_MEASURABLE` key: ``{key: [mm, ...]}``, one value per
+    object. :func:`scan_board_minima` is the smallest of each list, and
+    :func:`count_below_floors` counts against them, so a floor's minimum and
+    its count always read the same objects."""
+    # Footprint / board GRAPHIC copper (#908, #337) is a shape, not a track:
+    # a filled fp_poly's stroke width is an outline width and KiCad's
+    # min_track_width rule never grades it. Counting it here wrote
+    # `rules.min_track_width 0.15 -> 0.1` on every step of a chain whose
+    # only 0.1 mm "track" was a SOT-89 tab outline, and made check_complete
+    # read that board as UNSOUND (run 26, esp_prog).
+    via_drills = [v.drill for v in pcb.vias if v.drill]
+    # Through-hole pad / via drills set the smallest hole diameter on the board.
+    hole = list(via_drills)
+    for fp in pcb.footprints.values():
+        for pad in fp.pads:
+            if getattr(pad, "drill", 0):
+                hole.append(pad.drill)
+    return {
+        "min_track_width": [s.width for s in pcb.segments
+                            if s.width and s.width > 0
+                            and not getattr(s, 'graphic', False)],
+        "min_via_diameter": [v.size for v in pcb.vias if v.size],
+        "min_via_drill": via_drills,
+        "min_via_annular_width": [(v.size - v.drill) / 2.0 for v in pcb.vias
+                                  if v.size and v.drill and v.size > v.drill],
+        "min_through_hole_diameter": hole,
+    }
+
+
+def count_below_floors(pcb_path: str, floors: dict) -> dict:
+    """How many objects on the board sit below each floor in ``floors``
+    (``{FAB_FLOOR_KEYS_MEASURABLE key: mm}``), over the objects
+    :func:`board_size_values` reads: ``{key: count}``, a key absent when the
+    board has no such object or the floor is not a measurable one (#1580: a
+    relaxed floor carries a count, not only its smallest object). {} when the
+    board cannot be parsed."""
+    if not os.path.isfile(pcb_path):
+        return {}
+    try:
+        from kicad_parser import parse_kicad_pcb
+        values = board_size_values(parse_kicad_pcb(pcb_path))
+    except Exception as e:  # pragma: no cover - parser is robust, but stay safe
+        print(f"warning: could not count board sizes ({e})", file=sys.stderr)
+        return {}
+    return {k: sum(1 for v in values[k] if v < f - _FLOOR_EPS)
+            for k, f in floors.items()
+            if values.get(k) and isinstance(f, (int, float))}
+
+
+#: FAB_FLOOR_KEYS_MEASURABLE key -> the .kicad_dru constraint that can set it
+#: for one object (#1627)
+_RULE_KIND = {"min_track_width": "track_width", "min_via_diameter": "via_diameter",
+              "min_via_annular_width": "annular_width", "min_via_drill": "hole_size",
+              "min_through_hole_diameter": "hole_size"}
+
+
+def size_values_below_authored(pcb_path: str, floors: dict, rules_from: str) -> dict:
+    """#1627: every object of the board at ``pcb_path`` below the floor that
+    binds IT in the authored project beside ``rules_from``:
+    ``{key: {'below': [mm, ...], 'held_by_rule': n, 'rules': [names]}}``.
+
+    The floor of an object is the authored Board Setup value in ``floors``,
+    unless a rule of the AUTHORED ``.kicad_dru`` sets its minimum -- resolved
+    through ``design_rules`` exactly as check_drc resolves a size floor (the
+    net's classes from the authored project, KiCad's order, last match wins),
+    at KiCad's value. ``held_by_rule`` counts the objects under the Board
+    Setup value that such a rule allows; ``rules`` names those rules. The
+    objects are :func:`board_size_values`'. {} when the board cannot be
+    parsed."""
+    if not os.path.isfile(pcb_path):
+        return {}
+    try:
+        from kicad_parser import parse_kicad_pcb
+        from design_rules import DesignRules
+        pcb = parse_kicad_pcb(pcb_path)
+        dr = DesignRules.from_project(pcb, rules_from)
+    except Exception as e:  # pragma: no cover - parser is robust, but stay safe
+        print(f"warning: could not resolve authored size floors ({e})", file=sys.stderr)
+        return {}
+    objs = {
+        "min_track_width": [(s.width, dr.item_for_net(s.net_id, "track", s.layer), s.layer)
+                            for s in pcb.segments if s.width and s.width > 0
+                            and not getattr(s, "graphic", False)],
+        "min_via_diameter": [(v.size, dr.item_for_net(v.net_id, "via"), None)
+                             for v in pcb.vias if v.size],
+        "min_via_drill": [(v.drill, dr.item_for_net(v.net_id, "via"), None)
+                          for v in pcb.vias if v.drill],
+        "min_via_annular_width": [((v.size - v.drill) / 2.0, dr.item_for_net(v.net_id, "via"),
+                                   None) for v in pcb.vias
+                                  if v.size and v.drill and v.size > v.drill],
+    }
+    holes = [(v.drill, dr.item_for_net(v.net_id, "via"), None) for v in pcb.vias if v.drill]
+    for fp in pcb.footprints.values():
+        for pad in fp.pads:
+            if getattr(pad, "drill", 0):
+                holes.append((pad.drill, dr.item_for_pad(pad), None))
+    objs["min_through_hole_diameter"] = holes
+    out = {}
+    for key, f in floors.items():
+        if key not in objs or not objs[key] or not isinstance(f, (int, float)):
+            continue
+        below, held, names = [], 0, set()
+        for val, item, layer in objs[key]:
+            c = dr.resolve(_RULE_KIND[key], item, None, layer)
+            floor = c.kicad_min if (c.min_rule and c.kicad_min is not None) else f
+            if val < floor - _FLOOR_EPS:
+                below.append(val)
+            elif val < f - _FLOOR_EPS:
+                held += 1
+                names.add(c.min_rule)
+        out[key] = {"below": below, "held_by_rule": held, "rules": sorted(names)}
+    return out
+
+
 def scan_board_minima(pcb_path: str):
     """Smallest track width / via diameter / via drill / via annular ring / hole
     diameter actually present on the board. These are floors KiCad's min-size
@@ -1260,46 +1398,54 @@ def scan_board_minima(pcb_path: str):
         print(f"warning: could not scan board minima ({e})", file=sys.stderr)
         return {}
 
-    out = {}
-    # Footprint / board GRAPHIC copper (#908, #337) is a shape, not a track:
-    # a filled fp_poly's stroke width is an outline width and KiCad's
-    # min_track_width rule never grades it. Counting it here wrote
-    # `rules.min_track_width 0.15 -> 0.1` on every step of a chain whose
-    # only 0.1 mm "track" was a SOT-89 tab outline, and made check_complete
-    # read that board as UNSOUND (run 26, esp_prog).
-    widths = [s.width for s in pcb.segments
-              if s.width and s.width > 0 and not getattr(s, 'graphic', False)]
-    if widths:
-        out["min_track_width"] = min(widths)
-    via_drills = [v.drill for v in pcb.vias if v.drill]
-    if pcb.vias:
-        sizes = [v.size for v in pcb.vias if v.size]
-        if sizes:
-            out["min_via_diameter"] = min(sizes)
-        if via_drills:
-            out["min_via_drill"] = min(via_drills)
-        annular = [(v.size - v.drill) / 2.0 for v in pcb.vias
-                   if v.size and v.drill and v.size > v.drill]
-        if annular:
-            out["min_via_annular_width"] = min(annular)
-    # Through-hole pad / via drills set the smallest hole diameter on the board.
-    hole = list(via_drills)
-    for fp in pcb.footprints.values():
-        for pad in fp.pads:
-            if getattr(pad, "drill", 0):
-                hole.append(pad.drill)
-    if hole:
-        out["min_through_hole_diameter"] = min(hole)
-    # #530: the smallest pad / footprint clearance OVERRIDE on copper pads.
-    # KiCad floors an override at rules.min_clearance (measured, KiCad 10), so
-    # a project whose min_clearance sits ABOVE an override the router honoured
-    # flags the copper routed at it. The writeback caps min_clearance here.
+    out = {k: min(v) for k, v in board_size_values(pcb).items() if v}
+    ovr = pad_clearance_override_minimum(pcb)
+    if ovr is not None:
+        out["min_pad_clearance_override"] = ovr
+    return out
+
+
+def pad_clearance_override_minimum(pcb):
+    """#530: the smallest pad / footprint clearance OVERRIDE on the board's
+    copper pads, or None. KiCad floors an override at rules.min_clearance
+    (measured, KiCad 10), so a project whose min_clearance sits ABOVE an
+    override the router honoured flags the copper routed at it. The writeback
+    caps min_clearance here (:func:`scan_board_minima`'s
+    ``min_pad_clearance_override``)."""
     ovr = [pad.local_clearance for fp in pcb.footprints.values() for pad in fp.pads
            if (getattr(pad, "local_clearance", 0) or 0) > 0
            and getattr(pad, "pad_type", "") != "np_thru_hole"
            and any(str(l).endswith(".Cu") for l in (getattr(pad, "layers", None) or []))]
-    if ovr:
-        out["min_pad_clearance_override"] = min(ovr)
+    return min(ovr) if ovr else None
+
+
+def copper_minima(segments=(), vias=()):
+    """:func:`scan_board_minima`'s size keys over the given copper only --
+    track segments and vias, parsed or the engine's dicts (``width``;
+    ``size`` / ``drill``): ``min_track_width``, ``min_via_diameter``,
+    ``min_via_drill``, ``min_via_annular_width`` and
+    ``min_through_hole_diameter`` (the via drills). The floors of the copper a
+    step laid or moved, for a writeback that must not follow copper the step
+    never touched (#1578: place_fanout_clearance, which moves caps and at
+    most nudges a via)."""
+    def _get(o, k):
+        return o.get(k) if isinstance(o, dict) else getattr(o, k, None)
+    out = {}
+    widths = [_get(s, 'width') for s in segments or ()
+              if not _get(s, 'graphic') and (_get(s, 'width') or 0) > 0]
+    if widths:
+        out["min_track_width"] = min(widths)
+    vs = [(_get(v, 'size') or 0.0, _get(v, 'drill') or 0.0) for v in vias or ()]
+    sizes = [s for s, _d in vs if s]
+    drills = [d for _s, d in vs if d]
+    if sizes:
+        out["min_via_diameter"] = min(sizes)
+    if drills:
+        out["min_via_drill"] = min(drills)
+        out["min_through_hole_diameter"] = min(drills)
+    rings = [(s - d) / 2.0 for s, d in vs if s and d and s > d]
+    if rings:
+        out["min_via_annular_width"] = min(rings)
     return out
 
 
@@ -1310,11 +1456,16 @@ def scan_board_minima(pcb_path: str):
 
 def compute_targets(clearance=None, hole_clearance=None, hole_to_hole=None,
                     edge_clearance=None, track_width=None, via_diameter=None,
-                    via_drill=None, minima=None, fab_edge=None):
+                    via_drill=None, minima=None, fab_edge=None, copper_holes=True):
     """Map KiCad rule keys -> target floor (mm) from the routing parameters.
     Each value, when given, becomes a floor; sizes fall back to the board's
     smallest such object (``minima`` from :func:`scan_board_minima`) when the
     param is None. Keys absent from the result => leave that rule alone.
+
+    ``copper_holes`` False: the step laid no track or via (a bare pour,
+    :func:`plane_fix_kwargs`), so no copper of its own sits at copper
+    clearance from a hole and the copper-to-hole floor does NOT follow
+    ``clearance`` -- only an explicit ``hole_clearance`` is written (#1319).
 
     One key is NOT a rule: ``class_clearance`` (#900), the net-class clearance,
     which is the routed value and never carries the ``min_clearance`` caps.
@@ -1341,8 +1492,10 @@ def compute_targets(clearance=None, hole_clearance=None, hole_to_hole=None,
         _ovr = minima.get("min_pad_clearance_override")
         if _ovr is not None and _ovr > 0 and clearance > _ovr:
             targets["min_clearance"] = round(float(_ovr), 6)
-    # Hole/copper clearance: explicit value, else the copper-clearance floor.
-    hole_clr = hole_clearance if hole_clearance is not None else clearance
+    # Hole/copper clearance: explicit value, else the copper-clearance floor
+    # when the step drew copper that sits at it (copper_holes).
+    hole_clr = (hole_clearance if hole_clearance is not None
+                else clearance if copper_holes else None)
     if hole_clr is not None:
         targets["min_hole_clearance"] = hole_clr
     if hole_to_hole is not None:
@@ -1447,18 +1600,16 @@ def severity_plan(keep_courtyards=False, keep_mask=False, keep_footprint=False,
 def apply_targets_to_project(proj: dict, targets: dict, sev_plan: dict,
                              ignore_current_warnings=False,
                              diff_pair_gap=None, diff_pair_width=None,
-                             clamp_nondefault_netclasses=False):
+                             clamp_nondefault_netclasses=False,
+                             class_ceiling=None, class_descents=None,
+                             lowered_classes=None):
     """Apply the floors + severity plan to a parsed ``.kicad_pro`` dict, only
     ever loosening (lowering a constraint / lowering a severity rank), never
     tightening. Returns a list of human-readable change strings.
 
-    ``diff_pair_gap`` / ``diff_pair_width`` (mm), when given, lower the Default
-    net class's differential-pair geometry to the values the board was actually
-    routed to (issue: a stock 0.25 mm net-class gap is far wider than the
-    fab-floor ~0.1 mm coupled pairs route_diff places, and a planner reading the
-    net class back would recommend the wide value). Neither is a DRC-enforced
-    minimum -- they are draw defaults -- so lowering them cannot create a new
-    violation, consistent with the only-loosen guarantee.
+    ``diff_pair_gap`` / ``diff_pair_width`` are accepted for signature
+    compatibility and IGNORED (#842): they are net-class draw defaults, and a
+    routing step never writes those -- lowering them was the #842 ratchet.
 
     ``clamp_nondefault_netclasses`` clamps the NON-Default net classes'
     clearance/track/via floors DOWN to the routed values. The real entry points
@@ -1467,9 +1618,9 @@ def apply_targets_to_project(proj: dict, targets: dict, sev_plan: dict,
     the human-routed references violate their own class -- zynq has 499 clearance
     violations at its 0.2 class, routed ~0.1), so keeping the stock class in the
     output manufactures phantom sub-class DRC on copper that was routed correctly at
-    the fab floor. The router honors min(class, --clearance) in-run and the writeback
+    the fab floor. The router honors min(class, --clearance-ceiling) in-run and the writeback
     records that same floor, so KiCad grades exactly what was routed. Passing False
-    (the caller routed without a --clearance ceiling, i.e. it HONORED the classes)
+    (the caller routed without --clearance-ceiling, i.e. it HONORED the classes)
     PRESERVES the original class spec. The Default-class /
     rules.min_clearance write below is UNRELATED to this flag and stays: it records
     the actual ROUTING clearance (the router's config.clearance), only-lowering so a
@@ -1572,22 +1723,38 @@ def apply_targets_to_project(proj: dict, targets: dict, sev_plan: dict,
                 default_cls[field] = target
     # NON-Default classes (#295 follow-up; ON by default since #439): stock net
     # classes are largely aspirational, so copper routed at the real fab floor
-    # (min(class, --clearance)) would storm KiCad's per-net-class DRC if the output
-    # kept the stock class. Clamp each non-Default class DOWN to the routed values
-    # so grading matches the copper. clamp=False (the caller routed WITHOUT a
-    # --clearance ceiling, honoring the classes) preserves the original class rules.
+    # (min(class, --clearance-ceiling)) would storm KiCad's per-net-class DRC if the
+    # output kept the stock class. Clamp each non-Default class DOWN to the routed
+    # values so grading matches the copper. clamp=False (the caller routed WITHOUT
+    # --clearance-ceiling, honoring the classes) preserves the original class rules.
+    # #1492: each class is clamped to the CEILING the step was given --
+    # min(class, ceiling), the value the router priced it at -- not to the
+    # Default class's routed clearance, which a descent on one Default net
+    # dragged every class down to; a descent on the class's OWN net lowers it
+    # further, and is returned in `lowered_classes` to be recorded.
     if clamp_nondefault_netclasses:
         for cls in classes:
             if cls is default_cls or not isinstance(cls, dict):
                 continue
             cname = cls.get("name", "?")
-            for field, target in nc_map.items():
-                if target is None or field not in _NONDEFAULT_CLAMP_FIELDS:
+            for field, routed in nc_map.items():
+                if field not in _NONDEFAULT_CLAMP_FIELDS:
+                    continue
+                target = nondefault_class_target(cname, routed, class_ceiling,
+                                                 class_descents)
+                if target is None:
                     continue
                 target = round(float(target), 6)
                 cur = cls.get(field)
                 if cur is not None and cur > target + EPS:
                     changes.append(f"net_class[{cname}].{field}: {cur} -> {target} mm")
+                    d = (class_descents or {}).get(cname)
+                    if lowered_classes is not None and d is not None \
+                            and target <= d[0] + EPS:
+                        frm = min(float(cur), class_ceiling) \
+                            if class_ceiling is not None else float(cur)
+                        if target < frm - EPS:
+                            lowered_classes[cname] = (frm, target, d[1])
                     cls[field] = target
 
     def loosen_severity(cat, level):
@@ -1615,7 +1782,8 @@ def apply_targets_to_project(proj: dict, targets: dict, sev_plan: dict,
 def add_drc_fix_args(parser, *, include_no_fix=True):
     """Add the post-route DRC-settings-fix CLI options shared by the routing
     front-ends (``route.py`` / ``route_diff.py`` / ``route_planes.py`` /
-    ``repair_planes.py``). Wiring a new shared DRC-fix flag in here
+    ``repair_planes.py`` / ``bga_fanout`` / ``qfn_fanout``, and this script's
+    own CLI). Wiring a new shared DRC-fix flag in here
     adds it to all of them at once; pair with :func:`drc_fix_kwargs` to forward the
     parsed values into :func:`fix_project_for_output`.
 
@@ -1637,9 +1805,10 @@ def add_drc_fix_args(parser, *, include_no_fix=True):
                         "violation unless asked. Each change is logged and the previous "
                         "value is kept under kicad_routing_tools.saved_severities.")
     g.add_argument("--keep-thermal", action="store_true",
-                   help="Deprecated no-op. Routing steps no longer touch DRC severities "
-                        "unless --relax-drc-severities is given; with it, this leaves "
-                        "starved_thermal untouched.")
+                   help="Only with --relax-drc-severities (the standalone script's "
+                        "--relax-severities): leave starved_thermal at its current severity "
+                        "instead of lowering it to warning. Without it a routing step does "
+                        "not touch DRC severities, so this does nothing.")
     g.add_argument("--enable-used-layers", action="store_true",
                    help="Add any layer the board uses but that is missing from its (layers) table "
                         "back into the .kicad_pcb, so KiCad shows it as selectable and stops "
@@ -1652,21 +1821,109 @@ def drc_fix_kwargs(args):
     """Map args parsed via :func:`add_drc_fix_args` to :func:`fix_project_for_output`
     keyword arguments (the shared DRC-fix flags only -- per-script routing floors
     like clearance/track/via are passed separately by each caller)."""
-    # #439: clamp NON-Default classes to the routed clearance whenever the caller
-    # routed with an explicit --clearance ceiling (args._clamp_netclasses, set by
-    # route.py / route_diff.py main); when --clearance was omitted the classes were
-    # honored in full, so the writeback preserves them. Callers that do not set the
+    # #439/#530: clamp NON-Default classes to the routed clearance whenever the
+    # caller routed with --clearance-ceiling (args._clamp_netclasses, set by the
+    # route / route_diff / plane mains); without it the classes were honored in
+    # full, so the writeback preserves them. Callers that do not set the
     # attribute (fanout, standalone runs) clamp by default -- the safe choice, since
     # clamping only ever lowers the output class to the copper actually routed.
     clamp = getattr(args, "_clamp_netclasses", True)
+    # #1492: the ceiling itself, so each class lands at min(class, ceiling) --
+    # what the router priced it at -- not at the routed Default clearance.
+    # None (a fanout front routing every net at one scalar, a standalone
+    # run): the classes are clamped to the routed value, as before.
     return dict(keep_thermal=args.keep_thermal, enable_layers=args.enable_used_layers,
                 relax_severities=getattr(args, "relax_drc_severities", False),
-                clamp_nondefault_netclasses=clamp)
+                clamp_nondefault_netclasses=clamp,
+                class_ceiling=getattr(args, "_clearance_ceiling", None) if clamp else None)
 
 
 #: The project record of a Default class clearance an AUTOMATIC descent
 #: lowered (#1160), under ``kicad_routing_tools``: ``{from, to, nets}``.
 CLASS_CLEARANCE_RELAXED_KEY = "class_clearance_relaxed"
+#: #1492: the same record for the NON-Default classes, ``{class: {from, to,
+#: nets}}``: a class lowered below min(class, ceiling) by a descent on one
+#: of its own nets.
+CLASS_CLEARANCE_RELAXED_CLASSES_KEY = "class_clearance_relaxed_classes"
+
+
+def nondefault_class_descents(pcb_path):
+    """``{class: (delivered, [nets])}`` for each NON-Default net class one of
+    whose nets this step routed below the clearance it asked for (#1492): the
+    run's ``design_rules`` ``clearance`` rows (fab_tiers.note_narrowing), each
+    net mapped to its classes through the project beside ``pcb_path``
+    (`list_nets.net_class_memberships`, the resolver the router prices by).
+    ``delivered`` is the class's lowest. {} when nothing descended."""
+    try:
+        from fab_tiers import escalation_summary
+        rows = [r for r in escalation_summary().get("narrowed") or ()
+                if r.get("kind") == "clearance"
+                and float(r["delivered"]) < float(r["requested"]) - _FLOOR_EPS]
+    except Exception:                                        # noqa: BLE001
+        return {}
+    if not rows or not pcb_path:
+        return {}
+    # one key per row: its net id, or a stand-in for a row that names the
+    # net only
+    keyed = [(r.get("net") if r.get("net") is not None else -1 - i, r)
+             for i, r in enumerate(rows)]
+    names = {k: r.get("net_name") for k, r in keyed if r.get("net_name")}
+    try:
+        from list_nets import net_class_memberships
+        member = net_class_memberships(pcb_path, names)
+    except Exception:                                        # noqa: BLE001
+        return {}
+    out = {}
+    for nid, r in keyed:
+        for c in member.get(nid) or ():
+            if c == "Default":
+                continue
+            d, nets = out.get(c, (float("inf"), []))
+            out[c] = (min(d, float(r["delivered"])),
+                      sorted(set(nets) | {r.get("net_name") or f"net {nid}"}))
+    return out
+
+
+def nondefault_class_target(cname, routed, ceiling=None, descents=None):
+    """The clearance a NON-Default class is clamped DOWN to (#1492): the
+    ceiling the step was given (min(class, ceiling), the router's own
+    pricing), else -- a caller that knows no ceiling, a fanout front routing
+    every net at one scalar -- the routed clearance, as before; either
+    lowered to the class's own descent (`nondefault_class_descents`)."""
+    t = ceiling if ceiling is not None else routed
+    d = (descents or {}).get(cname)
+    if d is not None and (t is None or d[0] < t):
+        t = d[0]
+    return t
+
+
+def record_nondefault_class_descents(proj, lowered):
+    """Store ``{class: {from, to, nets}}`` for the classes a descent lowered
+    (#1492) under ``kicad_routing_tools``, carrying an earlier step's record
+    forward (its ``from`` and nets kept). True when it changed."""
+    if not lowered:
+        return False
+    ns = proj.setdefault("kicad_routing_tools", {})
+    rec = dict(ns.get(CLASS_CLEARANCE_RELAXED_CLASSES_KEY) or {})
+    for c, (frm, to, nets) in lowered.items():
+        old = rec.get(c) or {}
+        rec[c] = {"from": round(max(float(old.get("from") or 0.0), frm), 6),
+                  "to": round(to, 6),
+                  "nets": sorted(set(old.get("nets") or ()) | set(nets))}
+    ns[CLASS_CLEARANCE_RELAXED_CLASSES_KEY] = rec
+    return True
+
+
+def nondefault_class_descent_disclosure(lowered):
+    """The lines naming each NON-Default class a descent lowered (#1492)."""
+    out = []
+    for c, (frm, to, nets) in sorted((lowered or {}).items()):
+        who = ", ".join(nets[:6]) + (f" (+{len(nets) - 6} more)" if len(nets) > 6 else "")
+        out.append(f"  NET CLASS {c} CLEARANCE LOWERED BY A DESCENT -- {frm:g} -> "
+                   f"{to:g} mm: an automatic clearance descent on {who} routed "
+                   f"below the {frm:g} mm this class was routed at; KiCad grades "
+                   f"the class at {to:g} from here on")
+    return out
 
 
 def record_class_clearance_descent(proj: dict, class_before):
@@ -1713,6 +1970,86 @@ def record_class_clearance_descent(proj: dict, class_before):
            "nets": sorted(set(rec.get("nets") or ()) | names)}
     proj.setdefault("kicad_routing_tools", {})[CLASS_CLEARANCE_RELAXED_KEY] = rec
     return rec, True
+
+
+def pad_override_floor_record(records, rule_before, rule_after, uncapped):
+    """The :data:`fab_tiers.PAD_OVERRIDE_FLOOR_KEY` record a writeback leaves
+    (#1369), or None when ``rules.min_clearance`` is the board's own.
+
+    ``rule_before`` / ``rule_after``: the rule before and after this writer
+    lowered it (mm; None / 0 = undeclared). ``uncapped``: what the writer
+    would have written WITHOUT the #530 pad-override cap -- its routed
+    clearance, under the ``.kicad_dru`` cap (#498), which is a board
+    declaration. The board's own minimum after the write is the smaller of
+    the board's minimum before it (unmasked through an earlier record) and
+    ``uncapped``; a rule below that was lowered for a pad override only, and
+    is recorded so ``--escalation board`` reads the board's value instead."""
+    from fab_tiers import board_declared_min_clearance
+
+    def _pos(v):
+        return float(v) if isinstance(v, (int, float)) and v > 0 else None
+    before = _pos(rule_before)
+    if before is not None:
+        before = _pos(board_declared_min_clearance(before, records))
+    vals = [v for v in (before, _pos(uncapped)) if v is not None]
+    after = _pos(rule_after)
+    if not vals or after is None:
+        return None
+    board = min(vals)
+    if after < board - 5e-6:      # 5 nm: a live rule is held in whole nm
+        return {"rule": round(after, 6), "board": round(board, 6)}
+    return None
+
+
+def record_pad_override_floor(proj: dict, rule_before, uncapped) -> bool:
+    """File writeback half of :func:`pad_override_floor_record`: store (or
+    drop) the record in ``proj``'s ``kicad_routing_tools`` after the rules
+    were applied. True when the record changed. Called only by a writer that
+    wrote a ``min_clearance`` target (``uncapped`` not None)."""
+    from fab_tiers import PAD_OVERRIDE_FLOOR_KEY
+    ns = proj.get("kicad_routing_tools")
+    ns = ns if isinstance(ns, dict) else {}
+    after = (((proj.get("board") or {}).get("design_settings") or {})
+             .get("rules") or {}).get("min_clearance")
+    rec = pad_override_floor_record(ns, rule_before, after, uncapped)
+    old = ns.get(PAD_OVERRIDE_FLOOR_KEY)
+    if rec == old or (rec is None and old is None):
+        return False
+    if rec is None:
+        ns.pop(PAD_OVERRIDE_FLOOR_KEY, None)
+    else:
+        proj.setdefault("kicad_routing_tools", {})[PAD_OVERRIDE_FLOOR_KEY] = rec
+    return True
+
+
+def record_live_pad_override_floor(board, rule_before, uncapped) -> None:
+    """Live-board half of :func:`pad_override_floor_record`: after a live
+    writer set ``m_MinClearance``, store (or drop) the record in the board's
+    records (tool_records -- its project and the board itself, the copy
+    KiCad's save keeps), as the file writeback stores it in the project.
+    ``rule_before`` is the DECLARED rule before the writer (None when the
+    board declares none). Best-effort: never raises."""
+    if uncapped is None:
+        return
+    try:
+        from fab_tiers import PAD_OVERRIDE_FLOOR_KEY
+        import tool_records
+        after = board.GetDesignSettings().m_MinClearance / 1e6
+        ns = tool_records.live_namespace(board)
+        rec = pad_override_floor_record(ns, rule_before, after, uncapped)
+        old = ns.get(PAD_OVERRIDE_FLOOR_KEY)
+        if rec == old or (rec is None and old is None):
+            return
+
+        def _record(n):
+            if rec is None:
+                n.pop(PAD_OVERRIDE_FLOOR_KEY, None)
+            else:
+                n[PAD_OVERRIDE_FLOOR_KEY] = dict(rec)
+            return True
+        tool_records.update_live_namespace(board, _record)
+    except Exception:                                           # noqa: BLE001
+        pass
 
 
 def class_clearance_disclosure(rec, lowered_here, class_now=None):
@@ -1810,8 +2147,9 @@ def warn_if_missing_project_floor(input_pcb) -> bool:
 
 
 def apply_routed_floors(board_pcb: str, clearance=None, hole_clearance=None,
-                        clamp_nondefault_netclasses=False, verbose=False):
-    """Lower ``board_pcb``'s sibling ``.kicad_pro`` to the COPPER floors this run
+                        edge_clearance=None, clamp_nondefault_netclasses=False,
+                        verbose=False):
+    """Set ``board_pcb``'s sibling ``.kicad_pro`` to the COPPER floors this run
     routed to, MID-RUN, so anything that grades the board before ``main()``'s
     authoritative writeback sees the floors the board will actually SHIP with.
 
@@ -1827,8 +2165,14 @@ def apply_routed_floors(board_pcb: str, clearance=None, hole_clearance=None,
     phantom, and kicad-cli is the DEMAND gate of the #648 source union, so they
     become junk welds in the longest leg of the chain.
 
-    COPPER floors only -- clearance / hole-to-copper, and the net classes that
-    follow them, which is what changes zone fill. Track / via / annular floors
+    COPPER floors only -- clearance / hole-to-copper, the net classes that
+    follow them, and copper-to-edge, which is what changes zone fill. The edge
+    is the one floor this RAISES (#1449): the run routes at the fab-edge pin
+    (#441) and the writeback ships ``max(board rule, routed edge, fab edge)``,
+    so ``edge_clearance`` (the run's resolved edge clearance) is written the
+    same way here. Left at the input's sub-fab rule, the audit filled a pour
+    neck beside the edge that the shipped fill drops, read the pour whole and
+    strapped nothing, and the shipped pour was split. Track / via / annular floors
     are left to the final writeback: measured inert for the fill (the same board
     graded 57 either way with only those clamped) and they want the board's
     scanned minima, which mid-run copper has not settled.
@@ -1849,11 +2193,13 @@ def apply_routed_floors(board_pcb: str, clearance=None, hole_clearance=None,
     written regardless -- that is :func:`apply_targets_to_project`'s documented
     behaviour and matches what the writeback will do either way.
 
-    Only-loosen, via the same :func:`apply_targets_to_project` the writeback
-    uses, so :func:`fix_project_for_output` stays authoritative and can never
-    conflict with what this wrote. No-op when the board has no sibling project
-    or no floor was given. Returns the change strings (empty = nothing done)."""
-    if not board_pcb or (clearance is None and hole_clearance is None):
+    Only-loosen (the edge aside, raised as above), via the same
+    :func:`apply_targets_to_project` the writeback uses, so
+    :func:`fix_project_for_output` stays authoritative and can never conflict
+    with what this wrote. No-op when the board has no sibling project or no
+    floor was given. Returns the change strings (empty = nothing done)."""
+    if not board_pcb or (clearance is None and hole_clearance is None
+                         and edge_clearance is None):
         return []
     pro = find_project(board_pcb)
     if not os.path.isfile(pro):
@@ -1869,7 +2215,11 @@ def apply_routed_floors(board_pcb: str, clearance=None, hole_clearance=None,
     # FAB_FLOOR_KEYS rule -- see seed_fab_floor_origin for what went silent
     # while this was the writeback's private business.
     _rules_before = _effective_rules(proj)
-    targets = compute_targets(clearance=clearance, hole_clearance=hole_clearance)
+    targets = compute_targets(
+        clearance=clearance, hole_clearance=hole_clearance,
+        edge_clearance=edge_clearance,
+        fab_edge=(fab_edge_floor(board_pcb) if edge_clearance is not None
+                  else None))
     changes = apply_targets_to_project(
         proj, targets, {},
         clamp_nondefault_netclasses=clamp_nondefault_netclasses)
@@ -1890,7 +2240,7 @@ def apply_routed_floors(board_pcb: str, clearance=None, hole_clearance=None,
     except OSError:
         return []
     if verbose:
-        print(f"  In-run DRC floors (#650): lowered {len(changes)} value(s) in "
+        print(f"  In-run DRC floors (#650): set {len(changes)} value(s) in "
               f"{os.path.basename(pro)} to the routed floors so the in-run "
               f"audit grades what ships")
         for c in changes:
@@ -1898,31 +2248,101 @@ def apply_routed_floors(board_pcb: str, clearance=None, hole_clearance=None,
     return changes
 
 
+def carry_input_siblings(output_pcb: str, input_pcb=None, skip=()) -> list:
+    """Copy each of the input board's siblings (``copy_board.SIBLING_EXTS``,
+    less ``skip``) beside the output board, unless the output already has
+    one. An existing output sibling is never overwritten. Each copy is atomic
+    (tmp + ``os.replace``). Returns the paths written."""
+    import shutil
+    if not (output_pcb and input_pcb):
+        return []
+    from copy_board import SIBLING_EXTS
+    in_base = os.path.splitext(input_pcb)[0]
+    out_base = os.path.splitext(output_pcb)[0]
+    written = []
+    for ext in SIBLING_EXTS:
+        if ext in skip:
+            continue
+        src, dst = in_base + ext, out_base + ext
+        if os.path.isfile(src) and not os.path.isfile(dst) \
+                and os.path.abspath(src) != os.path.abspath(dst):
+            tmp = dst + '.tmp'
+            shutil.copyfile(src, tmp)
+            os.replace(tmp, dst)
+            written.append(dst)
+    return written
+
+
 def seed_project_for_output(output_pcb: str, input_pcb=None):
-    """Carry the input board's sibling ``.kicad_pro`` over to the output path
-    BEFORE the board file is written (#513 item 12). The full floor writeback
+    """Carry the input board's siblings over to the output path BEFORE the
+    board file is written (#513 item 12, #1286). The full floor writeback
     (``fix_project_for_output``) must run after the board exists because it scans
     the written copper -- so a mid-run kill in that window used to leave a
     valid board with NO sibling project, and the next step silently fell back
     to stock netclass floors (the #441/#338 class; peaksat_obc_adcs, twice).
     Seeding the input's project first means the window leaves the INPUT's
-    floors -- slightly stale at worst, never the stock fallback. Idempotent:
-    an existing output project is never touched. Returns the seeded path or
-    None."""
-    import shutil
-    if not output_pcb:
+    floors -- slightly stale at worst, never the stock fallback.
+
+    Every sibling is seeded here, not only the ``.kicad_pro``, because this is
+    the one carry every routing writer makes. The writeback is skipped under
+    ``--no-fix-drc-settings``, and when the ``.kicad_dru`` was carried only
+    there, such an output reached kicad-cli without the board's custom rules:
+    a pad pair legal under its 0.16 mm rule was graded a clearance violation
+    on 12 of 13 single-net re-routes (#1286). Idempotent: an existing output
+    sibling is never touched. Returns the paths seeded.
+
+    An existing output ``.kicad_pro`` whose rules differ from the input's is
+    still kept, but said so on the first write of that output in this process
+    (``warn_leftover_output_project``)."""
+    warn_leftover_output_project(output_pcb, input_pcb)
+    return carry_input_siblings(output_pcb, input_pcb)
+
+
+#: Outputs this process has already seeded: the leftover warning is about the
+#: project found BEFORE the step's first write, not the one its own writeback
+#: lowered since.
+_SEEDED_OUTPUTS = set()
+
+
+def _project_rules(path):
+    """A project's rule floors and net classes, or None when unreadable."""
+    try:
+        with open(path, encoding='utf-8') as f:
+            proj = json.load(f)
+    except (OSError, ValueError):
         return None
-    out_pro = find_project(output_pcb)
-    if os.path.isfile(out_pro):
+    if not isinstance(proj, dict):
         return None
-    in_pro = find_project(input_pcb) if input_pcb else None
-    if not (in_pro and os.path.isfile(in_pro)
-            and os.path.abspath(in_pro) != os.path.abspath(out_pro)):
-        return None
-    tmp = out_pro + '.tmp'
-    shutil.copyfile(in_pro, tmp)
-    os.replace(tmp, out_pro)
-    return out_pro
+    rules = ((proj.get('board') or {}).get('design_settings') or {}).get('rules')
+    return rules, (proj.get('net_settings') or {}).get('classes')
+
+
+def warn_leftover_output_project(output_pcb, input_pcb=None):
+    """Warn when the output already has a ``.kicad_pro`` whose rules differ
+    from the input's: one left by an earlier run to the same path. It is kept
+    (an existing output sibling is never overwritten), and the floor writeback
+    then lowers from ITS floors, so a rerun silently inherits an earlier
+    attempt's relaxations ("unchanged by this step but still below the board's
+    ORIGINAL"). A PCB-chat routing plan run twice in one folder on 2026-10-22
+    kept a 0.127 mm track floor from its first attempt that way. Once per
+    output per process. Returns True when it warned."""
+    if not (output_pcb and input_pcb):
+        return False
+    key = os.path.abspath(output_pcb)
+    if key == os.path.abspath(input_pcb) or key in _SEEDED_OUTPUTS:
+        return False
+    _SEEDED_OUTPUTS.add(key)
+    in_pro, out_pro = find_project(input_pcb), find_project(output_pcb)
+    if not (os.path.isfile(in_pro) and os.path.isfile(out_pro)):
+        return False
+    if _project_rules(in_pro) == _project_rules(out_pro):
+        return False
+    print(f"  WARNING: {out_pro} is left from an earlier run and is kept (an "
+          f"existing output sibling is never overwritten). Its design rules "
+          f"differ from the input's, and this step's floor writeback lowers "
+          f"from them, not from {os.path.basename(in_pro)}. Route to a fresh "
+          f"output path, or delete it first, to start from the input's rules.")
+    return True
 
 
 def fanout_written_floors(kind, tracks, vias):
@@ -1941,7 +2361,8 @@ def fanout_written_floors(kind, tracks, vias):
 
 
 def fanout_fix_kwargs(kind, tracks, vias, *, clearance, track_width,
-                      via_size, via_drill):
+                      via_size, via_drill, clearance_ceiling=None,
+                      hole_clearance=None):
     """THE fanout writeback: the :func:`fix_project_for_output` keywords a
     fanout step's floors are written with, or None when it writes none.
 
@@ -1951,25 +2372,450 @@ def fanout_fix_kwargs(kind, tracks, vias, *, clearance, track_width,
     for the live board. What they write, from :func:`fanout_written_floors`
     (#1195): the routed clearance (which also sets the copper-to-hole floor),
     the track width, the via size and drill only when the step may write via
-    floors, and every non-Default class clamped to the clearance (#439 -- a
-    fanout routes its escapes at that one clearance whatever the class). NO
-    hole-to-hole and no edge clearance: the CLI fanouts pass neither, so the
-    edge floor is the fab copper-to-edge pin alone. The tab used to write its
-    hole-to-hole and edge settings, never the copper-to-hole floor, and
-    clamped classes only under the Min-Clearance ceiling."""
+    floors, and the non-Default classes (#1529): both escapes are spaced at
+    KiCad's pairwise max(clearance, class A, class B), so the classes are
+    written as route.py writes them -- kept when ``clearance_ceiling`` is
+    None, else each clamped to min(class, ceiling) -- and a class whose nets
+    the step never touched is never lowered to the step's clearance. (Both
+    used to clamp every class to the clearance, #439, which hid copper laid
+    below a class by lowering the class.)
+
+    NO hole-to-hole and no edge clearance: the CLI fanouts pass neither, so
+    the edge floor is the fab copper-to-edge pin alone. The tab used to write
+    its hole-to-hole and edge settings, never the copper-to-hole floor, and
+    clamped classes only under the Min-Clearance ceiling.
+
+    ``hole_clearance`` is the copper-to-hole floor the step HELD, lowered to
+    what its own copper needs (#1568: :func:`step_hole_clearance` on the CLI,
+    ``gui_utils.held_hole_clearance_live`` in the tab, as route.py writes it
+    since #1493); None writes the copper clearance there, as before."""
     floors, via_floors = fanout_written_floors(kind, tracks, vias)
     if not floors:
         return None
     return {"clearance": clearance, "track_width": track_width,
             "via_diameter": via_size if via_floors else None,
             "via_drill": via_drill if via_floors else None,
-            "clamp_nondefault_netclasses": True}
+            "clamp_nondefault_netclasses": clearance_ceiling is not None,
+            "class_ceiling": clearance_ceiling,
+            "hole_clearance": hole_clearance}
+
+
+def plane_fix_kwargs(tracks, vias, *, clearance, hole_to_hole, track_width,
+                     via_size, via_drill):
+    """THE plane-step writeback: the floors a pour step writes, from the
+    copper it drew (#1319, #1195's rule for a fanout applied to a pour).
+
+    route_planes' main passes these to :func:`fix_project_for_output` for the
+    file and the Planes tab to ``compute_targets`` / ``update_live_drc_floors``
+    for the live board, so the two fronts write the same floors. ``tracks`` and
+    ``vias`` count what the step ADDED (:func:`drawn_copper_items` on the CLI,
+    the tab's applied lists in the GUI), less its soft-joint bridges
+    (:func:`plane_floor_segments`, #1577):
+
+    * the via floors (diameter, drill) and hole-to-hole only when it placed a
+      via, and the track floor only when it laid a track. A bare pour passed
+      the run's sizes anyway, so interf_u's GND pour wrote min_via_drill
+      None -> 0.6 for vias that do not exist, and multichannel_mixer's took
+      min_track_width 0.3 -> 0.2 and min_via_diameter 1.5 -> 0.6;
+    * the copper-to-hole floor only when it laid either (``copper_holes``): a
+      pour keeps the board's hole clearance itself (its fill and KiCad's refill
+      knock out at it), so daplink's pour lowering it 0.25 -> 0.2 bought nothing;
+      and then the floor it held, lowered only to what that copper needs
+      (:func:`step_hole_clearance`, #1577), not the copper clearance;
+    * the copper clearance always: a KiCad refill regrows the pour at
+      max(zone clearance, net class), so a pour laid below its class keeps its
+      corridors only if the floor drops with it (route_planes'
+      ``_resolve_zone_clearance``).
+
+    A size the step leaves out still falls back to the board's own smallest
+    object in ``compute_targets``, as every writeback does."""
+    drew = bool(tracks or vias)
+    return {"clearance": clearance,
+            "hole_to_hole": hole_to_hole if vias else None,
+            "track_width": track_width if tracks else None,
+            "via_diameter": via_size if vias else None,
+            "via_drill": via_drill if vias else None,
+            "copper_holes": drew}
+
+
+def _seg_key(sx, sy, ex, ey, layer, net_id, width):
+    p, q = ((round(sx, 4), round(sy, 4)), (round(ex, 4), round(ey, 4)))
+    return (min(p, q), max(p, q), layer, net_id, round(width, 4))
+
+
+def _segment_key(s):
+    """:func:`_seg_key` of a parsed Segment or an engine segment dict
+    (``start`` / ``end`` / ``layer`` / ``net_id`` / ``width``)."""
+    if isinstance(s, dict):
+        (sx, sy), (ex, ey) = s['start'], s['end']
+        return _seg_key(sx, sy, ex, ey, s['layer'], s['net_id'], s['width'])
+    return _seg_key(s.start_x, s.start_y, s.end_x, s.end_y, s.layer, s.net_id,
+                    s.width)
+
+
+def drawn_copper_items(input_pcb, output_pcb, exclude=()):
+    """``(output PCBData, [segments], [vias])``: the track segments and vias
+    ``output_pcb`` carries that ``input_pcb`` does not, matched by position,
+    layer and net (graphic copper is not a track) -- what a file-writing step
+    drew. ``(None, None, None)`` when either board cannot be read.
+
+    ``exclude``: segments (parsed, or the engine's dicts) the step wrote that
+    are NOT its own copper for floor purposes -- the plane step's soft-joint
+    bridges (#1577), which join copper the board already carried."""
+    try:
+        from kicad_parser import parse_kicad_pcb
+        a, b = parse_kicad_pcb(input_pcb), parse_kicad_pcb(output_pcb)
+    except Exception:                                           # noqa: BLE001
+        return None, None, None
+
+    def _via(v):
+        return (round(v.x, 4), round(v.y, 4), v.net_id, round(v.size, 4),
+                round(v.drill, 4))
+
+    old_s = {_segment_key(s) for s in a.segments if not getattr(s, 'graphic', False)}
+    old_s.update(_segment_key(s) for s in exclude or ())
+    old_v = {_via(v) for v in a.vias}
+    segs = [s for s in b.segments
+            if not getattr(s, 'graphic', False) and _segment_key(s) not in old_s]
+    vias = [v for v in b.vias if _via(v) not in old_v]
+    return b, segs, vias
+
+
+def drawn_copper(input_pcb, output_pcb, exclude=()):
+    """``(tracks, vias)``: how many track segments and vias ``output_pcb``
+    carries that ``input_pcb`` does not (:func:`drawn_copper_items`). What a
+    file-writing step drew, for :func:`plane_fix_kwargs`. ``(None, None)``
+    when either board cannot be read -- the caller then keeps the sizes it
+    would have written."""
+    _b, segs, vias = drawn_copper_items(input_pcb, output_pcb, exclude)
+    if segs is None:
+        return None, None
+    return len(segs), len(vias)
+
+
+def plane_floor_segments(segments):
+    """The plane step's segments that are its own copper for floor purposes:
+    every one but a soft-joint bridge (``soft_joint``, #1577). A bridge
+    (``pcb_modification.close_soft_joints``) firms a joint between copper the
+    board already carried, inside or between that copper -- where it sits near
+    a foreign hole, so does the copper it joins, and a floor lowered for it
+    would excuse that copper too (#617's argument for the bridge's own gate).
+    orangecrab_ext_pll's pour closed 14 such joints and nothing else, and the
+    writeback took them for drawn copper and lowered the copper-to-hole floor
+    0.2 -> 0.16. route_planes' main drops them from the file count by the
+    engine's list (``consume_soft_joint_bridges``); the Planes tab filters its
+    applied dicts with this."""
+    return [s for s in segments or ()
+            if not (s.get('soft_joint') if isinstance(s, dict)
+                    else getattr(s, 'soft_joint', False))]
+
+
+def step_copper_to_hole(pcb, segments, vias, limit, clearance=0.0):
+    """The smallest copper-to-HOLE distance (mm) between a step's OWN copper
+    -- ``segments`` and ``vias``, what it drew -- and the board, when it is
+    below ``limit``; None when every such distance is at or above it.
+
+    KiCad's ``hole_clearance`` grades copper against every hole of another
+    net: NPTH holes, plated pad barrels and via drills (#1198). So this
+    measures, edge to edge, each pair one of whose items the step drew:
+
+    * an own track against every foreign hole on its layer (a via's drill
+      only where the via spans the layer; a pad drill or NPTH everywhere);
+    * an own via's copper against every foreign hole, and its drill against
+      every foreign track, via and copper pad it shares a layer with.
+
+    A diff pair's P and N are different nets, so a P via's drill against the
+    N track beside it counts -- the one pair the #1369 census found below a
+    board's 0.2 hole floor in a recorded route_diff step. Same-net pairs are
+    not KiCad violations and are skipped; an NPTH hole is foreign to every
+    net. ``pcb`` supplies the rest of the board (its segments, vias and
+    footprints' pads); the step's own items may or may not be on it already
+    -- a duplicate pair measures the same distance.
+
+    A pair whose two COPPER items already sit closer than ``clearance`` is
+    skipped: KiCad reports such a pair once, as a copper clearance violation
+    (or a short), and not again as a hole one -- the census found exactly one
+    such pair, a P via overlapping its own N track, which KiCad's
+    hole_clearance grade did not list."""
+    import math
+    from geometry_utils import (point_to_segment_distance,
+                                segment_to_segment_distance, via_on_layer)
+    from kicad_parser import pad_drill_capsule
+    from check_drc import point_to_pad_distance, segment_pad_gap
+    clearance = float(clearance or 0.0)
+    if not limit or limit <= 0 or (not segments and not vias):
+        return None
+    limit = float(limit)
+    CELL = 1.0
+    best = [None]
+
+    def note(d):
+        if d < limit - 1e-9 and (best[0] is None or d < best[0]):
+            best[0] = d
+
+    def cells(x0, y0, x1, y1):
+        for i in range(int(math.floor(x0 / CELL)), int(math.floor(x1 / CELL)) + 1):
+            for j in range(int(math.floor(y0 / CELL)), int(math.floor(y1 / CELL)) + 1):
+                yield (i, j)
+
+    def index(items, box):
+        grid = {}
+        for it in items:
+            for c in cells(*box(it)):
+                grid.setdefault(c, []).append(it)
+        return grid
+
+    def near(grid, x0, y0, x1, y1):
+        seen = set()
+        for c in cells(x0, y0, x1, y1):
+            for it in grid.get(c, ()):
+                if id(it) not in seen:
+                    seen.add(id(it))
+                    yield it
+
+    own_vias = list(vias or ())
+    all_vias = list(getattr(pcb, 'vias', None) or ()) + own_vias
+    all_segs = [s for s in list(getattr(pcb, 'segments', None) or ())
+                + list(segments or ()) if not getattr(s, 'graphic', False)]
+    pads = [p for fp in (getattr(pcb, 'footprints', None) or {}).values()
+            for p in fp.pads]
+
+    # Holes: (x1, y1, x2, y2, radius, net or None for an NPTH, via or None,
+    # plated pad or None).
+    holes = []
+    for v in all_vias:
+        if v.drill and v.drill > 0:
+            holes.append((v.x, v.y, v.x, v.y, v.drill / 2.0, v.net_id, v, None))
+    for p in pads:
+        if not (getattr(p, 'drill', 0) or 0) > 0:
+            continue
+        (ax, ay), (bx, by), r = pad_drill_capsule(p)
+        npth = (getattr(p, 'pad_type', '') == 'np_thru_hole'
+                or not any(str(l).endswith('.Cu') for l in (p.layers or ())))
+        holes.append((ax, ay, bx, by, r, None if npth else p.net_id, None,
+                      None if npth else p))
+    reach = limit + 1e-6
+    hole_grid = index(holes, lambda h: (min(h[0], h[2]) - h[4], min(h[1], h[3]) - h[4],
+                                         max(h[0], h[2]) + h[4], max(h[1], h[3]) + h[4]))
+
+    def hole_dist(h, x1, y1, x2, y2):
+        if h[0] == h[2] and h[1] == h[3]:
+            return point_to_segment_distance(h[0], h[1], x1, y1, x2, y2)
+        return segment_to_segment_distance(x1, y1, x2, y2, h[0], h[1], h[2], h[3])
+
+    # Own tracks against foreign holes.
+    for s in segments or ():
+        if getattr(s, 'graphic', False):
+            continue
+        w = (s.width or 0.0) / 2.0
+        x0, x1 = sorted((s.start_x, s.end_x))
+        y0, y1 = sorted((s.start_y, s.end_y))
+        for h in near(hole_grid, x0 - w - reach, y0 - w - reach,
+                      x1 + w + reach, y1 + w + reach):
+            if h[5] is not None and h[5] == s.net_id:
+                continue
+            if h[6] is not None and not via_on_layer(h[6], s.layer):
+                continue
+            d = hole_dist(h, s.start_x, s.start_y, s.end_x, s.end_y)
+            if d - w - h[4] >= limit:
+                continue
+            if h[6] is not None and d - w - h[6].size / 2.0 < clearance - 1e-6:
+                continue      # a copper violation, not a hole one
+            if h[7] is not None and segment_pad_gap(
+                    s.start_x, s.start_y, s.end_x, s.end_y, h[7]) - w < clearance - 1e-6:
+                continue
+            note(d - w - h[4])
+
+    if own_vias:
+        seg_grid = index(all_segs, lambda s: (min(s.start_x, s.end_x) - s.width / 2,
+                                              min(s.start_y, s.end_y) - s.width / 2,
+                                              max(s.start_x, s.end_x) + s.width / 2,
+                                              max(s.start_y, s.end_y) + s.width / 2))
+        via_grid = index(all_vias, lambda v: (v.x - v.size / 2, v.y - v.size / 2,
+                                              v.x + v.size / 2, v.y + v.size / 2))
+        cu_pads = [p for p in pads if getattr(p, 'pad_type', '') != 'np_thru_hole'
+                   and any(str(l).endswith('.Cu') for l in (p.layers or ()))]
+        pad_grid = index(cu_pads, lambda p: (p.global_x - max(p.size_x, p.size_y),
+                                             p.global_y - max(p.size_x, p.size_y),
+                                             p.global_x + max(p.size_x, p.size_y),
+                                             p.global_y + max(p.size_x, p.size_y)))
+        try:
+            from check_drc import pad_copper_layers
+            copper = list(pcb.board_info.copper_layers or [])
+        except Exception:                                       # noqa: BLE001
+            pad_copper_layers, copper = None, []
+        from check_drc import _point_in_poly as point_in_polygon
+        _fps = getattr(pcb, 'footprints', None) or {}
+
+        def owner_pads(s):
+            fp = _fps.get(getattr(s, 'owner_ref', ''))
+            return fp.pads if fp is not None else ()
+
+        def is_tie(s):
+            fp = _fps.get(getattr(s, 'owner_ref', ''))
+            return bool(fp is not None and getattr(fp, 'net_tie_groups', None))
+        gfx = [s for s in (getattr(pcb, 'segments', None) or ())
+               if getattr(s, 'graphic', False)]
+        gfx_grid = index(gfx, lambda s: (min(s.start_x, s.end_x) - s.width / 2,
+                                         min(s.start_y, s.end_y) - s.width / 2,
+                                         max(s.start_x, s.end_x) + s.width / 2,
+                                         max(s.start_y, s.end_y) + s.width / 2))
+        gfx_own = {}
+        if any(getattr(s, 'owner_ref', '') for s in gfx):
+            from check_drc import graphic_own_pad_nets
+            gfx_own = graphic_own_pad_nets(pcb)
+    for v in own_vias:
+        r_cu, r_hole = v.size / 2.0, (v.drill or 0.0) / 2.0
+        box = (v.x - r_cu - reach, v.y - r_cu - reach,
+               v.x + r_cu + reach, v.y + r_cu + reach)
+        # Its copper against foreign holes.
+        for h in near(hole_grid, *box):
+            if h[5] is not None and h[5] == v.net_id:
+                continue
+            if h[6] is not None and not any(
+                    via_on_layer(h[6], l) and via_on_layer(v, l)
+                    for l in (copper or ['F.Cu', 'B.Cu'])):
+                continue
+            d = hole_dist(h, v.x, v.y, v.x, v.y)
+            if d - r_cu - h[4] >= limit:
+                continue
+            if h[6] is not None and d - r_cu - h[6].size / 2.0 < clearance - 1e-6:
+                continue
+            if h[7] is not None and point_to_pad_distance(v.x, v.y, h[7]) - r_cu \
+                    < clearance - 1e-6:
+                continue
+            note(d - r_cu - h[4])
+        if r_hole <= 0:
+            continue
+        # Its drill against foreign copper: tracks, vias, pads.
+        for s in near(seg_grid, *box):
+            if s.net_id == v.net_id or not via_on_layer(v, s.layer):
+                continue
+            d = point_to_segment_distance(v.x, v.y, s.start_x, s.start_y,
+                                          s.end_x, s.end_y) - s.width / 2.0
+            if d - r_cu >= clearance - 1e-6:
+                note(d - r_hole)
+        for o in near(via_grid, *box):
+            if o is v or o.net_id == v.net_id:
+                continue
+            d = math.hypot(o.x - v.x, o.y - v.y) - o.size / 2.0
+            if d - r_cu >= clearance - 1e-6:
+                note(d - r_hole)
+        for p in near(pad_grid, *box):
+            if p.net_id == v.net_id:
+                continue
+            if pad_copper_layers is not None and copper and not any(
+                    via_on_layer(v, l) for l in pad_copper_layers(p, copper)):
+                continue
+            d = point_to_pad_distance(v.x, v.y, p)
+            if d - r_cu >= clearance - 1e-6:
+                note(d - r_hole)
+        # Its drill against a footprint's own copper, which has no net, so
+        # KiCad grades the hole against it for every net. A net tie's bridge
+        # the via's net is tied through: KiCad lets the via's copper touch it
+        # and reports the hole alone -- and nothing for a via ON the tied
+        # pad. A one-net part's own copper is the accepted #995 row, not
+        # measured; elsewhere a copper conflict is reported once, as for a
+        # track.
+        for s in near(gfx_grid, *box):
+            if s.net_id == v.net_id and s.net_id or not via_on_layer(v, s.layer):
+                continue
+            own = v.net_id in gfx_own.get(id(s), ())
+            if own and not is_tie(s):
+                continue
+            if own and any(p.net_id == v.net_id and point_to_pad_distance(v.x, v.y, p) <= 0.0
+                           for p in owner_pads(s)):
+                continue
+            dw = s.drawn_width if s.drawn_width is not None else s.width
+            d = point_to_segment_distance(v.x, v.y, s.start_x, s.start_y,
+                                          s.end_x, s.end_y) - (dw or 0.0) / 2.0
+            ring = s.graphic_ring if s.graphic_filled else None
+            if ring and point_in_polygon(v.x, v.y, ring):
+                d = -d
+            if d - r_cu >= clearance - 1e-6 or own:
+                note(d - r_hole)
+    return None if best[0] is None else round(max(best[0], 0.0), 6)
+
+
+def held_hole_clearance(held, clearance, step_min=None):
+    """The copper-to-hole floor a routing step writes back when it HELD the
+    board's declared hole clearance ``held`` (#1369).
+
+    route_diff holds NPTH walls at the board's own ``min_hole_clearance``
+    (:func:`obstacle_map.resolve_hole_clearance`) and used to write the floor
+    down to its copper clearance anyway, which the delivered fill then
+    followed. It now writes what it held, lowered only to what its OWN copper
+    needs -- ``step_min`` from :func:`step_copper_to_hole`, the smallest
+    distance from the copper it drew to a foreign hole, which can sit under
+    the held value (a P via's drill beside the N track: a plated hole's copper
+    is held at copper clearance, not at the hole floor) -- and never below
+    ``clearance``, which is what the step wrote before and the floor its
+    copper was routed to.
+
+    ``held`` 0 / None (the board declares no hole clearance): None, and the
+    writer falls back to ``clearance`` as before."""
+    if not held or held <= 0 or clearance is None:
+        return None
+    v = float(held) if step_min is None else min(float(held), float(step_min))
+    return round(max(float(clearance), v), 6)
+
+
+def step_hole_clearance(input_pcb, output_pcb, clearance, verbose=True, ledger=True,
+                        drawn=None):
+    """:func:`held_hole_clearance` for a file-writing step: the hole floor the
+    step held (``obstacle_map.declared_hole_clearance`` of its INPUT, the
+    value its engine resolved), lowered to what the copper it drew
+    (:func:`drawn_copper_items`, or ``drawn`` -- that function's triple, when
+    the caller already has it) needs. None when the board declares no hole
+    clearance or a board cannot be read -- the writer then falls back to the
+    copper clearance, as before."""
+    try:
+        from obstacle_map import declared_hole_clearance
+        held, _src = declared_hole_clearance(None, input_pcb)
+    except Exception:                                           # noqa: BLE001
+        return None
+    if not held or held <= 0 or clearance is None or held <= clearance:
+        return None
+    out, segs, vias = (drawn if drawn is not None
+                       else drawn_copper_items(input_pcb, output_pcb))
+    if out is None:
+        return None
+    try:
+        step_min = step_copper_to_hole(out, segs, vias, held, clearance)
+    except Exception as e:                                      # noqa: BLE001
+        if verbose:
+            print(f"  (copper-to-hole census skipped: {e}); hole floor follows "
+                  f"the copper clearance")
+        return None
+    v = held_hole_clearance(held, clearance, step_min)
+    # #1493: a floor written below the one the step held goes into the
+    # design_rules ledger (a run-wide row), so --strict-sizes sees it. Off
+    # for a mid-run sync, whose step's writeback ledgers it once.
+    if ledger and v is not None and v < float(held) - _FLOOR_EPS:
+        try:
+            from fab_tiers import note_narrowing
+            note_narrowing(None, 'hole_clearance', float(held), v,
+                           "copper-to-hole floor written under the board's own: "
+                           "this step's copper sits closer to a foreign hole")
+        except Exception:                                    # noqa: BLE001
+            pass
+    if verbose and v is not None:
+        # The step's TARGET, not what the project ends up declaring: the
+        # writer only ever lowers a floor, so a project an earlier step left
+        # lower keeps its value (the writer says so).
+        why = (f"its own copper sits {step_min:g} mm from a foreign hole"
+               if step_min is not None and step_min < held else
+               "its own copper clears every foreign hole by it")
+        print(f"  Copper-to-hole floor this step's copper holds: {v:g} mm -- it held "
+              f"{held:g} mm and {why} (#1369)")
+    return v
 
 
 def apply_fix_to_board(board, *, minima, clearance=None, hole_clearance=None,
                        hole_to_hole=None, edge_clearance=None, track_width=None,
                        via_diameter=None, via_drill=None, diff_pair_gap=None,
-                       diff_pair_width=None, clamp_nondefault_netclasses=True):
+                       diff_pair_width=None, clamp_nondefault_netclasses=True,
+                       class_ceiling=None):
     """:func:`fix_project_for_output`'s FLOOR writeback, applied to a LIVE
     board -- the same :func:`compute_targets` call over the same keywords,
     through :func:`apply_targets_to_board`. ``minima`` is the board's own
@@ -1993,7 +2839,8 @@ def apply_fix_to_board(board, *, minima, clearance=None, hole_clearance=None,
     return apply_targets_to_board(board, targets, {},
                                   diff_pair_gap=diff_pair_gap,
                                   diff_pair_width=diff_pair_width,
-                                  clamp_nondefault_netclasses=clamp_nondefault_netclasses)
+                                  clamp_nondefault_netclasses=clamp_nondefault_netclasses,
+                                  class_ceiling=class_ceiling)
 
 
 def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
@@ -2004,7 +2851,8 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
                            keep_thermal=False, enable_layers=False,
                            clamp_nondefault_netclasses=True,  # #439: clamp by default
                            extra_ignore=(), verbose=True, minima=None,
-                           relax_severities=False):
+                           relax_severities=False, copper_holes=True,
+                           class_ceiling=None):
     """Make the DRC settings of a freshly written board consistent with the
     routing floors (issue #160 auto-invoke). Ensures ``output_pcb`` has a sibling
     ``.kicad_pro`` -- copying the input board's project if the output is a new
@@ -2039,18 +2887,10 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
     # every grader resolves them from the OUTPUT board's sibling), the
     # .design-brief.json (#711: the declared intent, without which the next
     # grade infers every edge from the current pose, #1190) and the .kicad_prl.
-    # Never overwrite an existing output sibling.
-    if input_pcb:
-        from copy_board import SIBLING_EXTS
-        in_base = os.path.splitext(input_pcb)[0]
-        out_base = os.path.splitext(output_pcb)[0]
-        for ext in SIBLING_EXTS:
-            if ext == ".kicad_pro":
-                continue                                  # handled above
-            src, dst = in_base + ext, out_base + ext
-            if os.path.isfile(src) and not os.path.isfile(dst) \
-                    and os.path.abspath(src) != os.path.abspath(dst):
-                shutil.copyfile(src, dst)
+    # Never overwrite an existing output sibling. A routing writer has already
+    # seeded them (seed_project_for_output); this covers a caller that did not
+    # write the board through one.
+    carry_input_siblings(output_pcb, input_pcb, skip=(".kicad_pro",))
 
     # The records (origin, protected nets, ...) as the board holds them: the
     # newer of the project's copy and the board file's, which is where a GUI
@@ -2072,6 +2912,23 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
     _origin, _origin_seeded = seed_fab_floor_origin(proj, _rules_before)
     from fab_tiers import project_default_class_clearance as _pdcc
     _class_before = _pdcc(proj)     # #1160
+    # #1493: what THIS step started from, for the banner. A routing engine's
+    # in-run floor sync (route.py #650) writes the output project mid-run, so
+    # by now its lowering reads as the input -- "unchanged by this step" in
+    # the log that printed it. A floor the input project declared higher was
+    # lowered by this step.
+    _banner_before = dict(_rules_before)
+    if input_pcb:
+        try:
+            _ip = find_project(input_pcb)
+            if os.path.isfile(_ip) and os.path.abspath(_ip) != os.path.abspath(out_pro):
+                for _k, _v in _effective_rules(tool_records.load_project(_ip)).items():
+                    _c = _banner_before.get(_k)
+                    if isinstance(_v, (int, float)) and isinstance(_c, (int, float)) \
+                            and _v > _c + _FLOOR_EPS:
+                        _banner_before[_k] = _v
+        except Exception:                                    # noqa: BLE001
+            pass
     # `minima` lets a caller that ALREADY has the board in memory supply these
     # instead of us re-parsing the file. The GUI does: scan_board_minima ->
     # parse_kicad_pcb allocates thousands of GC-tracked objects, and the GUI
@@ -2086,7 +2943,8 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
                               hole_to_hole=hole_to_hole, edge_clearance=edge_clearance,
                               track_width=track_width, via_diameter=via_diameter,
                               via_drill=via_drill, minima=minima,
-                              fab_edge=fab_edge_floor(output_pcb))
+                              fab_edge=fab_edge_floor(output_pcb),
+                              copper_holes=copper_holes)
     # #498: a .kicad_dru rule may legally RELAX clearance on its layer, and
     # KiCad's rules.min_clearance is an ABSOLUTE floor that outranks custom
     # rules -- cap the recorded floor at the smallest rule value, or the ruled
@@ -2095,6 +2953,7 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
     # rule REPLACES the pair clearance on ITS layer and already outranks the
     # class, so lowering the class to a B.Cu rule's value would weaken grading
     # on every layer the rule does not cover, for no DRC benefit.
+    _dru_min = None
     try:
         from kicad_dru import min_rule_clearance
         _dru_min = min_rule_clearance(output_pcb)
@@ -2103,6 +2962,15 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
             targets["min_clearance"] = _dru_min
     except Exception:
         pass
+    # #1369: what min_clearance would be WITHOUT the #530 pad-override cap
+    # (the routed clearance, under the dru cap), and the rule before this
+    # write -- the pad-override provenance record compares the two.
+    _mc_uncapped = None
+    if targets.get("min_clearance") is not None:
+        _mc_uncapped = min(v for v in (_class_clearance(targets), _dru_min)
+                           if v is not None)
+    _mc_before = (((proj.get("board") or {}).get("design_settings") or {})
+                  .get("rules") or {}).get("min_clearance")
     # #856: severities are the project author's statement of what counts as a
     # violation. A routing step relaxes them ONLY when asked
     # (--relax-drc-severities / the GUI checkbox); the numeric floors above are
@@ -2115,12 +2983,20 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
             plan = {cat: "ignore" for cat in extra_ignore}
     else:
         plan = {}
+    # #1492: non-Default classes at the step's CEILING (min(class, ceiling)),
+    # each lowered further only by a descent on one of its own nets
+    _lowered_classes = {}
     changes = apply_targets_to_project(proj, targets, plan,
                                        diff_pair_gap=diff_pair_gap,
                                        diff_pair_width=diff_pair_width,
-                                       clamp_nondefault_netclasses=clamp_nondefault_netclasses)
-    # Machine-readable record of what this call wrote, for the run summary
-    # (JSON_SUMMARY_MIN.project_writes). Replaced per call, never appended.
+                                       clamp_nondefault_netclasses=clamp_nondefault_netclasses,
+                                       class_ceiling=class_ceiling,
+                                       class_descents=(nondefault_class_descents(output_pcb)
+                                                       if clamp_nondefault_netclasses
+                                                       else None),
+                                       lowered_classes=_lowered_classes)
+    # Machine-readable record of what this call wrote (LAST_PROJECT_WRITES:
+    # nothing publishes it yet). Replaced per call, never appended.
     LAST_PROJECT_WRITES[:] = list(changes)
     if _origin_seeded:
         # Custody: the board's ORIGINAL floors are recorded on the first
@@ -2130,6 +3006,18 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
         proj.setdefault("kicad_routing_tools", {})["fab_floor_origin"] = _origin
         changes = list(changes) + ["kicad_routing_tools.fab_floor_origin: recorded"]
         LAST_PROJECT_WRITES[:] = list(changes)
+    # #1369: a min_clearance lowered for a pad override is recorded as such,
+    # so --escalation board reads the board's own minimum, not the override.
+    if _mc_uncapped is not None and record_pad_override_floor(
+            proj, _mc_before, _mc_uncapped):
+        from fab_tiers import PAD_OVERRIDE_FLOOR_KEY
+        _rec1369 = (proj.get("kicad_routing_tools") or {}).get(PAD_OVERRIDE_FLOOR_KEY)
+        changes = list(changes) + [
+            f"kicad_routing_tools.{PAD_OVERRIDE_FLOOR_KEY}: "
+            + (f"rules.min_clearance {_rec1369['rule']} mm is a pad clearance "
+               f"override; the board's own is {_rec1369['board']} mm"
+               if _rec1369 else "dropped (the rule is the board's own)")]
+        LAST_PROJECT_WRITES[:] = list(changes)
     # #1160: a Default class lowered by an automatic descent, not a request.
     _ccr, _ccr_here = record_class_clearance_descent(proj, _class_before)
     if _ccr_here:
@@ -2137,13 +3025,29 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
             f"kicad_routing_tools.{CLASS_CLEARANCE_RELAXED_KEY}: recorded"]
         LAST_PROJECT_WRITES[:] = list(changes)
     _ccr_lines = class_clearance_disclosure(_ccr, _ccr_here, _pdcc(proj))
+    if record_nondefault_class_descents(proj, _lowered_classes):
+        changes = list(changes) + [
+            f"kicad_routing_tools.{CLASS_CLEARANCE_RELAXED_CLASSES_KEY}: recorded"]
+        LAST_PROJECT_WRITES[:] = list(changes)
+    _ccr_lines = list(_ccr_lines) + nondefault_class_descent_disclosure(_lowered_classes)
+    # A copper-to-hole floor this step needs ABOVE the one the project already
+    # declares is not written: the writer only lowers. Say so, or the step's
+    # "holds X" reads as the project's value.
+    _hc_now = _rules_before.get("min_hole_clearance")
+    _hc_want = targets.get("min_hole_clearance") if hole_clearance is not None else None
+    if isinstance(_hc_now, (int, float)) and _hc_want is not None \
+            and _hc_want > _hc_now + _FLOOR_EPS:
+        _ccr_lines = list(_ccr_lines) + [
+            f"  Copper-to-hole floor stays {_hc_now:g} mm, below the "
+            f"{_hc_want:g} mm this step's copper holds: a routing step never "
+            f"raises a floor, so the lower value an earlier step wrote stands"]
     if not changes:
         if verbose:
             print(f"  DRC settings already consistent ({out_pro})")
             # The floors did not move, but they may ALREADY be under the
             # board's original declaration from an earlier step -- and that is
             # still true of the board being shipped. Say so.
-            for line in _fab_floor_disclosure(output_pcb, _rules_before, proj,
+            for line in _fab_floor_disclosure(output_pcb, _banner_before, proj,
                                               _origin) + _ccr_lines:
                 print(line)
         return out_pro
@@ -2171,13 +3075,14 @@ def fix_project_for_output(output_pcb: str, input_pcb=None, *, clearance=None,
         # in it without grepping prose.
         print("PROJECT_WRITES_JSON: " + json.dumps(
             {"project": out_pro, "writes": list(changes)}, sort_keys=True))
-    for line in _fab_floor_disclosure(output_pcb, _rules_before, proj,
+    for line in _fab_floor_disclosure(output_pcb, _banner_before, proj,
                                       _origin) + _ccr_lines:
         print(line)
     return out_pro
 
 
-def clamp_nondefault_netclasses_on_board(board, targets, *, diff_pair_gap=None,
+def clamp_nondefault_netclasses_on_board(board, targets, *, class_ceiling=None,
+                                         class_descents=None, diff_pair_gap=None,
                                          diff_pair_width=None, default_nc=None):
     """THE live-board NON-Default net-class clamp: lower each non-Default class's
     DRC-enforced floors to the values this run actually used. Returns a list of
@@ -2236,7 +3141,8 @@ def clamp_nondefault_netclasses_on_board(board, targets, *, diff_pair_gap=None,
     # gap/width kwargs are accepted for signature compatibility and ignored:
     # they are draw defaults, and lowering them was the #842 ratchet.
     nd_map = {"SetClearance": _class_clearance(targets)}    # routed, not capped (#900)
-    if not any(v is not None for v in nd_map.values()):
+    if not any(v is not None for v in nd_map.values()) and class_ceiling is None \
+            and not class_descents:
         return changes
     other = {}
     ns2 = getattr(bds, "m_NetSettings", None)
@@ -2259,7 +3165,11 @@ def clamp_nondefault_netclasses_on_board(board, targets, *, diff_pair_gap=None,
         if nc is None or (default_nc is not None and nc is default_nc) \
                 or cname == "Default":
             continue
-        for setter, target in nd_map.items():
+        for setter, routed in nd_map.items():
+            # #1492: the ceiling (min(class, ceiling)), not the routed Default
+            # value; a descent on the class's own net lowers it further
+            target = nondefault_class_target(cname, routed, class_ceiling,
+                                             class_descents)
             if target is None or not hasattr(nc, setter):
                 continue
             getter = "Get" + setter[3:]
@@ -2306,7 +3216,8 @@ def _default_netclass_of(bds):
 
 def apply_targets_to_board(board, targets: dict, sev_plan: dict,
                            diff_pair_gap=None, diff_pair_width=None,
-                           clamp_nondefault_netclasses=False):
+                           clamp_nondefault_netclasses=False,
+                           class_ceiling=None):
     """GUI path: apply the same floors + severity plan to a live pcbnew BOARD
     via BOARD_DESIGN_SETTINGS (issue #160). Best-effort and defensive -- the
     pcbnew API field/severity names vary across KiCad versions, so each step is
@@ -2315,9 +3226,9 @@ def apply_targets_to_board(board, targets: dict, sev_plan: dict,
 
     ``clamp_nondefault_netclasses`` (parity with apply_targets_to_project) clamps
     the NON-Default net classes' floors down to the routed values. Driven by whether
-    routing used a --clearance ceiling (#439: stock classes are aspirational; keeping
+    routing used --clearance-ceiling (#439/#530: stock classes are aspirational; keeping
     them manufactures phantom sub-class DRC). Pass False (routing HONORED the classes
-    -- no --clearance / GUI Min-Clearance override unchecked) to preserve the original
+    -- no --clearance-ceiling / GUI Clearance ceiling box unchecked) to preserve the original
     class spec, for a genuine impedance board whose classes are met."""
     import pcbnew
     MM = 1e6  # mm -> internal nm
@@ -2338,6 +3249,7 @@ def apply_targets_to_board(board, targets: dict, sev_plan: dict,
     # smallest .kicad_dru layer rule (an absolute board floor above a relaxing
     # rule re-manufactures phantom violations on that rule's layer). RULE-ONLY:
     # `class_clearance` is untouched here too (#900).
+    _dru_min = None
     try:
         from kicad_dru import min_rule_clearance
         _dru_min = min_rule_clearance(board.GetFileName() or "")
@@ -2347,6 +3259,12 @@ def apply_targets_to_board(board, targets: dict, sev_plan: dict,
             targets["min_clearance"] = _dru_min
     except Exception:
         pass
+    # #1369: min_clearance without the #530 pad-override cap, for the
+    # provenance record (fix_project_for_output's twin).
+    _mc_uncapped = None
+    if targets.get("min_clearance") is not None:
+        _mc_uncapped = min(v for v in (_class_clearance(targets), _dru_min)
+                           if v is not None)
 
     # rule key -> BOARD_DESIGN_SETTINGS attribute (units: nm). Only loosen.
     attr = {
@@ -2373,6 +3291,7 @@ def apply_targets_to_board(board, targets: dict, sev_plan: dict,
     # copper-to-edge 0.2 (the CLI's project) and 0.5 (pcbnew's factory value).
     _declared = live_declared_rules(board) or {}
     _class_declared = live_declares_default_class(board)
+    _mc_before = (bds.m_MinClearance / MM) if "min_clearance" in _declared else None
     for key, target in targets.items():
         a = attr.get(key)
         if a is None or target is None or not hasattr(bds, a):
@@ -2404,6 +3323,7 @@ def apply_targets_to_board(board, targets: dict, sev_plan: dict,
                 changes.append(f"{a}: {(cur or 0)/MM:.4g} -> {target:.4g} mm")
             except Exception:
                 pass
+    record_live_pad_override_floor(board, _mc_before, _mc_uncapped)   # #1369
 
     # Default net class CLEARANCE (the one class field KiCad's DRC enforces).
     # Track/via/drill/diff-pair class values are draw defaults and are never
@@ -2458,8 +3378,17 @@ def apply_targets_to_board(board, targets: dict, sev_plan: dict,
     # which writes the DEFAULT class only. A second copy over there is the
     # bug class #736/#747/#775 each fixed once in the placement engine.
     if clamp_nondefault_netclasses:
+        # #1492: at the step's ceiling, each class lowered further only by a
+        # descent on its own net (read through the board's project)
+        _path = ""
+        try:
+            _path = board.GetFileName() or ""
+        except Exception:                                    # noqa: BLE001
+            pass
         changes.extend(clamp_nondefault_netclasses_on_board(
-            board, targets, diff_pair_gap=diff_pair_gap,
+            board, targets, class_ceiling=class_ceiling,
+            class_descents=nondefault_class_descents(_path) if _path else None,
+            diff_pair_gap=diff_pair_gap,
             diff_pair_width=diff_pair_width, default_nc=default_nc))
 
     # Severities. Map our category strings to pcbnew DRCE_* codes (best-effort).
@@ -2560,13 +3489,11 @@ def main():
     ap.add_argument("--via-drill", type=float, default=None,
                     help="Min hole/drill diameter in mm (default: smallest drill on the board)")
     ap.add_argument("--diff-pair-gap", type=float, default=None,
-                    help="Default net-class differential-pair gap in mm (match route_diff "
-                         "--diff-pair-gap; lowered only). Use the fab floor (~0.1) for "
-                         "impedance-controlled pairs so the net class stops recommending the "
-                         "stock-wide 0.25 mm gap.")
+                    help="Accepted for compatibility and ignored (#842): the net class's "
+                         "diff-pair gap is a draw default, never written.")
     ap.add_argument("--diff-pair-width", type=float, default=None,
-                    help="Default net-class differential-pair trace width in mm (the diff-pair "
-                         "track width; lowered only).")
+                    help="Accepted for compatibility and ignored (#842): the net class's "
+                         "diff-pair width is a draw default, never written.")
     ap.add_argument("--relax-severities", action="store_true",
                     help="Lower the non-routing DRC severities (courtyard shapes, solder-mask "
                          "bridges, footprint/library issues -> ignore; starved_thermal and "
@@ -2576,8 +3503,10 @@ def main():
     ap.add_argument("--keep-mask", action="store_true", help="Do not ignore solder-mask bridge")
     ap.add_argument("--keep-footprint", action="store_true",
                     help="Do not ignore footprint/library categories (annular_width, lib_footprint_*)")
-    # Shared DRC-fix flags (--keep-thermal, --enable-used-layers); the standalone
-    # script always fixes, so --no-fix-drc-settings is omitted.
+    # Shared DRC-fix flags (--keep-thermal, --enable-used-layers; also
+    # --relax-drc-severities, which this script does not read -- its own
+    # --relax-severities above is the switch); the standalone script always
+    # fixes, so --no-fix-drc-settings is omitted.
     add_drc_fix_args(ap, include_no_fix=False)
     ap.add_argument("--ignore", nargs="+", default=[], metavar="CAT",
                     help="Extra severity categories to set to ignore")

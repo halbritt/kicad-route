@@ -21,7 +21,6 @@ exactly as before; the rotation wrapper still applies after it.
 """
 from __future__ import annotations
 
-import copy
 from typing import Callable, Dict, Tuple
 
 from kicad_parser import PCBData, Footprint, _global_to_local
@@ -92,7 +91,8 @@ def to_front_frame(pcb_data: PCBData, ref: str, axis: float = None
     def m(x, y):
         return (x, 2.0 * CY - y)
 
-    rp = copy.deepcopy(pcb_data)
+    from .rotate_frame import frame_copy
+    rp = frame_copy(pcb_data)
     # the turned copy says so: a memo keyed on the board FILE (path,
     # mtime, size) would otherwise hand the turned board the real one's
     # model -- measured: the braid's obstacle memo gave the turned
@@ -132,12 +132,15 @@ def to_front_frame(pcb_data: PCBData, ref: str, axis: float = None
         seg.start_x, seg.start_y = m(seg.start_x, seg.start_y)
         seg.end_x, seg.end_y = m(seg.end_x, seg.end_y)
         seg.layer = other_layer(seg.layer)
+    from bga_fanout.rotate_frame import transform_graphic_shapes
+    transform_graphic_shapes(rp.segments, m)
     for via in rp.vias:
         via.x, via.y = m(via.x, via.y)
         via.layers = [other_layer(L) for L in via.layers]
     for z in rp.zones or []:
         z.layer = other_layer(z.layer)
         z.polygon = [m(x, y) for (x, y) in z.polygon]
+        z.holes = [[m(x, y) for (x, y) in h] for h in (getattr(z, 'holes', None) or ())]
     for gp in list(rp.guide_paths or []) + list(rp.keepout_zones or []):
         if hasattr(gp, 'layer'):
             gp.layer = other_layer(gp.layer)

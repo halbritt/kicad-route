@@ -28,7 +28,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from kicad_parser import PCBData, Segment, Via
-from routing_config import GridRouteConfig, GridCoord
+from routing_config import GridRouteConfig, GridCoord, extra_on_layer
 from check_drc import point_to_pad_distance
 from routing_utils import build_layer_map, segment_blocked_cells_array, pad_rect_halfspan
 
@@ -203,8 +203,9 @@ def compute_net_obstacle_cells(
         # value under-attributes wide-clearance nets' real blocking reach.
         _clr = config.obstacle_clearance(net_id) if hasattr(config, 'obstacle_clearance') else config.clearance
         if hasattr(config, 'layer_clearance'):  # #498: layer rule replaces
-            _clr = config.layer_clearance(config.layers[layer_idx], _clr)
-        expansion_mm = reserve_width / 2 + seg_width / 2 + _clr + extra_clearance
+            _clr = config.layer_clearance(config.layers[layer_idx], _clr, net_id)
+        expansion_mm = (reserve_width / 2 + seg_width / 2 + _clr
+                        + extra_on_layer(extra_clearance, config.layers[layer_idx]))
         cells = segment_blocked_cells_array(x1, y1, x2, y2, expansion_mm, grid_step)
         if len(cells):
             track_parts.append(_pack_cells(cells, layer_idx))
@@ -215,7 +216,7 @@ def compute_net_obstacle_cells(
         # (so an off-grid via is covered without the old floored-circle drift).
         _clr = config.obstacle_clearance(net_id) if hasattr(config, 'obstacle_clearance') else config.clearance
         if hasattr(config, 'stack_clearance'):  # #498: via spans the stack
-            _clr = config.stack_clearance(_clr)
+            _clr = config.stack_clearance(_clr, net_id)
         via_margin = via_size / 2 + config.track_width / 2 + _clr + extra_clearance
         cells = segment_blocked_cells_array(x, y, x, y, via_margin, grid_step)
         if len(cells):
@@ -556,26 +557,12 @@ def rank_blockers(results, algo: str = 'count',
     candidates by actual path crossings; after that reorder the list is
     already in rip order and this function is not called.
     """
-    # Bus rip resistance: members of a settled bus group score 1/res so
-    # the ladder prefers ripping bystanders over tearing up the river.
-    # Validator-named entries are exempt (micron-proof identity outranks
-    # protection).
-    _members = getattr(config, 'bus_member_net_ids', None) or set()
-    _res = float(getattr(config, 'bus_rip_resistance', 1.0) or 1.0)
-    if _res <= 1.0:
-        _members = set()
-
-    def _r(x):
-        return _res if (x.net_id in _members
-                        and not getattr(x, 'validator_named', False)) else 1.0
-
     if algo == 'near-target':
         def key(x):
             near = x.near_target_cells + x.near_source_cells
             named = 1 if getattr(x, 'validator_named', False) else 0
-            r = _r(x)
-            return (named, min(near, x.unique_cells) / r, near / r,
-                    x.unique_cells / r, x.blocked_count / r)
+            return (named, min(near, x.unique_cells), near,
+                    x.unique_cells, x.blocked_count)
         results.sort(key=key, reverse=True)
     elif algo == 'bidir':
         both = bidir_both_sets or set()
@@ -583,7 +570,7 @@ def rank_blockers(results, algo: str = 'count',
             base = _count_sort_key(x)
             boost = 2.0 if x.net_id in both else 1.0
             # scale the score component of the count key
-            return (base[0], base[1], base[2] * boost / _r(x), base[3] / _r(x))
+            return (base[0], base[1], base[2] * boost, base[3])
         results.sort(key=key, reverse=True)
     elif algo == 'cost' and pcb_data is not None:
         from net_cost import net_cost
@@ -593,29 +580,99 @@ def rank_blockers(results, algo: str = 'count',
             # at equal blocking. Floor at 1.0: a 1-pad/degenerate net must not
             # get a divide-by-~0 boost to the top of the rip order.
             c = max(net_cost(pcb_data, x.net_id), 1.0)
-            return (base[0], base[1], base[2] / (_r(x) * c), base[3] / (_r(x) * c))
+            return (base[0], base[1], base[2] / c, base[3] / c)
         results.sort(key=key, reverse=True)
     else:
-        def key(x):
-            base = _count_sort_key(x)
-            return (base[0], base[1], base[2] / _r(x), base[3] / _r(x))
-        results.sort(key=key, reverse=True)
+        results.sort(key=_count_sort_key, reverse=True)
 
 
 def mincut_probe_order(pcb_data, config, working_obstacles, net_id,
-                       rippable_blockers, net_obstacles_cache, *,
-                       routed_results=None, diff_pair_by_net_id=None,
-                       diagnostics=None):
-    """Bounded relaxed-resource ordering hint; never a minimum-cut proof.
+                       rippable_blockers, net_obstacles_cache):
+    """Min-cut probe (#424 audit improvement 1; --ripup-blocker-select=mincut).
 
-    The legacy (order, found_path) tuple remains compatible. False means
-    unknown (unsupported coverage, budget, or no raw path), not infeasible.
-    Optional diagnostics disclose why count ordering must be retained.
+    The frontier report is the PERIMETER of the reachable pocket -- per-net
+    cell counts measure exposure, not cut-ness, so ranking guesses. This
+    replaces the guess with a measurement: on a CLONE of the working map
+    (zero mutation risk), lift every rippable candidate's hard blocks, stamp
+    its cells as a large soft cost instead, and run the failed search once.
+    A path now always exists if the net is routable at ANY rip depth -- and
+    because A* minimizes cost, it threads the CHEAPEST crossing set: the
+    (near-)minimal set of nets separating source from target, jointly.
+
+    Returns (ordered_net_ids, feasible): candidates the probe path actually
+    crosses, in first-crossing order (rip these, in this order); feasible
+    False means even the soft-cost search failed -- the separating wall is
+    static (unrippable) copper. Callers should treat that as ADVISORY, not
+    proof the ladder is useless: rip retries also unlock pad-via placement
+    and swaps, topology changes this path probe does not model.
     """
-    from blocker_resources import probe_order
-    return probe_order(pcb_data, config, working_obstacles, net_id,
-                       rippable_blockers, net_obstacles_cache, routed_results,
-                       diff_pair_by_net_id, diagnostics if diagnostics is not None else {})
+    from dataclasses import replace as _replace
+    from obstacle_cache import remove_net_obstacles_from_cache
+    import numpy as np
+
+    cand_ids = [b.net_id for b in rippable_blockers
+                if b.net_id in net_obstacles_cache]
+    if not cand_ids:
+        return [], True
+
+    clone = working_obstacles.clone_fresh()
+    # In the phase-3 cascade the probed net's OWN phase-1 copper is already
+    # stamped in the working map (unlike the SE ladder, where the net has no
+    # copper yet); lift it or the probe collides with itself and reports a
+    # false infeasible.
+    own = net_obstacles_cache.get(net_id)
+    if own is not None:
+        remove_net_obstacles_from_cache(clone, own)
+    cell_sets = {}
+    soft_rows = []
+    cost = config.cell_cost(5.0)   # ~5mm-equiv per cell: cross only if needed
+    for nid in cand_ids:
+        data = net_obstacles_cache[nid]
+        cells = getattr(data, 'blocked_cells', None)
+        if cells is None or not len(cells):
+            continue
+        remove_net_obstacles_from_cache(clone, data)
+        cs = set()
+        for i in range(len(cells)):
+            gx, gy, li = cells[i]
+            cs.add((int(gx), int(gy), int(li)))
+            soft_rows.append((int(li), int(gx), int(gy), cost))
+        cell_sets[nid] = cs
+    if not soft_rows:
+        return [], True
+    clone.set_layer_proximity_batch(np.array(soft_rows, dtype=np.int32))
+
+    from single_ended_routing import (route_net_with_obstacles,
+                                      uncommit_dropped_result)
+    probe_cfg = _replace(config, max_rip_up_count=0) \
+        if hasattr(config, 'max_rip_up_count') else config
+    result = route_net_with_obstacles(pcb_data, net_id, probe_cfg, clone)
+    # Only the path is read; the probe commits nothing, so neither may the
+    # #189 unblock copper it committed to the LIVE pcb_data (#803).
+    uncommit_dropped_result(pcb_data, result)
+    if not result or result.get('failed') or not result.get('path'):
+        return [], False
+
+    # Densify the path so cells between waypoints register crossings.
+    path = result['path']
+    dense = []
+    for (x1, y1, l1), (x2, y2, l2) in zip(path, path[1:]):
+        dense.append((x1, y1, l1))
+        if l1 == l2:
+            n = max(abs(x2 - x1), abs(y2 - y1))
+            for k in range(1, n):
+                dense.append((x1 + round((x2 - x1) * k / n),
+                              y1 + round((y2 - y1) * k / n), l1))
+    dense.append(path[-1])
+
+    order = []
+    seen = set()
+    for cell in dense:
+        for nid, cs in cell_sets.items():
+            if nid not in seen and cell in cs:
+                seen.add(nid)
+                order.append(nid)
+    return order, True
 
 
 def analyze_static_blockers(
@@ -623,9 +680,13 @@ def analyze_static_blockers(
     pcb_data: PCBData,
     config: GridRouteConfig,
     nets_to_route: Optional[Set[int]] = None,
+    stalled_net_id: Optional[int] = None,
 ) -> Dict[str, List[str]]:
     """
     Analyze what static obstacles are blocking the given cells.
+
+    `stalled_net_id` is the net whose search stalled; footprint copper lifted
+    for it (#908 own-pad lift) is not reported as a blocking track.
 
     Returns a dict with categories of blockers:
     - 'pads': list of "NetName (pad ref)" strings for blocking pads
@@ -710,10 +771,22 @@ def analyze_static_blockers(
         else:
             result['pads'].append(f"{net_name} ({len(refs)} pads)")
 
+    # #908: footprint copper the obstacle map lifts for the net being routed
+    # does not block it, so it is not named. For any other net it still is.
+    own_pad = {}
+    if stalled_net_id is not None:
+        try:
+            from check_drc import graphic_own_pad_nets
+            own_pad = graphic_own_pad_nets(pcb_data)
+        except Exception:
+            own_pad = {}
+
     # Check pre-existing tracks from other nets
     track_blockers = set()
     for seg in pcb_data.segments:
         if seg.net_id in nets_to_route:
+            continue
+        if stalled_net_id in own_pad.get(id(seg), ()):
             continue
         layer_idx = layer_map.get(seg.layer)
         if layer_idx is None:
@@ -761,13 +834,16 @@ def print_blocking_analysis(
     pcb_data: Optional[PCBData] = None,
     config: Optional[GridRouteConfig] = None,
     nets_to_route: Optional[Set[int]] = None,
+    stalled_net_id: Optional[int] = None,
 ):
     """Print blocking analysis results."""
     if not blockers:
         msg = f"{prefix}No previously-routed nets blocking"
         # If we have the data, analyze static blockers
         if blocked_cells and pcb_data and config:
-            static = analyze_static_blockers(blocked_cells, pcb_data, config, nets_to_route)
+            static = analyze_static_blockers(blocked_cells, pcb_data, config,
+                                             nets_to_route,
+                                             stalled_net_id=stalled_net_id)
             details = []
             if static['pads']:
                 details.append(f"pads: {', '.join(static['pads'][:5])}")

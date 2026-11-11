@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Move the routing engine onto a newer upstream KRT commit, keeping the local changes.
 
-    scripts/sync-upstream-engine.py [--upstream CLONE] [--ref REF] [--status] [--no-fetch]
+    scripts/sync-upstream-engine.py [--upstream CLONE] [--ref REF] [--status] [--upstream-only] [--no-fetch]
 
 The engine in src/kicad_route/router/ is upstream KRT at the commit recorded in its
 UPSTREAM.json (`upstream_commit`) plus a small set of local changes. This command
@@ -22,6 +22,9 @@ committed; review `git status` and `git diff`, resolve, rebuild and test (docs/u
 
 --status changes nothing: it lists how the engine differs from the recorded upstream commit,
 which is the local change set UPSTREAM.json describes.
+
+--upstream-only takes upstream's version of every upstream file and so drops the local
+changes (local files stay). It is for measuring what upstream alone does with this package.
 """
 import argparse
 import importlib.util
@@ -166,6 +169,8 @@ def main():
                         help="where the old and new upstream trees are exported")
     parser.add_argument("--status", action="store_true",
                         help="list the local differences from the recorded upstream commit and stop")
+    parser.add_argument("--upstream-only", action="store_true",
+                        help="take upstream's version of every upstream file, dropping the local changes")
     parser.add_argument("--no-fetch", action="store_true", help="use the clone as it is")
     args = parser.parse_args()
 
@@ -183,6 +188,9 @@ def main():
     conflicts = []
     counts = {}
     for action, path in rows:
+        if args.upstream_only:
+            action = {"merge": "update", "local": "update", "both-added": "update",
+                      "local-orphan": "remove"}.get(action, action)
         counts[action] = counts.get(action, 0) + 1
         ours, old, new = ENGINE / path, old_tree / path, new_tree / path
         if action in ("add", "update"):

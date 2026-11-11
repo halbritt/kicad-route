@@ -2,7 +2,7 @@
   "project": "KiCadRoutingTools",
   "license": "MIT",
   "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
-  "upstream_commit": "295f9ee197517e8323726853361eb137cc08ba9e",
+  "upstream_commit": "772003a6bff8cda7a8611d7ff6a7b72451849c64",
   "upstream_base": "295f9ee197517e8323726853361eb137cc08ba9e",
   "upstream_release": "v0.23.1",
   "fork": "https://github.com/halbritt/KiCadRoutingTools",
@@ -93,5 +93,7 @@
     "tests/test_via_hole_reach.py",
     "tests/test_writer_quotes.py",
     "tests/test_writer_removal_identity.py"
-  ]
+  ],
+  "upstream_describe": "v0.23.9-1-g772003a6",
+  "upstream_commit_date": "2026-11-09T22:18:14-05:00"
 }

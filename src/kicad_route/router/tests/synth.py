@@ -69,6 +69,74 @@ def make_pcb(*, nets=None, footprints=None, vias=None, segments=None,
                    **kw)
 
 
+# --- board TEXT builders (#726) ----------------------------------------------
+#
+# The dataclass builders above make a PCBData directly, which is the wrong
+# tool for anything about PARSING or WRITING: those act on .kicad_pcb text and
+# the whole question is what the text becomes. `tests/test_457_writer_precision`
+# grew its own `_board`/`_fp` pair for that; these are the shared version, and
+# they differ in the one way #726 needs -- a block's uuid is independent of its
+# reference, so two blocks can legitimately claim one reference (or one uuid).
+
+def footprint_text(ref, x=0.0, y=0.0, *, rot=None, uuid=None, name='test:FP',
+                   layer='F.Cu', pads=1, pad_net=0, locked=False,
+                   ref_property=True, extra=''):
+    """One `(footprint ...)` block as KiCad writes it.
+
+    `ref=None` emits NO Reference node at all (the reference-LESS footprint:
+    a locked NPTH drill dot, of which thunderscope has 86). `ref=''` emits an
+    EMPTY one, which is what esp_prog's three logo blocks carry -- the parser's
+    `[^"]+` treats both the same way, and that is deliberate.
+
+    `ref_property=False` emits the KiCad 6/7 `(fp_text reference ...)` form
+    instead of the 8+ `(property "Reference" ...)` one. No tracked corpus board
+    uses it, so it can only be covered synthetically (#78).
+    """
+    uid = uuid if uuid is not None else 'uuid-%s' % (ref or 'none')
+    at = '(at %s %s%s)' % (x, y, '' if rot is None else ' ' + str(rot))
+    if ref is None:
+        refnode = ''
+    elif ref_property:
+        refnode = '\t\t(property "Reference" "%s"\n\t\t\t(at 0 0)\n\t\t)\n' % ref
+    else:
+        refnode = ('\t\t(fp_text reference "%s"\n\t\t\t(at 0 0)\n'
+                   '\t\t\t(layer "F.SilkS")\n\t\t)\n' % ref)
+    body = ['\t(footprint "%s"\n\t\t(layer "%s")\n\t\t(uuid "%s")\n\t\t%s\n'
+            % (name, layer, uid, at)]
+    if locked:
+        body.append('\t\t(locked yes)\n')
+    body.append(refnode)
+    body.append(extra)
+    for i in range(pads):
+        body.append('\t\t(pad "%d" smd rect\n\t\t\t(at %s 0)\n\t\t\t'
+                    '(size 0.6 0.8)\n\t\t\t(layers "F.Cu")\n\t\t\t'
+                    '(net %d "N%d")\n\t\t\t(uuid "%s-p%d")\n\t\t)\n'
+                    % (i + 1, 0.5 + i, pad_net, pad_net, uid, i + 1))
+    body.append('\t)\n')
+    return ''.join(body)
+
+
+def board_text(footprints, *, version=20241229, nets=(0,)):
+    """A minimal but REAL .kicad_pcb around `footprints` (a text blob)."""
+    head = ['(kicad_pcb\n\t(version %d)\n\t(generator "synth")\n' % version]
+    for n in nets:
+        head.append('\t(net %d "%s")\n' % (n, '' if n == 0 else 'N%d' % n))
+    head.append('\t(gr_rect\n\t\t(start 0 0)\n\t\t(end 200 200)\n'
+                '\t\t(layer "Edge.Cuts")\n\t\t(uuid "edge")\n\t)\n')
+    return ''.join(head) + footprints + ')\n'
+
+
+def write_board(text, path=None):
+    """`board_text(...)` on disk; returns the path. Caller cleans up."""
+    import tempfile
+    if path is None:
+        fd, path = tempfile.mkstemp(suffix='.kicad_pcb')
+        os.close(fd)
+    with open(path, 'w', encoding='utf-8') as fh:
+        fh.write(text)
+    return path
+
+
 class RoutingBoard:
     """A small routable .kicad_pcb as TEXT (#1261): footprints with one pad
     each, tracks and vias that may carry `(locked yes)` in KiCad's canonical
@@ -154,3 +222,52 @@ def locked_items(path):
     import re
     return sorted(re.findall(r'\((?:segment|via) [^\n]*\(locked yes\)[^\n]*\)',
                              text))
+
+
+def with_partner_pads(src, dst, origin, *, cols=1, pitch=1.0):
+    """Write `src` to `dst` with a partner pad for every net that has ONE pad
+    on the board, and return the partnered net names (#1342).
+
+    The synthetic QFN fixtures name nets that exist only on the package --
+    no real board does that, and the fanouts skip such a net as an NC pin
+    (bga_fanout since #122, qfn_fanout since #1342), because it has nothing
+    to connect to. A test that fans those nets gives each one somewhere to
+    go: one `synth:PARTNER` footprint whose pads sit on a grid at `origin`
+    (`cols` per row, `pitch` apart) -- keep it clear of the escapes under
+    test. Each pad keeps the board's net dialect (`(net N "name")` or the
+    name-only form). Siblings (.kicad_pro, ...) are carried when dst differs.
+    """
+    import contextlib
+    import io
+    import re
+    from kicad_parser import parse_kicad_pcb
+    with contextlib.redirect_stdout(io.StringIO()), \
+            contextlib.redirect_stderr(io.StringIO()):
+        pcb = parse_kicad_pcb(src)
+        if os.path.abspath(src) != os.path.abspath(dst):
+            from copy_board import copy_board
+            copy_board(src, dst)
+    names = sorted(pcb.nets[nid].name for nid, pads in pcb.pads_by_net.items()
+                   if nid and len(pads) == 1 and nid in pcb.nets)
+    with open(src, encoding='utf-8') as fh:
+        text = fh.read()
+    pads = []
+    for i, name in enumerate(names):
+        m = re.search(r'\(net (\d+) "%s"\)' % re.escape(name), text)
+        net = ('(net %s "%s")' % (m.group(1), name) if m
+               else '(net "%s")' % name)
+        pads.append('\t\t(pad "%d" smd rect (at %s %s) (size 0.5 0.5) '
+                    '(layers "F.Cu" "F.Mask") %s)\n'
+                    % (i + 1, round((i % cols) * pitch, 6),
+                       round((i // cols) * pitch, 6), net))
+    if pads:
+        block = ('\t(footprint "synth:PARTNER" (layer "F.Cu") '
+                 '(uuid "13421342-0000-4000-8000-000000001342") (at %s %s)\n'
+                 '\t\t(property "Reference" "TP_PARTNER" (at 0 -1 0) '
+                 '(layer "F.SilkS"))\n%s\t)\n' % (origin[0], origin[1],
+                                                 ''.join(pads)))
+        i = text.rstrip().rfind(')')
+        text = text[:i] + block + text[i:]
+    with open(dst, 'w', encoding='utf-8') as fh:
+        fh.write(text)
+    return names

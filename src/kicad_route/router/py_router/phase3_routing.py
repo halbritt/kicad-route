@@ -21,7 +21,8 @@ from routing_config import GridRouteConfig
 from routing_state import RoutingState, record_net_event
 from routing_context import (build_single_ended_obstacles, build_incremental_obstacles,
                              carry_run_state)
-from single_ended_routing import route_multipoint_taps, route_net_with_obstacles, route_multipoint_main
+from single_ended_routing import (route_multipoint_taps, route_net_with_obstacles,
+                                  route_multipoint_main, uncommit_dropped_result)
 from connectivity import get_multipoint_net_pads, get_copper_connected_terminal_groups
 from blocking_analysis import analyze_frontier_blocking, print_blocking_analysis, filter_rippable_blockers, invalidate_obstacle_cache, record_frontier_blocking
 from protected_nets import rip_refusal
@@ -275,6 +276,8 @@ def _probe_abandon_world(stranded_ids, orig_tap_segs, orig_tap_vias, ctx):
             r = route_net_with_obstacles(pcb_data, rid, probe_cfg, obstacles)
             result[rid] = bool(r and not r.get('failed')
                                and (r.get('path') or r.get('phase1_exhausted')))
+            # A probe commits nothing; its #189 unblock copper goes too.
+            uncommit_dropped_result(pcb_data, r)
     finally:
         if guard:
             remove_segments_list_from_obstacles(state.working_obstacles, orig_tap_segs, config)
@@ -502,6 +505,9 @@ def _phase3_tap_relocation_retry(net_id, completed_result, pcb_data, config,
             return retry
         print(f"  PHASE-3 TAP RELOCATION: re-tap declined -> reverting "
               f"(retry discarded)")
+    # The retry carries completed_result's copper as its prefix; the rest,
+    # never committed, takes its #189 unblock copper with it.
+    uncommit_dropped_result(pcb_data, retry, kept=completed_result)
     for token in reversed(tokens):
         restore_tap(pcb_data, working, cache, token)
     return None
@@ -538,41 +544,39 @@ def _phase3_stub_switch_retry(net_id, completed_result, pcb_data, config,
     registry = None
     switched = []
     moved_tips = set()
-    committed = False
-    try:
-        for fp in failed_pads[:3]:
-            fx, fy = fp.get('x'), fp.get('y')
-            if fx is None:
-                continue
-            if registry is None:
-                registry = foreign_stub_registry(pcb_data, net_id)
-            sw = switch_boxed_stub_near(pcb_data, net_id, config, fx, fy,
-                                        all_stubs_by_layer=registry,
-                                        moved_tips=moved_tips)
-            if sw is not None:
-                switched.append(sw)
-        if not switched:
-            return None
-
-        retry = route_multipoint_taps(
-            pcb_data, net_id, config, build_obstacles(), dict(completed_result),
-            global_offset=global_tap_offset, global_total=total_tap_edges,
-            global_failed=global_tap_failed)
-        after = len((retry or {}).get('failed_pads_info') or []) \
-            if retry else len(failed_pads)
-        if retry and after < len(failed_pads):
-            print(f"  PHASE-3 STUB SWITCH: {len(failed_pads) - after} pad(s) "
-                  f"reconnected after moving {len(switched)} stub(s)")
-            for seg_mods, new_vias, _from, _dest in switched:
-                state.all_segment_modifications.extend(seg_mods)
-                state.all_swap_vias.extend(new_vias)
-            committed = True
-            return retry
+    for fp in failed_pads[:3]:
+        fx, fy = fp.get('x'), fp.get('y')
+        if fx is None:
+            continue
+        if registry is None:
+            registry = foreign_stub_registry(pcb_data, net_id)
+        sw = switch_boxed_stub_near(pcb_data, net_id, config, fx, fy,
+                                    all_stubs_by_layer=registry,
+                                    moved_tips=moved_tips)
+        if sw is not None:
+            switched.append(sw)
+    if not switched:
         return None
-    finally:
-        if not committed:
-            for seg_mods, new_vias, _from, _dest in reversed(switched):
-                revert_stub_layer_switch(pcb_data, seg_mods, new_vias)
+
+    retry = route_multipoint_taps(
+        pcb_data, net_id, config, build_obstacles(), dict(completed_result),
+        global_offset=global_tap_offset, global_total=total_tap_edges,
+        global_failed=global_tap_failed)
+    after = len((retry or {}).get('failed_pads_info') or []) \
+        if retry else len(failed_pads)
+    if retry and after < len(failed_pads):
+        print(f"  PHASE-3 STUB SWITCH: {len(failed_pads) - after} pad(s) "
+              f"reconnected after moving {len(switched)} stub(s)")
+        for seg_mods, new_vias, _from, _dest in switched:
+            state.all_segment_modifications.extend(seg_mods)
+            state.all_swap_vias.extend(new_vias)
+        return retry
+    # The retry carries completed_result's copper as its prefix; the rest,
+    # never committed, takes its #189 unblock copper with it.
+    uncommit_dropped_result(pcb_data, retry, kept=completed_result)
+    for seg_mods, new_vias, _from, _dest in reversed(switched):
+        revert_stub_layer_switch(pcb_data, seg_mods, new_vias)
+    return None
 
 
 def run_phase3_tap_routing(
@@ -740,6 +744,10 @@ def run_phase3_tap_routing(
                     obstacle_cache=obstacle_cache
                 )
                 if retry_result is not None:
+                    # The first pass's taps are dropped (the retry re-taps
+                    # from the main route); their #189 unblock copper too.
+                    uncommit_dropped_result(pcb_data, completed_result,
+                                            kept=retry_result)
                     completed_result = retry_result
 
             # Tap relocation first (matches the initial-loop rung order:
@@ -831,19 +839,16 @@ def run_phase3_tap_routing(
         # failing re-route, rip again and restore, twice per call, zero gain
         # (test-board run 5: QSPI_SS churned until every call was made
         # single-net just to starve this path of siblings).
-        from protected_nets import cached_protection_map, rip_override_names
+        from protected_nets import in_run_rip_reason
         _seam_done = getattr(state, '_seam_reask_done', None)
         if _seam_done is None:
             _seam_done = set()
             state._seam_reask_done = _seam_done
         _net_nm = (pcb_data.nets[net_id].name
                    if net_id in pcb_data.nets else None)
-        _prot = cached_protection_map(pcb_data)
         if net_id in _seam_done:
             pass
-        elif (_net_nm and _net_nm in _prot
-                and (_prot[_net_nm] == 'locked'
-                     or _net_nm not in rip_override_names(pcb_data))):
+        elif in_run_rip_reason(pcb_data, _net_nm):
             print(f"  (seam re-ask skipped: {_net_nm} is protected)")
         else:
             _seam_done.add(net_id)
@@ -1002,30 +1007,26 @@ def try_phase3_ripup(
     # mincut probe in the cascade (advisory, like the SE ladder): NET-level
     # approximation -- the probe routes the multipoint net's endpoint gap on
     # a clone with rippable copper soft-costed, so its crossing set names
-    # a crossing hint for the dominant gap (not per failed edge). A found path
-    # probe reorders; unknown or empty keeps the ranking above.
+    # the joint cut for the dominant gap (not per failed edge). Feasible
+    # probe reorders; infeasible or empty keeps the ranking above.
     if (getattr(config, 'ripup_blocker_select', 'count') == 'mincut'
             and getattr(state, 'working_obstacles', None) is not None
             and getattr(state, 'net_obstacles_cache', None) is not None):
         from blocking_analysis import mincut_probe_order
-        _mc_diagnostics = {}
         _mc_order, _mc_feasible = mincut_probe_order(
             pcb_data, config, state.working_obstacles, net_id,
-            rippable_blockers, state.net_obstacles_cache,
-            routed_results=routed_results,
-            diff_pair_by_net_id=diff_pair_by_net_id,
-            diagnostics=_mc_diagnostics)
+            rippable_blockers, state.net_obstacles_cache)
         if _mc_feasible and _mc_order:
             _by_id = {b.net_id: b for b in rippable_blockers}
             _front = [_by_id[n] for n in _mc_order if n in _by_id]
             _rest = [b for b in rippable_blockers
                      if b.net_id not in set(_mc_order)]
             rippable_blockers = _front + _rest
-            print(f"    MINCUT probe (net-level): crossed resources = "
+            print(f"    MINCUT probe (net-level): cut = "
                   f"{[b.net_name for b in _front]}")
         elif not _mc_feasible:
-            print(f"    MINCUT probe (net-level): unknown/no raw path with rippable "
-                  f"copper soft-costed -- keeping per-edge ranking: {_mc_diagnostics}")
+            print(f"    MINCUT probe (net-level): no path with rippable "
+                  f"copper soft-costed -- keeping per-edge ranking")
 
     # Progressive rip-up: try N=1, then N=2, etc up to max_rip_up_count
     ripped_items = []  # Track nets ripped in this attempt
@@ -1264,6 +1265,10 @@ def try_phase3_ripup(
                     print(f"    {RED}{net_name}: tap rip-up {abandon_detail} "
                           f"({stranded_names}); abandoning tap, "
                           f"re-routing victim(s){RESET}")
+                    # The abandoned retry's #189 unblock copper goes before
+                    # the victims re-route around the kept original tap.
+                    uncommit_dropped_result(pcb_data, retry_result,
+                                            kept=completed_result)
                     guard = (state.working_obstacles is not None
                              and (orig_tap_segs or orig_tap_vias))
                     guard_token = None
@@ -1369,6 +1374,9 @@ def try_phase3_ripup(
                 return retry_result
             else:
                 print(f"    {net_name}: Retry FAILED (N={N}): still {retry_failed} failed edges")
+                # Dropped: the next rung re-taps from the main route again.
+                uncommit_dropped_result(pcb_data, retry_result,
+                                        kept=completed_result)
                 # Store blocked cells from retry for next iteration's analysis
                 retry_blocking = retry_result.get('failed_edge_blocking', {})
                 if retry_blocking:
@@ -1501,7 +1509,8 @@ def _retry_victim_main_with_ripup(
                 _c652 = _ch652(_h652)
                 if _c652:
                     print(f"    {_c652}")
-                record_net_event(state, victim_id, "fanout_dropped", _v652)
+                if (_v652 or {}).get('verdict') == 'fanout_dropped':
+                    record_net_event(state, victim_id, "fanout_dropped", _v652)
         except Exception:
             pass
         return None, []
@@ -1689,8 +1698,13 @@ def _reroute_phase3_ripped_nets(
                 ripped_route_via_positions=state.ripped_route_via_positions
             )
 
-        # Check if this was originally a multi-point net (from saved_result)
-        was_multipoint = saved_result and saved_result.get('mst_edges') and len(saved_result.get('mst_edges', [])) > 1
+        # Multi-point by the board, as the reroute queue decides it: 3+
+        # terminals left after the rip. The saved result cannot say -- a
+        # PRE-EXISTING victim's registration (copper from an earlier step)
+        # carries no mst_edges, so a 3-pad victim used to re-route as a
+        # 2-terminal net with no taps and ship a pad open (#1554).
+        multipoint_pads = get_multipoint_net_pads(pcb_data, ripped_net_id, config)
+        was_multipoint = bool(multipoint_pads)
 
         # Ripped bus members reroute with their corridor here too
         from bus_detection import bus_attraction_context
@@ -1699,13 +1713,8 @@ def _reroute_phase3_ripped_nets(
             getattr(state, 'bus_corridors', None))
         if was_multipoint:
             # Use multipoint routing for multi-point nets
-            multipoint_pads = get_multipoint_net_pads(pcb_data, ripped_net_id, config)
-            if multipoint_pads:
-                result = route_multipoint_main(pcb_data, ripped_net_id, config, obstacles, multipoint_pads,
-                                               attraction_path=_attr, state=state)
-            else:
-                result = route_net_with_obstacles(pcb_data, ripped_net_id, config, obstacles,
-                                                  attraction_path=_attr, reverse_direction=_rev)
+            result = route_multipoint_main(pcb_data, ripped_net_id, config, obstacles, multipoint_pads,
+                                           attraction_path=_attr, state=state)
         else:
             # Route the main path for simple nets
             result = route_net_with_obstacles(pcb_data, ripped_net_id, config, obstacles,
@@ -1843,6 +1852,8 @@ def _reroute_phase3_ripped_nets(
 
                             if retry_result is not None:
                                 print(f"    {net_name}: Rip-up retry succeeded!")
+                                uncommit_dropped_result(pcb_data, tap_result,
+                                                        kept=retry_result)
                                 tap_result = retry_result
 
                 if tap_result:
@@ -1960,6 +1971,22 @@ def _seam_ratio_floor():
         return 1.3
 
 
+def _rewind_reask_stub_switches(net_id, pcb_data, config, state, swap_mark):
+    """Undo the stub layer switches a losing seam re-ask committed, between
+    ripping its tree and restoring the original: they belong to the tree being
+    discarded. Left in place, the moved stub's pad via shipped beside the
+    restored tree's own via-in-pad at the same pad -- two same-net barrels of
+    different sizes, which KiCad grades as a hole-to-hole violation. The net's
+    obstacle entry is rebuilt from the reverted copper here, because a #134
+    refused restore returns before restore_net rebuilds it."""
+    from stub_layer_switching import rewind_swap_channel
+    from obstacle_cache import refresh_net_obstacles
+    if rewind_swap_channel(pcb_data, state, swap_mark):
+        refresh_net_obstacles(state.working_obstacles,
+                              state.net_obstacles_cache, pcb_data, config,
+                              [net_id])
+
+
 def seam_reask_one_net(net_id, pcb_data, config, state, base_obstacles,
                        gnd_net_id, all_unrouted_net_ids, routed_net_ids,
                        remaining_net_ids, routed_net_paths, routed_results,
@@ -1976,7 +2003,7 @@ def seam_reask_one_net(net_id, pcb_data, config, state, base_obstacles,
     (default 1.3) times the straight-line MST bound over their pads.
     Returns True when the tree was replaced."""
     import math
-    if not env_knobs.SEAM_REASK:
+    if getattr(config, 'quick', 0) >= 2:
         return False
     r_old = routed_results.get(net_id)
     if (not r_old or r_old.get('failed') or r_old.get('failed_pads_info')
@@ -2041,6 +2068,8 @@ def seam_reask_one_net(net_id, pcb_data, config, state, base_obstacles,
         history_conflict=False)   # #590: own-tree re-ask, not contention
     if saved is None:
         return False
+    from stub_layer_switching import swap_channel_mark
+    swap_mark = swap_channel_mark(state)
     cfg_polish = carry_run_state(config, _dc_replace(config, max_rip_up_count=0))
     _reroute_phase3_ripped_nets(
         [(net_id, saved, ripped_ids, was_in)], pcb_data, cfg_polish, state,
@@ -2068,6 +2097,7 @@ def seam_reask_one_net(net_id, pcb_data, config, state, base_obstacles,
             state.net_obstacles_cache, state.ripped_route_layer_costs,
             state.ripped_route_via_positions, layer_map,
             history_conflict=False)   # #590: undoing our own re-ask
+    _rewind_reask_stub_switches(net_id, pcb_data, config, state, swap_mark)
     restore_net(net_id, saved, ripped_ids, was_in, pcb_data, routed_net_ids,
                 routed_net_paths, routed_results, diff_pair_by_net_id or {},
                 remaining_net_ids, results, config, track_proximity_cache,
@@ -2082,7 +2112,7 @@ def se_seam_reask(state, pcb_data, config, base_obstacles, gnd_net_id,
                   all_unrouted_net_ids, routed_net_ids, remaining_net_ids,
                   routed_net_paths, routed_results, diff_pair_by_net_id,
                   results, track_proximity_cache, layer_map):
-    """#444 SE seam dissolution (KICAD_SEAM_REASK=0 disables).
+    """#444 SE seam dissolution.
 
     After Phase 3, a fully-connected multipoint net is a COMPOSITION: a main
     edge routed early in the loop plus taps welded on across the run, each
@@ -2096,7 +2126,7 @@ def se_seam_reask(state, pcb_data, config, base_obstacles, gnd_net_id,
     lower bound over their pads, worst first, capped at KICAD_SEAM_SE_MAX
     (default 16)."""
     import math
-    if not env_knobs.SEAM_REASK:
+    if getattr(config, 'quick', 0) >= 2:
         return 0
     from dataclasses import replace as _dc_replace
     try:
@@ -2156,6 +2186,7 @@ def se_seam_reask(state, pcb_data, config, base_obstacles, gnd_net_id,
     print(f"\n=== #444 SE seam re-ask: {len(candidates)} composed tree(s) "
           f"above {ratio_floor:.2f}x MST bound ===")
     cfg_polish = carry_run_state(config, _dc_replace(config, max_rip_up_count=0))
+    from stub_layer_switching import swap_channel_mark
     improved = 0
     for _ratio, _old_len, nid in candidates:
         name = pcb_data.nets[nid].name if nid in pcb_data.nets else str(nid)
@@ -2171,6 +2202,7 @@ def se_seam_reask(state, pcb_data, config, base_obstacles, gnd_net_id,
             state.ripped_route_via_positions, layer_map)
         if saved is None:
             continue
+        swap_mark = swap_channel_mark(state)
         _reroute_phase3_ripped_nets(
             [(nid, saved, ripped_ids, was_in)], pcb_data, cfg_polish, state,
             routed_net_ids, remaining_net_ids, all_unrouted_net_ids,
@@ -2200,6 +2232,7 @@ def se_seam_reask(state, pcb_data, config, base_obstacles, gnd_net_id,
                 state.working_obstacles, state.net_obstacles_cache,
                 state.ripped_route_layer_costs,
                 state.ripped_route_via_positions, layer_map)
+        _rewind_reask_stub_switches(nid, pcb_data, config, state, swap_mark)
         restore_net(nid, saved, ripped_ids, was_in, pcb_data, routed_net_ids,
                     routed_net_paths, routed_results,
                     diff_pair_by_net_id or {}, remaining_net_ids, results,

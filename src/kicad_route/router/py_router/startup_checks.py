@@ -2,7 +2,7 @@
 Startup checks for the PCB router.
 
 Verifies that:
-1. Required Python libraries are available (numpy)
+1. Required Python libraries are available (numpy, scipy, shapely: IMPORT_TESTS)
 2. The Rust library is available
 3. The Rust library version matches Cargo.toml
 
@@ -10,7 +10,8 @@ Rendering is a SEPARATE gate (`check_render_dependencies`, #887): Pillow is not
 needed to route, and requiring it here stops a machine that can route from
 routing. See that function for what it cost when the two were merged.
 
-If version mismatch is detected, automatically rebuilds using build_router.py.
+If the library is missing or its version does not match, it does NOT rebuild:
+it raises with the instruction to run build_router.py.
 
 These checks RAISE `StartupCheckError` rather than calling sys.exit (#457 item 3).
 The CLI entry points still exit 1 with the same message -- they catch it at their
@@ -44,9 +45,8 @@ class RenderDependencyError(StartupCheckError, ImportError):
     Also an `ImportError`, deliberately (#943). Every consumer that DISABLES
     rendering rather than failing spells that `except ImportError`, because the
     thing it guards is a `from PIL import ...`. A bare StartupCheckError is a
-    RuntimeError, so it walked straight past those handlers: the GUI's routing
-    movie reported "failed (<install instructions>)" instead of "not rendered -
-    install Pillow", and the placement tab's preview fell into its silent
+    RuntimeError, so it walked straight past those handlers: the placement
+    tab's preview fell into its silent
     branch without setting `_preview_ok = False`, so it re-attempted the render
     on every board. Being both types means a caller can catch whichever it
     means -- the missing import, or the startup precondition.
@@ -73,6 +73,7 @@ IMPORT_TESTS = {
     "scipy": "from scipy.optimize import linear_sum_assignment",
     "shapely": "from shapely.geometry import Polygon",
     "Pillow": "from PIL import Image",
+    "ortools": "from ortools.sat.python import cp_model",
 }
 
 # pip distribution name -> the module whose `__version__` is read to decide
@@ -86,11 +87,17 @@ VERSION_MODULES = {
     "scipy": "scipy",
     "shapely": "shapely",
     "Pillow": "PIL",
+    "ortools": "ortools",
 }
 
 # The packages ROUTING needs. Pillow is not among them and must not become one:
 # it is the raster path, gated separately by `check_render_dependencies` (#887).
 ROUTING_PACKAGES = ("numpy", "scipy", "shapely")
+
+# ...and what the BUS STEP needs beyond them (#1355): awx/route_bus.py and the
+# whole route plan with CP-SAT. Its own gate, `check_bus_dependencies`, for the
+# reason Pillow has one: routing never imports it.
+BUS_PACKAGES = ("ortools",)
 
 # Last-resort floors for an install that shipped without requirements.txt.
 # requirements.txt is the source of truth (`requirement_floors` reads it and
@@ -455,6 +462,25 @@ def check_python_dependencies():
             "Tools:"))
 
 
+def check_bus_dependencies():
+    """Check the libraries the BUS STEP needs beyond routing's: ortools (#1355).
+
+    The bus step's fanout, ends model and whole solve import
+    `ortools.sat.python.cp_model`, each in a stage of its own, so without it
+    `route_bus.py` ran for minutes, printed `fanout exit 1` and `the whole route
+    laid nothing (exit 2)`, and named the missing module only in a stage log
+    under its work directory. route_bus.py and whole_route.py call this before
+    they start. Loads the probe (`load=True`): the step imports it anyway.
+    Raises StartupCheckError naming what is missing or too old.
+    """
+    problems = dependency_problems(BUS_PACKAGES, load=True)
+    if problems:
+        raise StartupCheckError(format_problems(
+            problems,
+            "ERROR: the bus step (awx/route_bus.py) needs Python libraries "
+            "that are missing or too old:"))
+
+
 def _raise_if_missing(missing, exc=StartupCheckError):
     """Raise the actionable install message for a list of distribution names.
 
@@ -474,7 +500,7 @@ def _raise_if_missing(missing, exc=StartupCheckError):
 def check_render_dependencies():
     """Check the libraries the RASTER path needs. Raises RenderDependencyError.
 
-    Pillow only (#887). Every board still, review sheet and movie needs it --
+    Pillow only (#887). Every board still and review sheet needs it --
     yet it was declared in neither requirements.txt nor these checks, and a
     fresh clone learned that from a runtime ImportError string rather than from
     the check that exists to say so up front.
@@ -585,7 +611,7 @@ def check_rust_library():
                   f"Cargo.toml={cargo_version}")
 
     if reason:
-        lines = [reason, "Please run:", "  python build_router.py", "",
+        lines = [reason, "Please run:", "  python3 build_router.py", "",
                  "Then re-run your command."]
         if sys.version_info < MIN_PYTHON:
             lines += ["",

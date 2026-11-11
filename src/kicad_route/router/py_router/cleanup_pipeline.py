@@ -51,9 +51,6 @@ from pcb_modification import (
     smooth_octolinear_chains,
     close_soft_joints,
     merge_collinear_segments,
-    repair_generated_terminal_centrelines,
-    remove_generated_duplicates,
-    split_generated_t_junctions,
     CLOSE_SOFT_JOINT_KINDS,
 )
 
@@ -97,30 +94,40 @@ def strict_collapse_deferred() -> bool:
     return _STRICT_COLLAPSE_DEFERRED[0] > 0
 
 
-def _declared_geometry_net_ids(pcb_data):
-    """Whole-net geometry declarations, including pending registrations.
-
-    Length/time matching, pair coupling and impedance are net invariants.
-    A locked individual input track is separately immutable; it does not
-    prevent a new generated terminal from attaching to its centreline.
-    Only the writeback site consumes the pending records.
-    """
+def _smooth_skip_net_ids(pcb_data):
+    """Nets the #536 octolinear smoothing pass must never touch: protected
+    nets (length/time-matched groups, coupled diff pairs, KiCad-locked
+    copper -- prior steps via the .kicad_pro plus THIS step's not-yet-
+    consumed registrations) and impedance-declared nets. Their geometry is
+    the spec: meanders exist on purpose, and smoothing one pair leg destroys
+    the coupling. Peeks at protected_nets._notes WITHOUT consuming -- the
+    writeback site owns the consume."""
     import protected_nets as _pn
-    names = set(_pn.read_for_pcb_data(pcb_data))
+    names = set(_pn.protection_map(pcb_data))
     names |= set(_pn._notes.get(_pn.PRO_KEY, {}) or {})
-    names |= set(_pn.read_impedance_for_pcb_data(pcb_data))
-    names |= set(_pn._notes.get(_pn.IMPEDANCE_KEY, {}) or {})
+    # A DECLARE-ONLY record (#1630) changes no copper decision, this one
+    # included: the copper is the project's, routed as without --impedance.
+    for _imp in (_pn.read_impedance_for_pcb_data(pcb_data),
+                 _pn._notes.get(_pn.IMPEDANCE_KEY, {}) or {}):
+        names |= {nm for nm, sp in _imp.items() if _pn.impedance_reapplies(sp)}
     return {nid for nid, net in pcb_data.nets.items()
             if getattr(net, 'name', None) in names}
 
 
-def _smooth_skip_net_ids(pcb_data):
-    """Smoothing also excludes entire nets with KiCad-locked copper (#536)."""
-    import protected_nets as _pn
-    locked = _pn.locked_net_names(pcb_data)
-    return _declared_geometry_net_ids(pcb_data) | {
-        nid for nid, net in pcb_data.nets.items()
-        if getattr(net, 'name', None) in locked}
+def _skew_bound_net_ids(pcb_data):
+    """Nets a skew rule grades on this board (#1759): every member of a
+    group `check_drc.skew_rule_groups` forms from the board's recorded
+    intra-pair tolerances and its .kicad_dru skew rules. The graze passes
+    that change copper LENGTH leave these nets' INPUT copper alone: a pair an
+    earlier step matched has no re-match in a later route.py step, so a
+    re-bend that straightened its meander shipped it out of tolerance."""
+    try:
+        from check_drc import skew_rule_groups
+        groups, _undecided = skew_rule_groups(
+            getattr(pcb_data, 'source_path', '') or '', pcb_data)
+    except Exception:
+        return set()
+    return {m for _rule, members in groups for m in members}
 
 
 @dataclass
@@ -190,11 +197,10 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                                   KICAD_SMOOTH_ROUTE=1/0 overrides. Last
                                   shape pass, still before close (it removes
                                   copper); skips protected / impedance nets
-                                  (_smooth_skip_net_ids).
-     9c. repair_generated_terminal_centrelines -- continue a native-dangling
-                                  generated terminal to its target centreline,
-                                  retaining strict connectivity and checking
-                                  the added copper before changing either model.
+                                  (_smooth_skip_net_ids). When it straightened
+                                  anything, the micro-shift runs again on the
+                                  nets its first run left grazing (#1688): the
+                                  neighbour that left no room may have moved.
      10. close_soft_joints     -- LAST ADDITIVE copper step (#319 ordering):
                                   bridge any remaining same-net soft joint.
                                   The subtractive passes above run with the
@@ -211,22 +217,14 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                                   joint, so every joint close firmed stands.
      11. merge_collinear_segments -- #811: join collinear same-net/layer/width
                                   pieces into one track. Runs AFTER close on
-                                  purpose:
+                                  purpose, and is the only pass allowed to:
                                   it MOVES NO COPPER (a vertex merges only
                                   when it lies within 1nm of the line joining
                                   its neighbours), so it cannot reopen a joint
                                   close just bridged -- it absorbs the bridge
-                                  into the track instead. It runs late to
+                                  into the track instead. It must run last to
                                   catch the joints close, smooth and the cycle
                                   prune each leave behind.
-     12. split_generated_t_junctions -- give generated tracks explicit vertices
-                                  at exact same-net/layer branch endpoints.
-                                  Changes only segmentation, preserving input
-                                  copper. Finite work/output limits leave the
-                                  whole pass unchanged and are reported.
-     13. remove_generated_duplicates -- drop generated exact copies, including
-                                  pieces created by T splitting on poured nets;
-                                  input copies remain unchanged.
 
     ``label`` prefixes the progress prints (e.g. "Diff-pair "). The pass
     switches exist for front parity, not taste:
@@ -265,6 +263,12 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
     out = CleanupOutcome()
     counts = out.counts
     strip = out.input_strip_segments
+    # --quick 2, the seed judge: keep the passes that keep board and
+    # write-list one ledger (snap, phantom, the sweeps); skip the ones that
+    # only polish copper for shipping, which judging a placement never reads.
+    _judge = getattr(config, 'quick', 0) >= 2
+    if _judge:
+        graze = octolinear = via_nudge = cycles = neck = smooth = False
 
     # KICAD_LEDGER_TRACE="x,y;x,y;..." -- ledger-leak forensics: after every
     # pass, print how many pcb_data / write-list segments have an endpoint
@@ -338,12 +342,42 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
     _nc = getattr(config, 'net_clearances', None) or None
     _bec = getattr(config, 'board_edge_clearance', 0.0) or 0.0
 
+    # #1759: the length-changing graze passes (prune, detour weld, re-bend,
+    # micro-shift) run with the input copper of skew-graded nets read-only:
+    # those nets go in a second call with keep_input_copper set, the rest in
+    # the first as before. Inert (one call each) when no skew rule binds a
+    # net in scope.
+    _ro_ids = set()
+    if not (keep_input_copper or _judge):
+        _ro_ids = _skew_bound_net_ids(pcb_data)
+        if _ro_ids and scope_net_ids is not None:
+            _ro_ids &= set(scope_net_ids)
+        if _ro_ids:
+            print(f"{label}Graze passes: {len(_ro_ids)} skew-graded net(s) keep "
+                  f"their input copper (#1759): "
+                  + ', '.join(sorted(pcb_data.nets[i].name for i in _ro_ids
+                                     if i in pcb_data.nets)[:6])
+                  + (' ...' if len(_ro_ids) > 6 else ''))
+
+    def _graze_pass(fn, scope, **kw):
+        if not _ro_ids:
+            return fn(results, pcb_data, scope,
+                      keep_input_copper=keep_input_copper, **kw)
+        full = set(scope) if scope is not None else set(pcb_data.nets)
+        a = fn(results, pcb_data, full - _ro_ids,
+               keep_input_copper=keep_input_copper, **kw)
+        b = fn(results, pcb_data, full & _ro_ids, keep_input_copper=True, **kw)
+        return ((a[0] + b[0], a[1] + b[1], list(a[2]) + list(b[2]))
+                + tuple(x + y if isinstance(x, list) and isinstance(y, list)
+                        else x for x, y in zip(a[3:], b[3:])))
+
     if graze:
         _prog("graze prune")
-        _gz_segs, _gz_nets, _gz_strip = prune_grazing_segments(
-            results, pcb_data, scope_net_ids, clearance=config.clearance,
-            check_foreign_segments=True, keep_input_copper=keep_input_copper,
-            net_clearances=_nc)
+        _gz_segs, _gz_nets, _gz_strip = _graze_pass(
+            prune_grazing_segments, scope_net_ids, clearance=config.clearance,
+            check_foreign_segments=True,
+            net_clearances=_nc,
+            config=config)  # #1619: scoped .kicad_dru rules
         counts['graze_pruned'] = _gz_segs
         _trace('graze')
         strip.extend(_gz_strip)
@@ -354,9 +388,9 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
         # and that prune_grazing_segments' strict gate refused (the surviving A~C
         # overlap is non-coincident), by welding the solidly-overlapping neighbours
         # coincident (picodvi DVI_CK terminal-leg jog).
-        _wd_segs, _wd_nets, _wd_strip = weld_redundant_grazing_detours(
-            results, pcb_data, scope_net_ids, clearance=config.clearance,
-            keep_input_copper=keep_input_copper, net_clearances=_nc)
+        _wd_segs, _wd_nets, _wd_strip = _graze_pass(
+            weld_redundant_grazing_detours, scope_net_ids,
+            clearance=config.clearance, net_clearances=_nc)
         counts['detours_welded'] = _wd_segs
         _trace('weld_detour')
         strip.extend(_wd_strip)
@@ -366,10 +400,10 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
 
     if octolinear:
         _prog("octolinear graze re-bend")
-        _nz_segs, _nz_nets, _nz_strip, _ = nudge_grazing_octolinear(
-            results, pcb_data, scope_net_ids, clearance=config.clearance,
-            keep_input_copper=keep_input_copper,
-            net_clearances=_nc, board_edge_clearance=_bec)
+        _nz_segs, _nz_nets, _nz_strip, _ = _graze_pass(
+            nudge_grazing_octolinear, scope_net_ids, clearance=config.clearance,
+            net_clearances=_nc, board_edge_clearance=_bec,
+            config=config)  # #1561: scoped .kicad_dru rules
         counts['octolinear_nudged'] = _nz_segs
         _trace('octolinear')
         strip.extend(_nz_strip)
@@ -377,26 +411,32 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
             print(f"{label}Graze nudge: re-bent grazing octolinear jog(s) "
                   f"on {_nz_nets} net(s)")
 
+    def _microshift(scope, unresolved=None):
+        _segs, _nets, _strip, _ = _graze_pass(
+            nudge_grazing_microshift, scope, clearance=config.clearance,
+            max_shift=(microshift_max_shift if microshift_max_shift is not None
+                       else config.grid_step / 2),
+            # #436: cross-class-aware graze fix — measure shortfall against each
+            # net's own netclass floor and each foreign net's class, not the global
+            # clearance (daisho's 456 same-class grid grazes, cparti's SW1-vs-SMA).
+            net_clearances=_nc, board_edge_clearance=_bec,
+            # #617: this front HAS a config, so the explicit
+            # `config.hole_clearance` override reaches resolve_hole_clearance
+            # rather than being silently dropped. Both fronts call this pipeline.
+            config=config,
+            unresolved_net_ids=unresolved)
+        counts['microshifted'] += _segs
+        _trace('microshift')
+        strip.extend(_strip)
+        if _segs:
+            print(f"{label}Graze micro-shift: moved copper by its clearance "
+                  f"shortfall on {_nets} net(s)")
+
     _prog("graze micro-shift")
-    _ms_segs, _ms_nets, _ms_strip, _ = nudge_grazing_microshift(
-        results, pcb_data, scope_net_ids, clearance=config.clearance,
-        max_shift=(microshift_max_shift if microshift_max_shift is not None
-                   else config.grid_step / 2),
-        keep_input_copper=keep_input_copper,
-        # #436: cross-class-aware graze fix — measure shortfall against each
-        # net's own netclass floor and each foreign net's class, not the global
-        # clearance (daisho's 456 same-class grid grazes, cparti's SW1-vs-SMA).
-        net_clearances=_nc, board_edge_clearance=_bec,
-        # #617: this front HAS a config, so the explicit
-        # `config.hole_clearance` override reaches resolve_hole_clearance
-        # rather than being silently dropped. Both fronts call this pipeline.
-        config=config)
-    counts['microshifted'] = _ms_segs
-    _trace('microshift')
-    strip.extend(_ms_strip)
-    if _ms_segs:
-        print(f"{label}Graze micro-shift: moved copper by its clearance "
-              f"shortfall on {_ms_nets} net(s)")
+    counts['microshifted'] = 0
+    _ms_unresolved = set()
+    if not _judge:
+        _microshift(scope_net_ids, _ms_unresolved)
 
     if via_nudge:
         _prog("via nudge")
@@ -411,7 +451,8 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
             max_shift=config.grid_step,
             net_clearances=_nc, board_edge_clearance=_bec,
             same_net_pad_clearance=getattr(config, 'same_net_pad_clearance',
-                                           -1.0))  # #581
+                                           -1.0),  # #581
+            config=config)  # #1561: scoped .kicad_dru rules
         counts['vias_nudged'] = _vn_moved
         _trace('via_nudge')
         if _vn_moved:
@@ -493,17 +534,7 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
     _de_segs, _de_vias, _de_strip = sweep_dead_ends(
         results, pcb_data, scope_net_ids,
         protect_net_ids=protect_net_ids,
-        keep_input_copper=keep_input_copper,
-        # #672: protected (unfinished) nets still shed sub-CELL dead-end
-        # slivers -- rip/restore/prune debris no landing needs. One routing
-        # cell is the epsilon: no A* span is shorter. Plane-flow namespace
-        # configs carry no grid_step, which disables the pass there.
-        # #672: OPT-IN (env_knobs.SLIVER_TRIM). One routing cell is the
-        # epsilon -- no A* span is shorter -- but trimming sub-cell debris
-        # off a net the ladder is still retrying measured as a LOST NET on
-        # orangecrab, so it is off by default. See the knob's note.
-        sliver_eps=(float(getattr(config, 'grid_step', 0.0) or 0.0)
-                    if env_knobs.SLIVER_TRIM else 0.0))
+        keep_input_copper=keep_input_copper)
     counts['dead_ends_swept'] = _de_segs
     counts['dead_end_vias'] = _de_vias
     _trace('sweep')
@@ -555,7 +586,7 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
     if _sm_env == '':
         _sm_on = smooth and not getattr(config, 'guide_corridor_enabled', False)
     else:
-        _sm_on = _sm_env in ('1', 'true', 'on')
+        _sm_on = _sm_env in ('1', 'true', 'on') and not _judge
     if _sm_on:
         _prog("octolinear smoothing")
         _sm_n, _sm_nets, _sm_strip, _sm_added, _sm_stats = smooth_octolinear_chains(
@@ -573,22 +604,11 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                   f"{_sm_stats.get('spans', 0)} staircase span(s) on "
                   f"{_sm_nets} net(s), -{_sm_stats.get('saved_mm', 0.0):.2f} mm "
                   f"of copper (#536)")
-
-    _tc_stats = {}
-    _tc = repair_generated_terminal_centrelines(
-        results, pcb_data, scope_net_ids, config,
-        protect_net_ids=(set(protect_net_ids or ())
-                         | _declared_geometry_net_ids(pcb_data)), stats=_tc_stats)
-    counts['terminal_centrelines_repaired'] = _tc
-    counts['terminal_centrelines_limit_reached'] = _tc_stats['limit_reached']
-    _trace('terminal_centrelines')
-    if _tc:
-        print(f"{label}Continued {_tc} generated terminal(s) to their target centreline")
-    if _tc_stats['limit_reached']:
-        print(f"{label}Terminal centreline pass stopped at {_tc_stats['limit_reached']} limit")
-    if _tc_stats['unsupported_channels']:
-        print(f"{label}Terminal centreline pass unchanged for unsupported channels: "
-              + ', '.join(_tc_stats['unsupported_channels']))
+            # #1688: a neighbour's jog left a graze no room to shift into, and
+            # this pass has just straightened neighbours. Only those nets.
+            if _ms_unresolved:
+                _prog("graze micro-shift after smoothing")
+                _microshift(_ms_unresolved)
 
     # FINAL copper step (#319 ordering): nothing below may remove copper.
     # KICAD_NO_SOFT_JOINT_BRIDGE=1 is an A/B ablation knob (like
@@ -640,7 +660,7 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
                      if _fc_stats.get('vias') else "")
                   + " left by smoothing / joint bridging")
 
-    # #811 Geometry-preserving by construction (see the pass
+    # #811 FINAL pass. Geometry-preserving by construction (see the pass
     # docstring), which is what lets it run after close_soft_joints and what
     # makes it safe on every front without a per-front switch. KICAD_MERGE_
     # COLLINEAR=0 ablates it for A/B isolation.
@@ -656,33 +676,6 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
         if _mc_n:
             print(f"{label}Merged {_mc_stats.get('joints', 0)} collinear joint(s) "
                   f"on {_mc_nets} net(s): -{_mc_n} redundant segment(s) (#811)")
-
-    # Preserve exact T vertices in both fronts before removing duplicate pieces.
-    # A short tap weld otherwise
-    # overlaps both neighbours at both ends, which native KiCad may count as
-    # dangling. Only generated unlocked anchors split; no copper is added,
-    # removed or moved, including when the net has a plane.
-    _tj_stats = {}
-    _tj = split_generated_t_junctions(results, pcb_data, scope_net_ids, stats=_tj_stats)
-    counts['t_junctions_split'] = _tj
-    counts['t_junctions_limit_reached'] = _tj_stats['limit_reached']
-    _trace('t_junctions')
-    if _tj:
-        print(f"{label}Made {_tj} exact T junction(s) explicit in generated tracks")
-    if _tj_stats['limit_reached']:
-        print(f"{label}T junction pass unchanged: {_tj_stats['limit_reached']} limit reached; "
-              f"{_tj_stats['comparisons']} comparisons, "
-              f"{_tj_stats['replacement_pieces']} planned pieces")
-
-    _du_stats = {}
-    _du = remove_generated_duplicates(results, pcb_data, scope_net_ids, stats=_du_stats)
-    counts['generated_duplicates_removed'] = _du
-    counts['generated_duplicates_limit_reached'] = _du_stats['limit_reached']
-    if _du:
-        print(f"{label}Removed {_du} exact generated duplicate track(s)")
-    if _du_stats['limit_reached']:
-        print(f"{label}Generated duplicate pass unchanged: segment population limit")
-    _trace('generated_duplicates')
 
     # The passes above edit pcb_data's copper in place; anything cached
     # against the old copper must not answer for the new.
@@ -827,6 +820,7 @@ def unreported_input_strips(orig_seg_by_net, orig_via_by_net, scope_net_ids,
     re-emit clause lets a result reproduce an original's span, so that span is
     still on the board even when the original object is not in `board_*`.
     """
+    from kicad_parser import is_immutable_copper  # #1279
     present_s = {_seg_ledger_sig(x) for x in board_segments
                  if not getattr(x, 'graphic', False)}
     present_v = {_via_ledger_sig(x) for x in board_vias}
@@ -838,12 +832,12 @@ def unreported_input_strips(orig_seg_by_net, orig_via_by_net, scope_net_ids,
             for x in orig_seg_by_net.get(nid, ())
             if id(x) not in known_seg_ids
             and not getattr(x, 'graphic', False)
-            and not getattr(x, 'locked', False)
+            and not is_immutable_copper(x)
             and _seg_ledger_sig(x) not in present_s]
     vias = [x for nid in (scope_net_ids or ())
             for x in orig_via_by_net.get(nid, ())
             if id(x) not in known_via_ids
-            and not getattr(x, 'locked', False)
+            and not is_immutable_copper(x)
             and _via_ledger_sig(x) not in present_v]
     return segs, vias
 

@@ -46,6 +46,12 @@ PRO_NAMESPACE = "kicad_routing_tools"
 PRO_KEY = "protected_nets"
 IMPEDANCE_KEY = "net_impedance"
 SNPC_KEY = "same_net_pad_clearance"
+POWER_WIDTHS_KEY = "power_widths"
+#: #1503: the pairs a route_diff step length-matched P to N, keyed by the P
+#: net: {'n': N net, 'tolerance_mm': the skew it matched to, 'source': 'cli'
+#: | 'dru' | 'default'} -- what the graders hold a pair to when no
+#: .kicad_dru skew rule binds it (`kicad_dru.recorded_intra_pair_rules`).
+INTRA_KEY = "intra_pair_tolerance"
 
 _GLOB_CHARS = set('*?[')
 
@@ -85,8 +91,60 @@ def note_impedance_specs(mapping: Dict[str, dict]) -> None:
     _note(IMPEDANCE_KEY, mapping)
 
 
+def impedance_reapplies(spec) -> bool:
+    """May a later step recompute widths from this net_impedance record?
+    Not from a DECLARE-ONLY one (#1630: `--impedance-declare-only` recorded
+    the target ohms of copper the project sized itself, so its widths are the
+    project's, never this tool's solve)."""
+    return isinstance(spec, dict) and not spec.get('declare_only')
+
+
+def impedance_graded(spec) -> bool:
+    """Does this record carry an impedance promise the shipped copper should
+    keep? A solved one (`applied` not False, #906) or a declare-only one
+    (#1630); an unapplied plain declaration is intent only."""
+    return isinstance(spec, dict) and bool(
+        spec.get('declare_only') or spec.get('applied') is not False)
+
+
 def consume_impedance_specs() -> Dict[str, dict]:
     return _consume(IMPEDANCE_KEY)
+
+
+def note_power_widths(mapping: Dict[str, float]) -> None:
+    """Record the track widths this step was ASKED to give power nets
+    (--power-nets / --power-nets-widths, resolved to net names): {net: mm}.
+    board_score reads it back and measures the board against it without being
+    handed a width file -- disclosed (`net_widths.requested_under`), not
+    counted: the router narrows a power route that does not fit and says so."""
+    _note(POWER_WIDTHS_KEY, mapping)
+
+
+def consume_power_widths() -> Dict[str, float]:
+    return _consume(POWER_WIDTHS_KEY)
+
+
+def note_intra_pair_tolerances(mapping: Dict[str, dict]) -> None:
+    """Record the pairs this step length-matched and the tolerance each was
+    matched to (#1503)."""
+    _note(INTRA_KEY, mapping)
+
+
+def consume_intra_pair_tolerances() -> Dict[str, dict]:
+    return _consume(INTRA_KEY)
+
+
+def persist_intra_pair_tolerances(pro_path: str, mapping: Dict[str, dict],
+                                  verbose: bool = True, board=None) -> bool:
+    return _persist_map(pro_path, INTRA_KEY, mapping,
+                        "Intra-pair tolerances (graded where no .kicad_dru skew "
+                        "rule binds the pair)", verbose, board=board)
+
+
+def read_intra_pair_tolerances(pro_path: str) -> Dict[str, dict]:
+    """The recorded intra-pair tolerances for the board beside a .kicad_pro
+    ({} when absent)."""
+    return _dict_map_from(_namespace(pro_path), INTRA_KEY)
 
 
 def pro_path_for_board(board_path: str) -> str:
@@ -212,6 +270,14 @@ def persist_impedance_specs(pro_path: str, mapping: Dict[str, dict],
                         board=board)
 
 
+def persist_power_widths(pro_path: str, mapping: Dict[str, float],
+                         verbose: bool = True, board=None) -> bool:
+    return _persist_map(pro_path, POWER_WIDTHS_KEY,
+                        {k: round(float(v), 4) for k, v in mapping.items()},
+                        "Power-net widths (measured by board_score)", verbose,
+                        board=board)
+
+
 def persist_same_net_pad_clearance(pro_path: str, value: float,
                                    verbose: bool = True, board=None) -> bool:
     """Record an ACTIVE (> 0) same-net pad via clearance (#581) so every later
@@ -294,6 +360,24 @@ def read_impedance_specs(pro_path: str) -> Dict[str, dict]:
 
 def read_impedance_for_pcb_data(pcb_data, input_file: Optional[str] = None) -> Dict[str, dict]:
     return _dict_map_from(_pcb_data_namespace(pcb_data, input_file), IMPEDANCE_KEY)
+
+
+def _widths_from(ns: dict) -> Dict[str, float]:
+    m = (ns or {}).get(POWER_WIDTHS_KEY) or {}
+    out: Dict[str, float] = {}
+    if isinstance(m, dict):
+        for k, v in m.items():
+            try:
+                out[str(k)] = float(v)
+            except (TypeError, ValueError):
+                pass
+    return out
+
+
+def read_power_widths(pro_path: str) -> Dict[str, float]:
+    """Power-net widths the board's routing steps were asked for
+    ({} when none were recorded)."""
+    return _widths_from(_namespace(pro_path))
 
 
 # --- #678: pour-served balls are a COMMITMENT, carried down the chain -------
@@ -381,17 +465,67 @@ def cached_protection_map(pcb_data, input_file: Optional[str] = None) -> Dict[st
     return m
 
 
+def held_net_reasons(pcb_data) -> Dict[str, str]:
+    """{net name: `sense:<REF>.<PAD>`} for nets carrying copper a `sense:`
+    group holds (#1279, Segment.held_by). Read straight from the board."""
+    out: Dict[str, str] = {}
+    for it in list(pcb_data.segments) + list(pcb_data.vias):
+        held = getattr(it, 'held_by', '')
+        net = pcb_data.nets.get(it.net_id) if held and it.net_id else None
+        if net is not None and net.name:
+            out.setdefault(net.name, held)
+    return out
+
+
+def is_sense_reason(reason: Optional[str]) -> bool:
+    """A protection reason naming the `sense:` group that holds the net's
+    copper (#1279)."""
+    return bool(reason) and reason.startswith('sense:')
+
+
+def never_lifts(reason: Optional[str]) -> bool:
+    """A reason no exact-name override lifts: KiCad-locked copper (#1261) and
+    copper a `sense:` group holds (#1279) -- naming the net would strip it."""
+    return reason == 'locked' or is_sense_reason(reason)
+
+
+#: The hint for a net whose pre-existing copper a `sense:` group holds.
+SENSE_HINT = ("copper held by a `sense:` group (#1279) is never stripped and "
+              "has no override; ungroup or rename the group to release it")
+
+
 def protection_map(pcb_data, input_file: Optional[str] = None) -> Dict[str, str]:
-    """Full protection map for a board: the .kicad_pro list plus nets with
-    KiCad-locked copper. 'locked' wins where both apply -- unlike the .pro
-    reasons it has NO exact-name override (locked means never)."""
+    """Full protection map for a board: the .kicad_pro list, nets whose
+    copper a `sense:` group holds (reason: the group's name), and nets with
+    KiCad-locked copper. 'locked' wins where several apply. Neither 'locked'
+    nor a `sense:` reason has an exact-name override (`never_lifts`). A
+    `sense:` reason bars whole-net strips of the net's PRE-EXISTING copper
+    only: the in-run ladders rip a routed result, never held copper
+    (rip_refusal)."""
     m = read_for_pcb_data(pcb_data, input_file)
+    m.update(held_net_reasons(pcb_data))
     m.update({n: 'locked' for n in locked_net_names(pcb_data)})
     return m
 
 
 
 
+
+
+def effective_protection_map(pcb_data, input_file: Optional[str] = None
+                             ) -> Dict[str, str]:
+    """protection_map() minus the nets this run's operator named EXACTLY
+    (the stashed rip overrides, `stash_rip_overrides`): the ONE protected set
+    a run reads once its main pass has lifted the overrides (#1395). The
+    plane finalize's blocker rip-up, its nested sub-runs and the failure hints
+    all see the net the main pass made rippable as rippable, instead of
+    refusing it as "protected, cannot rip". 'locked' and `sense:` reasons
+    have no override (`never_lifts`) and stay in the map."""
+    m = protection_map(pcb_data, input_file)
+    lifted = rip_override_names(pcb_data)
+    if not lifted:
+        return m
+    return {n: r for n, r in m.items() if never_lifts(r) or n not in lifted}
 
 
 def exact_names(patterns: Optional[Iterable[str]]) -> Set[str]:
@@ -423,6 +557,42 @@ def rip_override_names(pcb_data) -> Set[str]:
     return getattr(pcb_data, '_rip_override_names', None) or set()
 
 
+def negated_net_names(patterns: Optional[Iterable[str]], net_names) -> Set[str]:
+    """The nets a step's ``--nets`` patterns NEGATE ('!/RF', '!GND*'): the
+    names in ``net_names`` an exclusion pattern matches, read as the step's
+    own selection reads them (net_queries.split_net_patterns, so an
+    active-low literal such as '!RESET' that names a net is not a
+    negation)."""
+    if not patterns:
+        return set()
+    from net_queries import split_net_patterns, net_pattern_matches
+    names = {n for n in net_names if n}
+    _inc, exc = split_net_patterns(list(patterns), names)
+    if not exc:
+        return set()
+    return {n for n in names if any(net_pattern_matches(n, p) for p in exc)}
+
+
+def stash_hands_off(pcb_data, names: Optional[Iterable[str]]) -> Set[str]:
+    """Record the nets this run's ``--nets`` negates on pcb_data (#1621), so
+    every pass of the run that picks a net to rip -- the main pass's
+    candidacy, the plane finalize's blocker rip-up and the sub-runs that
+    share this board -- leaves them alone. A run ledger (RUN_LEDGERS):
+    unioned, so a nested sub-run, whose own patterns negate nothing, keeps
+    the outer run's set."""
+    names = {n for n in (names or ()) if n}
+    if names:
+        pcb_data._hands_off_names = set(
+            getattr(pcb_data, '_hands_off_names', None) or set()) | names
+    return getattr(pcb_data, '_hands_off_names', None) or set()
+
+
+def hands_off_names(pcb_data) -> Set[str]:
+    """The nets this run's ``--nets`` negates (stash_hands_off); empty when
+    none."""
+    return getattr(pcb_data, '_hands_off_names', None) or set()
+
+
 def rip_refusal(pcb_data, net_id: int, context: str = "in-run rip ladder",
                 diff_pair_by_net_id: Optional[Dict] = None) -> Optional[str]:
     """Why the IN-RUN rip machinery must leave `net_id` alone, or None.
@@ -434,6 +604,11 @@ def rip_refusal(pcb_data, net_id: int, context: str = "in-run rip ladder",
     and fallback rips, the victim-priority squatter rip. Same rule as the
     pre-run filters: 'locked' (KiCad-locked copper) never lifts; any other
     reason lifts for a net the operator named exactly (stash_rip_overrides).
+    A `sense:` reason (#1279) does not refuse here: these ladders rip a
+    routed RESULT, whose removal skips held copper
+    (remove_route_from_pcb_data), so the net's routes of this run stay
+    rippable -- unless the .kicad_pro also protects the net, whose rule then
+    applies as usual.
     A diff pair rips as a unit, so its partner's protection refuses it too.
     A refusal is recorded in PROTECTED_SKIPPED under `context` (JSON_SUMMARY).
     """
@@ -450,15 +625,39 @@ def rip_refusal(pcb_data, net_id: int, context: str = "in-run rip ladder",
                if i is not None] or ids
     for nid in ids:
         net = pcb_data.nets.get(nid)
-        name = net.name if net else None
-        if not name or name not in protected:
-            continue
-        reason = protected[name]
-        if reason != 'locked' and name in rip_override_names(pcb_data):
-            continue
-        PROTECTED_SKIPPED.setdefault(context, {})[name] = reason
-        return reason
+        reason = in_run_rip_reason(pcb_data, net.name if net else None)
+        if reason:
+            PROTECTED_SKIPPED.setdefault(context, {})[net.name] = reason
+            return reason
     return None
+
+
+def in_run_rip_reason(pcb_data, name: Optional[str]) -> Optional[str]:
+    """rip_refusal's rule for one net name, without recording it: the reason
+    an in-run ladder must not rip the net's routed result, or None."""
+    if not name:
+        return None
+    reason = cached_protection_map(pcb_data).get(name)
+    if is_sense_reason(reason):
+        reason = _cached_project_reasons(pcb_data).get(name)
+    if not reason:
+        return None
+    if reason != 'locked' and name in rip_override_names(pcb_data):
+        return None
+    return reason
+
+
+def _cached_project_reasons(pcb_data) -> Dict[str, str]:
+    """The .kicad_pro protection list alone, memoised like
+    cached_protection_map (a held net's own project reason, #1279)."""
+    m = getattr(pcb_data, '_project_protection_memo', None)
+    if m is None:
+        m = read_for_pcb_data(pcb_data)
+        try:
+            pcb_data._project_protection_memo = m
+        except Exception:
+            pass
+    return m
 
 
 
@@ -483,13 +682,14 @@ def filter_rippable_names(names: List[str], protected: Dict[str, str],
                           context: str = "rip-up") -> List[str]:
     """Drop protected names (minus exact-name overrides), printing what was
     excluded and why. Returns the surviving names in input order. A net whose
-    reason is 'locked' (KiCad-locked copper) has NO override -- ever."""
+    reason is 'locked' (KiCad-locked copper) or a `sense:` group (#1279) has
+    NO override -- ever (`never_lifts`)."""
     if not protected:
         return list(names)
     overrides = exact_names(override_patterns)
     kept, blocked = [], []
     for n in names:
-        if n in protected and (protected[n] == 'locked' or n not in overrides):
+        if n in protected and (never_lifts(protected[n]) or n not in overrides):
             blocked.append(n)
         else:
             kept.append(n)
@@ -504,12 +704,16 @@ def filter_rippable_names(names: List[str], protected: Dict[str, str],
         # The override hint only for the reasons that HAVE one (#1192): a
         # 'locked' net was refused even if the caller named it exactly.
         hints = []
-        if any(r != 'locked' for r in by_reason):
+        if any(not never_lifts(r) for r in by_reason):
             hints.append("name a net exactly (no glob) to override"
-                         + (" all but 'locked'" if 'locked' in by_reason else ""))
+                         + (" all but 'locked'" if 'locked' in by_reason else "")
+                         + (" and `sense:`" if any(map(is_sense_reason, by_reason))
+                            else ""))
         if 'locked' in by_reason:
             hints.append("KiCad-locked copper has no override; unlock it in "
                          "the board")
+        if any(map(is_sense_reason, by_reason)):
+            hints.append(SENSE_HINT)
         print(f"  {len(blocked)} PROTECTED net(s) excluded from {context} ({det})"
               f" -- {'; '.join(hints)}")
     return kept

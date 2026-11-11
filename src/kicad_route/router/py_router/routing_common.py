@@ -6,7 +6,6 @@ pair routing to avoid code duplication.
 """
 from __future__ import annotations
 
-import os
 import time
 from typing import List, Optional, Tuple, Dict, Set
 
@@ -115,8 +114,7 @@ def setup_bga_exclusion_zones(
             # net whose fanout dropped it. Auto-disable that component's zone.
             # Engine-level (batch_route/batch_route_diff_pairs), so the GUI
             # inherits; board-state-driven, so no sidecar file is load-bearing.
-            import env_knobs
-            if selected_net_ids and env_knobs.BARE_BALL_ZONE_EXEMPT:
+            if selected_net_ids:
                 _sel = set(selected_net_ids)
                 # Only nets that can actually be ROUTED (>=2 pads): a
                 # single-pad net's ball is trivially bare and disabled
@@ -235,6 +233,97 @@ def power_width_report(segments, requested: Dict[int, float],
             'by_width_mm': {f'{w:g}': round(L, 2)
                             for w, L in sorted(prof.items())},
         }
+    return out
+
+
+def segment_identity(s, net_name):
+    """A segment's geometry as a hashable key, orientation-free: net (by NAME,
+    so a re-parsed board's renumbered nets still match), layer, width and the
+    two endpoints to 0.1 um. Two boards' segments with equal keys are the same
+    copper; a key the input board lacks is copper the run laid (or re-laid)."""
+    a = (round(s.start_x, 4), round(s.start_y, 4))
+    b = (round(s.end_x, 4), round(s.end_y, 4))
+    return (net_name, s.layer, round(s.width, 4)) + ((a, b) if a <= b else (b, a))
+
+
+def new_copper_width_shortfall(segments, name_of, input_keys, requested_of):
+    """Per net, the copper THIS run laid that ships narrower than the width it
+    requested on that copper's layer (found reviewing #1282).
+
+    `segments` is the shipped copper (the written board, or the GUI's write
+    model); a segment whose :func:`segment_identity` is in `input_keys` was on
+    the input board and is not this run's. `requested_of(net_name, layer)` is
+    the width asked for there, or None for a net this report does not cover.
+    Graphic and net-0 copper is ignored.
+
+    Returns {net_name: {requested_mm, length_mm, under_mm, min_mm}} for every
+    covered net with new copper -- `requested_mm` the widest layer request,
+    `min_mm` the narrowest new segment, `under_mm` the new copper more than
+    1 um narrower than its own layer's request (the same tolerance as
+    power_width_report)."""
+    import math as _math
+    out: Dict[str, Dict] = {}
+    for s in segments:
+        if getattr(s, 'graphic', False) or not s.net_id:
+            continue
+        name = name_of(s.net_id)
+        req = requested_of(name, s.layer)
+        if req is None or segment_identity(s, name) in input_keys:
+            continue
+        L = _math.hypot(s.end_x - s.start_x, s.end_y - s.start_y)
+        if L <= 0:
+            continue
+        r = out.setdefault(name, {'requested_mm': 0.0, 'length_mm': 0.0,
+                                  'under_mm': 0.0, 'min_mm': None})
+        r['requested_mm'] = max(r['requested_mm'], round(float(req), 4))
+        r['length_mm'] += L
+        if s.width < req - 1e-3:
+            r['under_mm'] += L
+        w = round(s.width, 4)
+        r['min_mm'] = w if r['min_mm'] is None else min(r['min_mm'], w)
+    for r in out.values():
+        r['length_mm'] = round(r['length_mm'], 2)
+        r['under_mm'] = round(r['under_mm'], 2)
+    return out
+
+
+def via_identity(v, net_name):
+    """A via's geometry as a hashable key: net (by NAME, so a re-parsed
+    board's renumbered nets still match), position to 1 um and diameter. Equal
+    keys are the same barrel; a key the input board lacks is a via the run
+    laid (or re-laid)."""
+    return (net_name, round(v.x, 3), round(v.y, 3), round(v.size, 3))
+
+
+def new_via_shortfall(vias, name_of, input_keys, requested_of):
+    """Per net, the vias THIS run laid that ship smaller than the diameter
+    requested for the net (#1371), read off the shipped board rather than
+    recorded per placement attempt.
+
+    `vias` is the shipped copper (the written board, or the GUI's write
+    model); a via whose :func:`via_identity` is in `input_keys` was on the
+    input board and is not this run's. `requested_of(net_name)` is the
+    diameter asked for, or None for a net this report does not cover.
+
+    Returns {net_name: {requested_mm, min_mm, count, sizes}} for every net
+    with at least one new via more than 1 um under its request -- `count`
+    those vias, `sizes` {diameter: how many}."""
+    out: Dict[str, Dict] = {}
+    for v in vias:
+        if not v.net_id:
+            continue
+        name = name_of(v.net_id)
+        req = requested_of(name)
+        if req is None or via_identity(v, name) in input_keys:
+            continue
+        if v.size >= req - 1e-3:
+            continue
+        r = out.setdefault(name, {'requested_mm': round(float(req), 4),
+                                  'min_mm': None, 'count': 0, 'sizes': {}})
+        d = round(float(v.size), 4)
+        r['count'] += 1
+        r['sizes'][d] = r['sizes'].get(d, 0) + 1
+        r['min_mm'] = d if r['min_mm'] is None else min(r['min_mm'], d)
     return out
 
 
@@ -613,7 +702,8 @@ def filter_already_routed(
             # ...but ROUTING only helps when there is live copper to join
             # (#659). Dead copper -- a cluster tied to no pad and no pour --
             # cannot improve connectivity no matter what the router welds to
-            # it, and the late orphan sweep deletes it at the end of the run.
+            # it, and the late orphan sweep deletes it at the end of the run
+            # (unless it holds locked or sense-held copper, which is kept).
             # Measured on spartan6_4layer, three such nets cost 448s, 2.0M A*
             # iterations on one link and 28 neighbours pulled in by the rip
             # escalation, fixed NONE of them, and bred three more debris nets.
@@ -626,19 +716,21 @@ def filter_already_routed(
             # authoritative graph which copper is dead, drop it, and re-count:
             # only if the REMAINDER is whole is there nothing left to route.
             #
-            # A net whose copper is ALL KiCad-locked is not a route either
-            # (#1261). Its pads grade connected; the strict fragments are the
+            # A net whose copper is ALL KiCad-locked or sense-held is not a
+            # route either (#1261, #1781). Its pads grade connected; the strict
+            # fragments are the
             # designer's pinned copper, which no pass may move or remove, so
             # "routing to join them" can only lay new copper beside it, and
             # puts a net the user pinned in front of every rip ladder and
             # stub-switch rung of the run.
             if n > 1 and _all_copper_locked(net_segments, net_vias):
                 print(f"  {net_name}: pads grade connected and every segment "
-                      f"and via is KiCad-locked -- its {n} strict fragment(s) "
+                      f"and via is KiCad-locked or sense-held -- its {n} "
+                      f"strict fragment(s) "
                       f"are pinned copper, not a route to finish (#1261)")
                 n = 1
-            if n > 1 and os.environ.get('KICAD_659_DIVERT', '1') != '0':
-                from check_connected import net_dead_copper
+            if n > 1:
+                from check_connected import net_dead_copper, dead_copper_fate
                 _dead_s, _dead_v = net_dead_copper(
                     pcb_data, net_id, net_segments, net_vias, net_pads,
                     net_zones)
@@ -657,7 +749,8 @@ def filter_already_routed(
                               f"extra fragment is DEAD copper "
                               f"({len(_dead_s)} segment(s), {len(_dead_v)} "
                               f"via(s) tied to no pad or pour) -- not a route "
-                              f"(#659); the late orphan sweep removes it")
+                              f"(#659); "
+                              f"{dead_copper_fate(_dead_s, _dead_v)}")
                         n = _n2
             if n > 1:
                 print(f"  {net_name}: pads grade connected, but its copper "
@@ -699,10 +792,13 @@ def filter_already_routed(
 
 def _all_copper_locked(segments, vias) -> bool:
     """True when a net has copper and every track and via of it is
-    KiCad-locked (graphics are not the net's track copper)."""
+    immutable: KiCad-locked, or held by a `sense:` group (#1279), which no
+    pass may move or remove either (is_immutable_copper; graphics are not
+    the net's track copper)."""
+    from kicad_parser import is_immutable_copper
     items = [s for s in segments if not getattr(s, 'graphic', False)]
     items += list(vias)
-    return bool(items) and all(getattr(x, 'locked', False) for x in items)
+    return bool(items) and all(is_immutable_copper(x) for x in items)
 
 
 def _max_fragments_within_one_outline(pcb_data, anchors):
@@ -777,6 +873,21 @@ def run_length_matching(
             net_name = pcb_data.nets[net_id].name
             net_name_to_result[net_name] = result
 
+    all_routed_names = list(net_name_to_result.keys())
+    # #1391: a named-pattern group also takes the board's own copper -- a member
+    # an earlier step routed and left protected is not in this run's results
+    # (protected nets are never registered as rip candidates), yet it belongs to
+    # the group and sets its target. The group matcher measures it from the
+    # board (`_seed_group_members_from_board`).
+    _have = set(all_routed_names)
+    _board_copper_names = []
+    _with_copper = ({s.net_id for s in pcb_data.segments}
+                    | {v.net_id for v in pcb_data.vias})
+    for _nid in _with_copper:
+        _n = pcb_data.nets.get(_nid)
+        if _n is not None and _n.name and _n.name not in _have:
+            _board_copper_names.append(_n.name)
+    _board_copper_names.sort()
     # #1247: the `auto` grouper's input is this call's scope, never the
     # pre-existing nets registered as rip candidates.
     auto_input_names = []
@@ -835,11 +946,8 @@ def run_length_matching(
                                 all_processed_vias.extend(result['new_vias'])
         else:
             # Find nets matching the patterns in this group
-            # Connected in-scope members still set a group's target. The matcher
-            # seeds their saved copper without modifying it.
-            matching_pool = [n.name for nid, n in pcb_data.nets.items()
-                             if n.name and (scope_net_ids is None or nid in scope_net_ids)]
-            matching_nets = find_nets_matching_patterns(matching_pool, group)
+            matching_nets = find_nets_matching_patterns(
+                all_routed_names + _board_copper_names, group)
             formed_groups.append({'name': ' '.join(group), 'source': 'patterns',
                                   'patterns': list(group),
                                   'members': sorted(matching_nets)})
@@ -872,6 +980,14 @@ def run_length_matching(
     except AttributeError:
         pass
     if report is not None:
+        # #1391: each member's verdict (matched / over_target / unmatched /
+        # unmeanderable / unmatched_board_copper, with the shortfall and the
+        # .kicad_dru window it was graded against).
+        _status = getattr(config, '_length_match_status', None) or {}
+        for g in formed_groups:
+            _ms = {m: _status[m] for m in g['members'] if m in _status}
+            if _ms:
+                g['member_status'] = _ms
         report['groups'] = formed_groups
     return net_name_to_result
 

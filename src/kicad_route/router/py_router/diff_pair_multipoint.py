@@ -17,7 +17,6 @@ resistor -> IC pins) are routed as a CHAIN of terminals:
 """
 from __future__ import annotations
 
-import env_knobs
 import math
 from itertools import permutations
 from typing import List, Optional, Tuple
@@ -39,7 +38,8 @@ from layer_swap_fallback import add_own_stubs_as_obstacles_for_diff_pair, rank_f
 from stub_layer_switching import apply_bare_pad_target_via
 from pcb_modification import add_route_to_pcb_data, remove_route_from_pcb_data
 from polarity_swap import apply_polarity_swap, undo_polarity_swap
-from routing_context import build_diff_pair_obstacles, build_diff_pair_leg_obstacles
+from routing_context import (build_diff_pair_obstacles, build_diff_pair_leg_obstacles,
+                             hybrid_leg_maps)
 
 
 def _segments_properly_cross(a, b, eps: float = 1e-6) -> bool:
@@ -204,8 +204,11 @@ def get_diff_pair_terminals(pcb_data: PCBData, p_net_id: int, n_net_id: int
     terminal drives a long diagonal connector that grazes the partner pad
     (issue #165). Minimum-TOTAL-cost matching instead yields {A6,B7}+{B6,A7}
     (0.5+0.5), each terminal tight so its connector launches straight out."""
-    p_pads = pcb_data.pads_by_net.get(p_net_id, [])
-    n_pads = pcb_data.pads_by_net.get(n_net_id, [])
+    # #1279: a sense pad joins its net at its branch's join pad only, so it
+    # is never a terminal (connectivity.routable, as for single-ended nets).
+    from connectivity import routable
+    p_pads = routable(pcb_data.pads_by_net.get(p_net_id, []))
+    n_pads = routable(pcb_data.pads_by_net.get(n_net_id, []))
     if not p_pads or not n_pads:
         return []
 
@@ -274,16 +277,66 @@ def leg_electrically_short(term_a: Tuple[Pad, Pad], term_b: Tuple[Pad, Pad],
     matter. Measured by the SHORTER of the leg's P-run and N-run: if either track
     cannot sustain a coupled section, route the leg single-ended. term_a/term_b
     are (P pad, N pad) tuples (oriented to current polarity)."""
-    # A geometric/electrical heuristic cannot waive a caller's coupling policy.
-    # This only requests a coupled attempt; all geometry and output gates remain.
-    if not config.defer_short_pairs:
-        return False
     threshold = diff_pair_min_coupled_length(config)
     p_dist = math.hypot(term_a[0].global_x - term_b[0].global_x,
                         term_a[0].global_y - term_b[0].global_y)
     n_dist = math.hypot(term_a[1].global_x - term_b[1].global_x,
                         term_a[1].global_y - term_b[1].global_y)
     return min(p_dist, n_dist) < threshold
+
+
+def member_run_mm(pcb_data: PCBData, net_id: int, pad_a: Pad, pad_b: Pad,
+                  config) -> float:
+    """The shortest run (mm) that can still join a pair member's two pads
+    while it keeps the copper it already has on them: that copper's length
+    plus the straight gap between the launch points the pair router uses (the
+    copper's free tips, get_net_endpoints use_stub_free_ends=True). Never
+    below the pad-to-pad distance, which it is when the member has no copper
+    on its pads. `config` needs only `layers` and `grid_step`."""
+    from connectivity import (get_net_endpoints, find_connected_groups,
+                              _pad_touches_copper_group, routable)
+    straight = math.hypot(pad_a.global_x - pad_b.global_x,
+                          pad_a.global_y - pad_b.global_y)
+    segs = routable(s for s in pcb_data.segments if s.net_id == net_id)
+    if not segs:
+        return straight
+    vias = routable(v for v in pcb_data.vias if v.net_id == net_id)
+    on_pads = 0.0
+    for group in find_connected_groups(segs, vias=vias):
+        if any(_pad_touches_copper_group(p, group, vias, config.layers)
+               for p in (pad_a, pad_b)):
+            on_pads += sum(math.hypot(s.end_x - s.start_x, s.end_y - s.start_y)
+                           for s in group)
+    if on_pads <= 0.0:
+        return straight
+    srcs, tgts, err = get_net_endpoints(pcb_data, net_id, config,
+                                        use_stub_free_ends=True)
+    if err or not srcs or not tgts:
+        return straight
+    gap = min(math.hypot(s[3] - t[3], s[4] - t[4]) for s in srcs for t in tgts)
+    return max(straight, on_pads + gap)
+
+
+def pair_leg_electrically_short(pcb_data: PCBData, term_a: Tuple[Pad, Pad],
+                                term_b: Tuple[Pad, Pad], config) -> bool:
+    """leg_electrically_short for a 2-terminal pair as it sits on the board:
+    short pad to pad AND along the run each member's own copper commits it to
+    (member_run_mm), by the same shorter-member rule.
+
+    A fanout escape is part of the member's connection. Measured pad to pad,
+    ulx3s FPDI_D0 (U1.A16 -> C42, 3.94 mm) read short and was deferred,
+    though its escapes run 5.3 mm east of the balls while the caps sit north:
+    the single-ended fallback could only join one member through the ball
+    via and the other along its escape, 7.4 mm of skew, and routed coupled
+    from the escape tips the pair ships 6.3 mm coupled at 0.33 mm skew
+    (#1362). Copper only ever lengthens the run, so this can turn a short
+    verdict into a coupled attempt, never the reverse."""
+    if not leg_electrically_short(term_a, term_b, config):
+        return False
+    threshold = diff_pair_min_coupled_length(config)
+    runs = [member_run_mm(pcb_data, term_a[k].net_id, term_a[k], term_b[k],
+                          config) for k in (0, 1)]
+    return min(runs) < threshold
 
 
 def diff_pair_is_short(pcb_data: PCBData, p_net_id: int, n_net_id: int,
@@ -295,8 +348,10 @@ def diff_pair_is_short(pcb_data: PCBData, p_net_id: int, n_net_id: int,
     single-ended pass). Used by the GUI to hide short pairs from the diff-pair
     list and to keep them visible on the single-ended list. Conservative for
     multi-point pairs (3+ terminals): those may still couple some legs, so they
-    are never reported short here. Reuses leg_electrically_short so the GUI and
-    the router agree on what counts as short.
+    are never reported short here. Reuses pair_leg_electrically_short so the
+    GUI and the router agree on what counts as short -- including a pair whose
+    own fanout escapes make it long (#1362), so the verdict depends on the
+    board's copper as well as on the parameters.
 
     centerline_setback is the run's setback exactly as the router reads it:
     None = auto (route_diff.py with no --diff-pair-centerline-setback), and a
@@ -304,13 +359,15 @@ def diff_pair_is_short(pcb_data: PCBData, p_net_id: int, n_net_id: int,
     read 0 as auto too, the GUI spin's old convention, so the short test and
     the router disagreed about an explicit 0.)"""
     from types import SimpleNamespace
+    from routing_defaults import GRID_STEP
     terminals = get_diff_pair_terminals(pcb_data, p_net_id, n_net_id)
     if len(terminals) != 2:
         return False
     cfg = SimpleNamespace(
         track_width=track_width, diff_pair_gap=diff_pair_gap,
-        diff_pair_centerline_setback=centerline_setback)
-    return leg_electrically_short(terminals[0], terminals[1], cfg)
+        diff_pair_centerline_setback=centerline_setback,
+        layers=list(pcb_data.board_info.copper_layers), grid_step=GRID_STEP)
+    return pair_leg_electrically_short(pcb_data, terminals[0], terminals[1], cfg)
 
 
 def classify_terminals(terminals: List[Tuple[Pad, Pad]], config: GridRouteConfig
@@ -902,6 +959,12 @@ def route_multipoint_diff_pair(state, pair: DiffPairNet, pair_name: str,
     # peeled). Issue #165.
     print(f"  Coupled routing failed and relocation unavailable - deferring the "
           f"whole pair to single-ended")
+    # The return signal is shared with the all-electrically-short case; the
+    # reason is not. A pair whose coupled legs failed must not be reported as
+    # electrically short.
+    from diff_pair_custody import record_pair_diag
+    record_pair_diag(state, pair_name, outcome='deferred',
+                     reason='coupled-route-failed', stage='multipoint')
     return [], None, list(terminals)
 
 
@@ -992,19 +1055,18 @@ def _route_terminal_set(state, pair: DiffPairNet, pair_name: str,
             # per-assembly re-ask only reaches hybrid candidates, and the
             # winning construction is often the pose leg.
             import os as _os
-            if env_knobs.SEAM_REASK:
-                from diff_pair_routing import seam_reask_chain_leg
-                _pcb = state.pcb_data
-                _cfg = state.config
-                _leg_obs = build_diff_pair_leg_obstacles(
-                    state.base_obstacles, _pcb, _cfg,
-                    state.routed_net_ids, state.remaining_net_ids,
-                    state.all_unrouted_net_ids, pair.p_net_id, pair.n_net_id,
-                    state.gnd_net_id, state.track_proximity_cache,
-                    state.layer_map)
-                for _lr in leg_results:
-                    seam_reask_chain_leg(_pcb, pair, _cfg, _leg_obs,
-                                         _cfg.layers, _lr)
+            from diff_pair_routing import seam_reask_chain_leg
+            _pcb = state.pcb_data
+            _cfg = state.config
+            _leg_obs = build_diff_pair_leg_obstacles(
+                state.base_obstacles, _pcb, _cfg,
+                state.routed_net_ids, state.remaining_net_ids,
+                state.all_unrouted_net_ids, pair.p_net_id, pair.n_net_id,
+                state.gnd_net_id, state.track_proximity_cache,
+                state.layer_map)
+            for _lr in leg_results:
+                seam_reask_chain_leg(_pcb, pair, _cfg, _leg_obs,
+                                     _cfg.layers, _lr)
             # Merge legs into a single result for bookkeeping (rip-up, sync,
             # caches). Segments/vias are already in pcb_data - the merged
             # result must NOT be passed to add_route_to_pcb_data again.
@@ -1179,7 +1241,7 @@ def _route_chain_attempt(state, pair: DiffPairNet, pair_name: str,
             # can't launch a *coupled* pair from the pads (CK1's DDR3-bank escape),
             # but each net escapes individually and couples once clear; the coupled
             # middle shortens until reachable and the legs single-end the rest.
-            leg_obstacles = build_diff_pair_leg_obstacles(
+            leg_obstacles, leg_fallback = hybrid_leg_maps(
                 state.base_obstacles, pcb_data, config,
                 state.routed_net_ids, state.remaining_net_ids,
                 state.all_unrouted_net_ids, pair.p_net_id, pair.n_net_id,
@@ -1193,7 +1255,8 @@ def _route_chain_attempt(state, pair: DiffPairNet, pair_name: str,
                          pair.n_net_id: [term_a[1], term_b[1]]}
             hyb = _route_direct_coupled_middle(
                 pcb_data, pair, config, obstacles, config.layers,
-                leg_obstacles=leg_obstacles, endpoints=hyb_eps, terminal_pads=_leg_pads)
+                leg_obstacles=leg_obstacles, endpoints=hyb_eps, terminal_pads=_leg_pads,
+                leg_fallback=leg_fallback)
             if (hyb is not None and not hyb.get('failed') and
                     not _pn_tracks_cross(hyb.get('new_segments', []), pair.p_net_id, pair.n_net_id) and
                     not _crosses_committed_legs(hyb.get('new_segments', []), committed_segments)):

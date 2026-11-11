@@ -16,7 +16,7 @@ import numpy as np
 from kicad_parser import PCBData, Segment, Via, Pad, Zone
 from routing_config import GridRouteConfig, GridCoord
 from routing_utils import pos_key, segment_length, POSITION_DECIMALS, build_layer_map
-from geometry_utils import UnionFind
+from geometry_utils import UnionFind, via_on_layer
 from routing_constants import BGA_DEFAULT_EDGE_TOLERANCE, BGA_EDGE_DETECTION_TOLERANCE
 
 
@@ -64,12 +64,19 @@ def _pad_touches_copper_group(pad, group, net_vias, routing_layers) -> bool:
     endpoint with no via graded "connected", Case 2 skipped it, and Case 4
     then declared the net already routed without ever verifying.
 
-    Conservative: claims connection only when group copper provably reaches
-    well inside the pad area (segment half-width plus a quarter of the pad's
-    smaller dimension). Under-claiming just adds a redundant endpoint the
-    router connects in a few iterations; over-claiming recreates the
-    phantom-success bug.
+    On the pad's own layers this is check_connected's track-through-pad
+    credit itself (track_reaches_pad: the track's copper overlaps the pad's
+    real copper, KiCad's answer), so the terminal selector and the grader
+    cannot disagree the way #479's "nothing to route" loop needed. It used to
+    be a disc of a quarter of the pad's short side about its centre, mirrored
+    in the grader, which left a track crossing a pad off-centre an open pad
+    to both while KiCad connects it. Reaching the pad on ANOTHER layer
+    through a via-in-pad keeps the conservative disc: there the question is
+    whether the copper reaches the via, which the pad's outline does not
+    answer. Under-claiming just adds a redundant endpoint the router connects
+    in a few iterations; over-claiming recreates the phantom-success bug.
     """
+    from check_connected import track_reaches_pad
     from net_queries import expand_pad_layers
     px, py = pad.global_x, pad.global_y
     pad_layers = expand_pad_layers(pad.layers, routing_layers)
@@ -92,7 +99,11 @@ def _pad_touches_copper_group(pad, group, net_vias, routing_layers) -> bool:
         for v in net_vias
     )
     for seg in group:
-        if seg.layer not in pad_layers and not reaches_all_layers:
+        if seg.layer in pad_layers:
+            if track_reaches_pad(seg, pad):
+                return True
+            continue
+        if not reaches_all_layers:
             continue
         dx = seg.end_x - seg.start_x
         dy = seg.end_y - seg.start_y
@@ -201,6 +212,35 @@ def lands_on_interior(t: float, seg_len_sq: float,
     length = math.sqrt(seg_len_sq)
     band = min(tol, 0.02 * length)
     return t * length > band and (1.0 - t) * length > band
+
+
+def span_endpoint_degree(segs, group=lambda s: s.layer) -> Dict:
+    """How many DISTINCT spans meet at each segment end: {(group(s), (x, y)
+    rounded to 1 um): count}, the endpoint degree the soft-joint detectors
+    read to tell a free end (degree 1) from a shared vertex.
+
+    A span is a segment's (group, unordered rounded ends), counted once
+    however many same-net copies are stacked on it (#1550). Two pad taps
+    laid along one corridor stack every segment of it twice, and counted
+    per COPY the end of a cut stacked run reads degree 2 -- a shared vertex
+    -- so a removal that left two such ends touching by their caps alone
+    created a soft joint no detector saw. The copies conduct as one track,
+    and the end-of-run dedup (#162) ships one, so the degree is the span's.
+    """
+    from collections import defaultdict
+    deg = defaultdict(int)
+    seen = set()
+    for s in segs:
+        a = (round(s.start_x, 3), round(s.start_y, 3))
+        b = (round(s.end_x, 3), round(s.end_y, 3))
+        g = group(s)
+        span = (g, a, b) if a <= b else (g, b, a)
+        if span in seen:
+            continue
+        seen.add(span)
+        deg[(g, a)] += 1
+        deg[(g, b)] += 1
+    return deg
 
 
 def endpoint_reaches_pad(x, y, radius, layers, pad, unflashed_hole_only=False) -> set:
@@ -364,6 +404,69 @@ def endpoint_reaches_via(x, y, radius, via, layers, copper_layers=None) -> bool:
                                                    COINCIDENCE_TOL)
 
 
+#: A track end this close to a via's centre IS on it (#1235): a millionth of
+#: a millimetre, KiCad's own unit, so only an end the board itself places
+#: elsewhere reads off-centre.
+VIA_CENTRE_TOL = 1e-6
+
+
+def off_centre_via_ends(segments, vias, copper_layers=None):
+    """Track ends that lie inside a same-net via's copper but not on its
+    centre (#1235): ``[(segment, end, via, offset_mm)]``, ``end`` 0 for the
+    segment's start and 1 for its end, one row per (end, via) pair.
+
+    The definition is #1235's: the same net, the via carries copper on the
+    track's layer (`via_copper_layers`), and ``0 < offset <= via radius``.
+    Such an end is connected -- the barrel holds it -- so no connectivity or
+    DRC check sees it, but KiCad's length measure joins a via only to the
+    tracks ending at its centre before 10.0.4 and from 10.0.4 cuts the run
+    at the via pad and measures it to the centre, so the routed copper and
+    KiCad's length disagree there (#1583).
+
+    An end that a segment on its layer carries on to the via's centre (a
+    via-centre bridge, `close_soft_joints`) is not off-centre: the copper
+    reaches the centre, which is where KiCad measures it to.
+
+    Graphic (footprint / board art) copper and net 0 are skipped."""
+    from collections import defaultdict
+    vias = [v for v in vias if v.net_id]
+    at_vertex = defaultdict(list)     # (net, layer, end point) -> the far ends
+    for s in segments:
+        if not s.net_id or getattr(s, 'graphic', False):
+            continue
+        for (x, y), far in (((s.start_x, s.start_y), (s.end_x, s.end_y)),
+                            ((s.end_x, s.end_y), (s.start_x, s.start_y))):
+            at_vertex[(s.net_id, s.layer, round(x, 4), round(y, 4))].append(far)
+    cell = max([1.0] + [getattr(v, 'size', 0.0) or 0.0 for v in vias])
+    grid = defaultdict(list)          # (net, cx, cy) -> vias
+    for v in vias:
+        grid[(v.net_id, math.floor(v.x / cell), math.floor(v.y / cell))].append(v)
+    spans = {}
+    out = []
+    for s in segments:
+        if not s.net_id or getattr(s, 'graphic', False):
+            continue
+        for end, (x, y) in enumerate(((s.start_x, s.start_y),
+                                      (s.end_x, s.end_y))):
+            cx, cy = math.floor(x / cell), math.floor(y / cell)
+            cand = [v for i in (-1, 0, 1) for j in (-1, 0, 1)
+                    for v in grid.get((s.net_id, cx + i, cy + j), ())]
+            for v in cand:
+                r = (getattr(v, 'size', 0.0) or 0.0) / 2.0
+                d = math.hypot(x - v.x, y - v.y)
+                if not (VIA_CENTRE_TOL < d <= r + 1e-9):
+                    continue
+                if any(math.hypot(fx - v.x, fy - v.y) <= VIA_CENTRE_TOL for fx, fy in
+                       at_vertex[(s.net_id, s.layer, round(x, 4), round(y, 4))]):
+                    continue
+                span = spans.get(id(v))
+                if span is None:
+                    span = spans[id(v)] = via_copper_layers(v, copper_layers)
+                if s.layer in span:
+                    out.append((s, end, v, d))
+    return out
+
+
 
 def strict_joint_roots(segments, vias=(), pads=(), copper_layers=None) -> Dict[int, object]:
     """{id(segment): root} for ONE net's segments, joined only where they
@@ -418,8 +521,12 @@ _CLUSTER_MEMO_CAP = 4096
 def cluster_coincident_points(points, tol: float = COINCIDENCE_TOL):
     """Union-find clustering of (x, y, layer) points by endpoint coincidence.
 
-    Two points join when |dx| < tol and |dy| < tol on the SAME layer (pass a
-    shared sentinel layer for layer-agnostic clustering). O(n) via spatial
+    Two points join when their DISTANCE is below tol on the SAME layer (pass
+    a shared sentinel layer for layer-agnostic clustering). A distance, not
+    an |dx|, |dy| box: check_drc measures a soft joint's gap with hypot, and a
+    box reaching tol * sqrt(2) along a diagonal clustered ends that check_drc
+    then flagged, so a cleanup pass deleted a short diagonal connector as a
+    self-loop and left the gap it had closed (#1513). O(n) via spatial
     hashing. Returns a list of cluster root indices, one per input point --
     the ONE shared implementation behind every coincidence consumer (#320).
 
@@ -448,6 +555,7 @@ def cluster_coincident_points(points, tol: float = COINCIDENCE_TOL):
             parent[ra] = rb
 
     inv = 1.0 / tol
+    tol_sq = tol * tol
     buckets: Dict[Tuple[int, int], List[int]] = {}
     for i, (x, y, _layer) in enumerate(points):
         buckets.setdefault((int(x * inv), int(y * inv)), []).append(i)
@@ -459,7 +567,7 @@ def cluster_coincident_points(points, tol: float = COINCIDENCE_TOL):
                     if j <= i:
                         continue
                     ox, oy, olayer = points[j]
-                    if olayer == layer and abs(x - ox) < tol and abs(y - oy) < tol:
+                    if olayer == layer and (x - ox) ** 2 + (y - oy) ** 2 < tol_sq:
                         union(i, j)
     roots = [find(i) for i in range(n)]
     _CLUSTER_MEMO[_key] = tuple(roots)
@@ -614,12 +722,14 @@ def get_terminal_component_info(
     # Local import: check_connected -> net_queries -> connectivity would cycle.
     from check_connected import check_net_connectivity
 
-    net_segments = [s for s in pcb_data.segments if s.net_id == net_id]
-    net_vias = [v for v in pcb_data.vias if v.net_id == net_id]
+    # #1279: the islands a route may launch from or land on never include
+    # protected sense copper (`routable`).
+    net_segments = routable(s for s in pcb_data.segments if s.net_id == net_id)
+    net_vias = routable(v for v in pcb_data.vias if v.net_id == net_id)
     net_zones = [z for z in pcb_data.zones if z.net_id == net_id]
     # ALL net pads (not just terminals): a non-terminal pad can be the copper
     # that bridges two islands (e.g. both escapes land in one connector pad).
-    net_pads = pcb_data.pads_by_net.get(net_id, [])
+    net_pads = routable(pcb_data.pads_by_net.get(net_id, []))
 
     res = check_net_connectivity(net_id, net_segments, net_vias, net_pads,
                                  net_zones, return_graph=True,
@@ -641,6 +751,23 @@ def get_terminal_component_info(
     for si, seg in enumerate(net_segments):
         endpoint_points.append((seg.start_x, seg.start_y, seg.layer, 2 * si))
         endpoint_points.append((seg.end_x, seg.end_y, seg.layer, 2 * si + 1))
+    # #545 F4 puts a group's representative stub terminal AT one of its vias
+    # (get_multipoint_net_pads, which takes a via within 0.05 of a segment
+    # end), and a via that far from the end misses the 0.01 endpoint match
+    # below. Such a terminal resolves through the via's own graph membership
+    # (#1294: kit-dev-coldfire's +3.3V via sat 30 um off the grid point its
+    # B.Cu and F.Cu tracks end on, so each layer's group became a terminal
+    # at the via centre in a singleton component apart from the island that
+    # holds the via, and the router planned a zero-length edge between them
+    # -- a one-cell path welded from the via centre to its grid point and
+    # back, on the plane layer, 29 times per run).
+    via_points = []  # (x, y, point_id)
+    for _vidx, _vpid in (graph.get('via_index_repr') or {}).items():
+        try:
+            _gv = net_vias[_vidx]
+        except (IndexError, TypeError):
+            continue
+        via_points.append((_gv.x, _gv.y, _vpid))
 
     components: Dict[int, int] = {}
     next_unique = -1
@@ -664,6 +791,10 @@ def get_terminal_component_info(
                     best = (d, pid)
             if best is not None:
                 rep = best[1]
+            else:
+                rep = next((pid for vx, vy, pid in via_points
+                            if abs(vx - tx) <= 1e-6 and abs(vy - ty) <= 1e-6),
+                           None)
         if rep is None:
             components[i] = next_unique
             next_unique -= 1
@@ -673,6 +804,12 @@ def get_terminal_component_info(
     copper_count: Dict[int, int] = {}
     segs_by_component: Dict[int, List[Segment]] = {}
     for si, seg in enumerate(net_segments):
+        if getattr(seg, 'graphic', False):
+            # Board art conducts, so it joins the terminals it touches into
+            # one component above, but it is immovable copper the router did
+            # not lay (#337): never a launch surface, nor what makes an island
+            # the copper-richest.
+            continue
         root = uf.find(2 * si)
         copper_count[root] = copper_count.get(root, 0) + 1
         segs_by_component.setdefault(root, []).append(seg)
@@ -945,7 +1082,7 @@ def get_stub_segments(pcb_data: PCBData, net_id: int, stub_x: float, stub_y: flo
     Returns:
         List of segments forming the stub, ordered from free end to pad
     """
-    # Copper GRAPHICS are excluded: they never conduct (#513) and are written
+    # Copper GRAPHICS are excluded: they are immovable art (#337), written
     # back from the original file with their original layer, so a stub walk
     # that picks one up hands immovable board copper to the layer-swap
     # machinery -- which then relayers it in pcb_data only, blinding the
@@ -1063,6 +1200,9 @@ def calculate_stub_via_barrel_length(stub_vias: List, stub_layer: str, pcb_data)
     """
     if not stub_vias or not pcb_data or not hasattr(pcb_data, 'get_via_barrel_length'):
         return 0.0
+    from net_queries import via_height_in_length
+    if not via_height_in_length(pcb_data):
+        return 0.0      # #1731: the board counts no via height toward a length
 
     total = 0.0
     for via in stub_vias:
@@ -1084,10 +1224,15 @@ def calculate_stub_via_barrel_length(stub_vias: List, stub_layer: str, pcb_data)
         if pad_layer and pad_layer != stub_layer:
             # Calculate barrel from stub layer to pad layer
             total += pcb_data.get_via_barrel_length(stub_layer, pad_layer)
-        elif stub_layer in via.layers:
-            # No pad found or same layer - use via's other layer
-            other_layer = via.layers[1] if via.layers[0] == stub_layer else via.layers[0]
-            total += pcb_data.get_via_barrel_length(stub_layer, other_layer)
+        else:
+            # No pad found or same layer - use the via's other END, read by
+            # its type: a through via's ends are F.Cu/B.Cu whatever pair it
+            # carries (found reviewing #1268).
+            from geometry_utils import via_end_layers
+            ends = via_end_layers(via)
+            if stub_layer in ends:
+                other_layer = ends[1] if ends[0] == stub_layer else ends[0]
+                total += pcb_data.get_via_barrel_length(stub_layer, other_layer)
 
     return total
 
@@ -1110,6 +1255,78 @@ def drop_off_board_pads(pcb_data: PCBData, pads: List[Pad]) -> List[Pad]:
     if off_board is None:
         return pads
     return [p for p in pads if not off_board(p.global_x, p.global_y)]
+
+
+def make_off_board_link_end_test(pcb_data: PCBData):
+    """Return f(net_id, x, y) -> True when a reported unconnected-link end is
+    OFF the board (#1544), or None when the board has no outline to test.
+
+    KiCad's connectivity knows nothing of the outline, so its unconnected
+    links -- kicad-cli's and the exact-fill source's alike -- include links
+    to and between the pads drop_off_board_pads (#291) takes out of every
+    routing endpoint set. An end is off the board when the point itself is
+    clearly outside the outline (make_off_board_test), or when it lies on a
+    pad of its net that drop_off_board_pads drops: a nearest-approach anchor
+    sits on the pad's copper, which can reach nearer the edge than the pad
+    centre the #291 test reads. Copper drawn to such an end can only end
+    outside the outline."""
+    from check_drc import make_off_board_test
+    from check_connected import _point_in_pad
+    off_board = make_off_board_test(pcb_data.board_info)
+    if off_board is None:
+        return None
+    off_pads = {}
+    for nid, pads in pcb_data.pads_by_net.items():
+        dropped = [p for p in pads if off_board(p.global_x, p.global_y)]
+        if dropped:
+            off_pads[nid] = dropped
+
+    def test(net_id: int, x: float, y: float) -> bool:
+        if off_board(x, y):
+            return True
+        return any(_point_in_pad(x, y, p, margin=0.05)
+                   for p in off_pads.get(net_id, ()))
+    return test
+
+
+def routable(items) -> list:
+    """`items` (a net's segments, vias or pads) without the protected Kelvin
+    sense copper and sense pads (#1279, sense_branch.py): a net's new copper
+    may join an existing sense branch only at its join pad, so the endpoint
+    and terminal derivations below never offer the branch as a place to
+    attach. The join pad is not tagged and stays an ordinary terminal."""
+    return [x for x in items if not getattr(x, 'sense', '')]
+
+
+def segment_end_rows(seg, coord, layer_idx) -> List[Tuple]:
+    """A segment's endpoint rows ``(gx, gy, layer_idx, x, y)``, one per grid
+    cell: both ends when they snap to different cells; else the START, unless
+    only the END lies exactly on the shared cell's grid point (#1556).
+
+    The row's original point is where a route launching from that cell welds,
+    by a connector from the grid point. A fanout stub ends in a short
+    grid-snap connector from its off-grid tip to the grid point; keeping its
+    START offered only the off-grid tip, so every route from the stub re-laid
+    that connector at its own width on top of the existing one -- a same-span
+    twin that a later strip could take both copies of. An end exactly on the
+    grid point needs no connector at all.
+    """
+    gx1, gy1 = coord.to_grid(seg.start_x, seg.start_y)
+    gx2, gy2 = coord.to_grid(seg.end_x, seg.end_y)
+    if (gx1, gy1) != (gx2, gy2):
+        return [(gx1, gy1, layer_idx, seg.start_x, seg.start_y),
+                (gx2, gy2, layer_idx, seg.end_x, seg.end_y)]
+    if (on_grid_point(seg.end_x, seg.end_y, gx1, gy1, coord)
+            and not on_grid_point(seg.start_x, seg.start_y, gx1, gy1, coord)):
+        return [(gx1, gy1, layer_idx, seg.end_x, seg.end_y)]
+    return [(gx1, gy1, layer_idx, seg.start_x, seg.start_y)]
+
+
+def on_grid_point(x, y, gx, gy, coord, tol: float = 1e-6) -> bool:
+    """Whether (x, y) IS cell (gx, gy)'s grid point (to 1 nm, KiCad's
+    resolution): a weld there needs no connector."""
+    fx, fy = coord.to_float(gx, gy)
+    return abs(x - fx) <= tol and abs(y - fy) <= tol
 
 
 def get_net_endpoints_anchor_split(pcb_data: PCBData, net_id: int,
@@ -1162,24 +1379,21 @@ def get_net_endpoints_anchor_split(pcb_data: PCBData, net_id: int,
         db = (x - bx) ** 2 + (y - by) ** 2
         (side_a if da <= db else side_b).append((gx, gy, layer_idx, x, y))
 
-    for seg in pcb_data.segments:
+    for seg in routable(pcb_data.segments):   # #1279
         if seg.net_id != net_id:
             continue
         layer_idx = layer_map.get(seg.layer)
         if layer_idx is None:
             continue
-        gx1, gy1 = coord.to_grid(seg.start_x, seg.start_y)
-        gx2, gy2 = coord.to_grid(seg.end_x, seg.end_y)
-        _add(seg.start_x, seg.start_y, layer_idx, gx1, gy1)
-        if (gx1, gy1) != (gx2, gy2):
-            _add(seg.end_x, seg.end_y, layer_idx, gx2, gy2)
-    for pad in drop_off_board_pads(pcb_data, pcb_data.pads_by_net.get(net_id, [])):
+        for gx, gy, _li, x, y in segment_end_rows(seg, coord, layer_idx):
+            _add(x, y, layer_idx, gx, gy)
+    for pad in routable(drop_off_board_pads(pcb_data, pcb_data.pads_by_net.get(net_id, []))):
         gx, gy = coord.to_grid(pad.global_x, pad.global_y)
         for layer in expand_pad_layers(pad.layers, config.layers):
             layer_idx = layer_map.get(layer)
             if layer_idx is not None:
                 _add(pad.global_x, pad.global_y, layer_idx, gx, gy)
-    for via in pcb_data.vias:
+    for via in routable(pcb_data.vias):
         if via.net_id != net_id:
             continue
         gx, gy = coord.to_grid(via.x, via.y)
@@ -1262,9 +1476,10 @@ def _get_net_endpoints_ordered(pcb_data: PCBData, net_id: int, config: GridRoute
     coord = GridCoord(config.grid_step)
     layer_map = build_layer_map(config.layers)
 
-    net_segments = [s for s in pcb_data.segments if s.net_id == net_id]
-    net_pads = drop_off_board_pads(pcb_data, pcb_data.pads_by_net.get(net_id, []))
-    net_vias = [v for v in pcb_data.vias if v.net_id == net_id]
+    # #1279: a protected sense branch is never a terminal (`routable`).
+    net_segments = routable(s for s in pcb_data.segments if s.net_id == net_id)
+    net_pads = routable(drop_off_board_pads(pcb_data, pcb_data.pads_by_net.get(net_id, [])))
+    net_vias = routable(v for v in pcb_data.vias if v.net_id == net_id)
 
     # Case 1: Multiple segment groups
     if len(net_segments) >= 2:
@@ -1378,34 +1593,21 @@ def _get_net_endpoints_ordered(pcb_data: PCBData, net_id: int, config: GridRoute
                     for seg in _segs_fb:
                         layer_idx = layer_map.get(seg.layer)
                         if layer_idx is not None:
-                            gx1, gy1 = coord.to_grid(seg.start_x, seg.start_y)
-                            gx2, gy2 = coord.to_grid(seg.end_x, seg.end_y)
-                            _side.append((gx1, gy1, layer_idx,
-                                          seg.start_x, seg.start_y))
-                            if (gx1, gy1) != (gx2, gy2):
-                                _side.append((gx2, gy2, layer_idx,
-                                              seg.end_x, seg.end_y))
+                            _side.extend(segment_end_rows(seg, coord,
+                                                          layer_idx))
             else:
                 # For single-ended: use all segment endpoints
                 sources = []
                 for seg in source_segs:
                     layer_idx = layer_map.get(seg.layer)
                     if layer_idx is not None:
-                        gx1, gy1 = coord.to_grid(seg.start_x, seg.start_y)
-                        gx2, gy2 = coord.to_grid(seg.end_x, seg.end_y)
-                        sources.append((gx1, gy1, layer_idx, seg.start_x, seg.start_y))
-                        if (gx1, gy1) != (gx2, gy2):
-                            sources.append((gx2, gy2, layer_idx, seg.end_x, seg.end_y))
+                        sources.extend(segment_end_rows(seg, coord, layer_idx))
 
                 targets = []
                 for seg in target_segs:
                     layer_idx = layer_map.get(seg.layer)
                     if layer_idx is not None:
-                        gx1, gy1 = coord.to_grid(seg.start_x, seg.start_y)
-                        gx2, gy2 = coord.to_grid(seg.end_x, seg.end_y)
-                        targets.append((gx1, gy1, layer_idx, seg.start_x, seg.start_y))
-                        if (gx1, gy1) != (gx2, gy2):
-                            targets.append((gx2, gy2, layer_idx, seg.end_x, seg.end_y))
+                        targets.extend(segment_end_rows(seg, coord, layer_idx))
 
                 # Each group's VIAS are route terminals on every routing layer
                 # (PR #534): a via spans the stack, and Case 2 below has
@@ -1441,6 +1643,8 @@ def _get_net_endpoints_ordered(pcb_data: PCBData, net_id: int, config: GridRoute
                     for _via in _vlist:
                         gx, gy = coord.to_grid(_via.x, _via.y)
                         for _vlayer in config.layers:
+                            if not via_on_layer(_via, _vlayer):
+                                continue    # a blind/micro via: its span only
                             layer_idx = layer_map.get(_vlayer)
                             if layer_idx is not None:
                                 _side.append((gx, gy, layer_idx, _via.x, _via.y))
@@ -1493,11 +1697,8 @@ def _get_net_endpoints_ordered(pcb_data: PCBData, net_id: int, config: GridRoute
                     for seg in seg_group:
                         layer_idx = layer_map.get(seg.layer)
                         if layer_idx is not None:
-                            gx1, gy1 = coord.to_grid(seg.start_x, seg.start_y)
-                            gx2, gy2 = coord.to_grid(seg.end_x, seg.end_y)
-                            sources.append((gx1, gy1, layer_idx, seg.start_x, seg.start_y))
-                            if (gx1, gy1) != (gx2, gy2):
-                                sources.append((gx2, gy2, layer_idx, seg.end_x, seg.end_y))
+                            sources.extend(segment_end_rows(seg, coord,
+                                                            layer_idx))
 
                 targets = []
                 for pad in unconnected_pads:
@@ -1530,8 +1731,11 @@ def _get_net_endpoints_ordered(pcb_data: PCBData, net_id: int, config: GridRoute
                     # the tip is on an unmapped layer) or it lands on the target pad.
                     if (use_stub_free_ends and sources and not near_unconnected):
                         continue
-                    # Add via as endpoint on ALL routing layers (vias are through-hole)
+                    # Add via as endpoint on every routing layer it reaches: all
+                    # of them for a through via, its span for a blind/micro one.
                     for layer in config.layers:
+                        if not via_on_layer(via, layer):
+                            continue
                         layer_idx = layer_map.get(layer)
                         if layer_idx is not None:
                             if near_unconnected:
@@ -1561,6 +1765,8 @@ def _get_net_endpoints_ordered(pcb_data: PCBData, net_id: int, config: GridRoute
             for v in svias:
                 vgx, vgy = coord.to_grid(v.x, v.y)
                 for _layer in config.layers:
+                    if not via_on_layer(v, _layer):
+                        continue    # a blind/micro via: its span only
                     layer_idx = layer_map.get(_layer)
                     if layer_idx is not None:
                         side.append((vgx, vgy, layer_idx, v.x, v.y))
@@ -1665,14 +1871,15 @@ def _get_multipoint_net_pads_unordered(
     coord = GridCoord(config.grid_step)
     layer_map = build_layer_map(config.layers)
 
-    net_segments = [s for s in pcb_data.segments if s.net_id == net_id]
+    # #1279: a protected sense branch is never a terminal (`routable`).
+    net_segments = routable(s for s in pcb_data.segments if s.net_id == net_id)
     # Unnumbered pads (pad_number == "") are paste/thermal artifacts that KiCad
     # does not netlist individually; they must not become routing targets or
     # they show up as failed pads with component_ref '?' (issue #94). They are
     # still copper, so they keep blocking via pcb_data.pads_by_net elsewhere.
-    net_pads = [p for p in drop_off_board_pads(pcb_data, pcb_data.pads_by_net.get(net_id, []))
+    net_pads = [p for p in routable(drop_off_board_pads(pcb_data, pcb_data.pads_by_net.get(net_id, [])))
                 if (p.pad_number or '').strip() != '']
-    net_vias = [v for v in pcb_data.vias if v.net_id == net_id]
+    net_vias = routable(v for v in pcb_data.vias if v.net_id == net_id)
 
     # Case 1: No segments and 3+ pads
     if len(net_segments) == 0 and len(net_pads) >= 3:
@@ -1898,31 +2105,36 @@ def compute_mst_edges(points: List[Tuple[float, float]], use_manhattan: bool = F
     nearest = np.zeros(n, dtype=np.intp)
     edges = []
 
-    def _dist_from(idx):
-        dx = xs - xs[idx]
-        dy = ys - ys[idx]
-        if use_manhattan:
-            return np.abs(dx) + np.abs(dy)
-        return np.sqrt(dx * dx + dy * dy)
+    # Every row of the distance matrix at once, by the same arithmetic the
+    # per-node form used (`xs - xs[idx]` and so on, element by element), so
+    # each distance is the same float; it is computed once per tree instead
+    # of once per node added.
+    dx = xs[None, :] - xs[:, None]
+    dy = ys[None, :] - ys[:, None]
+    if use_manhattan:
+        dist = np.abs(dx) + np.abs(dy)
+    else:
+        dist = np.sqrt(dx * dx + dy * dy)
 
-    # Start with node 0.
+    # Start with node 0. `min_dist` holds +inf for every node in the tree,
+    # so its argmin is the argmin over the nodes outside it.
     in_tree[0] = True
-    min_dist = _dist_from(0)
+    min_dist = dist[0].copy()
     min_dist[0] = np.inf  # node 0 is in the tree
 
     for _ in range(n - 1):
-        # Find the non-tree node closest to the tree (in-tree nodes masked out).
-        masked = np.where(in_tree, np.inf, min_dist)
-        best_j = int(np.argmin(masked))
-        best_dist = float(masked[best_j])
+        # Find the non-tree node closest to the tree.
+        best_j = int(np.argmin(min_dist))
+        best_dist = float(min_dist[best_j])
         if not np.isfinite(best_dist):
             break
 
         in_tree[best_j] = True
+        min_dist[best_j] = np.inf
         edges.append((int(nearest[best_j]), best_j, best_dist))
 
         # Pull every remaining node toward the freshly added node where closer.
-        d = _dist_from(best_j)
+        d = dist[best_j]
         update = (~in_tree) & (d < min_dist)
         min_dist[update] = d[update]
         nearest[update] = best_j

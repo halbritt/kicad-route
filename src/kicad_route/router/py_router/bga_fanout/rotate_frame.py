@@ -25,6 +25,38 @@ from typing import Callable, Tuple
 from kicad_parser import PCBData
 
 
+def _is_run_cache(name: str) -> bool:
+    """A board attribute that caches something DERIVED from the board as it
+    stands: the router's `_..._cache` / `_..._memo` attributes and the plane
+    fill models (`plane_fill_model`'s two). Run state -- epochs, ledgers,
+    flags a caller sets for the fanout it calls -- is not one."""
+    from plane_fill_model import _CACHE_ATTR, _NC_ATTR
+    return (name.startswith('_') and ('_cache' in name or '_memo' in name)) \
+        or name in (_CACHE_ATTR, _NC_ATTR)
+
+
+def frame_copy(pcb_data: PCBData) -> PCBData:
+    """A deep copy of the board to transform into another frame, without the
+    run's caches.
+
+    A cache describes the board in ITS frame, so carrying it into a turned or
+    rotated copy would answer for the wrong geometry -- and some cannot be
+    copied at all: the rescue's obstacle maps (`net_rescue`'s
+    `_rescue_map_cache`) are native objects, and a fanout-rescue rung that
+    reached a flipped or rotated array inside route.py failed with "cannot
+    pickle 'builtins.GridObstacleMap' object" every time. The copy rebuilds
+    any it needs."""
+    caches = {k: v for k, v in vars(pcb_data).items() if _is_run_cache(k)}
+    memo = {id(v): None for v in caches.values()}
+    rp = copy.deepcopy(pcb_data, memo)
+    for k in caches:
+        try:
+            delattr(rp, k)
+        except AttributeError:
+            pass
+    return rp
+
+
 def is_orthogonal(rotation_deg: float, tol: float = 1.0) -> bool:
     """True if the footprint sits at (near) a multiple of 90°."""
     r = rotation_deg % 90.0
@@ -127,7 +159,7 @@ def to_axis_aligned_frame(pcb_data: PCBData, ref: str
     cx, cy, theta, fwd, back = _frame_of(fp)
     ortho = is_orthogonal(theta)
 
-    rp = copy.deepcopy(pcb_data)
+    rp = frame_copy(pcb_data)
     rp.frame_rotation = theta     # a memo keyed on the board FILE must see another board
 
     seen_pads = set()
@@ -191,12 +223,14 @@ def to_axis_aligned_frame(pcb_data: PCBData, ref: str
     for seg in rp.segments:
         seg.start_x, seg.start_y = fwd(seg.start_x, seg.start_y)
         seg.end_x, seg.end_y = fwd(seg.end_x, seg.end_y)
+    transform_graphic_shapes(rp.segments, fwd)
 
     for via in rp.vias:
         via.x, via.y = fwd(via.x, via.y)
 
     for z in rp.zones or []:
         z.polygon = [fwd(x, y) for (x, y) in z.polygon]
+        z.holes = [[fwd(x, y) for (x, y) in h] for h in (getattr(z, 'holes', None) or ())]
     for gp in list(rp.guide_paths or []) + list(rp.keepout_zones or []):
         if hasattr(gp, 'points'):
             gp.points = [fwd(x, y) for (x, y) in gp.points]
@@ -229,6 +263,24 @@ def to_axis_aligned_frame(pcb_data: PCBData, ref: str
     tgt.rotation = 0.0
 
     return rp, back
+
+
+def transform_graphic_shapes(segments, fn):
+    """Carry a filled graphic's outline (#1181's `graphic_ring`, and the true
+    circle) through a frame change with its strokes (#1682). `fn` is the frame's
+    (x, y) map. Without this a shape's strokes moved and its interior did not,
+    so the obstacle map and every gate read the interior somewhere else."""
+    rings = {}
+    for seg in segments:
+        ring = getattr(seg, 'graphic_ring', None)
+        if ring:
+            new = rings.get(ring)
+            if new is None:
+                new = rings[ring] = tuple(fn(x, y) for (x, y) in ring)
+            seg.graphic_ring = new
+        circle = getattr(seg, 'graphic_circle', None)
+        if circle:
+            seg.graphic_circle = (*fn(circle[0], circle[1]), circle[2])
 
 
 def back_transform_results(tracks, vias_to_add, vias_to_remove,

@@ -6,8 +6,10 @@ MPS (Maximum Planar Subset) net ordering.
 """
 from __future__ import annotations
 
+import os
 import math
 import difflib
+import functools
 import fnmatch
 import re
 from dataclasses import dataclass
@@ -52,8 +54,33 @@ def split_net_patterns(patterns: List[str],
     return include_patterns, exclude_patterns
 
 
-def net_pattern_matches(net_name: str, pattern: str) -> bool:
+def _leaf(name: str) -> str:
+    return name.rsplit('/', 1)[-1]
+
+
+@functools.lru_cache(maxsize=256)
+def _pattern_names_a_net(pattern: str, known: frozenset) -> bool:
+    """True when PATTERN, which holds no '*' or '?', spells a net of KNOWN
+    verbatim: the whole name, or (a pattern with no '/') its last sheet
+    component."""
+    if pattern in known:
+        return True
+    return '/' not in pattern and any(_leaf(n) == pattern for n in known)
+
+
+def net_pattern_matches(net_name: str, pattern: str,
+                        known_net_names=None) -> bool:
     """Match one net name against one fnmatch pattern, sheet-path aware (#493).
+
+    A pattern equal to the net's name -- or, with no '/', to its last sheet
+    component -- always matches, whatever it holds (#1641): KiCad names a bus
+    member 'D[3]', which fnmatch reads as 'D' then a class holding '3', so the
+    net's own name used to select 'D3' and never itself. With
+    KNOWN_NET_NAMES (the board's net names) such a pattern is LITERAL when it
+    holds no '*' or '?' and spells one of them: it then selects only the net
+    it spells -- the rule expand_net_patterns has always applied to a
+    '!'-pattern that names a net (#177). Without it a '[' pattern still
+    globs too ('D[3]' selects 'D3' as well as 'D[3]').
 
     KiCad qualifies a net with the sheet it was declared on, so the board's net
     is '/GND' or '/Management Interface/VSMPS', not 'GND'. A plain
@@ -80,10 +107,19 @@ def net_pattern_matches(net_name: str, pattern: str) -> bool:
     case-folds on Windows only, so `/*PCIE*` selected `/PCIe-M2/FB` there and
     nowhere else.
     """
+    unqualified = '/' not in pattern and '/' in net_name
+    if net_name == pattern or (unqualified and _leaf(net_name) == pattern):
+        return True
+    if '[' in pattern and '*' not in pattern and '?' not in pattern \
+            and known_net_names is not None:
+        if not isinstance(known_net_names, frozenset):
+            known_net_names = frozenset(known_net_names)
+        if _pattern_names_a_net(pattern, known_net_names):
+            return False          # a literal name; equality was tested above
     if fnmatch.fnmatchcase(net_name, pattern):
         return True
-    if '/' not in pattern and '/' in net_name:
-        return fnmatch.fnmatchcase(net_name.rsplit('/', 1)[-1], pattern)
+    if unqualified:
+        return fnmatch.fnmatchcase(_leaf(net_name), pattern)
     return False
 
 
@@ -139,6 +175,53 @@ def matches_net_filter(net_name: str, patterns: List[str]) -> bool:
     # No include patterns (only exclusions) and didn't match any exclusion
     return True
 
+
+def board_net_names(pcb_data) -> Set[str]:
+    """Every net name on the board: pcb.nets and the pads' own names (a net
+    only a pad names), as expand_net_patterns collects them."""
+    names = {net.name for net in pcb_data.nets.values() if net.name}
+    for pads in pcb_data.pads_by_net.values():
+        for pad in pads:
+            if pad.net_name:
+                names.add(pad.net_name)
+                break
+    return names
+
+
+def literal_net_patterns(patterns: Optional[List[str]],
+                         known_net_names) -> Optional[List[str]]:
+    """PATTERNS with each one that spells a board net verbatim made literal.
+
+    A pattern with no '*' or '?' that names a net of KNOWN_NET_NAMES (the
+    whole name, or with no '/' its last sheet component) has its '[' written
+    '[[]', so any fnmatch-based matcher selects that net and only it: a bus
+    member 'D[3]' then selects itself and not 'D3' (#1641), as
+    expand_net_patterns reads the same spelling. Every other pattern, and the
+    '!' / '\\!' prefixes split_net_patterns reads, is passed through.
+    """
+    if not patterns:
+        return patterns
+    known = frozenset(known_net_names)
+
+    def lit(core):
+        if '[' in core and '*' not in core and '?' not in core \
+                and _pattern_names_a_net(core, known):
+            return core.replace('[', '[[]')
+        return core
+
+    out = []
+    for p in patterns:
+        if p in known:                       # a literal, '!'-named or not
+            esc = lit(p)
+            out.append(('\\' + esc) if esc != p and p.startswith('!') else esc)
+        elif p.startswith('\\!'):              # the escaped literal '!FOO'
+            out.append('\\' + lit(p[1:]))
+        elif p.startswith('!'):
+            out.append('!' + lit(p[1:]))
+        else:
+            out.append(lit(p))
+    return out
+
 from kicad_parser import PCBData, Segment, Via, Pad
 from routing_config import GridRouteConfig, GridCoord, DiffPairNet
 from chip_boundary import (
@@ -165,6 +248,31 @@ class MPSResult:
     geometric_conflicts: Dict[int, Set[int]] = None           # All crossings regardless of layer (for swap checking)
 
 
+def via_height_in_length(pcb_data) -> bool:
+    """Does a via's stackup height count toward a net's length on this board
+    (#1731)? The board's Board Setup "use stackup height for length
+    calculations", `rules.use_height_for_length_calcs` in its .kicad_pro:
+    with it off, KiCad's length and skew DRC charge no via any barrel at all
+    (kicad-cli 10.0.6: track length plus pad-to-die, exactly, for a via-in-pad,
+    a via between two track layers and a pad-to-pad chain through vias). The
+    live board's value when the GUI built `pcb_data`
+    (`PCBData.use_height_for_length_calcs`), else the sibling project's, else
+    KiCad's default, True."""
+    live = getattr(pcb_data, 'use_height_for_length_calcs', None)
+    if isinstance(live, bool):
+        return live
+    path = getattr(pcb_data, 'source_path', '') or ''
+    if path:
+        try:
+            from fix_kicad_drc_settings import project_rules
+            v = project_rules(path).get('use_height_for_length_calcs')
+        except Exception:
+            v = None
+        if isinstance(v, bool):
+            return v
+    return True
+
+
 def calculate_route_length(segments: List[Segment], vias: List[Via] = None, pcb_data=None) -> float:
     """
     Calculate the total length of a routed path.
@@ -181,11 +289,16 @@ def calculate_route_length(segments: List[Segment], vias: List[Via] = None, pcb_
     for seg in segments:
         total += segment_length(seg)
 
-    # Add via barrel lengths if pcb_data with stackup is provided
-    if vias and pcb_data and hasattr(pcb_data, 'get_via_barrel_length'):
+    # Add via barrel lengths if pcb_data with stackup is provided, and the
+    # board counts a via's height toward a length (#1731)
+    if vias and pcb_data and hasattr(pcb_data, 'get_via_barrel_length') \
+            and via_height_in_length(pcb_data):
+        from geometry_utils import via_end_layers
         for via in vias:
             if via.layers and len(via.layers) >= 2:
-                barrel_len = pcb_data.get_via_barrel_length(via.layers[0], via.layers[1])
+                # A through via's barrel is the whole stack, whatever pair it
+                # carries (found reviewing #1268).
+                barrel_len = pcb_data.get_via_barrel_length(*via_end_layers(via))
                 total += barrel_len
 
     return total
@@ -202,18 +315,21 @@ def calculate_via_barrel_length(vias: List[Via], pcb_data) -> float:
     Returns:
         Total via barrel length in mm
     """
-    if not vias or not pcb_data or not hasattr(pcb_data, 'get_via_barrel_length'):
-        return 0.0
+    if not vias or not pcb_data or not hasattr(pcb_data, 'get_via_barrel_length') \
+            or not via_height_in_length(pcb_data):
+        return 0.0      # #1731: a board that counts no via height
 
+    from geometry_utils import via_end_layers
     total = 0.0
     for via in vias:
         if via.layers and len(via.layers) >= 2:
-            total += pcb_data.get_via_barrel_length(via.layers[0], via.layers[1])
+            total += pcb_data.get_via_barrel_length(*via_end_layers(via))
     return total
 
 
 def net_copper_length(pcb_data: PCBData, net_id: int,
-                      include_vias: bool = True) -> float:
+                      include_vias: bool = True,
+                      release: Optional[str] = None) -> float:
     """Total copper length of ONE net already on a board, in mm (#489 §7).
 
     The supported way to ask "how long is this net?" from a parsed board --
@@ -225,14 +341,843 @@ def net_copper_length(pcb_data: PCBData, net_id: int,
     NOTE this is TOTAL net copper, not a pin-to-pin path: on a multipoint or
     fly-by net (or one with stubs) it exceeds every actual signal path. Use
     `pin_pair_path_length` when the number has to mean electrical delay.
+
+    With include_vias the net is measured as KiCad's length DRC measures it
+    (#1313, #1432; `kicad_net_length_nm`), as the KiCad release `release`
+    does -- by default `length_measure_release()`, the installed kicad-cli's.
+    Without it, the plain sum of the segments. The router's own
+    `calculate_route_length` is unchanged.
     """
     segments = [s for s in pcb_data.segments if s.net_id == net_id]
-    vias = [v for v in pcb_data.vias if v.net_id == net_id] if include_vias else None
-    return calculate_route_length(segments, vias, pcb_data)
+    if not include_vias:
+        return math.fsum(segment_length(s) for s in segments)
+    pads = (getattr(pcb_data, 'pads_by_net', None) or {}).get(net_id) or []
+    vias = [v for v in pcb_data.vias if v.net_id == net_id]
+    return kicad_net_length_nm(pcb_data, segments, vias, pads,
+                               release) / _NM_PER_MM
+
+
+# --- Which KiCad release the length measure reproduces (#1432) ---------------
+#
+# KiCad's length DRC changed what it measures within the 10.0 series
+# (pcbnew/length_delay_calculation and BOARD_STACKUP::GetLayerDistance), by up
+# to about one via barrel per via. The measure reproduces each release from
+# LENGTH_MEASURE_OLDEST to LENGTH_MEASURE_NEWEST, gating every change on the
+# release that made it, and measures as the KiCad that grades the board: the
+# installed kicad-cli's release.
+
+#: The releases whose length DRC measures differently from the one before,
+#: oldest first, with what changed. A release between two of these measures
+#: as the older one.
+KICAD_LENGTH_CHANGES = (
+    ('10.0.2', 'a via is charged half of each inner copper layer that ends '
+               'its span'),
+    ('10.0.4', 'a via joins every track that ends inside its pad, not only '
+               'at its centre, and a run is cut at the via pad'),
+    ('10.0.5', "a via's span takes in the side layer of the pad connected "
+               "to it, and arcs merge into runs"),
+    ('10.0.7', 'same-layer tracks merge where tracks of other layers also '
+               'end'),
+)
+LENGTH_MEASURE_OLDEST = '10.0.0'
+LENGTH_MEASURE_NEWEST = KICAD_LENGTH_CHANGES[-1][0]
+
+_forced_release: Optional[str] = None
+
+
+def _release_key(release: str) -> Tuple[int, int, int]:
+    """'10.0.7' -> (10, 0, 7); a release string with fewer parts pads with 0."""
+    parts = [int(p) for p in re.findall(r'\d+', release or '')[:3]]
+    if not parts:
+        raise ValueError(f"not a KiCad release: {release!r}")
+    return tuple(parts + [0] * (3 - len(parts)))
+
+
+def use_length_measure_release(release: Optional[str]) -> None:
+    """Measure as KiCad `release` from now on, whichever kicad-cli is
+    installed (a test, or a grade meant for a KiCad on another machine);
+    None goes back to the installed kicad-cli's release."""
+    global _forced_release
+    if release is not None:
+        _release_key(release)
+    _forced_release = release
+
+
+@functools.lru_cache(maxsize=None)
+def installed_kicad_release() -> Optional[str]:
+    """The installed kicad-cli's release (`kicad_oracle.kicad_cli_version`),
+    or None without one. Read once per process."""
+    try:
+        from kicad_oracle import kicad_cli_version
+        return kicad_cli_version()
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def length_measure_release(release: Optional[str] = None) -> str:
+    """The KiCad release the length measure reproduces: `release`, else the
+    one `use_length_measure_release` forced, else the installed kicad-cli's,
+    held to the releases modelled (a newer one measures as
+    LENGTH_MEASURE_NEWEST, an older one as LENGTH_MEASURE_OLDEST); with no
+    kicad-cli, LENGTH_MEASURE_NEWEST."""
+    want = release or _forced_release or installed_kicad_release()
+    if not want:
+        return LENGTH_MEASURE_NEWEST
+    key = _release_key(want)
+    if key > _release_key(LENGTH_MEASURE_NEWEST):
+        return LENGTH_MEASURE_NEWEST
+    if key < _release_key(LENGTH_MEASURE_OLDEST):
+        return LENGTH_MEASURE_OLDEST
+    return want
+
+
+def length_measure_note() -> str:
+    """One line saying which KiCad release the lengths are measured as, and
+    -- when the installed kicad-cli is another release (outside the modelled
+    range, or a forced release) -- which one is installed, so a verdict
+    within a via barrel of a limit is read as uncertain rather than final."""
+    used = length_measure_release()
+    have = installed_kicad_release()
+    note = (f"lengths are measured as KiCad {used} measures them (releases "
+            f"{LENGTH_MEASURE_OLDEST} to {LENGTH_MEASURE_NEWEST} are modelled)")
+    if not have:
+        if not _forced_release:
+            note += "; no kicad-cli found, so the newest modelled release"
+    elif have != used:
+        key = _release_key(have)
+        if key > _release_key(LENGTH_MEASURE_NEWEST):
+            why = ", newer than the newest release modelled"
+        elif key < _release_key(LENGTH_MEASURE_OLDEST):
+            why = ", older than the oldest release modelled"
+        else:
+            why = ""
+        note += (f"; the installed kicad-cli is {have}{why} -- a net within "
+                 f"about one via barrel of its limit may grade differently "
+                 f"there")
+    return note
+
+
+# --- KiCad's LENGTH_DELAY_CALCULATION, release by release (#1313, #1432) -----
+#
+# KiCad's length DRC (pcbnew/drc/drc_test_provider_matched_length.cpp) feeds a
+# net's tracks, arcs, vias and pads to LENGTH_DELAY_CALCULATION::
+# CalculateLengthDetails with via optimisation, MergeTracks and
+# OptimiseTracesInPads on. Reproduced here in integer nanometres, as KiCad
+# computes it, so the 4-decimal figure it prints comes out the same:
+#
+#  1. Via span: the layers of the tracks that END at the via.
+#     10.0.0: ends exactly at its centre. A via no track ends at keeps the
+#       layers its tracks touch (one layer: from it to the via's far end;
+#       none: the whole via). With one such track, a pad anchored at the via
+#       centre and not on that track's layer adds its first copper layer (a
+#       via-in-pad); with two or more, only the tracks' layers count.
+#     10.0.4: ends anywhere inside the via pad count too, and a via no track
+#       ends at is charged nothing.
+#     10.0.5: the side layer of a pad connected to the via is always added
+#       (an SMD or connector pad's first copper layer, a through-hole pad's
+#       footprint side).
+#     Fewer than two layers: no barrel.
+#  2. Runs (mergeLines): two same-layer tracks whose ends meet form one run.
+#     Before 10.0.7 they merge only where no other track still unmerged, on
+#     any layer, ends, and before 10.0.5 an arc is never merged into a run;
+#     from 10.0.7 they merge where exactly two same-layer track ends meet.
+#  3. 10.0.4: a run whose first or last point lies inside a via pad is cut at
+#     the pad edge and measured to the via centre (OptimiseTraceInVia).
+#  4. Every release: a run that ends at a pad's anchor is cut where it leaves
+#     the pad's outline polygon (ERROR_INSIDE: a circle is at least 16
+#     inscribed sides) and measured to the anchor (OptimiseTraceInPad).
+#  5. The via is charged BOARD_STACKUP::GetLayerDistance(first, last): the
+#     stackup between them, from 10.0.2 with half of each INNER copper layer
+#     that ends the span.
+#     Every release: a board whose Board Setup does not "use stackup height
+#     for length calculations" (`rules.use_height_for_length_calcs` off)
+#     charges no via anything (#1731, `via_height_in_length`).
+#
+# Items are taken in board-file order; KiCad takes them in memory order, which
+# matters only where a joint could merge either way. Not modelled: true arc
+# length (an arc is measured on the parser's chords, within a few um), oval,
+# custom and tilted pad outlines (the exact outline is used), and a board
+# with no (stackup) block --
+# KiCad builds a default stack from the board thickness; here the barrel is 0.
+_NM_PER_MM = 1_000_000
+
+
+def _nm(v: float) -> int:
+    """mm -> integer nanometres, rounded half away from zero (KiROUND)."""
+    return int(math.floor(v * _NM_PER_MM + 0.5)) if v >= 0 \
+        else -int(math.floor(-v * _NM_PER_MM + 0.5))
+
+
+def _kiround(v: float) -> int:
+    return int(math.floor(v + 0.5)) if v >= 0 else -int(math.floor(-v + 0.5))
+
+
+def _cdiv(a: int, b: int) -> int:
+    """C integer division (truncates toward zero)."""
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+
+
+def _rescale(num: int, value: int, den: int) -> int:
+    """KiCad's int64 rescale: num * value / den, rounded to nearest."""
+    prod = num * value
+    half = _cdiv(den, 2)
+    if (prod < 0) != (den < 0):
+        return _cdiv(prod - half, den)
+    return _cdiv(prod + half, den)
+
+
+def _vec_norm(dx: int, dy: int) -> int:
+    """VECTOR2<integer>::EuclideanNorm."""
+    ax, ay = abs(dx), abs(dy)
+    if ax == ay:
+        return _kiround(ax * math.sqrt(2.0))
+    if dx == 0:
+        return ay
+    if dy == 0:
+        return ax
+    return _kiround(math.hypot(dx, dy))
+
+
+def _seg_len(p, q) -> int:
+    """SEG::Length: one track piece, rounded to a nanometre."""
+    return _vec_norm(p[0] - q[0], p[1] - q[1])
+
+
+def _chain_len(pts) -> int:
+    return sum(_seg_len(pts[i], pts[i + 1]) for i in range(len(pts) - 1))
+
+
+def _resize(dx: int, dy: int, new_len: int):
+    """VECTOR2I::Resize."""
+    if dx == 0 and dy == 0:
+        return 0, 0
+    if abs(dx) == abs(dy):
+        nx = ny = abs(new_len) * math.sqrt(0.5)
+    else:
+        x_sq, y_sq = dx * dx, dy * dy
+        l_sq = x_sq + y_sq
+        n_sq = new_len * new_len
+        nx = math.sqrt(_rescale(n_sq, x_sq, l_sq))
+        ny = math.sqrt(_rescale(n_sq, y_sq, l_sq))
+    sg = (new_len > 0) - (new_len < 0)
+    return ((-_kiround(nx) if dx < 0 else _kiround(nx)) * sg,
+            (-_kiround(ny) if dy < 0 else _kiround(ny)) * sg)
+
+
+def _seg_sq_dist(a, b, p) -> int:
+    """SEG::SquaredDistance(point)."""
+    abx, aby = b[0] - a[0], b[1] - a[1]
+    apx, apy = p[0] - a[0], p[1] - a[1]
+    e = apx * abx + apy * aby
+    if e <= 0:
+        return apx * apx + apy * apy
+    f = abx * abx + aby * aby
+    if e >= f:
+        bpx, bpy = p[0] - b[0], p[1] - b[1]
+        return bpx * bpx + bpy * bpy
+    g = (apx * apx + apy * apy) - (float(e) * e) / f
+    return 0 if g < 0 else _kiround(g)
+
+
+def _circle_seg_intersections(cx: int, cy: int, r: int, a, b):
+    """CIRCLE::Intersect(SEG): the line's crossings that lie on the segment."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    l2 = dx * dx + dy * dy
+    if l2 == 0:
+        return []
+    t = dx * (cx - a[0]) + dy * (cy - a[1])
+    m = (a[0] + _rescale(t, dx, l2), a[1] + _rescale(t, dy, l2))
+    om = _vec_norm(m[0] - cx, m[1] - cy)
+    if om > r + 4:
+        return []
+    if om >= r - 4:
+        pts = [m]
+    else:
+        half = int(math.sqrt(r * r - om * om))
+        vx, vy = _resize(dx, dy, half)
+        pts = [(vx + m[0], vy + m[1]), (-vx + m[0], -vy + m[1])]
+    return [q for q in pts if _seg_sq_dist(a, b, q) <= 3]
+
+
+def _disc_holds(cx: int, cy: int, r: int, p) -> bool:
+    """SHAPE_CIRCLE::Collide(point, 0)."""
+    d2 = (p[0] - cx) ** 2 + (p[1] - cy) ** 2
+    return d2 == 0 or d2 < r * r
+
+
+def _clip_run_to_via(pts, cx: int, cy: int, r: int, forward: bool):
+    """LENGTH_DELAY_CALCULATION::clipLineToVia: cut a run that starts (or, not
+    forward, ends) inside a via pad at the pad edge and measure it to the via
+    centre. Returns the new point list (the same one when nothing is outside)."""
+    n = len(pts)
+    start = 0 if forward else n - 1
+    delta = 1 if forward else -1
+    v = start + delta
+    while 0 <= v < n:
+        if not _disc_holds(cx, cy, r, pts[v]):
+            hits = _circle_seg_intersections(cx, cy, r, pts[v], pts[v - delta])
+            best = None
+            for q in hits:
+                if best is None or ((q[0] - pts[v][0]) ** 2 + (q[1] - pts[v][1]) ** 2
+                                    < (best[0] - pts[v][0]) ** 2 + (best[1] - pts[v][1]) ** 2):
+                    best = q
+            mid = [best] if best is not None else []
+            if forward:
+                return [(cx, cy)] + mid + pts[v:]
+            return pts[:v + 1] + mid + [(cx, cy)]
+        v += delta
+    return pts
+
+
+_KI_MAX_ERROR_NM = 5000            # ARC_HIGH_DEF, the board's default max error
+
+
+def _ki_rotate(x: int, y: int, deg: float):
+    """RotatePoint(VECTOR2I&, EDA_ANGLE), with EDA_ANGLE's exact sin and cos at
+    multiples of 45 degrees."""
+    a = deg % 360.0
+    if a == 0.0:
+        return x, y
+    if a == 90.0:
+        return y, -x
+    if a == 180.0:
+        return -x, -y
+    if a == 270.0:
+        return -y, x
+    r2 = math.sqrt(0.5)
+    sn = {45.0: r2, 135.0: r2, 225.0: -r2, 315.0: -r2}.get(a)
+    cs = {45.0: r2, 315.0: r2, 135.0: -r2, 225.0: -r2}.get(a)
+    if sn is None:
+        sn, cs = math.sin(a * math.pi / 180.0), math.cos(a * math.pi / 180.0)
+    return _kiround(y * sn + x * cs), _kiround(y * cs - x * sn)
+
+
+def _circle_ring(cx: int, cy: int, radius: int):
+    """TransformCircleToPolygon(..., ERROR_INSIDE, min 16 segments): the pad
+    outline KiCad tests a track against (the vertices sit on the circle)."""
+    from kicad_parser import _ki_arc_to_segment_count
+    n = max(16, _ki_arc_to_segment_count(radius, _KI_MAX_ERROR_NM, 360.0))
+    n = (n + 7) // 8 * 8
+    delta = 360.0 / n
+    ring = []
+    k = 0
+    while True:
+        ang = delta / 2 + k * delta
+        if ang >= 360.0:
+            break
+        dx, dy = _ki_rotate(radius, 0, ang)
+        ring.append((cx + dx, cy + dy))
+        k += 1
+    return ring
+
+
+def _roundrect_ring(cx: int, cy: int, w: int, h: int, radius: int):
+    """TransformRoundChamferedRectToPolygon(..., ERROR_INSIDE) for a pad whose
+    axes are the board's: corner arcs are polylines of at least 16 segments per
+    turn, the first and last segment of an arc equal."""
+    from kicad_parser import _ki_arc_to_segment_count
+    sx, sy = w // 2, h // 2
+    corners = [(-sx, -sy), (sx, -sy), (sx, sy), (-sx, sy)]
+    if radius <= 0:
+        return [(cx + x, cy + y) for x, y in corners]
+    ring = []
+    incoming = (corners[0][0] - corners[-1][0], corners[0][1] - corners[-1][1])
+    for n, cur in enumerate(corners):
+        nxt = corners[(n + 1) % 4]
+        outgoing = (nxt[0] - cur[0], nxt[1] - cur[1])
+        # every corner of a rectangle turns 90 degrees
+        num_segs = max(16, _ki_arc_to_segment_count(radius, _KI_MAX_ERROR_NM, 360.0))
+        ang_delta = 360.0 / num_segs
+        last_seg = 90.0
+        while last_seg > ang_delta:
+            last_seg -= ang_delta
+        ang_pos = ang_delta if last_seg == 0 else (ang_delta + last_seg) / 2
+        d = radius                                   # tan(45) = 1: transition = radius
+        ilen = _vec_norm(*incoming)
+        ux, uy = incoming[0] / ilen, incoming[1] / ilen
+        arc_start = (cur[0] - _kiround(ux * d), cur[1] - _kiround(uy * d))
+        perp = (-incoming[1], incoming[0])
+        plen = _vec_norm(*perp)
+        center = (arc_start[0] + _kiround(perp[0] / plen * radius),
+                  arc_start[1] + _kiround(perp[1] / plen * radius))
+        origin = (arc_start[0] - center[0], arc_start[1] - center[1])
+        ring.append((cx + arc_start[0], cy + arc_start[1]))
+        end_angle = 90.0
+        while ang_pos < end_angle:
+            rx, ry = _ki_rotate(origin[0], origin[1], -ang_pos)
+            ring.append((cx + center[0] + rx, cy + center[1] + ry))
+            ang_pos += ang_delta
+        # the arc ends where the outgoing edge begins: the corner reflected
+        # through the arc centre line, i.e. start point + 2*(projection)
+        ring.append((cx + cur[0] + _kiround(outgoing[0] / _vec_norm(*outgoing) * d),
+                     cy + cur[1] + _kiround(outgoing[1] / _vec_norm(*outgoing) * d)))
+        incoming = outgoing
+    return ring
+
+
+def _pad_ring_nm(pad):
+    """The outline polygon KiCad tests tracks against for this pad (the
+    ERROR_INSIDE polygon), in nm, or None for a shape not modelled (oval,
+    custom, tilted: tested on the exact outline instead)."""
+    if getattr(pad, 'polygons', None) or getattr(pad, 'rect_rotation', 0.0):
+        return None
+    cx, cy = _nm(pad.global_x), _nm(pad.global_y)
+    w, h = _nm(pad.size_x), _nm(pad.size_y)
+    if pad.shape == 'circle':
+        return _circle_ring(cx, cy, w // 2)
+    if pad.shape == 'rect':
+        return _roundrect_ring(cx, cy, w, h, 0)
+    if pad.shape == 'roundrect':
+        return _roundrect_ring(cx, cy, w, h, _kiround(min(w, h) * pad.roundrect_rratio))
+    return None
+
+
+def _ring_holds(ring, p) -> bool:
+    """SHAPE_LINE_CHAIN_BASE::PointInside(p, 0), which SHAPE_POLY_SET::Contains
+    asks: integer ray casting, with no tolerance at the outline."""
+    x, y = p
+    inside = False
+    n = len(ring)
+    for i in range(n):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % n]
+        if y2 == y1:
+            continue
+        if ((y1 >= y) != (y2 >= y)) and x - x1 < _rescale(x2 - x1, y - y1, y2 - y1):
+            inside = not inside
+    return inside
+
+
+def _edge_cross(ea, eb, a, b):
+    """SEG(ea, eb).NearestPoint(SEG(a, b)) when they cross: KiCad's integer
+    intersection, taken along (a, b). None when they do not touch."""
+    d1 = (eb[0] - ea[0], eb[1] - ea[1])
+    d2 = (b[0] - a[0], b[1] - a[1])
+    off = (a[0] - ea[0], a[1] - ea[1])
+    det = d2[0] * d1[1] - d2[1] * d1[0]
+    if det == 0:
+        return None
+    p2 = d2[0] * off[1] - d2[1] * off[0]
+    p1 = d1[0] * off[1] - d1[1] * off[0]
+    if det > 0:
+        if p1 < 0 or p1 > det or p2 < 0 or p2 > det:
+            return None
+    elif p1 > 0 or p1 < det or p2 > 0 or p2 < det:
+        return None
+    return (a[0] + _rescale(p1, d2[0], det), a[1] + _rescale(p1, d2[1], det))
+
+
+def _point_to_pad_distance():
+    """check_drc.point_to_pad_distance (imported lazily: check_drc imports this
+    module)."""
+    from check_drc import point_to_pad_distance
+    return point_to_pad_distance
+
+
+def _pad_holds_nm(pad, p, ring=None) -> bool:
+    """Is the nm point `p` inside the pad's outline?"""
+    if ring is None:
+        ring = _pad_ring_nm(pad)
+    if ring:
+        return _ring_holds(ring, p)
+    return _point_to_pad_distance()(p[0] / _NM_PER_MM, p[1] / _NM_PER_MM, pad) <= 0.0
+
+
+def _pad_edge_nm(pad, inside, outside, ring=None):
+    """Where the straight track piece (outside -> inside) meets the pad outline,
+    in nm: the first outline edge it crosses (SHAPE_POLY_SET::Collide's
+    location), or -- for a pad outline not modelled -- found by bisection on
+    the pad's distance function."""
+    if ring:
+        n = len(ring)
+        for i in range(n):
+            hit = _edge_cross(ring[i], ring[(i + 1) % n], outside, inside)
+            if hit is not None:
+                return hit
+    lo, hi = 0.0, 1.0                    # fraction from `inside` toward `outside`
+    for _ in range(50):
+        mid = (lo + hi) / 2
+        x = inside[0] + (outside[0] - inside[0]) * mid
+        y = inside[1] + (outside[1] - inside[1]) * mid
+        if _pad_holds_nm(pad, (x, y), ring):
+            lo = mid
+        else:
+            hi = mid
+    t = (lo + hi) / 2
+    return (_kiround(inside[0] + (outside[0] - inside[0]) * t),
+            _kiround(inside[1] + (outside[1] - inside[1]) * t))
+
+
+def _clip_run_to_pad(pts, pad, pos, forward: bool):
+    """LENGTH_DELAY_CALCULATION::clipLineToPad: a run that ends at a pad's
+    anchor is cut where it leaves the pad outline and measured to the anchor."""
+    ring = _pad_ring_nm(pad)
+    n = len(pts)
+    start = 0 if forward else n - 1
+    delta = 1 if forward else -1
+    v = start + delta
+    while 0 <= v < n:
+        if not _pad_holds_nm(pad, pts[v], ring):
+            edge = _pad_edge_nm(pad, pts[v - delta], pts[v], ring)
+            if forward:
+                return [pos, edge] + pts[v:]
+            return pts[:v + 1] + [edge, pos]
+        v += delta
+    return pts
+
+
+class _Line:
+    """One KiCad track item: a straight track, or an arc (which the parser
+    hands over as consecutive chords sharing the arc's uuid), as a chain of
+    nm points."""
+    __slots__ = ('layer', 'pts', 'arc')
+
+    def __init__(self, layer, pts, arc=False):
+        self.layer, self.pts, self.arc = layer, pts, arc
+
+
+def _line_items(segments) -> List[_Line]:
+    items: List[_Line] = []
+    prev_uuid = None
+    for s in segments:
+        a = (_nm(s.start_x), _nm(s.start_y))
+        b = (_nm(s.end_x), _nm(s.end_y))
+        last = items[-1] if items else None
+        if (s.uuid and s.uuid == prev_uuid and last is not None
+                and last.layer == s.layer and last.pts[-1] == a):
+            last.pts.append(b)
+            last.arc = True
+        else:
+            items.append(_Line(s.layer, [a, b]))
+        prev_uuid = s.uuid
+    return items
+
+
+def _join_chains(pts, other, at_start: bool):
+    """mergeShapeLineChains: `other` joined onto `pts` at its start or end."""
+    if at_start:
+        if other[0] == pts[0]:
+            return other[::-1] + pts[1:]
+        return other[:-1] + pts
+    if other[0] == pts[-1]:
+        return pts + other[1:]
+    return pts + other[::-1][1:]
+
+
+def _merge_runs(items: List[_Line], key) -> List[_Line]:
+    """LENGTH_DELAY_CALCULATION::mergeLines as release `key` does it: the runs
+    that stay in use."""
+    at: Dict[Tuple[int, int], List[int]] = {}
+    for i, it in enumerate(items):
+        at.setdefault(it.pts[0], []).append(i)
+        if it.pts[-1] != it.pts[0]:
+            at.setdefault(it.pts[-1], []).append(i)
+    static = key >= (10, 0, 7)      # 9198857b: the map is no longer pruned
+    arcs_merge = key >= (10, 0, 5)  # 656bb88e
+
+    def drop(j):
+        for p in {items[j].pts[0], items[j].pts[-1]}:
+            at[p].remove(j)
+
+    merged = [False] * len(items)
+    runs = []
+    for i, it in enumerate(items):
+        if merged[i]:
+            continue
+        merged[i] = True
+        if not static:
+            drop(i)
+        pts = list(it.pts)
+        while True:
+            joined = False
+            for at_start, pos in ((True, pts[0]), (False, pts[-1])):
+                bucket = at.get(pos, ())
+                if static:
+                    same = [j for j in bucket if items[j].layer == it.layer]
+                    cand = [j for j in same if j != i and not merged[j]]
+                    if len(same) != 2 or not cand:
+                        continue
+                    j = cand[-1]
+                else:
+                    if len(bucket) != 1:
+                        continue
+                    j = bucket[0]
+                    if (items[j].arc and not arcs_merge) \
+                            or items[j].layer != it.layer:
+                        continue
+                merged[j] = True
+                pts = _join_chains(pts, items[j].pts, at_start)
+                if not static:
+                    drop(j)
+                joined = True
+            if not joined:
+                break
+        runs.append(_Line(it.layer, pts, it.arc))
+    return runs
+
+
+def _stackup_height_nm(pcb_data, first: str, second: str, half_inner: bool) -> int:
+    """BOARD_STACKUP::GetLayerDistance: the stackup from `first` to `second`
+    inclusive -- with half of each INNER copper layer that ends the span when
+    `half_inner` (KiCad 10.0.2, 848f6dcd). 0 when the board has no stackup or
+    the layers are equal."""
+    stackup = getattr(pcb_data.board_info, 'stackup', None) or []
+    if not stackup or first == second:
+        return 0
+    idx = {}
+    for i, layer in enumerate(stackup):
+        idx.setdefault(layer.name, i)
+    if first not in idx or second not in idx:
+        return 0
+    lo, hi = sorted((idx[first], idx[second]))
+    total = 0
+    for i in range(lo, hi + 1):
+        layer = stackup[i]
+        t = _nm(layer.thickness)
+        if (half_inner and i in (lo, hi) and layer.name.endswith('.Cu')
+                and layer.name not in ('F.Cu', 'B.Cu')):
+            t //= 2
+        total += t
+    return total
+
+
+def _copper_stack(pcb_data):
+    copper = list(getattr(pcb_data.board_info, 'copper_layers', None) or [])
+    if not copper:
+        copper = [l.name for l in (getattr(pcb_data.board_info, 'stackup', None) or [])
+                  if l.name.endswith('.Cu')]
+    return copper
+
+
+def _pad_anchor_nm(pad):
+    """PAD::GetPosition, in nm: the drill position of a pad whose copper is
+    offset from it, else the pad centre."""
+    hx = getattr(pad, 'hole_x', None)
+    hy = getattr(pad, 'hole_y', None)
+    if hx is not None and hy is not None:
+        return _nm(hx), _nm(hy)
+    return _nm(pad.global_x), _nm(pad.global_y)
+
+
+def _via_pad_side(via, pads, pcb_data, copper):
+    """10.0.5: the side layer of the first pad KiCad's connectivity finds
+    connected to `via` (a same-net pad whose copper overlaps the via pad on a
+    shared layer), or None -- an SMD or connector pad's first copper layer, a
+    through-hole pad's footprint side."""
+    from geometry_utils import via_copper_layers
+    on = set(via_copper_layers(via, copper))
+    r = via.size / 2
+    for p in pads:
+        if p.pad_type == 'np_thru_hole':
+            continue
+        if not getattr(p, 'polygons', None) \
+                and abs(p.global_x - via.x) > r + p.size_x + p.size_y:
+            continue
+        layers = expand_pad_layers(p.layers, copper)
+        if not set(layers) & on:
+            continue
+        if _point_to_pad_distance()(via.x, via.y, p) >= r:
+            continue
+        if p.pad_type in ('smd', 'connect'):
+            mine = [l for l in copper if l in set(layers)]
+            return mine[0] if mine else None
+        fp = (getattr(pcb_data, 'footprints', None) or {}).get(p.component_ref)
+        side = getattr(fp, 'layer', None)
+        return side if side in copper else (copper[0] if copper else None)
+    return None
+
+
+def _touched_via_layers(via, c, r, segments, copper):
+    """10.0.0 to 10.0.3, a via no track ends at: the via layers on which a
+    same-net track's copper touches the via pad (CalculateViaLayers, from
+    KiCad's connectivity), in stack order."""
+    from geometry_utils import via_copper_layers
+    on = via_copper_layers(via, copper) if copper else list(via.layers or ())
+    hit = set()
+    for s in segments:
+        if s.layer in hit or s.layer not in on:
+            continue
+        reach = r + _nm(s.width) // 2
+        a = (_nm(s.start_x), _nm(s.start_y))
+        b = (_nm(s.end_x), _nm(s.end_y))
+        d2 = _seg_sq_dist(a, b, c)
+        if d2 == 0 or d2 < reach * reach:
+            hit.add(s.layer)
+    return [l for l in on if l in hit]
+
+
+def _via_charges_nm(pcb_data, vias, items: List[_Line], segments, pads,
+                    key) -> List[int]:
+    """The barrel KiCad charges each of `vias`, in nm, as release `key` does
+    (step 1 and 5 of the block comment above)."""
+    from geometry_utils import via_end_layers
+    if not via_height_in_length(pcb_data):
+        return [0] * len(vias)       # #1731: Board Setup counts no via height
+    copper = _copper_stack(pcb_data)
+    rank = {l: i for i, l in enumerate(copper)}
+    half = key >= (10, 0, 2)
+    off_centre = key >= (10, 0, 4)       # 19cc51bd
+    pad_side = key >= (10, 0, 5)         # e4f5c357
+
+    def height(layers):
+        span = sorted({l for l in layers if l in rank}, key=rank.get)
+        if len(span) < 2:
+            return 0
+        return _stackup_height_nm(pcb_data, span[0], span[-1], half)
+
+    ends: Dict[Tuple[int, int], List[int]] = {}
+    for i, it in enumerate(items):
+        ends.setdefault(it.pts[0], []).append(i)
+        if it.pts[-1] != it.pts[0]:
+            ends.setdefault(it.pts[-1], []).append(i)
+    # Track ends bucketed by a grid of the widest via pad, so a net with
+    # thousands of vias and tracks is not searched via x track.
+    cell = max([_nm(v.size) // 2 for v in vias] + [1])
+    grid: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
+    if off_centre:
+        for p in ends:
+            grid.setdefault((p[0] // cell, p[1] // cell), []).append(p)
+    out = []
+    for v in vias:
+        c = (_nm(v.x), _nm(v.y))
+        r = _nm(v.size) // 2
+        joined = set(ends.get(c, ()))
+        if off_centre:
+            gx, gy = c[0] // cell, c[1] // cell
+            for ix in (gx - 1, gx, gx + 1):
+                for iy in (gy - 1, gy, gy + 1):
+                    for p in grid.get((ix, iy), ()):
+                        if p != c and _disc_holds(c[0], c[1], r, p):
+                            joined.update(ends[p])
+        elif not joined:
+            # No track ends at the centre: the via keeps the span its own
+            # connectivity gave it.
+            touched = _touched_via_layers(v, c, r, segments, copper)
+            top, bottom = via_end_layers(v)
+            if len(touched) >= 2:
+                top, bottom = touched[0], touched[-1]
+            elif touched:
+                top = touched[0]
+            out.append(height((top, bottom)))
+            continue
+        layers = {items[i].layer for i in joined}
+        if pad_side:
+            side = _via_pad_side(v, pads, pcb_data, copper)
+            if side:
+                layers.add(side)
+            out.append(height(layers))
+        elif len(joined) == 1:
+            line_layer = next(iter(layers))
+            anchored = [p for p in pads if _pad_anchor_nm(p) == c]
+            pad_layers = (expand_pad_layers(anchored[0].layers, copper)
+                          if len(anchored) == 1 else ())
+            if pad_layers and line_layer not in pad_layers:
+                first = [l for l in copper if l in set(pad_layers)][0]
+                out.append(height((line_layer, first)))
+            else:
+                out.append(0)
+        else:
+            out.append(height(layers))
+    return out
+
+
+def _clip_runs_at_vias(runs: List[_Line], vias) -> None:
+    """10.0.4 OptimiseTraceInVia: a run whose first (else last) point lies in a
+    via pad is cut at the pad edge and measured to the via centre."""
+    if not vias:
+        return
+    vinfo = [(_nm(v.x), _nm(v.y), _nm(v.size) // 2) for v in vias]
+    cell = max(max(r for _, _, r in vinfo), 1)
+    vgrid: Dict[Tuple[int, int], List[int]] = {}
+    for k, (cx, cy, _r) in enumerate(vinfo):
+        vgrid.setdefault((cx // cell, cy // cell), []).append(k)
+
+    def near(p):
+        # a run end moves at most one via radius per cut, so two cells out
+        # reach every via a cut end can land in
+        gx, gy = p[0] // cell, p[1] // cell
+        return {k for ix in range(gx - 2, gx + 3) for iy in range(gy - 2, gy + 3)
+                for k in vgrid.get((ix, iy), ())}
+
+    for run in runs:
+        pts = run.pts
+        for k in sorted(near(pts[0]) | near(pts[-1])):
+            cx, cy, r = vinfo[k]
+            if _disc_holds(cx, cy, r, pts[0]):
+                pts = _clip_run_to_via(pts, cx, cy, r, True)
+            elif _disc_holds(cx, cy, r, pts[-1]):
+                pts = _clip_run_to_via(pts, cx, cy, r, False)
+        run.pts = pts
+
+
+def _clip_runs_in_pads(runs: List[_Line], pads, copper) -> None:
+    """OptimiseTracesInPads: a run with an end at a pad's anchor, on a layer
+    the pad has copper on, is cut from whichever end the pad holds (the start
+    first)."""
+    ends: Dict[Tuple[int, int], List[int]] = {}
+    for k, run in enumerate(runs):
+        ends.setdefault(run.pts[0], []).append(k)
+        if run.pts[-1] != run.pts[0]:
+            ends.setdefault(run.pts[-1], []).append(k)
+    for pad in pads:
+        if pad.pad_type == 'np_thru_hole':
+            continue
+        pos = _pad_anchor_nm(pad)
+        if pos not in ends:
+            continue
+        layers = set(expand_pad_layers(pad.layers, copper))
+        ring = _pad_ring_nm(pad)
+        for k in ends[pos]:
+            run = runs[k]
+            if run.layer not in layers:
+                continue
+            if _pad_holds_nm(pad, run.pts[0], ring):
+                run.pts = _clip_run_to_pad(run.pts, pad, pos, True)
+            elif _pad_holds_nm(pad, run.pts[-1], ring):
+                run.pts = _clip_run_to_pad(run.pts, pad, pos, False)
+
+
+def _tracks(segments):
+    """The net's track copper: graphic copper is not a track to KiCad's
+    length DRC."""
+    return [s for s in segments if not getattr(s, 'graphic', False)]
+
+
+def kicad_net_length_nm(pcb_data, segments, vias, pads,
+                        release: Optional[str] = None) -> int:
+    """Track plus via length of ONE net, in integer nm, as the length DRC of
+    KiCad `release` (default `length_measure_release()`) measures it (#1313,
+    #1432): see the block comment above. `segments`, `vias` and `pads` are
+    the net's. Pad-to-die is added by the caller."""
+    key = _release_key(length_measure_release(release))
+    copper = _copper_stack(pcb_data)
+    segments = _tracks(segments)
+    items = _line_items(segments)
+    via_nm = sum(_via_charges_nm(pcb_data, vias, items, segments, pads, key))
+    runs = _merge_runs(items, key)
+    if key >= (10, 0, 4):
+        _clip_runs_at_vias(runs, vias)
+    _clip_runs_in_pads(runs, pads, copper)
+    return sum(_chain_len(run.pts) for run in runs) + via_nm
+
+
+def kicad_via_length(via: Via, segments, pads, pcb_data,
+                     release: Optional[str] = None) -> float:
+    """The barrel length KiCad's length DRC charges one via, in mm (#1313,
+    #1432), as KiCad `release` (default `length_measure_release()`) charges
+    it: the stackup between the outermost and innermost copper layers the via
+    joins (see the block comment above). One joined layer, or none, charges
+    nothing. `segments` and `pads` are the via's net's."""
+    key = _release_key(length_measure_release(release))
+    segments = _tracks(segments)
+    return _via_charges_nm(pcb_data, [via], _line_items(segments), segments,
+                           pads, key)[0] / _NM_PER_MM
 
 
 def net_copper_lengths(pcb_data: PCBData, net_ids=None,
-                       include_vias: bool = True) -> Dict[int, float]:
+                       include_vias: bool = True,
+                       release: Optional[str] = None) -> Dict[int, float]:
     """{net_id: total copper length mm} in ONE pass over the board's copper.
 
     Same measurement as `net_copper_length`, but for many nets at once -- a
@@ -250,9 +1195,15 @@ def net_copper_lengths(pcb_data: PCBData, net_ids=None,
             if wanted is None or v.net_id in wanted:
                 vias_by.setdefault(v.net_id, []).append(v)
     out = {}
+    pads_by = getattr(pcb_data, 'pads_by_net', None) or {}
     for nid in (wanted if wanted is not None else set(segs_by) | set(vias_by)):
-        out[nid] = calculate_route_length(segs_by.get(nid, []),
-                                         vias_by.get(nid), pcb_data)
+        segs = segs_by.get(nid, [])
+        if not include_vias:
+            out[nid] = math.fsum(segment_length(s) for s in segs)
+        else:
+            out[nid] = kicad_net_length_nm(pcb_data, segs, vias_by.get(nid, []),
+                                           pads_by.get(nid) or [],
+                                           release) / _NM_PER_MM
     return out
 
 
@@ -276,8 +1227,12 @@ def pin_pair_path_length(pcb_data: PCBData, net_id: int,
     Walks a WEIGHTED graph over the net's own copper: each segment contributes
     an edge of its own length, coincident endpoints and T-junctions (an endpoint
     landing on another segment's interior) join at zero cost, and a via joins
-    the layers it spans at its barrel length from the stackup. Pads attach to
-    any endpoint or T-point that falls inside their copper.
+    the layers it spans at its barrel length from the stackup, a track reaching
+    it straight from where it enters the via's copper to the centre (#1583);
+    a via's layer steps are charged the stackup between them (#1623). Pads
+    attach to any endpoint or T-point whose track copper touches theirs, a
+    via whose copper overlaps theirs, and each other where their copper
+    touches (#1629).
 
     Returns None when the two pads are not joined by copper (an unrouted or
     broken net) -- distinguish that from 0.0, which means pad-to-pad direct
@@ -328,6 +1283,13 @@ def net_pads_joined(pcb_data: PCBData, net_id: int, pads=None,
 
     The rule `pin_pair_path_length` applies to two pads, applied to every pad,
     on the same graph: segments, T-junctions and vias join, zones/pours do NOT.
+    Copper joins where it touches, as check_connected and KiCad have it
+    (#1629): a track whose round end reaches a pad's exact outline (a
+    rotated pad, a cap that stops short of the edge), a via whose barrel
+    overlaps a pad, two same-net pads whose copper overlaps, two same-layer
+    tracks that cross mid-span (#1705). Before, it read a point inside the
+    pad's axis box only, and an X crossing not at all, and check_drc and
+    board_score skipped the skew of connected pairs KiCad graded out of range.
     False for an unrouted net, a net carrying only fanout stubs, a broken net,
     one whose pads meet only through a plane, and a net with fewer than two
     copper pads. `pads` overrides which pads must be joined (default: every
@@ -424,6 +1386,225 @@ def net_match_length(pcb_data: PCBData, net_id: int, mode: str = 'total',
     return net_copper_length(pcb_data, net_id) + die
 
 
+def net_signal_length(pcb_data: PCBData, net_id: int,
+                      tolerance: float = 0.02) -> Optional[float]:
+    """The length of the copper a net's post-route cleanup will leave, read
+    off the board BEFORE the cleanup has run (#1303), in mm with every pad's
+    pad-to-die; None while its copper pads are not all joined.
+
+    A route step's board still carries what its cleanup will trim: fanout
+    stubs the new copper made dead ends, and loops where a leg and the
+    coupled middle both join the same two points. So a 2-pad net reads its
+    pad-to-pad copper path (the walk `pin_pair_path_length` takes), which is
+    what a loop collapses to; a net with more pads reads its copper with every dead-end
+    branch trimmed (leaves that are not pads, repeatedly). On imx6ulz DQS0
+    this read P 21.31 / N 16.82 mm where the routing result said P 12.00 /
+    N 13.08 (it carries no stub lengths after a seam re-ask) and the shipped
+    board measured P 21.33 / N 16.82.
+
+    The copper it keeps is then measured as KiCad's length/skew DRC measures
+    it (#1623: `kicad_net_length_nm`, which `diff_pair_skew` and check_drc
+    read for the shipped copper), so the matcher aims at the number KiCad
+    grades: a run ending at a pad's anchor is charged from the pad's outline
+    to the anchor, copper inside a pad that the run carries is charged, and a
+    via the stackup between the layers its tracks leave on. The 2-pad path
+    keeps, beside the copper it walks, the track pieces lying inside either
+    pad, which the cleanup leaves. Reading the path's own walk instead (a
+    track node inside a pad joined it at no cost) a pair KiCad read at
+    0.014 mm read 1.11 mm here and shipped 1.10 mm after the matcher's
+    meander. A track ending inside a via off its centre is given the
+    straight line from where it enters the via's copper to the centre
+    (#1583), the bridge the post-route cleanup lays there on a length-graded
+    net (close_soft_joints): joined for free, a pair matched here to
+    0.0006 mm shipped 0.76 mm of KiCad skew.
+
+    A loop the 2-pad walk leaves out is charged when it meets the path at
+    ONE node and runs along a segment the path uses (#1704,
+    `_loops_off_one_node`): a track that runs past a corner and comes back
+    along itself, which the cleanup cannot take out and KiCad charges. Left
+    out, a pair KiCad read 2 mm apart read matched.
+
+    What it still does not read is copper the cleanup will remove: a branch
+    or a second way between two points the walk leaves out is not in it,
+    which on copper that already shipped (no cleanup to come) KiCad does
+    charge -- so shipped copper is measured with `net_match_length`."""
+    pads = _copper_pads(pcb_data, net_id)
+    if len(pads) < 2 or not net_pads_joined(pcb_data, net_id, pads, tolerance):
+        return None
+    die = net_pad_to_die_length(pcb_data, net_id)
+    detail: dict = {}
+    graph = _net_track_graph(pcb_data, net_id, pads, tolerance, detail=detail)
+    if graph is None:
+        return None
+    adjacency, pad_nodes = graph
+    infos = detail['edges']
+    if len(pads) == 2:
+        walk_nodes: List[int] = []
+        picked = _pad_pair_walk(adjacency, infos, pad_nodes, pads[0], pads[1],
+                                nodes=walk_nodes)
+        if picked is None:
+            return None
+        # the track pieces lying inside either pad (both ends joined to its
+        # hub on that layer): copper the run carries and KiCad charges
+        joined = [set(detail['hub_joins'].get(h, ()))
+                  for p in pads for h in pad_nodes.get(id(p)) or ()]
+        for (u, v), lst in infos.items():
+            if any(u in j and v in j for j in joined):
+                picked.extend(info for _w, info in lst
+                              if info and info[0] == 'track')
+        picked.extend(_loops_off_one_node(infos, pad_nodes, walk_nodes, picked))
+        return _selected_copper_mm(pcb_data, net_id, picked, detail) + die
+    keep = {n for hubs in pad_nodes.values() for n in hubs}
+    edges = [(u, v, info) for (u, v), lst in infos.items() for _w, info in lst]
+    incident: Dict[int, List[int]] = {}
+    for i, (u, v, _info) in enumerate(edges):
+        incident.setdefault(u, []).append(i)
+        incident.setdefault(v, []).append(i)
+    alive = [True] * len(edges)
+    degree = {n: len(ix) for n, ix in incident.items()}
+    todo = [n for n, d in degree.items() if d == 1 and n not in keep]
+    while todo:
+        node = todo.pop()
+        if degree.get(node) != 1:
+            continue
+        for i in incident[node]:
+            if not alive[i]:
+                continue
+            alive[i] = False
+            u, v, _info = edges[i]
+            for end in (u, v):
+                degree[end] -= 1
+                if end != node and degree[end] == 1 and end not in keep:
+                    todo.append(end)
+    picked = [info for i, (_u, _v, info) in enumerate(edges) if alive[i]]
+    return _selected_copper_mm(pcb_data, net_id, picked, detail) + die
+
+
+def _loops_off_one_node(infos, pad_nodes, walk_nodes, picked):
+    """The edge infos of copper the 2-pad walk left out that the cleanup
+    keeps (#1704): a loop meeting the pad-to-pad path at ONE node, with a
+    piece of a segment the walk uses in it.
+
+    The walk takes the shortest path, so it leaves out every loop. A loop
+    that rejoins the path at two nodes is a second way between them, which
+    the cleanup collapses to one. A loop that meets it at one node is not:
+    it is a track that runs on past a corner and comes back along itself,
+    where the return leg's far end lands on the outbound segment, which is
+    cut there. The cleanup removes copper in whole segments (and a dead
+    end's tail), so it cannot take out the overshoot of a segment the path
+    runs along, nor, since a return leg's removal would leave that
+    overshoot's end dangling, the return leg: KiCad charges both. A loop
+    made only of segments the walk does not touch (a ring hanging off the
+    path) the cycle prune and the dead-end sweep do remove, and it stays
+    out."""
+    in_walk = {id(i) for i in picked if i}
+    walk_segs = {id(i[1]) for i in picked if i and i[0] == 'track'}
+    hubs = {h for hs in pad_nodes.values() for h in hs}
+    out_edges = [(u, v, info) for (u, v), lst in infos.items() for _w, info in lst
+                 if info and id(info) not in in_walk]
+    if not out_edges:
+        return []
+    # trim the dead ends (leaves that are not pads), as the cleanup does;
+    # what is left of the walk's leftovers is loops
+    deg: Dict[int, int] = {}
+    for (u, v), lst in infos.items():
+        for _w, info in lst:
+            if info is not None:
+                deg[u] = deg.get(u, 0) + 1
+                deg[v] = deg.get(v, 0) + 1
+    incident: Dict[int, List[int]] = {}
+    for i, (u, v, _info) in enumerate(out_edges):
+        incident.setdefault(u, []).append(i)
+        incident.setdefault(v, []).append(i)
+    alive = [True] * len(out_edges)
+    todo = [n for n in incident if deg.get(n) == 1 and n not in hubs]
+    while todo:
+        node = todo.pop()
+        if deg.get(node) != 1:
+            continue
+        for i in incident.get(node, ()):
+            if alive[i]:
+                alive[i] = False
+                for end in out_edges[i][:2]:
+                    deg[end] -= 1
+                    if end != node and deg[end] == 1 and end not in hubs:
+                        todo.append(end)
+    # each loop: the left-out copper joined through nodes OFF the path, and
+    # the path nodes it meets
+    on_path = set(walk_nodes) | hubs
+    parent: Dict[int, int] = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    loop = [i for i, a in enumerate(alive) if a]
+    for i in loop:
+        u, v, _info = out_edges[i]
+        if u not in on_path and v not in on_path:
+            parent[find(u)] = find(v)
+    groups: Dict[object, List[int]] = {}
+    for i in loop:
+        u, v, _info = out_edges[i]
+        off = u if u not in on_path else (v if v not in on_path else None)
+        groups.setdefault(('chord', i) if off is None else find(off), []).append(i)
+    picked_more = []
+    for ids in groups.values():
+        meets = {n for i in ids for n in out_edges[i][:2] if n in on_path}
+        if len(meets) != 1:
+            continue                    # a second way between two path nodes
+        loop_infos = [out_edges[i][2] for i in ids]
+        if any(info[0] == 'track' and id(info[1]) in walk_segs for info in loop_infos):
+            picked_more.extend(loop_infos)
+    return picked_more
+
+
+def _pad_pair_walk(adjacency, infos, pad_nodes, pad_a, pad_b, nodes=None):
+    """The edge infos of the shortest walk of `_net_track_graph` from
+    `pad_a`'s hubs to `pad_b`'s, or None when the two are not joined.
+    `nodes`, when given, is filled with the nodes the walk passes."""
+    import heapq
+    starts = pad_nodes.get(id(pad_a)) or []
+    goals = set(pad_nodes.get(id(pad_b)) or [])
+    if not starts or not goals:
+        return None
+    dist = {n: 0.0 for n in starts}
+    prev: Dict[int, int] = {}
+    heap = [(0.0, i, n) for i, n in enumerate(starts)]
+    heapq.heapify(heap)
+    counter = len(starts)
+    end = None
+    while heap:
+        d, _, node = heapq.heappop(heap)
+        if d > dist.get(node, float('inf')) + 1e-12:
+            continue
+        if node in goals:
+            end = node
+            break
+        for nxt, w in adjacency.get(node, ()):
+            nd = d + w
+            if nd < dist.get(nxt, float('inf')) - 1e-12:
+                dist[nxt] = nd
+                prev[nxt] = node
+                heapq.heappush(heap, (nd, counter, nxt))
+                counter += 1
+    if end is None:
+        return None
+    picked = []
+    if nodes is not None:
+        nodes.append(end)
+    while end in prev:
+        u = prev[end]
+        if nodes is not None:
+            nodes.append(u)
+        lst = infos.get((min(u, end), max(u, end))) or [(0.0, None)]
+        picked.append(min(lst, key=lambda wi: wi[0])[1])
+        end = u
+    return picked
+
+
 def net_match_pad_to_die(pcb_data: PCBData, net_id: int,
                          mode: str = 'total', attr: str = 'die_length') -> float:
     """The pad-to-die term `net_match_length` adds in `mode` (#1248), in mm:
@@ -442,13 +1623,80 @@ def net_match_pad_to_die(pcb_data: PCBData, net_id: int,
     return _sum((getattr(pcb_data, 'pads_by_net', None) or {}).get(net_id))
 
 
+def _track_reaches_pad_at(pad, x: float, y: float, half_width: float,
+                          tolerance: float) -> bool:
+    """Does a track point at (x, y), half_width wide, touch `pad`'s copper?
+    check_connected's endpoint rule (#1629): the round cap reaches the
+    pad's exact outline (rotation, roundrect corners, custom polygons), not
+    only the pad's axis box."""
+    reach = max(half_width - 1e-6, tolerance)
+    if abs(x - pad.global_x) > pad.size_x / 2 + pad.size_y / 2 + reach \
+            or abs(y - pad.global_y) > pad.size_x / 2 + pad.size_y / 2 + reach:
+        return False
+    if not getattr(pad, 'shape', None) or (pad.size_x <= 0 and pad.size_y <= 0):
+        return _pad_holds_point(pad, x, y, tolerance)
+    return _point_to_pad_distance()(x, y, pad) <= reach
+
+
+def _segment_crossings(segments) -> Dict[int, List[Tuple[float, float]]]:
+    """id(segment) -> the points where another segment of the same layer
+    CROSSES its centreline (#1705).
+
+    Two same-layer tracks that cross mid-span overlap in copper and KiCad
+    joins them, but neither has an endpoint on the other, so a T-junction cut
+    never meets them. check_connected unions such a pair with the same
+    `segments_intersect` test (#1279 review)."""
+    from geometry_utils import segments_intersect
+    out: Dict[int, List[Tuple[float, float]]] = {}
+    by_layer: Dict[str, list] = {}
+    for s in segments:
+        by_layer.setdefault(s.layer, []).append(
+            (min(s.start_x, s.end_x), max(s.start_x, s.end_x),
+             min(s.start_y, s.end_y), max(s.start_y, s.end_y), s))
+    for items in by_layer.values():
+        items.sort(key=lambda it: it[0])
+        for i, (ax0, ax1, ay0, ay1, a) in enumerate(items):
+            for bx0, bx1, by0, by1, b in items[i + 1:]:
+                if bx0 > ax1:
+                    break
+                if by0 > ay1 or by1 < ay0:
+                    continue
+                if not segments_intersect(a.start_x, a.start_y, a.end_x, a.end_y,
+                                          b.start_x, b.start_y, b.end_x, b.end_y):
+                    continue
+                dax, day = a.end_x - a.start_x, a.end_y - a.start_y
+                dbx, dby = b.end_x - b.start_x, b.end_y - b.start_y
+                den = dax * dby - day * dbx
+                if abs(den) < 1e-15:
+                    continue      # collinear overlap: the endpoint cuts meet it
+                t = ((b.start_x - a.start_x) * dby - (b.start_y - a.start_y) * dbx) / den
+                pt = (a.start_x + t * dax, a.start_y + t * day)
+                out.setdefault(id(a), []).append(pt)
+                out.setdefault(id(b), []).append(pt)
+    return out
+
+
 def _net_track_graph(pcb_data: PCBData, net_id: int, pads,
-                     tolerance: float = 0.02):
+                     tolerance: float = 0.02, detail: Optional[dict] = None):
     """(adjacency, pad_nodes) over ONE net's track copper, with `pads` attached.
 
     The weighted graph `pin_pair_path_length` walks (see its docstring for the
     joining rules); `pad_nodes` maps id(pad) to the pad's per-layer hub nodes.
     None when the net has no segments at all.
+
+    Copper joins where it touches, as check_connected and KiCad have it
+    (#1629): a track node joins a pad when its round cap reaches the pad's
+    exact outline, a via joins a pad its copper overlaps, two of `pads`
+    whose copper touches on a shared layer join each other, and two tracks
+    of a layer whose centrelines cross meet at the crossing (#1705).
+
+    `detail`, when given, is filled with what each edge IS, for a measure
+    that reads the copper a walk selected (`_selected_copper_mm`):
+    'edges' maps (low node, high node) to [(weight, info)], info one of
+    ('track', segment, t0, t1) -- the piece of `segment` from t0 to t1 mm
+    along it -- ('via_join', via, node), ('barrel', via), ('pad', pad),
+    ('pad_pad',) or ('via_pad', via); 'node_xy' is each node's (x, y, layer)
+    and 'hub_joins' maps a pad hub to the track nodes it joins.
     """
     segments = [s for s in pcb_data.segments if s.net_id == net_id]
     if not segments:
@@ -475,12 +1723,19 @@ def _net_track_graph(pcb_data: PCBData, net_id: int, pads,
         return nid
 
     adjacency: Dict[int, List[Tuple[int, float]]] = {}
+    edge_infos = {} if detail is not None else None
+    hub_joins: Dict[int, List[int]] = {}
 
-    def add_edge(n1, n2, w: float):
+    def add_edge(n1, n2, w: float, info=None):
         if n1 == n2:
             return
         adjacency.setdefault(n1, []).append((n2, w))
         adjacency.setdefault(n2, []).append((n1, w))
+        if edge_infos is not None:
+            edge_infos.setdefault((min(n1, n2), max(n1, n2)), []).append((w, info))
+
+    # each track node's half width: a node's copper is its track's round cap
+    half_w: Dict[int, float] = {}
 
     copper_layers = list(getattr(pcb_data.board_info, 'copper_layers', None) or [])
     from kicad_parser import pad_is_plated_through
@@ -488,18 +1743,18 @@ def _net_track_graph(pcb_data: PCBData, net_id: int, pads,
     # Vias and the two pads are DISCS of copper, not points: a track ends
     # anywhere inside them, not on their centre (real boards miss the centre by
     # tens of um). Each disc is a landing zone -- any segment node inside it
-    # joins at no cost, and a segment passing THROUGH it gets split there so a
-    # via mid-run is reachable.
+    # joins (a via's at its distance from the centre, below), and a segment
+    # passing THROUGH it gets split there so a via mid-run is reachable.
     discs = []  # (cx, cy, radius, layers, hit_test, kind, obj)
     for v in pcb_data.vias:
         if v.net_id != net_id or len(v.layers or ()) < 2:
             continue
-        span = list(v.layers)
-        if copper_layers and span[0] in copper_layers and span[1] in copper_layers:
-            i, j = copper_layers.index(span[0]), copper_layers.index(span[1])
-            spanned = copper_layers[min(i, j):max(i, j) + 1]
-        else:
-            spanned = span
+        # The via's copper by its TYPE (found reviewing #1268): every layer
+        # for a through via whatever its pair, the run between the ends for a
+        # typed blind/micro one.
+        from geometry_utils import via_copper_layers, via_end_layers
+        spanned = (via_copper_layers(v, copper_layers) if copper_layers
+                   else list(via_end_layers(v)))
         radius = max((getattr(v, 'size', 0) or 0) / 2, tolerance)
         discs.append((v.x, v.y, radius, spanned,
                       lambda x, y, _v=v, _r=radius: math.hypot(x - _v.x, y - _v.y) <= _r + tolerance,
@@ -508,15 +1763,18 @@ def _net_track_graph(pcb_data: PCBData, net_id: int, pads,
         pad_layers = [l for l in expand_pad_layers(pad.layers, copper_layers)]
         radius = max(pad.size_x, pad.size_y) / 2
         discs.append((pad.global_x, pad.global_y, radius, pad_layers,
-                      lambda x, y, _p=pad: _pad_holds_point(_p, x, y, tolerance),
+                      lambda x, y, hw=0.0, _p=pad: _track_reaches_pad_at(
+                          _p, x, y, hw, tolerance),
                       'pad', pad))
 
     # Cut each segment at every T-junction (another segment's endpoint on its
-    # interior) and at every disc it passes through, then chain the pieces.
+    # interior), at every point where another segment of the layer CROSSES it,
+    # and at every disc it passes through, then chain the pieces.
     endpoints_by_layer: Dict[str, List[Tuple[float, float]]] = {}
     for s in segments:
         endpoints_by_layer.setdefault(s.layer, []).extend(
             [(s.start_x, s.start_y), (s.end_x, s.end_y)])
+    crossings = _segment_crossings(segments)
 
     for s in segments:
         length = segment_length(s)
@@ -535,16 +1793,28 @@ def _net_track_graph(pcb_data: PCBData, net_id: int, pads,
             perp = abs(-(px - s.start_x) * uy + (py - s.start_y) * ux)
             return t if perp <= max_perp else None
 
-        for (px, py) in endpoints_by_layer.get(s.layer, ()):
+        for (px, py) in endpoints_by_layer.get(s.layer, ()) + crossings.get(id(s), []):
             t = _project(px, py, tolerance)
             if t is not None:
                 cuts.append(t)
-        for (cx, cy, radius, dlayers, _hit, _kind, _obj) in discs:
+        for (cx, cy, radius, dlayers, _hit, kind, _obj) in discs:
             if s.layer not in dlayers:
                 continue
             t = _project(cx, cy, radius + tolerance)
             if t is not None:
                 cuts.append(t)
+            if kind == 'via':
+                # #1583: and where it crosses the via's edge, so a run ending
+                # inside the via reaches the centre in a straight line from
+                # there -- the copper a via-centre bridge leaves
+                # (close_soft_joints), and the line KiCad 10.0.4+ measures
+                fx, fy = s.start_x - cx, s.start_y - cy
+                b = fx * ux + fy * uy
+                disc = b * b - (fx * fx + fy * fy - radius * radius)
+                if disc > 0:
+                    for t in (-b - math.sqrt(disc), -b + math.sqrt(disc)):
+                        if tolerance < t < length - tolerance:
+                            cuts.append(t)
 
         cuts.sort()
         for t1, t2 in zip(cuts, cuts[1:]):
@@ -552,20 +1822,70 @@ def _net_track_graph(pcb_data: PCBData, net_id: int, pads,
                 continue
             n1 = key(s.start_x + ux * t1, s.start_y + uy * t1, s.layer)
             n2 = key(s.start_x + ux * t2, s.start_y + uy * t2, s.layer)
-            add_edge(n1, n2, t2 - t1)
+            add_edge(n1, n2, t2 - t1, ('track', s, t1, t2))
+            for n in (n1, n2):
+                half_w[n] = max(half_w.get(n, 0.0), (s.width or 0.0) / 2)
 
-    # Attach each disc: one synthetic node per layer it spans, joined at no cost
-    # to every segment node inside its copper on that layer. A via's barrel then
-    # links its own per-layer nodes at the length KiCad measures (charged once
-    # across the span, so a mid-span layer change isn't billed twice); a plated
-    # pad barrel links its layers at no cost.
+    # Attach each disc: one synthetic node per layer it spans, joined to every
+    # segment node inside its copper on that layer -- a pad at no cost, a via
+    # at the node's distance from its centre (#1583): KiCad runs a track into
+    # a via only through the centre, so a track ending inside the barrel off
+    # its centre is charged from where it enters the via's copper (cut above)
+    # straight to the centre -- the bridge close_soft_joints lays there -- and
+    # a matcher that joined it for free matched the pair to a length KiCad
+    # never measures. A via's barrel then
+    # links its own per-layer nodes at the stackup between them (so a walk
+    # through it is charged the span it walks, once); a plated pad barrel
+    # links its layers at no cost.
     def _new_node(x: float, y: float, layer: str) -> int:
         nid = len(_node_xy)
         _node_xy.append((x, y, layer))
         return nid
 
+    # A via-in-pad (#1314): a via whose centre lies in one of `pads` -- the
+    # same landing test a track end gets -- joins that pad on every layer
+    # both carry. Without it the pad's hubs met only TRACK nodes, so a via
+    # centred in an SMD pad whose tracks leave on an inner layer never reached
+    # its pad: board_score read imx6ulz's DQ3/DQ7 as "not joined by track
+    # copper" and left the whole length group ungraded, though KiCad measured
+    # both nets. Since #1629 a via joins a pad its COPPER overlaps
+    # (check_connected's via-in-pad rule): a barrel overlapping a pad's edge
+    # with its centre outside joins it, as KiCad's connectivity has it.
+    via_pad_contacts = []          # (via, pad, [layers both carry])
+    via_contact_layers: Dict[int, set] = {}
+    for (vx, vy, vr, vlayers, _vh, vkind, via) in discs:
+        if vkind != 'via':
+            continue
+        for (_px, _py, _pr, players, _ph, pkind, pad) in discs:
+            if pkind != 'pad' or not _track_reaches_pad_at(
+                    pad, vx, vy, (getattr(via, 'size', 0) or 0) / 2, tolerance):
+                continue
+            common = [l for l in vlayers if l in players]
+            if common:
+                via_pad_contacts.append((via, pad, common))
+                via_contact_layers.setdefault(id(via), set()).update(common)
+
+    # #1629: two of `pads` whose copper touches on a shared copper layer are
+    # one terminal (check_connected's _pads_join) -- a module's two
+    # overlapping same-number pads, a pad stacked on another.
+    pad_pad_contacts = []          # (pad, pad, [shared layers])
+    _pad_discs = [d for d in discs if d[5] == 'pad']
+    if len(_pad_discs) > 1:
+        from check_connected import _pads_join
+        for i, (ax, ay, ar, alayers, _ah, _ak, pa) in enumerate(_pad_discs):
+            for (bx, by, br, blayers, _bh, _bk, pb) in _pad_discs[i + 1:]:
+                if math.hypot(ax - bx, ay - by) > (math.hypot(pa.size_x, pa.size_y)
+                                                   + math.hypot(pb.size_x, pb.size_y)) / 2 + tolerance:
+                    continue
+                common = [l for l in alayers if l in blayers]
+                if common and _pads_join(pa, pb, tolerance):
+                    pad_pad_contacts.append((pa, pb, common))
+
     track_nodes = list(adjacency.keys())
     pad_nodes: Dict[int, List[int]] = {}
+    hubs_by_obj: Dict[int, Dict[str, int]] = {}
+    _half_inner = _release_key(length_measure_release()) >= (10, 0, 2)
+    _via_height = via_height_in_length(pcb_data)     # #1731
     for (cx, cy, radius, dlayers, hit, kind, obj) in discs:
         layer_nodes: Dict[str, int] = {}
         for layer in dlayers:
@@ -575,34 +1895,402 @@ def _net_track_graph(pcb_data: PCBData, net_id: int, pads,
                 nx, ny, nlayer = _node_xy[node]
                 if nlayer != layer:
                     continue
-                if hit(nx, ny):
-                    add_edge(hub, node, 0.0)
+                if kind == 'via':
+                    if hit(nx, ny):
+                        add_edge(hub, node, math.hypot(nx - cx, ny - cy),
+                                 ('via_join', obj, node))
+                        joined = True
+                elif hit(nx, ny, half_w.get(node, 0.0)):
+                    add_edge(hub, node, 0.0, ('pad', obj))
+                    hub_joins.setdefault(hub, []).append(node)
                     joined = True
-            if joined or kind == 'pad':
+            if joined or kind == 'pad' \
+                    or layer in via_contact_layers.get(id(obj), ()):
                 layer_nodes[layer] = hub
 
         if kind == 'via':
-            barrel = 0.0
-            if hasattr(pcb_data, 'get_via_barrel_length'):
-                barrel = pcb_data.get_via_barrel_length(dlayers[0], dlayers[-1])
-            per_step = barrel / max(1, len(dlayers) - 1)
-            for l1, l2 in zip(dlayers, dlayers[1:]):
+            # #1623: each step at the stackup between its two layers, as
+            # KiCad charges a span (BOARD_STACKUP::GetLayerDistance, from
+            # 10.0.2 half of each inner copper layer ending it -- so the steps
+            # of a walk sum to its span), not a flat share of the via's whole
+            # span; the flat share only where the stackup names a step's
+            # layers no more
+            steps = [_stackup_height_nm(pcb_data, l1, l2, _half_inner) / _NM_PER_MM
+                     if _via_height else 0.0
+                     for l1, l2 in zip(dlayers, dlayers[1:])]
+            if _via_height and len(dlayers) > 1 and not all(steps):
+                span = _stackup_height_nm(pcb_data, dlayers[0], dlayers[-1],
+                                          _half_inner) / _NM_PER_MM
+                steps = [span / (len(dlayers) - 1)] * len(steps)
+            for (l1, l2), step in zip(zip(dlayers, dlayers[1:]), steps):
                 if l1 in layer_nodes and l2 in layer_nodes:
-                    add_edge(layer_nodes[l1], layer_nodes[l2], per_step)
+                    add_edge(layer_nodes[l1], layer_nodes[l2], step, ('barrel', obj))
                 elif l1 in layer_nodes or l2 in layer_nodes:
                     # An intermediate layer with no copper of this net still has
                     # to be walked THROUGH -- keep the chain intact.
                     for l in (l1, l2):
                         layer_nodes.setdefault(l, _new_node(cx, cy, l))
-                    add_edge(layer_nodes[l1], layer_nodes[l2], per_step)
+                    add_edge(layer_nodes[l1], layer_nodes[l2], step, ('barrel', obj))
         else:
             hubs = list(layer_nodes.values())
             if pad_is_plated_through(obj) and len(hubs) > 1:
                 for other in hubs[1:]:
-                    add_edge(hubs[0], other, 0.0)
+                    add_edge(hubs[0], other, 0.0, ('pad_pad',))
             pad_nodes[id(obj)] = hubs
+        hubs_by_obj[id(obj)] = layer_nodes
 
+    for via, pad, common in via_pad_contacts:
+        vh, ph = hubs_by_obj.get(id(via), {}), hubs_by_obj.get(id(pad), {})
+        for layer in common:
+            if layer in vh and layer in ph:
+                add_edge(vh[layer], ph[layer], 0.0, ('via_pad', via))
+    for pa, pb, common in pad_pad_contacts:
+        ha, hb = hubs_by_obj.get(id(pa), {}), hubs_by_obj.get(id(pb), {})
+        for layer in common:
+            if layer in ha and layer in hb:
+                add_edge(ha[layer], hb[layer], 0.0, ('pad_pad',))
+
+    if detail is not None:
+        detail.update(edges=edge_infos, node_xy=_node_xy, hub_joins=hub_joins,
+                      half_w=half_w)
     return adjacency, pad_nodes
+
+
+def _selected_copper_mm(pcb_data: PCBData, net_id: int, picked, detail,
+                        release: Optional[str] = None) -> float:
+    """The length KiCad's length DRC measures for the copper a walk of
+    `_net_track_graph` selected (#1623), in mm: `picked` is the walk's edge
+    infos (`detail['edges']`). Each segment piece is kept as the part of its
+    segment the walk covers (the whole segment where it covers all of it),
+    each via the walk passes through is kept, and a track the walk joins to a
+    via off its centre is given the straight bridge from there to the centre
+    that the post-route cleanup lays on a length-graded net
+    (close_soft_joints). The pieces are then measured by
+    `kicad_net_length_nm`, so pad interiors, merges and via heights read as
+    KiCad reads them."""
+    import dataclasses
+    node_xy = detail['node_xy']
+    half_w = detail.get('half_w') or {}
+    pieces: Dict[int, list] = {}
+    vias: Dict[int, Via] = {}
+    bridges: List[Segment] = []
+    for info in picked:
+        kind = info[0] if info else None
+        if kind == 'track':
+            _k, seg, t0, t1 = info
+            pieces.setdefault(id(seg), [seg, []])[1].append((t0, t1))
+        elif kind == 'via_join':
+            _k, via, node = info
+            vias[id(via)] = via
+            x, y, layer = node_xy[node]
+            if math.hypot(x - via.x, y - via.y) > 1e-6:
+                bridges.append(Segment(start_x=x, start_y=y, end_x=via.x,
+                                       end_y=via.y,
+                                       width=2 * half_w.get(node, 0.05) or 0.1,
+                                       layer=layer, net_id=net_id))
+        elif kind in ('barrel', 'via_pad'):
+            vias[id(info[1])] = info[1]
+    order = {id(s): i for i, s in enumerate(pcb_data.segments) if s.net_id == net_id}
+    segs: List[Segment] = []
+    for seg, spans in sorted(pieces.values(), key=lambda p: order.get(id(p[0]), 0)):
+        length = segment_length(seg)
+        merged: List[List[float]] = []
+        for a, b in sorted(spans):
+            if merged and a <= merged[-1][1] + 1e-9:
+                merged[-1][1] = max(merged[-1][1], b)
+            else:
+                merged.append([a, b])
+        for a, b in merged:
+            if a <= 1e-9 and b >= length - 1e-9:
+                segs.append(seg)
+                continue
+            ux = (seg.end_x - seg.start_x) / length
+            uy = (seg.end_y - seg.start_y) / length
+            segs.append(dataclasses.replace(
+                seg, start_x=seg.start_x + ux * a, start_y=seg.start_y + uy * a,
+                end_x=seg.start_x + ux * b, end_y=seg.start_y + uy * b,
+                start_x_str='', start_y_str='', end_x_str='', end_y_str=''))
+    pads = (getattr(pcb_data, 'pads_by_net', None) or {}).get(net_id) or []
+    return kicad_net_length_nm(pcb_data, segs + bridges, list(vias.values()),
+                               pads, release) / _NM_PER_MM
+
+
+# ---------------------------------------------------------------------------
+# A diff pair's WRITTEN copper: coupled length and skew, as KiCad measures
+# them (#1303)
+# ---------------------------------------------------------------------------
+# route_diff used to call a pair 'coupled' because both members had a result,
+# and its intra-pair matcher measured lengths off its own result dict. On
+# imx6ulz DQS0 both were wrong at once: the seam re-ask had replaced the
+# coupled middle with two single-ended routes (P on In2.Cu, N on B.Cu: 0 mm
+# coupled) and the matcher lengthened the leg that was already 4.5 mm longer.
+# These read the board instead, with KiCad's own DRC definitions, so a pair's
+# outcome, its intra-match status, board_score and check_drc all agree with
+# what KiCad reports for the same copper.
+
+#: KiCad's DRC epsilon (ADVANCED_CFG m_DRCEpsilon, 0.0005 mm): a coupled
+#: segment pair's gap is out of a diff_pair_gap window only beyond it.
+KICAD_DRC_EPSILON_MM = 0.0005
+
+
+class CopperIndex:
+    """Every copper item of a board by layer, on a coarse grid, for the
+    coupling test's "is anything between P and N" question. Build one per
+    board state and pass it to each `diff_pair_coupling` call of a sweep."""
+
+    CELL = 1.0
+
+    def __init__(self, pcb_data: PCBData):
+        self.pcb_data = pcb_data
+        copper = list(getattr(pcb_data.board_info, 'copper_layers', None) or [])
+        self.copper_layers = copper
+        self._cells: Dict[Tuple[str, int, int], List[Tuple[str, object]]] = {}
+        from geometry_utils import via_on_layer
+        from paste_apertures import pad_has_copper
+        for s in pcb_data.segments:
+            hw = (s.width or 0) / 2
+            self._add(s.layer, ('seg', s),
+                      min(s.start_x, s.end_x) - hw, min(s.start_y, s.end_y) - hw,
+                      max(s.start_x, s.end_x) + hw, max(s.start_y, s.end_y) + hw)
+        for v in pcb_data.vias:
+            r = (v.size or 0) / 2
+            for layer in copper or list(v.layers or ()):
+                if via_on_layer(v, layer):
+                    self._add(layer, ('via', v), v.x - r, v.y - r, v.x + r, v.y + r)
+        for pads in (getattr(pcb_data, 'pads_by_net', None) or {}).values():
+            for p in pads:
+                self._add_pad(p, copper, pad_has_copper(p))
+        # Net-0 pads are not in pads_by_net on every parse path; walk the
+        # footprints for those (a pad is indexed once, keyed by identity).
+        seen = {id(it[1]) for lst in self._cells.values() for it in lst if it[0] == 'pad'}
+        for fp in (getattr(pcb_data, 'footprints', None) or {}).values():
+            for p in getattr(fp, 'pads', None) or ():
+                if id(p) not in seen:
+                    seen.add(id(p))
+                    self._add_pad(p, copper, pad_has_copper(p))
+
+    def _add_pad(self, p, copper, has_copper):
+        r = max(p.size_x, p.size_y) / 2 * 1.5
+        layers = set(expand_pad_layers(p.layers, copper)) if has_copper else set()
+        if (p.drill or 0) > 0:
+            layers |= set(copper)      # a hole pierces every copper layer
+        for layer in layers:
+            self._add(layer, ('pad', p), p.global_x - r, p.global_y - r,
+                      p.global_x + r, p.global_y + r)
+
+    def _add(self, layer, item, x0, y0, x1, y1):
+        c = self.CELL
+        for i in range(int(math.floor(x0 / c)), int(math.floor(x1 / c)) + 1):
+            for j in range(int(math.floor(y0 / c)), int(math.floor(y1 / c)) + 1):
+                self._cells.setdefault((layer, i, j), []).append(item)
+
+    def near(self, layer, x0, y0, x1, y1):
+        """Items whose bbox cell overlaps the box, each once."""
+        c, seen = self.CELL, set()
+        for i in range(int(math.floor(x0 / c)), int(math.floor(x1 / c)) + 1):
+            for j in range(int(math.floor(y0 / c)), int(math.floor(y1 / c)) + 1):
+                for it in self._cells.get((layer, i, j), ()):
+                    if id(it[1]) not in seen:
+                        seen.add(id(it[1]))
+                        yield it
+
+
+def _coupling_blocked(index: 'CopperIndex', layer: str, chk, ends, parent_p,
+                      parent_n) -> bool:
+    """KiCad's "is there anything between the segments suspected to be
+    coupled" test (extractDiffPairCoupledItems): does the zero-width segment
+    `chk` (nearestN -> nearestP, mm) touch any copper item on `layer` other
+    than the two parents? A track or via is ignored when it touches one of
+    the four coupled-span ENDS (directly connected), a pad when either parent
+    track exits it (one end inside, one outside). Zones are not in KiCad's
+    item tree, so they are not tested here either."""
+    from geometry_utils import point_to_segment_distance, segment_to_segment_distance
+    (ax, ay), (bx, by) = chk
+    pad = 0.5
+    for kind, obj in index.near(layer, min(ax, bx) - pad, min(ay, by) - pad,
+                                max(ax, bx) + pad, max(ay, by) + pad):
+        if obj is parent_p or obj is parent_n:
+            continue
+        if kind == 'seg':
+            hw = (obj.width or 0) / 2
+            if any(point_to_segment_distance(ex, ey, obj.start_x, obj.start_y,
+                                             obj.end_x, obj.end_y) <= hw
+                   for ex, ey in ends) and not getattr(obj, 'graphic', False):
+                continue
+            if segment_to_segment_distance(ax, ay, bx, by, obj.start_x, obj.start_y,
+                                           obj.end_x, obj.end_y) < hw:
+                return True
+        elif kind == 'via':
+            r = (obj.size or 0) / 2
+            if any(math.hypot(ex - obj.x, ey - obj.y) <= r for ex, ey in ends):
+                continue
+            if point_to_segment_distance(obj.x, obj.y, ax, ay, bx, by) < r:
+                return True
+        else:
+            from check_drc import point_to_pad_distance, segment_pad_gap
+
+            def _exits(t):
+                return ((point_to_pad_distance(t.start_x, t.start_y, obj) <= 1e-9)
+                        != (point_to_pad_distance(t.end_x, t.end_y, obj) <= 1e-9))
+            if _exits(parent_p) or _exits(parent_n):
+                continue
+            from paste_apertures import pad_has_copper
+            on_copper = (pad_has_copper(obj) and layer in
+                         expand_pad_layers(obj.layers, index.copper_layers))
+            if on_copper and segment_pad_gap(ax, ay, bx, by, obj) <= 1e-9:
+                return True
+            if (obj.drill or 0) > 0:
+                hx = obj.hole_x if getattr(obj, 'hole_x', None) is not None else obj.global_x
+                hy = obj.hole_y if getattr(obj, 'hole_y', None) is not None else obj.global_y
+                if point_to_segment_distance(hx, hy, ax, ay, bx, by) < obj.drill / 2:
+                    return True
+    return False
+
+
+def diff_pair_coupling(pcb_data: PCBData, p_net_id: int, n_net_id: int,
+                       gap_min: Optional[float] = None,
+                       gap_max: Optional[float] = None,
+                       epsilon: float = KICAD_DRC_EPSILON_MM,
+                       index: Optional['CopperIndex'] = None,
+                       p_tracks=None, n_tracks=None,
+                       obstruction: bool = True) -> Dict:
+    """How much of a diff pair's TRACK copper is coupled, as KiCad's DRC
+    decides it (drc_test_provider_diff_pair_coupling.cpp, KiCad 10.0.0), in mm.
+
+    For every P track and every N track on the same layer: the two must be
+    PARALLEL in KiCad's integer sense (their lines do not intersect inside the
+    int32 coordinate range, `kicad_seg.intersects(lines=True)`), and the parts
+    of them that face each other (`common_parallel_projection`) are a coupled
+    candidate. Its gap is the distance between those parts minus the two half
+    widths (KiCad truncates it to whole nm). A candidate counts when nothing
+    else lies between P and N there (`_coupling_blocked`) and, when a window
+    is given, its gap is inside `[gap_min - epsilon, gap_max + epsilon]`; it
+    adds the length of its N part. Every candidate counts, not only the
+    nearest N track, exactly as KiCad sums them.
+
+    Returns {'coupled_mm', 'length_p_mm', 'length_n_mm', 'uncoupled_mm',
+    'coupled_by_layer', 'arc_chords'}. `uncoupled_mm` is KiCad's
+    diff_pair_uncoupled "actual": max(P, N track length) - coupled. Track
+    lengths are tracks only -- KiCad's coupling test counts no via barrel and
+    no pad-to-die. `arc_chords` counts the pair's tracks parsed from an
+    `(arc ...)`: the parser linearises those, and KiCad couples arcs on their
+    own path, so a nonzero count means the figures are approximate.
+
+    The gap window is the caller's: check_drc passes the binding
+    diff_pair_gap constraint (KiCad's), route_diff the gap the pair was routed
+    at. With no window every parallel facing span with nothing between counts,
+    as KiCad counts it under a rule that sets no gap.
+
+    `p_tracks` / `n_tracks` measure copper that is not on the board yet (a
+    candidate route); `obstruction=False` skips the "anything between" test,
+    which needs the board (`pcb_data` may then be None).
+    """
+    from kicad_seg import (iu, intersects, common_parallel_projection,
+                           nearest_points, norm, sq_len)
+
+    def _tracks(nid):
+        return [s for s in pcb_data.segments
+                if s.net_id == nid and not getattr(s, 'graphic', False)]
+
+    if p_tracks is None:
+        p_tracks = _tracks(p_net_id)
+    if n_tracks is None:
+        n_tracks = _tracks(n_net_id)
+    p_tracks, n_tracks = list(p_tracks), list(n_tracks)
+
+    def _pts(s):
+        return (iu(s.start_x), iu(s.start_y)), (iu(s.end_x), iu(s.end_y))
+
+    def _total(tracks):
+        # PCB_TRACK::GetLength() is a double; KiCad sums it into an int, so
+        # every addition truncates.
+        tot = 0
+        for s in tracks:
+            a, b = _pts(s)
+            tot = int(tot + math.hypot(b[0] - a[0], b[1] - a[1]))
+        return tot
+
+    len_p, len_n = _total(p_tracks), _total(n_tracks)
+    eps = iu(epsilon)
+    lo = None if gap_min is None or gap_min < 0 else iu(gap_min)
+    hi = None if gap_max is None or gap_max < 0 else iu(gap_max)
+    n_by_layer: Dict[str, list] = {}
+    for s in n_tracks:
+        a, b = _pts(s)
+        if sq_len(a, b) > 2:
+            n_by_layer.setdefault(s.layer, []).append((s, a, b))
+
+    coupled, by_layer = 0, {}
+    for sp in p_tracks:
+        pa, pb = _pts(sp)
+        if sq_len(pa, pb) <= 2:
+            continue
+        for sn, na, nb in n_by_layer.get(sp.layer, ()):
+            if intersects(pa, pb, na, nb, lines=True):
+                continue                      # not parallel (or collinear)
+            clip = common_parallel_projection(pa, pb, na, nb)
+            if clip is None:
+                continue
+            ca, cb, da, db = clip
+            near_p, near_n, d2 = nearest_points(ca, cb, da, db)
+            gap = int(math.sqrt(d2)) - (iu(sp.width) + iu(sn.width)) // 2
+            if lo is not None and gap < lo - eps:
+                continue
+            if hi is not None and gap > hi + eps:
+                continue
+            if obstruction:
+                if index is None:
+                    index = CopperIndex(pcb_data)
+                ends = [(q[0] / 1e6, q[1] / 1e6) for q in (da, db, ca, cb)]
+                chk = ((near_n[0] / 1e6, near_n[1] / 1e6),
+                       (near_p[0] / 1e6, near_p[1] / 1e6))
+                if _coupling_blocked(index, sp.layer, chk, ends, sp, sn):
+                    continue
+            length = norm(db[0] - da[0], db[1] - da[1])
+            coupled += length
+            by_layer[sp.layer] = by_layer.get(sp.layer, 0) + length
+
+    uuids: Dict[str, int] = {}
+    for s in p_tracks + n_tracks:
+        if getattr(s, 'uuid', ''):
+            uuids[s.uuid] = uuids.get(s.uuid, 0) + 1
+    arcs = sum(n for n in uuids.values() if n > 1)
+    return {'coupled_mm': coupled / 1e6,
+            'length_p_mm': len_p / 1e6, 'length_n_mm': len_n / 1e6,
+            'uncoupled_mm': (max(len_p, len_n) - coupled) / 1e6,
+            'coupled_by_layer': {k: v / 1e6 for k, v in sorted(by_layer.items())},
+            'layers_p': sorted({s.layer for s in p_tracks}),
+            'layers_n': sorted({s.layer for s in n_tracks}),
+            'arc_chords': arcs}
+
+
+def diff_pair_skew(pcb_data: PCBData, p_net_id: int, n_net_id: int,
+                   tolerance: float = 0.02) -> Dict:
+    """A pair's P/N lengths and their skew as KiCad's skew DRC measures them
+    (#1303): each member's `net_match_length(mode='total')` -- track copper,
+    KiCad's via spans and every pad's pad-to-die -- and |P - N|. A member
+    whose pads are not joined by track copper reads None, and so does the
+    skew: not routed yet is not a length (#1246)."""
+    lp = net_match_length(pcb_data, p_net_id, 'total', tolerance=tolerance)
+    ln = net_match_length(pcb_data, n_net_id, 'total', tolerance=tolerance)
+    return {'match_p_mm': lp, 'match_n_mm': ln,
+            'skew_mm': None if lp is None or ln is None else abs(lp - ln)}
+
+
+def diff_pair_copper(pcb_data: PCBData, p_net_id: int, n_net_id: int,
+                     gap_min: Optional[float] = None,
+                     gap_max: Optional[float] = None,
+                     index: Optional['CopperIndex'] = None) -> Dict:
+    """`diff_pair_coupling` and `diff_pair_skew` in one record, rounded to
+    0.1 um for reporting: what a routed pair's copper delivers (#1303)."""
+    out = diff_pair_coupling(pcb_data, p_net_id, n_net_id, gap_min, gap_max,
+                             index=index)
+    out.update(diff_pair_skew(pcb_data, p_net_id, n_net_id))
+    for k, v in list(out.items()):
+        if isinstance(v, float):
+            out[k] = round(v, 4)
+    out['coupled_by_layer'] = {k: round(v, 4) for k, v in out['coupled_by_layer'].items()}
+    return out
 
 
 def routable_pad_count(pcb_data: PCBData, net_id: int, off_board=None) -> int:
@@ -694,6 +2382,47 @@ def log_net_health(pcb_data: PCBData, log=print) -> Tuple[int, int, int]:
     return n_unroutable, n_offboard, n_parse
 
 
+_JUMPER_DECL_CACHE = {}
+
+
+def multipad_unconnected_to_route(pcb_data) -> dict:
+    """{net name: pad count} of the auto-named no-connect nets ('unconnected-*')
+    with >=2 pads that the wildcard must route (#1405).
+
+    Such a net is one footprint's same-number pads (a connector's shield or
+    mounting tabs, a reversible footprint's doubled pins). KiCad counts it
+    unconnected unless copper joins the pads or the footprint DECLARES them
+    jumpered (``duplicate_pad_numbers_are_jumpers`` / ``jumper_pad_groups``),
+    in which case the part itself is the conductor and nothing is routed.
+    Single-pad nets have nothing to join and are never returned, and neither
+    is a net whose pads lie on SEVERAL footprints: one auto-name shared by
+    separate parts' no-connect pins (copies of a board panelised with one set
+    of references), which routing would join across the copies
+    (``check_connected.pads_on_one_footprint``).
+    """
+    from check_connected import (read_jumper_declarations,
+                                 pads_joined_inside_parts, pads_on_one_footprint)
+    cands = {}
+    for nid, net in pcb_data.nets.items():
+        nm = net.name or ''
+        if nid > 0 and nm.lower().startswith('unconnected-'):
+            pads = pcb_data.pads_by_net.get(nid, [])
+            if len(pads) >= 2 and pads_on_one_footprint(pads):
+                cands[nm] = pads
+    if not cands:
+        return {}
+    path = getattr(pcb_data, 'source_path', '') or ''
+    decls = {}
+    if path and os.path.isfile(path):
+        key = (path, os.path.getmtime(path))
+        if key not in _JUMPER_DECL_CACHE:
+            _JUMPER_DECL_CACHE.clear()
+            _JUMPER_DECL_CACHE[key] = read_jumper_declarations(path)
+        decls = _JUMPER_DECL_CACHE[key]
+    return {nm: len(pads) for nm, pads in cands.items()
+            if not (decls and pads_joined_inside_parts(pads, decls))}
+
+
 def expand_net_patterns(pcb_data: PCBData, patterns: List[str],
                         exclude_unconnected: bool = True,
                         quiet: bool = False) -> List[str]:
@@ -742,29 +2471,21 @@ def expand_net_patterns(pcb_data: PCBData, patterns: List[str],
     if exclude_unconnected:
         all_net_names = {name for name in all_net_names
                         if name and not name.lower().startswith('unconnected-')}
-        # #513 item 7: an 'unconnected-*' net with >=2 pads is NOT always a
-        # true no-connect -- reversible footprints (XIAO, ProMicro) get their
-        # doubled pin positions auto-named this way and the pads DO need a
-        # trace (klein_kb shipped 4 such nets open). But USB-shield tabs share
-        # the same shape and are correctly left unrouted (#479, joined by the
-        # connector shell) -- so warn with names rather than auto-route.
-        _multi_nc = []
-        for _nid, _net in pcb_data.nets.items():
-            _nm = _net.name or ''
-            if not _nm.lower().startswith('unconnected-'):
-                continue
-            _np = len(pcb_data.pads_by_net.get(_nid, []))
-            if _np >= 2:
-                _multi_nc.append((_nm, _np))
+        # #1405: an 'unconnected-*' net with >=2 pads (a reversible footprint's
+        # doubled pins, a connector's shield or mounting tabs) is joined by
+        # nothing unless its footprint DECLARES the pads jumpered -- KiCad
+        # counts it unconnected, so the wildcard routes it.
+        _multi_nc = multipad_unconnected_to_route(pcb_data)
+        all_net_names |= set(_multi_nc)
         if _multi_nc and not quiet:
-            _lst = ', '.join(f"'{n}' ({c} pads)" for n, c in sorted(_multi_nc)[:8])
-            print(f"WARNING: {len(_multi_nc)} 'unconnected-*' net(s) with >=2 pads "
-                  f"excluded from the wildcard: {_lst}. If these are a reversible "
-                  f"footprint's doubled pins they DO need a trace -- route them "
-                  f"explicitly by naming them in --nets. Shield/mounting tabs "
-                  f"joined mechanically can stay unrouted (#513 item 7).")
+            _lst = ', '.join(f"'{n}' ({c} pads)" for n, c in sorted(_multi_nc.items())[:8])
+            print(f"Note: {len(_multi_nc)} multi-pad 'unconnected-*' net(s) join the "
+                  f"wildcard: {_lst}. KiCad counts each one unconnected unless "
+                  f"its footprint declares the same-number pads jumpered "
+                  f"(#1405, #513 item 7).")
 
     known_net_names = unfiltered_net_names
+    _known_frozen = frozenset(known_net_names)
     all_net_names = list(all_net_names)
 
     # #513 item 19: an exclusion-ONLY pattern list means "everything else".
@@ -813,7 +2534,8 @@ def expand_net_patterns(pcb_data: PCBData, patterns: List[str],
         if is_exclude:
             exclude_pattern = pattern[1:]  # Remove the !
             matches = [name for name in all_net_names
-                       if net_pattern_matches(name, exclude_pattern)]
+                       if net_pattern_matches(name, exclude_pattern,
+                                              _known_frozen)]
             is_wildcard = '*' in exclude_pattern or '?' in exclude_pattern
             if matches:
                 label = (f"Exclusion pattern '!{exclude_pattern}'" if is_wildcard
@@ -855,7 +2577,7 @@ def expand_net_patterns(pcb_data: PCBData, patterns: List[str],
                     seen.remove(name)
         else:
             matches = sorted([name for name in all_net_names
-                              if net_pattern_matches(name, pattern)
+                              if net_pattern_matches(name, pattern, _known_frozen)
                               and name not in excluded])
             if '*' in pattern or '?' in pattern:
                 if not matches:
@@ -1393,6 +3115,7 @@ def extract_diff_pair_base(net_name: str) -> Optional[Tuple[str, bool, str]]:
     Looks for common differential pair naming conventions:
     - name_P / name_N
     - nameP / nameN
+    - name-P / name-N, name.P / name.N
     - name+ / name-
     - name_t / name_c (true/complement, common for DDR; case-insensitive)
     - name_t_X / name_c_X (true/complement with channel suffix, e.g., DQS0_t_A)
@@ -1400,7 +3123,7 @@ def extract_diff_pair_base(net_name: str) -> Optional[Tuple[str, bool, str]]:
     - nameDP / nameDM, nameDPLUS / nameDMINUS (USB data lines)
 
     Returns (base_name, is_positive, style) or None if not a diff pair.
-    style identifies the suffix convention ('_t', '_P', 'P', '+', 'DP') - nets
+    style identifies the suffix convention ('_t', '_P', '-P', 'P', '+', 'DP') - nets
     only form a pair when both use the same convention, so e.g. /CLK+ does not
     pair with an unrelated /CLK_N net.
     """
@@ -1413,8 +3136,13 @@ def extract_diff_pair_base(net_name: str) -> Optional[Tuple[str, bool, str]]:
     # buries the polarity suffix (e.g. Net-(U12-USB_D+) ends in '+)'), so peel a
     # matching wrapper before applying the suffix rules (issue #91, bitaxe USB).
     is_auto_name = net_name.startswith('Net-(') and net_name.endswith(')')
+    # Index of the '-' separating <ref> from <pin> in a peeled auto-name, which
+    # is never a polarity separator: Net-(U1-P) / Net-(U1-N) are two pads of
+    # one part, not a pair (#1456). -1 = none.
+    ref_sep = -1
     if is_auto_name:
         net_name = net_name[5:-1]
+        ref_sep = net_name.find('-')
 
     # In a 'Net-(<ref>-<pin path>)' auto-name the pin path encodes the chip's
     # internal signal path, e.g. 'U12-GPIO19/U1RTS/.../USB_D-'. The diff marker
@@ -1428,6 +3156,7 @@ def extract_diff_pair_base(net_name: str) -> Optional[Tuple[str, bool, str]]:
         path = net_name.replace('{slash}', '/')
         if '/' in path:
             net_name = path.rsplit('/', 1)[-1]
+            ref_sep = -1
 
     # NOTE (issue #192): the DDR true/complement (_t_/_c_) rules are checked LAST,
     # AFTER the explicit polarity-suffix rules below (+/-, _P/_N, P/N, USB,
@@ -1464,6 +3193,12 @@ def extract_diff_pair_base(net_name: str) -> Optional[Tuple[str, bool, str]]:
         return (net_name[:-2], True, '_P')
     if net_name.endswith('_N'):
         return (net_name[:-2], False, '_P')
+
+    # -P/-N and .P/.N, the _P/_N convention with another separator (#1456:
+    # LVDS pairs named ADC_MISO-P / ADC_MISO-N).
+    if (len(net_name) > 2 and net_name[-1] in 'PN' and net_name[-2] in '-.'
+            and len(net_name) - 2 != ref_sep):
+        return (net_name[:-2], net_name[-1] == 'P', net_name[-2] + 'P')
 
     # Try P/N suffix without underscore. Accept a digit, underscore, OR uppercase
     # letter before the final P/N so SerDes/PCIe names pair (issue #151: TXP/TXN,
@@ -1707,13 +3442,19 @@ def expand_pad_layers(pad_layers: List[str], routing_layers: List[str]) -> List[
 
 def get_all_unrouted_net_ids(pcb_data: PCBData) -> List[int]:
     """
-    Find all net IDs in the PCB that need routing.
+    Net IDs the stub-proximity costs treat as still needing routing.
 
-    A net is unrouted if it has 2+ pads and they're not all connected.
-    This includes:
-    1. Nets with multiple disconnected segment groups (partial routing)
-    2. Nets with 2+ pads but no segments (completely unrouted)
-    3. Nets with 2+ pads but only 1 segment group (stub connects to 1 pad only)
+    What it returns today is EVERY net with 2+ pads (net 0 excluded):
+    1. Nets with 2+ pads but no segments (completely unrouted)
+    2. Nets whose segments form 2+ disconnected groups (via-aware; partial
+       routing)
+    3. Nets whose segments form ONE group -- whatever pads that group reaches.
+       The test is `len(pads) > 1`, which the 2+ pad filter has already made
+       true, and no pad coverage is checked, so a fully routed net lands here
+       too. (Meant: a stub reaching some pads but not all.)
+
+    Callers: route.py / route_diff.py, for the stub-proximity cost set only
+    (route.py skips it under minimal_obstacle_cache).
     """
     unrouted_ids = set()
 
@@ -1750,7 +3491,9 @@ def get_all_unrouted_net_ids(pcb_data: PCBData) -> List[int]:
                 # Multiple disconnected stub groups = unrouted
                 unrouted_ids.add(net_id)
             elif len(groups) == 1 and len(pads) > 1:
-                # Only 1 segment group but multiple pads - stub connects to some but not all
+                # Only 1 segment group but multiple pads. Meant "stub connects to
+                # some but not all", but no pad coverage is checked and
+                # len(pads) > 1 always holds here, so every such net is added.
                 unrouted_ids.add(net_id)
 
     return list(unrouted_ids)

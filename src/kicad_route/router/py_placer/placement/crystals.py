@@ -1,0 +1,179 @@
+"""Crystal claims: each passive crystal at its IC's oscillator pins, and each
+of its load caps at the crystal, written as `proximity[]` rows.
+
+A crystal's loop is the one placement fact its netlist cannot show: a 3 mm
+loop and a 30 mm one have the same connectivity. `emc_roles` already finds
+each passive crystal and the IC its two load nets reach, by pin functions and
+nets, never by guessing a pin number. This module writes the claims those
+roles imply:
+
+* the crystal: each of its two signal pads within `leg_mm` of the IC pad on
+  the same net;
+* a leg that reaches the IC through a series part (the resistor many
+  reference designs put between XOUT and the crystal: the RP2040's, an
+  STM32's): the crystal pad within `leg_mm` of the series part's pad on its
+  net, and the series part's other pad within `leg_mm` of the IC pin on ITS
+  net -- the two links of that leg;
+* each load cap, meaning a two-pad cap with one pad on a load net (either
+  leg's) and the other on ground: its load-net pad within `cap_mm` of the
+  crystal pad on that net. A cap whose other pad is not ground is not a load
+  cap, so it gets no claim. A load net is never a supply rail: a part with a
+  supply pin is not a passive crystal (`emc_roles._crystals`, #1605), so a
+  rail's decaps are never claimed as an oscillator's load caps.
+
+The rows are ordinary `proximity[]` claims, so `place_simple`'s claim term
+pulls each subject to its partner: the crystal to its IC, and each cap to the
+crystal. `check_floorplan --emit-intent` writes them into the intent's
+`proximity[]` (`floorplan.emit_intent`), where the grade reads them at WARN
+(`floorplan.derived_claim`: their limits are the corpus's, not the board's)
+and an edit of the intent can loosen or tighten one. place_simple and
+`check_groups` also derive them through `grouping.claim_rows`, beside the
+intent's own rows, for an intent that does not carry them; a pair the intent
+already claims keeps the intent's row.
+
+The limits are derived defaults, not declarations. They are read off the
+human-placed stress corpus by `tests/stress/placement_survey.py`
+(`leg_gap_mm`, `cap_gap_mm`: the farthest leg and the farthest load cap of
+each crystal, pad edge to pad edge, as the claim grades them). Each row says
+so in its `context`. A row that measures from a crystal pad adds that pad's
+size (its larger side) to the limit (#1613): a through-hole can's pads and
+courtyard keep its load caps 2.5 mm off however it is placed, past the 2.2 mm
+the corpus's mostly-SMD crystals give.
+"""
+from __future__ import annotations
+
+import contextlib
+import io
+import re
+from typing import Dict, List, Optional, Tuple
+
+#: The farthest crystal leg, pad edge to the IC pad on its net, at the human
+#: corpus's 75th percentile, so three human placements in four meet it
+#: (`placement_survey.py report`, CRYSTALS: 258 crystals on 437 boards,
+#: median 5.37 mm, p75 8.11 mm). It guards against a crystal drifting away;
+#: the anneal's claim term pulls the crystal as near its pins as it can.
+LEG_MM = 8.1
+#: The farthest load cap, pad edge to the crystal pad on its net, likewise
+#: (174 crystals with a load cap: median 0.81 mm, p75 2.22 mm).
+CAP_MM = 2.2
+
+#: A capacitor's reference, read past a glued qualifier
+#: (`part_class.unqualified_ref`): crkbd's right-half `rC1` too (#1606).
+_CAP_REF = re.compile(r'^C\d')
+
+
+def _ground(name: str) -> bool:
+    from net_queries import is_ground_net_name
+    return bool(name) and is_ground_net_name(name)
+
+
+def _series_part(pcb, x: str, net: int, ic: str, net_name) -> Optional[Tuple]:
+    """`(part, its pad on `net`, its other pad, the pins of `ic` on that
+    pad's net)` for the two-pad part a crystal leg on `net` reaches `ic`
+    through (a series resistor between XOUT and the crystal), else None. A
+    part whose other pad is on ground is a load cap, not a series part."""
+    for r in sorted(pcb.footprints):
+        if r in (x, ic):
+            continue
+        cu = [p for p in pcb.footprints[r].pads if p.net_id]
+        if len(cu) != 2:
+            continue
+        on = [p for p in cu if p.net_id == net]
+        off = [p for p in cu if p.net_id != net]
+        if len(on) != 1 or len(off) != 1 or _ground(net_name.get(off[0].net_id, '')):
+            continue
+        pins = [q for q in pcb.footprints[ic].pads if q.net_id == off[0].net_id]
+        if pins:
+            return r, on[0], off[0], pins
+    return None
+
+
+def _pad_size(fp, numbers) -> float:
+    """The larger side of the largest of `fp`'s pads numbered `numbers`."""
+    sizes = [max(p.size_x, p.size_y) for p in fp.pads
+             if str(p.pad_number) in {str(n) for n in numbers}]
+    return max(sizes) if sizes else 0.0
+
+
+def crystal_claims(pcb, leg_mm: float = LEG_MM, cap_mm: float = CAP_MM
+                   ) -> Tuple[List[Dict], List[str]]:
+    """`(rows, notes)`: one `proximity[]` row per passive crystal, per link of
+    a leg through a series part, and per load cap, and a line per crystal
+    saying what was found. A row measured from a crystal pad has that pad's
+    size added to its limit. Reads no pose."""
+    from .emc_roles import emc_roles
+    from .part_class import unqualified_ref
+    with contextlib.redirect_stdout(io.StringIO()):
+        roles = emc_roles(pcb).get('roles') or []
+    net_name = {nid: (n.name or '') for nid, n in pcb.nets.items()}
+    rows: List[Dict] = []
+    notes: List[str] = []
+    leg_basis = ('the farthest crystal leg on the human corpus, '
+                 '75th percentile (placement_survey.py)')
+    pad_basis = ', plus the crystal pad\'s size'
+    leg_ctx = {'source': 'placement.crystals', 'role': 'crystal',
+               'limit': 'derived_default', 'basis': leg_basis + pad_basis}
+    for rec in roles:
+        if rec.get('role') != 'crystal' or not rec.get('proximity'):
+            continue
+        x, ic = rec['part'], rec['ic']
+        pads = rec['proximity'][0]['row']['pads']
+        xfp = pcb.footprints[x]
+        rows.append({
+            'ref': x, 'near': ic, 'max_mm': round(leg_mm + _pad_size(xfp, pads[x]), 2),
+            'basis': 'pad_edge',
+            'pads': {x: list(pads[x]), ic: list(pads[ic])},
+            'context': dict(leg_ctx)})
+        load = {p.net_id: str(p.pad_number) for p in xfp.pads
+                if str(p.pad_number) in set(pads[x]) and p.net_id}
+        # a leg no pin of the IC is on: through a series part, its two links
+        series = []
+        for u in rec.get('unmeasured_legs') or ():
+            xp = next((p for p in xfp.pads if str(p.pad_number) == str(u['pad'])
+                       and p.net_id), None)
+            got = _series_part(pcb, x, xp.net_id, ic, net_name) if xp else None
+            if not got:
+                continue
+            r, rin, rout, pins = got
+            load[xp.net_id] = str(xp.pad_number)
+            ipads = sorted({str(q.pad_number) for q in pins})
+            series.append(f"pad {xp.pad_number} through {r} to {ic} pad {', '.join(ipads)}")
+            rows.append({
+                'ref': x, 'near': r,
+                'max_mm': round(leg_mm + _pad_size(xfp, [xp.pad_number]), 2),
+                'basis': 'pad_edge',
+                'pads': {x: [str(xp.pad_number)], r: [str(rin.pad_number)]},
+                'context': {**leg_ctx, 'role': 'crystal leg to its series part'}})
+            rows.append({
+                'ref': r, 'near': ic, 'max_mm': leg_mm, 'basis': 'pad_edge',
+                'pads': {r: [str(rout.pad_number)], ic: ipads},
+                'context': {**leg_ctx, 'role': 'crystal series part', 'basis': leg_basis}})
+        caps = []
+        for c in sorted(pcb.footprints):
+            if c == x or not _CAP_REF.match(unqualified_ref(c)):
+                continue
+            cu = [p for p in pcb.footprints[c].pads if p.net_id]
+            if len(cu) != 2:
+                continue
+            on = [p for p in cu if p.net_id in load]
+            off = [p for p in cu if p.net_id not in load]
+            if len(on) != 1 or len(off) != 1 or not _ground(
+                    net_name.get(off[0].net_id, '')):
+                continue
+            caps.append(c)
+            rows.append({
+                'ref': c, 'near': x,
+                'max_mm': round(cap_mm + _pad_size(xfp, [load[on[0].net_id]]), 2),
+                'basis': 'pad_edge',
+                'pads': {c: [str(on[0].pad_number)],
+                         x: [load[on[0].net_id]]},
+                'context': {'source': 'placement.crystals',
+                            'role': 'crystal load cap',
+                            'limit': 'derived_default', 'basis': (
+                                'the farthest load cap on the human corpus, '
+                                '75th percentile (placement_survey.py)' + pad_basis)}})
+        notes.append(f"crystal {x} at {ic} pads {', '.join(pads[ic])}"
+                     + ''.join(f"; {s}" for s in series)
+                     + (f"; load caps {', '.join(caps)}" if caps
+                        else "; no load cap (a cap from a load net to ground)"))
+    return rows, notes
