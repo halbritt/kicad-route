@@ -83,11 +83,13 @@ locks every input track and via in the work copy before routing and restores the
 original lock flags on the built-in router's output by exact geometry (`kicad/locks.py`). Without
 these, the built-in router steps down fab tiers, necks wide nets into pads, moves passives to rescue a
 net, and writes lowered DRC minimums into its output `.kicad_pro` (seen on the fixture:
-`min_hole_clearance` 0.25 → 0.2 with a "FAB FLOOR RELAXED" warning). Two behaviours
-cannot be switched off from the CLI in v0.23.x and are caught by the grader instead: a
-cleanup pass that may neck new wide segments near foreign pads
-(`new_copper_netclass_geometry`), and moving copper text to silkscreen
-(`copper_graphics`).
+`min_hole_clearance` 0.25 → 0.2 with a "FAB FLOOR RELAXED" warning). One behaviour
+cannot be switched off from the CLI and is caught by the grader instead: a track
+drawn narrower than its class where it meets a pad or a plane tap
+(`new_copper_netclass_geometry`). Upstream's engine also moves the designer's copper
+text and graphics to silkscreen; the engine here keeps them on copper (a local
+change, see [`upstream-engine.md`](upstream-engine.md)), and `copper_graphics`
+checks that they are where they were.
 
 `KICAD_CLASS_VIA_ONLY=1` is this project's own switch in the engine (AGENTEE-650).
 The engine reads each net's class via and routes a two-pad net with it. A net with
@@ -297,6 +299,84 @@ pre-existing track and via for export and import and then restores the original 
 flags, so input copper never passes through the session. Copper is still matched by
 geometry with a 1 µm tolerance, and new copper sizes allow the same 1 µm for Specctra
 quantisation (KiCad reads a 0.29972 mm via drill back as 0.299 mm).
+
+### Recipes
+
+The engine's search costs decide which layer a track takes and when a via is worth
+its price. One set of costs does not suit every board, so `run --recipe NAME` passes
+a set measured for a class of board. A recipe only sets costs (`--layer-costs`,
+`--via-cost`, `--direction-preference-cost`, `--turn-cost`); it relaxes no rule and
+grading is the same. The recipe used is in the result's `settings.recipe` when it is
+not `default`, and a `--backend-arg` of the same option comes later on the engine's
+command line and wins.
+
+| Recipe | Costs | For |
+|---|---|---|
+| `default` | the engine's own (two layers: front 1.0, back 3.0, via 75) | four layers and more |
+| `two-layer` | both layers 1.0, via 600 | two-layer boards |
+| `two-layer-bus` | both layers 1.0, direction preference 4000, turn 2000, via 150 | two-layer boards with parallel buses |
+| `auto` | `two-layer` on a two-layer board, else `default` | the recommended setting for a caller that repairs starved thermals |
+
+Where the choice comes from: the upstream project's routing guide gives the two
+two-layer sets, and the router lab (`lab/README.md`) measured them on eight
+designer-routed two-layer boards at 300 s each. With the engine's own costs the
+back layer is three times as expensive as the front, so a through-hole board is
+routed on the front with a via wherever that fails: 14, 2, 42, 19 and 138 vias on
+five boards whose designers used 0, 0, 6, 3 and 29, and four of the eight came out
+clean. `two-layer` gave 0, 0, 3, 2 and 35 vias on the same five and all five clean.
+A via cost of 200 between the two was worse than either (two new errors on the
+largest board). `two-layer-bus` routed four clean with more vias and is kept as a
+named choice, not selected by `auto`. On four-layer boards a higher inner-layer or
+via cost left more connections open on every board tried, so those keep the
+engine's costs. The dense two-layer board of the corpus (164 connections) is open
+under every recipe and under the engine's costs; no recipe is a fix for it.
+
+Without `--recipe` the engine's own costs apply. `auto` is not the default: with the
+two-layer costs the deliberately unroutable test board (`fixtures/route_demo` behind a
+keep-out wall) comes back with a starved thermal on a ground pad it cannot connect,
+where the engine's costs leave none, and `run` does not repair a starved thermal
+itself. A caller that does (agent-ee's placement job reruns with
+`--reserve-spoke-pad`) should pass `--recipe auto`.
+
+### Net classes and the board's minimums
+
+KiCad checks every track and via against Board Setup's minimums as well as the net
+class. A project can hold a class below them (seen: a Default class of 0.2 mm
+clearance and width and a 0.6 mm via on a board whose minimums are 0.3 mm and
+1.5 mm). The built-in router routed at the class values and the candidate had 57 new
+errors under the board's own rules. Before the backend runs, the wrapper raises each
+class in the backend's working copy to the board's minimums (`board_minimums.py`:
+clearance, track and pair width, via hole and diameter, with the annular width kept
+around a raised hole), logs each change and records them in
+`process.classes_raised_to_board_minimums`. The candidate's project is the input's
+own, unchanged, and a class above the minimums is never lowered.
+
+### Net class membership
+
+A project assigns nets to classes with `net_settings.netclass_patterns`, and KiCad
+matches each pattern as an anchored regular expression and as a wildcard. The built-in
+router reads a pattern as a glob. On a board whose project says `in\d+`, `.*out\d+` and
+`uio\d+` it therefore routed 24 nets as Default: 1895 of 4559 new tracks under their
+class width, their vias at the Default size, and its own report named 10 nets with a
+class where KiCad has 45. Before the built-in router runs, the wrapper writes KiCad's
+own answer for every net (pcbnew's effective net class, from the native facts) into
+the backend's working copy as exact `netclass_assignments` and removes the patterns
+(`class_membership.py`). The result records it in `process.class_membership_from_kicad`.
+A net KiCad puts in several classes is assigned all of them. When KiCad names a class
+the project does not define, the working copy is left as it is and the log says so.
+The candidate's project is the input's own, unchanged.
+
+### Time budget
+
+`--budget` seconds is when the run should be over, so the built-in router is asked to
+stop before it: a quarter of the budget earlier, at most 120 s. It then leaves the
+pass it is in, skips the passes that remain and writes the board with what it has,
+which on a board of some hundred connections takes a minute or more. Asked only at
+the budget, two four-layer boards honoured the request, were still writing when the
+grace period ended, and were killed with nothing delivered. The engine looks for the
+stop request in every pass (`test_stop_file_later_passes.py`); the upstream engine
+looks only between the nets of its first pass, so there a run that finished the
+first pass in time ran on however long the later passes took.
 
 ### Tightening controls
 
@@ -527,6 +607,14 @@ writer is not required to normalize segment order or derive UUIDs.
   built-in router treats such copper as the pad's own and routes onto it,
   vias included, so the candidate fails validation with those findings. Nothing joins
   two nets. Making the tab a custom-shape pad in the footprint removes the findings.
+- Rule areas that share a UUID cannot be graded. KiCad's DRC makes one rule per keep-out
+  and has it find its area by UUID, so areas with one UUID all test against one of them:
+  its inside gets the restrictions of every one of them, the inside of the others gets
+  none. Which one it is changes with the order the areas are saved in, and KiCad orders
+  equal UUIDs by memory address, so the same copper is graded with or without an
+  `items_not_allowed` finding from one save to the next. Boards converted from KiCad 5
+  carry such areas (UUID all zeros). A run names them under `unsupported`; KiCad's
+  Tools > Repair Board gives each area a UUID of its own.
 - Board facts and the bridge depend on KiCad's SWIG module (see Decisions).
 
 ## Fixture and evidence
@@ -576,6 +664,7 @@ relaxes a rule.
 | Hard-nets-first campaigns | `kicad-route campaign` | [`campaign.md`](campaign.md) |
 | Thermal-spoke corridor reservation and spoke-cut attribution | `run --reserve-spokes [N]`, `kicad-route spokes` | [`spokes.md`](spokes.md) |
 | Collision barriers (rewind with a keepout where new copper collided) | `run --barrier-from RUN_DIR`, `kicad-route barrier` | [`barrier.md`](barrier.md) |
+| Areas a board closes to new copper without a rule area (solder-mask apertures that are not pad openings, copper without a net) | every `run` | [`closed.md`](closed.md) |
 | Copper provenance and the completion ratchet | `run --protect human`, check `net_completion` | [`provenance.md`](provenance.md) |
 | Blocked-by receipts and rip-up ranking | `routing.blocked_by`, `kicad-route blocked` | [`blocked.md`](blocked.md) |
 | Pour integrity | check `pour_integrity`, `--pour-area-loss`, `--pour-min-spokes` | [`pour.md`](pour.md) |

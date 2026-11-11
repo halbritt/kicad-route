@@ -103,6 +103,44 @@ def test_monitor_stall_and_budget(tmp_path, stall_s):
     assert rec["last_phase"] == "checkpoint stop"
 
 
+SLOW_WRITER = r'''
+import os, sys, time
+from pathlib import Path
+stop = Path(os.environ["KICAD_STOP_FILE"])
+print("[1/2] Routing /A (id=1)", flush=True)
+while not stop.exists():
+    time.sleep(0.05)
+print("CHECKPOINT STOP (KICAD_STOP_FILE): writing the board", flush=True)
+time.sleep(float(sys.argv[1]))          # the write-up after the request
+print("Successfully wrote the board", flush=True)
+'''
+
+
+def test_a_backend_is_asked_to_stop_before_its_budget_ends(tmp_path):
+    """The request comes stop_reserve(budget) before the end, so the write-up that follows it
+    fits in the budget. A run that honoured the request at the budget and then needed longer
+    than the grace to write its board was killed with the board already written (seen on boards
+    of 300 to 500 connections)."""
+    assert (route.stop_reserve(300), route.stop_reserve(900), route.stop_reserve(8)) == (75, 120, 2)
+    script = tmp_path / "slow_writer.py"
+    script.write_text(SLOW_WRITER)
+    stop, log = tmp_path / "STOP", tmp_path / "krt.log"
+    # the write-up takes 2.5 s: longer than the 1 s grace, shorter than reserve + grace
+    rec = route.run_budgeted([sys.executable, script, "2.5"], tmp_path, log, 8,
+                             {"KICAD_STOP_FILE": str(stop)}, stop_file=stop, grace=1)
+    assert rec["stop_requested"] and rec["budget_reached"] and not rec.get("killed"), rec
+    assert rec["exit_code"] == 0 and "Successfully wrote the board" in log.read_text()
+    assert 5.5 <= rec["stop_s"] <= 7.0, rec["stop_s"]             # asked at 8 - 2 s
+    assert rec["duration_s"] <= 9.5, rec["duration_s"]            # done inside budget + grace
+    # the backend slept most of that time: its processor time is recorded beside the wall time
+    assert 0 < rec["cpu_s"] < rec["duration_s"] / 2, rec["cpu_s"]
+    # one that cannot finish in reserve + grace is still killed at budget + grace, not later
+    stop.unlink()
+    rec = route.run_budgeted([sys.executable, script, "30"], tmp_path, log, 8,
+                             {"KICAD_STOP_FILE": str(stop)}, stop_file=stop, grace=1)
+    assert rec["killed"] and 8.5 <= rec["duration_s"] <= 12, rec["duration_s"]
+
+
 def test_stall_on_blocked_fixture(blocked_dir):
     """KRT with net rescue on keeps searching the walled-off nets: a short --stall
     stops it and says where it stalled, instead of a bare budget kill."""

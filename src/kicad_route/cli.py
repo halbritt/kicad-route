@@ -96,6 +96,8 @@ from . import backend_names
 from . import native_components
 from . import baselinecache
 from . import blocked
+from . import board_minimums
+from . import class_membership
 from . import common
 from . import contract
 from . import evidence
@@ -110,6 +112,7 @@ from . import pour
 from . import planes
 from . import skills
 from . import spokes  # --reserve-spokes / `kicad-route spokes` (docs/spokes.md)
+from . import closed  # areas the board closes to new copper without a rule area, on every run (docs/closed.md)
 from . import decoupling  # `kicad-route decoupling` (docs/decoupling.md)
 from . import ledger
 from . import netnames
@@ -684,6 +687,30 @@ def rules_files(project_dir, board_name):
     return rec
 
 
+def shared_rule_area_uuids(facts):
+    """Notes for rule areas that share a UUID. KiCad's DRC makes one implicit rule per
+    keep-out and has it look its area up by UUID (drc_engine.cpp, `A.intersectsKeepout('<uuid>')`;
+    pcbexpr_functions.cpp resolves the UUID through the board's one-item-per-UUID cache). Areas
+    that share a UUID therefore all test against one of them: its inside gets the restrictions
+    of every one of them, the inside of the others gets none. Which one it is follows the order
+    the areas are saved in, and KiCad orders equal UUIDs by memory address. So the same copper
+    is graded with or without an `items_not_allowed` finding from one save to the next. Boards
+    converted from KiCad 5 carry such areas (UUID all zeros)."""
+    groups = {}
+    for area in facts.get("rule_areas") or []:
+        groups.setdefault(area.get("uuid"), []).append(area)
+    notes = []
+    for uuid, areas in sorted(groups.items(), key=lambda kv: str(kv[0])):
+        if uuid is None or len(areas) < 2:
+            continue
+        notes.append(f"{len(areas)} rule areas share the UUID {uuid}: KiCad's DRC applies the keep-out "
+                     "restrictions of all of them inside one of them and none inside the others, and which one "
+                     "changes with the order they are saved in. On this board an items_not_allowed finding "
+                     "does not show that a keep-out was entered, and its absence does not show that none was. "
+                     "KiCad's Tools > Repair Board gives each area a UUID of its own.")
+    return notes
+
+
 def validate_dir(run_dir, origin=None):
     """A fresh directory for one grading of run_dir: validate/ the first time (run_attempt),
     then revalidate/<stamp>/ (revalidate-origin/<stamp>/ against an origin)."""
@@ -1196,6 +1223,10 @@ def run_attempt(args):
         settings["pair_impedance"] = impedance_plan
     if grid_step is not None:
         settings["grid_step_mm"] = grid_step
+    if args.backend == "builtin":
+        recipe = resolve_recipe(getattr(args, "recipe", None), ref_facts.get("copper_layer_count"))
+        if recipe != "default":
+            settings["recipe"] = recipe
     if bus is not None:
         settings["bus"] = bus
     if group_matching is not None:
@@ -1272,19 +1303,43 @@ def run_attempt(args):
     common.write_json(run_dir / "attempt.json", attempt)
 
     unsupported = backend["unsupported"](ref_facts, ref_dir, settings)
+    for note in shared_rule_area_uuids(ref_facts):  # what KiCad's own grading cannot tell on this input
+        log(f"[route] NOTE: {note}")
+        unsupported.append(note)
     work = run_dir / "work"
     copy_project(ref_dir, work / "input" / ref_dir.name)
+    # The backend reads net classes from this working copy. It gets each net's class as KiCad
+    # resolved it (the backend reads a pattern as a glob, KiCad also as a regular expression),
+    # and, because Board Setup's minimums bound the classes from below in KiCad's DRC, the
+    # classes as DRC enforces them.
+    work_project = (work / "input" / ref_dir.name / board_name).with_suffix(".kicad_pro")
+    membership = class_membership.pin(work_project, ref_facts.get("nets")) if args.backend == "builtin" else None
+    if membership and membership.get("written"):
+        log(f"[route] net classes stated to the backend as KiCad resolves them: {membership['nets']} nets "
+            f"in {len(membership['by_class'])} classes")
+    elif membership:
+        log("[route] NOTE: KiCad names a net class the project does not define; the backend reads the "
+            "project's patterns itself")
+    raised = board_minimums.raise_classes(work_project)
+    for line in board_minimums.describe(raised):
+        log(f"[route] net class raised to the board's own minimum for the backend: {line}")
     log(f"[route] routing with {args.backend} (budget {args.budget}s)")
     t0 = time.monotonic()
     work_board = work / "input" / ref_dir.name / board_name
     routing_settings = {**settings, "pairs": pairs} if pairs is not None else settings
     # --reserve-spokes: corridors reserved on the work input, stripped from the output (spokes.py)
     # --barrier-from: collision keepouts injected the same way, outside the spoke corridors
-    proc = barrier.around_route(barrier_rec, work, work_board, lambda: spokes.around_route(
-        args.reserve_spokes, work, work_board,
-        lambda: backend["route"](work, work_board, scope, ref_facts, routing_settings),
-        pad_layers=spoke_pad_layers))
+    # what the board closes to new copper without a rule area: closed the same way, on every run (closed.py)
+    proc = closed.around_route(work, work_board, lambda: barrier.around_route(
+        barrier_rec, work, work_board, lambda: spokes.around_route(
+            args.reserve_spokes, work, work_board,
+            lambda: backend["route"](work, work_board, scope, ref_facts, routing_settings),
+            pad_layers=spoke_pad_layers)))
     proc["runtime_s"] = round(time.monotonic() - t0, 3)
+    if raised:
+        proc["classes_raised_to_board_minimums"] = raised
+    if membership:
+        proc["class_membership_from_kicad"] = membership
     if pairs is not None:
         attempt["pair_routing"] = proc.pop("pair_routing", {})
         common.write_json(run_dir / "attempt.json", attempt)
@@ -1409,9 +1464,23 @@ def render_result(r):
 
 # ------------------------------------------------------------------ processes
 
+# A backend that can be asked to stop is asked this long before its budget ends: the smaller of a
+# quarter of the budget and two minutes. What it does after the request (the net in hand, cleanup,
+# writing the board) then fits in the budget, and the grace period is for what still overruns. On
+# boards of 300 to 500 connections that write-up outlasted the grace alone, and a run that had
+# honoured the request was killed with its board already written.
+STOP_RESERVE_FRACTION, STOP_RESERVE_MAX_S = 0.25, 120
+
+
+def stop_reserve(budget):
+    """Seconds before the end of `budget` at which a backend with a stop file is asked to stop."""
+    return min(STOP_RESERVE_MAX_S, budget * STOP_RESERVE_FRACTION)
+
+
 def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, grace=None, monitor=None):
-    """Run a backend with a wall-clock budget. At the budget the stop file (if the
-    backend supports one) asks for a clean stop; after a grace period it is killed.
+    """Run a backend with a wall-clock budget. A backend with a stop file is asked for a
+    clean stop stop_reserve(budget) before the budget ends; a grace period after the budget
+    it is killed. Without a stop file it runs to the budget and is killed 5 s later.
     A stall.Monitor tails the log for heartbeats and, with a stall limit, treats
     no progress for that long like the budget (with a grace of at most the limit).
     The backend leads its own process group: terminate/kill signal the whole group,
@@ -1422,10 +1491,12 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
     if monitor is not None:
         env.setdefault("PYTHONUNBUFFERED", "1")  # line-timely log for the heartbeat tail
     grace = grace if grace is not None else max(30, budget // 5)
+    ask_at = budget - stop_reserve(budget) if stop_file else budget
     log_path.parent.mkdir(parents=True, exist_ok=True)
     rec = {"argv": [str(a) for a in argv], "cwd": common.rel(cwd), "log": common.rel(log_path),
            "env": {k: v for k, v in (env_extra or {}).items()}, "budget_s": budget}
     start = time.monotonic()
+    cpu_before = os.times()
     with open(log_path, "wb") as out:
         try:
             proc = subprocess.Popen([str(a) for a in argv], cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT,
@@ -1435,19 +1506,21 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
             return rec
         try:
             try:
-                (monitor.wait(proc, budget) if monitor is not None else proc.wait(timeout=budget))
+                (monitor.wait(proc, ask_at) if monitor is not None else proc.wait(timeout=ask_at))
             except subprocess.TimeoutExpired:
                 if monitor is not None and monitor.stalled:
                     rec["stalled"] = True
                     grace = min(grace, max(15, monitor.stall_s))
+                    left = 0                # a stall is not waited out: only its own grace remains
                 else:
                     rec["budget_reached"] = True
+                    left = budget - ask_at  # the rest of the budget is the backend's to wrap up in
                 if stop_file:
                     Path(stop_file).touch()
                     rec["stop_requested"] = True
                 rec["stop_s"] = round(time.monotonic() - start, 3)
                 try:
-                    proc.wait(timeout=grace if stop_file else 5)
+                    proc.wait(timeout=left + grace if stop_file else 5)
                 except subprocess.TimeoutExpired:
                     procgroup.terminate(proc)
                     rec["killed"] = True
@@ -1465,6 +1538,11 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
         rec.update(monitor.summary())
     rec["exit_code"] = proc.returncode
     rec["duration_s"] = round(time.monotonic() - start, 3)
+    # The budget is wall time, so a busy host gives the backend less work for it. The processor
+    # time the backend and the children it waited for used says how much it got.
+    cpu_after = os.times()
+    rec["cpu_s"] = round(cpu_after.children_user - cpu_before.children_user
+                         + cpu_after.children_system - cpu_before.children_system, 3)
     if "stop_s" in rec:
         rec["stop_to_exit_s"] = round(rec["duration_s"] - rec["stop_s"], 3)   # the overrun past the stop
     rec["output_tail"] = log_path.read_text(errors="replace")[-4000:]
@@ -1487,6 +1565,38 @@ def tagged_json(text, tag):
 
 # Every relaxation, fallback and writeback KRT offers is switched off: a failed
 # connection must stay failed rather than be delivered below the input's rules.
+# Engine recipes: the cost settings upstream KRT's own routing notes prescribe for a class of
+# board (its plan-pcb-routing skill), each measured on the lab corpus (lab/README.md). The
+# engine's defaults price the back layer of a two-layer board three times the front and a via
+# at 75, which suits dense surface-mount boards and costs through-hole boards their vias.
+RECIPES = {
+    "default": [],
+    # both layers at one price and a via that has to be worth it
+    "two-layer": ["--layer-costs", "1.0", "1.0", "--via-cost", "600"],
+    # multi-drop buses on a two-layer board: one axis per layer
+    "two-layer-bus": ["--layer-costs", "1.0", "1.0", "--direction-preference-cost", "4000",
+                      "--turn-cost", "2000", "--via-cost", "150"],
+}
+# `auto` is not the default yet: with the two-layer costs the deliberately unroutable test board
+# comes back with a starved thermal on a ground pad it cannot connect, and `run` does not repair
+# a starved thermal itself (the caller's job does; AGENTEE-660).
+RECIPE_DEFAULT = "default"
+
+
+def resolve_recipe(name, copper_layer_count):
+    """The recipe a run uses: the named one, or for `auto` the one for the board's layer count.
+
+    Measured on the lab corpus (eight two-layer boards, 300 s): `two-layer` routes five of them
+    clean with 0, 0, 3, 2 and 35 vias. The engine's defaults use 14, 2, 42, 19 and 138 vias on
+    the same five and leave the last with an error (their designers: 0, 0, 6, 3, 29). On
+    four-layer boards raised inner-layer or via costs left more connections open, so those keep
+    the engine's defaults."""
+    name = name or RECIPE_DEFAULT
+    if name == "auto":
+        return "two-layer" if copper_layer_count == 2 else "default"
+    return name
+
+
 KRT_FLAGS = [
     "--escalation", "off",          # no fab/board escalation ladders, net rescue or terminal escalation
     "--fab-tier", "standard",       # the fab floor is a hard floor
@@ -1527,6 +1637,17 @@ def krt_overrun_hint(phase, stalled=False):
 
 KRT_REQUIRED_FLAGS = KRT_FLAGS[::2] + KRT_PROTECT_EXISTING_FLAGS + ["--json-out", "--nets", "--output",
                                                                      "--max-iterations"]
+
+
+def krt_crate_version():
+    """The version the engine's Rust crate declares (rust_router/Cargo.toml), or None.
+    Upstream raises VERSION alone for a Python-only release, so the built module is
+    compared with the crate it was built from, not with VERSION."""
+    import tomllib
+    try:
+        return tomllib.loads((KRT_DIR / "rust_router" / "Cargo.toml").read_text())["package"]["version"]
+    except (OSError, KeyError, ValueError):
+        return None
 
 
 def krt_version():
@@ -1616,6 +1737,7 @@ def krt_route(work, board, scope, facts, settings):
         argv += ["--max-iterations", str(settings["max_iterations"])]
     if settings.get("grid_step_mm") is not None:
         argv += ["--grid-step", str(settings["grid_step_mm"])]
+    argv += RECIPES[settings.get("recipe", "default")]      # before --backend-arg, which may override it
     if settings.get("default_clearance_mm"):
         default = max((n["clearance"] for n in facts["nets"].values() if n["netclass"] == "Default"
                        and n["clearance"]), default=0) / NM
@@ -2155,8 +2277,9 @@ def doctor(offline=False, canary_check=True, require_readonly=False):
     v = krt_version() if KRT_DIR.exists() else {}
     add("owned routing source", PASS if v.get("version") else FAIL, f"{v.get('version')} {v.get('build')}")
     add("Builtin routing venv", PASS if route_python().exists() else FAIL, str(KRT_VENV))
-    add("Builtin Rust router module", PASS if v.get("rust_router") and v.get("rust_router") == v.get("version") else FAIL,
-        f"grid_router {v.get('rust_router')} (checkout {v.get('version')})")
+    crate = krt_crate_version() if KRT_DIR.exists() else None
+    add("Builtin Rust router module", PASS if v.get("rust_router") and v.get("rust_router") == crate else FAIL,
+        f"grid_router {v.get('rust_router')} (crate {crate}, engine {v.get('version')})")
     if route_python().exists() and KRT_DIR.exists():
         r = subprocess.run([str(route_python()), "py_router/startup_checks.py"], cwd=KRT_DIR,
                            capture_output=True, text=True, env=common.tool_env())
@@ -2708,6 +2831,10 @@ def add_route_args(p):
                    help="Freerouting only: add MM to every clearance it plans with (tighten only)")
     p.add_argument("--grid-step", type=float, metavar="MM",
                    help="builtin routing search resolution, also for auto differential pairs; native rules are unchanged")
+    p.add_argument("--recipe", choices=["auto", *RECIPES], default=RECIPE_DEFAULT,
+                   help="builtin only: the engine's cost settings for a class of board (docs/routing.md). "
+                        "auto picks by the board's copper layer count (two layers: far fewer vias); "
+                        "--backend-arg still overrides a recipe")
     p.add_argument("--protect", choices=["existing", "locked", "human"], default="existing",
                    help="existing (default): all input copper must survive; locked: only locked copper, "
                         "the backend may rip up unlocked copper; human: on a kicad-route candidate, only "

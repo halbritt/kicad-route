@@ -13,9 +13,11 @@ nets) or stop at the pre-routing refusal, so they take seconds.
     KICADROUTE-32  repeated validate(run_dir[, origin=...]) calls do not collide
     KICADROUTE-33  the candidate's own project files are kept before they are restored
     KICADROUTE-35  `validate` of a run without a candidate board is a process failure (1)
+    AGENTEE-641    rule areas that share a UUID are named: KiCad cannot grade their keep-outs
 """
 import argparse
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -445,3 +447,38 @@ def test_explicit_candidate_context_grades_real_saved_board(tmp_path, monkeypatc
     assert bound["candidate_board_sha256"] == common.sha256(candidate / BOARD)
     assert "protected_copper" in validation["preservation"]
     assert routing["status"] in (route.COMPLETE, route.INCOMPLETE)
+
+
+# ------------------------------------------------------------ rule areas that share a UUID
+
+def test_rule_areas_that_share_a_uuid_are_named():
+    zero = "00000000-0000-0000-0000-000000000000"
+    areas = [{"uuid": zero, "no_tracks": True, "no_vias": True, "no_zone_fills": True},
+             {"uuid": zero, "no_tracks": False, "no_vias": False, "no_zone_fills": True},
+             {"uuid": "00000000-0000-0000-0000-00005c5ad966", "no_tracks": True, "no_vias": True}]
+    notes = route.shared_rule_area_uuids({"rule_areas": areas})
+    assert len(notes) == 1 and notes[0].startswith(f"2 rule areas share the UUID {zero}:")
+    assert "items_not_allowed" in notes[0] and "Repair Board" in notes[0]
+    assert route.shared_rule_area_uuids({"rule_areas": areas[1:]}) == []
+    assert route.shared_rule_area_uuids({}) == []
+
+
+def test_native_facts_show_a_shared_rule_area_uuid(tmp_path):
+    """The fixture's keep-out saved twice under one UUID, as a board converted from KiCad 5
+    carries them: KiCad loads both, the facts keep both, and the note counts them."""
+    text = (FIXTURE / BOARD).read_text()
+    start = text.rindex("\n\t(zone", 0, text.index("route_keepout")) + 2
+    depth, end = 0, start
+    for end in range(start, len(text)):
+        depth += {"(": 1, ")": -1}.get(text[end], 0)
+        if depth == 0:
+            break
+    area = text[start:end + 1]
+    assert "(keepout" in area and len(re.findall(r'\(uuid "', area)) == 1
+    board = tmp_path / BOARD
+    board.write_text(text[:end + 1] + "\n\t" + area + text[end + 1:])
+    facts, rec = route.board_facts(board, tmp_path / "facts.json")
+    assert facts is not None, rec
+    assert len(facts["rule_areas"]) == 2 and len({a["uuid"] for a in facts["rule_areas"]}) == 1
+    (note,) = route.shared_rule_area_uuids(facts)
+    assert note.startswith(f"2 rule areas share the UUID {facts['rule_areas'][0]['uuid']}:")

@@ -333,7 +333,9 @@ def test_grid_resolution_refuses_invalid_or_ambiguous_controls(args):
     assert json.loads(process.stdout)["reason_class"] == "usage"
 
 
-@pytest.mark.parametrize("amplitude,accepted", [(1, False), (2, True)])
+# 0.6 mm meanders cannot take up this pair's 3 mm skew. (Until the engine moved onto upstream
+# KRT 0.23.9 the rejected case was 1 mm; that engine matches the pair at 1 mm.)
+@pytest.mark.parametrize("amplitude,accepted", [(0.6, False), (2, True)])
 def test_asymmetric_intra_pair_matching_uses_saved_copper(tmp_path, amplitude, accepted):
     from pathlib import Path
     source = Path(__file__).resolve().parents[1] / "fixtures/pair-skew"

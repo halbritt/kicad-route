@@ -47,6 +47,7 @@ attempt pass, and never trusts a backend's own report. KiCad grades every candid
 | [`hygiene.md`](../hygiene.md) | stall watchdog, run ledger, canary, real-board corpus, nothing under HOME |
 | [`spokes.md`](../spokes.md) | thermal-spoke corridors |
 | [`barrier.md`](../barrier.md) | collision barriers |
+| [`closed.md`](../closed.md) | areas closed to new copper without a rule area |
 | [`provenance.md`](../provenance.md) | `--protect human` and the completion ratchet |
 | [`pour.md`](../pour.md) | the pour-integrity check |
 | [`floor.md`](../floor.md) | rule high-water mark and declared floor |

@@ -121,39 +121,47 @@ is everything connected (**routing**), and is the board acceptable (**validation
 `result.json` beside it has the same content for programs. [Reading results](reading-results.md)
 explains every field.
 
-## A second attempt: watch a rule being enforced
+## A second attempt: a rule the router reads, and KiCad grades
 
 The demo project has a custom rule in `route_demo.kicad_dru`: Power nets must keep
-0.4 mm from everything that is not Power. The built-in router cannot read that kind of rule, so
-without `--default-clearance 0.4` it routes `/SIG_A` 0.3748 mm from a ground pad.
-Run it again without the option:
+0.4 mm from everything that is not Power. The first attempt made the whole Default
+class that strict with `--default-clearance 0.4`. The built-in router reads a
+clearance rule scoped by net class itself, so the option is not needed. Run it
+again without it:
 
 ```sh
 kicad-route run --backend builtin --budget 120
 ```
 
 ```
+[route] process: PASS
 [route] routing: COMPLETE
-[route] validation: FAIL (1 new DRC violations: clearance 1)
-[route] result: build/kicad-route/runs/route_demo/krt/20261018T145810.667194Z/result.json  (exit 3)
+[route] validation: PASS
 ```
 
-Exit 3: **fails validation**. The routing is complete, but KiCad's DRC, under the
-project's own rules, found a violation the backend could not see. kicad-route did
-not relax the rule and did not hide the problem. `RESULT.md` lists the rule under
-"Unsupported or approximated by this backend", and
-`validate/new-findings.json` names the track and the pad:
+The engine's log (`work/krt.log` in the run directory) says which rule it took:
 
-```json
-{"description": "Clearance violation (rule 'power_to_signal_clearance' clearance 0.4000 mm; actual 0.3748 mm)",
- "items": [{"description": "Track [/SIG_A] on F.Cu, length 11.4551 mm", "pos": {"x": 113.7, "y": 103.0}},
-           {"description": "Pad 2 [GND] of C1 on F.Cu", "pos": {"x": 110.95, "y": 104.0}}],
- "severity": "error", "type": "clearance"}
+```
+Class/type-scoped clearance rule from the board's .kicad_dru (#1491): 'power_to_signal_clearance' 0.4mm when "A.NetClass == 'Power' && B.NetClass != 'Power'"
 ```
 
-The fix is the tightening option you used the first time: `--default-clearance 0.4`
-makes the Default class as strict as the custom rule, so the backend keeps its
-distance. Tightening is always allowed; relaxing never is.
+Reading the rule is the backend's business. The verdict is not: KiCad's DRC grades
+every candidate under all of the project's rules, whether the backend read them or
+not. `RESULT.md` says so under "Unsupported or approximated by this backend":
+
+```
+- KRT reads only a subset of .kicad_dru custom rules; every rule is still graded by KiCad DRC
+```
+
+When a backend misses a rule, the run ends with exit 3, **fails validation**: the
+routing may be complete, but KiCad found a violation the backend could not see, and
+`validate/new-findings.json` names the two items and where they are. kicad-route
+does not relax the rule and does not hide the finding. Until the engine moved onto
+KiCadRoutingTools 0.23.9 this board was that case: without the option the built-in
+router passed a ground pad at 0.3748 mm with a `/SIG_A` track and the run failed
+with one new clearance error. The remedy then, and for any rule a backend does not
+read, is a tightening option such as `--default-clearance`. Tightening is always
+allowed; relaxing never is.
 
 ## Compare attempts
 
@@ -167,6 +175,9 @@ kicad-route compare build/kicad-route/runs/route_demo/builtin/2026*Z
 | d4d68e21a5b0 | krt 0.23.1 | 0 | COMPLETE | 0 | PASS | 0 | 1 | 117.987 | 9.105 | build/kicad-route/runs/route_demo/krt/20261018T145739.829486Z |
 | a29dca227d25 | krt 0.23.1 | 3 | COMPLETE | 0 | FAIL | 1 | 1 | 117.87 | 10.463 | build/kicad-route/runs/route_demo/krt/20261018T145810.667194Z |
 ```
+
+The second row is the historical run without the option, which failed on the custom
+rule; with the present engine both attempts end with exit 0 and PASS.
 
 `compare` refuses to put runs of different inputs side by side, so the table is
 always apples to apples. The `fp` column is the attempt fingerprint the run ledger

@@ -89,17 +89,22 @@ def test_route_doctor():
     assert r.returncode == 0, r.stdout
 
 
-def test_krt_custom_rule_failure_is_reported():
-    """KRT cannot read the fixture's Power-to-signal .kicad_dru rule. Its candidate is
-    complete, but KiCad grades it against that rule and the failure reaches the caller."""
+def test_krt_obeys_the_class_scoped_clearance_rule():
+    """The fixture's .kicad_dru asks 0.4 mm between Power nets and everything else. The builtin
+    router reads a clearance rule scoped by net class (upstream KRT #1491), so the candidate is
+    complete and KiCad, which grades it against that rule, finds nothing new. Until the engine
+    moved onto upstream KRT 0.23.9 it could not read the rule: the run ended with exit 3 and a
+    caller had to tighten the Default class by hand (the next test)."""
     r, run_dir, result = run("run", "--backend", "krt", "--budget", "180", "--label", "smoke-krt-default")
     record("krt_default", summary(result))
-    assert r.returncode == 3 and result["exit_code"] == 3
+    assert r.returncode == 0 and result["exit_code"] == 0, result["validation"]["reasons"]
     assert result["routing"]["status"] == route.COMPLETE
-    assert result["validation"]["status"] == route.FAIL
-    new = json.loads((run_dir / "validate" / "new-findings.json").read_text())["violations"]
-    assert new and all("power_to_signal_clearance" in v["description"] for v in new)
-    assert any("power_to_signal_clearance" in u and "skipped" in u for u in result["unsupported"])
+    assert result["validation"]["status"] == route.PASS
+    assert json.loads((run_dir / "validate" / "new-findings.json").read_text())["violations"] == []
+    log = (run_dir / "work" / "krt.log").read_text(errors="replace")
+    assert "power_to_signal_clearance" in log and "Class/type-scoped clearance rule" in log
+    # every custom rule is still graded by KiCad, and the result says the router reads only some
+    assert any(".kicad_dru" in u for u in result["unsupported"]), result["unsupported"]
 
 
 def test_krt_round_trip(attempt):
