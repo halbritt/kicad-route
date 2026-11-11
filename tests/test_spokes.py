@@ -83,6 +83,29 @@ def test_geometry_helpers():
     assert max(y for _, y in pts) == pytest.approx(5)
 
 
+def test_starved_pads_lists_through_hole_pads():
+    """KiCad names a through-hole pad "PTH pad N [NET] of REF" in a finding, a surface-mount pad
+    "Pad N [NET] of REF on LAYER". Both are starved pads. A report that listed only the second form
+    said "no starved pad" (exit 0) for a through-hole board whose own DRC had a new starved_thermal,
+    and a caller that repairs from this report repaired nothing (AGENTEE-654)."""
+    def finding(pad_text, uuid, layer, detail):
+        return {"type": "starved_thermal", "severity": "error",
+                "description": f"Thermal relief connection to zone incomplete (layer {layer}; {detail})",
+                "items": [{"description": f"Zone [GND] on {layer}, priority 0", "uuid": "z", "pos": {"x": 1, "y": 2}},
+                          {"description": pad_text, "uuid": uuid, "pos": {"x": 175.26, "y": 68.58}}]}
+    tht = finding("PTH pad 8 [GND] of P3", "tht", "bottom_copper", "zone min spoke count 2; actual 1")
+    island = finding("PTH pad 13 [GND] of U2", "island", "bottom_copper", "1 spokes connected to isolated island")
+    smd = finding("Pad 2 [GND] of C1 on F.Cu", "smd", "F.Cu", "zone min spoke count 2; actual 1")
+    other = {"type": "clearance", "description": "Clearance violation", "items": [
+        {"description": "PTH pad 1 [GND] of J1", "uuid": "x", "pos": {"x": 0, "y": 0}}]}
+    pads = spokes.starved_pads({"violations": [tht, island, smd, other]}, {"violations": [tht, smd]})
+    assert [(p["uuid"], p["layer"], p["new"]) for p in pads] == [
+        ("tht", "bottom_copper", True), ("island", "bottom_copper", False), ("smd", "F.Cu", True)]
+    assert pads[0]["pad_item"] == "PTH pad 8 [GND] of P3" and pads[0]["position_mm"] == [175.26, 68.58]
+    # without the list of new findings nothing is known about "new"
+    assert [p["new"] for p in spokes.starved_pads({"violations": [tht]}, None)] == [None]
+
+
 def test_plan_models_thermal_spokes(fzone_dir, tmp_path):
     plan = plan_of(fzone_dir / BOARD, tmp_path / "plan.json")
     record("spokes_plan", {k: plan[k] for k in ("per_pad", "min_resolved_spokes", "clearance", "refilled",

@@ -29,6 +29,7 @@ docs/spokes.md for its limits.
 import json
 import math
 import copy
+import re
 from pathlib import Path
 
 from . import common
@@ -236,6 +237,12 @@ def _describe(item):
     return rec
 
 
+# The pad item of a native finding, by KiCad's item text: "Pad 2 [GND] of C1 on F.Cu" for a
+# surface-mount pad, "PTH pad 8 [GND] of P3" for a through-hole pad. The other item of a
+# starved_thermal finding is the zone.
+PAD_ITEM = re.compile(r"(?:PTH )?[Pp]ad ")
+
+
 def starved_pads(drc, new_findings):
     """starved_thermal findings -> [{uuid, layer, ref/pad text, position, new, description}]"""
     from . import cli as route
@@ -247,7 +254,7 @@ def starved_pads(drc, new_findings):
         desc = v.get("description", "")
         layer = desc.split("layer ", 1)[1].split(";", 1)[0].strip() if "layer " in desc else None
         for it in v.get("items", []):
-            if it.get("description", "").startswith("Pad "):
+            if PAD_ITEM.match(it.get("description", "")):
                 out.append({"pad_item": it.get("description"), "uuid": it.get("uuid"), "layer": layer,
                             "position_mm": [it.get("pos", {}).get("x"), it.get("pos", {}).get("y")],
                             "new": route.item_key(v) in new_keys if new_findings is not None else None,
