@@ -13,14 +13,23 @@ from pathlib import Path
 import subprocess
 
 
+# The two routing entry points the adapters run, and the diagnostic tools the generated
+# krt-* skills name. Their static import closure is what the engine carries from upstream.
 ENTRYPOINTS = (
     "py_router/route.py", "py_router/route_diff.py",
     "py_router/check_connected.py", "py_router/check_drc.py", "py_router/check_weird.py",
     "py_router/list_nets.py", "py_tools/check_orphan_stubs.py",
     "py_tools/check_impedance.py", "py_tools/check_reachability.py", "py_tools/board_score.py",
-    "py_router/stage3d/blender_scene.py",
 )
 SOURCE_DIRS = ("py_router", "py_tools", "py_placer", "rust_router", ".")
+# Upstream files carried besides the import closure: licence and version, the numeric
+# requirements, the Rust crate, the two skills kicad-route adapts, and the two upstream
+# test files the engine's own tests use (scripts/kernel-tests.py, router/tests/).
+ASSETS = (
+    "LICENSE", "VERSION", "requirements.txt", "rust_router/Cargo.toml", "rust_router/Cargo.lock",
+    ".claude/skills/diagnose-routing-failures/SKILL.md", ".claude/skills/review-routed-board/SKILL.md",
+    "tests/synth.py", "tests/test_obstacle_addremove_parity.py",
+)
 
 
 def module_files(base, name):
@@ -118,14 +127,8 @@ def inventory(root, entrypoints=ENTRYPOINTS):
         dynamic.extend(calls)
         scripts.extend(refs)
     files = {p.relative_to(root).as_posix(): file_identity(p) for p in sorted(seen)}
-    assets = ["LICENSE", "VERSION", "requirements.txt", "rust_router/Cargo.toml",
-              "tests/test_krt64_tap_grid.py", "tests/test_pour_launch_forbidden_layer_welds.py",
-              "rust_router/Cargo.lock", *[
-                  p.relative_to(root).as_posix()
-                  for p in sorted((root / "rust_router" / "src").glob("*.rs"))]]
-    assets.extend(p.relative_to(root).as_posix()
-                  for p in sorted((root / "py_router" / "stage3d").rglob("*"))
-                  if p.is_file() and p.suffix != ".py" and "__pycache__" not in p.parts)
+    assets = [*ASSETS, *[p.relative_to(root).as_posix()
+                         for p in sorted((root / "rust_router" / "src").glob("*.rs"))]]
     return {
         "schema": "kicad-route/routing-source-closure/1",
         "entrypoints": list(entrypoints), "runtime_closure_proven": False,
