@@ -43,8 +43,10 @@ def test_the_extra_passes_take_no_time_from_the_runs_own_pass_and_the_budget_is_
     assert plane_nets.first_budget(300) == 100 and plane_nets.first_budget(1) == 1
     assert plane_nets.main_budget(300, 21.4) == 278 and plane_nets.main_budget(300, None) == 300
     assert plane_nets.main_budget(30, 40) == 1
-    # the last pass: what the run has left before a backend would be killed, asked to stop half way
-    assert plane_nets.last_window(300, 60, 21.4, 219.0) == 119 and plane_nets.last_reserve(119) == pytest.approx(59.5)
+    # the last pass: what the run has left before a backend would be killed; asked to stop a quarter
+    # of that before its end, at least 15 s before it, never before half of it
+    assert plane_nets.last_window(300, 60, 21.4, 219.0) == 119 and plane_nets.last_reserve(119) == pytest.approx(29.75)
+    assert plane_nets.last_reserve(40) == 15 and plane_nets.last_reserve(20) == 10 and plane_nets.last_reserve(10) == 5
     assert plane_nets.last_window(300, 60, 0, 284.0) == 76
     assert plane_nets.last_window(300, 60, 21.4, 331.0) is None    # under ten seconds: not started
     assert route.budget_grace(300) == 60 and route.budget_grace(100) == 30
@@ -239,7 +241,7 @@ def test_when_the_budget_ends_the_routing_the_plane_nets_get_a_last_pass_on_the_
     # budget 100 and its grace of 30, less the 10 s each pass before it used
     assert [(c["nets"], c["budget"], c["log"]) for c in calls] == [
         (["GND"], 33, "krt-first.log"), (["*"], 90, "krt.log"), (["GND"], 110, "krt-last.log")]
-    assert calls[2]["reserve"] == pytest.approx(55.0) and calls[1]["reserve"] is None
+    assert calls[2]["reserve"] == pytest.approx(27.5) and calls[1]["reserve"] is None
     assert calls[2]["grace"] == plane_nets.LAST_GRACE_S and calls[1]["grace"] is None
     # the first two are the engine's whole procedure, the last its closing repair alone
     assert not any(c["quick"] for c in calls)

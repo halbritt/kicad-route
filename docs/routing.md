@@ -371,9 +371,10 @@ the engine skips the passes it has not reached, and its closing repair of planes
 pours is the last of them, so a pour that signal tracks cut off from a pad stays cut and
 plane pads the taps did not reach stay open. Its time is the budget and the grace period
 after it, less what the passes before it used: the time a run may take in any case
-before its backend is killed. It is asked to stop half way through, is not started with
-less than ten seconds, and when it is stopped too late or killed the run keeps the board
-it had. A run whose own pass ended on its own, or reached the engine's repair before it
+before its backend is killed. It is asked to stop a quarter of that time before its end
+(at least 15 s before it), ends between two pads, and writes the board with the repairs
+it has made. It is not started with less than ten seconds, and if it is killed the run
+keeps the board it had. A run whose own pass ended on its own, or reached the engine's repair before it
 was stopped, has no last pass.
 
 Three boards were captured where the budget had stopped the routing, with 54, 32 and 96

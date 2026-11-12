@@ -65,11 +65,15 @@ LAST_PASS_ENV = {"KICAD_FINALIZE_ONLY": "1"}
 # Its time is what the run has left before a backend would be killed: the budget and the grace
 # period after it, less what the passes before it used. (Measured against the budget alone it
 # had 16 s on the first of those boards, whose own pass took 59 s to leave the pass it was
-# stopped in.) The repair honours a stop request in its sub-runs and then needs about as long
-# again to wind down (asked at 30 s, out at 64), so it is asked half way through. Stopped or
-# killed, it leaves the run the board it had.
+# stopped in.) It is asked to stop a quarter of that window before its end, and no less than
+# 15 s before it where the window has them: the repair ends between two pads (the engine's
+# stop-request change; upstream's repair has no cancel hook and ran on for a minute and more),
+# then cleans up and writes the board, 11 s on a board of 480 connections. Stopped too late and
+# killed, it leaves the run the board it had: asked half way through a 123 s window, the
+# repair without the hook was killed while it printed its summary, 29 of 50 plane pads done.
 LAST_MIN_S = 10
-LAST_ASK_SHARE = 0.5
+LAST_WIND_DOWN_SHARE = 0.25
+LAST_WIND_DOWN_MIN_S = 15
 LAST_GRACE_S = 5
 
 
@@ -122,5 +126,6 @@ def last_window(budget, grace, first_used, main_used):
 
 
 def last_reserve(window):
-    """Seconds before the end of its window at which the last pass is asked to stop."""
-    return window * (1 - LAST_ASK_SHARE)
+    """Seconds before the end of its window at which the last pass is asked to stop: a quarter
+    of the window, at least LAST_WIND_DOWN_MIN_S, and never more than half the window."""
+    return min(window / 2, max(LAST_WIND_DOWN_MIN_S, window * LAST_WIND_DOWN_SHARE))

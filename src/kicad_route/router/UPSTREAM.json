@@ -105,7 +105,7 @@
     },
     {
       "id": "stop-request",
-      "purpose": "The stop file (KICAD_STOP_FILE) ends every pass, not only the first: after the single-ended loop the passes that take a cancel hook get one that looks for the file, the blocks that remain are skipped, and the board is written as it stands. Upstream looks for the file between the nets of the single-ended loop only, so a run that finished that loop in time ran on through Phase 3, the rescue and the plane repair however long they took.",
+      "purpose": "The stop file (KICAD_STOP_FILE) ends every pass, not only the first: after the single-ended loop the passes that take a cancel hook get one that looks for the file, the blocks that remain are skipped, and the board is written as it stands. Upstream looks for the file between the nets of the single-ended loop only, so a run that finished that loop in time ran on through Phase 3, the rescue and the plane repair however long they took. The plane repair gets the hook as well and ends between two nets or two pads; upstream calls it without one, so a repair of fifty plane pads ran on for a minute and more after the request.",
       "files": [
         "py_router/env_knobs.py",
         "py_router/route.py"

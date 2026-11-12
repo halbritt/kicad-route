@@ -7613,6 +7613,9 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                         # traveled priced-up layers for free).
                         layer_costs=list(config.layer_costs or []) or None,
                         pcb_data=pcb_data, return_results=True,
+                        # kicad-route (deadline): the stop request ends the plane
+                        # repair too, between two nets or two pads.
+                        cancel_check=cancel_check,
                         progress_callback=_pcb9)
                     # The engine edits pcb_data's copper in place after its
                     # last sub-run too; nothing cached against the old copper
@@ -7709,6 +7712,8 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                         # the exact defect that commit set out to close.
                         layer_costs=list(config.layer_costs or []) or None,
                         pcb_data=_live9,
+                        # kicad-route (deadline): as for the in-memory leg above
+                        cancel_check=cancel_check,
                         progress_callback=_pcb9)
                 print(f"  [finalize timing] engine leg: "
                       f"{_time9.time() - _t9:.1f}s")

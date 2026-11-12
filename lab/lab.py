@@ -679,9 +679,11 @@ WHY_TEXT = {'routing': 'caged by copper this run laid', 'passable': 'still reach
             'placement': 'caged by the placement', 'not measured': 'not measured'}
 
 
-def reach(engine, board, end):
+def reach(engine, board, end, run_dir=None):
     """The engine's reachability check from one end of an open connection: the check's JSON, or
-    {'error': ...}. `end` is an issue item: its description and position."""
+    {'error': ...}. `end` is an issue item: its description and position. A board with text on
+    copper is read with the bounds the run measured for that text (work/copper-text.json), as the
+    engine was when it routed."""
     what = end.get('what') or ''
     pad, net = PAD_END.search(what), re.search(r'\[(.*)\]', what)
     argv = [str(engine / '.venv-krt/bin/python'), str(engine / 'src/kicad_route/router/py_tools/check_reachability.py'),
@@ -692,8 +694,11 @@ def reach(engine, board, end):
         argv += ['--net', net.group(1), '--at', f"{end['x']},{end['y']}"]
     else:
         return {'error': 'no pad and no position to start from'}
+    env = dict(os.environ)
+    if run_dir is not None and (run_dir / 'work/copper-text.json').is_file():
+        env['KICAD_ROUTE_COPPER_TEXT'] = str((run_dir / 'work/copper-text.json').resolve())
     try:
-        done = subprocess.run(argv, capture_output=True, text=True, timeout=1800)
+        done = subprocess.run(argv, capture_output=True, text=True, timeout=1800, env=env)
         return json.loads(done.stdout[done.stdout.index('{'):done.stdout.rindex('}') + 1])
     except subprocess.TimeoutExpired:
         return {'error': 'timeout'}
@@ -765,7 +770,7 @@ def why(args):
                             for row in rows]
                 ends = ends[:args.limit]
                 with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-                    measured = list(pool.map(lambda end: reach(engine, board, end), ends))
+                    measured = list(pool.map(lambda end: reach(engine, board, end, run_dir), ends))
                 answers = []
                 for end, data in zip(ends, measured):
                     routed = data.get('routed_copper') or {}
