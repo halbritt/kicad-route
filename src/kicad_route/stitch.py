@@ -4,6 +4,8 @@ New tracks around a pad can ring the pour it sits in off from the rest: a piece 
 whose only tie to its net is that pad's thermal spokes. KiCad counts no spoke into such a
 piece. Either the pad is then short of spokes ("Thermal relief connection to zone incomplete
 (N spokes connected to isolated island)"), or it has no other copper and is cut from its net.
+A pour or a whole plane that the routing never touched is the third case: nothing of its net
+on it, KiCad's "Isolated copper fill".
 On a two-layer board with ground poured on both sides the first alone decided whether a
 complete routing was clean, and it came and went with the order the nets happened to take:
 the board is clean in the engine's own order and has the finding with spoke corridors
@@ -68,6 +70,8 @@ def apply(work, board, before, output, scope, api):
     vias = {v["uuid"]: v for v in found["vias"]}
     if not vias:
         return rec
+    legs = {v["leg"]["uuid"]: v["uuid"] for v in found["vias"] if v.get("leg")}      # a via's track goes with it
+    with_legs = lambda uuids: sorted(set(uuids) | {leg for leg, via in legs.items() if via in set(uuids)})
     base = _graded(api, work, board.parent, output, "before")
     if base is None:
         return dict(rec, status="failed", reason="KiCad's DRC of the board before stitching failed")
@@ -79,18 +83,19 @@ def apply(work, board, before, output, scope, api):
         against = {}                         # via -> the kinds of new finding that name it
         for finding in new:
             for item in finding.get("items", []):
-                if item.get("uuid") in vias:
-                    against.setdefault(item["uuid"], set()).add(finding.get("type"))
+                via = item.get("uuid") if item.get("uuid") in vias else legs.get(item.get("uuid"))
+                if via in vias:
+                    against.setdefault(via, set()).add(finding.get("type"))
         named = sorted(against)
         if not named:
             break
         if index == ROUNDS:
             return dict(rec, status="failed", reason="stitching vias still break a rule after removal")
         listed = work / f"stitch-remove-{index}.json"
-        common.write_json(listed, named)
+        common.write_json(listed, with_legs(named))
         removed, counted = _helper(api, work, f"stitch-remove-{index}.log", "remove", board, listed)
         rec["commands"].append(common.public(removed))
-        if counted is None or counted["removed"] != len(named):
+        if counted is None or counted["removed"] != len(with_legs(named)):
             return dict(rec, status="failed", reason=f"could not remove a stitching via KiCad's DRC names (see {removed['log']})")
         rec["removed_after_drc"] += [dict(vias.pop(uuid), findings=sorted(against[uuid])) for uuid in named]
         if not vias:
@@ -102,10 +107,10 @@ def apply(work, board, before, output, scope, api):
     (open_before, found_before), (open_after, found_after) = count(base), count(report)
     if open_after > open_before or open_after + found_after >= open_before + found_before:
         listed = work / "stitch-remove-all.json"
-        common.write_json(listed, sorted(vias))
+        common.write_json(listed, with_legs(vias))
         removed, counted = _helper(api, work, "stitch-remove-all.log", "remove", board, listed)
         rec["commands"].append(common.public(removed))
-        if counted is None or counted["removed"] != len(vias):
+        if counted is None or counted["removed"] != len(with_legs(vias)):
             return dict(rec, status="failed", reason=f"could not remove stitching vias that gained nothing (see {removed['log']})")
         rec["removed_no_gain"] = sorted(vias.values(), key=lambda v: (v["net"], v["x_mm"], v["y_mm"]))
         rec["drc_counts"] = {"before": [open_before, found_before], "after": [open_after, found_after]}

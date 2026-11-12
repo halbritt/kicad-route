@@ -34,6 +34,12 @@ BOARD = "route_demo.kicad_pcb"
 #           between the tracks, two into the rest of the pour
 #   pin     a closed loop on the back round all of J2. All four spokes of its ground pin run
 #           into the piece inside, and the pin reaches the front pour: KiCad has no finding
+#   island  a small pour of a signal net on the back that keeps its islands, with nothing of
+#           the net on it, and a track from a pad of that net that ends over it on the front:
+#           the board as a router leaves a pour or a plane it did not need. island-before is
+#           the same pour without the track
+#   under   the same kind of pour under the signal's pad of R1 and nothing else of the net:
+#           a plane under pads that the routing joined some other way
 # AREA names a rule area against vias (and nothing else) over the whole inside of the pad loop.
 BUILD = """
 import sys
@@ -68,7 +74,36 @@ pin = {p.GetNumber(): p for fp in board.GetFootprints() if fp.GetReference() == 
 signal = board.GetNetcodeFromNetname("/SIG_A")
 loop = lambda l, r, t, b, layer: [((l, t), (r, t), layer, signal), ((r, t), (r, b), layer, signal),
                                   ((r, b), (l, b), layer, signal), ((l, b), (l, t), layer, signal)]
-tracks = {"none": [],
+if cut.startswith("island"):
+    isl = pcbnew.ZONE(board)
+    isl.SetLayer(pcbnew.B_Cu)
+    isl.SetNetCode(signal)
+    isl.SetAssignedPriority(1)
+    isl.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+    isl.SetLocalClearance(ground.GetLocalClearance())
+    isl.SetMinThickness(ground.GetMinThickness())
+    shape = isl.Outline()
+    shape.NewOutline()
+    for x, y in ((134.0, 110.0), (140.0, 110.0), (140.0, 116.0), (134.0, 116.0)):
+        shape.Append(mm(x), mm(y))
+    board.Add(isl)
+if cut == "under":
+    isl = pcbnew.ZONE(board)
+    isl.SetLayer(pcbnew.B_Cu)
+    isl.SetNetCode(signal)
+    isl.SetAssignedPriority(1)
+    isl.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+    isl.SetLocalClearance(ground.GetLocalClearance())
+    isl.SetMinThickness(ground.GetMinThickness())
+    shape = isl.Outline()
+    shape.NewOutline()
+    for x, y in ((120.5, 101.0), (124.6, 101.0), (124.6, 104.6), (120.5, 104.6)):
+        shape.Append(mm(x), mm(y))
+    board.Add(isl)
+tracks = {"none": [], "island-before": [], "under": [],
+          # from the signal's pad on R1 round the part and down over the pour
+          "island": [((124.0875, 103.0), (124.0875, 101.2), pcbnew.F_Cu, signal), ((124.0875, 101.2), (137.0, 101.2), pcbnew.F_Cu, signal),
+                     ((137.0, 101.2), (137.0, 113.0), pcbnew.F_Cu, signal)],
           "pad": loop(110.0, 116.0, 101.5, 106.5, pcbnew.F_Cu),
           "pin": loop(143.0, 148.5, 103.5, 116.12, pcbnew.B_Cu),
           "pocket": [((146.0, 106.0), (149.9, 106.0), pcbnew.B_Cu, pin["1"].GetNetCode()),
@@ -100,7 +135,8 @@ pcbnew.SaveBoard(path, board, aSkipSettings=True)
 """
 
 # where the copper that each cut takes off lies, in board millimetres: left, right, top, bottom
-INSIDE = {"pad": (110.0, 116.0, 101.5, 106.5), "pin": (143.0, 148.5, 103.5, 116.12), "pocket": (146.0, 149.5, 106.0, 111.08)}
+INSIDE = {"pad": (110.0, 116.0, 101.5, 106.5), "pin": (143.0, 148.5, 103.5, 116.12), "pocket": (146.0, 149.5, 106.0, 111.08),
+          "island": (134.0, 140.0, 110.0, 116.0), "under": (120.5, 124.6, 101.0, 104.6)}
 
 
 def build(directory, back, cut, area=None, spokes=2):
@@ -188,6 +224,37 @@ def test_no_via_where_kicad_has_no_finding(unrouted, tmp_path):
         assert routed.read_bytes() == data                   # nothing placed: not rewritten
 
 
+def test_a_pour_with_nothing_of_its_net_on_it_gets_a_via_onto_a_track_of_the_net(tmp_path):
+    before, routed = build(tmp_path / "before", True, "island-before"), build(tmp_path / "routed", True, "island")
+    data = routed.read_bytes()
+    assert place(before, routed, ["GND"], tmp_path) == {"pieces_cut_off": 0, "vias": [], "left": []}    # not its net
+    assert routed.read_bytes() == data
+    found = place(before, routed, ["/SIG_A"], tmp_path)
+    assert found["pieces_cut_off"] == 1 and found["left"] == [], found
+    (via,) = found["vias"]
+    assert (via["net"], via["layer"], via["pads"], via["case"], via["onto"]) == ("/SIG_A", "B.Cu", [], "isolated", "track")
+    assert inside(via, "island") and via["x_mm"] == pytest.approx(137.0, abs=0.001), via      # on the track's centre line
+    # without the track there is nothing of the net to join the pour to
+    alone = place(before, before, ["/SIG_A"], tmp_path)
+    assert alone["vias"] == [] and [row["why"] for row in alone["left"]] == [{"no copper of the net on another layer": alone["left"][0]["why"]["no copper of the net on another layer"]}]
+
+
+def test_a_pour_under_a_pad_of_its_net_gets_a_via_beside_the_pad_and_a_track_to_it(tmp_path):
+    board = build(tmp_path / "board", True, "under")
+    had_tracks, had_vias = board.read_text().count("(segment"), len(vias(board))
+    found = place(board, board, ["/SIG_A"], tmp_path)
+    assert found["pieces_cut_off"] == 1 and found["left"] == [], found
+    (via,) = found["vias"]
+    assert (via["net"], via["layer"], via["case"], via["onto"]) == ("/SIG_A", "B.Cu", "isolated", "pad"), via
+    left, right, top, bottom = INSIDE["under"]
+    assert left < via["x_mm"] < right and top < via["y_mm"] < bottom, via      # its centre in the pour; its rim may reach past
+    leg = via["leg"]
+    assert (leg["pad"], leg["layer"], leg["from_mm"]) == ("R1.1", "F.Cu", [124.0875, 103.0]) and leg["width_mm"] > 0
+    length = ((via["x_mm"] - 124.0875) ** 2 + (via["y_mm"] - 103.0) ** 2) ** 0.5
+    assert via["diameter_mm"] / 2 < length <= 2.5
+    assert len(vias(board)) == had_vias + 1 and board.read_text().count("(segment") == had_tracks + 1
+
+
 def test_no_via_for_a_net_outside_the_scope_or_a_pad_the_input_had_cut_off_already(unrouted, tmp_path):
     routed = build(tmp_path / "routed", True, "pad")
     data = routed.read_bytes()
@@ -259,6 +326,49 @@ def test_the_wrapper_keeps_the_via_that_makes_a_pins_spokes_count(tmp_path):
     starved = {label: [v for v in rep["violations"] if v["type"] == "starved_thermal"] for label, rep in reports(work).items()}
     assert len(starved["before"]) == 1 and "2 spokes connected to isolated island" in starved["before"][0]["description"]
     assert starved["after-0"] == []
+
+
+def test_the_wrapper_keeps_the_via_that_ends_kicads_isolated_copper(tmp_path):
+    before, routed = build(tmp_path / "before", True, "island-before"), build(tmp_path / "routed", True, "island")
+    work, board, output = staged(before, routed, tmp_path)
+    rec = stitch.apply(work, board, before, output, ["/SIG_A", "GND"], route)
+    assert rec["status"] == "stitched" and [v["case"] for v in rec["vias"]] == ["isolated"] and rec["removed_after_drc"] == [], rec
+    # KiCad calls a fill isolated while nothing on it leads to a pad: the track does, once the via joins them
+    lone = {label: [v for v in rep["violations"] if v["type"] == "isolated_copper"] for label, rep in reports(work).items()}
+    assert len(lone["before"]) == 1 and lone["after-0"] == []
+
+
+def test_the_wrapper_keeps_a_via_and_its_track_together_or_takes_both_out(tmp_path, monkeypatch):
+    start = build(tmp_path / "board", True, "under")
+    work, board, output = staged(start, start, tmp_path)
+    rec = stitch.apply(work, board, start, output, ["/SIG_A"], route)
+    assert rec["status"] == "stitched" and rec["vias"][0]["leg"]["pad"] == "R1.1", rec
+    lone = {label: [v for v in rep["violations"] if v["type"] == "isolated_copper"] for label, rep in reports(work).items()}
+    assert len(lone["before"]) == 1 and lone["after-0"] == []
+    leg_uuid = rec["vias"][0]["leg"]["uuid"]
+    assert leg_uuid in uuids(output) and rec["vias"][0]["uuid"] in uuids(output)
+    # a finding that names the track takes the via out with it
+    again = tmp_path / "again"
+    again.mkdir()
+    work, board, output = staged(start, start, again)
+    data, known = output.read_bytes(), uuids(output)
+
+    def the_track_is_named(base, report, kind):
+        named = [u for u in sorted(uuids(board) - known) if u in legs_seen]
+        return ([{"type": "clearance", "items": [{"uuid": u} for u in named]}] if named else []), []
+    legs_seen = set()
+    helper = stitch._helper
+
+    def spy(api, work_dir, log, *args, **kwargs):
+        run, found = helper(api, work_dir, log, *args, **kwargs)
+        if args and args[0] == "place" and found:
+            legs_seen.update(v["leg"]["uuid"] for v in found["vias"] if v.get("leg"))
+        return run, found
+    monkeypatch.setattr(stitch, "_helper", spy)
+    monkeypatch.setattr(route, "drc_delta", the_track_is_named)
+    rec = stitch.apply(work, board, start, output, ["/SIG_A"], route)
+    assert rec["status"] == "none" and len(rec["removed_after_drc"]) == 1 and len(legs_seen) == 1, rec
+    assert output.read_bytes() == data and not (uuids(board) - known)       # via and track both gone again
 
 
 def test_the_wrapper_takes_a_via_out_again_when_a_new_finding_names_it(unrouted, tmp_path, monkeypatch):

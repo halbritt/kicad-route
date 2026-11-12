@@ -502,23 +502,37 @@ A pad with all its spokes of a layer in such a piece and a connection elsewhere 
 that reaches the pour on the other side) is neither. KiCad has no finding, and nothing is
 done.
 
+A third kind of piece has nothing of its net on it at all:
+
+- **isolated.** No pad, no via, no track end: KiCad's `isolated_copper`, "Isolated copper
+  fill", when the zone keeps its islands. A whole plane can be one. On a four-layer board
+  whose ground pads sit close together the router joined them with short tracks on the
+  outside and never touched the ground plane declared inside; the caller's check of that
+  plane failed on most runs, whenever the placement happened to need no via.
+
 After the built-in router, and after the dangling copper is gone, the wrapper puts a via
 in each such piece, as a designer would (`stitch.py`, `kicad/stitch.py`): a via of the
 net's class, raised to the board's minimum via, hole and annular ring, with its centre
 in the piece and, on another layer, in copper of the same net that is not cut off
-itself, so that the refill joins both to it; where it keeps the class clearance from all
+itself (a piece of pour tied to the net, or a track of the net, the via then on the
+track's centre line), so that the refill joins both to it; where it keeps the class clearance from all
 copper of other nets, from every pad of another net and from every other hole, stays off
 the pads of its own net and inside the board's edge clearance; and where no rule area
 forbids vias. KiCad's DRC then grades the board before and after with the zones refilled
 (without the corridors of `--reserve-spokes`, which come off the delivered board). A via
 that any new finding names is taken out again and listed with the kinds of finding, and
 all of them are when KiCad's report is not the shorter for them or has more open
-connections than before (`removed_no_gain`). Only nets in the run's scope get a via, and only
-for a pad that was not in the same state before routing.
+connections than before (`removed_no_gain`). Only nets in the run's scope get a via, and in the first two cases
+only for a pad that was not in the same state before routing. An isolated piece of a net
+in scope is the routing's to join whatever the input looked like (on an unrouted board
+every plane is one). Where nothing of the net crosses such a piece at a place a via
+fits, the via goes beside a surface pad of the net, at most 2.5 mm away, with a track of
+the class width from the pad to it; the two stay or go together.
 
 `process.stitched` records it: `status` (`none`, `stitched`, or `failed` with a
 `reason`; the board is then as the router left it), `pieces_cut_off`, `vias` (net,
-layer, pad, `case`, position, size and, for the spokes case, the counts), `left` and
+layer, pad, `case`, what the via lands `onto` (`pour`, `track` or `pad`), position, size,
+the `leg` to a pad where there is one and, for the spokes case, the counts), `left` and
 `removed_after_drc`. A piece in `left` got no via, and `why` counts the places in it
 that were turned down by reason: `no copper of the net on another layer` (a net poured
 on one layer only cannot be stitched), `rule area`, `pad`, `hole`, `via`, `track`,
