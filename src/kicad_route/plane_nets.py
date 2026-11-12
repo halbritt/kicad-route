@@ -73,16 +73,19 @@ LAST_PASS_ENV = {"KICAD_FINALIZE_ONLY": "1", "KICAD_FINALIZE_RIP": "1"}
 # Its time is what the run has left before a backend would be killed: the budget and the grace
 # period after it, less what the passes before it used. (Measured against the budget alone it
 # had 16 s on the first of those boards, whose own pass took 59 s to leave the pass it was
-# stopped in.) It is asked to stop a quarter of that window before its end, and no less than
-# 15 s before it where the window has them: the repair ends between two pads (the engine's
-# stop-request change; upstream's repair has no cancel hook and ran on for a minute and more),
-# then cleans up and writes the board, 11 s on a board of 480 connections. Stopped too late and
-# killed, it leaves the run the board it had: asked half way through a 123 s window, the
-# repair without the hook was killed while it printed its summary, 29 of 50 plane pads done.
+# stopped in.) The repair takes its nets one after the other, so its working time decides how
+# far it gets: asked to stop 31 s before the end of a 124 s window it had reconnected 40 of 50
+# plane pads on two nets, asked half way through it had done one net and not started the other
+# (17 and 34 connections open on the board).
+# It ends between two pads (the engine's stop-request change; upstream's repair has no cancel
+# hook and ran on for a minute and more), but a pad it has started is finished, and with a rip
+# that means reconnecting the ripped net as well: 28 and 35 s from the request to the board.
+# Killed, it leaves the run the board it had, which loses every repair it made. So it is asked
+# to stop LAST_WIND_DOWN_S before the end of its window and killed LAST_GRACE_S after it: a
+# minute to wind down, half of it past the time a run could take before.
 LAST_MIN_S = 10
-LAST_WIND_DOWN_SHARE = 0.25
-LAST_WIND_DOWN_MIN_S = 15
-LAST_GRACE_S = 5
+LAST_WIND_DOWN_S = 30
+LAST_GRACE_S = 30
 
 
 def owners(facts):
@@ -134,6 +137,6 @@ def last_window(budget, grace, first_used, main_used):
 
 
 def last_reserve(window):
-    """Seconds before the end of its window at which the last pass is asked to stop: a quarter
-    of the window, at least LAST_WIND_DOWN_MIN_S, and never more than half the window."""
-    return min(window / 2, max(LAST_WIND_DOWN_MIN_S, window * LAST_WIND_DOWN_SHARE))
+    """Seconds before the end of its window at which the last pass is asked to stop:
+    LAST_WIND_DOWN_S, and never more than half the window."""
+    return min(window / 2, LAST_WIND_DOWN_S)
