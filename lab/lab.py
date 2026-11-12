@@ -241,6 +241,14 @@ def frozen(checkout):
                 link.symlink_to(venv.resolve(), target_is_directory=True)
             except FileExistsError:
                 pass
+    # Nor is the other backend: `kicad-route update` downloads Freerouting beside the source.
+    jar_home = checkout / 'vendor' / 'freerouting'
+    if jar_home.exists() and not (dest / 'vendor' / 'freerouting').exists():
+        (dest / 'vendor').mkdir(exist_ok=True)
+        try:
+            (dest / 'vendor' / 'freerouting').symlink_to(jar_home.resolve(), target_is_directory=True)
+        except FileExistsError:
+            pass
     os.utime(dest)
     return dest
 
@@ -274,9 +282,18 @@ def collect(entry, run_root, record):
     elif (result.get('routing') or {}).get('unconnected_total'):
         issues.append({'kind': 'open', 'type': 'unconnected', 'count': result['routing']['unconnected_total'], 'items': []})
     if run_dir is not None and (run_dir / 'validate/new-findings.json').is_file():
-        for row in read_json(run_dir / 'validate/new-findings.json').get('violations', []):
+        findings = read_json(run_dir / 'validate/new-findings.json')
+        for row in findings.get('violations', []):
             issues.append({'kind': 'drc', 'type': row.get('type'), 'severity': row.get('severity'),
                            'detail': row.get('description'), 'items': [describe(i) for i in row.get('items', [])]})
+        inherited = findings.get('inherited_from_input') or []
+        if inherited:
+            # the footprint's own net-less copper on a pad: no route to that pad avoids it (reading-results.md)
+            issues.append({'kind': 'advisory', 'type': 'inherited_from_input', 'count': len(inherited),
+                           'detail': f"{len(inherited)} finding(s) against net-less footprint copper the input already "
+                                     'joins to the pad: ' + '; '.join(sorted({i.get('description', '') for row in inherited
+                                                                              for i in row.get('items', [])
+                                                                              if '<no net>' in i.get('description', '')})[:3])})
     reasons = validation.get('reasons') or []
     for check, status in sorted((validation.get('preservation') or {}).items()):
         if status != 'PASS':
@@ -392,6 +409,8 @@ def finish(entry, run_root, issues, stats, seconds, exit_code, have_result, reco
                'process': sorted({i['type'] for i in issues if i['kind'] == 'process' and i['type'] != 'reported'}),
                'vias': stats.get('new_vias'), 'track_mm': stats.get('new_track_length_mm'),
                'engine_cpu_s': stats.get('engine_cpu_s'),
+               # the step of the engine's procedure the budget stopped the run's own pass in, if it did
+               'cut_off_in': stats.get('cut_off_in'),
                # budgets are wall time: a loaded host routes less in the same budget
                'host_load': round(os.getloadavg()[0], 1), 'host_cpus': os.cpu_count(),
                'clean': have_result and not opens and not errors
@@ -438,6 +457,9 @@ def route_one(entry, tag, engine, budget, extra, clock='cpu'):
     engine = [c.get('cpu_s') for c in (result.get('process') or {}).get('commands') or []
               if any(str(a).endswith(('route.py', 'route_diff.py')) for a in c.get('argv') or [])]
     stats['engine_cpu_s'] = round(sum(c for c in engine if c is not None), 1) if any(c is not None for c in engine) else None
+    run_dir = run_dir_of(tag, entry['name'])
+    own = [row for row in engine_passes(run_dir, result) if row['log'] == 'krt.log'] if run_dir and result else []
+    stats['cut_off_in'] = own[0]['stopped_in'] if own else None
     return finish(entry, run_root, issues, stats, seconds, record.get('exit_code'), bool(result),
                   {k: v for k, v in record.items() if k != 'result'})
 
@@ -510,6 +532,7 @@ def show(args):
             s = runs[tag].get(name)
             cells.append(cell(s) + (f", {s['vias']} vias, {s['track_mm']} mm, {s['seconds']:.0f} s" if s and not s.get('process') else '')
                          + (f" (engine {s['engine_cpu_s']:.0f} CPU s)" if s and s.get('engine_cpu_s') is not None else '')
+                         + (f", cut off in {s['cut_off_in']}" if s and s.get('cut_off_in') else '')
                          + (f" ({s['best_of']})" if s and s.get('best_of') else ''))
         print(f"| {name} | {e.get('layers', '')} | {(e.get('unrouted') or {}).get('unconnected', '')} | {designed} | " + ' | '.join(cells) + ' |')
     for tag in args.tags:
@@ -523,7 +546,8 @@ def show(args):
               f"{(engine.get('commit') or '')[:8]}{' +' + str(engine['dirty_files']) + ' dirty' if engine.get('dirty_files') else ''}; "
               f"budget {info.get('budget_s')} {'processor' if info.get('clock') == 'cpu' else 'wall'} s "
               f"{' '.join(info.get('extra') or [])}" + host_load(done))
-    print('\nCells are open connections / new DRC errors (+ failed grading checks). Bold is clean.')
+    print('\nCells are open connections / new DRC errors (+ failed grading checks). Bold is clean. "cut off in": '
+          'the budget stopped the routing in that step of the engine, so the count is the budget\'s, not the router\'s.')
 
 
 def host_load(done):
@@ -576,6 +600,117 @@ def classes(args):
             print(f"  {k[0]:8} {k[1]:30} {count[k]:4} on {len(boards[k])} board(s): {where}")
 
 
+def run_dir_of(tag, name):
+    """The kicad-route run directory of one lab cell, or None (a stock cell has none)."""
+    found = sorted((LAB / 'runs' / tag / name / 'kr').glob('runs/*/*/*/result.json'))
+    return found[-1].parent if found else None
+
+
+def net_roles(run_dir):
+    """{net: 'plane' | 'pour'} for the nets that own a zone: on an inner layer, or on outer layers only."""
+    facts = read_json(run_dir / 'facts/reference-facts.json') if run_dir else None
+    if not facts:
+        return {}
+    layers = [layer['name'] if isinstance(layer, dict) else layer for layer in facts.get('copper_layers') or []]
+    inner, roles = set(layers[1:-1]), {}
+    for zone in facts.get('zones') or []:
+        if zone.get('net'):
+            plane = bool(inner & set(zone.get('layers') or []))
+            roles[zone['net']] = 'plane' if plane or roles.get(zone['net']) == 'plane' else 'pour'
+    return roles
+
+
+def opens(args):
+    """What is left open, by the kind of net: the question that found the boxed-in plane pads.
+
+    A count of open connections says how far a board is from done, not why. On a four-layer
+    board 50 of 56 were pads of the two plane nets, which no cell of `show` could say."""
+    for tag in args.tags:
+        print(f'== {tag}')
+        for path in sorted((LAB / 'runs' / tag).glob('*/issues.json')):
+            name = path.parent.name
+            if args.names and name not in args.names:
+                continue
+            rows = [i for i in read_json(path) if i['kind'] == 'open']
+            if not rows:
+                continue
+            roles = net_roles(run_dir_of(tag, name))
+            by_net, ends, by_role = {}, {}, {'plane': 0, 'pour': 0, 'other': 0}
+            for issue in rows:
+                items = issue.get('items') or []
+                found = re.search(r'\[(.*)\]', items[0]['what']) if items and items[0].get('what') else None
+                net = found.group(1) if found else '?'
+                count = issue.get('count', 1)
+                by_net[net] = by_net.get(net, 0) + count
+                by_role[roles.get(net, 'other')] += count
+                kind = ' to '.join(sorted((i.get('what') or '?').split(' [')[0].split(' ')[0].lower() for i in items)) or '?'
+                ends[kind] = ends.get(kind, 0) + count
+            total = sum(by_net.values())
+            top = ', '.join(f'{n} {c}' for n, c in sorted(by_net.items(), key=lambda x: (-x[1], x[0]))[:8])
+            kinds = ', '.join(f'{k} {c}' for k, c in sorted(ends.items(), key=lambda x: -x[1]))
+            print(f"  {name}: {total} open on {len(by_net)} nets; {by_role['plane']} on plane nets, "
+                  f"{by_role['pour']} on pour nets, {by_role['other']} on others")
+            print(f'      nets: {top}')
+            print(f'      ends: {kinds}')
+
+
+# What the engine prints when it enters a part of its procedure, in the order of the procedure.
+ENGINE_STEPS = (('main loop', r'Routing \d+ single-ended net'), ('taps', r'Multi-point Phase 3: Routing'),
+                ('net rescue', r'Per-net fine-parameter rescue'), ('plane repair', r'Plane finalize \(#562\)'),
+                ('KiCad check', r'JSON_ORACLE:'), ('reconciliation', r'Final reconciliation: retrying'),
+                ('regrade', r'JSON_REGRADE'))
+
+
+def engine_passes(run_dir, result):
+    """One row per engine pass of a kicad-route run: its log, nets, budget, processor seconds,
+    whether the budget stopped it, the step it was stopped in and the steps it reached."""
+    rows = []
+    for command in (result.get('process') or {}).get('commands') or []:
+        argv = [str(a) for a in command.get('argv') or []]
+        if not any(a.endswith(('route.py', 'route_diff.py')) for a in argv):
+            continue
+        nets = argv[argv.index('--nets') + 1:] if '--nets' in argv else []
+        nets = nets[:next((k for k, a in enumerate(nets) if a.startswith('--')), len(nets))]
+        log_path = run_dir / 'work' / Path(command.get('log') or '').name
+        text = log_path.read_text(errors='replace') if log_path.is_file() else ''
+        stop = text.find('STOP requested')
+        before = [step for step, mark in ENGINE_STEPS
+                  if stop >= 0 and (found := re.search(mark, text)) and found.start() < stop]
+        stopped = bool(command.get('stop_requested'))
+        rows.append({'log': log_path.name, 'nets': nets, 'budget_s': command.get('budget_s'), 'cpu_s': command.get('cpu_s'),
+                     'stopped': stopped, 'killed': bool(command.get('killed')),
+                     'stopped_in': None if not stopped else (before[-1] if before else 'its start') if stop >= 0 else 'its finish',
+                     'reached': [step for step, mark in ENGINE_STEPS if re.search(mark, text)]})
+    return rows
+
+
+def passes(args):
+    """Each engine pass of a cell: its nets, its budget, the processor time it used, whether the
+    budget stopped it, and how far through the engine's procedure it got.
+
+    A run that is stopped in its taps has not rescued a net or repaired a plane, and a few
+    seconds of budget move that point: two runs of one board whose own pass was stopped 4 s
+    apart came out at 83 and 123 open connections. Without this view the difference looks
+    like the router's."""
+    for path in sorted((LAB / 'runs' / args.tag).glob('*/summary.json')):
+        name = path.parent.name
+        if args.names and name not in args.names:
+            continue
+        run_dir = run_dir_of(args.tag, name)
+        result = read_json(run_dir / 'result.json') if run_dir else None
+        if not result:
+            continue
+        print(f'== {name}: {cell(read_json(path))}')
+        for row in engine_passes(run_dir, result):
+            nets = row['nets']
+            scope = 'all nets' if nets == ['*'] else f"{len(nets)} net(s): {', '.join(nets[:5])}{', ...' if len(nets) > 5 else ''}"
+            print(f"  {row['log']:15} {scope}; budget {row['budget_s']} s, used "
+                  f"{row['cpu_s'] if row['cpu_s'] is None else round(row['cpu_s'])} processor s"
+                  + (f"; stopped by the budget in {row['stopped_in']}" if row['stopped'] else '; ended on its own')
+                  + (', then killed' if row['killed'] else ''))
+            print(f"      reached: {', '.join(row['reached']) or 'nothing'}")
+
+
 def diff(args):
     a, b = (LAB / 'runs' / t for t in (args.tag_a, args.tag_b))
     names = sorted({p.parent.name for p in a.glob('*/issues.json')} & {p.parent.name for p in b.glob('*/issues.json')})
@@ -621,6 +756,14 @@ def main():
     p = sub.add_parser('classes')
     p.add_argument('tags', nargs='+')
     p.set_defaults(fn=classes)
+    p = sub.add_parser('opens', help='what is left open, by kind of net (plane, pour, other), by net and by kind of end')
+    p.add_argument('tags', nargs='+')
+    p.add_argument('--board', dest='names', action='append', help='only this board (repeatable)')
+    p.set_defaults(fn=opens)
+    p = sub.add_parser('passes', help='each engine pass of a cell: nets, budget, time used, where the budget stopped it')
+    p.add_argument('tag')
+    p.add_argument('names', nargs='*')
+    p.set_defaults(fn=passes)
     p = sub.add_parser('diff')
     p.add_argument('tag_a')
     p.add_argument('tag_b')

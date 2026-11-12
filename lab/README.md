@@ -7,6 +7,8 @@ change fixed it without breaking something else.
 lab/lab.py add stickhub ~/boards/StickHub/StickHub.kicad_pcb      # once per board
 lab/lab.py run before                                            # route every board with this checkout
 lab/lab.py issues before stickhub                                # every issue, one line each
+lab/lab.py opens before                                          # what is open: plane nets, pour nets, others
+lab/lab.py passes before stickhub                                # each engine pass: how far the budget let it get
 # ... change the engine ...
 lab/lab.py run after
 lab/lab.py diff before after                                     # issues gone, issues new
@@ -62,6 +64,15 @@ records the hash of the built extension.
    (`kr/runs/NAME/lab/STAMP/candidate/`), the engine's log (`work/`), the
    findings (`validate/new-findings.json`); `kicad-route blocked RUN_DIR` names
    what lies across a connection left open.
+   Two views say why a board is not done before any log is read. `opens`
+   sorts the open connections by the kind of net: on a four-layer board 50 of
+   56 were pads of the two plane nets, boxed in by signals routed before them,
+   and the count alone had looked like a board too dense for the engine.
+   `passes` lists each engine pass of a cell with its nets, its budget, the
+   processor time it used and the step of the engine's procedure the budget
+   stopped it in. A run stopped in its taps has rescued no net and repaired no
+   plane, and a few seconds of budget move that point: two runs of one board
+   12 s apart came out at 83 and 122 open connections.
 3. Fix the engine for the class, not for the board. Put the smallest board
    that shows the defect into `src/kicad_route/router/tests/` as a regression
    script (see `synth.py`).
