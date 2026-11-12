@@ -1,5 +1,6 @@
 """Which nets get engine passes of their own, and what each pass may spend (plane_nets.py)."""
 import shutil
+import subprocess
 
 import pytest
 
@@ -49,18 +50,28 @@ def test_the_extra_passes_take_no_time_from_the_runs_own_pass_and_the_budget_is_
 
 # ------------------------------------------------------------- in a real run
 
+# Board surgery runs in KiCad's interpreter, as every pcbnew step of the wrapper does: done in the
+# test process it left the interpreter damaged, and a later test died in argparse (SIGSEGV).
+FOUR_LAYERS = """
+import sys
+import pcbnew
+board = pcbnew.LoadBoard(sys.argv[1])
+board.SetCopperLayerCount(4)
+for zone in list(board.Zones()):
+    if zone.GetNetname() == "GND" and not zone.GetIsRuleArea():
+        zone.SetLayer(pcbnew.In1_Cu)
+board.Save(sys.argv[1])
+"""
+
+
 @pytest.fixture(scope="module")
 def plane_dir(tmp_path_factory):
     """The fixture as a four-layer board whose ground pour is a plane on the first inner layer."""
-    import pcbnew
     d = tmp_path_factory.mktemp("plane") / "route_demo"
     shutil.copytree(FIXTURE, d, ignore=shutil.ignore_patterns("generate.py", "__pycache__"))
-    board = pcbnew.LoadBoard(str(d / "route_demo.kicad_pcb"))
-    board.SetCopperLayerCount(4)
-    for zone in board.Zones():
-        if zone.GetNetname() == "GND" and not zone.GetIsRuleArea():
-            zone.SetLayer(pcbnew.In1_Cu)
-    board.Save(str(d / "route_demo.kicad_pcb"))
+    done = subprocess.run([route.pcbnew_python(), "-c", FOUR_LAYERS, str(d / "route_demo.kicad_pcb")],
+                          capture_output=True, text=True, timeout=300)
+    assert done.returncode == 0, done.stderr[-2000:]
     return d
 
 

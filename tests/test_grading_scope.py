@@ -410,10 +410,20 @@ def test_validate_rejects_partial_terminal_split_despite_equal_native_open_count
     assert v["net_completion"]["split_components"][0]["original_terminals"] == ["b1", "b2"]
 
 
+# In KiCad's interpreter, as every pcbnew step of the wrapper runs: with pcbnew loaded in the test
+# process the next test module died in argparse (SIGSEGV), on this pair of modules every time.
+REMOVE_FIRST_TRACK = """
+import sys
+import pcbnew
+board = pcbnew.LoadBoard(sys.argv[1])
+board.Remove(next(iter(board.GetTracks())))
+pcbnew.SaveBoard(sys.argv[1], board, aSkipSettings=True)
+"""
+
+
 @pytest.mark.parametrize("remove_input", [False, True])
 def test_explicit_candidate_context_grades_real_saved_board(tmp_path, monkeypatch, remove_input):
     """An independent candidate is graded against the supplied original reference."""
-    import pcbnew
     from helpers import tree_hash
     from kicad_route import evidence, native_components
 
@@ -427,9 +437,9 @@ def test_explicit_candidate_context_grades_real_saved_board(tmp_path, monkeypatc
     candidate.parent.mkdir()
     route.copy_project(ref, candidate)
     if remove_input:
-        board = pcbnew.LoadBoard(str(candidate / BOARD))
-        board.Remove(next(iter(board.GetTracks())))
-        pcbnew.SaveBoard(str(candidate / BOARD), board, aSkipSettings=True)
+        done = subprocess.run([route.pcbnew_python(), "-c", REMOVE_FIRST_TRACK, str(candidate / BOARD)],
+                              capture_output=True, text=True, timeout=300)
+        assert done.returncode == 0, done.stderr[-2000:]
     before_reference = tree_hash(ref)
     before_candidate = common.sha256(candidate / BOARD)
     ref_facts, _ = route.board_facts(ref / BOARD, run / "reference-facts.json")
