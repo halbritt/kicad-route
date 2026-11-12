@@ -2172,30 +2172,34 @@ def krt_route(work, board, scope, facts, settings):
         return krt_plane_pass(name, work, board_file, argv, env, nets, facts, settings, seconds,
                               extra=closing.LIFT_ARGS, env_extra=closing.LIFT_ENV)
 
+    clock_used = "cpu_s" if settings.get("budget_clock") == "cpu" else "duration_s"
+    first_used = planes_rec["first"]["used_s"] if planes_rec is not None and planes_rec.get("first") else 0
+    spare = settings["budget_s"] - (first_used or 0) - (rec.get(clock_used) or 0)   # of the budget, after the engine
     if proc["status"] == PASS and output.is_file() and not rec.get("stop_requested"):
         # The engine ended on its own with budget to spare: what is left goes to the connections
         # still open, in rounds that are kept only when KiCad's report is the better (closing.py).
-        clock_used = "cpu_s" if settings.get("budget_clock") == "cpu" else "duration_s"
-        first_used = planes_rec["first"]["used_s"] if planes_rec is not None and planes_rec.get("first") else 0
-        # the rounds leave the time of one repair pass, so that the thermal repair after them
-        # is inside the budget too when the engine left enough of it
-        left = settings["budget_s"] - (first_used or 0) - (rec.get(clock_used) or 0) - thermals.PASS_S
+        # The rounds leave the time of one repair pass, so that the pour repair after them
+        # is inside the budget too when the engine left enough of it.
+        left = spare - thermals.PASS_S
         routed_here = set(scope)
 
         def close_again(name, board_file, nets, seconds, strategy):
             return krt_plane_pass(name, work, board_file, argv, env, nets, facts, settings, seconds,
                                   extra=strategy["args"], env_extra=strategy["env"])
 
-        def settle(name, board_file):
-            # a connection closed beside a thermal pad can starve it: repaired before the round is judged
+        def settle(name, board_file, seconds):
+            # a connection closed beside a thermal pad can starve it: repaired before the round is
+            # judged, in the rounds' own time
             if not has_pour:
-                return []
-            return thermals.repair(work, board, before, board_file, thermal_pass, sys.modules[__name__],
-                                   label=name)["commands"]
+                return [], 0
+            settled = thermals.repair(work, board, before, board_file, thermal_pass, sys.modules[__name__],
+                                      label=name, seconds=min(thermals.PASS_S, seconds))
+            return settled["commands"], settled.get("used_s") or 0
         closed = closing.close(work, board, before, output, close_again, left, sys.modules[__name__],
                                in_scope=routed_here.__contains__, settle=settle)
         proc["commands"] += closed.pop("commands")
         proc["closing"] = closed
+        spare -= closed.get("used_s") or 0
         if closed["status"] == "failed":
             proc["reasons"].append(f"open connections not tried again: {closed['reason']}; "
                                    "KiCad's DRC grades the board as routed")
@@ -2206,7 +2210,12 @@ def krt_route(work, board, scope, facts, settings):
         # A pad short of thermal spokes because of this run's own copper: that copper comes out of
         # the corridors the pad needs and its nets are routed once more round them (thermals.py).
         # A board without a pour has no spokes, and is not asked.
-        thermal = thermals.repair(work, board, before, output, thermal_pass, sys.modules[__name__])
+        # All its passes together get what the budget still has and the grace the engine has
+        # after its budget, as far as the engine did not use it. The engine time of a run so
+        # stays inside what its caller already had to allow for an engine stopped at the budget
+        # (budget_grace): a repair is part of the run, not a second run after it.
+        thermal = thermals.repair(work, board, before, output, thermal_pass, sys.modules[__name__],
+                                  seconds=spare + budget_grace(settings["budget_s"]))
         proc["commands"] += thermal.pop("commands")
         proc["thermal_repair"] = thermal
         if thermal["status"] == "failed":

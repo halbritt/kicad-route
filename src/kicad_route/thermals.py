@@ -30,6 +30,7 @@ from . import common, pour, spokes, stitch
 ROUNDS = 2          # a repair can starve a neighbour; one more round takes that, then it stops
 SINGLE_PADS = 6     # pads tried one by one when the repair of all of them together was not kept
 PASS_S = 120        # seconds the engine has for the nets of one round
+MIN_PASS_S = 30     # a pass is not started with less of the repair's time left
 
 
 def starved(report):
@@ -72,9 +73,13 @@ def short_pads(api, work, project_dir, before, board_file, label, folder):
     return report, sorted({failure["pad"] for failure in delta["failures"] if failure["kind"] in KINDS})
 
 
-def repair(work, board, before, output, route_again, api, label=""):
+def repair(work, board, before, output, route_again, api, label="", seconds=PASS_S):
     """Repair the starved thermals of `output` (in place) that this run's copper causes.
     `label` keeps the work files and pass names of one call apart from another's.
+    `seconds` is the engine time the whole repair may take, all its passes together: the time of
+    one pass unless the caller says otherwise. On a large board every pass takes its full time,
+    and five of them had put ten minutes on a run whose budget was already spent. The record's
+    "used_s" is what the passes took of it.
 
     `board` is the work copy beside the working project, `before` the board as it was before
     routing. `route_again(name, board_file, nets, seconds)` routes those nets on that board with
@@ -120,8 +125,12 @@ def repair(work, board, before, output, route_again, api, label=""):
     current, report = output, base
     # First every starved pad at once. When that is not kept, each pad on its own: one net that
     # cannot be routed again then costs its own pad's repair and not the others'.
-    queue, together, index = [None], 0, 0
+    queue, together, index, left = [None], 0, 0, max(0.0, float(seconds))
+    rec["budget_s"], allowed = int(left), left
     while queue:
+        if left < MIN_PASS_S:
+            rec["out_of_time"] = f"{len(queue)} more attempt(s) not started: under {MIN_PASS_S} s of the repair's time left"
+            break
         wanted = queue.pop(0)
         index += 1
         named = {in_plan[pad] for pad in short if pad in in_plan}
@@ -150,7 +159,9 @@ def repair(work, board, before, output, route_again, api, label=""):
         if tag is None:
             return failed(f"could not reserve the spoke corridors (see {reserved['log']})")
         entry["reserved"] = tag["reserved"]
-        routed = route_again(f"thermal-{label + '-' if label else ''}{index}", trial, entry["nets"], PASS_S)
+        share = int(min(PASS_S, left))
+        routed = route_again(f"thermal-{label + '-' if label else ''}{index}", trial, entry["nets"], share)
+        left -= routed.get("used_s") or share
         if routed.get("command"):
             rec["commands"].append(routed["command"])
         kept = False
@@ -182,6 +193,7 @@ def repair(work, board, before, output, route_again, api, label=""):
                 queue.append(None)          # a repair can starve a neighbour: once more for what is left
         elif wanted is None and len(keys) > 1:
             queue = [[key] for key in keys[:SINGLE_PADS]]
+    rec["used_s"] = round(allowed - left, 1)
     if current == output:
         tried = any("nets" in entry and entry["nets"] for entry in rec["rounds"])
         return dict(rec, status="kept" if tried else "none")

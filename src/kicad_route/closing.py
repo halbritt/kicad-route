@@ -62,8 +62,9 @@ def close(work, board, before, output, route_again, seconds, api, in_scope=None,
     returns a record with "status" ("routed", with "output" and "used_s", or "failed", with
     "reason") and "command".
     `in_scope(net)` says whether a net is the run's to route; None takes every net.
-    `settle(name, board_file)` may repair what a round's new copper did to the board (a starved
-    thermal) before the round is judged; it returns the commands it ran.
+    `settle(name, board_file, seconds)` may repair what a round's new copper did to the board (a
+    starved thermal) before the round is judged, in up to `seconds` of engine time; it returns
+    the commands it ran and the engine time it took, which comes out of the rounds' time.
 
     Returns the record; "status" is "none" (nothing open, or no time), "closed" (the board has
     fewer open connections now), "kept" (no round was the better: the board is as it was) or
@@ -109,7 +110,11 @@ def close(work, board, before, output, route_again, seconds, api, in_scope=None,
         if swept["exit_code"] != 0:
             return failed(f"could not look for dangling copper after a closing round (see {swept['log']})")
         if settle is not None:
-            rec["commands"] += settle(f"close-{index + 1}", again)
+            commands, settled_s = settle(f"close-{index + 1}", again, max(0.0, left))
+            rec["commands"] += commands
+            left -= settled_s
+            if settled_s:
+                entry["settle_s"] = round(settled_s, 1)
         after = stitch._graded(api, work, board.parent, again, f"after-{index + 1}", folder="closing-drc")
         if after is None:
             return failed("KiCad's DRC of the board after a closing round failed")
@@ -120,6 +125,7 @@ def close(work, board, before, output, route_again, seconds, api, in_scope=None,
             continue
         entry["result"] = "kept"
         current, report = again, after
+    rec["used_s"] = round(float(seconds) - left, 1)
     if current == output:
         return dict(rec, status="kept" if rec["rounds"] else "none")
     shutil.copyfile(current, output)

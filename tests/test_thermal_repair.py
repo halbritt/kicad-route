@@ -299,3 +299,23 @@ def test_a_pad_that_lost_its_pour_altogether_is_repaired(pour_dir, tmp_path):
                                            **{k: v for k, v in rec.items() if k != "commands"}})
     assert rec["status"] == "repaired" and (rec["starved_before"], rec["starved_after"]) == (1, 0), rec
     assert thermals.short_pads(route, work, board.parent, before, output, "repaired", "test-pour")[1] == []
+
+
+def test_the_repair_has_one_time_allowance_for_all_its_passes(pour_dir, tmp_path):
+    """Each pass takes from the same allowance; with too little left none is started."""
+    work, board, before, output = stage(pour_dir, tmp_path, HUGGING)
+    original = output.read_bytes()
+    asked = []
+
+    def route_again(name, board_file, nets, seconds):
+        asked.append(seconds)
+        return {"status": "failed", "reason": "it wrote no board", "used_s": seconds, "command": None}
+
+    rec = thermals.repair(work, board, before, output, route_again, route, seconds=45)
+    assert asked == [45] and rec["budget_s"] == 45 and rec["used_s"] == 45 and rec["status"] == "kept"
+    rec = thermals.repair(work, board, before, output, route_again, route, seconds=thermals.MIN_PASS_S - 1)
+    assert asked == [45] and rec["rounds"] == [] and "not started" in rec["out_of_time"]
+    assert rec["status"] == "none" and rec["used_s"] == 0 and output.read_bytes() == original
+    # a run that is already past its budget and its grace has nothing for the repair
+    rec = thermals.repair(work, board, before, output, route_again, route, seconds=-40)
+    assert asked == [45] and rec["budget_s"] == 0 and rec["used_s"] == 0 and "not started" in rec["out_of_time"]

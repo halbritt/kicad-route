@@ -595,7 +595,12 @@ then stands.
 `--budget` seconds is when the run should be over, so the built-in router is asked to
 stop before it: a quarter of the budget earlier, at most 120 s. It then leaves the
 pass it is in, skips the passes that remain and writes the board with what it has,
-which on a board of some hundred connections takes a minute or more.
+which on a board of some hundred connections takes a minute or more. An engine still
+running `max(30, budget / 5)` seconds after the budget is killed. That grace is also the
+most engine time a run takes after its budget for another reason: when the run's own
+copper starved a thermal pad, the repair (`docs/spokes.md`) may use what the engine left
+of the budget and of the grace, and nothing beyond. KiCad's checks of the result come
+after that and are not engine time.
 
 `--budget-clock cpu` makes the budget count the processor seconds the built-in router
 used instead of seconds on the clock. The engine is deterministic, so with this clock
@@ -624,7 +629,8 @@ not have: first with searches that may run on, then also with the authority to l
 this run laid when that is what closes a connection in (the engine puts a lifted net back
 when it cannot route it again; copper of the input is locked for the routing and never
 lifted). A round that closes a connection beside a thermal pad can starve the pad, so its
-board gets the thermal repair (`docs/spokes.md`) before it is judged. KiCad's DRC is asked
+board gets the thermal repair (`docs/spokes.md`) before it is judged, in the rounds' own
+time. KiCad's DRC is asked
 about the board before and after each round with the zones refilled, and a round is kept
 only when its board has fewer open connections and a shorter report in all, open
 connections and findings together. Otherwise the board stays as it was. The rounds can

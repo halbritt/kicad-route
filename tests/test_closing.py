@@ -124,14 +124,17 @@ def test_a_round_is_judged_after_what_it_broke_is_repaired(pour_dir, tmp_path):
         edit(board_file, out, track=THROUGH_KEEPOUT if name == "close-1" else [])
         return {"status": "routed", "output": out, "used_s": 20, "command": None}
 
-    def settle(name, board_file):
+    def settle(name, board_file, seconds):
         """The repair's stand-in: the track through the keep-out is laid clear of it instead."""
-        settled.append(name)
+        settled.append((name, seconds))
         if name == "close-1":
             edit(board_file, board_file, drop_unlocked="/SIG_A", track=CLEAR)
-        return [{"argv": ["repair", name]}]
+        return [{"argv": ["repair", name]}], 30
 
     rec = closing.close(work, board, before, output, route_again, 200, route, settle=settle)
-    assert settled == ["close-1", "close-2"]
+    # the repair is offered what the rounds have left, and what it takes comes out of their time
+    assert settled == [("close-1", 180.0), ("close-2", 130.0)]
+    assert [entry["budget_s"] for entry in rec["rounds"]] == [100, 150]
+    assert [entry["settle_s"] for entry in rec["rounds"]] == [30, 30] and rec["used_s"] == 100.0
     assert rec["status"] == "closed" and rec["open_after"] == open_before - 1, rec
     assert rec["rounds"][0]["result"] == "kept" and {"argv": ["repair", "close-1"]} in rec["commands"]

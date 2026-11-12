@@ -154,9 +154,15 @@ pour:
 All such pads are tried together first, and once more for a pad the new routes starved.
 When that is not kept, up to six pads are tried one by one, so that a net which cannot be
 routed again costs its own pad's repair only. The
-repair comes after the routing, like the checks: when the engine left budget unspent it
-runs inside it (the closing rounds before it leave it the time of one pass), and when the
-budget ended the routing, its passes of up to 120 s each run past it. The
+repair comes after the routing, like the checks, and all its passes together have one
+allowance of engine time: what the budget still has (the closing rounds before it leave it
+the time of one pass) and the grace an engine has after its budget, `max(30, budget / 5)`
+seconds, as far as the engine did not use it. The engine time of a whole run so stays
+inside the budget and that grace, which a caller with a deadline already had to allow for
+a run stopped at its budget. A repair inside a closing round takes its time from the
+rounds. With under 30 s left no further pass is started
+(`process.thermal_repair.out_of_time` says how many attempts that cost;
+`budget_s` and `used_s` are the allowance and what the passes took). The
 record is `process.thermal_repair` in the result: `status` (`none`, `repaired`, `kept`
 when no repair was kept, `failed` when a step could not run), the pads short of their pour
 before and after (`starved_before`, `starved_after`), and per round the pads, the nets routed again, what was removed, and KiCad's
