@@ -119,6 +119,7 @@ from . import netnames
 from . import procgroup
 from . import stall
 from . import statemanifest
+from . import plane_nets  # run --plane-nets: the nets that own a plane get engine passes of their own
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot, sibling_names
 
 PASS, FAIL, NOT_RUN, UNSUPPORTED = common.PASS, common.FAIL, common.NOT_RUN, common.UNSUPPORTED
@@ -907,6 +908,12 @@ def validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits=N
     if unidentified:
         routing["unconnected_unidentified"] = [[i.get("description") for i in u.get("items", [])]
                                                for u in unidentified][:20]
+    planes = plane_nets.owners(ref_facts) & scope if ref_facts else set()
+    if planes:
+        # what `run --plane-nets first` is for (plane_nets.py): the result says when it applies
+        on_planes = [u for u in in_scope if nets_of(u) & planes]
+        routing["plane_nets_open"] = {"connections": len(on_planes),
+                                      "nets": sorted({n for u in on_planes for n in nets_of(u) & planes})}
 
     drc = {"violations_total": len(cand["violations"]), "parity_total": len(cand["schematic_parity"])}
     if base is not None:
@@ -1296,6 +1303,8 @@ def run_attempt(args):
             settings["recipe"] = recipe
         if getattr(args, "budget_clock", "wall") == "cpu":
             settings["budget_clock"] = "cpu"
+        if getattr(args, "plane_nets", plane_nets.DEFAULT) != plane_nets.DEFAULT:
+            settings["plane_nets"] = args.plane_nets
     if bus is not None:
         settings["bus"] = bus
     if group_matching is not None:
@@ -1483,10 +1492,23 @@ def run_attempt(args):
     return result
 
 
+def plane_nets_hint(r):
+    """One line when open connections are on plane nets and the run gave those nets no pass of
+    their own; else None."""
+    found = (r.get("routing") or {}).get("plane_nets_open") or {}
+    if not found.get("connections") or "plane_nets" in (r.get("process") or {}):
+        return None
+    return (f"{found['connections']} of the {r['routing'].get('unconnected_in_scope')} open connections are on "
+            f"nets that own a plane ({', '.join(found['nets'][:6])}{', ...' if len(found['nets']) > 6 else ''}): "
+            "`--plane-nets first` routes those nets before the others (docs/routing.md, Plane nets)")
+
+
 def print_result(r):
     rt = r["routing"]
     log(f"[route] routing: {rt['status']}" + (f" ({rt.get('unconnected_in_scope')} unconnected in scope)"
                                                if rt["status"] == INCOMPLETE else ""))
+    if plane_nets_hint(r):
+        log(f"[route] NOTE: {plane_nets_hint(r)}")
     val = r["validation"]
     log(f"[route] validation: {val['status']}" + (f" ({'; '.join(val['reasons'][:4])})" if val["reasons"] else ""))
     if r.get("candidate"):
@@ -1525,6 +1547,8 @@ def render_result(r):
                   "```json", json.dumps(r["validation"]["drc"], indent=1), "```", ""]
     if r["unsupported"]:
         lines += ["Unsupported or approximated by this backend:", ""] + [f"- {u}" for u in r["unsupported"]] + [""]
+    if plane_nets_hint(r):
+        lines += [plane_nets_hint(r)[0].upper() + plane_nets_hint(r)[1:] + ".", ""]
     lines += blocked.render_md(r["routing"].get("blocked_by"))
     if r["routing"].get("stats"):
         lines += ["Route statistics:", "", "```json", json.dumps(r["routing"]["stats"], indent=1), "```"]
@@ -1562,10 +1586,11 @@ def process_cpu_s(pid):
 
 
 def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, grace=None, monitor=None,
-                 clock="wall", wall_factor=CPU_CLOCK_WALL_FACTOR):
+                 clock="wall", wall_factor=CPU_CLOCK_WALL_FACTOR, reserve=None):
     """Run a backend with a budget. A backend with a stop file is asked for a
-    clean stop stop_reserve(budget) before the budget ends; a grace period after the budget
-    it is killed. Without a stop file it runs to the budget and is killed 5 s later.
+    clean stop stop_reserve(budget) before the budget ends (`reserve` seconds, when given); a
+    grace period after the budget it is killed. Without a stop file it runs to the budget and
+    is killed 5 s later.
     A stall.Monitor tails the log for heartbeats and, with a stall limit, treats
     no progress for that long like the budget (with a grace of at most the limit).
     The backend leads its own process group: terminate/kill signal the whole group,
@@ -1581,7 +1606,7 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
     if monitor is not None:
         env.setdefault("PYTHONUNBUFFERED", "1")  # line-timely log for the heartbeat tail
     grace = grace if grace is not None else max(30, budget // 5)
-    ask_at = budget - stop_reserve(budget) if stop_file else budget
+    ask_at = budget - (stop_reserve(budget) if reserve is None else reserve) if stop_file else budget
     log_path.parent.mkdir(parents=True, exist_ok=True)
     rec = {"argv": [str(a) for a in argv], "cwd": common.rel(cwd), "log": common.rel(log_path),
            "env": {k: v for k, v in (env_extra or {}).items()}, "budget_s": budget}
@@ -1837,6 +1862,50 @@ def krt_unsupported_rules(text):
                    if KRT_RULE_SUBJECT.search(line) and KRT_RULE_NOT_APPLIED.search(line)})
 
 
+def krt_plane_pass(name, work, board, argv, env, nets, facts, settings, budget, extra=(), reserve=None):
+    """One more engine pass over the plane nets alone (plane_nets.py): the run's own command
+    with `nets` as its scope (and `extra` options), reading the work board and writing
+    work/krt-<name>/. Returns the pass's record; its "status" is "routed" (with "output", the
+    board it wrote) or "failed"."""
+    out_dir = work / f"krt-{name}"
+    out_dir.mkdir(parents=True)
+    output, stop, log_path = out_dir / board.name, work / f"STOP-{name}", work / f"krt-{name}.log"
+    command = list(argv)
+    command[2] = board
+    command[command.index("--output") + 1] = output
+    command[command.index("--json-out") + 1] = out_dir / "summary.json"
+    start = command.index("--nets") + 1     # the patterns end where the next option starts
+    end = next((k for k in range(start, len(command)) if str(command[k]).startswith("--")), len(command))
+    command[start:end] = netnames.krt_patterns(nets, facts["nets"])
+    command += list(extra)
+    clock = settings.get("budget_clock", "wall")
+    # the configuration record is of the run's own pass: this one writes none over it
+    pass_env = {k: v for k, v in env.items() if k != "KICAD_EFFECTIVE_CONFIG_REQUEST"}
+    pass_env["KICAD_STOP_FILE"] = str(stop)
+    log(f"[route] plane nets, {name} pass: {', '.join(nets[:6])}{', ...' if len(nets) > 6 else ''} "
+        f"alone, up to {budget} s")
+    rec = run_budgeted(command, work, log_path, budget, pass_env, stop_file=stop,
+                       monitor=stall.Monitor("krt", log_path, settings.get("stall_s")), clock=clock, reserve=reserve)
+    record = {"status": "routed", "budget_s": budget,
+              "used_s": rec.get("cpu_s") if clock == "cpu" else rec.get("duration_s"),
+              "exit_code": rec.get("exit_code"), "log": rec.get("log"), "command": rec}
+    if rec.get("error"):
+        reason = f"the engine could not start ({rec.get('detail')})"
+    elif rec.get("killed"):
+        reason = f"it did not stop at its {budget} s budget and was killed"
+    elif rec.get("exit_code") not in (0, 3):     # 3: --strict-sizes, a board was written
+        reason = f"it exited {rec.get('exit_code')} (see {rec.get('log')})"
+    elif not output.is_file():
+        reason = f"it wrote no board (see {rec.get('log')})"
+    else:
+        summary = load_json(out_dir / "summary.json") or {}
+        record.update(output=output, vias=summary.get("total_vias"))
+        log(f"[route] plane nets, {name} pass: done in {record['used_s']} s")
+        return record
+    log(f"[route] NOTE: plane nets, {name} pass: {reason}")
+    return dict(record, status="failed", reason=reason)
+
+
 def krt_route(work, board, scope, facts, settings):
     if settings.get("diff_pairs"):
         return diff_pairs.route(work, board, scope, facts, settings, sys.modules[__name__])
@@ -1888,6 +1957,17 @@ def krt_route(work, board, scope, facts, settings):
             return {"status": FAIL, "reasons": [f"could not lock existing copper (see {lr['log']})"],
                     "commands": [common.public(lr)], "exit_code": None, "output_board": None}
     env.update(krt_artwork_environment(work, board, facts))
+    budget = settings["budget_s"]
+    planes_rec = None
+    own_planes = plane_nets.nets(scope, facts, settings)
+    if own_planes:
+        # after the lock: what this pass draws is the run's own copper, and the input's stays locked
+        first = krt_plane_pass("first", work, board, argv, env, own_planes, facts, settings,
+                               plane_nets.first_budget(budget), extra=plane_nets.FIRST_PASS_ARGS)
+        planes_rec = {"nets": own_planes, "first": first, "last": None}
+        if first["status"] == "routed":
+            shutil.copyfile(first.pop("output"), board)
+        budget = plane_nets.main_budget(budget, first["used_s"])
     # An environment request preserves CLI compatibility with older owned runtimes.
     # Such runtimes ignore it and remain explicitly unqualified for this evidence.
     (work / configuration_evidence.MANIFEST).unlink(missing_ok=True)
@@ -1898,7 +1978,7 @@ def krt_route(work, board, scope, facts, settings):
     common.write_json(request_path, config_request)
     config_request['request_sha256'] = common.sha256(request_path)
     env['KICAD_EFFECTIVE_CONFIG_REQUEST'] = str(request_path.resolve())
-    rec = run_budgeted(argv, work, work / "krt.log", settings["budget_s"], env, stop_file=stop,
+    rec = run_budgeted(argv, work, work / "krt.log", budget, env, stop_file=stop,
                        monitor=stall.Monitor("krt", work / "krt.log", settings.get("stall_s")),
                        clock=settings.get("budget_clock", "wall"))
     text = Path(work / "krt.log").read_text(errors="replace")
@@ -1907,6 +1987,12 @@ def krt_route(work, board, scope, facts, settings):
             "backend_report": None, "output_board": output,
             # rules KRT says it did not apply; KiCad DRC still grades them
             "unsupported_reported": krt_unsupported_rules(text)}
+    if planes_rec is not None:
+        proc["commands"].insert(0, planes_rec["first"].pop("command"))
+        proc["plane_nets"] = planes_rec
+        if planes_rec["first"]["status"] != "routed":
+            proc["reasons"].append(f"plane nets, first pass: {planes_rec['first']['reason']}; "
+                                   "they were routed with the others")
     if report:
         dr = report.get("design_rules", {})
         proc["backend_report"] = {k: report.get(k) for k in (
@@ -1952,6 +2038,29 @@ def krt_route(work, board, scope, facts, settings):
                 "meaning": "Geometric grouping and corridor search; no electrical bus identity or timing claim"}
     proc['effective_configuration'] = configuration_evidence.inspect(
         work / configuration_evidence.MANIFEST, config_request, output)
+    if (planes_rec is not None and proc["status"] == PASS and rec.get("stop_requested")
+            and tagged_json(text, "JSON_ORACLE") is None):
+        # The budget ended the run's own pass before the engine's closing repair of the planes
+        # (which ends with its JSON_ORACLE record). The plane nets get what is left of the
+        # budget on the routed board.
+        used = (rec.get("cpu_s") if settings.get("budget_clock") == "cpu" else rec.get("duration_s")) or 0
+        left = plane_nets.last_budget(settings["budget_s"], planes_rec["first"]["used_s"], used)
+        if left is None:
+            planes_rec["last"] = {"status": "skipped", "reason": "the run's own pass left no time for it"}
+        else:
+            shutil.copyfile(output, board)
+            last = krt_plane_pass("last", work, board, argv, env, own_planes, facts, settings, left,
+                                  reserve=plane_nets.last_reserve(left))
+            proc["commands"].append(last.pop("command"))
+            planes_rec["last"] = last
+            if last["status"] == "routed":
+                # The run's own pass keeps its board (work/krt-out, what its configuration record
+                # is of); the board the run delivers is the last pass's.
+                output = last.pop("output")
+                proc["output_board"] = output
+            else:
+                proc["reasons"].append(f"plane nets, last pass: {last['reason']}; "
+                                       "the board is as the routing left it")
     if locks is not None and proc["status"] == PASS:
         rr = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "locks.py", "restore", output, work / "locks.json"],
                          work, work / "restore-locks.log", timeout=600)
@@ -2959,6 +3068,11 @@ def add_route_args(p):
                    help="builtin only: the engine's cost settings for a class of board (docs/routing.md). "
                         "auto picks by the board's copper layer count (two layers: far fewer vias); "
                         "--backend-arg still overrides a recipe")
+    p.add_argument("--plane-nets", choices=plane_nets.MODES, default=plane_nets.DEFAULT,
+                   help="builtin only: together (default) routes every net in one pass in the engine's own "
+                        "order; first routes the nets that own a plane (a copper zone on an inner layer) in "
+                        "a pass of their own before the others, for a board whose plane pads the signals box "
+                        "in. A result names such a board (routing.plane_nets_open; docs/routing.md)")
     p.add_argument("--protect", choices=["existing", "locked", "human"], default="existing",
                    help="existing (default): all input copper must survive; locked: only locked copper, "
                         "the backend may rip up unlocked copper; human: on a kicad-route candidate, only "

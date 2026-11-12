@@ -28,7 +28,10 @@ Rules of thumb:
 
 - **Exit 0 is the only "adopt it" signal.** Everything else needs a decision.
 - **Exit 2 is good news with a to-do list.** The copper that exists is clean;
-  some connections are still open. Read `unrouted_nets` and `blocked_by`.
+  some connections are still open. Read `unrouted_nets` and `blocked_by`. On a board
+  with planes, `routing.plane_nets_open` says how many of the open connections are on
+  nets that own a plane; when most are, route again with `--plane-nets first`
+  ([routing.md](../routing.md#plane-nets)).
 - **Exit 3 means "do not adopt", not "the router is bad".** Often it is a rule the
   backend could not see (`unsupported`) and a tightening option fixes it.
 - **Exit 1 and exit 4 are not verdicts about the board.** The backend did not

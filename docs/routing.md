@@ -129,7 +129,7 @@ exist; no `latest` link):
 | Path | Contents |
 |---|---|
 | `reference/<project>/` | untouched copy of the input (board, `.kicad_pro`, `.kicad_dru`, every reachable schematic sheet, library tables, local libraries; `${KIPRJMOD}/../<dir>` libraries linked beside it as `reference/<dir>`, and the same links are made beside `work/input/` and `candidate/`; `--rev` takes the project, its in-repository `../<dir>` libraries and checked-out submodules (at their pinned commits) from that revision, never the working tree. A `../<dir>` outside the repository is not pinned by the commit: `snapshot.json` `library_links` records it as `pinned: false` with its own git HEAD and uncommitted files) |
-| `work/` | backend scratch: its own output files and project writes (recorded, never used), `krt.log` / `freerouting.log`, `board.dsn` / `board.ses`, result JSON |
+| `work/` | backend scratch: its own output files and project writes (recorded, never used), `krt.log` / `freerouting.log` (and `krt-first.log`, `krt-first/`, `krt-last.log`, `krt-last/` for the passes plane nets get of their own), `board.dsn` / `board.ses`, result JSON |
 | `candidate/<project>/` | the reference project with the routed board; zones refilled and saved; open it in KiCad |
 | `facts/reference-facts.json` | engineering facts of the input board (`kicad/facts.py`) |
 | `validate/` | candidate DRC (`candidate-drc.json`), `new-findings.json`, `preservation.json`, `candidate-facts.json`, `candidate-pour.json` and `pour-integrity.json` |
@@ -338,6 +338,76 @@ keep-out wall) comes back with a starved thermal on a ground pad it cannot conne
 where the engine's costs leave none, and `run` does not repair a starved thermal
 itself. A caller that does (agent-ee's placement job reruns with
 `--reserve-spoke-pad`) should pass `--recipe auto`.
+
+### Plane nets
+
+A net that owns a plane (a copper zone on an inner layer) is connected through that
+plane: each surface-mount pad of it needs a via beside it, and beside a fine-pitch part
+the room for that via is room the neighbouring signal pins want as well. The built-in
+engine takes its nets in an order of its own and reaches the pads of such nets after
+the signals. On a four-layer board with a 100-pin and a 144-pin QFP at 0.5 mm, 50 of
+the 56 connections a 300 s run left open were pads of the 3.3 V and ground planes,
+boxed in by signal tracks, and one hour of routing still left 17 of them. A designer
+places those vias before any signal is routed and looks at the planes again when the
+signals are in.
+
+`run --plane-nets first` does both with the engine itself, inside the run's budget
+(`plane_nets.py`):
+
+| Pass | Nets | Board | Budget |
+|---|---|---|---|
+| first | the plane nets of the scope | as it came | up to a third; what it does not use goes to the next pass |
+| the run's own | the whole scope | with the first pass's copper | all that is left |
+| last | the plane nets again | as routed | what the stop request leaves; only when the budget ended the run's own pass before the engine's closing repair of the planes |
+
+All three are the same engine command with the same options and rules; only the nets
+differ. The last pass exists because of what the budget does: asked to stop, the engine
+skips the passes it has not reached, and its closing repair of the planes is the last of
+them, so a plane that signal tracks cut off from a pad stays cut. The run's own pass is
+asked to stop a quarter of its budget before the end (at most 120 s) and is out some
+ten seconds later, so the last pass costs the signals nothing; it is not started with
+less than ten seconds, and a last pass that is stopped or killed leaves the board the
+run already had.
+
+It is an option and not the default, because the passes cost what they take from the
+signals. The router lab has three four-layer boards whose scope holds plane nets:
+
+| Board | one pass, 300 s | `first`, 300 s | one pass, 600 s | `first`, 600 s |
+|---|---|---|---|---|
+| 478 connections, two QFPs at 0.5 mm | 56 open, 50 of them plane pads | 14 open, none a plane pad | 23 open | 12 open |
+| 316 connections | 1 open, `pour_integrity` fails | 6 open, `pour_integrity` passes | 1 open, `pour_integrity` fails | 4 open, `pour_integrity` passes |
+| 352 connections, two ground planes | 83 open | 123 open | 78 open | 76 open |
+
+(Processor seconds; no new DRC error in any of the twelve runs. The 123 is the budget:
+the run's own pass was stopped in the engine's taps three seconds earlier than a run
+that came out at 83, and at 600 s the two orders are level.)
+
+The first board is the one whose open connections were plane pads. On the second the
+plane pads were never the problem: the vias placed first cost three to five signal
+connections, with time to spare as well, and keep four pads in contact with their pour.
+So a result says which kind of board it has:
+`routing.plane_nets_open` counts the open connections on plane nets and names the nets,
+and when there are any and the run gave them no pass of their own, the run's last
+lines and `RESULT.md` say that `--plane-nets first` is for this.
+
+Only inner layers count. On a two-layer board a pour fills what the tracks leave, and
+its nets routed first take the room of thermal spokes: a board that came out clean in
+one pass had a starved thermal with its two pour nets first, another had seven where
+it had one, a third 17 open connections where it had 3.
+
+The passes are in the result as `process.plane_nets` (`nets`, and for `first` and
+`last` the budget, the time used and the status); their commands are in
+`process.commands` in the order they ran, their logs are `work/krt-first.log` and
+`work/krt-last.log`, their boards `work/krt-first/` and `work/krt-last/`. When the last
+pass ran, its board is the one the run delivers, and `work/krt-out/` keeps the board of
+the run's own pass. The extra passes are a preparation and a repair: when one fails or
+writes no board, the run goes on with what it has and says so in `process.reasons`.
+There is one pass, whatever was asked, when no net of the scope owns a plane, when
+every net of the scope does, and in a run with `--bus` or length matching, whose
+options name nets the extra passes would not have in their scope. Differential-pair
+runs and the Freerouting backend are not affected. The option is recorded as
+`settings.plane_nets`. The configuration record (`process.effective_configuration`) is
+of the run's own pass.
 
 ### Net classes and the board's minimums
 
