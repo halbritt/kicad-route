@@ -229,6 +229,7 @@ def test_when_the_budget_ends_the_routing_the_plane_nets_get_a_last_pass_on_the_
         calls.append({"nets": nets_of({"argv": argv}), "budget": budget, "log": log_path.name,
                       "quick": "--quick" in argv, "reserve": kwargs.get("reserve"), "grace": kwargs.get("grace"),
                       "repair_only": "--skip-routing" in argv and env.get("KICAD_FINALIZE_ONLY") == "1",
+                      "may_rip": env.get("KICAD_FINALIZE_RIP"),
                       "any_of_it": "--skip-routing" in argv or "KICAD_FINALIZE_ONLY" in env})
         log_path.write_text("")
         return {"argv": argv, "exit_code": 0, "log": log_path.name, "cpu_s": 10.0, "duration_s": 12.0,
@@ -246,6 +247,9 @@ def test_when_the_budget_ends_the_routing_the_plane_nets_get_a_last_pass_on_the_
     # the first two are the engine's whole procedure, the last its closing repair alone
     assert not any(c["quick"] for c in calls)
     assert [c["repair_only"] for c in calls] == [False, False, True] and not any(c["any_of_it"] for c in calls[:2])
+    # under --protect existing the engine may rip nothing in the first two passes; the repair may rip
+    # what boxes a plane pad in (the input's copper is locked, and a net with locked copper is never ripped)
+    assert [c["may_rip"] for c in calls] == ["0", "0", "1"]
     planes = proc["plane_nets"]
     assert planes["first"]["status"] == planes["last"]["status"] == "routed" and "output" not in planes["last"]
     assert planes["last"]["nets"] == ["GND"]

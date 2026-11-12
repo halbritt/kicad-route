@@ -61,7 +61,15 @@ FIRST_PASS_ARGS = ()
 # nets, given the same time, left 42, 30 and 96: it spent the time in its main loop and was
 # stopped before its repair once more.
 LAST_PASS_ARGS = ("--skip-routing",)
-LAST_PASS_ENV = {"KICAD_FINALIZE_ONLY": "1"}
+# The repair may rip what boxes a plane pad in (KICAD_FINALIZE_RIP): a track this run laid
+# across the only place for the pad's via goes, the pad gets its tap, and the ripped net is
+# reconnected at once. The run's own pass has that authority off under --protect existing.
+# Here it is safe to give: the input's copper is locked for the routing, the engine's repair
+# never rips a net that has locked copper (its #521 rule, fail-safe), and the candidate is
+# still graded against the input afterwards. On the board with 50 boxed-in plane pads,
+# captured after its own pass (59 connections open): 17 open with the authority, 25 without,
+# all six open 3.3 V pads tapped; the two other captured boards came out the same either way.
+LAST_PASS_ENV = {"KICAD_FINALIZE_ONLY": "1", "KICAD_FINALIZE_RIP": "1"}
 # Its time is what the run has left before a backend would be killed: the budget and the grace
 # period after it, less what the passes before it used. (Measured against the budget alone it
 # had 16 s on the first of those boards, whose own pass took 59 s to leave the pass it was

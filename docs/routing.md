@@ -363,7 +363,10 @@ signals are in.
 All three are the same engine command with the same options and rules. The first two
 differ in their nets only and are the engine's whole procedure. The last is the engine's
 closing repair alone, on the copper the board has: the taps of plane pads, the joins of
-pour regions, the recheck against KiCad and the reconciliation.
+pour regions, the recheck against KiCad and the reconciliation. The repair may rip a
+track of this run that boxes a plane pad in, and reconnects the ripped net at once. It
+never rips a net that has copper of the input: under `--protect existing` that copper is
+locked for the routing, and the engine does not lift a net with locked copper.
 
 The last pass does not wait for the option: every run has it, for every net of its scope
 that owns a zone on any layer. It exists because of what the budget does: asked to stop,
@@ -380,7 +383,9 @@ was stopped, has no last pass.
 Three boards were captured where the budget had stopped the routing, with 54, 32 and 96
 connections open. The repair alone left 25, 30 and 94. The engine's whole procedure on
 the zone nets, in the same time, left 42, 30 and 96: it spent the time in its main loop
-and was stopped before its repair a second time.
+and was stopped before its repair a second time. With the authority to rip, the first
+of those boards came out at 17 open instead of 25 (its 3.3 V plane pads all tapped), the
+two others unchanged.
 
 It is an option and not the default, because the passes cost what they take from the
 signals. The router lab has three four-layer boards whose scope holds plane nets:
