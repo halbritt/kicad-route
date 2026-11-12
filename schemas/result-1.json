@@ -283,6 +283,18 @@
             "grid_step_mm": {
               "type": "number",
               "minimum": 1e-06
+            },
+            "grid_basis": {
+              "type": "object",
+              "required": [
+                "pads",
+                "on_0.1",
+                "on_0.127"
+              ],
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              }
             }
           }
         },

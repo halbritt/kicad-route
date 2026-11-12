@@ -45,6 +45,19 @@ BASE_RESULT_KEYS = {
     "sandbox", "schema", "scope", "settings", "tool_identity", "tool_versions",
     "unsupported", "validation",
 }
+# The settings of a run that is given only its input, its nets and its budget. A caller may
+# compare the settings with exactly what it asked for (agent-ee's routing adapter does), so a key
+# added to a default run is a change for that caller even though it keeps the major version: when
+# this set grows, say so in docs/interface.md's history. cfd6ef2 added grid_basis without that,
+# and every builtin attempt through that adapter was refused.
+BASE_SETTINGS_KEYS = {
+    "backend", "backend_args", "backend_env", "barrier", "budget_s", "clearance_margin_mm",
+    "default_clearance_mm", "max_iterations", "mode", "passes", "pour_area_loss_pct",
+    "pour_min_spokes", "protect", "reserve_spokes", "rule_floor_sha256", "stall_s",
+}
+SELECTED_NETS_SETTINGS_KEYS = {"net_patterns", "netclasses"}
+# What a builtin run adds about the grid it searched on (docs/routing.md).
+OWN_GRID_SETTINGS_KEYS = {"grid_basis", "grid_step_mm"}
 
 
 def kr(*args, cwd, env=None, timeout=900):
@@ -470,6 +483,12 @@ def test_json_runs_with_explicit_run_dirs_do_not_interfere():
                         if name == "builtin" and res["process"]["status"] == "PASS" else set())
         assert set(res) == expected_keys
         assert not {"diff_pairs", "pairs"} & res["settings"].keys()
+        settings = set(res["settings"])
+        assert BASE_SETTINGS_KEYS <= settings
+        added = settings - BASE_SETTINGS_KEYS - SELECTED_NETS_SETTINGS_KEYS
+        assert added <= (OWN_GRID_SETTINGS_KEYS if name == "builtin" else set()), added
+        assert ("grid_basis" in settings) == (name == "builtin")
+        assert attempt["settings"] == res["settings"]
         RESULTS.validate(res)
         check_invariants(res)
         assert not (rd.parent / "latest").exists()

@@ -261,7 +261,7 @@ changing its meaning needs `/2`.
 - `settings` keys: `backend`, `budget_s`, `protect`, `mode`, `max_iterations`, `passes`,
   `default_clearance_mm`, `clearance_margin_mm`, `pour_area_loss_pct`, `pour_min_spokes`,
   `backend_args`, `backend_env`, `reserve_spokes`, `stall_s`, `net_patterns`,
-  `netclasses`, `rule_floor_sha256`
+  `netclasses`, `rule_floor_sha256`, `grid_step_mm`, `grid_basis`
 - `scope.mode`
 - `unsupported` (a list of strings)
 - `process.status`, `process.reasons`
@@ -321,6 +321,19 @@ and every other process detail, `routing.stats`, the `routing.blocked_by` summar
 - This page keeps the history below.
 
 ### History
+
+- **1, the run's own search grid** (2026-11-12, `cfd6ef2`): a builtin run that is given
+  no `--grid-step` records `settings.grid_basis`, the connected pads it counted on the
+  0.1 mm and on the 5 mil lattice (`pads`, `on_0.1`, `on_0.127`). When most pads sit on
+  the 5 mil lattice it also records `settings.grid_step_mm` 0.127 and
+  `settings.reserve_spokes` 0, the grid and the spoke reservation it chose
+  ([routing](routing.md#search-grid-and-keep-outs)). `grid_step_mm` was written before
+  only when the caller named a step. These are additions, so the version stays `/1`,
+  but the settings of a default builtin run have one key more than before, and three
+  values a caller did not give on a board drawn in mils: a caller that compares
+  `settings` with exactly what it asked for has to allow for them.
+  `tests/test_interface_contract.py` now holds the settings keys of a default run, so
+  the next addition shows up there.
 
 - **2, safe campaigns** (2026-10-21): `route-campaign/2` publishes only eligible
   candidates. Invalid-only campaigns now return exit 1 with `best: null` and
