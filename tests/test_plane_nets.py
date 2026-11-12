@@ -123,7 +123,10 @@ def test_a_result_with_open_plane_pads_says_what_to_ask_for_unless_it_was_asked(
     hint = route.plane_nets_hint(result)
     assert hint.startswith("50 of the 56 open connections are on nets that own a plane (+3.3V, GND)")
     assert "--plane-nets first" in hint
-    assert route.plane_nets_hint({**result, "process": {"plane_nets": {"nets": ["GND"]}}}) is None
+    asked = {"plane_nets": {"nets": ["GND"], "first": {"status": "routed"}, "last": None}}
+    assert route.plane_nets_hint({**result, "process": asked}) is None
+    # a last pass alone is no pass before the others: the option is still the answer
+    assert route.plane_nets_hint({**result, "process": {"plane_nets": {"nets": [], "first": None, "last": {"status": "routed"}}}})
     assert route.plane_nets_hint({"routing": {"plane_nets_open": {"connections": 0, "nets": []}}, "process": {}}) is None
     assert route.plane_nets_hint({"routing": {}, "process": {}}) is None
 
@@ -206,6 +209,7 @@ def test_when_the_budget_ends_the_routing_the_plane_nets_get_a_last_pass_on_the_
     assert not any(c["quick"] for c in calls)              # every pass is the engine's whole procedure
     planes = proc["plane_nets"]
     assert planes["first"]["status"] == planes["last"]["status"] == "routed" and "output" not in planes["last"]
+    assert planes["last"]["nets"] == ["GND"]
     assert [c["log"] for c in proc["commands"] if c.get("log", "").startswith("krt")] == [
         "krt-first.log", "krt.log", "krt-last.log"]
     # the run delivers the last pass's board; its own pass's board stays where its configuration record says
@@ -273,3 +277,63 @@ def test_no_last_pass_when_the_runs_own_pass_left_under_ten_seconds(plane_dir, t
     proc = route.krt_route(work, board, sorted(n for n in facts["nets"] if n), facts, settings)
     assert calls == ["krt-first.log", "krt.log"] and proc["plane_nets"]["last"]["status"] == "skipped"
     assert proc["status"] == "PASS" and proc["output_board"] == work / "krt-out" / "route_demo.kicad_pcb"
+
+
+def stopped_engine(calls, oracle=False):
+    def engine(argv, cwd, log_path, budget, env, **kwargs):
+        argv = [str(a) for a in argv]
+        shutil.copyfile(argv[2], argv[argv.index("--output") + 1])
+        calls.append((log_path.name, nets_of({"argv": argv}), budget))
+        log_path.write_text('JSON_ORACLE: {"available": true}\n' if oracle else "")
+        return {"argv": argv, "exit_code": 0, "log": log_path.name, "cpu_s": 10.0, "duration_s": 12.0,
+                "stop_requested": log_path.name == "krt.log"}
+    return engine
+
+
+def test_without_the_option_a_stopped_run_still_gives_its_zone_nets_the_last_pass(tmp_path, monkeypatch):
+    """The two-layer fixture: its ground net owns a pour on the back, no plane. No first pass, and
+    when the budget ends the routing before the engine's closing repair, the pour net gets the rest."""
+    work = tmp_path / "work"
+    shutil.copytree(FIXTURE, work / "input" / "route_demo", ignore=shutil.ignore_patterns("generate.py", "__pycache__"))
+    board = work / "input" / "route_demo" / "route_demo.kicad_pcb"
+    facts, _ = route.board_facts(board, tmp_path / "facts.json")
+    calls = []
+    monkeypatch.setattr(route, "run_budgeted", stopped_engine(calls))
+    settings = {"protect": "existing", "budget_s": 100, "budget_clock": "cpu", "mode": "all",
+                "backend_args": [], "backend_env": {}}
+    proc = route.krt_route(work, board, sorted(n for n in facts["nets"] if n), facts, settings)
+    assert calls == [("krt.log", ["*"], 100), ("krt-last.log", ["GND"], 90)]
+    planes = proc["plane_nets"]
+    assert planes["first"] is None and planes["nets"] == [] and planes["last"]["status"] == "routed"
+    assert planes["last"]["nets"] == ["GND"] and proc["output_board"] == work / "krt-last" / "route_demo.kicad_pcb"
+    # open plane pads would still be answered with the option: this run gave them no pass before the others
+    assert route.plane_nets_hint({"routing": {"unconnected_in_scope": 3, "plane_nets_open": {"connections": 2, "nets": ["GND"]}},
+                                  "process": proc}) is not None
+
+
+def test_no_last_pass_when_the_stopped_run_had_made_its_own_repair_or_owns_no_zone(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    shutil.copytree(FIXTURE, work / "input" / "route_demo", ignore=shutil.ignore_patterns("generate.py", "__pycache__"))
+    board = work / "input" / "route_demo" / "route_demo.kicad_pcb"
+    facts, _ = route.board_facts(board, tmp_path / "facts.json")
+    settings = {"protect": "existing", "budget_s": 100, "mode": "all", "backend_args": [], "backend_env": {}}
+    calls = []
+    monkeypatch.setattr(route, "run_budgeted", stopped_engine(calls, oracle=True))
+    proc = route.krt_route(work, board, sorted(n for n in facts["nets"] if n), facts, settings)
+    assert [c[0] for c in calls] == ["krt.log"] and "plane_nets" not in proc
+    # a scope without the pour net: nothing to repair
+    work2 = tmp_path / "work2"
+    shutil.copytree(FIXTURE, work2 / "input" / "route_demo", ignore=shutil.ignore_patterns("generate.py", "__pycache__"))
+    calls.clear()
+    monkeypatch.setattr(route, "run_budgeted", stopped_engine(calls))
+    signals = sorted(n for n in facts["nets"] if n and n != "GND")
+    proc = route.krt_route(work2, work2 / "input" / "route_demo" / "route_demo.kicad_pcb", signals, facts,
+                           dict(settings, mode="selected"))
+    assert [c[0] for c in calls] == ["krt.log"] and "plane_nets" not in proc
+
+
+def test_the_zone_nets_of_the_last_pass_are_the_owners_of_any_zone_in_the_scope():
+    assert plane_nets.zone_owners(FACTS) == {"GND", "+3V3", "/SW"}
+    assert plane_nets.repair_nets(SCOPE, FACTS, {}) == ["+3V3", "/SW", "GND"]
+    assert plane_nets.repair_nets(["/A", "/B"], FACTS, {}) == []
+    assert plane_nets.repair_nets(SCOPE, FACTS, {"bus": {}}) == [] and plane_nets.repair_nets(SCOPE, FACTS, {"length_match": {}}) == []

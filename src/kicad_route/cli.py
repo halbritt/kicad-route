@@ -1496,7 +1496,7 @@ def plane_nets_hint(r):
     """One line when open connections are on plane nets and the run gave those nets no pass of
     their own; else None."""
     found = (r.get("routing") or {}).get("plane_nets_open") or {}
-    if not found.get("connections") or "plane_nets" in (r.get("process") or {}):
+    if not found.get("connections") or ((r.get("process") or {}).get("plane_nets") or {}).get("first"):
         return None
     return (f"{found['connections']} of the {r['routing'].get('unconnected_in_scope')} open connections are on "
             f"nets that own a plane ({', '.join(found['nets'][:6])}{', ...' if len(found['nets']) > 6 else ''}): "
@@ -1882,7 +1882,8 @@ def krt_plane_pass(name, work, board, argv, env, nets, facts, settings, budget, 
     # the configuration record is of the run's own pass: this one writes none over it
     pass_env = {k: v for k, v in env.items() if k != "KICAD_EFFECTIVE_CONFIG_REQUEST"}
     pass_env["KICAD_STOP_FILE"] = str(stop)
-    log(f"[route] plane nets, {name} pass: {', '.join(nets[:6])}{', ...' if len(nets) > 6 else ''} "
+    what = "plane nets" if name == "first" else "zone nets"
+    log(f"[route] {what}, {name} pass: {', '.join(nets[:6])}{', ...' if len(nets) > 6 else ''} "
         f"alone, up to {budget} s")
     rec = run_budgeted(command, work, log_path, budget, pass_env, stop_file=stop,
                        monitor=stall.Monitor("krt", log_path, settings.get("stall_s")), clock=clock, reserve=reserve)
@@ -1900,9 +1901,9 @@ def krt_plane_pass(name, work, board, argv, env, nets, facts, settings, budget, 
     else:
         summary = load_json(out_dir / "summary.json") or {}
         record.update(output=output, vias=summary.get("total_vias"))
-        log(f"[route] plane nets, {name} pass: done in {record['used_s']} s")
+        log(f"[route] {what}, {name} pass: done in {record['used_s']} s")
         return record
-    log(f"[route] NOTE: plane nets, {name} pass: {reason}")
+    log(f"[route] NOTE: {what}, {name} pass: {reason}")
     return dict(record, status="failed", reason=reason)
 
 
@@ -1964,6 +1965,7 @@ def krt_route(work, board, scope, facts, settings):
     budget = settings["budget_s"]
     planes_rec = None
     own_planes = plane_nets.nets(scope, facts, settings)
+    repair_nets = plane_nets.repair_nets(scope, facts, settings)
     if own_planes:
         # after the lock: what this pass draws is the run's own copper, and the input's stays locked
         first = krt_plane_pass("first", work, board, argv, env, own_planes, facts, settings,
@@ -2042,28 +2044,32 @@ def krt_route(work, board, scope, facts, settings):
                 "meaning": "Geometric grouping and corridor search; no electrical bus identity or timing claim"}
     proc['effective_configuration'] = configuration_evidence.inspect(
         work / configuration_evidence.MANIFEST, config_request, output)
-    if (planes_rec is not None and proc["status"] == PASS and rec.get("stop_requested")
+    if (repair_nets and proc["status"] == PASS and rec.get("stop_requested")
             and tagged_json(text, "JSON_ORACLE") is None):
-        # The budget ended the run's own pass before the engine's closing repair of the planes
-        # (which ends with its JSON_ORACLE record). The plane nets get what is left of the
-        # budget on the routed board.
-        used = (rec.get("cpu_s") if settings.get("budget_clock") == "cpu" else rec.get("duration_s")) or 0
-        left = plane_nets.last_budget(settings["budget_s"], planes_rec["first"]["used_s"], used)
+        # The budget ended the run's own pass before the engine's closing repair of planes and
+        # pours (which ends with its JSON_ORACLE record). The nets that own a zone get what is
+        # left of the budget on the routed board (plane_nets.py).
+        clock_used = "cpu_s" if settings.get("budget_clock") == "cpu" else "duration_s"
+        first_used = planes_rec["first"]["used_s"] if planes_rec is not None else 0
+        left = plane_nets.last_budget(settings["budget_s"], first_used, rec.get(clock_used) or 0)
+        if planes_rec is None:
+            planes_rec = proc["plane_nets"] = {"nets": [], "first": None, "last": None}
         if left is None:
-            planes_rec["last"] = {"status": "skipped", "reason": "the run's own pass left no time for it"}
+            planes_rec["last"] = {"status": "skipped", "nets": repair_nets,
+                                  "reason": "the run's own pass left no time for it"}
         else:
             shutil.copyfile(output, board)
-            last = krt_plane_pass("last", work, board, argv, env, own_planes, facts, settings, left,
+            last = krt_plane_pass("last", work, board, argv, env, repair_nets, facts, settings, left,
                                   reserve=plane_nets.last_reserve(left))
             proc["commands"].append(last.pop("command"))
-            planes_rec["last"] = last
+            planes_rec["last"] = dict(last, nets=repair_nets)
             if last["status"] == "routed":
                 # The run's own pass keeps its board (work/krt-out, what its configuration record
                 # is of); the board the run delivers is the last pass's.
-                output = last.pop("output")
+                output = planes_rec["last"].pop("output")
                 proc["output_board"] = output
             else:
-                proc["reasons"].append(f"plane nets, last pass: {last['reason']}; "
+                proc["reasons"].append(f"zone nets, last pass: {last['reason']}; "
                                        "the board is as the routing left it")
     if proc["status"] == PASS and output.is_file():
         # The engine can leave a piece of a connection it gave up, or was stopped in: a track

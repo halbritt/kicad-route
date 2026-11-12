@@ -358,16 +358,18 @@ signals are in.
 |---|---|---|---|
 | first | the plane nets of the scope | as it came | up to a third; what it does not use goes to the next pass |
 | the run's own | the whole scope | with the first pass's copper | all that is left |
-| last | the plane nets again | as routed | what the stop request leaves; only when the budget ended the run's own pass before the engine's closing repair of the planes |
+| last | the nets that own a zone | as routed | what the stop request leaves; only when the budget ended the run's own pass before the engine's closing repair of planes and pours |
 
 All three are the same engine command with the same options and rules; only the nets
-differ. The last pass exists because of what the budget does: asked to stop, the engine
-skips the passes it has not reached, and its closing repair of the planes is the last of
-them, so a plane that signal tracks cut off from a pad stays cut. The run's own pass is
-asked to stop a quarter of its budget before the end (at most 120 s) and is out some
-ten seconds later, so the last pass costs the signals nothing; it is not started with
-less than ten seconds, and a last pass that is stopped or killed leaves the board the
-run already had.
+differ. The last pass does not wait for the option: every run has it, for every net of
+its scope that owns a zone on any layer. It exists because of what the budget does: asked
+to stop, the engine skips the passes it has not reached, and its closing repair of planes
+and pours is the last of them, so a pour that signal tracks cut off from a pad stays cut.
+The run's own pass is asked to stop a quarter of its budget before the end (at most
+120 s) and is out some ten seconds later, so the last pass costs the signals nothing; it
+is not started with less than ten seconds, and a last pass that is stopped or killed
+leaves the board the run already had. A run whose own pass ended on its own, or reached
+the engine's repair before it was stopped, has no last pass.
 
 It is an option and not the default, because the passes cost what they take from the
 signals. The router lab has three four-layer boards whose scope holds plane nets:
@@ -395,16 +397,17 @@ its nets routed first take the room of thermal spokes: a board that came out cle
 one pass had a starved thermal with its two pour nets first, another had seven where
 it had one, a third 17 open connections where it had 3.
 
-The passes are in the result as `process.plane_nets` (`nets`, and for `first` and
-`last` the budget, the time used and the status); their commands are in
+The passes are in the result as `process.plane_nets` (`nets`, the plane nets of the
+first pass; `first` and `last` with budget, time used and status, each null when that
+pass did not run; `last.nets`, the zone nets it took); their commands are in
 `process.commands` in the order they ran, their logs are `work/krt-first.log` and
 `work/krt-last.log`, their boards `work/krt-first/` and `work/krt-last/`. When the last
 pass ran, its board is the one the run delivers, and `work/krt-out/` keeps the board of
 the run's own pass. The extra passes are a preparation and a repair: when one fails or
 writes no board, the run goes on with what it has and says so in `process.reasons`.
-There is one pass, whatever was asked, when no net of the scope owns a plane, when
-every net of the scope does, and in a run with `--bus` or length matching, whose
-options name nets the extra passes would not have in their scope. Differential-pair
+There is no first pass, whatever was asked, when no net of the scope owns a plane or
+every net of the scope does, and neither pass in a run with `--bus` or length matching,
+whose options name nets the extra passes would not have in their scope. Differential-pair
 runs and the Freerouting backend are not affected. The option is recorded as
 `settings.plane_nets`. The configuration record (`process.effective_configuration`) is
 of the run's own pass.

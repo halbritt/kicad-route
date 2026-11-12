@@ -85,10 +85,10 @@ The backend starts as the leader of its own session and process group, with:
   and `OUT/.kicad-config`.
 - every relaxation the backend offers switched off ([routing.md](../routing.md#what-the-adapters-switch-off)).
 
-With `--plane-nets first` the built-in router runs more than once inside the same budget on
-a board with planes: the nets that own a plane alone, then the whole scope on that board,
-and the plane nets once more when the budget ended the routing
-([routing.md](../routing.md#plane-nets)).
+The built-in router may run more than once inside the same budget
+([routing.md](../routing.md#plane-nets)): with `--plane-nets first`, the nets that own a
+plane alone before the whole scope; and in every run, the nets that own a zone once more
+when the budget ended the routing before the engine's closing repair of planes and pours.
 
 A backend that returns no board is a **process failure**: exit 1, a `result.json`
 whose `process.status` is FAIL with reasons, and no candidate. Heartbeats
@@ -159,7 +159,8 @@ OUT/runs/<project>/<label>/<stamp>/
 ├── work/                       what the backend saw and wrote
 │   ├── input/<project>/          the locked work copy
 │   ├── krt.log | freerouting.log, board.dsn / board.ses
-│   ├── krt-first.log, krt-first/, krt-last.log, krt-last/   with --plane-nets first
+│   ├── krt-first.log, krt-first/   the first pass (--plane-nets first)
+│   ├── krt-last.log, krt-last/     the last pass, when the budget stopped the routing
 │   ├── heartbeat.jsonl           progress heartbeats for the stall watchdog
 │   └── locks.json                original lock flags, restored afterwards
 ├── candidate/<project>/        the routed, refilled board that was graded

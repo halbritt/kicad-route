@@ -14,10 +14,16 @@ the planes again when the signals are in.
 
     first pass   the plane nets of the scope alone, on the board as it came
     the run's    the whole scope, on that board
-    last pass    the plane nets again, on the routed board, when the budget ended the run's
-                 own pass before the engine's closing repair of the planes (signal tracks
-                 may have cut a plane off from a pad, and nothing has looked since), in
-                 the time the stop request leaves before the budget ends
+    last pass    the nets that own a zone, on the routed board, when the budget ended the
+                 run's own pass before the engine's closing repair of planes and pours
+                 (signal tracks may have cut a pour off from a pad, and nothing has looked
+                 since), in the time the stop request leaves before the budget ends
+
+The last pass does not depend on the option: it is what the budget took away, given back. It
+covers every net of the scope that owns a zone, on any layer. On a two-layer board a ground
+pad of a through-hole part sat on a piece of pour that signal tracks had ringed off, four
+spokes into an island, and the run had been stopped in its net rescue with the repair that
+joins such pieces still ahead.
 
 On the same four-layer board, with 300 processor seconds: 14 connections open, none of them a
 plane pad, where one pass leaves 56.
@@ -73,6 +79,19 @@ def nets(scope, facts, settings):
     scope = set(scope)
     chosen = sorted(scope & owners(facts))
     return chosen if chosen and len(chosen) < len(scope) else []
+
+
+def zone_owners(facts):
+    """The nets that own a copper zone on any layer of the board."""
+    return {zone["net"] for zone in facts.get("zones") or [] if zone.get("net")}
+
+
+def repair_nets(scope, facts, settings):
+    """The zone-owning nets of the scope, sorted: the nets of the last pass. Empty when a run
+    has no such pass (buses and matched lengths, as for the first pass)."""
+    if settings.get("bus") is not None or settings.get("length_match") is not None:
+        return []
+    return sorted(set(scope) & zone_owners(facts))
 
 
 def first_budget(budget):
