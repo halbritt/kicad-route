@@ -141,10 +141,13 @@ def test_ambiguous_member_list_is_refused():
 
 
 def test_kicad_quoting_rule():
-    """Quoted iff empty, leading `#`, whitespace or one of (){}% (KiCad 10 exports)."""
-    for name in ["", "#hash", "a b", "a\tb", "x(1)", "{x", "x}", "x%", "GND 'x' (y)"]:
+    """Quoted iff empty, leading `#`, whitespace or one of (){}%, or a dash after the first
+    character (KiCad 10.0.8 exports: `/D-`, `a-b` and `--` quoted, `-x` and `-` raw)."""
+    for name in ["", "#hash", "a b", "a\tb", "x(1)", "{x", "x}", "x%", "GND 'x' (y)",
+                 "a-b", "x-", "/D-", "/8MH-OUT", "--", "a--b", "ü-b"]:
         assert specctra.needs_quote(name), name
-    for name in ["a#b", "a'b", "a,b", "a;b", "a\\b", "$y", "|", "~", "-x", "ü", '"', '""', "!RESET", 'a"b']:
+    for name in ["a#b", "a'b", "a,b", "a;b", "a\\b", "$y", "|", "~", "-x", "-", "ü", '"', '""', "!RESET", 'a"b',
+                 "a+b", "+3.3V", "a_b"]:
         assert not specctra.needs_quote(name), name
     assert specctra.dsn_net_token('foo "(bar)"') == "\"foo ''(bar)''\""
     assert specctra.dsn_net_token('"q"') == "''q''"
@@ -298,3 +301,19 @@ def test_run_refuses_bare_bang_scope(tmp_path):
     assert r.returncode == 4, (r.stdout[-2000:], r.stderr[-2000:])
     assert r"\!RESET" in r.stdout + r.stderr
     assert not list((OUT / "runs" / FIXTURE.name / "bang-refused").glob("*/result.json"))
+
+
+def test_a_name_with_a_dash_is_read_as_kicad_wrote_it():
+    """KiCad quotes a net name that has a dash after its first character. The bridge took such a
+    name for one that needs no quotes, read `"/D-"` as a raw name with the quotes in it, found two
+    equally poor readings and refused the board: four of twelve designer boards (a USB hub's
+    `/D-`, an ISA card's `/CS1-`) never reached Freerouting."""
+    nets = ["/D+", "/D-", "/U1D+", "/U1D-", "/U2D+", "/U2D-", "/8MH-OUT", "-x", "+3.3V"]
+    line = '/D+ "/D-" /U1D+ "/U1D-" /U2D+ "/U2D-" "/8MH-OUT" -x +3.3V'
+    assert " ".join(specctra.kicad_token(n) for n in nets) == line
+    dsn = network(f"    (class kicad_default {line}\n      (circuit (use_via V))\n      (rule (width 200)))", nets)
+    assert members(dsn) == {"kicad_default": nets}
+    out, ignored = specctra.split_classes(dsn, {"/U1D-", "/D+"})
+    assert members(out) == {"kicad_default": [n for n in nets if n not in ("/U1D-", "/D+")],
+                            "kicad_default__skip": ["/D+", "/U1D-"]}
+    assert ignored == ["kicad_default__skip"]

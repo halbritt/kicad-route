@@ -117,8 +117,10 @@ class NetNameError(ValueError):
 
 
 def needs_quote(name):
-    """True when KiCad's DSN writer wraps `name` in quotes."""
-    return not name or name.startswith("#") or bool(QUOTED.search(name))
+    """True when KiCad's DSN writer wraps `name` in quotes: an empty name, a leading `#`,
+    whitespace or one of (){}% anywhere, or a dash anywhere after the first character
+    (`/D-` and `a-b` are quoted, `-x` is not; OUTPUTFORMATTER::GetQuoteChar)."""
+    return not name or name.startswith("#") or bool(QUOTED.search(name)) or "-" in name[1:]
 
 
 def kicad_token(name):
