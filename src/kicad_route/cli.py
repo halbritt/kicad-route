@@ -1566,6 +1566,11 @@ def render_result(r):
 STOP_RESERVE_FRACTION, STOP_RESERVE_MAX_S = 0.25, 120
 
 
+def budget_grace(budget):
+    """Seconds after the end of `budget` at which a backend that is still running is killed."""
+    return max(30, budget // 5)
+
+
 def stop_reserve(budget):
     """Seconds before the end of `budget` at which a backend with a stop file is asked to stop."""
     return min(STOP_RESERVE_MAX_S, budget * STOP_RESERVE_FRACTION)
@@ -1606,7 +1611,7 @@ def run_budgeted(argv, cwd, log_path, budget, env_extra=None, stop_file=None, gr
     env.update(env_extra or {})
     if monitor is not None:
         env.setdefault("PYTHONUNBUFFERED", "1")  # line-timely log for the heartbeat tail
-    grace = grace if grace is not None else max(30, budget // 5)
+    grace = grace if grace is not None else budget_grace(budget)
     ask_at = budget - (stop_reserve(budget) if reserve is None else reserve) if stop_file else budget
     log_path.parent.mkdir(parents=True, exist_ok=True)
     rec = {"argv": [str(a) for a in argv], "cwd": common.rel(cwd), "log": common.rel(log_path),
@@ -1863,11 +1868,12 @@ def krt_unsupported_rules(text):
                    if KRT_RULE_SUBJECT.search(line) and KRT_RULE_NOT_APPLIED.search(line)})
 
 
-def krt_plane_pass(name, work, board, argv, env, nets, facts, settings, budget, extra=(), reserve=None):
+def krt_plane_pass(name, work, board, argv, env, nets, facts, settings, budget, extra=(), reserve=None,
+                   env_extra=None, grace=None):
     """One more engine pass over the plane nets alone (plane_nets.py): the run's own command
-    with `nets` as its scope (and `extra` options), reading the work board and writing
-    work/krt-<name>/. Returns the pass's record; its "status" is "routed" (with "output", the
-    board it wrote) or "failed"."""
+    with `nets` as its scope (and `extra` options, `env_extra` settings), reading the work board
+    and writing work/krt-<name>/. Returns the pass's record; its "status" is "routed" (with
+    "output", the board it wrote) or "failed"."""
     out_dir = work / f"krt-{name}"
     out_dir.mkdir(parents=True)
     output, stop, log_path = out_dir / board.name, work / f"STOP-{name}", work / f"krt-{name}.log"
@@ -1883,10 +1889,11 @@ def krt_plane_pass(name, work, board, argv, env, nets, facts, settings, budget, 
     # the configuration record is of the run's own pass: this one writes none over it
     pass_env = {k: v for k, v in env.items() if k != "KICAD_EFFECTIVE_CONFIG_REQUEST"}
     pass_env["KICAD_STOP_FILE"] = str(stop)
+    pass_env.update(env_extra or {})
     what = "plane nets" if name == "first" else "zone nets"
     log(f"[route] {what}, {name} pass: {', '.join(nets[:6])}{', ...' if len(nets) > 6 else ''} "
         f"alone, up to {budget} s")
-    rec = run_budgeted(command, work, log_path, budget, pass_env, stop_file=stop,
+    rec = run_budgeted(command, work, log_path, budget, pass_env, stop_file=stop, grace=grace,
                        monitor=stall.Monitor("krt", log_path, settings.get("stall_s")), clock=clock, reserve=reserve)
     record = {"status": "routed", "budget_s": budget,
               "used_s": rec.get("cpu_s") if clock == "cpu" else rec.get("duration_s"),
@@ -2048,20 +2055,23 @@ def krt_route(work, board, scope, facts, settings):
     if (repair_nets and proc["status"] == PASS and rec.get("stop_requested")
             and tagged_json(text, "JSON_ORACLE") is None):
         # The budget ended the run's own pass before the engine's closing repair of planes and
-        # pours (which ends with its JSON_ORACLE record). The nets that own a zone get what is
-        # left of the budget on the routed board (plane_nets.py).
+        # pours (which ends with its JSON_ORACLE record). The nets that own a zone get that
+        # repair on the routed board, in the time the run has left before a backend would be
+        # killed (plane_nets.py).
         clock_used = "cpu_s" if settings.get("budget_clock") == "cpu" else "duration_s"
         first_used = planes_rec["first"]["used_s"] if planes_rec is not None else 0
-        left = plane_nets.last_budget(settings["budget_s"], first_used, rec.get(clock_used) or 0)
+        left = plane_nets.last_window(settings["budget_s"], budget_grace(settings["budget_s"]), first_used,
+                                      rec.get(clock_used) or 0)
         if planes_rec is None:
             planes_rec = proc["plane_nets"] = {"nets": [], "first": None, "last": None}
         if left is None:
             planes_rec["last"] = {"status": "skipped", "nets": repair_nets,
-                                  "reason": "the run's own pass left no time for it"}
+                                  "reason": "the passes before it left no time for it"}
         else:
             shutil.copyfile(output, board)
             last = krt_plane_pass("last", work, board, argv, env, repair_nets, facts, settings, left,
-                                  reserve=plane_nets.last_reserve(left))
+                                  extra=plane_nets.LAST_PASS_ARGS, env_extra=plane_nets.LAST_PASS_ENV,
+                                  reserve=plane_nets.last_reserve(left), grace=plane_nets.LAST_GRACE_S)
             proc["commands"].append(last.pop("command"))
             planes_rec["last"] = dict(last, nets=repair_nets)
             if last["status"] == "routed":

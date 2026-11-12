@@ -53,14 +53,24 @@ DEFAULT = "together"
 # short (with half, 136 open connections where a third leaves 83).
 FIRST_SHARE = 1 / 3
 FIRST_PASS_ARGS = ()
-# The last pass takes nothing from the run's own pass. A run is asked to stop a quarter of its
-# budget (at most 120 s) before the end and is out some 10 s later (median of 19 stopped
-# passes; 58 s the longest), so that time is there. Given three tenths of the budget instead,
-# the signals of a board the budget cuts short paid for it: 136 open connections where the
-# run has 83 without the extra passes. The last pass is asked to stop a tenth before its own
-# end; if it is stopped or killed the run keeps the board it had.
+# The last pass takes nothing from the run's own pass, and it is the engine's closing repair
+# alone (its KICAD_FINALIZE_ONLY re-entry on the copper the board has: the taps of plane pads,
+# the joins of pour regions, the recheck against KiCad, the reconciliation), not the whole
+# procedure again. Three boards were captured where the budget had stopped a run, with 54, 32
+# and 96 connections open. The repair alone left 25, 30 and 94. The whole procedure on the zone
+# nets, given the same time, left 42, 30 and 96: it spent the time in its main loop and was
+# stopped before its repair once more.
+LAST_PASS_ARGS = ("--skip-routing",)
+LAST_PASS_ENV = {"KICAD_FINALIZE_ONLY": "1"}
+# Its time is what the run has left before a backend would be killed: the budget and the grace
+# period after it, less what the passes before it used. (Measured against the budget alone it
+# had 16 s on the first of those boards, whose own pass took 59 s to leave the pass it was
+# stopped in.) The repair honours a stop request in its sub-runs and then needs about as long
+# again to wind down (asked at 30 s, out at 64), so it is asked half way through. Stopped or
+# killed, it leaves the run the board it had.
 LAST_MIN_S = 10
-LAST_RESERVE_SHARE = 0.1
+LAST_ASK_SHARE = 0.5
+LAST_GRACE_S = 5
 
 
 def owners(facts):
@@ -104,12 +114,13 @@ def main_budget(budget, first_used):
     return max(1, int(budget - (first_used or 0)))
 
 
-def last_budget(budget, first_used, main_used):
-    """Seconds left for the last pass, or None when that is too little to start one."""
-    left = int(budget - (first_used or 0) - (main_used or 0))
+def last_window(budget, grace, first_used, main_used):
+    """Seconds the last pass may run before it is killed, or None when too few to start one:
+    the budget and its grace period, less what the passes before it used."""
+    left = int(budget + grace - (first_used or 0) - (main_used or 0))
     return left if left >= LAST_MIN_S else None
 
 
-def last_reserve(budget):
-    """How long before the end of its budget the last pass is asked to stop."""
-    return budget * LAST_RESERVE_SHARE
+def last_reserve(window):
+    """Seconds before the end of its window at which the last pass is asked to stop."""
+    return window * (1 - LAST_ASK_SHARE)

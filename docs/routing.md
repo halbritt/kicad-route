@@ -358,18 +358,28 @@ signals are in.
 |---|---|---|---|
 | first | the plane nets of the scope | as it came | up to a third; what it does not use goes to the next pass |
 | the run's own | the whole scope | with the first pass's copper | all that is left |
-| last | the nets that own a zone | as routed | what the stop request leaves; only when the budget ended the run's own pass before the engine's closing repair of planes and pours |
+| last | the nets that own a zone | as routed | what the run has left before a backend would be killed; only when the budget ended the run's own pass before the engine's closing repair of planes and pours |
 
-All three are the same engine command with the same options and rules; only the nets
-differ. The last pass does not wait for the option: every run has it, for every net of
-its scope that owns a zone on any layer. It exists because of what the budget does: asked
-to stop, the engine skips the passes it has not reached, and its closing repair of planes
-and pours is the last of them, so a pour that signal tracks cut off from a pad stays cut.
-The run's own pass is asked to stop a quarter of its budget before the end (at most
-120 s) and is out some ten seconds later, so the last pass costs the signals nothing; it
-is not started with less than ten seconds, and a last pass that is stopped or killed
-leaves the board the run already had. A run whose own pass ended on its own, or reached
-the engine's repair before it was stopped, has no last pass.
+All three are the same engine command with the same options and rules. The first two
+differ in their nets only and are the engine's whole procedure. The last is the engine's
+closing repair alone, on the copper the board has: the taps of plane pads, the joins of
+pour regions, the recheck against KiCad and the reconciliation.
+
+The last pass does not wait for the option: every run has it, for every net of its scope
+that owns a zone on any layer. It exists because of what the budget does: asked to stop,
+the engine skips the passes it has not reached, and its closing repair of planes and
+pours is the last of them, so a pour that signal tracks cut off from a pad stays cut and
+plane pads the taps did not reach stay open. Its time is the budget and the grace period
+after it, less what the passes before it used: the time a run may take in any case
+before its backend is killed. It is asked to stop half way through, is not started with
+less than ten seconds, and when it is stopped too late or killed the run keeps the board
+it had. A run whose own pass ended on its own, or reached the engine's repair before it
+was stopped, has no last pass.
+
+Three boards were captured where the budget had stopped the routing, with 54, 32 and 96
+connections open. The repair alone left 25, 30 and 94. The engine's whole procedure on
+the zone nets, in the same time, left 42, 30 and 96: it spent the time in its main loop
+and was stopped before its repair a second time.
 
 It is an option and not the default, because the passes cost what they take from the
 signals. The router lab has three four-layer boards whose scope holds plane nets:
