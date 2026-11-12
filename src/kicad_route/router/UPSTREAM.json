@@ -2,9 +2,9 @@
   "project": "KiCadRoutingTools",
   "license": "MIT",
   "upstream": "https://github.com/drandyhaas/KiCadRoutingTools",
-  "upstream_commit": "772003a6bff8cda7a8611d7ff6a7b72451849c64",
-  "upstream_describe": "v0.23.9-1-g772003a6",
-  "upstream_commit_date": "2026-11-09T22:18:14-05:00",
+  "upstream_commit": "4d74f91a006770508efe53230bbefc0a1751c055",
+  "upstream_describe": "v0.23.9-38-g4d74f91a",
+  "upstream_commit_date": "2026-11-11T16:56:21-05:00",
   "ownership": "Upstream KRT at upstream_commit plus the local changes listed here; part of kicad-route, not a runtime source selector. scripts/sync-upstream-engine.py moves it to a newer upstream commit (docs/upstream-engine.md).",
   "carried": "The static import closure of the entry points in scripts/routing_closure.py (route.py, route_diff.py and the diagnostic tools the krt-* skills name) plus its asset list. Upstream's GUI plugin, placer and plan tools, bus step (awx/), tests, documentation and release files are not carried.",
   "local_changes": [

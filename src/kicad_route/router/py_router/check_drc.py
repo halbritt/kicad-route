@@ -63,6 +63,40 @@ def _grade_tol(clearance: float, clearance_margin: float) -> float:
         return max(a, FP_EPS_MM)
     return max(clearance * clearance_margin, FP_EPS_MM)
 
+
+# #1803: the clearance shortfalls a run ACCEPTED that KiCad reports -- above
+# its absolute 500 nm and at or under the run's tolerance. Not graded, not
+# returned: counted, so a clean verdict says what it let through. A context
+# variable like _ABS_MARGIN_MM, set by run_drc only when its caller asks
+# (`within_margin=`), so a grade in another thread, and every check called
+# outside run_drc, is untouched.
+_WITHIN_MARGIN = contextvars.ContextVar('check_drc_within_margin', default=None)
+
+
+def _within_margin(overlap: float, tolerance: float) -> float:
+    """A pair check's overlap for its NO-violation return: the shortfall
+    itself when a run is counting (#1803) and it lies in KiCad's band
+    (KICAD_DRC_EPSILON_MM, tolerance], else 0.0 as before. Only run_drc's
+    graded pair sites read it, after their own waivers."""
+    if overlap > KICAD_DRC_EPSILON_MM and _WITHIN_MARGIN.get() is not None:
+        return overlap
+    return 0.0
+
+
+def _note_within_margin(pcb_data, net1: int, net2: int, overlap: float) -> None:
+    """Count one accepted shortfall into the run's record (#1803): how many,
+    and the largest with the two nets it lies between."""
+    rec = _WITHIN_MARGIN.get()
+    if rec is None or overlap <= 0.0:
+        return
+    rec['count'] = rec.get('count', 0) + 1
+    if overlap > rec.get('max_mm', 0.0):
+        def _nm(n):
+            net = pcb_data.nets.get(n)
+            return net.name if net else f"net_{n}"
+        rec['max_mm'] = overlap
+        rec['max_nets'] = sorted((_nm(net1), _nm(net2)))
+
 import routing_defaults as defaults
 
 
@@ -599,7 +633,7 @@ def check_segment_overlap(seg1: Segment, seg2: Segment, clearance: float, cleara
     tolerance = _grade_tol(clearance, clearance_margin)
     if overlap > tolerance:
         return True, overlap, pt1, pt2
-    return False, 0.0, None, None
+    return False, _within_margin(overlap, tolerance), None, None
 
 
 def check_via_segment_overlap(via: Via, seg: Segment, clearance: float, clearance_margin: float = 0.05) -> Tuple[bool, float]:
@@ -624,7 +658,7 @@ def check_via_segment_overlap(via: Via, seg: Segment, clearance: float, clearanc
     tolerance = _grade_tol(clearance, clearance_margin)
     if overlap > tolerance:
         return True, overlap
-    return False, 0.0
+    return False, _within_margin(overlap, tolerance)
 
 
 def check_via_via_overlap(via1: Via, via2: Via, clearance: float, clearance_margin: float = 0.05) -> Tuple[bool, float]:
@@ -641,7 +675,7 @@ def check_via_via_overlap(via1: Via, via2: Via, clearance: float, clearance_marg
     tolerance = _grade_tol(clearance, clearance_margin)
     if overlap > tolerance:
         return True, overlap
-    return False, 0.0
+    return False, _within_margin(overlap, tolerance)
 
 
 def point_to_rect_distance(px: float, py: float, cx: float, cy: float,
@@ -2344,9 +2378,10 @@ def check_pad_pad_overlap(pad1: Pad, pad2: Pad, clearance: float,
                     best_pt = (px, py)
 
     overlap = clearance - best
-    if overlap > _grade_tol(clearance, clearance_margin):
+    _tol = _grade_tol(clearance, clearance_margin)
+    if overlap > _tol:
         return True, overlap, best_pt
-    return False, 0.0, None
+    return False, _within_margin(overlap, _tol), None
 
 
 #: How far a net-tie contact may stand off the tied net's own pad and still be
@@ -2535,9 +2570,10 @@ def check_pad_segment_overlap(pad: Pad, seg: Segment, clearance: float,
             seg.start_x, seg.start_y, seg.end_x, seg.end_y, pad_polys)
         required_dist = seg.width / 2 + clearance
         overlap = required_dist - dist_to_pad
-        if overlap > _grade_tol(clearance, clearance_margin):
+        _tol = _grade_tol(clearance, clearance_margin)
+        if overlap > _tol:
             return True, overlap, closest_pt
-        return False, 0.0, None
+        return False, _within_margin(overlap, _tol), None
 
     # Corner radius based on pad shape (circle/oval use min dimension, roundrect uses rratio)
     corner_radius = pad_corner_radius(pad)
@@ -2572,7 +2608,7 @@ def check_pad_segment_overlap(pad: Pad, seg: Segment, clearance: float,
     if overlap > tolerance:
         return True, overlap, closest_pt
 
-    return False, 0.0, None
+    return False, _within_margin(overlap, tolerance), None
 
 
 def check_pad_via_overlap(pad: Pad, via: Via, clearance: float,
@@ -2613,7 +2649,7 @@ def check_pad_via_overlap(pad: Pad, via: Via, clearance: float,
     if overlap > tolerance:
         return True, overlap
 
-    return False, 0.0
+    return False, _within_margin(overlap, tolerance)
 
 
 def npth_track_clearance(local_clearance: float, clearance: float,
@@ -3394,8 +3430,11 @@ def _length_rule_pass(pcb_file, pcb_data, matching_net_ids, violations, quiet):
                  f"track copper): {', '.join(unmeasured[:6])}"
                  + (' ...' if len(unmeasured) > 6 else '') if unmeasured else ''))
         for rname, (why, nets) in undecided.items():
-            print(f"  NOT GRADED: rule '{rname}' ({why}) -- {len(nets)} net(s) "
-                  f"it may bind are not graded here; KiCad still grades them")
+            # #1813: the kind in parentheses, as every NOT GRADED line has it --
+            # board_score reads the rule from this line, and a bare form is a
+            # rule nothing downstream sees.
+            print(f"  NOT GRADED (length): rule '{rname}' ({why}) -- {len(nets)} "
+                  f"net(s) it may bind are not graded here; KiCad still grades them")
         for rname in unbound:
             print(f"  {_UNBOUND_RULE_NOTE.format(rname=rname)}")
         if graded:
@@ -3950,18 +3989,62 @@ def skew_rule_groups(path, pcb_data, skew_rules=None, *, names=None,
     return out, undecided
 
 
+def recorded_chain_groups(path, pcb_data):
+    """[(chain record, P net ids, N net ids)] for every AC-coupled chain the
+    board's records hold (#1799, `kicad_dru.recorded_ac_chains`) whose nets
+    are all on the board. One definition for check_drc's grade, the #1759
+    snapshot and the graze passes' read-only set."""
+    from kicad_dru import recorded_ac_chains
+    ids = {n.name: nid for nid, n in pcb_data.nets.items() if nid and n.name}
+    out = []
+    for ch in recorded_ac_chains(path):
+        p = [ids.get(n) for n in ch['p_nets']]
+        n = [ids.get(x) for x in ch['n_nets']]
+        if None in p or None in n:
+            continue
+        out.append((ch, tuple(p), tuple(n)))
+    return out
+
+
+def chain_skew_row(pcb_data, ch):
+    """One recorded chain's end-to-end grade (#1799): {'skew_mm', 'p_mm',
+    'n_mm', 'excess_mm', 'spans_differ', 'measure'} on
+    `chain_length.pair_chain_skew`, or None when a side is unmeasured."""
+    from chain_length import pair_chain_skew
+    m = pair_chain_skew(pcb_data, ch['p_nets'], ch['n_nets'])
+    if m['skew_mm'] is None:
+        return None
+    return {'skew_mm': m['skew_mm'], 'p_mm': m['p']['track_mm'],
+            'n_mm': m['n']['track_mm'],
+            'excess_mm': round(max(m['skew_mm'] - ch['tolerance_mm'], 0.0), 4),
+            'spans_differ': m['spans_differ'], 'measure': m}
+
+
 def skew_group_snapshot(pcb_data, path, scope_ids=None):
     """{(rule name, members): row} for every group a skew rule grades
     (skew_rule_groups) with a member in `scope_ids` (all when None), measured
     as check_drc grades it (`net_match_length(mode 'total')`). A row carries
     the group's spread (`skew_mm`, longest minus shortest), its bounds and
     `excess_mm`, how far the worst member is out of them (0 within); None for
-    a group a member of which cannot be measured. {} when no rule binds."""
+    a group a member of which cannot be measured. {} when no rule binds.
+    A recorded AC-coupled chain (#1799) is one group, keyed by its rule name
+    and every net of both sides, graded end to end (`chain_skew_row`)."""
     groups, _undecided = skew_rule_groups(path, pcb_data)
-    if not groups:
-        return {}
-    from net_queries import net_match_length
     out = {}
+    for ch, p_ids, n_ids in recorded_chain_groups(path, pcb_data):
+        members = p_ids + n_ids
+        if scope_ids is not None and not any(m in scope_ids for m in members):
+            continue
+        row = chain_skew_row(pcb_data, ch)
+        key = (f"chain {ch['name']}", members)
+        out[key] = None if row is None else {
+            'nets': list(ch['p_nets']) + list(ch['n_nets']),
+            'rule': f"AC-coupled chain {ch['name']}",
+            'skew_mm': row['skew_mm'], 'min_mm': None,
+            'max_mm': ch['tolerance_mm'], 'excess_mm': row['excess_mm']}
+    if not groups:
+        return out
+    from net_queries import net_match_length
     for rule, members in groups:
         if scope_ids is not None and not any(m in scope_ids for m in members):
             continue
@@ -4042,7 +4125,9 @@ def _pair_rule_pass(pcb_file, pcb_data, matching_net_ids, violations, quiet):
     # #1503: with the pairs a route_diff step matched, at the tolerance it
     # matched them to, wherever the .kicad_dru's own rule does not bind them
     rules, notes = board_skew_rules(path, kinds=('skew', 'diff_pair_uncoupled'))
-    if not rules:
+    # #1799: and the AC-coupled chains a route_diff step matched end to end
+    chains = recorded_chain_groups(path, pcb_data)
+    if not rules and not chains:
         if notes and not quiet:
             for n in notes:
                 print(f"  .kicad_dru: {n}")
@@ -4065,6 +4150,8 @@ def _pair_rule_pass(pcb_file, pcb_data, matching_net_ids, violations, quiet):
     skew_rules = [r for r in rules if r.kind == 'skew']
     _sets, undecided = skew_rule_groups(path, pcb_data, skew_rules,
                                         names=names, member=member)
+    # #1813: which constraint each NOT GRADED rule is, for its console line
+    undecided_kind = {k: 'skew' for k in undecided}
     for rule, members in _sets:
         if not any(in_scope(m) for m in members):
             continue
@@ -4106,6 +4193,7 @@ def _pair_rule_pass(pcb_file, pcb_data, matching_net_ids, violations, quiet):
         if blocker is not None:
             undecided.setdefault(blocker.name, (blocker.unsupported, []))[1].append(
                 f"{names[p]} / {names[n]}")
+            undecided_kind.setdefault(blocker.name, 'diff_pair_uncoupled')
             continue
         if rp is None and rn is None:
             continue
@@ -4113,6 +4201,7 @@ def _pair_rule_pass(pcb_file, pcb_data, matching_net_ids, violations, quiet):
             undecided.setdefault(f"{(rp or rn).name}", (
                 "binds only one member of the pair (KiCad then grades that "
                 "member's copper alone)", []))[1].append(f"{names[p]} / {names[n]}")
+            undecided_kind.setdefault((rp or rn).name, 'diff_pair_uncoupled')
             continue
         if rp.max_mm is None or rp.max_mm < 0:
             continue
@@ -4140,6 +4229,36 @@ def _pair_rule_pass(pcb_file, pcb_data, matching_net_ids, violations, quiet):
                 'limit_mm': rp.max_mm,
                 'gap_window': [gmin, gap.max]})
 
+    # ---- recorded AC-coupled chains (#1799) ---------------------------
+    # Each side's nets summed (chain_length), |P - N| against the tolerance
+    # the chain was matched to. KiCad has no rule that sums a polarity across
+    # nets, so this row has no KiCad counterpart.
+    from chain_length import chain_label
+    from kicad_dru import RECORDED_AC_CHAIN_RULE
+    n_chain = 0
+    for ch, p_ids, n_ids in chains:
+        if not any(in_scope(m) for m in p_ids + n_ids):
+            continue
+        row = chain_skew_row(pcb_data, ch)
+        if row is None:
+            unmeasured.append(f"chain {ch['name']}")
+            continue
+        n_chain += 1
+        if row['skew_mm'] <= ch['tolerance_mm'] + 1e-6:
+            continue
+        p_lab, n_lab = chain_label(ch['p_nets']), chain_label(ch['n_nets'])
+        short, long_ = ((p_lab, n_lab) if row['p_mm'] < row['n_mm']
+                        else (n_lab, p_lab))
+        violations.append({
+            'type': 'chain-skew-out-of-range', 'net1': short, 'net2': long_,
+            'chain': ch['name'], 'rule': RECORDED_AC_CHAIN_RULE,
+            'severity': 'error', 'skew_mm': row['skew_mm'],
+            'length_mm': min(row['p_mm'], row['n_mm']),
+            'target_mm': max(row['p_mm'], row['n_mm']), 'bound': 'max',
+            'limit_mm': ch['tolerance_mm'], 'min_mm': None,
+            'max_mm': ch['tolerance_mm'], 'bridges': ch['bridges'],
+            'spans_differ': row['spans_differ']})
+
     from kicad_dru import unbound_length_rules
     unbound = [r.name for kind_rules in (skew_rules, unc_rules)
                for r in unbound_length_rules(kind_rules, names, member)]
@@ -4151,6 +4270,10 @@ def _pair_rule_pass(pcb_file, pcb_data, matching_net_ids, violations, quiet):
                'uncoupled_graded': n_unc,
                'uncoupled_over': sum(1 for v in violations
                                      if v['type'] == 'diff-pair-uncoupled'),
+               'chains_graded': n_chain,
+               'chains_out_of_range': sum(
+                   1 for v in violations
+                   if v['type'] == 'chain-skew-out-of-range'),
                'unmeasured': unmeasured,
                'not_graded': {k: {'reason': r, 'nets': nn}
                               for k, (r, nn) in undecided.items()}}
@@ -4162,8 +4285,13 @@ def _pair_rule_pass(pcb_file, pcb_data, matching_net_ids, violations, quiet):
               + (f"; {len(unmeasured)} not measured (pads not joined by track "
                  f"copper): {', '.join(unmeasured[:4])}"
                  + (' ...' if len(unmeasured) > 4 else '') if unmeasured else ''))
+        if chains:
+            print(f"  AC-coupled chains (recorded by route_diff, #1799): "
+                  f"{n_chain} graded end to end, "
+                  f"{summary['chains_out_of_range']} out of tolerance")
         for rname, (why, nn) in undecided.items():
-            print(f"  NOT GRADED: rule '{rname}' ({why}) -- {len(nn)} net(s)/pair(s) "
+            print(f"  NOT GRADED ({undecided_kind.get(rname, 'skew')}): rule "
+                  f"'{rname}' ({why}) -- {len(nn)} net(s)/pair(s) "
                   f"it may bind are not graded here; KiCad still grades them")
         for rname in unbound:
             print(f"  {_UNBOUND_RULE_NOTE.format(rname=rname)}")
@@ -5653,7 +5781,8 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
             pcb_data: Optional[PCBData] = None,
             baseline=None,
             clearance_margin_mm: Optional[float] = None,
-            severity_overrides: Optional[Dict[str, str]] = None):
+            severity_overrides: Optional[Dict[str, str]] = None,
+            within_margin: Optional[dict] = None):
     """Run DRC checks on the PCB file.
 
     Args:
@@ -5700,7 +5829,23 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
             ``(severity ...)`` -- otherwise decide what is counted: a
             'warning' is listed under WARNINGS and accepted, an 'ignore' is
             dropped and counted on one line, as KiCad reports them.
+        within_margin: A dict this run fills (#1803) with the copper pair
+            clearance shortfalls it ACCEPTED that KiCad reports -- above
+            ``KICAD_DRC_EPSILON_MM`` and at or under the run's tolerance:
+            ``count``, and when it is not 0 ``max_mm`` and ``max_nets``. The
+            grade, the return value and the exit status do not change; None
+            (default) counts nothing.
     """
+    if within_margin is not None:
+        # Set for this call only, as clearance_margin_mm below is.
+        _kw = dict(locals())        # the parameters: nothing else is bound yet
+        _kw.pop('within_margin')
+        within_margin.setdefault('count', 0)
+        _tok = _WITHIN_MARGIN.set(within_margin)
+        try:
+            return run_drc(**_kw)
+        finally:
+            _WITHIN_MARGIN.reset(_tok)
     if clearance_margin_mm is not None:
         # Set for this call (and the run_drc calls it makes) only, then
         # restored; the inner call inherits it.
@@ -5995,6 +6140,7 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
         try:
             from design_rules import DesignRules as _DR
             from design_rules import SIZE_KINDS as _SZK
+            from design_rules import VIA_SIZE_KINDS as _VSK
             _size_rules = _DR.from_project(pcb_data, pcb_file, fab_floor=fab,
                                            copper_layers=copper_layers)
             if not (_size_rules.board_min or _size_rules.rules):
@@ -6003,6 +6149,10 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
             if not quiet:
                 print(f"  (design-rule size floors unavailable: {_dre})")
             _size_rules = None
+        # #1805: a via-size rule bound by a courtyard term is resolved by
+        # where each via stands (its disc against the part's courtyard)
+        _courtyards = (_size_rules.courtyard_index(pcb_data, pcb_file)
+                       if _size_rules is not None else None)
 
         def _track_floor(seg):
             if min_track_width is not None or _size_rules is None:
@@ -6020,8 +6170,7 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
             # KiCad's own value, before this tool's fab-profile raise: the
             # profile's `annular` term is enforced by no routing step, and the
             # fab half is the ring the floor's smallest via implies (#1433)
-            c = _size_rules.resolve('annular_width',
-                                    _size_rules.item_for_net(via.net_id, 'via', None),
+            c = _size_rules.resolve('annular_width', _size_rules.via_item(via, _courtyards),
                                     None, None)
             v = c.kicad_min if c.fab_bound else c.min
             return max(eff_min_via_ring, v) if v is not None else eff_min_via_ring
@@ -6029,10 +6178,13 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
         def _via_floors(via):
             if _size_rules is None:
                 return eff_min_via_dia, eff_min_via_drill
+            _vi = _size_rules.via_item(via, _courtyards)
             d = (eff_min_via_dia if min_via_diameter is not None
-                 else (_size_rules.floor('via_diameter', via.net_id, type='via') or eff_min_via_dia))
+                 else (_size_rules.resolve('via_diameter', _vi, None, None).min
+                       or eff_min_via_dia))
             h = (eff_min_via_drill if min_via_drill is not None
-                 else (_size_rules.floor('hole_size', via.net_id, type='via') or eff_min_via_drill))
+                 else (_size_rules.resolve('hole_size', _vi, None, None).min
+                       or eff_min_via_drill))
             return d, h
         if not quiet:
             print(f"Size floors ({copper_count}-layer fab): track >= {eff_min_track}mm, "
@@ -6046,7 +6198,9 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
             if _size_rules is not None:
                 for _r in _size_rules.rules:
                     if _r.unsupported and not _r.honoured:
-                        _sk = sorted(k for k in _r.constraints if k in _SZK)
+                        _sk = sorted(k for k in _r.constraints if k in _SZK
+                                     and not (_courtyards and _r.courtyard_condition
+                                              and k in _VSK))
                         if _sk:
                             print(f"  NOT GRADED (size): rule '{_r.name}' "
                                   f"({', '.join(_sk)}): {_r.unsupported} -- "
@@ -6155,6 +6309,9 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
             if _cv is not None:
                 _eff, _trule = _cv, None
             has_violation, overlap, pt1, pt2 = check_segment_overlap(seg1, seg2, _eff, clearance_margin)
+            if (not has_violation and overlap > 0.0     # #1803: accepted, counted
+                    and not _graphic_pair_is_same_net(seg1, seg2, net1, net2)):
+                _note_within_margin(pcb_data, net1, net2, overlap)
             if has_violation and _graphic_pair_is_same_net(seg1, seg2, net1, net2):
                 has_violation = False
                 # #995: published, not counted. A crossing always lands here
@@ -6398,6 +6555,9 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
                 if _cv is not None:
                     _eff = _cv
                 has_violation, overlap = check_via_segment_overlap(via, seg, _eff, clearance_margin)
+                if (not has_violation and overlap > 0.0     # #1803: accepted, counted
+                        and not _graphic_pair_is_same_net(seg, None, seg_net, via_net)):
+                    _note_within_margin(pcb_data, via_net, seg_net, overlap)
                 if has_violation and _graphic_pair_is_same_net(seg, None, seg_net, via_net):
                     has_violation = False
                     _own = _footprint_own_copper_owner(seg, None, seg_net, via_net)
@@ -6608,6 +6768,8 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
             if _cv is not None:
                 _eff = _cv
             has_violation, overlap = check_via_via_overlap(via1, via2, _eff, clearance_margin)
+            if not has_violation and overlap > 0.0 and net1 != net2:   # #1803
+                _note_within_margin(pcb_data, net1, net2, overlap)
             if has_violation:
                 net1_name = pcb_data.nets.get(net1, None)
                 net2_name = pcb_data.nets.get(net2, None)
@@ -6672,6 +6834,9 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
             has_violation, overlap, closest_pt = check_pad_segment_overlap(
                 pad, seg, _eff, routing_layers, clearance_margin
             )
+            if (not has_violation and overlap > 0.0     # #1803: accepted, counted
+                    and not _graphic_pair_is_same_net(seg, None, seg_net, pad_net)):
+                _note_within_margin(pcb_data, pad_net, seg_net, overlap)
             if has_violation and _graphic_pair_is_same_net(seg, None, seg_net, pad_net):
                 has_violation = False
                 _own = _footprint_own_copper_owner(seg, None, seg_net, pad_net)
@@ -6726,6 +6891,8 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
                 has_violation, overlap = check_pad_via_overlap(
                     pad, via, _eff, routing_layers, clearance_margin
                 )
+                if not has_violation and overlap > 0.0:     # #1803
+                    _note_within_margin(pcb_data, pad_net, via_net, overlap)
                 if has_violation:
                     pad_net_name = pcb_data.nets.get(pad_net, None)
                     via_net_name = pcb_data.nets.get(via_net, None)
@@ -6785,6 +6952,8 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
                     _eff = _pad_pair_cl(pad1, pad2_net, other_pad=pad2, other_type='pad')
                     has_violation, overlap, closest_pt = check_pad_pad_overlap(
                         pad1, pad2, _eff, routing_layers, clearance_margin)
+                    if not has_violation and overlap > 0.0:     # #1803
+                        _note_within_margin(pcb_data, pad_net, pad2_net, overlap)
                     if has_violation:
                         n1 = pcb_data.nets.get(pad_net, None)
                         n2 = pcb_data.nets.get(pad2_net, None)
@@ -8237,6 +8406,18 @@ def run_drc(pcb_file: str, clearance: float = 0.1, net_patterns: Optional[List[s
                         print(f"    .kicad_dru rule '{v['rule']}'"
                               + (" (within_diff_pairs)" if v.get('within_diff_pairs') else '')
                               + " (KiCad: skew_out_of_range)")
+                    elif vtype == 'chain-skew-out-of-range':
+                        print(f"  {v['net1']}: {v['skew_mm']:.4f}mm shorter than "
+                              f"{v['net2']} end to end ({v['length_mm']:.4f} vs "
+                              f"{v['target_mm']:.4f}mm of track), max "
+                              f"{v['limit_mm']:.4f}mm")
+                        print(f"    AC-coupled chain {v['chain']} via "
+                              f"{', '.join(v.get('bridges') or ()) or '?'}, "
+                              f"recorded by route_diff (#1799; no KiCad rule "
+                              f"grades a chain)"
+                              + ("; the series parts' spans differ between "
+                                 "the sides and are not counted"
+                                 if v.get('spans_differ') else ''))
                     elif vtype == 'diff-pair-uncoupled':
                         print(f"  {v['net1']} / {v['net2']}: uncoupled "
                               f"{v['uncoupled_mm']:.4f}mm > max {v['limit_mm']:.4f}mm "
@@ -8633,6 +8814,7 @@ if __name__ == "__main__":
                   f"KiCad's own is an absolute {KICAD_DRC_EPSILON_MM:g} mm, "
                   f"--clearance-margin-mm)")
 
+    _within = {}    # #1803: filled by run_drc
     violations = run_drc(args.pcb, args.clearance, args.nets, args.debug_lines, args.quiet,
                          args.hole_to_hole_clearance, args.board_edge_clearance,
                          args.hole_clearance,
@@ -8645,7 +8827,16 @@ if __name__ == "__main__":
                          check_pad_edge=args.check_pad_edge,
                          net_clearances=net_clearances,
                          baseline=args.baseline,
-                         clearance_margin_mm=args.clearance_margin_mm)
+                         clearance_margin_mm=args.clearance_margin_mm,
+                         within_margin=_within)
+    if _within.get('count') and not args.quiet:
+        # #1803: a clean verdict says what its tolerance let through that
+        # KiCad's 500 nm does not. The grade and the exit status are as before.
+        print(f"Accepted within the tolerance: {_within['count']} copper "
+              f"clearance shortfall(s) above KiCad's {KICAD_DRC_EPSILON_MM:g} mm, "
+              f"which KiCad's DRC reports (the largest {_within['max_mm']:.4f} mm, "
+              f"{' <-> '.join(_within['max_nets'])}); --clearance-margin-mm "
+              f"{KICAD_DRC_EPSILON_MM:g} lists them")
     if args.render and any(not v.get('accepted') for v in violations):
         render_violation_panels(args.pcb, violations, args.render)
     if args.json:
@@ -8741,6 +8932,14 @@ if __name__ == "__main__":
             },
             'violations': len(_real),
             'accepted': len(violations) - len(_real),
+            # #1803: copper pair clearance shortfalls above KiCad's 500 nm
+            # and inside this run's tolerance -- KiCad reports each; they are
+            # not items (--clearance-margin-mm 0.0005 lists them)
+            'within_margin': {
+                'count': _within.get('count', 0),
+                'max_mm': _within.get('max_mm'),
+                'max_nets': _within.get('max_nets'),
+                'above_mm': KICAD_DRC_EPSILON_MM},
             # #995: accepted, and each one an error in KiCad's own DRC
             'footprint_own_copper': sum(
                 1 for v in violations if v.get('accepted') == 'footprint-own-copper'),

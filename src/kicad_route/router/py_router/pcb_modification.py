@@ -2385,7 +2385,16 @@ class StrictRemovalModel:
         body is still one KiCad's DRC reports dangling when that track counts
         for the other end. Removing one leg of a loop left that leg's last
         short track lying in the surviving track's copper so; the loop now
-        loses another branch instead.
+        loses another branch instead;
+      * on a net a skew rule grades (``keep_centre_stubs``), no kept via
+        that a track on a layer reached AT ITS CENTRE is left reached there
+        only by track ends off it (#1798: _centre_lost_vias). A rim-to-centre
+        stub (the via-centre bridge close_soft_joints lays, #1235) is what
+        KiCad's length DRC measures the run into the via by; without it the
+        track ends on the rim, the net measures a via radius shorter and the
+        barrel may go uncharged -- a matched pair failed its recorded skew
+        after an all-nets step collapsed one. On any other net the stub is
+        copper no grade reads, and it stays removable.
 
     Candidates are unlocked, non-graphic track segments outside
     ``readonly_ids``. They are tried in UNITS: every single segment, and every
@@ -2404,13 +2413,14 @@ class StrictRemovalModel:
 
     def __init__(self, net_id, net_segs, net_vias, net_pads, copper_layers=None,
                  readonly_ids=frozenset(), droppable_via_ids=frozenset(),
-                 web_floor: float = 0.0):
+                 web_floor: float = 0.0, keep_centre_stubs: bool = False):
         import copy as _copy
         from collections import defaultdict
         from check_connected import check_net_connectivity, analyze_conn_excluding
         from check_weird import via_support_parts
 
         self.net_id = net_id
+        self.keep_centre_stubs = bool(keep_centre_stubs)
         self.segs = list(net_segs)
         self.vias = list(net_vias)
         self.pads = list(net_pads)
@@ -2468,6 +2478,21 @@ class StrictRemovalModel:
             self._via_span.append(set(span))
             self._via_fixed.append(frozenset(fixed))
             self._via_by_layer.append(dict(by_layer))
+        # #1798: per via, per layer, the segments with an end ON the via's
+        # centre (connectivity.VIA_CENTRE_TOL, #1235's definition of 'on').
+        # See _centre_lost_vias.
+        from connectivity import VIA_CENTRE_TOL
+        self._via_centred = []
+        for j, v in enumerate(self.vias):
+            centred = defaultdict(set)
+            for L, ss in self._via_by_layer[j].items():
+                for i in ss:
+                    s = self.segs[i]
+                    if min(math.hypot(s.start_x - v.x, s.start_y - v.y),
+                           math.hypot(s.end_x - v.x, s.end_y - v.y)) \
+                            <= VIA_CENTRE_TOL:
+                        centred[L].add(i)
+            self._via_centred.append(dict(centred))
 
         # --- endpoint nodes: degree, dangle guard, unit chaining --------------
         self._len = [math.hypot(s.end_x - s.start_x, s.end_y - s.start_y)
@@ -2513,6 +2538,31 @@ class StrictRemovalModel:
                 else:
                     blocked = True
         return worse, blocked
+
+    def _centre_lost_vias(self, E, prev_E, D):
+        """Does removing E leave a kept via reached on a layer by track
+        copper, but no longer by a track END at its centre, where one was
+        (#1798)? KiCad's length DRC measures a run into a via by the stretch
+        that ends at (10.0.3) or is clipped to (10.0.4+) the centre, and only
+        a run whose end lies INSIDE the via pad is clipped: the rim-to-centre
+        stub close_soft_joints lays for an off-centre end (#1235) leaves its
+        track ending on the rim, so removing the stub keeps connectivity but
+        shortens the net by a via radius and can drop the barrel from the
+        length. Such a removal is refused. Removing every track the via has
+        on that layer is not this case (the via grading above owns it)."""
+        touched = set()
+        for i in E:
+            if i not in prev_E:
+                touched |= self._seg_vias.get(i, set())
+        for j in touched:
+            if j in D:
+                continue
+            for L, centred in self._via_centred[j].items():
+                if all(i in E for i in centred) and \
+                        not all(i in prev_E for i in centred) and \
+                        any(i not in E for i in self._via_by_layer[j].get(L, ())):
+                    return True
+        return False
 
     # ---- anchoring: check_weird's dangling-end definition -------------------
     def _end_anchored(self, i, x, y, E, D):
@@ -2676,6 +2726,8 @@ class StrictRemovalModel:
         if blocked:
             return False, prev_E, prev_D
         D = prev_D | frozenset(worse) | frozenset(unit_vias)
+        if self.keep_centre_stubs and self._centre_lost_vias(E, prev_E, D):
+            return False, prev_E, prev_D
         t = self._analyze(self._g, E, D)
         if t['num_components'] != 1 or t['disconnected_pads']:
             return False, prev_E, prev_D
@@ -3201,6 +3253,9 @@ def collapse_strict_redundant(results, pcb_data: PCBData, scope_net_ids=None,
     # lowered as the writeback will lower it (connection_width_floor, #1187).
     from fix_kicad_drc_settings import connection_width_floor
     web_floor = connection_width_floor(pcb_data, shipped=True)
+    # #1798: the nets whose via-centre stubs a length grade reads.
+    from cleanup_pipeline import _skew_bound_net_ids
+    skew_ids = _skew_bound_net_ids(pcb_data)
 
     removed_ids = set()
     dropped_via_ids = set()
@@ -3226,7 +3281,8 @@ def collapse_strict_redundant(results, pcb_data: PCBData, scope_net_ids=None,
         model = StrictRemovalModel(net_id, net_segs, net_vias, pads,
                                    copper_layers, readonly_ids=readonly,
                                    droppable_via_ids=droppable,
-                                   web_floor=web_floor)
+                                   web_floor=web_floor,
+                                   keep_centre_stubs=net_id in skew_ids)
         if not model.valid:
             continue
         _dbg = None
