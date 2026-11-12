@@ -46,6 +46,16 @@ existing`, as a caller does, and writes one record per thing that went wrong
 | `advisory` | listed and never counted against a board: `below_class`, new copper below its net class size. KiCad's DRC enforces the board's minimums and rules; six of ten designers' boards of the corpus have such tracks |
 
 A board is clean when it has none of the first four and the process ran.
+
+The designer's own board is graded by the same rule in the "As designed" column: the
+connections it leaves open and the DRC errors the unrouted input does not have. Four of
+the ten designer-routed boards of the corpus are not clean by it (12 clearance errors
+on one, 2 starved thermals on another, 199 vias below the board's own minimum drill on
+a third, 4 clearance errors, 3 shorts and an open connection on the fourth). The line
+under the table says on how many boards a run is clean among those the designer got
+clean, among those the designer did not, and among those that came unrouted: a board
+its designer did not get clean under its own rules is weaker evidence against a router
+than one the designer did.
 A table cell is `open / new errors`, plus the failed grading checks. After the
 copper and the time it says where the budget cut the engine off, and what the wrapper
 cleared up after the engine, each a thing the engine left: `N dangling removed` (new

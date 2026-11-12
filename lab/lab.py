@@ -527,6 +527,34 @@ def rank(s):
             s['vias'] or 0, s['track_mm'] or 0)
 
 
+def designer(entry):
+    """The designer's own board graded as a routed candidate is: the connections it leaves open
+    and the DRC errors the unrouted input does not have. None for an entry that came unrouted.
+
+    The table used to put the designer's total error count beside a router's NEW errors. A
+    designer's board carries its courtyard and library findings with it, and four of ten
+    designers' boards of the corpus break a routing rule of their own (clearance, shorts,
+    starved thermals, drill sizes): a board its designer did not get clean under its rules is
+    not the same evidence against a router as one the designer did."""
+    d = entry.get('designed') or {}
+    reference, unrouted = entry['_dir'] / 'reference/drc.json', entry['_dir'] / 'input/drc.json'
+    if not d.get('track_mm') or not reference.is_file() or not unrouted.is_file():
+        return None
+    before = {}
+    for row in read_json(unrouted).get('violations', []):
+        before[finding_key(row)] = before.get(finding_key(row), 0) + 1
+    new = []
+    report = read_json(reference)
+    for row in report.get('violations', []):
+        if before.get(finding_key(row), 0) > 0:
+            before[finding_key(row)] -= 1
+        elif row.get('severity') == 'error':
+            new.append(row.get('type'))
+    return {'open': len(report.get('unconnected_items', [])), 'errors': len(new),
+            'by_type': {t: new.count(t) for t in sorted(set(new))},
+            'clean': not new and not report.get('unconnected_items')}
+
+
 def show(args):
     corpus = {e['name']: e for e in entries()}
     runs = {tag: summaries(tag) for tag in args.tags}
@@ -544,7 +572,13 @@ def show(args):
     for name in [n for n in names if any(n in r for r in runs.values())]:
         e = corpus.get(name) or {}
         d = e.get('designed') or {}
-        designed = f"{d.get('unconnected')} / {d.get('errors')}, {d.get('vias')} vias, {d.get('track_mm')} mm" if d else ''
+        own = designer(e) if e else None
+        if own is None:
+            designed = 'not routed' if d else ''
+        else:
+            kinds = ', '.join(f'{t} {n}' for t, n in own['by_type'].items())
+            designed = (f"**{own['open']} / {own['errors']}**" if own['clean'] else f"{own['open']} / {own['errors']}"
+                        + (f' ({kinds})' if kinds else '')) + f", {d.get('vias')} vias, {d.get('track_mm')} mm"
         cells = []
         for tag in args.tags:
             s = runs[tag].get(name)
@@ -565,8 +599,21 @@ def show(args):
               f"{(engine.get('commit') or '')[:8]}{' +' + str(engine['dirty_files']) + ' dirty' if engine.get('dirty_files') else ''}; "
               f"budget {info.get('budget_s')} {'processor' if info.get('clock') == 'cpu' else 'wall'} s "
               f"{' '.join(info.get('extra') or [])}" + host_load(done))
-    print('\nCells are open connections / new DRC errors (+ failed grading checks). Bold is clean. "cut off in": '
-          'the budget stopped the routing in that step of the engine, so the count is the budget\'s, not the router\'s.')
+    graded = {name: designer(e) for name, e in corpus.items()}
+    routed = {name for name, own in graded.items() if own is not None}
+    theirs = {name for name in routed if graded[name]['clean']}
+    if routed:
+        print(f"\nThe designers' own boards, graded the same way: {len(theirs)} of {len(routed)} clean "
+              f"({len(corpus) - len(routed)} of the corpus came unrouted).")
+        for tag in args.tags:
+            done = runs[tag]
+            ours = {name for name, summary in done.items() if summary['clean']}
+            print(f"  {tag}: clean on {len(ours & theirs)} of the {len(theirs & set(done))} its designer got clean, "
+                  f"on {len(ours & (routed - theirs))} of the {len((routed - theirs) & set(done))} its designer did not, "
+                  f"on {len(ours - routed)} of the {len(set(done) - routed)} that came unrouted")
+    print('\nCells are open connections / new DRC errors (+ failed grading checks); the designer\'s column counts the errors '
+          'the unrouted board does not have. Bold is clean. "cut off in": the budget stopped the routing in that step of '
+          'the engine, so the count is the budget\'s, not the router\'s.')
 
 
 def host_load(done):
