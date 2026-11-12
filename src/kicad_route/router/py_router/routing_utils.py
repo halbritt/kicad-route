@@ -164,6 +164,53 @@ def dist_sq_to_rounded_rect(
     return dx * dx + dy * dy
 
 
+# --- kicad-route (pad-lanes): the corner allowance of a pad keep-out ------------
+PAD_CORNER_EPS = 1e-6   # mm; keeps a cell that sits exactly on the bound blocked
+
+
+def pad_corner_buffer(margin: float, grid_step: float, corner_radius: float = 0.0,
+                      half_width: float = 0.0, half_height: float = 0.0) -> float:
+    """Extra keep-out (mm) round the CORNERS of a pad, beyond `margin`.
+
+    A cell is open when a track centred on it clears the pad. A track runs
+    from one open cell to a neighbour, and round a corner that straight piece
+    cuts inside the arc its two ends sit on. Upstream allows half a grid step
+    for that at every corner.
+
+    For a pad whose ends are whole arcs (a circle, an oval) every cell beside
+    the arc counts as corner, also the cells of a lane that runs straight
+    past the pad, where nothing is cut. There the allowance is not a corner's
+    but a tax on every lane: 0.05 mm on each side at a round 1.6 mm
+    through-hole pad, where two such pads at 2.54 mm leave a lane that fits a
+    0.4 mm track at 0.254 mm clearance with 0.016 mm to spare on each side.
+    Upstream's allowance closes every lane between the pins of a DIP part.
+
+    So a round-ended pad gets what a move round its arc needs and no more.
+    The keep-out there is an arc of radius rho = corner_radius + margin, and
+    a move is at most d = grid_step * sqrt(2) long. A piece whose one end
+    sits on the arc and whose other end is d^2 / (2 * rho) outside it does
+    not enter the arc at all (its nearest point to the arc's centre is the
+    end on the arc). That is 0.008 mm at the pad above on a 0.1 mm grid.
+    Never more than upstream's.
+
+    A rectangle and a rounded rectangle keep upstream's half grid step: their
+    sides are exact already, the allowance acts at the corners alone, and the
+    bound differs from it by hundredths of a millimetre at the small margins
+    of fine-pitch parts. (Measured: with the bound at those corners too, one
+    surface-mount board of the lab came out with 5 connections open where it
+    has 3, from nothing but the changed order of its searches.)
+    KICAD_PAD_CORNER=legacy keeps upstream's for every pad.
+    """
+    legacy = grid_step / 2
+    round_ended = corner_radius > 0 and corner_radius >= min(half_width, half_height) - 1e-9
+    if env_knobs.PAD_CORNER_LEGACY or not round_ended:
+        return legacy
+    rho = corner_radius + margin
+    if rho <= 0:
+        return legacy
+    return min(legacy, grid_step * grid_step / rho + PAD_CORNER_EPS)
+
+
 def iter_pad_blocked_cells(
     pad_gx: int, pad_gy: int,
     half_width: float, half_height: float,
@@ -204,7 +251,8 @@ def iter_pad_blocked_cells(
     # can occur with rectangular pads too. Callers whose geometry adds further
     # sub-grid deviation (diff pair P/N offsets) pass a larger buffer.
     if corner_buffer is None:
-        corner_buffer = grid_step / 2
+        corner_buffer = pad_corner_buffer(margin, grid_step, corner_radius,   # kicad-route (pad-lanes)
+                                          half_width, half_height)
     # The sub-cell offset to a nanometre, as in pad_blocked_cells_array
     # (its bit-identical twin): the one absolute-coordinate input.
     off_x = round(off_x, 9)
@@ -307,7 +355,8 @@ def pad_blocked_cells_array(
     case) takes the original bit-identical code path.
     """
     if corner_buffer is None:
-        corner_buffer = grid_step / 2
+        corner_buffer = pad_corner_buffer(margin, grid_step, corner_radius,   # kicad-route (pad-lanes)
+                                          half_width, half_height)
     # The sub-cell offset is the one input that comes from ABSOLUTE
     # coordinates (pad.global_x - pad_gx*grid_step), and it carries their
     # last-bit noise: the same pad on the same board moved 10 mm arrives

@@ -123,6 +123,17 @@
       "tests": [
         "tests/test_dangle_trim_at_pad.py"
       ]
+    },
+    {
+      "id": "pad-lanes",
+      "purpose": "A pad whose ends are whole arcs (a circle, an oval) gets, beyond its margin, what a move round the arc needs: grid_step^2 / (corner radius + margin), and never more than upstream's half grid step. Upstream's half grid step at every corner counts every cell beside such an arc as corner, also in a lane that runs straight past the pad, and so closed every lane between two round through-hole pads that fits a track with less than that to spare on each side: a 0.4 mm track at 0.254 mm clearance between 1.6 mm pads at 2.54 mm has 0.016 mm. Rectangles and rounded rectangles keep upstream's allowance. KICAD_PAD_CORNER=legacy keeps upstream's for every pad.",
+      "files": [
+        "py_router/routing_utils.py",
+        "py_router/env_knobs.py"
+      ],
+      "tests": [
+        "tests/test_pad_corner_allowance.py"
+      ]
     }
   ],
   "local_files": [
@@ -143,6 +154,7 @@
     "tests/test_multipoint_class_via.py",
     "tests/test_no_stub_swap_reaches_config.py",
     "tests/test_obstacle_lifecycle.py",
+    "tests/test_pad_corner_allowance.py",
     "tests/test_parser_legacy_tokens.py",
     "tests/test_pass_rule_floors.py",
     "tests/test_pour_launch_forbidden_layer_welds.py",

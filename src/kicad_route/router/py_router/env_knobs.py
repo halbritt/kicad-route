@@ -603,6 +603,8 @@ def refresh() -> None:
     # raw override for underpad outer-ring count ('' = keep the caller's
     # default, which differs by escape method; consumer parses float/inf)
     g['UNDERPAD_OUTER_RINGS'] = _s('KICAD_UNDERPAD_OUTER_RINGS')
+    # kicad-route (pad-lanes): 'legacy' keeps upstream's half-grid corner allowance.
+    g['PAD_CORNER_LEGACY'] = _s('KICAD_PAD_CORNER') == 'legacy'
 
 
 refresh()
