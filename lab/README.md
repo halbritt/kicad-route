@@ -89,6 +89,14 @@ records the hash of the built extension.
    stopped it in. A run stopped in its taps has rescued no net and repaired no
    plane, and a few seconds of budget move that point: two runs of one board
    12 s apart came out at 83 and 122 open connections.
+   For each pass it also counts the path searches that found no route and says
+   how many of them gave up at the engine's search allowance (200 000 steps a
+   direction, about 0.3 s) instead of running out of cells to try. The engine
+   prints "No route found" for both, and only the second kind says the pad is
+   closed in. In a run of a four-layer board that used 760 of its 1800 s, 19
+   of 142 failed searches had given up, on six nets, and three of those nets
+   were among the seven left open; one search gave up straight after the
+   engine had ripped the net that caged its pad, and the rip was undone.
    `why` says whose doing each open connection is. It runs the engine's own
    reachability check (`py_tools/check_reachability.py`: the widest track that
    reaches the rest of the net from a pad, on the placement alone and with the

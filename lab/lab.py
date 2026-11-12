@@ -888,9 +888,42 @@ ENGINE_STEPS = (('main loop', r'Routing \d+ single-ended net'), ('taps', r'Multi
                 ('regrade', r'JSON_REGRADE'))
 
 
+# The engine's allowance for one path search, in steps of the search: what it runs a direction
+# to before it gives up (its --max-iterations default), and the two short probes it runs first.
+SEARCH_ALLOWANCE = 200000
+SEARCH_PROBES = 10000
+SEARCH_END = re.compile(r'^(?:\[\d+/\d+[^\]]*\] Routing (?P<routing>.+?) \(id=\d+\)'
+                        r'|\s*Rescuing (?P<rescuing>.+?) \((?:partial|failed)'
+                        r'|\s*No route found after (?P<steps>\d+) iterations \(both directions\))', re.M)
+
+
+def searches(text, allowance=SEARCH_ALLOWANCE):
+    """The path searches of an engine log that found no route, and which of them gave up.
+
+    A search that ends short of its allowance has tried every cell it can reach: the pad is
+    closed in, and only moving copper helps. One that ends on a whole number of allowances
+    stopped because the allowance ran out, with cells still to try: it says nothing about
+    whether a route exists. The engine prints both as "No route found". Three of the seven nets
+    a four-layer board was left with open had ended that way, each search after 0.3 s, in a
+    run that used 760 of its 1800 s."""
+    failed, gave_up, nets, net = 0, 0, [], None
+    for found in SEARCH_END.finditer(text):
+        if found['steps'] is None:
+            net = found['routing'] or found['rescuing']
+            continue
+        failed += 1
+        steps = int(found['steps'])
+        if steps >= 2 * allowance and steps % allowance in (0, SEARCH_PROBES % allowance):
+            gave_up += 1
+            if net and net not in nets:
+                nets.append(net)
+    return {'failed': failed, 'gave_up': gave_up, 'nets': nets}
+
+
 def engine_passes(run_dir, result):
     """One row per engine pass of a kicad-route run: its log, nets, budget, processor seconds,
-    whether the budget stopped it, the step it was stopped in and the steps it reached."""
+    whether the budget stopped it, the step it was stopped in, the steps it reached and the
+    searches that found no route."""
     rows = []
     for command in (result.get('process') or {}).get('commands') or []:
         argv = [str(a) for a in command.get('argv') or []]
@@ -904,10 +937,12 @@ def engine_passes(run_dir, result):
         before = [step for step, mark in ENGINE_STEPS
                   if stop >= 0 and (found := re.search(mark, text)) and found.start() < stop]
         stopped = bool(command.get('stop_requested'))
+        allowance = int(argv[argv.index('--max-iterations') + 1]) if '--max-iterations' in argv else SEARCH_ALLOWANCE
         rows.append({'log': log_path.name, 'nets': nets, 'budget_s': command.get('budget_s'), 'cpu_s': command.get('cpu_s'),
                      'stopped': stopped, 'killed': bool(command.get('killed')),
                      'stopped_in': None if not stopped else (before[-1] if before else 'its start') if stop >= 0 else 'its finish',
-                     'reached': [step for step, mark in ENGINE_STEPS if re.search(mark, text)]})
+                     'reached': [step for step, mark in ENGINE_STEPS if re.search(mark, text)],
+                     'searches': searches(text, allowance)})
     return rows
 
 
@@ -936,6 +971,12 @@ def passes(args):
                   + (f"; stopped by the budget in {row['stopped_in']}" if row['stopped'] else '; ended on its own')
                   + (', then killed' if row['killed'] else ''))
             print(f"      reached: {', '.join(row['reached']) or 'nothing'}")
+            found = row['searches']
+            if found['failed']:
+                names = found['nets']
+                print(f"      searches without a route: {found['failed']}; {found['gave_up']} gave up at the search "
+                      f"allowance, the others were closed in"
+                      + (f" (gave up on {', '.join(names[:6])}{', ...' if len(names) > 6 else ''})" if names else ''))
 
 
 def diff(args):
