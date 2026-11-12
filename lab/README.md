@@ -87,7 +87,13 @@ records the hash of the built extension.
    a track of the net's class reaches the rest of the net on the board as
    placed, and the routing closed the way; `closed off by` counts the nets and
    pads at the narrowest place. "Still reachable on the routed board": the way
-   is there with all the routing in place, and the router did not take it.
+   is there with all the routing in place, and the router did not take it; the
+   line below says how much wider than the net's track that way is, and how
+   many have under 100 um, less than the engine's grid step. "With nothing in
+   the way inside the check's view": no answer. The check met no foreign
+   copper within 8 mm, which is what a through-hole pad gives (it reaches its
+   own net on the other layer at once), so a through-hole board gets few
+   answers from this view.
    "Caged by the placement": the check finds no way at the class sizes whatever
    is routed. That one grades the engine's model at class sizes: on one corpus
    board it says so of two pads the designer reached with a 0.15 mm track where

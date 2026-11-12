@@ -674,9 +674,14 @@ def opens(args):
 
 
 PAD_END = re.compile(r'[Pp]ad (\S+) \[.*\] of (\S+)')
-WHY_ORDER = ('routing', 'passable', 'placement', 'not measured')
+WHY_ORDER = ('routing', 'passable', 'no throat', 'placement', 'not measured')
 WHY_TEXT = {'routing': 'caged by copper this run laid', 'passable': 'still reachable on the routed board',
+            'no throat': "with nothing in the way inside the check's view (no answer)",
             'placement': 'caged by the placement', 'not measured': 'not measured'}
+# The check looks at 8 mm round the pad. A widest path of that order met no foreign copper at all:
+# the pad's own net was reached at once (a through-hole pad reaches it on its other layer), which
+# says nothing about the connection that is open.
+WHY_VIEW_UM = 15000
 
 
 _ROUTING_PYTHON = {}
@@ -754,7 +759,10 @@ def why_class(data):
     if data.get('verdict') == 'CAGED':
         return 'placement'
     routed = data.get('routed_copper') or {}
-    return 'routing' if routed.get('cages_the_pad') or routed.get('verdict') == 'CAGED' else 'passable'
+    if routed.get('cages_the_pad') or routed.get('verdict') == 'CAGED':
+        return 'routing'
+    margin = routed.get('margin_um')
+    return 'no throat' if margin is None or margin >= WHY_VIEW_UM else 'passable'
 
 
 def why(args):
@@ -797,6 +805,9 @@ def why(args):
                                     'between': sorted({b.get('pad') or b.get('net') or b.get('kind') for b in near} - {None}),
                                     'error': data.get('error')})
                 write_json(saved, answers)
+            for a in answers:                # answers kept before the class 'no throat' existed
+                if a['class'] == 'passable' and (a.get('routed_margin_um') is None or a['routed_margin_um'] >= WHY_VIEW_UM):
+                    a['class'] = 'no throat'
             count = {k: sum(1 for a in answers if a['class'] == k) for k in WHY_ORDER}
             more = f' ({len(answers)} measured)' if len(answers) != len(rows) else ''
             print(f"  {name}: {len(rows)} open{more}: " + ', '.join(f'{count[k]} {WHY_TEXT[k]}' for k in WHY_ORDER if count[k]))
@@ -807,11 +818,19 @@ def why(args):
                         closers[other] = closers.get(other, 0) + 1
             if closers:
                 print('      closed off by: ' + ', '.join(f'{n} {c}' for n, c in sorted(closers.items(), key=lambda x: (-x[1], x[0]))[:10]))
+            slack = sorted(a['routed_margin_um'] for a in answers if a['class'] == 'passable')
+            if slack:
+                # how much wider than the net's track the way still is: under the routing grid's step, the grid decides
+                tight = sum(1 for m in slack if m < 100)
+                print(f"      still reachable with {slack[0]:.0f} to {slack[-1]:.0f} um to spare (median {slack[len(slack) // 2]:.0f}); "
+                      f"{tight} of {len(slack)} with under 100 um, less than the engine's 0.1 mm grid step")
             if args.list:
                 for a in sorted(answers, key=lambda a: (WHY_ORDER.index(a['class']), a['from'] or '')):
                     spot = a.get('throat') or {}
                     at = f" at {spot.get('x')}, {spot.get('y')} on {spot.get('layer')}" if spot else ''
                     detail = a['error'] or (f"between {', '.join(a['between'])}{at}" if a['between'] else '')
+                    if a['class'] == 'passable':
+                        detail = f"{a['routed_margin_um']:.0f} um to spare; " + detail
                     print(f"      {a['class']:12} {(a['from'] or '?')[:58]:58} {detail}")
 
 
