@@ -437,6 +437,29 @@ A net KiCad puts in several classes is assigned all of them. When KiCad names a 
 the project does not define, the working copy is left as it is and the log says so.
 The candidate's project is the input's own, unchanged.
 
+### Dangling new copper
+
+The built-in engine can leave a piece of a connection it gave up, or was stopped in: a
+track from a pad to nowhere, a via with a track on one side only. KiCad's DRC reports
+each as `track_dangling` or `via_dangling`, every new finding counts against the
+candidate, and runs with a dozen connections open and no rule broken came back as
+boards not to adopt because of one or two such pieces (one of them 0.2 mm long).
+
+Before the board is graded, the wrapper removes them (`kicad/dangling.py`): every track
+and via that the board did not have before routing and that KiCad's own test calls
+dangling, and then what dangles once those are gone, until nothing does. The test runs
+on a copy in memory with the zones refilled, as the candidate is graded, so a track that
+ends in a pour of its net is connected and stays. Copper the board had before routing
+is never touched, its own stubs included: it is matched by exact geometry, as the lock
+step matches it. The board is rewritten only when something was removed.
+`process.dangling_removed` records the counts (`new_items`, `removed_tracks`,
+`removed_vias`, `rounds`) and the removed items (`removed`: net, layer, end points),
+and `work/before-routing/` keeps the board the comparison was made with. A connection
+that was open stays open, and is reported as open: on a board of 478 connections the
+step removed six segments, a 3 mm piece from a supply pin and a 0.2 mm one, and KiCad's
+DRC of the refilled board lost its two `track_dangling` findings and nothing else (56
+connections open before and after).
+
 ### Time budget
 
 `--budget` seconds is when the run should be over, so the built-in router is asked to

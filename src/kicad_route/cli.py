@@ -1943,6 +1943,10 @@ def krt_route(work, board, scope, facts, settings):
         env["KICAD_NET_STORY"] = "1"
     if settings.get("length_match") is not None:
         argv += length_groups.backend_args(settings['length_match'])
+    # the copper the board has before anything is routed: what a dangling stub is not (kicad/dangling.py)
+    before = work / "before-routing" / board.name
+    before.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(board, before)
     locks = None
     if settings["protect"] in ("existing", "human"):
         # KRT never touches locked copper, but its rescue path reworks unlocked input
@@ -2061,6 +2065,21 @@ def krt_route(work, board, scope, facts, settings):
             else:
                 proc["reasons"].append(f"plane nets, last pass: {last['reason']}; "
                                        "the board is as the routing left it")
+    if proc["status"] == PASS and output.is_file():
+        # The engine can leave a piece of a connection it gave up, or was stopped in: a track
+        # to nowhere. KiCad reports each, and one 0.2 mm stub made a board with nothing else
+        # wrong one not to adopt. Removed here, by KiCad's own test, before the board is graded.
+        dr = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "dangling.py", "sweep", before, output],
+                            work, work / "dangling-sweep.log", timeout=900)
+        proc["commands"].append(common.public(dr))
+        swept = tagged_json(dr["output"], "DANGLING_JSON") if dr["exit_code"] == 0 else None
+        proc["dangling_removed"] = swept
+        if swept is None:
+            proc["reasons"].append(f"could not look for dangling new copper (see {dr['log']}); "
+                                   "KiCad's DRC grades what is there")
+        elif swept["removed_tracks"] or swept["removed_vias"]:
+            log(f"[route] removed {swept['removed_tracks']} track segment(s) and {swept['removed_vias']} via(s) "
+                "the router left ending in the air")
     if locks is not None and proc["status"] == PASS:
         rr = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "locks.py", "restore", output, work / "locks.json"],
                          work, work / "restore-locks.log", timeout=600)

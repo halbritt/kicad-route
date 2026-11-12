@@ -98,9 +98,11 @@ whose `process.status` is FAIL with reasons, and no candidate. Heartbeats
 
 The backend's output is brought back into a KiCad board: the built-in router's output file
 directly, Freerouting's session through KiCad's SES import (with the footprint
-placement section removed, so a session can never move parts). Temporary keepouts
-are stripped, lock flags are restored to what the design had, and the result is
-the **delivered board**: `delivered_board_sha256`.
+placement section removed, so a session can never move parts). New copper the
+built-in router left ending in the air is removed
+([routing.md](../routing.md#dangling-new-copper)), temporary keepouts are stripped,
+lock flags are restored to what the design had, and the result is the **delivered
+board**: `delivered_board_sha256`.
 
 ## 7. Grade
 
