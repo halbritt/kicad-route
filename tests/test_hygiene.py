@@ -318,6 +318,7 @@ def test_krt_net_patterns_are_exact():
 
 def test_canary_quick_bridge():
     """What doctor runs: the class split and KiCad's DSN export of awkward names (no routing)."""
+    shutil.rmtree(OUT / "canary-quick", ignore_errors=True)     # a second suite run in one checkout finds the first's
     res = canary.run_canary(quick=True, dest=OUT / "canary-quick")
     record("hygiene_canary_quick", res)
     assert res["status"] == common.PASS, res["reasons"]
