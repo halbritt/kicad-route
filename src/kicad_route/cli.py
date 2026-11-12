@@ -1298,9 +1298,14 @@ def run_attempt(args):
         settings["pair_layers"] = pair_layers
     if impedance_plan is not None:
         settings["pair_impedance"] = impedance_plan
-    if grid_step is not None:
-        settings["grid_step_mm"] = grid_step
     if args.backend == "builtin":
+        chosen_grid, grid_basis = resolve_grid(grid_step, ref_facts)
+        if chosen_grid is not None:
+            settings["grid_step_mm"] = chosen_grid
+        if grid_basis is not None:
+            settings["grid_basis"] = grid_basis
+        settings["reserve_spokes"] = spokes_with_grid(chosen_grid, grid_basis, settings["reserve_spokes"],
+                                                      spoke_pad_layers)
         recipe = resolve_recipe(getattr(args, "recipe", None), ref_facts.get("copper_layer_count"))
         if recipe != "default":
             settings["recipe"] = recipe
@@ -1413,7 +1418,7 @@ def run_attempt(args):
     # what the board closes to new copper without a rule area: closed the same way, on every run (closed.py)
     proc = closed.around_route(work, work_board, lambda: barrier.around_route(
         barrier_rec, work, work_board, lambda: spokes.around_route(
-            args.reserve_spokes, work, work_board,
+            settings["reserve_spokes"], work, work_board,
             lambda: backend["route"](work, work_board, scope, ref_facts, routing_settings),
             pad_layers=spoke_pad_layers)))
     proc["runtime_s"] = round(time.monotonic() - t0, 3)
@@ -1746,6 +1751,58 @@ def resolve_recipe(name, copper_layer_count):
     if name == "auto":
         return "two-layer" if copper_layer_count == 2 else "default"
     return name
+
+
+# The engine's search grid. A track runs on grid lines, and a lane between two pads takes a track
+# only when a grid line lies in it. The lane between two pins at 2.54 mm lies on the 5 mil lattice
+# the part was drawn on: with 1.6 mm pads, a 0.4 mm track and 0.254 mm clearance it is 0.03 mm
+# wide, and a 0.1 mm grid has a line in it for one pin pair in three. So the grid follows the
+# pads: 0.127 mm when most of the board's connected pads sit on that lattice, the engine's own
+# 0.1 mm otherwise. Measured on the lab corpus (lab/README.md); docs/routing.md has the numbers.
+GRID_5_MIL_MM = 0.127
+LATTICES_NM = (("0.1", 100_000), ("0.127", 127_000))
+ON_LATTICE_NM = 1_000             # a pad is on a lattice when both coordinates are within a micrometre of it
+
+
+def pad_lattice(facts):
+    """How many connected pads of the board sit on each of the two lattices:
+    {"pads": N, "on_0.1": a, "on_0.127": b}."""
+    spots = [pad["position"] for footprint in (facts.get("footprints") or {}).values()
+             for pad in (footprint.get("pads") or {}).values() if pad.get("net") and pad.get("position")]
+
+    def on(value, step):
+        rest = abs(int(value)) % step
+        return min(rest, step - rest) <= ON_LATTICE_NM
+    counts = {"pads": len(spots)}
+    for name, step in LATTICES_NM:
+        counts["on_" + name] = sum(1 for x, y in spots if on(x, step) and on(y, step))
+    return counts
+
+
+def resolve_grid(requested, facts):
+    """(the grid step a builtin run uses, in mm, or None for the engine's own; the pad counts the
+    choice was made on, or None when the caller named the step)."""
+    if requested is not None:
+        return requested, None
+    counts = pad_lattice(facts)
+    if counts["on_0.127"] * 2 > counts["pads"] and counts["on_0.127"] > counts["on_0.1"]:
+        return GRID_5_MIL_MM, counts
+    return None, counts
+
+
+def spokes_with_grid(chosen_grid, grid_basis, requested, pad_layers):
+    """The spoke reservation of a builtin run (None: none, 0: the board's minimum per pad, N).
+
+    The caller's choice stands. Without one, a run that put the grid on the pad lattice itself
+    reserves the board's minimum of spokes for every thermal pad: on that grid the lanes beside
+    a pin take tracks, also the two beside a pin that joins a pour, and a pin with a track on
+    each side has lost the pour. A through-hole board came back with no open connection, no DRC
+    error and one ground pin off its pour; with the corridors reserved it is clean. Reserving
+    for every board is not the answer: on a four-layer board with two 0.5 mm QFPs it left 63
+    connections open where the run leaves 20."""
+    if requested is not None or pad_layers or grid_basis is None or chosen_grid is None:
+        return requested
+    return 0
 
 
 KRT_FLAGS = [
@@ -3165,7 +3222,9 @@ def add_route_args(p):
     p.add_argument("--clearance-margin", type=float, metavar="MM",
                    help="Freerouting only: add MM to every clearance it plans with (tighten only)")
     p.add_argument("--grid-step", type=float, metavar="MM",
-                   help="builtin routing search resolution, also for auto differential pairs; native rules are unchanged")
+                   help="builtin routing search resolution, also for auto differential pairs; native rules are "
+                        "unchanged. Default: 0.127 when most of the board's connected pads sit on the 5 mil "
+                        "lattice, else the engine's 0.1 (settings.grid_basis has the counts)")
     p.add_argument("--recipe", choices=["auto", *RECIPES], default=RECIPE_DEFAULT,
                    help="builtin only: the engine's cost settings for a class of board (docs/routing.md). "
                         "auto picks by the board's copper layer count (two layers: far fewer vias); "

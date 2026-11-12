@@ -338,6 +338,56 @@ keep-out wall) came back with a starved thermal on a ground pad it cannot connec
 where the engine's costs leave none. `run` now repairs a starved thermal of its own
 making (`docs/spokes.md`), which is the condition for making `auto` the default.
 
+### Search grid and keep-outs
+
+The built-in engine routes on a grid: a track runs along grid lines, and a lane between two
+pads takes a track only when a grid line lies in it. Two things decided whether it did.
+
+**Where the grid lies.** Parts drawn in mils put their pads on a 5 mil (0.127 mm) lattice,
+and the lane between two pins at 2.54 mm is centred on that lattice. With 1.6 mm pads, a
+0.4 mm track and 0.254 mm clearance the lane is 0.03 mm wide: a 0.1 mm grid has a line in
+it for one pin pair in three, a 0.127 mm grid for every pair. So without `--grid-step` the
+run takes 0.127 mm when more than half of the board's connected pads sit on the 5 mil
+lattice (both coordinates within a micrometre) and more than sit on the 0.1 mm one, and the
+engine's 0.1 mm otherwise. `settings.grid_basis` in the result has the counts,
+`settings.grid_step_mm` the step when it is not the engine's own, and `--grid-step 0.1`
+keeps the engine's. Of the twelve boards of the router lab, five are drawn in mils (54 to
+89 % of their pads on the 5 mil lattice, under 5 % on 0.1 mm) and seven are not (none
+above 27 %).
+
+On that grid the lanes beside a pin take tracks, also the two beside a pin that joins a
+pour, and a pin with a track on each side has lost its pour: one of the five boards came
+back with no open connection, no DRC error and one ground pin off the pour. So a run that
+chose the pad lattice itself also reserves the board's minimum of thermal spokes for every
+thermal pad, as `--reserve-spokes` does (`docs/spokes.md`; `settings.reserve_spokes` is 0
+then), unless the caller gave `--reserve-spokes` or `--reserve-spoke-pad`. It is not done
+for every board: on a four-layer board with two 0.5 mm QFPs the reservation left 63
+connections open where the run leaves 20.
+
+**How much the engine keeps clear.** Upstream draws a pad's keep-out half a grid step
+larger at its corners. Tracks and polygon pads it draws exactly. The extra is there because
+a track runs from one open cell to a neighbour, and round a corner that straight piece cuts
+inside the arc its ends sit on. The cut has a bound: with one end on an arc of radius R,
+the piece stays outside it when the other end is `grid² / R` further out. The engine
+carried here uses that bound, never more than upstream's, for pads whose ends are whole
+arcs, circles and ovals (`router/UPSTREAM.json`: `pad-lanes`; `KICAD_PAD_CORNER=legacy`
+gives upstream's cells back). For such a pad upstream counts every cell beside the arc as
+corner, also in a lane that runs straight past it. At a 1.6 mm round pad with the rules
+above the bound is 0.013 mm on a 0.127 mm grid where upstream's allowance is 0.064 mm,
+which is what closed every one of those lanes: on the KiCad demo board with 164
+connections its designer ran 48 tracks through 115 such lanes, and the engine could use
+none. Rectangles and rounded rectangles keep upstream's corner allowance: their sides are
+exact already, and with the bound at their corners too one surface-mount board of the lab
+came out with five connections open where it has three, from nothing but a changed order
+of searches.
+
+Upstream also rounds a via's reach for tracks (half its size, half the track, the
+clearance) up to a whole cell: 0.8 mm from the centre of a 0.6 mm via for a 0.25 mm track
+at 0.2 mm clearance on a 0.1 mm grid, where the rule is 0.625 mm. The same bound was tried
+there. No board of the lab came out better for it, and one four-layer board came out with
+two connections open where it has one, so the engine keeps upstream's via keep-out
+(AGENTEE-687 has the patch and the measurements).
+
 ### Plane nets
 
 A net that owns a plane (a copper zone on an inner layer) is connected through that

@@ -69,6 +69,10 @@ Each corridor is classified:
 
 ## `run --reserve-spokes [N]`
 
+A builtin run that puts its search grid on the pad lattice by itself (through-hole boards
+drawn in mils; `docs/routing.md`, "Search grid and keep-outs") reserves the board's minimum
+without the option, because on that grid the lanes beside a pour-connected pin are in play.
+
 The option takes 0–4; with no value it uses the board's `min_resolved_spokes`. In
 `run_attempt`, `spokes.around_route` wraps the backend call:
 
