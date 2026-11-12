@@ -12,6 +12,9 @@ SWIG functions pcbnew.ExportSpecctraDSN(board, path) and
 pcbnew.ImportSpecctraSES(board, path), which work headless (the one-argument
 forms need a running PCB editor).
 
+export leaves out the rule areas that forbid neither tracks nor vias: KiCad
+writes each of them as a full keepout (see leave_out_areas_not_for_routing).
+
 export --skip-nets: Freerouting selects work by net class only. Nets outside
 the routing scope are moved into a copy of their class (same width, clearance
 and via rules) named `<class>__skip`; the caller passes those names to
@@ -565,6 +568,24 @@ def rewrite_dsn(text, opts, info):
     return text
 
 
+def leave_out_areas_not_for_routing(board):
+    """Take the rule areas that forbid neither tracks nor vias off `board` (in memory),
+    and name them.
+
+    KiCad's export writes a rule area that forbids vias only as (via_keepout ...), tracks
+    only as (wire_keepout ...), and every other one as a full (keepout ...): also the one
+    that forbids neither, such as a pour or footprint keep-out or a multi-channel placement
+    area. Freerouting then routes nothing inside an area the board lets it route in. The
+    KiCad demo board multichannel_mixer has four placement areas over its four channels,
+    and Freerouting left 160 of its 173 connections open."""
+    areas = [zone for zone in board.Zones()
+             if zone.GetIsRuleArea() and not zone.GetDoNotAllowTracks() and not zone.GetDoNotAllowVias()]
+    left_out = [zone.GetZoneName() for zone in areas]
+    for zone in areas:
+        board.Delete(zone)  # KiCad frees it; Remove leaves Python an object it frees again at exit
+    return left_out
+
+
 def main(argv):
     import pcbnew
 
@@ -599,11 +620,13 @@ def main(argv):
         board = pcbnew.LoadBoard(argv[1])
         opts = dict(zip(argv[3::2], argv[4::2]))
         temporarily_locked = len(lock_existing(board, opts.get("--only")))
+        areas_left_out = leave_out_areas_not_for_routing(board)
         out = Path(argv[2])
         if not pcbnew.ExportSpecctraDSN(board, str(out)):
             sys.exit("ExportSpecctraDSN failed")
         info = {"dsn": str(out), "ignored_classes": [], "clearance_raised": [],
-                "existing_copper_locked_for_export": temporarily_locked}
+                "existing_copper_locked_for_export": temporarily_locked,
+                "rule_areas_not_for_routing_left_out": areas_left_out}
         if "--only" in opts:
             info["existing_copper_left_unlocked"] = sum(1 for t in board.GetTracks() if not t.IsLocked())
         text = out.read_text()
