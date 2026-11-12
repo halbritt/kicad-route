@@ -463,6 +463,52 @@ step removed six segments, a 3 mm piece from a supply pin and a 0.2 mm one, and 
 DRC of the refilled board lost its two `track_dangling` findings and nothing else (56
 connections open before and after).
 
+### Pour pieces the routing ringed off
+
+New tracks around a pad can ring the pour it sits in off from the rest of that pour. A
+piece of copper is left whose only tie to its net is that one pad's thermal spokes, and
+KiCad counts no spoke into such a piece. That shows in one of two ways:
+
+- **spokes.** The pad still has spokes into live copper on that layer, but fewer than
+  the board's minimum spoke count: `starved_thermal`, "Thermal relief connection to zone
+  incomplete (N spokes connected to isolated island)". On a two-layer board with ground
+  poured on both sides, two tracks ringed 20 mm² of the back pour that took two of a
+  capacitor pin's three spokes. A complete routing was a board not to adopt for that one
+  finding, and whether it appeared changed with the order the nets happened to take.
+- **open.** The pad has nothing else, no track and no other piece of pour: it is cut
+  from its net, and the board has an open connection it did not have before routing.
+  This case does not need thermal relief; a pad that its pour joins solidly is cut off
+  the same way.
+
+A pad with all its spokes of a layer in such a piece and a connection elsewhere (a pin
+that reaches the pour on the other side) is neither. KiCad has no finding, and nothing is
+done.
+
+After the built-in router, and after the dangling copper is gone, the wrapper puts a via
+in each such piece, as a designer would (`stitch.py`, `kicad/stitch.py`): a via of the
+net's class, raised to the board's minimum via, hole and annular ring, with its centre
+in the piece and, on another layer, in copper of the same net that is not cut off
+itself, so that the refill joins both to it; where it keeps the class clearance from all
+copper of other nets, from every pad of another net and from every other hole, stays off
+the pads of its own net and inside the board's edge clearance; and where no rule area
+forbids vias. KiCad's DRC then grades the board before and after with the zones refilled
+(without the corridors of `--reserve-spokes`, which come off the delivered board). A via
+that any new finding names is taken out again and listed with the kinds of finding, and
+all of them are when KiCad's report is not the shorter for them or has more open
+connections than before (`removed_no_gain`). Only nets in the run's scope get a via, and only
+for a pad that was not in the same state before routing.
+
+`process.stitched` records it: `status` (`none`, `stitched`, or `failed` with a
+`reason`; the board is then as the router left it), `pieces_cut_off`, `vias` (net,
+layer, pad, `case`, position, size and, for the spokes case, the counts), `left` and
+`removed_after_drc`. A piece in `left` got no via, and `why` counts the places in it
+that were turned down by reason: `no copper of the net on another layer` (a net poured
+on one layer only cannot be stitched), `rule area`, `pad`, `hole`, `via`, `track`,
+`board edge`, or `no room in the piece`. A pin's patch of pour between the fan-out of its neighbours often has no
+such place: on a two-layer hub board two ground pins of a 0.5 mm pitch package were left
+that way, on patches of under a square millimetre. KiCad's finding for that pad
+then stands.
+
 ### Time budget
 
 `--budget` seconds is when the run should be over, so the built-in router is asked to

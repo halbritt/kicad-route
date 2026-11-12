@@ -411,6 +411,8 @@ def finish(entry, run_root, issues, stats, seconds, exit_code, have_result, reco
                'engine_cpu_s': stats.get('engine_cpu_s'),
                # the step of the engine's procedure the budget stopped the run's own pass in, if it did
                'cut_off_in': stats.get('cut_off_in'),
+               # dangling pieces removed, ringed-off pour pieces stitched and left (kicad-route runs only)
+               'after_engine': stats.get('after_engine'),
                # budgets are wall time: a loaded host routes less in the same budget
                'host_load': round(os.getloadavg()[0], 1), 'host_cpus': os.cpu_count(),
                'clean': have_result and not opens and not errors
@@ -460,6 +462,11 @@ def route_one(entry, tag, engine, budget, extra, clock='cpu'):
     run_dir = run_dir_of(tag, entry['name'])
     own = [row for row in engine_passes(run_dir, result) if row['log'] == 'krt.log'] if run_dir and result else []
     stats['cut_off_in'] = own[0]['stopped_in'] if own else None
+    # what the wrapper cleared up, or could not, after the engine: each is something the engine left
+    swept, stitched = [(result.get('process') or {}).get(key) or {} for key in ('dangling_removed', 'stitched')]
+    stats['after_engine'] = {'stubs_removed': (swept.get('removed_tracks') or 0) + (swept.get('removed_vias') or 0),
+                             'pieces_stitched': len(stitched.get('vias') or []),
+                             'pieces_left': len(stitched.get('left') or [])}
     return finish(entry, run_root, issues, stats, seconds, record.get('exit_code'), bool(result),
                   {k: v for k, v in record.items() if k != 'result'})
 
@@ -488,6 +495,14 @@ def run(args):
 
 def summaries(tag):
     return {p.parent.name: read_json(p) for p in sorted((LAB / 'runs' / tag).glob('*/summary.json'))}
+
+
+def after_engine(s):
+    """What the wrapper cleared up after the engine, for a table cell: only what is not zero."""
+    a = (s or {}).get('after_engine') or {}
+    parts = [f"{a[key]} {text}" for key, text in (('stubs_removed', 'dangling removed'), ('pieces_stitched', 'pour stitched'),
+                                                   ('pieces_left', 'pour left cut off')) if a.get(key)]
+    return ', ' + ', '.join(parts) if parts else ''
 
 
 def cell(s):
@@ -533,6 +548,7 @@ def show(args):
             cells.append(cell(s) + (f", {s['vias']} vias, {s['track_mm']} mm, {s['seconds']:.0f} s" if s and not s.get('process') else '')
                          + (f" (engine {s['engine_cpu_s']:.0f} CPU s)" if s and s.get('engine_cpu_s') is not None else '')
                          + (f", cut off in {s['cut_off_in']}" if s and s.get('cut_off_in') else '')
+                         + after_engine(s)
                          + (f" ({s['best_of']})" if s and s.get('best_of') else ''))
         print(f"| {name} | {e.get('layers', '')} | {(e.get('unrouted') or {}).get('unconnected', '')} | {designed} | " + ' | '.join(cells) + ' |')
     for tag in args.tags:

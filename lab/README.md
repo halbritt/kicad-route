@@ -45,7 +45,12 @@ existing`, as a caller does, and writes one record per thing that went wrong
 | `advisory` | listed and never counted against a board: `below_class`, new copper below its net class size. KiCad's DRC enforces the board's minimums and rules; six of ten designers' boards of the corpus have such tracks |
 
 A board is clean when it has none of the first four and the process ran.
-A table cell is `open / new errors`, plus the failed grading checks.
+A table cell is `open / new errors`, plus the failed grading checks. After the
+copper and the time it says where the budget cut the engine off, and what the wrapper
+cleared up after the engine, each a thing the engine left: `N dangling removed` (new
+tracks and vias ending in the air), `N pour stitched` (a piece of pour that new tracks
+ringed off around one pad, joined to its net again with a via) and `N pour left cut off`
+(such a piece with no place for a via; KiCad's finding for its pad stands).
 
 A run is of one commit. `run` copies the checkout's committed files to
 `$KICAD_ROUTE_LAB/snap/frozen-COMMIT` and routes with the copy, so the checkout

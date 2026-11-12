@@ -119,6 +119,7 @@ from . import netnames
 from . import procgroup
 from . import stall
 from . import statemanifest
+from . import stitch  # pour pieces the routing ringed off get a via to their net (docs/routing.md)
 from . import plane_nets  # run --plane-nets: the nets that own a plane get engine passes of their own
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot, sibling_names
 
@@ -2086,6 +2087,15 @@ def krt_route(work, board, scope, facts, settings):
         elif swept["removed_tracks"] or swept["removed_vias"]:
             log(f"[route] removed {swept['removed_tracks']} track segment(s) and {swept['removed_vias']} via(s) "
                 "the router left ending in the air")
+    if proc["status"] == PASS and output.is_file():
+        stitched = stitch.apply(work, board, before, output, scope, sys.modules[__name__])
+        proc["commands"] += stitched.pop("commands")
+        proc["stitched"] = stitched
+        if stitched["status"] == "failed":
+            proc["reasons"].append(f"pour pieces not stitched: {stitched['reason']}; KiCad's DRC grades the board as routed")
+        elif stitched["status"] == "stitched":
+            log(f"[route] stitched {len(stitched['vias'])} pour piece(s) the routing had ringed off: "
+                + ", ".join(f"{v['net']} at {'/'.join(v['pads'])} on {v['layer']}" for v in stitched["vias"][:6]))
     if locks is not None and proc["status"] == PASS:
         rr = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "locks.py", "restore", output, work / "locks.json"],
                          work, work / "restore-locks.log", timeout=600)

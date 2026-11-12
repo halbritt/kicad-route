@@ -100,7 +100,9 @@ The backend's output is brought back into a KiCad board: the built-in router's o
 directly, Freerouting's session through KiCad's SES import (with the footprint
 placement section removed, so a session can never move parts). New copper the
 built-in router left ending in the air is removed
-([routing.md](../routing.md#dangling-new-copper)), temporary keepouts are stripped,
+([routing.md](../routing.md#dangling-new-copper)), a piece of pour that new tracks
+ringed off around one pad gets a via to its net where there is room for one
+([routing.md](../routing.md#pour-pieces-the-routing-ringed-off)), temporary keepouts are stripped,
 lock flags are restored to what the design had, and the result is the **delivered
 board**: `delivered_board_sha256`.
 
