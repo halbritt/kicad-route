@@ -17,6 +17,12 @@ lab/lab.py show before after upstream                            # the table
 lab/lab.py run upstream --stock ~/src/KiCadRoutingTools -- --escalation board --no-fix-drc-settings
 ```
 
+Start a round with `mise run lab:run -- TAG ...` (the same arguments as
+`lab/lab.py run`): the round then asks the host for one unit of capacity per
+job and is stopped, with everything it started, at its deadline. Rounds
+started directly ran beside other agents' tests at a load of 20 to 30 on 12
+processors, which slows every run on the host and theirs most.
+
 ## What a board is
 
 A designer's board with its own rule files. `add` keeps two copies under

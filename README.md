@@ -158,6 +158,26 @@ make evidence     # smoke, then publish its structured evidence to reports/fixtu
 make fixture      # regenerate fixtures/route_demo
 ```
 
+Tests and lab rounds run through [mise](https://mise.jdx.dev) tasks (`mise.toml`). Each
+wraps the command above or a pytest call, and the ones that start engines or KiCad go
+through the host's shared `host:exec` task, which waits for host capacity, enforces a
+deadline and stops everything the run started:
+
+```sh
+mise tasks ls                                  # what there is
+mise run test -- tests/test_stitch.py          # focused pytest files or test IDs
+mise run test:engine                           # the owned engine's regression scripts
+mise run test:kernel                           # make kernel
+mise run test:smoke                            # make smoke
+mise run test:suite                            # every file under tests/, about an hour
+mise run lab:run -- r16 --budget 300 --jobs 3 -- --recipe auto    # a router lab round (lab/README.md)
+```
+
+`HOST_TEST_TIMEOUT=2h` (or `LAB_TIMEOUT` for a lab round) overrides a deadline. A lab
+round asks for one unit of host capacity per job; a host that is busy refuses it
+(exit 75) and the round is started again later. A worktree needs the built routing
+environment (`.venv-krt`) for the tests that route.
+
 ## License
 
 kicad-route itself is MIT-licensed ([`LICENSE`](LICENSE)).

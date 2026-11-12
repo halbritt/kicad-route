@@ -1,0 +1,52 @@
+# Host task entry points round kicad-route's existing checks: the pytest files under tests/, the
+# Makefile's kernel and smoke gates, and the router lab. Tasks only. Each wraps the documented
+# command; the ones that start engines, KiCad or other long-lived children go through the shared
+# host:exec task, which admits the run against host capacity, enforces a deadline and stops
+# everything the run started. HOST_TEST_TIMEOUT overrides a deadline (30m, 2h ...).
+
+[tasks.test]
+description = "Focused pytest files or test IDs on the host; pass them after -- (the whole suite is test:suite)"
+run = '''sh -eu -c '
+if [ "$#" -eq 0 ]; then
+  echo "error: name test files or IDs, e.g.: mise run test -- tests/test_stitch.py (the whole suite, about an hour: mise run test:suite)" >&2
+  exit 2
+fi
+exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider "$@"
+' sh'''
+
+[tasks."test:engine"]
+description = "The owned engine's regression scripts, each run with the built routing environment (tests/test_engine_regressions.py)"
+run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests/test_engine_regressions.py "$@"' sh'''
+
+[tasks."test:kernel"]
+description = "The routing kernels' fast gate (make kernel; docs/kernel-testing.md)"
+run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-20m}" -- make kernel' sh'''
+
+[tasks."test:smoke"]
+description = "Native routing integration on the bundled fixture (make smoke)"
+run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-45m}" -- make smoke' sh'''
+
+[tasks."test:suite"]
+description = "The whole pytest suite: about an hour, starts engines and KiCad, needs the built routing environment; extra pytest flags after --"
+run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-100m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests "$@"' sh'''
+
+[tasks.doctor]
+description = "What is installed and whether each backend can run (make doctor)"
+run = "make doctor"
+
+[tasks."lab:run"]
+description = "A router lab round, lab/lab.py run TAG [NAMES] [--budget S] [--jobs N] [-- run options]: one unit of host capacity per job, stopped at LAB_TIMEOUT (default 3h)"
+run = '''sh -eu -c '
+if [ "$#" -eq 0 ]; then
+  echo "error: name the round, e.g.: mise run lab:run -- r16 --budget 300 --jobs 3 -- --recipe auto (lab/README.md)" >&2
+  exit 2
+fi
+jobs=1
+previous=""
+for word in "$@"; do
+  if [ "$word" = "--" ]; then break; fi
+  if [ "$previous" = "--jobs" ]; then jobs="$word"; fi
+  previous="$word"
+done
+exec mise run host:exec -- --timeout "${LAB_TIMEOUT:-3h}" --weight "$jobs" -- /usr/bin/python3 lab/lab.py run "$@"
+' sh'''
