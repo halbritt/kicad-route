@@ -223,13 +223,17 @@ def frozen(checkout):
             tmp.rename(dest)
         except OSError:                                      # another run of this commit got there first
             shutil.rmtree(tmp, ignore_errors=True)
-    # the built engine environment is not in git: the copy uses the checkout's, or, for a checkout
-    # installed with `kicad-route update`, the environment of its newest router generation
+    # The built engine environment is not in git: the copy uses the checkout's. A checkout installed
+    # with `kicad-route update` routes with the environment of the router generation its state
+    # manifest names; a .venv-krt left beside it by an older install has no engine in it (twelve
+    # boards failed at start on "numpy: not installed" when the copy linked that one).
     venvs = {v.name: v for v in checkout.glob('.venv-*') if v.is_dir()}
-    if '.venv-krt' not in venvs:
-        built = sorted(checkout.glob('.router-generations/*/venv'), key=lambda v: v.stat().st_mtime)
-        if built:
-            venvs['.venv-krt'] = built[-1]
+    try:
+        generation = json.loads((checkout / 'manifest.json').read_text())['krt']['generation']
+    except (OSError, ValueError, KeyError, TypeError):
+        generation = None
+    if generation and (checkout / generation / 'venv').is_dir():
+        venvs['.venv-krt'] = checkout / generation / 'venv'
     for name, venv in venvs.items():
         link = dest / name
         if not link.exists():
