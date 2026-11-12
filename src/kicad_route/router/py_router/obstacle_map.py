@@ -1060,6 +1060,20 @@ def filled_graphic_interior_cells(pcb_data, coord: GridCoord, shape,
     return _box_masked_cells(gx_lo, gy_lo, nx, mask)
 
 
+def _pad_box(pad, slack: float = 1e-6):
+    """(lo_x, hi_x, lo_y, hi_y) of a box no point of the pad's copper lies
+    outside: its polygons' own extent, or for a plain pad the circle through
+    its corners, which holds it at any rotation."""
+    polys = getattr(pad, 'polygons', None)
+    if polys:
+        xs = [pt[0] for poly in polys for pt in poly]
+        ys = [pt[1] for poly in polys for pt in poly]
+        return min(xs) - slack, max(xs) + slack, min(ys) - slack, max(ys) + slack
+    reach = math.hypot(pad.size_x, pad.size_y) / 2.0 + slack
+    return (pad.global_x - reach, pad.global_x + reach,
+            pad.global_y - reach, pad.global_y + reach)
+
+
 def _drop_own_pad_via_sites(spans, pcb_data, owner_ref, net_ids,
                             coord: GridCoord):
     """``spans`` (#815 form) less the cells ON a pad of ``owner_ref`` of one
@@ -1072,11 +1086,18 @@ def _drop_own_pad_via_sites(spans, pcb_data, owner_ref, net_ids,
     pads = [p for p in (fp.pads if fp is not None else ()) if p.net_id in net_ids]
     if not pads:
         return spans
+    # kicad-route (restore-speed): a cell outside a pad's bounding box is not on
+    # the pad, and is passed over before the pad's outline is measured. A
+    # footprint with polygon pads paid for every outline at every cell: 2.7
+    # million measurements and 121 s of a 436 s run on a four-layer board.
+    boxes = [_pad_box(p) for p in pads]
     cells, dropped = [], False
     for gx, lo, hi in spans.tolist():
         for gy in range(lo, hi + 1):
             x, y = coord.to_float(gx, gy)
-            if any(point_to_pad_distance(x, y, p) <= 0.0 for p in pads):
+            if any(lo_x <= x <= hi_x and lo_y <= y <= hi_y
+                   and point_to_pad_distance(x, y, p) <= 0.0
+                   for p, (lo_x, hi_x, lo_y, hi_y) in zip(pads, boxes)):
                 dropped = True
             else:
                 cells.append((gx, gy, gy))

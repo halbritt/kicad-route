@@ -559,6 +559,21 @@ def _saved_route_colliders(saved_result: dict, pcb_data: PCBData,
     seen = set()
     held = input_pair_unmoved(pcb_data)
 
+    # kicad-route (restore-speed): a pair whose bounding boxes are farther
+    # apart than the widest threshold any pair can have cannot collide, and is
+    # passed over before its clearance is looked up and its distance measured.
+    # The saved net's box above spans the whole net, so on a net that crosses
+    # the board nearly every foreign segment got through it and was then
+    # measured against every saved segment: 2.6 million pairs and 42 s of a
+    # 385 s run on a four-layer board, for 52 restores. Same verdicts.
+    far = (config.max_pair_clearance(base=clearance) if pairwise else clearance) + 1e-9
+    all_seg_boxes = [(o, min(o.start_x, o.end_x), max(o.start_x, o.end_x),
+                      min(o.start_y, o.end_y), max(o.start_y, o.end_y), o.width / 2.0)
+                     for o in o_segs]
+    seg_boxes = {}
+    for row in all_seg_boxes:
+        seg_boxes.setdefault(row[0].layer, []).append(row)
+
     def _hit(kind, obj, mine):
         # True when the pair counts (#1609: an unmoved input pair never does).
         if held is not None and held(mine, obj):
@@ -571,8 +586,12 @@ def _saved_route_colliders(saved_result: dict, pcb_data: PCBData,
     # Restored segments vs other-net segments (same layer) and vias (all layers).
     for s in segs:
         hw = s.width / 2.0
-        for o in o_segs:
-            if o.layer != s.layer:
+        s_lo_x, s_hi_x = min(s.start_x, s.end_x), max(s.start_x, s.end_x)
+        s_lo_y, s_hi_y = min(s.start_y, s.end_y), max(s.start_y, s.end_y)
+        for o, o_lo_x, o_hi_x, o_lo_y, o_hi_y, o_hw in seg_boxes.get(s.layer, ()):
+            reach = hw + o_hw + far
+            if (o_lo_x - s_hi_x > reach or s_lo_x - o_hi_x > reach
+                    or o_lo_y - s_hi_y > reach or s_lo_y - o_hi_y > reach):
                 continue
             thr = hw + o.width / 2.0 + _clr(s.net_id, o, s.layer, 'track')
             if _seg_seg_dist_sq(s.start_x, s.start_y, s.end_x, s.end_y,
@@ -580,6 +599,10 @@ def _saved_route_colliders(saved_result: dict, pcb_data: PCBData,
                 if _hit('segment', o, s) and first_only:
                     return hits
         for v in o_vias:
+            reach = hw + v.size / 2.0 + far
+            if (v.x - s_hi_x > reach or s_lo_x - v.x > reach
+                    or v.y - s_hi_y > reach or s_lo_y - v.y > reach):
+                continue
             thr = hw + v.size / 2.0 + _clr(s.net_id, v, s.layer, 'layer')
             if _pt_seg_dist_sq(v.x, v.y, s.start_x, s.start_y,
                                s.end_x, s.end_y) < thr * thr:
@@ -597,7 +620,11 @@ def _saved_route_colliders(saved_result: dict, pcb_data: PCBData,
             if (vv.x - v.x) ** 2 + (vv.y - v.y) ** 2 < thr * thr:
                 if _hit('via', v, vv) and first_only:
                     return hits
-        for o in o_segs:
+        for o, o_lo_x, o_hi_x, o_lo_y, o_hi_y, o_hw in all_seg_boxes:
+            reach = vr + o_hw + far
+            if (o_lo_x - vv.x > reach or vv.x - o_hi_x > reach
+                    or o_lo_y - vv.y > reach or vv.y - o_hi_y > reach):
+                continue
             thr = vr + o.width / 2.0 + _clr(vv.net_id, o, o.layer, 'layer')
             if _pt_seg_dist_sq(vv.x, vv.y, o.start_x, o.start_y,
                                o.end_x, o.end_y) < thr * thr:

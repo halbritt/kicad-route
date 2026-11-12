@@ -134,6 +134,17 @@
       "tests": [
         "tests/test_pad_corner_allowance.py"
       ]
+    },
+    {
+      "id": "restore-speed",
+      "purpose": "Two checks pass over a pair whose bounding boxes are too far apart to matter before they measure it, and give the answers they gave. The test that a ripped net's saved copper may go back measured every foreign segment in the net's bounding box against every saved segment (2.6 million pairs and 42 s of a 385 s run on a four-layer board, for 52 restores). The lift of via sites on a footprint's own pads measured each pad's outline at every cell of every keep-out (2.7 million measurements and 121 s of a 436 s run on a board with polygon pads).",
+      "files": [
+        "py_router/obstacle_map.py",
+        "py_router/rip_up_reroute.py"
+      ],
+      "tests": [
+        "tests/test_restore_speed.py"
+      ]
     }
   ],
   "local_files": [
@@ -160,6 +171,7 @@
     "tests/test_pour_launch_forbidden_layer_welds.py",
     "tests/test_required_coupling.py",
     "tests/test_rescue_custody.py",
+    "tests/test_restore_speed.py",
     "tests/test_routable_layers.py",
     "tests/test_stop_file_later_passes.py",
     "tests/test_stub_swap_via_hole_to_hole.py",
