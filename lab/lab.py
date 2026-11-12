@@ -679,6 +679,21 @@ WHY_TEXT = {'routing': 'caged by copper this run laid', 'passable': 'still reach
             'placement': 'caged by the placement', 'not measured': 'not measured'}
 
 
+_ROUTING_PYTHON = {}
+
+
+def routing_python(engine):
+    """The interpreter of a checkout's routing environment, as kicad-route itself finds it: an
+    installed checkout keeps the environment under .router-generations, a lab copy under .venv-krt."""
+    if engine not in _ROUTING_PYTHON:
+        found = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "src"); '
+                                'from kicad_route.cli import route_python; print(route_python())'],
+                               cwd=engine, capture_output=True, text=True)
+        path = found.stdout.strip().splitlines()[-1] if found.returncode == 0 and found.stdout.strip() else ''
+        _ROUTING_PYTHON[engine] = path if path and Path(path).exists() else str(engine / '.venv-krt/bin/python')
+    return _ROUTING_PYTHON[engine]
+
+
 def reach(engine, board, end, run_dir=None):
     """The engine's reachability check from one end of an open connection: the check's JSON, or
     {'error': ...}. `end` is an issue item: its description and position. A board with text on
@@ -686,7 +701,7 @@ def reach(engine, board, end, run_dir=None):
     engine was when it routed."""
     what = end.get('what') or ''
     pad, net = PAD_END.search(what), re.search(r'\[(.*)\]', what)
-    argv = [str(engine / '.venv-krt/bin/python'), str(engine / 'src/kicad_route/router/py_tools/check_reachability.py'),
+    argv = [routing_python(engine), str(engine / 'src/kicad_route/router/py_tools/check_reachability.py'),
             str(board), '--json']
     if pad:
         argv += ['--pad', f'{pad.group(2)}.{pad.group(1)}']
@@ -703,7 +718,8 @@ def reach(engine, board, end, run_dir=None):
     except subprocess.TimeoutExpired:
         return {'error': 'timeout'}
     except ValueError:
-        return {'error': (done.stderr or done.stdout).strip()[-300:] or f'exit {done.returncode}'}
+        said = [line for line in (done.stderr or done.stdout).splitlines() if line.strip()]
+        return {'error': said[-1].strip()[:300] if said else f'exit {done.returncode}'}
 
 
 def cut_off_pads(run_dir, board):
