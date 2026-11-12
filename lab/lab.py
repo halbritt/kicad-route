@@ -7,6 +7,9 @@
     lab.py show TAG [TAG ...] [--best]
     lab.py issues TAG [NAME ...]
     lab.py classes TAG [TAG ...]
+    lab.py opens TAG [TAG ...] [--board NAME]
+    lab.py why TAG [TAG ...] [--board NAME] [--list]
+    lab.py passes TAG [NAME ...]
     lab.py diff TAG_A TAG_B
 
 A corpus entry is a designer's board with its own rule files: the board as designed
@@ -670,6 +673,127 @@ def opens(args):
             print(f'      ends: {kinds}')
 
 
+PAD_END = re.compile(r'[Pp]ad (\S+) \[.*\] of (\S+)')
+WHY_ORDER = ('routing', 'passable', 'placement', 'not measured')
+WHY_TEXT = {'routing': 'caged by copper this run laid', 'passable': 'still reachable on the routed board',
+            'placement': 'caged by the placement', 'not measured': 'not measured'}
+
+
+def reach(engine, board, end):
+    """The engine's reachability check from one end of an open connection: the check's JSON, or
+    {'error': ...}. `end` is an issue item: its description and position."""
+    what = end.get('what') or ''
+    pad, net = PAD_END.search(what), re.search(r'\[(.*)\]', what)
+    argv = [str(engine / '.venv-krt/bin/python'), str(engine / 'src/kicad_route/router/py_tools/check_reachability.py'),
+            str(board), '--json']
+    if pad:
+        argv += ['--pad', f'{pad.group(2)}.{pad.group(1)}']
+    elif net and end.get('x') is not None:
+        argv += ['--net', net.group(1), '--at', f"{end['x']},{end['y']}"]
+    else:
+        return {'error': 'no pad and no position to start from'}
+    try:
+        done = subprocess.run(argv, capture_output=True, text=True, timeout=1800)
+        return json.loads(done.stdout[done.stdout.index('{'):done.stdout.rindex('}') + 1])
+    except subprocess.TimeoutExpired:
+        return {'error': 'timeout'}
+    except ValueError:
+        return {'error': (done.stderr or done.stdout).strip()[-300:] or f'exit {done.returncode}'}
+
+
+def cut_off_pads(run_dir, board):
+    """One pad of every group of pads that the routed board leaves off the rest of its net:
+    [{'what': 'pad N [NET] of REF', 'net', 'pads' (in the group)}], from the run's own record of
+    which pads are joined (validate/candidate-terminal-components.json). KiCad's list of open
+    connections names a zone or a track as often as a pad; the check needs a pad to start from."""
+    record = read_json(run_dir / 'validate/candidate-terminal-components.json') if run_dir else None
+    if not record or not board.is_file():
+        return None
+    refs = {}
+    for chunk in board.read_text(errors='replace').split('\n\t(footprint ')[1:]:
+        uuid, ref = re.search(r'\(uuid "([^"]+)"\)', chunk), re.search(r'\(property "Reference" "([^"]*)"', chunk)
+        if uuid and ref:
+            refs[uuid.group(1)] = ref.group(1)
+    ends = []
+    for net, groups in sorted((record.get('nets') or {}).items()):
+        for group in sorted(groups, key=len, reverse=True)[1:]:
+            named = sorted((refs.get(record['inventory'][pad]['footprint'], '?'), str(record['inventory'][pad]['number']))
+                           for pad in group if pad in record.get('inventory', {}))
+            if named and named[0][0] != '?':
+                ends.append({'what': f'pad {named[0][1]} [{net}] of {named[0][0]}', 'net': net, 'pads': len(group)})
+    return ends
+
+
+def why_class(data):
+    """'placement': no track of the net's width reaches the rest of the net from here, whatever is
+    routed (the board's, not the router's). 'routing': one does on the board as placed, and the
+    copper this run laid closes it off. 'passable': one still does on the routed board."""
+    if data.get('error') or data.get('measured') is False:
+        return 'not measured'
+    if data.get('verdict') == 'CAGED':
+        return 'placement'
+    routed = data.get('routed_copper') or {}
+    return 'routing' if routed.get('cages_the_pad') or routed.get('verdict') == 'CAGED' else 'passable'
+
+
+def why(args):
+    """Whose doing each open connection is: the board's or the router's.
+
+    An open connection at a pin of a fine-pitch part reads the same whether the placement left
+    no way out or the router closed the way with its own copper. The engine carries a check that
+    measures it (py_tools/check_reachability.py: the widest track that reaches the rest of the
+    net from a pad, on the placement alone and with the routing in place). This runs it from one
+    end of every open connection of a cell, a pad where there is one, and keeps the answers in
+    the cell's why.json. Some ten seconds a connection."""
+    engine = Path(args.engine).resolve()
+    for tag in args.tags:
+        print(f'== {tag}')
+        for path in sorted((LAB / 'runs' / tag).glob('*/issues.json')):
+            name, run_dir = path.parent.name, run_dir_of(tag, path.parent.name)
+            if args.names and name not in args.names:
+                continue
+            rows = [i for i in read_json(path) if i['kind'] == 'open' and i.get('items')]
+            board = run_dir / 'candidate' / 'input' / f'{name}.kicad_pcb' if run_dir else None
+            if not rows or board is None or not board.is_file():
+                continue
+            saved = path.parent / 'why.json'
+            answers = read_json(saved) if saved.is_file() and not args.again else None
+            if answers is None:
+                ends = cut_off_pads(run_dir, board)
+                if ends is None:             # no record of the joined pads: the ends KiCad names
+                    ends = [next((i for i in row['items'] if PAD_END.search(i.get('what') or '')), row['items'][0])
+                            for row in rows]
+                ends = ends[:args.limit]
+                with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                    measured = list(pool.map(lambda end: reach(engine, board, end), ends))
+                answers = []
+                for end, data in zip(ends, measured):
+                    routed = data.get('routed_copper') or {}
+                    near = routed.get('near') or data.get('near') or []
+                    answers.append({'from': end.get('what'), 'net': data.get('net'), 'class': why_class(data),
+                                    'margin_um': data.get('margin_um'), 'routed_margin_um': routed.get('margin_um'),
+                                    'throat': routed.get('throat') or data.get('throat'),
+                                    'between': sorted({b.get('pad') or b.get('net') or b.get('kind') for b in near} - {None}),
+                                    'error': data.get('error')})
+                write_json(saved, answers)
+            count = {k: sum(1 for a in answers if a['class'] == k) for k in WHY_ORDER}
+            more = f' ({len(answers)} measured)' if len(answers) != len(rows) else ''
+            print(f"  {name}: {len(rows)} open{more}: " + ', '.join(f'{count[k]} {WHY_TEXT[k]}' for k in WHY_ORDER if count[k]))
+            closers = {}
+            for a in answers:
+                if a['class'] == 'routing':
+                    for other in a['between']:
+                        closers[other] = closers.get(other, 0) + 1
+            if closers:
+                print('      closed off by: ' + ', '.join(f'{n} {c}' for n, c in sorted(closers.items(), key=lambda x: (-x[1], x[0]))[:10]))
+            if args.list:
+                for a in sorted(answers, key=lambda a: (WHY_ORDER.index(a['class']), a['from'] or '')):
+                    spot = a.get('throat') or {}
+                    at = f" at {spot.get('x')}, {spot.get('y')} on {spot.get('layer')}" if spot else ''
+                    detail = a['error'] or (f"between {', '.join(a['between'])}{at}" if a['between'] else '')
+                    print(f"      {a['class']:12} {(a['from'] or '?')[:58]:58} {detail}")
+
+
 # What the engine prints when it enters a part of its procedure, in the order of the procedure.
 ENGINE_STEPS = (('main loop', r'Routing \d+ single-ended net'), ('taps', r'Multi-point Phase 3: Routing'),
                 ('net rescue', r'Per-net fine-parameter rescue'), ('plane repair', r'Plane finalize \(#562\)'),
@@ -776,6 +900,16 @@ def main():
     p.add_argument('tags', nargs='+')
     p.add_argument('--board', dest='names', action='append', help='only this board (repeatable)')
     p.set_defaults(fn=opens)
+    p = sub.add_parser('why', help="whose doing each open connection is: caged by the placement, caged by this run's "
+                                   'copper, or still reachable on the routed board')
+    p.add_argument('tags', nargs='+')
+    p.add_argument('--board', dest='names', action='append', default=[])
+    p.add_argument('--engine', default=str(HERE), help='checkout whose engine carries the check (default: this one)')
+    p.add_argument('--jobs', type=int, default=4)
+    p.add_argument('--limit', type=int, default=40, help='connections measured per board (default 40)')
+    p.add_argument('--list', action='store_true', help='one line per connection')
+    p.add_argument('--again', action='store_true', help='measure again instead of reading why.json')
+    p.set_defaults(fn=why)
     p = sub.add_parser('passes', help='each engine pass of a cell: nets, budget, time used, where the budget stopped it')
     p.add_argument('tag')
     p.add_argument('names', nargs='*')

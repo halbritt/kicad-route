@@ -9,6 +9,7 @@ lab/lab.py run before                                            # route every b
 lab/lab.py issues before stickhub                                # every issue, one line each
 lab/lab.py opens before                                          # what is open: plane nets, pour nets, others
 lab/lab.py passes before stickhub                                # each engine pass: how far the budget let it get
+lab/lab.py why before --board stickhub --list                    # each open connection: the router's doing or the board's
 # ... change the engine ...
 lab/lab.py run after
 lab/lab.py diff before after                                     # issues gone, issues new
@@ -78,6 +79,23 @@ records the hash of the built extension.
    stopped it in. A run stopped in its taps has rescued no net and repaired no
    plane, and a few seconds of budget move that point: two runs of one board
    12 s apart came out at 83 and 122 open connections.
+   `why` says whose doing each open connection is. It runs the engine's own
+   reachability check (`py_tools/check_reachability.py`: the widest track that
+   reaches the rest of the net from a pad, on the placement alone and with the
+   routing in place) from one pad of every group of pads the routed board
+   leaves off its net, and sorts the answers. "Caged by copper this run laid":
+   a track of the net's class reaches the rest of the net on the board as
+   placed, and the routing closed the way; `closed off by` counts the nets and
+   pads at the narrowest place. "Still reachable on the routed board": the way
+   is there with all the routing in place, and the router did not take it.
+   "Caged by the placement": the check finds no way at the class sizes whatever
+   is routed. That one grades the engine's model at class sizes: on one corpus
+   board it says so of two pads the designer reached with a 0.15 mm track where
+   the class asks 0.25 mm, so read it as "not at class sizes", not as
+   "impossible". The answers are kept in the cell's `why.json`; a connection
+   takes some ten seconds. On a two-layer hub board all three open connections
+   are the first kind, pins of a 0.5 mm pitch package behind tracks of their
+   neighbours.
 3. Fix the engine for the class, not for the board. Put the smallest board
    that shows the defect into `src/kicad_route/router/tests/` as a regression
    script (see `synth.py`).
