@@ -48,19 +48,36 @@ def _closes(text, j):
     return j + 1 == len(text) or text[j + 1] in " ,;:)"
 
 
+# KiCad stores a character it reserves in a name as a word in braces (a '/' inside a label is
+# `{slash}`: `/CLKIN{slash}EXTAL`) and prints the character itself in a DRC report
+# (`[/CLKIN/EXTAL]`). The list is UnescapeString's in KiCad's common/string_utils.cpp.
+_ESCAPES = {"dblquote": '"', "quote": "'", "lt": "<", "gt": ">", "backslash": "\\", "slash": "/", "bar": "|",
+            "comma": ",", "colon": ":", "space": " ", "dollar": "$", "tab": "\t", "return": "\n", "brace": "{"}
+_ESCAPE = re.compile(r"\{(" + "|".join(_ESCAPES) + r")\}")
+
+
+def printed(name):
+    """A net name as a KiCad report prints it: every escape word replaced by its character."""
+    return _ESCAPE.sub(lambda m: _ESCAPES[m.group(1)], name)
+
+
 def nets_in_description(text, known=None):
     """Net names KiCad wrapped in square brackets in a DRC item description
     (`Pad 1 [/BUS[0]] of C1 on F.Cu` -> ['/BUS[0]']), in order.
 
     A net name may itself carry brackets (`/BUS[0]`, `/D[7..0]`), so the first ']'
     does not end it. With `known` (the board's net names), the longest known name
-    that sits exactly between '[' and ']' wins, whatever brackets it carries.
+    that sits exactly between '[' and ']' wins, whatever brackets it carries. A known
+    name with an escape word is also found by its printed spelling and returned as the
+    board spells it: a board with four such nets had their six open connections counted
+    as belonging to no net, and so to every scope.
     Otherwise the bracket group is read balanced, and a group that is unbalanced
     (`/A]b`, `/B[c`) ends at the first ']' a separator or the end of the text
     follows. A name neither rule recovers can still come back wrong; callers that
     grade with it check the result against the board's nets (see cli.item_nets)."""
     out, i, n = [], 0, len(text)
     known = known if isinstance(known, (set, frozenset, dict)) else set(known or ())
+    shown = None
     while i < n:
         if text[i] != "[":
             i += 1
@@ -68,6 +85,13 @@ def nets_in_description(text, known=None):
         hit = next((j for j in range(n - 1, i, -1) if text[j] == "]" and text[i + 1:j] in known), None)
         if hit is not None:
             out.append(text[i + 1:hit])
+            i = hit + 1
+            continue
+        if shown is None:   # built only when a name is not a board net as spelled
+            shown = {printed(k): k for k in known if "{" in k}
+        hit = next((j for j in range(n - 1, i, -1) if text[j] == "]" and text[i + 1:j] in shown), None)
+        if hit is not None:
+            out.append(shown[text[i + 1:hit]])
             i = hit + 1
             continue
         depth, j, end = 0, i, None

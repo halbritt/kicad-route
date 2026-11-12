@@ -108,6 +108,16 @@ When validation fails on DRC, look in this order:
    Tighten the backend's own setting to match (`--default-clearance`,
    `--clearance-margin`).
 
+One kind of finding is reported and not counted. A footprint may draw part of a pad as a
+copper polygon without a net (the tab of a SOT-89, for example), and KiCad reports the pad
+against that polygon on the unrouted input: the two are one piece of copper before anything
+is routed. Every track that reaches the pad lies in the polygon too, and KiCad reports the
+track against it. No route to that pad can avoid the finding, and it joins nothing the
+input had apart. Such findings are in `validation.drc.inherited_from_input` and under
+`inherited_from_input` in `validate/new-findings.json`. Only contact between that polygon
+and copper of the net its own pad carries is set aside. The same polygon against any other
+net is a new violation, and so is a track that merely comes too near it.
+
 Schematic parity is part of the same grading. "Failed to fetch schematic netlist"
 is itself a validation failure: a run that could not check parity is not valid.
 

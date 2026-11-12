@@ -331,6 +331,56 @@ def drc_delta(base, cand, kind):
     return new, resolved
 
 
+NETLESS = "[<no net>]"
+JOINT_TYPES = ("clearance", "shorting_items")
+
+
+def _in_contact(finding):
+    """Whether a finding says its two items touch: a short, or a clearance of nothing."""
+    return finding.get("type") == "shorting_items" or bool(
+        re.search(r"actual 0(\.0+)? ?mm", finding.get("description", "")))
+
+
+def input_joined_copper(base, known=None):
+    """Net-less footprint copper that the input's own DRC reports in contact with a pad:
+    {uuid of that copper: the nets of the pads it touches}.
+
+    A footprint may draw part of a pad as a copper polygon without a net (the tab of a SOT-89,
+    on a designer's board). KiCad then reports the pad against the polygon on the unrouted
+    input: the two are one piece of copper before anything is routed."""
+    joined = collections.defaultdict(set)
+    for finding in base["violations"]:
+        items = finding.get("items", [])
+        if finding.get("type") not in JOINT_TYPES or len(items) != 2 or not _in_contact(finding):
+            continue
+        loose = [i for i in items if NETLESS in i.get("description", "")]
+        pads = [i for i in items if i.get("description", "").startswith("Pad ") and NETLESS not in i["description"]]
+        if len(loose) == 1 and len(pads) == 1 and loose[0].get("uuid"):
+            joined[loose[0]["uuid"]] |= item_nets({"items": pads}, known)
+    return {uuid: nets for uuid, nets in joined.items() if nets}
+
+
+def split_inherited(new, joined, known=None):
+    """(findings that are new, findings the input's own joined copper explains).
+
+    A track that reaches a pad lying in such net-less copper is in contact with that copper too,
+    and KiCad reports it. No route to the pad can avoid the finding and it joins nothing the
+    input had apart: the copper already belongs to the pad. Only a finding between that one
+    piece of copper and copper of the very net its pad carries is set aside; the same copper
+    against any other net stays a new finding."""
+    kept, inherited = [], []
+    for finding in new:
+        items = finding.get("items", [])
+        loose = [i for i in items if i.get("uuid") in joined]
+        nets = item_nets({"items": [i for i in items if i.get("uuid") not in joined]}, known)
+        if (finding.get("type") in JOINT_TYPES and len(items) == 2 and len(loose) == 1
+                and _in_contact(finding) and nets and nets <= joined[loose[0]["uuid"]]):
+            inherited.append(finding)
+        else:
+            kept.append(finding)
+    return kept, inherited
+
+
 def item_nets(v, known=None):
     """Net names of a DRC finding's items (netnames.nets_in_description): `/BUS[0]` stays
     whole; with `known` (the board's nets) a name is matched exactly, brackets and all."""
@@ -861,12 +911,18 @@ def validate_candidate(run_dir, attempt, cand_dir, scope, out_dir, pour_limits=N
     drc = {"violations_total": len(cand["violations"]), "parity_total": len(cand["schematic_parity"])}
     if base is not None:
         new_v, fixed_v = drc_delta(base, cand, "violations")
+        new_v, inherited = split_inherited(new_v, input_joined_copper(base, known), known)
         new_p, fixed_p = drc_delta(base, cand, "schematic_parity")
-        drc.update(new_violations=summarize_findings(new_v), preexisting_violations=len(cand["violations"]) - len(new_v),
+        drc.update(new_violations=summarize_findings(new_v),
+                   preexisting_violations=len(cand["violations"]) - len(new_v) - len(inherited),
                    resolved_violations=len(fixed_v), new_parity=summarize_findings(new_p),
                    resolved_parity=len(fixed_p))
+        if inherited:
+            # reported, not counted: contact with net-less footprint copper the input already joins to that net's pad
+            drc["inherited_from_input"] = summarize_findings(inherited)
         common.write_json(out_dir / "new-findings.json", {"violations": new_v, "schematic_parity": new_p,
-                                                        "resolved_violations": fixed_v})
+                                                        "resolved_violations": fixed_v,
+                                                        "inherited_from_input": inherited})
         if new_v:
             v["reasons"].append(f"{len(new_v)} new DRC violations: " +
                                 ", ".join(f"{k} {n}" for k, n in common.count_by(new_v, 'type').items()))

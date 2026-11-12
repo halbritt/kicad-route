@@ -43,9 +43,24 @@ BOARD = "route_demo.kicad_pcb"
     ("Pad 1 [<no net>] of R1 on F.Cu", None, [netnames.NO_NET]),
     ("PTH pad 3 [/X] y] of J1", {"/X", "/X] y"}, ["/X] y"]),   # known names win, brackets and all
     ("Via [/A] on F.Cu - B.Cu; Pad 1 [/BUS[1]] of U1", {"/A", "/BUS[1]"}, ["/A", "/BUS[1]"]),
+    # KiCad stores a '/' inside a label as {slash} and prints the character in its report
+    ("PTH pad 1 [/CLKIN/EXTAL] of Y101", {"/CLKIN{slash}EXTAL", "/CLKIN"}, ["/CLKIN{slash}EXTAL"]),
+    ("Pad 64 [Net-(U102-TCLK/PSTCLK/CLKOUT)] of U102 on Top_layer", {"Net-(U102-TCLK{slash}PSTCLK{slash}CLKOUT)"},
+     ["Net-(U102-TCLK{slash}PSTCLK{slash}CLKOUT)"]),
+    ("Pad 1 [/A/B] of R1 on F.Cu", {"/A/B", "/A{slash}B"}, ["/A/B"]),   # a net spelled as printed wins
 ])
 def test_nets_in_description(text, known, nets):
     assert netnames.nets_in_description(text, known) == nets
+
+
+def test_an_open_connection_of_a_net_with_an_escaped_name_belongs_to_that_net():
+    """Four such nets on a designer's board: their six open connections were counted as belonging
+    to no board net, so to every scope, and none of the four was named as unrouted."""
+    u = {"items": [{"description": "PTH pad 2 [/inout_user/CTS2/CANH] of COM_SEL203"},
+                   {"description": "PTH pad 7 [/inout_user/CTS2/CANH] of UARTCAN203"}]}
+    known = {"/inout_user/CTS2{slash}CANH", "GND"}
+    assert route.item_nets(u, known) == {"/inout_user/CTS2{slash}CANH"}
+    assert netnames.printed("a{brace}b{unknown}c{backslash}d") == "a{b{unknown}c\\d"
 
 
 def test_item_nets_keeps_bus_nets_whole():
