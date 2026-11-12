@@ -120,6 +120,8 @@ from . import procgroup
 from . import stall
 from . import statemanifest
 from . import stitch  # pour pieces the routing ringed off get a via to their net (docs/routing.md)
+from . import closing  # what the budget has left goes to the connections still open (docs/routing.md)
+from . import thermals  # a starved thermal of the run's own making is repaired (docs/spokes.md)
 from . import plane_nets  # run --plane-nets: the nets that own a plane get engine passes of their own
 from .snapshot import KICAD_SUFFIXES, export_revision, make_snapshot, sibling_names
 
@@ -1727,8 +1729,8 @@ RECIPES = {
                       "--turn-cost", "2000", "--via-cost", "150"],
 }
 # `auto` is not the default yet: with the two-layer costs the deliberately unroutable test board
-# comes back with a starved thermal on a ground pad it cannot connect, and `run` does not repair
-# a starved thermal itself (the caller's job does; AGENTEE-660).
+# came back with a starved thermal on a ground pad it cannot connect. `run` repairs a starved
+# thermal of its own making since AGENTEE-660 (thermals.py), the condition for changing this.
 RECIPE_DEFAULT = "default"
 
 
@@ -1890,7 +1892,8 @@ def krt_plane_pass(name, work, board, argv, env, nets, facts, settings, budget, 
     pass_env = {k: v for k, v in env.items() if k != "KICAD_EFFECTIVE_CONFIG_REQUEST"}
     pass_env["KICAD_STOP_FILE"] = str(stop)
     pass_env.update(env_extra or {})
-    what = "plane nets" if name == "first" else "zone nets"
+    what = ("plane nets" if name == "first" else "zone nets" if name == "last"
+            else "open nets" if name.startswith("close") else "nets cleared from a starved thermal")
     log(f"[route] {what}, {name} pass: {', '.join(nets[:6])}{', ...' if len(nets) > 6 else ''} "
         f"alone, up to {budget} s")
     rec = run_budgeted(command, work, log_path, budget, pass_env, stop_file=stop, grace=grace,
@@ -2106,6 +2109,60 @@ def krt_route(work, board, scope, facts, settings):
         elif stitched["status"] == "stitched":
             log(f"[route] stitched {len(stitched['vias'])} pour piece(s) the routing had ringed off: "
                 + ", ".join(f"{v['net']} at {'/'.join(v['pads'])} on {v['layer']}" for v in stitched["vias"][:6]))
+    has_pour = any(zone.get("net") for zone in facts.get("zones") or [])
+
+    def thermal_pass(name, board_file, nets, seconds):
+        return krt_plane_pass(name, work, board_file, argv, env, nets, facts, settings, seconds,
+                              extra=closing.LIFT_ARGS, env_extra=closing.LIFT_ENV)
+
+    if proc["status"] == PASS and output.is_file() and not rec.get("stop_requested"):
+        # The engine ended on its own with budget to spare: what is left goes to the connections
+        # still open, in rounds that are kept only when KiCad's report is the better (closing.py).
+        clock_used = "cpu_s" if settings.get("budget_clock") == "cpu" else "duration_s"
+        first_used = planes_rec["first"]["used_s"] if planes_rec is not None and planes_rec.get("first") else 0
+        # the rounds leave the time of one repair pass, so that the thermal repair after them
+        # is inside the budget too when the engine left enough of it
+        left = settings["budget_s"] - (first_used or 0) - (rec.get(clock_used) or 0) - thermals.PASS_S
+        routed_here = set(scope)
+
+        def close_again(name, board_file, nets, seconds, strategy):
+            return krt_plane_pass(name, work, board_file, argv, env, nets, facts, settings, seconds,
+                                  extra=strategy["args"], env_extra=strategy["env"])
+
+        def settle(name, board_file):
+            # a connection closed beside a thermal pad can starve it: repaired before the round is judged
+            if not has_pour:
+                return []
+            return thermals.repair(work, board, before, board_file, thermal_pass, sys.modules[__name__],
+                                   label=name)["commands"]
+        closed = closing.close(work, board, before, output, close_again, left, sys.modules[__name__],
+                               in_scope=routed_here.__contains__, settle=settle)
+        proc["commands"] += closed.pop("commands")
+        proc["closing"] = closed
+        if closed["status"] == "failed":
+            proc["reasons"].append(f"open connections not tried again: {closed['reason']}; "
+                                   "KiCad's DRC grades the board as routed")
+        elif closed["status"] == "closed":
+            log(f"[route] closed {closed['open_before'] - closed['open_after']} of {closed['open_before']} open "
+                "connection(s) in the time the budget had left")
+    if proc["status"] == PASS and output.is_file() and has_pour:
+        # A pad short of thermal spokes because of this run's own copper: that copper comes out of
+        # the corridors the pad needs and its nets are routed once more round them (thermals.py).
+        # A board without a pour has no spokes, and is not asked.
+        thermal = thermals.repair(work, board, before, output, thermal_pass, sys.modules[__name__])
+        proc["commands"] += thermal.pop("commands")
+        proc["thermal_repair"] = thermal
+        if thermal["status"] == "failed":
+            proc["reasons"].append(f"starved thermals not repaired: {thermal['reason']}; "
+                                   "KiCad's DRC grades the board as routed")
+        elif thermal["status"] == "repaired":
+            log(f"[route] repaired {thermal['starved_before'] - thermal['starved_after']} of "
+                f"{thermal['starved_before']} starved thermal(s): routed "
+                + ", ".join(sorted({net for entry in thermal["rounds"] for net in entry.get("nets", [])})[:6])
+                + " once more round the pads' spokes")
+        elif thermal["status"] == "kept":
+            log(f"[route] NOTE: {thermal['starved_before']} starved thermal(s) stay: "
+                + thermal["rounds"][-1].get("result", "no repair was kept"))
     if locks is not None and proc["status"] == PASS:
         rr = common.run_cmd([pcbnew_python(), KICAD_SCRIPTS / "locks.py", "restore", output, work / "locks.json"],
                          work, work / "restore-locks.log", timeout=600)

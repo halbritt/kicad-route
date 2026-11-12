@@ -466,10 +466,13 @@ def route_one(entry, tag, engine, budget, extra, clock='cpu'):
     own = [row for row in engine_passes(run_dir, result) if row['log'] == 'krt.log'] if run_dir and result else []
     stats['cut_off_in'] = own[0]['stopped_in'] if own else None
     # what the wrapper cleared up, or could not, after the engine: each is something the engine left
-    swept, stitched = [(result.get('process') or {}).get(key) or {} for key in ('dangling_removed', 'stitched')]
+    swept, stitched, thermal, closed = [(result.get('process') or {}).get(key) or {}
+                                        for key in ('dangling_removed', 'stitched', 'thermal_repair', 'closing')]
     stats['after_engine'] = {'stubs_removed': (swept.get('removed_tracks') or 0) + (swept.get('removed_vias') or 0),
                              'pieces_stitched': len(stitched.get('vias') or []),
-                             'pieces_left': len(stitched.get('left') or [])}
+                             'pieces_left': len(stitched.get('left') or []),
+                             'thermals_repaired': (thermal.get('starved_before') or 0) - (thermal.get('starved_after') or 0),
+                             'closed_late': (closed.get('open_before') or 0) - (closed.get('open_after') or 0)}
     return finish(entry, run_root, issues, stats, seconds, record.get('exit_code'), bool(result),
                   {k: v for k, v in record.items() if k != 'result'})
 
@@ -504,7 +507,9 @@ def after_engine(s):
     """What the wrapper cleared up after the engine, for a table cell: only what is not zero."""
     a = (s or {}).get('after_engine') or {}
     parts = [f"{a[key]} {text}" for key, text in (('stubs_removed', 'dangling removed'), ('pieces_stitched', 'pour stitched'),
-                                                   ('pieces_left', 'pour left cut off')) if a.get(key)]
+                                                   ('pieces_left', 'pour left cut off'),
+                                                   ('thermals_repaired', 'starved thermal repaired'),
+                                                   ('closed_late', 'closed in the time left')) if a.get(key)]
     return ', ' + ', '.join(parts) if parts else ''
 
 

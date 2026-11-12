@@ -66,8 +66,12 @@ A table cell is `open / new errors`, plus the failed grading checks. After the
 copper and the time it says where the budget cut the engine off, and what the wrapper
 cleared up after the engine, each a thing the engine left: `N dangling removed` (new
 tracks and vias ending in the air), `N pour stitched` (a piece of pour that new tracks
-ringed off around one pad, joined to its net again with a via) and `N pour left cut off`
-(such a piece with no place for a via; KiCad's finding for its pad stands).
+ringed off around one pad, joined to its net again with a via), `N pour left cut off`
+(such a piece with no place for a via; KiCad's finding for its pad stands) and
+`N starved thermal repaired` (pads the run's own copper had left short of spokes, whose
+nets were routed once more round them; `docs/spokes.md`). `N closed in the time left`
+is not a thing the engine left but what the run did with the budget the engine did not
+use: connections closed by the rounds after it (`docs/routing.md`).
 
 A run is of one commit. `run` copies the checkout's committed files to
 `$KICAD_ROUTE_LAB/snap/frozen-COMMIT` and routes with the copy, so the checkout
@@ -151,3 +155,12 @@ board of the corpus came out at 88 and 122 open connections only because a
 wall-time stop landed at different points of the same pass. Each cell gives
 the processor seconds the engine used, and the table's footer the host's load
 range during the run.
+
+A cell that says `cut off in` is the budget's count, not the engine's: the same
+commit and board give another count when the stop lands in another step, and a
+change that makes the engine a little faster or slower moves it. Three boards
+of the corpus are cut off at 300 s, and one of them came out at 20, 21, 26 and
+37 open connections from four engine variants that differ in nothing that
+touches it. Judge a change to the engine on those boards with a budget at which
+the engine ends on its own (1800 s for two of them, 3600 s for the largest);
+there two runs of one commit give the same board.

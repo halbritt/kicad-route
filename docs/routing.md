@@ -316,7 +316,7 @@ command line and wins.
 | `default` | the engine's own (two layers: front 1.0, back 3.0, via 75) | four layers and more |
 | `two-layer` | both layers 1.0, via 600 | two-layer boards |
 | `two-layer-bus` | both layers 1.0, direction preference 4000, turn 2000, via 150 | two-layer boards with parallel buses |
-| `auto` | `two-layer` on a two-layer board, else `default` | the recommended setting for a caller that repairs starved thermals |
+| `auto` | `two-layer` on a two-layer board, else `default` | the recommended setting |
 
 Where the choice comes from: the upstream project's routing guide gives the two
 two-layer sets, and the router lab (`lab/README.md`) measured them on eight
@@ -332,12 +332,11 @@ via cost left more connections open on every board tried, so those keep the
 engine's costs. The dense two-layer board of the corpus (164 connections) is open
 under every recipe and under the engine's costs; no recipe is a fix for it.
 
-Without `--recipe` the engine's own costs apply. `auto` is not the default: with the
+Without `--recipe` the engine's own costs apply. `auto` is not the default yet: with the
 two-layer costs the deliberately unroutable test board (`fixtures/route_demo` behind a
-keep-out wall) comes back with a starved thermal on a ground pad it cannot connect,
-where the engine's costs leave none, and `run` does not repair a starved thermal
-itself. A caller that does (agent-ee's placement job reruns with
-`--reserve-spoke-pad`) should pass `--recipe auto`.
+keep-out wall) came back with a starved thermal on a ground pad it cannot connect,
+where the engine's costs leave none. `run` now repairs a starved thermal of its own
+making (`docs/spokes.md`), which is the condition for making `auto` the default.
 
 ### Plane nets
 
@@ -560,6 +559,32 @@ grace period ended, and were killed with nothing delivered. The engine looks for
 stop request in every pass (`test_stop_file_later_passes.py`); the upstream engine
 looks only between the nets of its first pass, so there a run that finished the
 first pass in time ran on however long the later passes took.
+
+### What the run does with the time the engine leaves
+
+The engine gives each search a fixed allowance of steps, takes its nets in an order of its
+own, and ends when it has been through them, with connections open and often with most of
+the budget unspent. Longer searches for every net cost more than they gain while the board
+is filling up, which is why the run's own pass keeps the allowance.
+
+When the engine has ended on its own, `run` spends what is left of the budget on the nets
+that are still open, and on those alone (`src/kicad_route/closing.py`). Each round has the
+engine route them once more on the board as it stands, with settings the round before did
+not have: first with searches that may run on, then also with the authority to lift copper
+this run laid when that is what closes a connection in (the engine puts a lifted net back
+when it cannot route it again; copper of the input is locked for the routing and never
+lifted). A round that closes a connection beside a thermal pad can starve the pad, so its
+board gets the thermal repair (`docs/spokes.md`) before it is judged. KiCad's DRC is asked
+about the board before and after each round with the zones refilled, and a round is kept
+only when its board has fewer open connections and a shorter report in all, open
+connections and findings together. Otherwise the board stays as it was. The rounds can
+therefore only take open connections away, whatever the order of the engine's nets does to
+one of them. A run that the budget stopped has no time left and no rounds.
+
+The record is `process.closing`: `status` (`none`, `closed`, `kept` when no round was
+kept, `failed` when a step could not run), the open connections before and after, and per
+round its settings, nets, share of the time, KiCad's counts before and after and the
+outcome. The work files are in `work/closing/`.
 
 ### Tightening controls
 

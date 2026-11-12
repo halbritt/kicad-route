@@ -4,6 +4,7 @@
     spokes.py plan BOARD.kicad_pcb OUT.json [--per-pad N]   corridors as JSON (board untouched)
     spokes.py reserve BOARD.kicad_pcb PLAN.json              add the selected corridors as rule areas (in place)
     spokes.py strip BOARD.kicad_pcb                          remove every kicad-route:spoke: rule area (in place)
+    spokes.py clear BEFORE.kicad_pcb ROUTED.kicad_pcb PLAN.json   take ROUTED's new copper out of the corridors the pads are short of (both in place)
     spokes.py verify BOARD.kicad_pcb PLAN.json OUT.json [--intrude NM] [--modes end,sides,u] [--limit N]
               [--all-live 1]                                 check corridors against KiCad's filler (board untouched)
 
@@ -42,7 +43,14 @@ reserve: each selected corridor becomes a single-layer rule area that forbids tr
 and vias (pads, footprints and zone fills allowed), named
 `kicad-route:spoke:<ref>:<pad>:<layer>:<k>`. Refuses a board that already has
 such areas. strip: removes exactly those areas (by name prefix) and saves only if it
-removed something. verify: on the board in memory, puts foreign-net tracks against
+removed something. clear: gives each pad of PLAN its spokes back, the first step of repairing a
+starved thermal (kicad_route.thermals). The new copper of ROUTED is what BEFORE does not have
+(matched by exact geometry, as dangling.py and locks.py match it); copper of BEFORE is never
+touched. A pad keeps the corridors the new copper left alone, and for as many more as it is
+short of, the new tracks and vias are removed from the corridors that the fewest nets cross.
+PLAN is rewritten with exactly those corridors selected, so that `reserve` keeps them free while
+the removed nets are routed again; the nets are named in the output.
+verify: on the board in memory, puts foreign-net tracks against
 each selected corridor's edge (or `--intrude` nm inside it), refills the pad's zone
 with KiCad's own filler and checks that the spoke is kept with a min_thickness
 anchor; see verify(). Both print `SPOKES_JSON: {...}`. Runs with KiCad's pcbnew module.
@@ -341,6 +349,90 @@ def strip(pcbnew, board_path):
             "rule_areas_left": sum(1 for z in board.Zones() if z.GetIsRuleArea())}
 
 
+def clear(pcbnew, before_path, routed_path, plan_path):
+    """Give each pad of the plan its spokes back: remove from ROUTED (in place) its new copper
+    from as many corridors as the pad is short of, and select in PLAN (in place) the corridors
+    the pad then has.
+
+    A pad needs `per_pad` corridors. The ones the new copper left alone count first. For the
+    rest the corridors are taken that the fewest nets cross (then the fewest tracks and vias):
+    what is removed has to be routed again. A pad that cannot reach `per_pad` even with every
+    crossed corridor cleared is left as it is: its finding is not of the new copper alone."""
+    import dangling
+    import locks
+    had = locks.multiset(locks.key(item, pcbnew) for item in pcbnew.LoadBoard(str(before_path)).GetTracks())
+    board = pcbnew.LoadBoard(str(routed_path))
+    max_err = int(board.GetDesignSettings().m_MaxError)
+    layers = {board.GetLayerName(l): l for l in board.GetEnabledLayers().CuStack()}
+    new = dangling.new_items(board, had, pcbnew)
+    shapes = {}                     # (uuid, layer) -> (bbox, polyset) of a new item's copper on that layer
+
+    def copper(item, layer):
+        key = (item.m_Uuid.AsString(), layer)
+        if key not in shapes:
+            ps = pcbnew.SHAPE_POLY_SET()
+            item.TransformShapeToPolygon(ps, layer, 0, max_err, pcbnew.ERROR_INSIDE)
+            pts = [q for outline in poly_points(ps) for q in outline]
+            shapes[key] = (bbox(pts), ps) if pts else None
+        return shapes[key]
+
+    def crossing(cr, layer):
+        """The new tracks and vias whose copper overlaps the corridor on its layer."""
+        box, corridor = bbox(cr["polygon"]), to_polyset(pcbnew, cr["polygon"])
+        found = []
+        for item in new:
+            if not item.IsOnLayer(layer):
+                continue
+            shape = copper(item, layer)
+            if shape is None or not boxes_touch(box, shape[0]):
+                continue
+            both = pcbnew.SHAPE_POLY_SET(corridor)
+            both.BooleanIntersection(shape[1])
+            if both.OutlineCount() and both.Area() > 0:
+                found.append(item)
+        return found
+
+    doomed, by_pad, left_alone = {}, {}, []
+    data = json.loads(Path(plan_path).read_text())
+    per_pad = int(data.get("per_pad") or data.get("min_resolved_spokes") or 2)
+    for p in data["pads"]:
+        layer = layers.get(p["layer"])
+        label = f"{p['ref']}.{p['pad']} on {p['layer']}"
+        ranked = sorted((cr for cr in p["corridors"] if cr["eligible"]), key=lambda cr: (-cr["pour_fraction"], cr["k"]))
+        crossed = {cr["k"]: crossing(cr, layer) for cr in ranked} if layer is not None else {}
+        free = [cr for cr in ranked if not crossed.get(cr["k"])]
+        taken = sorted((cr for cr in ranked if crossed.get(cr["k"])),
+                       key=lambda cr: (len({item.GetNetname() for item in crossed[cr["k"]]}), len(crossed[cr["k"]]),
+                                       -cr["pour_fraction"], cr["k"]))
+        short = per_pad - len(free)
+        for cr in p["corridors"]:
+            cr["selected"] = False
+        if layer is None or short > len(taken):
+            left_alone.append(label)
+            p["selected"] = 0
+            continue
+        chosen = taken[:max(0, short)]
+        for cr in free[:per_pad] + chosen:
+            cr["selected"] = True
+        p["selected"] = sum(cr["selected"] for cr in p["corridors"])
+        for cr in chosen:
+            for item in crossed[cr["k"]]:
+                doomed[item.m_Uuid.AsString()] = item
+                by_pad.setdefault(label, set()).add(item.GetNetname())
+    data["corridors_selected"] = sum(p["selected"] for p in data["pads"])
+    result = {"new_items": len(new), "removed_tracks": 0, "removed_vias": 0,
+              "nets": sorted({item.GetNetname() for item in doomed.values()}),
+              "pads": {pad: sorted(nets) for pad, nets in sorted(by_pad.items())},
+              "left_alone": left_alone, "corridors_selected": data["corridors_selected"]}
+    for item in doomed.values():
+        result["removed_vias" if isinstance(item, pcbnew.PCB_VIA) else "removed_tracks"] += 1
+        board.RemoveNative(item)
+    Path(plan_path).write_text(json.dumps(data, indent=1) + "\n")
+    if doomed:
+        board.Save(str(routed_path))
+    return result
+
+
 ADVERSARY_WIDTH = 200_000      # nm; only the copper edge position matters, not the width
 ANCHOR_COVERAGE = 0.98         # share of the min-thickness anchor strip the pour must still cover
 MODES = ("end", "sides")
@@ -512,6 +604,9 @@ def main(argv):
         Path(argv[3]).write_text(json.dumps(data, indent=1) + "\n")
         print("SPOKES_JSON: " + json.dumps({k: data[k] for k in (
             "corridors_checked", "corridors_held", "failed", "errors", "intrude", "modes", "netclasses")}))
+        return 0
+    if len(argv) == 4 and argv[0] == "clear":
+        print("SPOKES_JSON: " + json.dumps(clear(pcbnew, Path(argv[1]), Path(argv[2]), Path(argv[3]))))
         return 0
     if len(argv) == 2 and argv[0] == "strip":
         print("SPOKES_JSON: " + json.dumps(strip(pcbnew, Path(argv[1]))))

@@ -25,6 +25,7 @@ from . import common
 
 ROUNDS = 2
 SPOKE_AREAS = b"kicad-route:spoke:"      # kicad/spokes.py PREFIX, as it stands in a board file
+_REPORTS = {}                            # (project directory, board sha256) -> (KiCad's report, the refilled copy)
 
 
 def _helper(api, work, log, *args, timeout=900):
@@ -33,12 +34,22 @@ def _helper(api, work, log, *args, timeout=900):
     return run, (api.tagged_json(run["output"], "STITCH_JSON") if run["exit_code"] == 0 else None)
 
 
-def _graded(api, work, project_dir, board_file, label):
-    """KiCad's DRC report (zones refilled) of `board_file` put into a copy of the project, or None.
+def _refilled(api, work, project_dir, board_file, label, folder="stitch-drc"):
+    """(KiCad's DRC report of `board_file` with the zones refilled, the refilled copy it is of), or
+    (None, None). The board is put into a copy of the project for it.
     The corridors of --reserve-spokes are still on the board at this point and come off before it
     is delivered, so they come off the graded copy: a via of the pad's own net in one is no finding
     of the board that the run delivers."""
-    directory = Path(work) / "stitch-drc" / label
+    # The steps after the engine (this one, closing.py, thermals.py) each ask about the board as
+    # it stands, and a step that changes nothing leaves the next one the same board to ask about.
+    # A report is remembered with the copy it is of, until another board takes the copy's place.
+    asked = (str(Path(project_dir).resolve()), common.sha256(board_file))
+    if asked in _REPORTS:
+        return _REPORTS[asked]
+    directory = Path(work) / folder / label
+    for known, (_, kept) in list(_REPORTS.items()):
+        if kept.parent == directory:
+            del _REPORTS[known]
     shutil.rmtree(directory, ignore_errors=True)
     api.copy_project(project_dir, directory)
     copy = directory / Path(board_file).name
@@ -47,9 +58,17 @@ def _graded(api, work, project_dir, board_file, label):
         bare = common.run_cmd([api.pcbnew_python(), api.KICAD_SCRIPTS / "spokes.py", "strip", copy], directory,
                               directory / "strip-corridors.log", timeout=600)
         if bare["exit_code"] != 0:
-            return None
+            return None, None
     report, _ = api.kicad_drc(copy, directory / "drc", label, True)
-    return report
+    if report is None:
+        return None, None
+    _REPORTS[asked] = (report, copy)
+    return report, copy
+
+
+def _graded(api, work, project_dir, board_file, label, folder="stitch-drc"):
+    """KiCad's DRC report (zones refilled) of `board_file`, or None (see _refilled)."""
+    return _refilled(api, work, project_dir, board_file, label, folder)[0]
 
 
 def apply(work, board, before, output, scope, api):

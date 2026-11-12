@@ -119,6 +119,52 @@ replay forward the option through their existing routing-argument handling.
 A failed plan or reservation is a process failure (exit 1, no routing). A failed
 strip is added to `process.reasons` and fails `keepouts`.
 
+## `run` gives pads the pour its own copper took from them
+
+The built-in router does not see spokes, so a complete routing can come back with a
+`starved_thermal` that depends on nothing but the order its nets took, or with a pad that
+has lost every spoke, which KiCad does not report at all (it sees no thermal connection to
+be short of) and which only the `pour_integrity` check names (`lost_fill_contact`). `run`
+therefore checks its own result (`src/kicad_route/thermals.py`), on every board that has a
+pour:
+
+1. The routed board and the board before routing are compared with the zones refilled, as
+   the `pour_integrity` check compares them (`docs/pour.md`). Without a pad whose spokes
+   went below the board's minimum or whose fill contact was lost, nothing more is done.
+2. The corridors are planned on the board as it was before routing, and those pads are
+   selected in that plan.
+3. `spokes.py clear` takes this run's own tracks and vias out of as many corridors as each
+   pad is short of (the board's `min_resolved_spokes`), the corridors the fewest nets cross
+   first; the corridors the new copper left alone count as they are. Copper the input had
+   is matched by exact geometry and never touched. A pad that was short before routing is
+   not among the pads compared, and one on a pour piece cut off further away is the stitch
+   step's.
+4. The corridors are reserved as for `--reserve-spoke-pad`, and the engine routes the nets
+   it broke once more, for up to 120 s, with searches that may run on and the authority to
+   lift other copper of this run that closes them in (never the input's, which is locked).
+5. The corridors come off, copper left ending in the air is swept, and the boards are
+   compared again. The repair is kept only when fewer pads are short of their pour, no
+   more connections are open than before and KiCad's report is no longer. Otherwise the
+   board stays as the router left it, and the findings stand.
+
+All such pads are tried together first, and once more for a pad the new routes starved.
+When that is not kept, up to six pads are tried one by one, so that a net which cannot be
+routed again costs its own pad's repair only. The
+repair comes after the routing, like the checks: when the engine left budget unspent it
+runs inside it (the closing rounds before it leave it the time of one pass), and when the
+budget ended the routing, its passes of up to 120 s each run past it. The
+record is `process.thermal_repair` in the result: `status` (`none`, `repaired`, `kept`
+when no repair was kept, `failed` when a step could not run), the pads short of their pour
+before and after (`starved_before`, `starved_after`), and per round the pads, the nets routed again, what was removed, and KiCad's
+counts before and after. The work files are in `work/thermal-repair/`.
+
+This is a repair after the fact, for the pads that need it. `--reserve-spokes` keeps new
+copper out of every thermal pad's corridors from the start and costs routing room on a
+dense board. A run made with `--reserve-spokes` or `--reserve-spoke-pad` has the caller's
+corridors on its board until the routing is over, and a second set cannot be reserved
+beside them: such a run is not repaired, and a starved thermal it still has is the
+caller's to act on (`process.thermal_repair.note` says so).
+
 ## `kicad-route spokes RUN_DIR`
 
 Plans corridors on the run's reference board (`RUN_DIR/spokes/reference-plan.json`).
