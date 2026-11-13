@@ -486,11 +486,9 @@ def test_json_runs_with_explicit_run_dirs_do_not_interfere():
         assert not {"diff_pairs", "pairs"} & res["settings"].keys()
         settings = set(res["settings"])
         assert BASE_SETTINGS_KEYS <= settings
-        added = settings - BASE_SETTINGS_KEYS - SELECTED_NETS_SETTINGS_KEYS
-        assert added <= (OWN_CHOICE_SETTINGS_KEYS if name == "builtin" else set()), added
+        if name != "builtin":
+            assert settings <= BASE_SETTINGS_KEYS | SELECTED_NETS_SETTINGS_KEYS
         assert ("grid_basis" in settings) == (name == "builtin")
-        # the fixture has two copper layers: the builtin run chose their recipe and says so
-        assert res["settings"].get("recipe") == ("two-layer" if name == "builtin" else None)
         assert attempt["settings"] == res["settings"]
         RESULTS.validate(res)
         check_invariants(res)

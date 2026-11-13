@@ -11,12 +11,24 @@ if [ "$#" -eq 0 ]; then
   echo "error: name test files or IDs, e.g.: mise run test -- tests/test_stitch.py (the whole suite, about an hour: mise run test:suite)" >&2
   exit 2
 fi
+if [ -z "${KICAD_ROUTE_STATE:-}" ] && [ ! -x .venv-krt/bin/python ]; then
+  common=$(git rev-parse --git-common-dir 2>/dev/null || true)
+  main_root=$(cd "${common:-.}/.." && pwd -P)
+  if [ -x "$main_root/.venv-krt/bin/python" ]; then export KICAD_ROUTE_STATE="$main_root"; fi
+fi
 exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider "$@"
 ' sh'''
 
 [tasks."test:engine"]
 description = "The owned engine's regression scripts, each run with the built routing environment (tests/test_engine_regressions.py)"
-run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests/test_engine_regressions.py "$@"' sh'''
+run = '''sh -eu -c '
+if [ -z "${KICAD_ROUTE_STATE:-}" ] && [ ! -x .venv-krt/bin/python ]; then
+  common=$(git rev-parse --git-common-dir 2>/dev/null || true)
+  main_root=$(cd "${common:-.}/.." && pwd -P)
+  if [ -x "$main_root/.venv-krt/bin/python" ]; then export KICAD_ROUTE_STATE="$main_root"; fi
+fi
+exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests/test_engine_regressions.py "$@"
+' sh'''
 
 [tasks."test:kernel"]
 description = "The routing kernels' fast gate (make kernel; docs/kernel-testing.md)"
@@ -24,11 +36,45 @@ run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-2
 
 [tasks."test:smoke"]
 description = "Native routing integration on the bundled fixture (make smoke)"
-run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-45m}" -- make smoke' sh'''
+run = '''sh -eu -c '
+if [ -z "${KICAD_ROUTE_STATE:-}" ] && [ ! -x .venv-krt/bin/python ]; then
+  common=$(git rev-parse --git-common-dir 2>/dev/null || true)
+  main_root=$(cd "${common:-.}/.." && pwd -P)
+  if [ -x "$main_root/.venv-krt/bin/python" ]; then export KICAD_ROUTE_STATE="$main_root"; fi
+fi
+exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-45m}" -- make smoke
+' sh'''
 
 [tasks."test:suite"]
 description = "The whole pytest suite: about an hour, starts engines and KiCad, needs the built routing environment; extra pytest flags after --"
-run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-100m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests "$@"' sh'''
+run = '''sh -eu -c '
+if [ -z "${KICAD_ROUTE_STATE:-}" ] && [ ! -x .venv-krt/bin/python ]; then
+  common=$(git rev-parse --git-common-dir 2>/dev/null || true)
+  main_root=$(cd "${common:-.}/.." && pwd -P)
+  if [ -x "$main_root/.venv-krt/bin/python" ]; then export KICAD_ROUTE_STATE="$main_root"; fi
+fi
+exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-100m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests "$@"
+' sh'''
+
+[tasks.build]
+description = "Incrementally build rust_router into .venv-krt and refresh manifest.json (~3s, no network or full-corpus update)"
+run = '''sh -eu -c '
+if [ ! -x .venv-krt/bin/python ] || ! .venv-krt/bin/python -c "import numpy, scipy, shapely" >/dev/null 2>&1; then
+  uv venv --allow-existing .venv-krt --python /usr/bin/python3
+  uv pip install --python .venv-krt/bin/python -r src/kicad_route/router/requirements.txt
+fi
+mise run host:exec -- .venv-krt/bin/python src/kicad_route/router/build_router.py --target-dir build/rust-router
+/usr/bin/python3 -c "
+import json, pathlib
+p = pathlib.Path(\"manifest.json\")
+if p.is_file():
+    m = json.loads(p.read_text())
+    if isinstance(m.get(\"krt\"), dict) and m[\"krt\"].get(\"generation\") is not None:
+        m[\"krt\"][\"generation\"] = None
+        p.write_text(json.dumps(m, indent=2) + \"\n\")
+"
+bin/kicad-route state-manifest
+' sh'''
 
 [tasks.doctor]
 description = "What is installed and whether each backend can run (make doctor)"

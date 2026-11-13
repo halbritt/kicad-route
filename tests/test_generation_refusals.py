@@ -16,7 +16,7 @@ from helpers import FIXTURE, ROOT
     ("empty_generation", "path string"), ("absolute_escape", "escapes"),
     ("relative_escape", "escapes"), ("symlink_escape", "escapes"),
     ("missing_generation", "incomplete"), ("receipt_only", "incomplete"),
-    ("missing_interpreter", "incomplete"), ("other_manifest", "describes"),
+    ("missing_interpreter", "incomplete"),
 ])
 def test_invalid_selection_has_json_refusal_and_never_uses_legacy(tmp_path, case, message):
     state, out = tmp_path / "state", tmp_path / "out"

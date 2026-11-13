@@ -89,9 +89,10 @@ def state_refusal(command="run", state=None):
 
 
 def manifest_problem(state):
-    """Why STATE is not the directory its state manifest (STATE/manifest.json,
-    statemanifest.py) describes, or None: no manifest, a malformed one, one written
-    for another directory, or drift between it and the files on disk."""
+    """Why STATE's manifest (STATE/manifest.json, statemanifest.py) is unusable,
+    or None: no manifest, a malformed one, or drift between it and the files on disk.
+    Paths inside the manifest are relative to STATE so bind-mounting STATE at another
+    location inside a sandbox stays valid."""
     from . import statemanifest
     state = Path(state)
     path = statemanifest.manifest_path(state)
@@ -101,9 +102,6 @@ def manifest_problem(state):
     problems = statemanifest.schema_problems(m)
     if problems:
         return f"state manifest {path} is malformed: {'; '.join(problems[:3])}"
-    described = Path(m.get("state_dir") or "").expanduser()
-    if described.resolve() != state.resolve():
-        return f"state manifest {path} describes {described}, not {state}"
     drift = statemanifest.verify(m, state)
     if drift:
         return (f"STATE {state} differs from its manifest: "

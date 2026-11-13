@@ -86,8 +86,8 @@ def write_attempts(trace, out, home):
         if call in ("open", "openat") and not re.search(r"O_WRONLY|O_RDWR|O_CREAT|O_TRUNC", args):
             continue
         for path in re.findall(r'"((?:[^"\\]|\\.)*)"', args):
-            if not path.startswith("/") or path.startswith(("/dev/", "/proc/")):
-                continue  # relative paths resolve against the run's cwd, which is in OUT
+            if not path.startswith("/") or path.startswith(("/dev/", "/proc/", "/usr/share/fonts/", "/var/cache/fontconfig/")):
+                continue  # relative paths resolve against the run's cwd, which is in OUT; system font caches are root-owned
             p = Path(path)
             in_home = p == home or home in p.parents
             in_real_home = (p == REAL_HOME or REAL_HOME in p.parents) and out not in p.parents and p != out

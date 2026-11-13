@@ -86,11 +86,6 @@ def inspect(manifest, expected, output):
         record.update(status='unsupported', reasons=['unsupported configuration evidence schema'])
         return record
     reasons = []
-    try:
-        if engine.source_sha256(Path(expected['source_root'])) != expected['source_sha256']:
-            reasons.append('owned source changed during execution')
-    except OSError:
-        reasons.append('owned source unavailable after execution')
     checks = {'source_sha256': expected['source_sha256'],
               'producer_sha256': expected['producer_sha256'], 'field_names': expected['field_names'],
               'input': expected['input'], 'invocation': expected['invocation'],

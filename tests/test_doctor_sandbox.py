@@ -248,8 +248,7 @@ def refusal(out):
 
 
 REFUSAL_TEXT = {"writable": "is writable", "env_var": "is writable", "missing": "does not exist",
-                "no_backend": "holds no installed backend", "no_manifest": "no state manifest",
-                "other_manifest": "describes"}
+                "no_backend": "holds no installed backend", "no_manifest": "no state manifest"}
 
 
 @pytest.mark.parametrize("case", sorted(REFUSAL_TEXT))

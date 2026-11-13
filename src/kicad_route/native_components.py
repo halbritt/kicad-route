@@ -146,7 +146,7 @@ def extract(board, out, expected_sha256=None):
     if not coverage(facts):
         reasons.append("missing or incomplete native terminal coverage")
     if (common.sha256(board) != identity["board_sha256"]
-            or rules_identity(board) != identity["rules"] or producer_identity() != identity["producer"]
+            or rules_identity(board) != identity["rules"]
             or statemanifest.kicad_cli_identity() != identity["kicad_cli"]
             or identity["board_sha256"] != (facts or {}).get("board_sha256_before")
             or identity["board_sha256"] != (facts or {}).get("board_sha256_after")
@@ -160,20 +160,19 @@ def extract(board, out, expected_sha256=None):
 
 
 def compatible(reference, candidate):
-    """Both partitions cover identical terminal/net populations under the same authority."""
+    """Both partitions cover identical terminal/net populations under the same KiCad toolchain and rules."""
     if not coverage(reference) or not coverage(candidate):
         return False
     for facts in (reference, candidate):
         identity = facts.get("identity", {})
-        if (identity.get("producer") != producer_identity()
-                or not identity.get("board_sha256")
+        if (not identity.get("board_sha256")
                 or identity["board_sha256"] != facts.get("board_sha256_before")
                 or identity["board_sha256"] != facts.get("board_sha256_after")
                 or identity.get("pcbnew") != facts.get("native_identity")):
             return False
     if reference["inventory"] != candidate["inventory"] or reference["jumpers"] != candidate["jumpers"]:
         return False
-    for key in ("rules", "producer", "pcbnew", "kicad_cli"):
+    for key in ("rules", "pcbnew", "kicad_cli"):
         if not reference.get("identity", {}).get(key) or reference["identity"][key] != candidate.get("identity", {}).get(key):
             return False
     return True

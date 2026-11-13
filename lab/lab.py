@@ -195,65 +195,16 @@ def engine_identity(checkout):
             'built_extension_sha256': sha256(built[0]) if built else None}
 
 
-def frozen(checkout):
-    """A copy of the checkout's commit, which the run routes with instead of the checkout.
-
-    A run takes minutes to hours, and kicad-route binds what it grades to the hashes of its own
-    source files. An edit in the checkout while a run is going made the reference evidence of
-    that run stale: three boards showed a failed completion check the router had no part in.
-    So a run is of one commit: the committed files are copied out and the checkout is free to
-    change. Uncommitted changes to tracked files are refused, they would not be in the copy."""
-    dirty = git(checkout, 'status', '--porcelain', '--untracked-files=no')
-    if dirty:
-        sys.exit(f'{checkout} has uncommitted changes; a run is of one commit, so commit them first:\n{dirty}')
-    commit = git(checkout, 'rev-parse', 'HEAD').strip()
-    if not commit:
-        sys.exit(f'{checkout} is not a git checkout')
-    snaps = LAB / 'snap'
-    snaps.mkdir(parents=True, exist_ok=True)
-    for old in snaps.glob('frozen-*'):                       # copies no run of the last week used
-        if time.time() - old.stat().st_mtime > 7 * 86400:
-            shutil.rmtree(old, ignore_errors=True)
-    dest = snaps / f'frozen-{commit[:12]}'
-    if not dest.is_dir():
-        tmp = snaps / f'.frozen-{commit[:12]}-{os.getpid()}'
-        tmp.mkdir()
-        archive = subprocess.Popen(['git', '-C', str(checkout), 'archive', '--format=tar', commit], stdout=subprocess.PIPE)
-        subprocess.run(['tar', '-x', '-C', str(tmp)], stdin=archive.stdout, check=True)
-        if archive.wait():
-            sys.exit(f'git archive of {commit} failed')
-        try:
-            tmp.rename(dest)
-        except OSError:                                      # another run of this commit got there first
-            shutil.rmtree(tmp, ignore_errors=True)
-    # The built engine environment is not in git: the copy uses the checkout's. A checkout installed
-    # with `kicad-route update` routes with the environment of the router generation its state
-    # manifest names; a .venv-krt left beside it by an older install has no engine in it (twelve
-    # boards failed at start on "numpy: not installed" when the copy linked that one).
-    venvs = {v.name: v for v in checkout.glob('.venv-*') if v.is_dir()}
-    try:
-        generation = json.loads((checkout / 'manifest.json').read_text())['krt']['generation']
-    except (OSError, ValueError, KeyError, TypeError):
-        generation = None
-    if generation and (checkout / generation / 'venv').is_dir():
-        venvs['.venv-krt'] = checkout / generation / 'venv'
-    for name, venv in venvs.items():
-        link = dest / name
-        if not link.exists():
-            try:
-                link.symlink_to(venv.resolve(), target_is_directory=True)
-            except FileExistsError:
-                pass
-    # Nor is the other backend: `kicad-route update` downloads Freerouting beside the source.
-    jar_home = checkout / 'vendor' / 'freerouting'
-    if jar_home.exists() and not (dest / 'vendor' / 'freerouting').exists():
-        (dest / 'vendor').mkdir(exist_ok=True)
-        try:
-            (dest / 'vendor' / 'freerouting').symlink_to(jar_home.resolve(), target_is_directory=True)
-        except FileExistsError:
-            pass
-    os.utime(dest)
-    return dest
+def default_state_dir(checkout):
+    """Find the .venv-krt / Freerouting state directory for checkout or a git worktree."""
+    if (checkout / '.venv-krt/bin/python').is_file() or (checkout / 'manifest.json').is_file():
+        return checkout
+    common_git = git(checkout, 'rev-parse', '--git-common-dir').strip()
+    if common_git:
+        main_root = (checkout / common_git).resolve().parent
+        if (main_root / '.venv-krt/bin/python').is_file() or (main_root / 'manifest.json').is_file():
+            return main_root
+    return checkout
 
 
 def describe(item):
@@ -439,7 +390,8 @@ def route_one(entry, tag, engine, budget, extra, clock='cpu'):
             '--name', entry['name'], '--label', 'lab', '--protect', 'existing', '--budget', str(budget),
             '--budget-clock', clock, *extra]
     env = dict(os.environ, KICAD_ROUTE_LEDGER='off', PYTHONDONTWRITEBYTECODE='1')
-    env.pop('KICAD_ROUTE_STATE', None)
+    if 'KICAD_ROUTE_STATE' not in env:
+        env['KICAD_ROUTE_STATE'] = str(default_state_dir(engine))
     start = time.monotonic()
     record = {'argv': argv}
     try:
@@ -483,9 +435,7 @@ def run(args):
     root = LAB / 'runs' / args.tag
     root.mkdir(parents=True, exist_ok=True)
     identity = engine_identity(engine)
-    if not args.stock:
-        engine = frozen(engine)
-        identity['routed_from'] = str(engine)
+    identity['routed_from'] = str(engine)
     write_json(root / 'run.json', {'tag': args.tag, 'engine': identity, 'budget_s': args.budget, 'clock': args.clock,
                                    'extra': args.extra, 'started_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:

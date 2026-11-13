@@ -136,15 +136,8 @@ def state_manifest(state=None):
     if not isinstance(manifest, dict):
         raise RouterSelectionError(f"state manifest {path} is malformed or is not a JSON object")
     described = manifest.get("state_dir")
-    if described is not None:
-        if not isinstance(described, str) or not described:
-            raise RouterSelectionError(f"state manifest {path} has an invalid state_dir")
-        try:
-            owner = Path(described).expanduser().resolve()
-        except (OSError, RuntimeError, ValueError) as error:
-            raise RouterSelectionError(f"state manifest {path} has an invalid state_dir: {error}") from error
-        if owner != state:
-            raise RouterSelectionError(f"state manifest {path} describes {owner}, not {state}")
+    if described is not None and (not isinstance(described, str) or not described.strip()):
+        raise RouterSelectionError(f"state manifest {path} has an invalid state_dir")
     if manifest.get("krt") is not None and not isinstance(manifest["krt"], dict):
         raise RouterSelectionError(f"state manifest {path} has a non-object krt record")
     return manifest
@@ -175,6 +168,7 @@ def router_generation(state=None):
 
 def kicad_version():
     # even `kicad-cli version` writes its config, cache and data directories: contained too
+    ensure_fontconfig()
     r = subprocess.run(["kicad-cli", "version"], capture_output=True, text=True, env=dict(os.environ, **home_env()))
     return r.stdout.strip() if r.returncode == 0 else None
 
@@ -190,6 +184,23 @@ def tool_home():
     return out_dir() / ".home"
 
 
+def fontconfig_file():
+    return tool_home() / "config" / "fontconfig" / "fonts.conf"
+
+
+def ensure_fontconfig():
+    """Isolated fontconfig file so libfontconfig never probes /var/cache/fontconfig or ~/.fontconfig for writes."""
+    cfg = fontconfig_file()
+    if not cfg.is_file():
+        cache = tool_home() / "cache" / "fontconfig"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cache.mkdir(parents=True, exist_ok=True)
+        cfg.write_text('<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">\n'
+                       f'<fontconfig>\n  <dir>/usr/share/fonts</dir>\n  <cachedir>{cache}</cachedir>\n'
+                       '  <cachedir>/var/cache/fontconfig</cachedir>\n</fontconfig>\n')
+    return cfg
+
+
 def home_env():
     """KiCad's config (OUT/.kicad-config), cache and data (KiCad 10 creates
     ~/.cache/kicad/10.0 and ~/.local/share/kicad/10.0/{symbols,footprints,...} on
@@ -198,7 +209,8 @@ def home_env():
     return {"KICAD_CONFIG_HOME": str(kicad_config_home()),
             "KICAD_CACHE_HOME": str(home / "cache"), "KICAD_DOCUMENTS_HOME": str(home / "data"),
             "XDG_CONFIG_HOME": str(home / "config"), "XDG_CACHE_HOME": str(home / "cache"),
-            "XDG_DATA_HOME": str(home / "data"), "XDG_STATE_HOME": str(home / "state")}
+            "XDG_DATA_HOME": str(home / "data"), "XDG_STATE_HOME": str(home / "state"),
+            "FONTCONFIG_FILE": str(fontconfig_file())}
 
 
 def jvm_home_args():
@@ -282,6 +294,7 @@ def run_cmd(argv, cwd, log_path, timeout=1800):
     """Run one command, capture its combined output to a log, return a record."""
     log_path = Path(log_path)
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_fontconfig()
     start = time.monotonic()
     record = {"argv": [str(a) for a in argv], "cwd": rel(cwd), "log": rel(log_path)}
     try:

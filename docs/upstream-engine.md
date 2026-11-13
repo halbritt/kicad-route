@@ -69,17 +69,20 @@ engine's fan-out rescue of a pin that no tap reaches failed at its import.
 version (`rust_router/Cargo.toml`), which upstream raises only when the crate changes;
 `doctor` compares the built `grid_router` with the crate, not with `VERSION`.
 
-## Keeping a local change small
+## Engineering direction: fix the engine, not outer wrappers
 
-A local change costs a merge at every upstream release, so:
+The goal of `kicad-route` is a router measurably better than stock KRT on real
+boards (zero open connections, zero DRC violations, fewer vias and shorter track
+length). Do not avoid core engine work to keep upstream merges trivial:
 
-- Put local code in a local file (`py_router/sexpr.py`, `native_delay.py`,
-  `effective_config_evidence.py`) and leave a few inserted lines in the upstream file
-  that call it. Inserted lines merge; rewritten upstream lines conflict.
-- Mark the inserted lines `# kicad-route:` with the reason.
-- Prefer doing the work outside the engine, in kicad-route's own steps before and after
-  the engine runs, when that is possible.
-- Add the change to `local_changes` in `UPSTREAM.json`; `--status` checks the file list.
+- Put routing capability inside the engine (`rust_router/` and `py_router/`):
+  negotiated-congestion rip-up and reroute (PathFinder), off-grid / 45° pad entry
+  for rotated packages, and coordinated fine-pitch pad escape and neck-down.
+- Do not add more outer `pcbnew` post-processing loops, repeated subprocess closing
+  passes, or grading exemptions to mask what the core search failed to route.
+- Record engine modifications in `UPSTREAM.json` (`local_changes` / `local_files`)
+  so provenance against `upstream_commit` stays explicit (`--status` checks the file
+  list), and rebuild locally in seconds with `mise run build`.
 
 ## State on 2026-11-10 (AGENTEE-642)
 

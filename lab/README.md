@@ -73,14 +73,8 @@ nets were routed once more round them; `docs/spokes.md`). `N closed in the time 
 is not a thing the engine left but what the run did with the budget the engine did not
 use: connections closed by the rounds after it (`docs/routing.md`).
 
-A run is of one commit. `run` copies the checkout's committed files to
-`$KICAD_ROUTE_LAB/snap/frozen-COMMIT` and routes with the copy, so the checkout
-can be edited while a run of an hour is going; uncommitted changes to tracked
-files are refused. (kicad-route binds its grading to the hashes of its own
-source files. An edit during a run once made three boards fail a completion
-check the router had no part in.) The engine's built environment
-(`.venv-krt`) is not in git; the copy links to the checkout's, and `run.json`
-records the hash of the built extension.
+`run` executes directly from the checkout (or worktree) without copying repo
+snapshots, and `run.json` records the commit, dirty status and built extension hash.
 
 ## The loop
 
