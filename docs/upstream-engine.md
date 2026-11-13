@@ -125,6 +125,7 @@ carry about 500 changed lines in twelve listed changes.
 | `stop-request` | The stop file was honoured only between the nets of the first pass. Three boards of 160 to 480 connections finished that pass inside a 300 s budget, ran on through the later passes, were killed, and no board came back. |
 
 | `pad-anchored-dangle-trim` | A pair 2 mm long came back with each member running 0.5 to 0.7 mm past its far pad (two `track_dangling` findings). Upstream's dangle trim anchors a dead-end track on a via or another track's end, not on a pad. |
+| `width-below-floor` | Tracks routed at a board's minimum width of 7.8 mil (0.19812 mm) came back 0.1981 mm wide, 20 nm under it, and KiCad reported each one. Upstream's smoothing and collinear merge group tracks by width rounded to 0.1 um and re-drew a group at the rounded number; a track necked at a pad was rounded the same way. Found when the run began to let a net that is still open go down to the board's minimums (`docs/routing.md`, the third closing round). |
 
 The fork's own trim of a track that runs past its pad (92 lines) stays dropped. The
 third change is 19 lines inside upstream's dangle trim and uses its connectivity

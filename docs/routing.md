@@ -628,7 +628,25 @@ engine route them once more on the board as it stands, with settings the round b
 not have: first with searches that may run on, then also with the authority to lift copper
 this run laid when that is what closes a connection in (the engine puts a lifted net back
 when it cannot route it again; copper of the input is locked for the routing and never
-lifted). A round that closes a connection beside a thermal pad can starve the pad, so its
+lifted). Those two rounds share the time between them.
+
+A third round has what they leave. In it a net that is still open may be routed below
+the sizes of its class, down to the board's own minimums (Board Setup), which are what
+KiCad grades a track and a via by: the engine tries the net at its class sizes first and
+goes down only when that fails (`--escalation board` and the engine's last escalation,
+which every other pass has switched off). Designers do the same where a class track
+does not fit. The through-hole board of the lab has lanes of 0.84 mm between pads where
+its 0.4 mm class track needs 0.91, and its designer took 0.3 mm tracks through six of
+them; a four-layer board's designer reached a pin with a 0.15 mm track where the class
+says 0.25. The board's pour nets are among this round's nets: the engine throws a whole
+pass away when a new track cuts a pour it was not asked to mend, and on the through-hole
+board it had connected six nets and reverted all of them for the ground pour. Copper
+below its class is listed in the result as in every run (`routing.stats.below_class`); a
+project rule that sets a minimum for a class makes KiCad report such a track, and the
+round is then not kept. Measured at 1800 s on the three lab boards whose engine ends on
+its own with connections open: 15 open connections to 7, 3 to 2, and 1 to 0.
+
+A round that closes a connection beside a thermal pad can starve the pad, so its
 board gets the thermal repair (`docs/spokes.md`) before it is judged, in the rounds' own
 time. KiCad's DRC is asked
 about the board before and after each round with the zones refilled, and a round is kept
@@ -640,8 +658,9 @@ fails it. A run that the budget stopped has no time left and no rounds.
 
 The record is `process.closing`: `status` (`none`, `closed`, `kept` when no round was
 kept, `failed` when a step could not run), the open connections before and after, and per
-round its settings, nets, share of the time, KiCad's counts before and after and the
-outcome. The work files are in `work/closing/`.
+round its settings, nets (`pour_nets` are the pour nets a round took along), share of
+the time, KiCad's counts before and after and the outcome. The work files are in
+`work/closing/`.
 
 ### Tightening controls
 
