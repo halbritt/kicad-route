@@ -1733,13 +1733,11 @@ RECIPES = {
     "two-layer-bus": ["--layer-costs", "1.0", "1.0", "--direction-preference-cost", "4000",
                       "--turn-cost", "2000", "--via-cost", "150"],
 }
-# `auto` is not the default yet (AGENTEE-691). With the two-layer costs the deliberately
-# unroutable test board comes back with a starved thermal: the wall of that fixture cuts the back
-# pour in two in the input, the run connects a ground pin on the smaller piece by a track on the
-# front, and KiCad then reports the pin's thermal relief ("spokes connected to isolated island").
-# None of the run's copper is in the way, so the pour repair (thermals.py) has nothing to clear;
-# with the engine's costs that connection stays open and the board is valid.
-RECIPE_DEFAULT = "default"
+# `auto` is the default since AGENTEE-691. It was held back by the deliberately unroutable test
+# board, which the two-layer costs brought back with a starved thermal: the run tied a ground pin
+# on a cut-off piece of the back pour to its net by a front track. The stitch step now ties that
+# piece to the net (kicad/stitch.py, "tied"). `--recipe default` gives the engine's own costs.
+RECIPE_DEFAULT = "auto"
 
 
 def resolve_recipe(name, copper_layer_count):

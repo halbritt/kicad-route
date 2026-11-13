@@ -284,6 +284,12 @@
               "type": "number",
               "minimum": 1e-06
             },
+            "recipe": {
+              "enum": [
+                "two-layer",
+                "two-layer-bus"
+              ]
+            },
             "grid_basis": {
               "type": "object",
               "required": [

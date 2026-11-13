@@ -43,10 +43,10 @@ ATTEMPTS = {
     "smoke-blocked-krt": ("--backend", "krt", "--budget", "180", "--dir", "{blocked}",
                           "--backend-env", "KICAD_NET_RESCUE=0", "--backend-env", "KICAD_PLANE_FINALIZE=0",
                           "--default-clearance", "0.4"),
-    # the same board at the two-layer costs, where the run ties J1.2 to its net by a front track
-    "smoke-blocked-krt-two-layer": ("--backend", "krt", "--budget", "180", "--dir", "{blocked}",
-                                    "--backend-env", "KICAD_NET_RESCUE=0", "--backend-env", "KICAD_PLANE_FINALIZE=0",
-                                    "--default-clearance", "0.4", "--recipe", "two-layer"),
+    # the same board at the engine's own costs, which leave J1.2 on its piece of pour alone
+    "smoke-blocked-krt-engine-costs": ("--backend", "krt", "--budget", "180", "--dir", "{blocked}",
+                                       "--backend-env", "KICAD_NET_RESCUE=0", "--backend-env", "KICAD_PLANE_FINALIZE=0",
+                                       "--default-clearance", "0.4", "--recipe", "default"),
     "smoke-blocked-freerouting": ("--backend", "freerouting", "--budget", "180", "--dir", "{blocked}"),
 }
 
@@ -210,8 +210,7 @@ def test_a_pad_tied_to_its_net_by_a_track_has_its_piece_of_pour_stitched(blocked
     its spokes end in fill that nothing else ties to the net. A via from that track into the
     piece ties it, as a designer would: the board is incomplete and valid, with the connections
     open that the wall leaves open at the engine's costs too."""
-    r, run_dir, result = attempt("smoke-blocked-krt-two-layer")
-    record("blocked_krt_two_layer", summary(result))
+    r, run_dir, result = attempt("smoke-blocked-krt")       # no recipe named: the run chooses the two-layer one
     assert result["settings"]["recipe"] == "two-layer"
     stitched = result["process"]["stitched"]
     assert stitched["status"] == "stitched" and stitched["left"] == [] and stitched["removed_after_drc"] == [], stitched
@@ -220,7 +219,10 @@ def test_a_pad_tied_to_its_net_by_a_track_has_its_piece_of_pour_stitched(blocked
     assert via["spokes"] == 4 and via["live_spokes"] == 0
     assert result["validation"]["status"] == route.PASS, result["validation"]["reasons"]
     assert r.returncode == 2 and result["routing"]["status"] == route.INCOMPLETE
-    assert result["routing"]["unconnected_in_scope"] == attempt("smoke-blocked-krt")[2]["routing"]["unconnected_in_scope"]
+    plain = attempt("smoke-blocked-krt-engine-costs")[2]
+    assert "recipe" not in plain["settings"] and plain["process"]["stitched"]["status"] == "none"
+    assert plain["validation"]["status"] == route.PASS
+    assert result["routing"]["unconnected_in_scope"] == plain["routing"]["unconnected_in_scope"]
 
 
 @pytest.mark.parametrize("backend", ["krt", "freerouting"])

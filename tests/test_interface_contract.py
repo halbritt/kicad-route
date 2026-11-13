@@ -56,8 +56,9 @@ BASE_SETTINGS_KEYS = {
     "pour_min_spokes", "protect", "reserve_spokes", "rule_floor_sha256", "stall_s",
 }
 SELECTED_NETS_SETTINGS_KEYS = {"net_patterns", "netclasses"}
-# What a builtin run adds about the grid it searched on (docs/routing.md).
-OWN_GRID_SETTINGS_KEYS = {"grid_basis", "grid_step_mm"}
+# What a builtin run adds about its own choices (docs/routing.md): the grid it searched on, and the
+# cost recipe when it is not the engine's own (a two-layer board, since `auto` is the default).
+OWN_CHOICE_SETTINGS_KEYS = {"grid_basis", "grid_step_mm", "recipe"}
 
 
 def kr(*args, cwd, env=None, timeout=900):
@@ -486,8 +487,10 @@ def test_json_runs_with_explicit_run_dirs_do_not_interfere():
         settings = set(res["settings"])
         assert BASE_SETTINGS_KEYS <= settings
         added = settings - BASE_SETTINGS_KEYS - SELECTED_NETS_SETTINGS_KEYS
-        assert added <= (OWN_GRID_SETTINGS_KEYS if name == "builtin" else set()), added
+        assert added <= (OWN_CHOICE_SETTINGS_KEYS if name == "builtin" else set()), added
         assert ("grid_basis" in settings) == (name == "builtin")
+        # the fixture has two copper layers: the builtin run chose their recipe and says so
+        assert res["settings"].get("recipe") == ("two-layer" if name == "builtin" else None)
         assert attempt["settings"] == res["settings"]
         RESULTS.validate(res)
         check_invariants(res)

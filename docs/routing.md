@@ -304,8 +304,8 @@ quantisation (KiCad reads a 0.29972 mm via drill back as 0.299 mm).
 ### Recipes
 
 The engine's search costs decide which layer a track takes and when a via is worth
-its price. One set of costs does not suit every board, so `run --recipe NAME` passes
-a set measured for a class of board. A recipe only sets costs (`--layer-costs`,
+its price. One set of costs does not suit every board, so a run picks a set measured for
+the board's class, and `run --recipe NAME` names one. A recipe only sets costs (`--layer-costs`,
 `--via-cost`, `--direction-preference-cost`, `--turn-cost`); it relaxes no rule and
 grading is the same. The recipe used is in the result's `settings.recipe` when it is
 not `default`, and a `--backend-arg` of the same option comes later on the engine's
@@ -316,7 +316,7 @@ command line and wins.
 | `default` | the engine's own (two layers: front 1.0, back 3.0, via 75) | four layers and more |
 | `two-layer` | both layers 1.0, via 600 | two-layer boards |
 | `two-layer-bus` | both layers 1.0, direction preference 4000, turn 2000, via 150 | two-layer boards with parallel buses |
-| `auto` | `two-layer` on a two-layer board, else `default` | the recommended setting |
+| `auto` | `two-layer` on a two-layer board, else `default` | the default |
 
 Where the choice comes from: the upstream project's routing guide gives the two
 two-layer sets, and the router lab (`lab/README.md`) measured them on eight
@@ -332,16 +332,14 @@ via cost left more connections open on every board tried, so those keep the
 engine's costs. The dense two-layer board of the corpus (164 connections) is open
 under every recipe and under the engine's costs; no recipe is a fix for it.
 
-Without `--recipe` the engine's own costs apply. `auto` is not the default yet: with the
-two-layer costs the deliberately unroutable test board (`fixtures/route_demo` behind a
-keep-out wall) comes back with a starved thermal where the engine's costs give a valid,
-incomplete board. The wall cuts that board's back pour in two in the input. With the
-two-layer costs the run connects a ground pin on the smaller piece by a track on the
-front, and KiCad then reports the pin's thermal relief on the back ("spokes connected to
-isolated island"): the pin is on its net by another way, and its spokes end in fill cut
-off from the rest. None of the run's copper is in the way, so the repair of
-`docs/spokes.md` has nothing to clear. With the engine's costs that connection stays
-open. Until the run takes such a track out again, `auto` stays a choice.
+Without `--recipe` a run chooses as `auto` does; `--recipe default` gives the engine's
+own costs on any board. `auto` was held back as the default by the deliberately
+unroutable test board (`fixtures/route_demo` behind a keep-out wall), which the two-layer
+costs brought back with a starved thermal where the engine's costs give a valid,
+incomplete board: the wall cuts that board's back pour in two, and the run tied a ground
+pin on the smaller piece to its net by a track on the front. The wrapper now stitches
+that piece of pour to the track ("tied", under "Pour pieces the routing ringed off"
+below), and the board is incomplete and valid under both, with the same connections open.
 
 ### Search grid and keep-outs
 

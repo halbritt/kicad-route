@@ -261,7 +261,7 @@ changing its meaning needs `/2`.
 - `settings` keys: `backend`, `budget_s`, `protect`, `mode`, `max_iterations`, `passes`,
   `default_clearance_mm`, `clearance_margin_mm`, `pour_area_loss_pct`, `pour_min_spokes`,
   `backend_args`, `backend_env`, `reserve_spokes`, `stall_s`, `net_patterns`,
-  `netclasses`, `rule_floor_sha256`, `grid_step_mm`, `grid_basis`
+  `netclasses`, `rule_floor_sha256`, `grid_step_mm`, `grid_basis`, `recipe`
 - `scope.mode`
 - `unsupported` (a list of strings)
 - `process.status`, `process.reasons`
@@ -321,6 +321,13 @@ and every other process detail, `routing.stats`, the `routing.blocked_by` summar
 - This page keeps the history below.
 
 ### History
+
+- **1, the run's own recipe** (2026-11-13): `run --recipe` now defaults to `auto`, so a
+  builtin run on a two-layer board routes at the `two-layer` costs and records
+  `settings.recipe` (`"two-layer"`); a board of more layers records nothing, as before.
+  `--recipe default` gives the engine's own costs. A caller that compares `settings` with
+  exactly what it asked for has to allow for the key (agent-ee's routing adapter does
+  since the same day). `settings.recipe` was written before only when a recipe was asked for.
 
 - **1, the run's own search grid** (2026-11-12, `cfd6ef2`): a builtin run that is given
   no `--grid-step` records `settings.grid_basis`, the connected pads it counted on the

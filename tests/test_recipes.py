@@ -8,7 +8,9 @@ def test_auto_picks_by_layer_count_and_a_name_is_taken_as_given():
     assert route.resolve_recipe("auto", 4) == "default"
     assert route.resolve_recipe("auto", None) == "default"
     assert route.resolve_recipe("two-layer-bus", 4) == "two-layer-bus"
-    assert route.RECIPE_DEFAULT == "default" and route.resolve_recipe(None, 2) == "default"
+    # without the option a run chooses for the board, as with `auto`
+    assert route.RECIPE_DEFAULT == "auto"
+    assert route.resolve_recipe(None, 2) == "two-layer" and route.resolve_recipe(None, 4) == "default"
     assert route.resolve_recipe("default", 2) == "default"
     # a recipe only sets costs: nothing in one may relax a rule or change what is delivered
     allowed = {"--layer-costs", "--via-cost", "--direction-preference-cost", "--turn-cost"}
@@ -35,11 +37,19 @@ def test_a_recipe_reaches_the_engine_before_backend_args_and_is_recorded():
     assert result["routing"]["status"] == route.COMPLETE and result["validation"]["status"] == route.PASS
 
 
-def test_without_a_recipe_the_engine_gets_its_own_costs():
+def test_recipe_default_gives_the_engine_its_own_costs():
     r, run_dir, result = run("run", "--backend", "builtin", "--budget", "120", "--default-clearance", "0.4",
-                             "--label", "smoke-no-recipe")
+                             "--recipe", "default", "--label", "smoke-no-recipe")
     assert "recipe" not in result["settings"]
     assert "--layer-costs" not in engine_argv(result)
+
+
+def test_without_the_option_the_two_layer_fixture_gets_its_recipe():
+    r, run_dir, result = run("run", "--backend", "builtin", "--budget", "120", "--default-clearance", "0.4",
+                             "--label", "smoke-default-recipe")
+    assert result["settings"]["recipe"] == "two-layer"
+    assert "--layer-costs" in engine_argv(result)
+    assert result["routing"]["status"] == route.COMPLETE and result["validation"]["status"] == route.PASS
 
 
 def test_auto_gives_the_two_layer_fixture_its_recipe():
