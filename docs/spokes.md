@@ -148,8 +148,8 @@ pour:
    lift other copper of this run that closes them in (never the input's, which is locked).
 5. The corridors come off, copper left ending in the air is swept, and the boards are
    compared again. The repair is kept only when fewer pads are short of their pour, no
-   more connections are open than before and KiCad's report is no longer. Otherwise the
-   board stays as the router left it, and the findings stand.
+   more connections are open than before and KiCad's report has no finding more.
+   Otherwise the board stays as the router left it, and the findings stand.
 
 All such pads are tried together first, and once more for a pad the new routes starved.
 When that is not kept, up to six pads are tried one by one, so that a net which cannot be

@@ -12,9 +12,9 @@ Each round has the engine route them once more on the board as it stands, with d
 settings from the round before (STRATEGIES): first with searches that may run on, then also
 with the authority to lift copper this run laid. KiCad's DRC is asked about the board before
 and after each round with the zones refilled, and a round is kept only when its board has
-fewer open connections and a shorter report in all (open connections and findings together)
-than the board it started from. Otherwise the board stays as it was. So the rounds can only
-take open connections away, whatever the order of the engine's nets does to one of them. A
+fewer open connections than the board it started from and no finding more. Otherwise the
+board stays as it was. So the rounds can only take open connections away, whatever the order
+of the engine's nets does to one of them, and never trade one for a rule violation. A
 connection closed beside a thermal pad can starve it; the round's board gets the thermal repair
 (thermals.py) before it is judged.
 """
@@ -51,6 +51,14 @@ def open_nets(report):
 
 def _counts(report):
     return len(report.get("unconnected_items") or []), len(report.get("violations") or [])
+
+
+def better(before, after):
+    """Whether a round left the better board: (open connections, findings) before and after it.
+
+    Fewer open connections and no finding more. A board with its connections open is still a
+    valid board; one new finding fails it, so two connections closed are no trade for one."""
+    return after[0] < before[0] and after[1] <= before[1]
 
 
 def close(work, board, before, output, route_again, seconds, api, in_scope=None, settle=None):
@@ -120,7 +128,7 @@ def close(work, board, before, output, route_again, seconds, api, in_scope=None,
             return failed("KiCad's DRC of the board after a closing round failed")
         (open_before, found_before), (open_after, found_after) = _counts(report), _counts(after)
         entry["drc_counts"] = {"before": [open_before, found_before], "after": [open_after, found_after]}
-        if open_after >= open_before or open_after + found_after >= open_before + found_before:
+        if not better((open_before, found_before), (open_after, found_after)):
             entry["result"] = "not the better for it; the board stays as it was"
             continue
         entry["result"] = "kept"

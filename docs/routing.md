@@ -632,10 +632,11 @@ lifted). A round that closes a connection beside a thermal pad can starve the pa
 board gets the thermal repair (`docs/spokes.md`) before it is judged, in the rounds' own
 time. KiCad's DRC is asked
 about the board before and after each round with the zones refilled, and a round is kept
-only when its board has fewer open connections and a shorter report in all, open
-connections and findings together. Otherwise the board stays as it was. The rounds can
-therefore only take open connections away, whatever the order of the engine's nets does to
-one of them. A run that the budget stopped has no time left and no rounds.
+only when its board has fewer open connections and no finding more. Otherwise the board
+stays as it was. The rounds can therefore only take open connections away, whatever the
+order of the engine's nets does to one of them, and never trade a connection for a rule
+violation: a board with connections open is still a valid board, and one new finding
+fails it. A run that the budget stopped has no time left and no rounds.
 
 The record is `process.closing`: `status` (`none`, `closed`, `kept` when no round was
 kept, `failed` when a step could not run), the open connections before and after, and per

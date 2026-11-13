@@ -87,6 +87,13 @@ def test_a_round_that_adds_a_finding_is_not_kept(pour_dir, tmp_path):
         assert "not the better" in entry["result"]
 
 
+def test_two_connections_closed_are_no_trade_for_one_finding():
+    assert closing.better((5, 10), (4, 10)) and closing.better((5, 10), (3, 9))
+    assert not closing.better((5, 10), (3, 11))       # the sum is shorter, and the board now fails
+    assert not closing.better((5, 10), (5, 9))        # a round is for connections
+    assert not closing.better((5, 10), (6, 2))
+
+
 def test_only_the_runs_own_nets_are_asked_for(pour_dir, tmp_path):
     work, board, before, output = stage(pour_dir, tmp_path, [])
     asked = []

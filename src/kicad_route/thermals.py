@@ -185,7 +185,7 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
             entry["drc_counts"] = {"before": [open_before, found_before], "after": [open_after, found_after]}
             entry["starved_after"] = len(short_after)
             kept = not (open_after > open_before or len(short_after) >= len(short)
-                        or open_after + found_after > open_before + found_before)
+                        or found_after > found_before)
             entry["result"] = "kept" if kept else "the board was not the better for it and stays as it was"
         if kept:
             current, report, short = again, after, short_after

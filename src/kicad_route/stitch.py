@@ -120,11 +120,13 @@ def apply(work, board, before, output, scope, api):
         if not vias:
             return rec
     # A via is there to take a finding or an open connection away. KiCad's report has to be the
-    # shorter for the vias that are left, with no more open connections than before (a via pushes
-    # the pours of other nets back by their clearance, which no finding would name it for).
+    # shorter for the vias that are left, with no more open connections than before and no more
+    # findings (a via pushes the pours of other nets back by their clearance, which can open a
+    # connection or starve a pad of another net without any finding naming the via for it).
     count = lambda rep: (len(rep.get("unconnected_items") or []), len(rep.get("violations") or []))
     (open_before, found_before), (open_after, found_after) = count(base), count(report)
-    if open_after > open_before or open_after + found_after >= open_before + found_before:
+    if (open_after > open_before or found_after > found_before
+            or open_after + found_after >= open_before + found_before):
         listed = work / "stitch-remove-all.json"
         common.write_json(listed, with_legs(vias))
         removed, counted = _helper(api, work, "stitch-remove-all.log", "remove", board, listed)
