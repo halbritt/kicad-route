@@ -14,7 +14,7 @@ from typing import List, Optional, Tuple, Dict
 
 from kicad_parser import PCBData, Segment, Via
 from routing_config import GridRouteConfig, GridCoord, DiffPairNet, REFERENCE_GRID_STEP
-from routing_utils import segment_length, build_layer_map, pos_key
+from routing_utils import segment_length, build_layer_map, pos_key, necked_width
 from connectivity import (
     find_connected_groups, find_stub_free_ends, get_stub_direction, get_net_endpoints,
     get_stub_segments, get_stub_vias, calculate_stub_via_barrel_length
@@ -1771,7 +1771,7 @@ def _neck_pair_partner_grazes(p_segs, n_segs, config, pcb_data,
                 new_w = max(floor, 2.0 * (d - o.width / 2.0 - clr - 2e-4))
                 if new_w < s.width - 1e-9:
                     requested.setdefault(id(s), (s, s.width))
-                    s.width = round(new_w, 4)
+                    s.width = necked_width(new_w, floor)
                     necked += 1
 
     neck_side(p_segs, n_segs, n_vias)

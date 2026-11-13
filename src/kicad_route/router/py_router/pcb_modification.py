@@ -11,7 +11,7 @@ import os
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 from kicad_parser import PCBData, Segment, Via, is_immutable_copper
-from routing_utils import pos_key, POSITION_DECIMALS, into_pad_frame_point
+from routing_utils import pos_key, POSITION_DECIMALS, into_pad_frame_point, necked_width, group_width
 from geometry_utils import point_to_segment_distance, segments_intersect
 
 # Read once at import: both are checked inside per-segment cleanup loops (hot).
@@ -5147,7 +5147,7 @@ def prune_grazing_segments(results, pcb_data: PCBData, scope_net_ids=None,
                     # Verify the necked net before committing; revert + defer
                     # to the nudges if connectivity would worsen.
                     _old_w = s.width
-                    s.width = round(max(floor, allowed), 4)
+                    s.width = necked_width(allowed, floor)
                     _kept_now = [x for i, x in enumerate(net_segs)
                                  if i not in dropped_idx]
                     if worse(before, check_net_connectivity(
@@ -5951,6 +5951,7 @@ def smooth_octolinear_chains(results, pcb_data: PCBData, scope_net_ids=None,
             for (layer, w), gsegs in sorted(groups.items()):
                 if len(gsegs) < 2:
                     continue
+                w = group_width(gsegs)
                 gadj = defaultdict(list)
                 for s in gsegs:
                     gadj[vk(s.start_x, s.start_y)].append(s)
@@ -6616,6 +6617,7 @@ def merge_collinear_segments(results, pcb_data: PCBData, scope_net_ids=None,
         for (layer, w), gsegs in sorted(groups.items()):
             if len(gsegs) < 2:
                 continue
+            w = group_width(gsegs)
             gadj = defaultdict(list)
             for s in gsegs:
                 gadj[vk(s.start_x, s.start_y)].append(s)

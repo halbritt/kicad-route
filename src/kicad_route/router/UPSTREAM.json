@@ -145,6 +145,19 @@
       "tests": [
         "tests/test_restore_speed.py"
       ]
+    },
+    {
+      "id": "width-below-floor",
+      "purpose": "A track at the board's minimum width is written at that width. Upstream's smoothing and collinear merge group a net's tracks by width rounded to 0.1 um and re-draw each group at the rounded number, and a track necked at a pad is rounded wherever it lands: on a board whose minimum track width is 7.8 mil (0.19812 mm) tracks routed at the minimum came out 0.1981 mm wide and KiCad reported every one (track_width). A group is now re-drawn at the width its tracks have (routing_utils.group_width), and a neck keeps the 0.1 um raster above its floor and the floor itself exact (routing_utils.necked_width).",
+      "files": [
+        "py_router/routing_utils.py",
+        "py_router/single_ended_routing.py",
+        "py_router/pcb_modification.py",
+        "py_router/diff_pair_routing.py"
+      ],
+      "tests": [
+        "tests/test_necked_width_floor.py"
+      ]
     }
   ],
   "local_files": [
@@ -163,6 +176,7 @@
     "tests/test_kernel.py",
     "tests/test_krt64_tap_grid.py",
     "tests/test_multipoint_class_via.py",
+    "tests/test_necked_width_floor.py",
     "tests/test_no_stub_swap_reaches_config.py",
     "tests/test_obstacle_lifecycle.py",
     "tests/test_pad_corner_allowance.py",

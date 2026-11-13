@@ -15,6 +15,7 @@ from kicad_route import cli as route, common, engine
     "test_multipoint_class_via.py", "test_stop_file_later_passes.py", "test_dangle_trim_at_pad.py",
     "test_pad_corner_allowance.py",
     "test_restore_speed.py",
+    "test_necked_width_floor.py",
 ])
 def test_known_fork_regression_passes_with_owned_engine(script):
     # The worker needs its numeric dependencies and extension; only the test's

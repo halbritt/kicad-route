@@ -20,7 +20,7 @@ from dataclasses import replace
 from kicad_parser import (PCBData, Segment, Via, pad_is_plated_through,
                           plated_drill_exposed, flush_drill_peg)
 from routing_config import GridRouteConfig, GridCoord
-from routing_utils import build_layer_map, pad_rect_halfspan
+from routing_utils import build_layer_map, pad_rect_halfspan, necked_width
 from connectivity import (
     get_net_endpoints,
     get_multipoint_net_pads,
@@ -1347,7 +1347,7 @@ def _neck_terminal_grazes(segments, term_pts, pcb_data, net_id, config, floor=No
                     hard.append((s, d_raw, short_by))
                     continue
                 note_narrowing(net_id, 'track_width', s.width, new_w, 'terminal neck')
-                s.width = round(new_w, 4)
+                s.width = necked_width(new_w, s_floor)
                 necked += 1
     return necked, hard
 

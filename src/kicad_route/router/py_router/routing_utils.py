@@ -168,6 +168,24 @@ def dist_sq_to_rounded_rect(
 PAD_CORNER_EPS = 1e-6   # mm; keeps a cell that sits exactly on the bound blocked
 
 
+def necked_width(width, floor):
+    """A necked track width on the 0.1 um raster a neck is written on, never below ``floor``.
+
+    A neck that lands on the floor was rounded like any other: a board whose minimum track
+    width is 7.8 mil (0.19812 mm) got tracks of 0.1981 mm, 20 nm under it, and KiCad reported
+    every one of them (track_width). The floor itself is kept exact."""
+    return max(floor, round(width, 4))
+
+
+def group_width(segments):
+    """The width tracks of one width are re-drawn at, when a pass has grouped them by their
+    width rounded to 0.1 um: the widest of the group, as it is on the board.
+
+    The smoothing and the collinear merge re-drew a group at the rounded number. Tracks at a
+    board minimum of 0.19812 mm (7.8 mil) came out of them 0.1981 mm wide, under the minimum."""
+    return max(segment.width for segment in segments)
+
+
 def pad_corner_buffer(margin: float, grid_step: float, corner_radius: float = 0.0,
                       half_width: float = 0.0, half_height: float = 0.0) -> float:
     """Extra keep-out (mm) round the CORNERS of a pad, beyond `margin`.
