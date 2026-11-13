@@ -2196,7 +2196,9 @@ def krt_route(work, board, scope, facts, settings):
                                       label=name, seconds=min(thermals.PASS_S, seconds))
             return settled["commands"], settled.get("used_s") or 0
         closed = closing.close(work, board, before, output, close_again, left, sys.modules[__name__],
-                               in_scope=routed_here.__contains__, settle=settle)
+                               in_scope=routed_here.__contains__, settle=settle,
+                               pour_nets={zone["net"] for zone in facts.get("zones") or []
+                                          if zone.get("net") in routed_here})
         proc["commands"] += closed.pop("commands")
         proc["closing"] = closed
         spare -= closed.get("used_s") or 0

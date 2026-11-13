@@ -43,25 +43,34 @@ def test_a_round_that_closes_a_connection_is_kept(pour_dir, tmp_path):
         calls.append((name, list(nets), seconds, strategy))
         out = work / f"krt-{name}" / BOARD
         out.parent.mkdir(parents=True)
-        if len(calls) == 1:                      # the first round connects /SIG_A; the second gains nothing
+        if len(calls) == 1:                      # the first round connects /SIG_A; the others gain nothing
             edit(board_file, out, track=CLEAR)
         else:
             shutil.copyfile(board_file, out)
         return {"status": "routed", "output": out, "used_s": 40, "command": None}
 
-    rec = closing.close(work, board, before, output, route_again, 200, route)
+    rec = closing.close(work, board, before, output, route_again, 200, route, pour_nets={"POUR", "/SIG_B"})
     assert rec["status"] == "closed" and (rec["open_before"], rec["open_after"]) == (open_before, open_before - 1), rec
-    first, second = rec["rounds"]
+    first, second, third = rec["rounds"]
     assert first["result"] == "kept" and first["nets"] == nets_before
     assert first["strategy"] == closing.STRATEGIES[0]["name"]
     assert first["drc_counts"] == {"before": [open_before, found_before], "after": [open_before - 1, found_before]}
     assert "not the better" in second["result"] and "/SIG_A" not in second["nets"]
     # each round has its own settings, and a share of the time that is left
-    assert [c[0] for c in calls] == ["close-1", "close-2"]
+    assert [c[0] for c in calls] == ["close-1", "close-2", "close-3"]
     assert [c[3] for c in calls] == list(closing.STRATEGIES)
     assert closing.STRATEGIES[0]["env"] == {"KICAD_DYNAMIC_ITERATIONS": "1"} and not closing.STRATEGIES[0]["args"]
     assert closing.STRATEGIES[1]["env"] == closing.LIFT_ENV and closing.STRATEGIES[1]["args"] == closing.LIFT_ARGS
-    assert calls[0][2] == 100 and calls[1][2] == 160           # half of 200, then all of the 160 left
+    # half of 200, then all of the 160 left: the two rounds share the time between them, and the
+    # round that may narrow a net has only what they left
+    assert [c[2] for c in calls] == [100, 160, 120] and [e["budget_s"] for e in rec["rounds"]] == [100, 160, 120]
+    assert closing.STRATEGIES[2]["env"] == closing.NARROW_ENV and closing.STRATEGIES[2]["args"] == closing.NARROW_ARGS
+    assert closing.NARROW_ARGS == ("--escalation", "board") and closing.NARROW_ENV["KICAD_TERMINAL_ESCALATION"] == "1"
+    # that round alone takes the pour nets along, those that are not open themselves
+    assert "POUR" not in calls[0][1] + calls[1][1] and "pour_nets" not in first and "pour_nets" not in second
+    assert third["pour_nets"] == [net for net in ("/SIG_B", "POUR") if net not in third["nets"]]
+    assert calls[2][1] == third["nets"] + third["pour_nets"] and "POUR" in calls[2][1]
+    assert "not the better" in third["result"]
     assert counts(work, board, output, "end")[0] == open_before - 1
     had = edit(before, tmp_path / "copy-before.kicad_pcb")
     now = edit(output, tmp_path / "copy-output.kicad_pcb")
@@ -103,10 +112,19 @@ def test_only_the_runs_own_nets_are_asked_for(pour_dir, tmp_path):
         return {"status": "failed", "reason": "it wrote no board", "used_s": 5, "command": None}
 
     rec = closing.close(work, board, before, output, route_again, 200, route, in_scope={"/SIG_A"}.__contains__)
-    assert asked == [["/SIG_A"], ["/SIG_A"]] and rec["status"] == "kept"
+    assert asked == [["/SIG_A"]] * 3 and rec["status"] == "kept"
     assert all("could not be routed again (it wrote no board)" in entry["result"] for entry in rec["rounds"])
     none = closing.close(work, board, before, output, route_again, 200, route, in_scope=lambda net: False)
-    assert none["status"] == "none" and none["rounds"] == [] and len(asked) == 2
+    assert none["status"] == "none" and none["rounds"] == [] and len(asked) == 3
+    # with no more than the two sharing rounds use, the round that may narrow a net is not started
+    asked.clear()
+
+    def all_of_it(name, board_file, nets, seconds, strategy):
+        asked.append(name)
+        return {"status": "failed", "reason": "it wrote no board", "used_s": seconds, "command": None}
+
+    spent = closing.close(work, board, before, output, all_of_it, 200, route, in_scope={"/SIG_A"}.__contains__)
+    assert asked == ["close-1", "close-2"] and len(spent["rounds"]) == 2 and spent["used_s"] == 200.0
 
 
 def test_without_time_nothing_is_started(pour_dir, tmp_path):
@@ -140,8 +158,8 @@ def test_a_round_is_judged_after_what_it_broke_is_repaired(pour_dir, tmp_path):
 
     rec = closing.close(work, board, before, output, route_again, 200, route, settle=settle)
     # the repair is offered what the rounds have left, and what it takes comes out of their time
-    assert settled == [("close-1", 180.0), ("close-2", 130.0)]
-    assert [entry["budget_s"] for entry in rec["rounds"]] == [100, 150]
-    assert [entry["settle_s"] for entry in rec["rounds"]] == [30, 30] and rec["used_s"] == 100.0
+    assert settled == [("close-1", 180.0), ("close-2", 130.0), ("close-3", 80.0)]
+    assert [entry["budget_s"] for entry in rec["rounds"]] == [100, 150, 100]
+    assert [entry["settle_s"] for entry in rec["rounds"]] == [30, 30, 30] and rec["used_s"] == 150.0
     assert rec["status"] == "closed" and rec["open_after"] == open_before - 1, rec
     assert rec["rounds"][0]["result"] == "kept" and {"argv": ["repair", "close-1"]} in rec["commands"]

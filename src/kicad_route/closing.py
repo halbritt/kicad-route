@@ -10,7 +10,8 @@ has the allowance.
 close() spends what is left of the budget on the nets that are still open, and on those alone.
 Each round has the engine route them once more on the board as it stands, with different
 settings from the round before (STRATEGIES): first with searches that may run on, then also
-with the authority to lift copper this run laid. KiCad's DRC is asked about the board before
+with the authority to lift copper this run laid, and in the time those two leave with leave to
+route a net that is still open below its class sizes. KiCad's DRC is asked about the board before
 and after each round with the zones refilled, and a round is kept only when its board has
 fewer open connections than the board it started from and no finding more. Otherwise the
 board stays as it was. So the rounds can only take open connections away, whatever the order
@@ -31,9 +32,22 @@ MIN_S = 30          # a round is not started with less; the engine's start alone
 # routing and is never lifted (the engine's own rule); a round is judged by KiCad's report either way.
 LIFT_ENV = {"KICAD_DYNAMIC_ITERATIONS": "1", "KICAD_RIP_PREEXISTING": "1", "KICAD_FINALIZE_RIP": "1"}
 LIFT_ARGS = ("--rip-existing-nets", "*")
+# NARROW_*: a net that is still open may be routed below the sizes of its class, down to the
+# board's own minimums (Board Setup), which are what KiCad grades a track and a via by. Designers
+# do this where a class track does not fit: a through-hole board of the lab has lanes of 0.84 mm
+# between pads where its 0.4 mm class track needs 0.91, and its designer took 0.3 mm tracks
+# through six of them. The engine tries a net at its class sizes first and goes down only for a
+# net it could not connect (its rescue and its last escalation, switched off in every other
+# pass). Such a round has the board's pour nets among its nets ("pours"): a new track that cuts
+# a pour is then the engine's to mend, where otherwise the engine throws the whole round away
+# for the pads the cut leaves open. It runs in the time the other rounds leave ("spare").
+NARROW_ENV = {"KICAD_DYNAMIC_ITERATIONS": "1", "KICAD_TERMINAL_ESCALATION": "1"}
+NARROW_ARGS = ("--escalation", "board")
 STRATEGIES = (
     {"name": "searches may run on", "env": {"KICAD_DYNAMIC_ITERATIONS": "1"}, "args": ()},
     {"name": "searches may run on, and this run's copper may be lifted", "env": LIFT_ENV, "args": LIFT_ARGS},
+    {"name": "a net still open may go down to the board's own minimum sizes", "env": NARROW_ENV,
+     "args": NARROW_ARGS, "spare": True, "pours": True},
 )
 NET_OF_ITEM = re.compile(r"\[([^\]]+)\]")
 
@@ -61,7 +75,7 @@ def better(before, after):
     return after[0] < before[0] and after[1] <= before[1]
 
 
-def close(work, board, before, output, route_again, seconds, api, in_scope=None, settle=None):
+def close(work, board, before, output, route_again, seconds, api, in_scope=None, settle=None, pour_nets=()):
     """Route the open nets of `output` (in place) once more, in up to `seconds`.
 
     `board` is the work copy beside the working project, `before` the board as it was before
@@ -70,6 +84,7 @@ def close(work, board, before, output, route_again, seconds, api, in_scope=None,
     returns a record with "status" ("routed", with "output" and "used_s", or "failed", with
     "reason") and "command".
     `in_scope(net)` says whether a net is the run's to route; None takes every net.
+    `pour_nets` are the run's nets that own a pour; a strategy marked "pours" routes them along.
     `settle(name, board_file, seconds)` may repair what a round's new copper did to the board (a
     starved thermal) before the round is judged, in up to `seconds` of engine time; it returns
     the commands it ran and the engine time it took, which comes out of the rounds' time.
@@ -95,16 +110,21 @@ def close(work, board, before, output, route_again, seconds, api, in_scope=None,
     current, report, left = output, base, float(seconds)
     for index, strategy in enumerate(STRATEGIES):
         nets = [net for net in open_nets(report) if in_scope is None or in_scope(net)]
-        share = left / (len(STRATEGIES) - index)
+        # the time is shared among the rounds that are not marked "spare"; a spare round has what they left
+        sharing = sum(1 for later in STRATEGIES[index:] if not later.get("spare"))
+        share = left if strategy.get("spare") else left / sharing
         if not nets or share < MIN_S:
             break
         entry = {"round": index + 1, "strategy": strategy["name"], "open": _counts(report)[0], "nets": nets,
                  "budget_s": int(share)}
+        along = [net for net in sorted(pour_nets) if net not in nets] if strategy.get("pours") else []
+        if along:
+            entry["pour_nets"] = along
         rec["rounds"].append(entry)
         api.copy_project(board.parent, folder / f"round-{index + 1}")
         trial = folder / f"round-{index + 1}" / board.name
         shutil.copyfile(current, trial)
-        routed = route_again(f"close-{index + 1}", trial, nets, int(share), strategy)
+        routed = route_again(f"close-{index + 1}", trial, nets + along, int(share), strategy)
         if routed.get("command"):
             rec["commands"].append(routed["command"])
         left -= routed.get("used_s") or share
