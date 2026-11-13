@@ -484,7 +484,8 @@ def _pristine_rescue_map(board, parent_pcb, cfg, net_id, net_clearances,
     if cache is None:
         cache = parent_pcb._rescue_map_cache = OrderedDict()
     epoch = getattr(parent_pcb, '_copper_epoch', 0)
-    key = (net_id, scope_key, epoch, cfg.grid_step, cfg.clearance,
+    inflight_sig = tuple(id(e) for e in (getattr(parent_pcb, '_inflight_copper', None) or ()))
+    key = (net_id, scope_key, epoch, inflight_sig, cfg.grid_step, cfg.clearance,
            cfg.track_width, cfg.via_size, cfg.via_drill)
     entry = cache.get(key)
     if entry is None:
@@ -591,7 +592,10 @@ def _rescue_rungs(config, fine_grid, pcb_data, net_id):
         power_widths.pop(net_id, None)
     if not may_narrow():
         # --escalation off: the finer grid is the only retry. Width, power
-        # width and clearance stay exactly what was asked (#842).
+        # width and clearance stay exactly what was asked (#842). When Rung 0
+        # already added fine_grid above, do not repeat the identical search.
+        if rungs:
+            return [_bound_rung_margin(r, net_id, config.grid_step) for r in rungs]
         rescue_track = nominal_w
         power_widths = dict(config.power_net_widths)
         fab_clear = config.clearance
@@ -736,7 +740,7 @@ def _tally_search(stats, result):
 
 def _attempt_edge(pcb_data, net_id, gap, config, net_clearances,
                   strict_endpoints: bool = False, island_points=None,
-                  endpoints=None, stats=None):
+                  endpoints=None, stats=None, cancel_check=None):
     """Try to route one gap inside a scoped window. Returns (result, cfg_used)
     or (None, None). Routes through free space only - no rip-up.
 
@@ -782,6 +786,8 @@ def _attempt_edge(pcb_data, net_id, gap, config, net_clearances,
     if config.bga_exclusion_zones:
         config = replace(config, bga_exclusion_zones=[])
     for cfg in _rescue_rungs(config, fine_grid, pcb_data, net_id):
+        if cancel_check and cancel_check():
+            return None, None
         # Rung 0 keeps the run's exact clearance semantics (incl. per-netclass
         # spacing). The neck-down rungs' whole point is spacing below nominal
         # FOR THE RESCUED NET, so its own map entry is dropped (the builder's
@@ -1325,6 +1331,54 @@ def rescue_candidates(pcb_data, routed_results, single_ended_nets):
     return candidates + restores
 
 
+def rescue_single_ended_victim(pcb_data, net_id, config, net_clearances=None,
+                               cancel_check=None, coarse_iters: int = 0):
+    """Windowed fine-grid route for a 2-component rip victim whose coarse
+    whole-board re-route stalled near a grid-aliased pad pocket (e.g. a
+    0.4mm-pitch QFN pad on the run's 0.1mm grid; bidirectional A* runs up to
+    5000 steps on the open end while the pocket end exhausts in a few hundred).
+    Returns a route result dict ready for add_route_to_pcb_data (with path=[]
+    so path-based obstacle caches rasterize the emitted segments in board mm),
+    or None."""
+    if coarse_iters >= 7500:
+        return None
+    from pcb_modification import add_route_to_pcb_data, remove_route_from_pcb_data
+    from plane_pad_tap import note_clearance_used
+    num0, comp_points, comp_pads = _net_component_info(pcb_data, net_id)
+    if num0 != 2:
+        return None
+    main = _main_component(comp_pads)
+    other = next((cid for cid in comp_points if cid != main and cid in comp_pads), None)
+    if other is None:
+        return None
+    gap = _closest_pair(comp_points[main], comp_points[other])
+    if gap is None or gap[0] > 6.0:
+        return None
+    isl = {(round(x, 3), round(y, 3)) for x, y in comp_points.get(other, [])}
+    isl.update((round(p.global_x, 3), round(p.global_y, 3))
+               for p in comp_pads.get(other, []))
+    res, used_cfg = _attempt_edge(
+        pcb_data, net_id, gap, config,
+        net_clearances if net_clearances is not None else config.net_clearances,
+        island_points=isl, cancel_check=cancel_check)
+    if res is None or not res.get('new_segments'):
+        return None
+    add_route_to_pcb_data(pcb_data, res, debug_lines=False)
+    try:
+        num1, _, _ = _net_component_info(pcb_data, net_id)
+    finally:
+        remove_route_from_pcb_data(pcb_data, res)
+    if num1 != 1:
+        return None
+    if used_cfg.clearance < config.clearance - 1e-9:
+        note_clearance_used(pcb_data, used_cfg.clearance, net_id=net_id,
+                            requested=config.clearance,
+                            site='phase3 victim fine-grid')
+    res['path'] = []
+    res['failed'] = False
+    return res
+
+
 def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
                        progress_callback=None, cancel_check=None):
     """Scoped fine-parameter rescue for every still-failed/partial net.
@@ -1472,7 +1526,9 @@ def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
                     # #666: the cap move(s) this escape needs, queued only
                     # once the escape SHIPS (below the would-short guard).
                     _capmv666 = []
-                    if _fp is not None and len(_fp.pads) >= 12:
+                    from kicad_parser import detect_package_type
+                    if (_fp is not None and len(_fp.pads) >= 12
+                            and detect_package_type(_fp) == 'BGA'):
                         try:
                             from bga_fanout import generate_bga_fanout
                             # Post-route: nothing will move a cap off a
@@ -1804,7 +1860,8 @@ def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
             _gst, _g0 = {}, time.time()
             result, used_cfg = _attempt_edge(pcb_data, net_id, gap, config,
                                              net_clearances,
-                                             island_points=_isl, stats=_gst)
+                                             island_points=_isl, stats=_gst,
+                                             cancel_check=cancel_check)
             _gk = (attempts, defaults.RESCUE_MAX_EDGES_PER_NET, gap)
             if result is None:
                 print(_gap_line(*_gk, "no route", _gst, time.time() - _g0))

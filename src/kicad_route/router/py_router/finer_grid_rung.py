@@ -55,11 +55,15 @@ def plan(open_targets: dict, outer_boxed: set, grid_step: float,
     """Decide the rung. Returns (names, fine_grid, cells, reason): names is
     empty when the rung does not run, and `reason` then says why (None when
     there was simply nothing to do)."""
-    names = boxed_in_names(open_targets, outer_boxed)
-    if not names:
+    if not open_targets or grid_step <= 0.025 + 1e-9:
         return [], None, 0.0, None
     fine = grid_step / 2.0
     cells = rung_cells(board_bounds, fine, n_layers)
+    names = boxed_in_names(open_targets, outer_boxed)
+    if not names and len(open_targets) <= 4 and 0.0 < cells <= 10_000_000:
+        names = list(open_targets)
+    if not names:
+        return [], None, 0.0, None
     if cells > defaults.FINER_GRID_RUNG_MAX_CELLS:
         return [], fine, cells, (
             f"a whole-board grid-{fine:g} map is ~{cells / 1e6:.0f}M cells "

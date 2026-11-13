@@ -1000,6 +1000,11 @@ def try_phase3_ripup(
         blockers, routed_results, diff_pair_by_net_id, get_canonical_net_id,
         pcb_data=pcb_data, context="phase3 tap cascade"
     )
+    if reroute_depth >= 1:
+        rippable_blockers = [
+            b for b in rippable_blockers
+            if routed_results.get(b.net_id, {}).get('tap_edges_failed', 0) == 0
+        ]
 
     if not rippable_blockers:
         return None
@@ -1034,7 +1039,8 @@ def try_phase3_ripup(
     last_retry_blocked_cells = all_blocked_cells
     original_failed_count = completed_result.get('tap_edges_failed', 0)
 
-    for N in range(1, config.max_rip_up_count + 1):
+    _max_n = 1 if reroute_depth >= 1 else config.max_rip_up_count
+    for N in range(1, _max_n + 1):
         # For N > 1, re-analyze from the last retry's blocked cells
         if N > 1 and last_retry_blocked_cells:
             print(f"    Re-analyzing {len(last_retry_blocked_cells)} blocked cells from N={N-1} retry:")
@@ -1360,7 +1366,7 @@ def try_phase3_ripup(
                         pcb_data, config, state, routed_net_ids, remaining_net_ids,
                         all_unrouted_net_ids, routed_net_paths, routed_results, diff_pair_by_net_id,
                         results, track_proximity_cache, layer_map, base_obstacles, gnd_net_id,
-                        reroute_depth=reroute_depth + 1,
+                        reroute_depth=max(reroute_depth + 1, config.max_rip_up_count),
                         ancestor_net_ids=exclude_ids,
                         rip_sinks=child_sinks
                     )
@@ -1519,7 +1525,14 @@ def _retry_victim_main_with_ripup(
     nested_first_writes = []   # #1156: (sink, net) this frame recorded first
     ripped_canonical_ids = set()
     last_blocked = blocked
-    for N in range(1, config.max_rip_up_count + 1):
+    rippable_blockers = [
+        b for b in rippable_blockers
+        if routed_results.get(b.net_id, {}).get('tap_edges_failed', 0) == 0
+    ]
+    if not rippable_blockers:
+        return None, []
+    _max_n = min(config.max_rip_up_count, 2)
+    for N in range(1, _max_n + 1):
         if N > 1 and last_blocked:
             fresh = analyze_frontier_blocking(
                 last_blocked, pcb_data, config, routed_net_paths,
@@ -1719,15 +1732,23 @@ def _reroute_phase3_ripped_nets(
             # Route the main path for simple nets
             result = route_net_with_obstacles(pcb_data, ripped_net_id, config, obstacles,
                                               attraction_path=_attr, reverse_direction=_rev)
+            if result is None or result.get('failed') or not result.get('path'):
+                from net_rescue import rescue_single_ended_victim
+                _fine_res = rescue_single_ended_victim(
+                    pcb_data, ripped_net_id, config, config.net_clearances,
+                    coarse_iters=(result.get('iterations', 0) if result else 0))
+                if _fine_res is not None:
+                    result = _fine_res
 
         # A victim whose main re-route fails BARE strands, and the #85
         # arbitration then abandons the (successful) tap rip-up that ripped
         # it -- give the victim the same progressive rip-up the tap got
         # (#347, core1106 RST1). Ancestor-guarded; depth-capped.
         nested_ripped_items = []
-        if ((result is None or result.get('failed') or not result.get('path'))
+        _nested_rip_cap = min(config.max_rip_up_count, 2)
+        if ((result is None or result.get('failed') or (not result.get('path') and not result.get('new_segments')))
                 and config.max_rip_up_count > 0
-                and reroute_depth < config.max_rip_up_count):
+                and reroute_depth < _nested_rip_cap):
             retry, nested_ripped_items = _retry_victim_main_with_ripup(
                 ripped_net_id, was_multipoint, result,
                 pcb_data, config, state, routed_net_ids, remaining_net_ids,
@@ -1752,7 +1773,7 @@ def _reroute_phase3_ripped_nets(
                 state.multipoint_taps_done.discard(ripped_net_id)
             record_net_event(state, ripped_net_id, "reroute_phase1_exhausted",
                              {"taps_pending": True})
-        elif result and not result.get('failed') and result.get('path'):
+        elif result and not result.get('failed') and (result.get('path') or result.get('new_segments')):
             main_vias = result.get('new_vias', [])
             add_route_to_pcb_data(pcb_data, result, debug_lines=config.debug_lines)
             fragility_on_copper_change(config, pcb_data,      # #466
@@ -1762,7 +1783,7 @@ def _reroute_phase3_ripped_nets(
             routed_net_ids.append(ripped_net_id)
             if ripped_net_id in remaining_net_ids:
                 remaining_net_ids.remove(ripped_net_id)
-            routed_net_paths[ripped_net_id] = result['path']
+            routed_net_paths[ripped_net_id] = result.get('path') or []
             record_net_event(state, ripped_net_id, "reroute_succeeded", {
                 "segments": len(result['new_segments']),
                 "vias": len(main_vias)
@@ -1827,7 +1848,9 @@ def _reroute_phase3_ripped_nets(
                     failed_edge_blocking = tap_result.get('failed_edge_blocking', {})
                     original_failed_count = tap_result.get('tap_edges_failed', 0)
 
-                    if failed_edge_blocking and original_failed_count > 0 and reroute_depth < config.max_rip_up_count and config.max_rip_up_count > 0:
+                    if (failed_edge_blocking and original_failed_count > 0
+                            and reroute_depth < min(config.max_rip_up_count, 2)
+                            and config.max_rip_up_count > 0):
                         all_blocked_cells = []
                         for edge_key, entry in failed_edge_blocking.items():
                             all_blocked_cells.extend(entry[0])
@@ -1846,7 +1869,7 @@ def _reroute_phase3_ripped_nets(
                                 diff_pair_by_net_id, results, track_proximity_cache, layer_map,
                                 base_obstacles, gnd_net_id, [],  # unused parameter
                                 reroute_depth=reroute_depth + 1,
-                                ancestor_net_ids=ancestor_net_ids,
+                                ancestor_net_ids=ancestor_net_ids | {ripped_net_id},
                                 rip_sinks=rip_sinks
                             )
 

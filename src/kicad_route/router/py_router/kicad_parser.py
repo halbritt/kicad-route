@@ -1274,9 +1274,9 @@ def _offset_polygon_outward(pts, hw):
     return out
 
 
-def _round_join_steps(sweep: float, r: float, eps: float = 0.001) -> int:
+def _round_join_steps(sweep: float, r: float, eps: float = 0.0001) -> int:
     """Chords for an INSCRIBED arc of radius `r` over `sweep` radians with a
-    sagitta of at most `eps` mm (the pad-primitive budget, run-4 B6)."""
+    sagitta of at most `eps` mm (0.1 um matches KiCad DRC's 0.0001 mm precision)."""
     if r <= eps:
         return 1
     step = 2.0 * math.acos(max(-1.0, min(1.0, 1.0 - eps / r)))
@@ -11484,6 +11484,12 @@ def _is_ball_grid(pads) -> bool:
     # ball/pin array populates several of each; a pin header does not.
     uniform = [p for p in pads
                if (round(p.size_x, 2), round(p.size_y, 2)) == dominant_size]
+    # Surface-mount ball/land arrays only: through-hole pin grids (PGAs, THT
+    # sockets, press-fit backplane connectors) already span every copper layer
+    # via their drills, have no SMD fanout stubs outside their pad bounds, and
+    # must never be walled behind a BGA exclusion zone.
+    if sum(1 for p in uniform if (getattr(p, 'drill', 0) or 0) > 0) * 2 > len(uniform):
+        return False
     return pads_form_matrix(uniform)
 
 
@@ -11525,6 +11531,9 @@ def detect_package_type(footprint: Footprint) -> str:
     # this an LGA-12 etc. is too small for the geometric grid gate below and falls
     # through to OTHER, so its interior lands get routed over (issue #144).
     if any(k in fp_name for k in ('BGA', 'FBGA', 'LFBGA', 'LGA', 'CSP', 'WLCSP', 'WLP', 'CGA')):
+        _np = non_aperture_pads(footprint)
+        if _np and sum(1 for p in _np if (getattr(p, 'drill', 0) or 0) > 0) * 2 > len(_np):
+            return 'OTHER'
         return 'BGA'
     if 'QFN' in fp_name or 'DFN' in fp_name or 'MLF' in fp_name:
         return 'QFN'

@@ -4892,9 +4892,16 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     _lm_mark1801('the own-requirement retry')
     if progress_callback:
         progress_callback(0, 0, "Rescuing failed nets...")
-    from net_rescue import rescue_failed_nets
+    from net_rescue import rescue_failed_nets, terminal_geometry_escalation
+    # Candidacy scope: the run's own nets PLUS its pre-existing RIP VICTIMS.
+    # A victim outside single_ended_nets whose reroute/restore landed
+    # imperfectly ships open with nobody to catch it -- both rescue_failed_nets
+    # (fine-grid windowed gap rescue at nominal rules) and terminal escalation
+    # re-derive openness authoritatively, so healthy victims cost one
+    # connectivity check and are skipped.
+    _esc_scope = _escalation_scope(single_ended_nets, pcb_data)
     rescue_summary = None if (_ckpt_stop or quick) else rescue_failed_nets(
-        state, single_ended_nets, net_clearances=net_clearances,
+        state, _esc_scope, net_clearances=net_clearances,
         progress_callback=progress_callback, cancel_check=cancel_check)
     _lm_mark1801('the rescue')
 
@@ -4907,16 +4914,6 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # ends trimmed) like all other copper. Replaces the removed mid-retry
     # via rung (see single_ended_routing). KICAD_TERMINAL_ESCALATION=0
     # disables. Engine-side, so the GUI inherits it.
-    from net_rescue import terminal_geometry_escalation
-    # Candidacy scope: the run's own nets PLUS its pre-existing RIP VICTIMS.
-    # A victim outside single_ended_nets whose reroute/restore landed
-    # imperfectly ships open with nobody to catch it -- the escalation's
-    # sweep re-derives openness authoritatively, so healthy victims cost
-    # one connectivity check and are skipped. This also covers the final
-    # reconciliation: it recurses into batch_route, so ITS victims meet
-    # ITS escalation the same way (the "opens emerged after the escalation"
-    # class from the term_ecp5 study -- victims were invisible, not late).
-    _esc_scope = _escalation_scope(single_ended_nets, pcb_data)
     terminal_escalation_summary = None if (_ckpt_stop or quick) else \
         terminal_geometry_escalation(
             state, _esc_scope, net_clearances=net_clearances,
@@ -8023,18 +8020,26 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                 # board every round, and on the GUI that board is a pcbnew
                 # save whose net ids are not this run's.
                 _ncbn9 = config.net_clearances_by_name(pcb_data.nets)
-                _orc = oracle_reconnect(
-                    _orc_file9, _zna, _ocfg,
-                    track_via_clearance=defaults.PLANE_TRACK_VIA_CLEARANCE,
-                    hole_to_hole_clearance=config.hole_to_hole_clearance,
-                    progress_callback=_opc9,
-                    cancel_check=cancel_check,
-                    project_from=input_file,
-                    net_clearances_by_name=_ncbn9,
-                    net_widths_by_name=_wbn9,
-                    # #1133: its returned copper comes back on THIS run's
-                    # net ids (the _gui9 merge below hands it to the applier)
-                    net_ids_by_name=oracle_net_ids_by_name(pcb_data.nets))
+                if _ckpt_stop or (cancel_check and cancel_check()):
+                    _orc = {
+                        'available': False, 'reason': 'cancelled',
+                        'why': 'stop requested before oracle',
+                        'rounds': 0, 'links_routed': 0,
+                        'links_failed': 0, 'remaining': -1,
+                    }
+                else:
+                    _orc = oracle_reconnect(
+                        _orc_file9, _zna, _ocfg,
+                        track_via_clearance=defaults.PLANE_TRACK_VIA_CLEARANCE,
+                        hole_to_hole_clearance=config.hole_to_hole_clearance,
+                        progress_callback=_opc9,
+                        cancel_check=cancel_check,
+                        project_from=input_file,
+                        net_clearances_by_name=_ncbn9,
+                        net_widths_by_name=_wbn9,
+                        # #1133: its returned copper comes back on THIS run's
+                        # net ids (the _gui9 merge below hands it to the applier)
+                        net_ids_by_name=oracle_net_ids_by_name(pcb_data.nets))
                 print(f"  [finalize timing] oracle leg: "
                       f"{_time9.time() - _t9:.1f}s")
                 # #713 item 3: this leg had NO summary key at all, so an
@@ -8703,19 +8708,36 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
             def _next_lap1763(_lrok, _lrfail, _lap):
                 """The lap loop's continue decision. Returns the names the
                 next lap routes, or None to stop."""
+                if _ckpt_stop or (cancel_check and cancel_check()):
+                    return None
                 _granted = bool(_lrfail) and _harvest_lap_authority572()
                 if _rung1763['active']:
                     # The rung's own follow-on: one more half-grid lap when
-                    # its rips left victims open (#1554 rule) or a fresh
-                    # forced-link authority opened (#572 rule).
+                    # its rips left victims open (#1554 rule), a fresh
+                    # forced-link authority opened (#572 rule), or an enrolled
+                    # victim named a small safe blocker (#103 guard).
                     _rung1763['laps'] += 1
-                    if _rung1763['laps'] >= 2:
-                        return None
-                    _vic = _enrol_lap_victims1554()
-                    if not (_vic or (_lrfail and _granted)):
-                        return None
+                    _vic = (_rung1763['laps'] < 2) and _enrol_lap_victims1554()
                     _tlo = dict(getattr(batch_route, '_targets_left_open',
                                         None) or {})
+                    _fresh_rung_blk = []
+                    if (_lrfail and _esc_on and _rung1763['laps'] <= 2
+                            and '*' not in (_rk.get('rip_existing_nets') or [])):
+                        _blk2 = _fgr1763.rung_blockers(_tlo, list(_tlo))
+                        if _blk2:
+                            _have2 = list(_rk.get('rip_existing_nets') or [])
+                            _fresh_rung_blk = [
+                                b for b in _filter_rip_hints103(_blk2)
+                                if b not in _have2][:_RIP_ESCALATION_CAP]
+                            if _fresh_rung_blk:
+                                _rk['rip_existing_nets'] = list(
+                                    dict.fromkeys(_have2 + _fresh_rung_blk))
+                    if _rung1763['laps'] >= 3:
+                        return None
+                    if _rung1763['laps'] == 2 and not _fresh_rung_blk:
+                        return None
+                    if not (_vic or (_lrfail and (_granted or _fresh_rung_blk))):
+                        return None
                     return list(dict.fromkeys(list(_tlo) + list(
                         getattr(batch_route, '_victims_left_open', None)
                         or [])))
@@ -9059,7 +9081,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     _vp_open_links = []
     if _vp_snap is not None:
         try:
-            if _vp_ran:
+            if _vp_ran and not (_ckpt_stop or (cancel_check and cancel_check())):
                 _vp_cust = {}
                 for _lk in (_custody_links9 or ()):
                     if _lk and _lk[0] in set(_reaudit9[0]):

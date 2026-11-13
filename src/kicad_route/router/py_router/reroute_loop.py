@@ -377,6 +377,14 @@ def run_reroute_loop(
                 result = route_net_with_obstacles(pcb_data, ripped_net_id, config, obstacles,
                                                   attraction_path=_attr,
                                                   reverse_direction=_rev)
+                if result is None or result.get('failed'):
+                    from net_rescue import rescue_single_ended_victim
+                    _fine_rr = rescue_single_ended_victim(
+                        pcb_data, ripped_net_id, config, config.net_clearances,
+                        cancel_check=cancel_check,
+                        coarse_iters=(result.get('iterations', 0) if result else 0))
+                    if _fine_rr is not None:
+                        result = _fine_rr
             elapsed = time.time() - start_time
             total_time += elapsed
 

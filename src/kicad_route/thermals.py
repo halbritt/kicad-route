@@ -22,6 +22,7 @@ findings stand. Copper the input had is never touched.
 All short pads are tried together first; when that is not kept, up to six of them are tried
 one by one, so that a net which cannot be routed again costs its own pad's repair only.
 """
+import re
 import shutil
 from pathlib import Path
 
@@ -31,6 +32,7 @@ ROUNDS = 2          # a repair can starve a neighbour; one more round takes that
 SINGLE_PADS = 6     # pads tried one by one when the repair of all of them together was not kept
 PASS_S = 120        # seconds the engine has for the nets of one round
 MIN_PASS_S = 30     # a pass is not started with less of the repair's time left
+DRC_PAD_RE = re.compile(r"(?:PTH )?[Pp]ad (\S+) \[[^\]]*\] of (\S+)")
 
 
 def starved(report):
@@ -62,15 +64,28 @@ def _pour_facts(copy):
 def short_pads(api, work, project_dir, before, board_file, label, folder):
     """(KiCad's report of `board_file`, the pads that the copper laid since `before` left short
     of their pour, as "REF.PAD@layer"), or (None, None) when a step could not run."""
-    _, reference = stitch._refilled(api, work, project_dir, before, "reference", folder)
+    ref_report, reference = stitch._refilled(api, work, project_dir, before, "reference", folder)
     report, copy = stitch._refilled(api, work, project_dir, board_file, label, folder)
-    if reference is None or copy is None:
+    if ref_report is None or reference is None or report is None or copy is None:
         return None, None
     then, now = _pour_facts(reference), _pour_facts(copy)
     if then is None or now is None:
         return None, None
     _, delta = pour.compare(then, now)
-    return report, sorted({failure["pad"] for failure in delta["failures"] if failure["kind"] in KINDS})
+    found = {failure["pad"] for failure in delta["failures"] if failure["kind"] in KINDS}
+    new_v, _ = api.drc_delta(ref_report, report, "violations")
+    for v in new_v:
+        if v.get("type") != "starved_thermal" or v.get("severity") != "error":
+            continue
+        desc = v.get("description", "")
+        layer = desc.split("layer ", 1)[1].split(";", 1)[0].strip() if "layer " in desc else None
+        if not layer:
+            continue
+        for it in v.get("items", []):
+            m = DRC_PAD_RE.match(it.get("description", ""))
+            if m:
+                found.add(f"{m.group(2)}.{m.group(1)}@{layer}")
+    return report, sorted(found)
 
 
 def repair(work, board, before, output, route_again, api, label="", seconds=PASS_S):
@@ -117,7 +132,7 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
     api.copy_project(board.parent, folder / "plan")
     plan_board = folder / "plan" / board.name
     shutil.copyfile(before, plan_board)
-    planned, tag = helper("plan.log", "plan", plan_board, folder / "plan-all.json")
+    planned, tag = helper("plan.log", "plan", plan_board, folder / "plan-all.json", "--include-solid", "1")
     plan = common.load_json(folder / "plan-all.json") if tag is not None else None
     if plan is None:
         return failed(f"could not plan the spoke corridors (see {planned['log']})")
@@ -128,8 +143,9 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
     queue, together, index, left = [None], 0, 0, max(0.0, float(seconds))
     rec["budget_s"], allowed = int(left), left
     while queue:
-        if left < MIN_PASS_S:
-            rec["out_of_time"] = f"{len(queue)} more attempt(s) not started: under {MIN_PASS_S} s of the repair's time left"
+        min_s = 15 if queue[0] is not None else MIN_PASS_S
+        if left < min_s:
+            rec["out_of_time"] = f"{len(queue)} more attempt(s) not started: under {min_s} s of the repair's time left"
             break
         wanted = queue.pop(0)
         index += 1
@@ -159,7 +175,12 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
         if tag is None:
             return failed(f"could not reserve the spoke corridors (see {reserved['log']})")
         entry["reserved"] = tag["reserved"]
-        share = int(min(PASS_S, left))
+        if wanted is None and len(keys) > 1 and left >= 2 * MIN_PASS_S:
+            share = int(min(PASS_S, max(MIN_PASS_S, left * 0.35)))
+        elif wanted is not None and queue and left >= 30:
+            share = int(min(PASS_S, max(15, left / (len(queue) + 1))))
+        else:
+            share = int(min(PASS_S, left))
         routed = route_again(f"thermal-{label + '-' if label else ''}{index}", trial, entry["nets"], share)
         left -= routed.get("used_s") or share
         if routed.get("command"):
@@ -182,17 +203,31 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
             if after is None:
                 return failed("KiCad's DRC or the pour facts of the repaired board failed")
             (open_before, found_before), (open_after, found_after) = _counts(report), _counts(after)
+            non_starved_before = found_before - len(starved(report))
+            non_starved_after = found_after - len(starved(after))
             entry["drc_counts"] = {"before": [open_before, found_before], "after": [open_after, found_after]}
             entry["starved_after"] = len(short_after)
             kept = not (open_after > open_before or len(short_after) >= len(short)
-                        or found_after > found_before)
+                        or found_after > found_before or non_starved_after > non_starved_before)
             entry["result"] = "kept" if kept else "the board was not the better for it and stays as it was"
         if kept:
             current, report, short = again, after, short_after
             if wanted is None and short and together < ROUNDS:
                 queue.append(None)          # a repair can starve a neighbour: once more for what is left
         elif wanted is None and len(keys) > 1:
-            queue = [[key] for key in keys[:SINGLE_PADS]]
+            zone_pad_counts = {}
+            for p in plan.get("pads") or []:
+                zn = p.get("net")
+                if zn:
+                    zone_pad_counts[zn] = zone_pad_counts.get(zn, 0) + 1
+            cut_by = entry.get("cut_by") or {}
+            key_to_pad = {f"{p['uuid']}@{p['layer']}": f"{p['ref']}.{p['pad']} on {p['layer']}"
+                          for p in plan.get("pads") or []}
+            def _pad_order(k):
+                nets_k = cut_by.get(key_to_pad.get(k, ""), [])
+                max_zp = max((zone_pad_counts.get(n, 0) for n in nets_k), default=0)
+                return (max_zp, len(nets_k), k)
+            queue = [[key] for key in sorted(keys, key=_pad_order)[:SINGLE_PADS]]
     rec["used_s"] = round(allowed - left, 1)
     if current == output:
         tried = any("nets" in entry and entry["nets"] for entry in rec["rounds"])

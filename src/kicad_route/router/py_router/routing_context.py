@@ -1263,8 +1263,8 @@ def record_single_ended_success(
     routed_results[net_id] = result
 
     # Track path for blocking analysis
-    if result.get('path'):
-        routed_net_paths[net_id] = result['path']
+    if result.get('path') or result.get('new_segments'):
+        routed_net_paths[net_id] = result.get('path') or []
 
     # Compute and cache track proximity costs
     track_proximity_cache[net_id] = compute_track_proximity_for_net(

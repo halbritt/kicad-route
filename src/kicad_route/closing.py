@@ -113,8 +113,10 @@ def close(work, board, before, output, route_again, seconds, api, in_scope=None,
         # the time is shared among the rounds that are not marked "spare"; a spare round has what they left
         sharing = sum(1 for later in STRATEGIES[index:] if not later.get("spare"))
         share = left if strategy.get("spare") else left / sharing
-        if not nets or share < MIN_S:
+        if not nets:
             break
+        if share < MIN_S:
+            continue
         entry = {"round": index + 1, "strategy": strategy["name"], "open": _counts(report)[0], "nets": nets,
                  "budget_s": int(share)}
         along = [net for net in sorted(pour_nets) if net not in nets] if strategy.get("pours") else []
@@ -148,7 +150,8 @@ def close(work, board, before, output, route_again, seconds, api, in_scope=None,
             return failed("KiCad's DRC of the board after a closing round failed")
         (open_before, found_before), (open_after, found_after) = _counts(report), _counts(after)
         entry["drc_counts"] = {"before": [open_before, found_before], "after": [open_after, found_after]}
-        if not better((open_before, found_before), (open_after, found_after)):
+        if not better((open_before, found_before), (open_after, found_after)) or (
+                set(open_nets(after)) - set(open_nets(report))):
             entry["result"] = "not the better for it; the board stays as it was"
             continue
         entry["result"] = "kept"

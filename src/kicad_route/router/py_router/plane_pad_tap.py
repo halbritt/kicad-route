@@ -438,6 +438,13 @@ def make_local_window(pcb_data: PCBData, cx: float, cy: float,
         return hit
     local.segments = [s for s in _query_bucket(seg_b, wmin_x, wmin_y, wmax_x, wmax_y)
                       if _keep(s)]
+    for _isegs, _ivias in getattr(pcb_data, '_inflight_copper', None) or ():
+        for _iv in _ivias:
+            if in_window(_iv.x, _iv.y, _iv.size):
+                local.vias.append(_iv)
+        for _is in _isegs:
+            if _keep(_is):
+                local.segments.append(_is)
     pads_by_net: Dict[int, List[Pad]] = {}
     for nid, p in _query_bucket(pad_b, wmin_x, wmin_y, wmax_x, wmax_y):
         if in_window(p.global_x, p.global_y, max(p.size_x, p.size_y)):

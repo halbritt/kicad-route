@@ -2113,8 +2113,10 @@ def krt_route(work, board, scope, facts, settings):
                 "meaning": "Geometric grouping and corridor search; no electrical bus identity or timing claim"}
     proc['effective_configuration'] = configuration_evidence.inspect(
         work / configuration_evidence.MANIFEST, config_request, output)
+    oracle = tagged_json(text, "JSON_ORACLE")
     if (repair_nets and proc["status"] == PASS and rec.get("stop_requested")
-            and tagged_json(text, "JSON_ORACLE") is None):
+            and (oracle is None or not oracle.get("available")
+                 or (oracle.get("remaining") or 0) < 0)):
         # The budget ended the run's own pass before the engine's closing repair of planes and
         # pours (which ends with its JSON_ORACLE record). The nets that own a zone get that
         # repair on the routed board, in the time the run has left before a backend would be
@@ -2171,7 +2173,8 @@ def krt_route(work, board, scope, facts, settings):
 
     def thermal_pass(name, board_file, nets, seconds):
         return krt_plane_pass(name, work, board_file, argv, env, nets, facts, settings, seconds,
-                              extra=closing.LIFT_ARGS, env_extra=closing.LIFT_ENV)
+                              extra=closing.LIFT_ARGS, env_extra=closing.LIFT_ENV,
+                              reserve=min(10, seconds * 0.1))
 
     clock_used = "cpu_s" if settings.get("budget_clock") == "cpu" else "duration_s"
     first_used = planes_rec["first"]["used_s"] if planes_rec is not None and planes_rec.get("first") else 0
@@ -2179,19 +2182,25 @@ def krt_route(work, board, scope, facts, settings):
     if proc["status"] == PASS and output.is_file() and not rec.get("stop_requested"):
         # The engine ended on its own with budget to spare: what is left goes to the connections
         # still open, in rounds that are kept only when KiCad's report is the better (closing.py).
-        # The rounds leave the time of one repair pass, so that the pour repair after them
-        # is inside the budget too when the engine left enough of it.
-        left = spare - thermals.PASS_S
+        # The rounds leave a repair allowance when the board has a pour; budget_grace supplements
+        # thermals.repair afterwards when the run's budget is large enough for both.
+        thermal_reserve = ((thermals.PASS_S if settings["budget_s"] < 2 * thermals.PASS_S
+                            else thermals.MIN_PASS_S) if has_pour else 0)
+        left = spare - thermal_reserve
         routed_here = set(scope)
 
         def close_again(name, board_file, nets, seconds, strategy):
             return krt_plane_pass(name, work, board_file, argv, env, nets, facts, settings, seconds,
-                                  extra=strategy["args"], env_extra=strategy["env"])
+                                  extra=strategy["args"], env_extra=strategy["env"],
+                                  reserve=min(10, seconds * 0.1))
 
         def settle(name, board_file, seconds):
             # a connection closed beside a thermal pad can starve it: repaired before the round is
             # judged, in the rounds' own time
             if not has_pour:
+                return [], 0
+            round_in = work / "closing" / name.replace("close-", "round-") / board.name
+            if round_in.is_file() and Path(board_file).read_bytes() == round_in.read_bytes():
                 return [], 0
             settled = thermals.repair(work, board, before, board_file, thermal_pass, sys.modules[__name__],
                                       label=name, seconds=min(thermals.PASS_S, seconds))

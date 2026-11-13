@@ -156,7 +156,7 @@ def dru_scan(board_path):
     return round(max(mins, default=0) * 1_000_000), kinds
 
 
-def plan(pcbnew, board_path, per_pad=None):
+def plan(pcbnew, board_path, per_pad=None, include_solid=False):
     board = pcbnew.LoadBoard(str(board_path))
     ds = board.GetDesignSettings()
     max_err = int(ds.m_MaxError)
@@ -245,17 +245,26 @@ def plan(pcbnew, board_path, per_pad=None):
                 if conn == pcbnew.ZONE_CONNECTION_THT_THERMAL:
                     conn = (pcbnew.ZONE_CONNECTION_THERMAL if pad.GetAttribute() == pcbnew.PAD_ATTRIB_PTH
                             else pcbnew.ZONE_CONNECTION_FULL)
-                if conn != pcbnew.ZONE_CONNECTION_THERMAL:
+                is_solid = conn == pcbnew.ZONE_CONNECTION_FULL
+                if conn != pcbnew.ZONE_CONNECTION_THERMAL and not (include_solid and is_solid):
                     continue  # solid or no connection: no spokes to protect
-                gap = pad.GetLocalThermalGapOverride()
-                gap = int(gap) if gap is not None else int(zone.GetThermalReliefGap())
-                spoke_w = pad.GetLocalThermalSpokeWidthOverride()
-                spoke_w = int(spoke_w) if spoke_w is not None else int(zone.GetThermalReliefSpokeWidth())
                 size = pad.GetSize(layer)
-                spoke_w = min(spoke_w, int(size.x), int(size.y))
+                if is_solid:
+                    gap = 0
+                    spoke_w = max(min_thick, min(int(zone.GetThermalReliefSpokeWidth()), max(int(size.x), int(size.y))))
+                    pad_need = 1
+                else:
+                    gap = pad.GetLocalThermalGapOverride()
+                    gap = int(gap) if gap is not None else int(zone.GetThermalReliefGap())
+                    spoke_w = pad.GetLocalThermalSpokeWidthOverride()
+                    spoke_w = int(spoke_w) if spoke_w is not None else int(zone.GetThermalReliefSpokeWidth())
+                    spoke_w = min(spoke_w, int(size.x), int(size.y))
+                    pad_need = per_pad
                 rec.update(connection_from=source, gap=gap, spoke_width=spoke_w, clearance=clearance,
                            min_thickness=min_thick, spoke_angle=round(pad.GetThermalSpokeAngleDegrees(), 6),
                            orientation=round(pad.GetOrientationDegrees(), 6))
+                if is_solid:
+                    rec["needed"] = 1
                 if spoke_w < min_thick:
                     skipped.append(dict(rec, reason="spoke width below the zone min thickness: KiCad builds no spokes"))
                     continue
@@ -288,11 +297,11 @@ def plan(pcbnew, board_path, per_pad=None):
                                       "eligible": live and not hits, "selected": False})
                 ranked = sorted((cr for cr in corridors if cr["eligible"]),
                                 key=lambda cr: (-cr["pour_fraction"], cr["k"]))
-                for cr in ranked[:per_pad]:
+                for cr in ranked[:pad_need]:
                     cr["selected"] = True
                 rec.update(live_spokes=sum(cr["live"] for cr in corridors), eligible=len(ranked),
-                           selected=min(per_pad, len(ranked)), corridors=corridors)
-                if rec["live_spokes"] < min_spokes:
+                           selected=min(pad_need, len(ranked)), corridors=corridors)
+                if rec["live_spokes"] < min(min_spokes, pad_need):
                     rec["note"] = (rec.get("note", "") + "; " if rec.get("note") else "") + \
                         f"only {rec['live_spokes']} live spokes in the input fill (min_resolved_spokes {min_spokes})"
                 out_pads.append(rec)
@@ -376,12 +385,12 @@ def clear(pcbnew, before_path, routed_path, plan_path):
             shapes[key] = (bbox(pts), ps) if pts else None
         return shapes[key]
 
-    def crossing(cr, layer):
-        """The new tracks and vias whose copper overlaps the corridor on its layer."""
+    def crossing(cr, layer, own_net):
+        """The new tracks and vias of other nets whose copper overlaps the corridor on its layer."""
         box, corridor = bbox(cr["polygon"]), to_polyset(pcbnew, cr["polygon"])
         found = []
         for item in new:
-            if not item.IsOnLayer(layer):
+            if not item.IsOnLayer(layer) or item.GetNetname() == own_net:
                 continue
             shape = copper(item, layer)
             if shape is None or not boxes_touch(box, shape[0]):
@@ -395,16 +404,33 @@ def clear(pcbnew, before_path, routed_path, plan_path):
     doomed, by_pad, left_alone = {}, {}, []
     data = json.loads(Path(plan_path).read_text())
     per_pad = int(data.get("per_pad") or data.get("min_resolved_spokes") or 2)
+    live_pieces = None
+    if data.get("pads"):
+        import stitch as _stitch_mod
+        live_pieces = [pc for pc in _stitch_mod.survey(pcbnew.LoadBoard(str(routed_path)), pcbnew) if pc["live"]]
     for p in data["pads"]:
         layer = layers.get(p["layer"])
+        pad_need = int(p.get("needed") or per_pad)
         label = f"{p['ref']}.{p['pad']} on {p['layer']}"
         ranked = sorted((cr for cr in p["corridors"] if cr["eligible"]), key=lambda cr: (-cr["pour_fraction"], cr["k"]))
-        crossed = {cr["k"]: crossing(cr, layer) for cr in ranked} if layer is not None else {}
+        crossed = {cr["k"]: crossing(cr, layer, p["net"]) for cr in ranked} if layer is not None else {}
         free = [cr for cr in ranked if not crossed.get(cr["k"])]
+        if not p.get("needed") and live_pieces is not None and layer is not None:
+            cx, cy = p["position"]
+            live_free = []
+            for cr in free:
+                ang = math.radians(cr["direction_deg"])
+                dx, dy = math.cos(ang), -math.sin(ang)
+                t = cr["reach"] + p["gap"] + max_err + p["min_thickness"] / 2
+                tp = pcbnew.VECTOR2I(round(cx + dx * t), round(cy + dy * t))
+                if any(pc["layer"] == layer and pc["net"] == p["net"] and pc["piece"].Contains(tp)
+                       for pc in live_pieces):
+                    live_free.append(cr)
+            free = live_free
         taken = sorted((cr for cr in ranked if crossed.get(cr["k"])),
                        key=lambda cr: (len({item.GetNetname() for item in crossed[cr["k"]]}), len(crossed[cr["k"]]),
                                        -cr["pour_fraction"], cr["k"]))
-        short = per_pad - len(free)
+        short = pad_need - len(free)
         for cr in p["corridors"]:
             cr["selected"] = False
         if layer is None or short > len(taken):
@@ -412,7 +438,7 @@ def clear(pcbnew, before_path, routed_path, plan_path):
             p["selected"] = 0
             continue
         chosen = taken[:max(0, short)]
-        for cr in free[:per_pad] + chosen:
+        for cr in free[:pad_need] + chosen:
             cr["selected"] = True
         p["selected"] = sum(cr["selected"] for cr in p["corridors"])
         for cr in chosen:
@@ -585,7 +611,8 @@ def main(argv):
     import pcbnew
     if len(argv) >= 3 and argv[0] == "plan":
         opts = dict(zip(argv[3::2], argv[4::2]))
-        data = plan(pcbnew, Path(argv[1]), int(opts["--per-pad"]) if "--per-pad" in opts else None)
+        data = plan(pcbnew, Path(argv[1]), int(opts["--per-pad"]) if "--per-pad" in opts else None,
+                    include_solid=opts.get("--include-solid") == "1")
         Path(argv[2]).write_text(json.dumps(data, indent=1) + "\n")
         print("SPOKES_JSON: " + json.dumps({k: data[k] for k in (
             "pad_count", "corridors_live", "corridors_selected", "per_pad", "min_resolved_spokes", "clearance",
