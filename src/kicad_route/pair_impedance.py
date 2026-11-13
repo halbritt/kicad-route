@@ -45,10 +45,34 @@ def run(board, output, request, api, *, check=False):
     return report
 
 
+def engine_packages():
+    """Let this interpreter import what the engine's own modules import; the directory added, or None.
+
+    The plan and the check run under KiCad's Python, which has pcbnew, and read the board with
+    the engine's parser, which is written for the engine's built environment. Since upstream's
+    sense branches (#1279) that parser imports numpy for every board. A KiCad Python without
+    numpy (agent-ee's image has none) then read no board at all, and every impedance request
+    failed before routing. When this interpreter has no numpy, the packages of the engine's
+    environment go behind its own, provided that environment was built for the same Python."""
+    import importlib.util
+    if importlib.util.find_spec('numpy') is not None:
+        return None
+    from kicad_route import engine
+    environment = engine.GENERATION / 'venv' if engine.GENERATION else common.STATE / '.venv-krt'
+    packages = (environment / 'lib' / f'python{sys.version_info.major}.{sys.version_info.minor}'
+                / 'site-packages').resolve()
+    if not packages.is_dir():
+        return None
+    if str(packages) not in sys.path:
+        sys.path.append(str(packages))
+    return packages
+
+
 def model(board_path, layer):
     from kicad_route import engine
     from kicad_route.kicad.facts import setup_block, find
     sys.path.insert(0, str(engine.ROOT / 'py_router'))
+    engine_packages()
     from kicad_parser import parse_kicad_pcb
     from impedance import calculate_width_for_impedance, calculate_impedance_for_layer
     setup = setup_block(board_path.read_text())

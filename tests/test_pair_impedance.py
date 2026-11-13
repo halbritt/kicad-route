@@ -124,3 +124,31 @@ def test_unproven_impedance_request_refuses_before_routing(tmp_path, mutation):
     assert done.returncode == 4, done.stdout + done.stderr
     assert 'impedance' in done.stdout + done.stderr
     assert '[route] result:' not in done.stdout
+
+
+def test_the_board_is_read_by_an_interpreter_that_has_no_numpy():
+    """agent-ee asks for the model with its own interpreter before a job starts, and `run` asks
+    with KiCad's. In agent-ee's image neither has numpy, which the engine's parser imports for
+    every board since upstream's sense branches: every impedance job was refused there
+    ("original impedance stackup is unproven"), on a router whose own suite passed on a host
+    that has numpy. -S gives this host's interpreter no site packages at all, as there."""
+    code = ('import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); '
+            'from kicad_route.pair_impedance import model; '
+            'pcb, references, *_ = model(Path(sys.argv[2]), sys.argv[3]); '
+            'import numpy; print(references, len(pcb.nets), Path(numpy.__file__).parents[1])')
+    board = ROOT / 'fixtures/pair_impedance/board.kicad_pcb'
+    bare = subprocess.run([sys.executable, '-S', '-B', '-c', 'import numpy'], capture_output=True, text=True, timeout=30)
+    assert bare.returncode != 0 and 'numpy' in bare.stderr, 'this interpreter has numpy without its site packages'
+    done = subprocess.run([sys.executable, '-S', '-B', '-c', code, str(ROOT / 'src'), str(board), 'F.Cu'],
+                          capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr[-2000:]
+    references, nets, packages = done.stdout.strip().rsplit(' ', 2)
+    assert references == "['In1.Cu']" and int(nets) == 3
+    # numpy came from the engine's built environment, and only because the interpreter had none
+    from kicad_route import common, engine
+    environment = engine.GENERATION / 'venv' if engine.GENERATION else common.STATE / '.venv-krt'
+    assert Path(packages).is_relative_to(environment.resolve())
+    with_site = subprocess.run([sys.executable, '-B', '-c', code, str(ROOT / 'src'), str(board), 'F.Cu'],
+                               capture_output=True, text=True, timeout=60)
+    assert with_site.returncode == 0, with_site.stderr[-2000:]
+    assert not Path(with_site.stdout.strip().rsplit(' ', 1)[1]).is_relative_to(environment.resolve())
