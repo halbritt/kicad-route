@@ -334,9 +334,14 @@ under every recipe and under the engine's costs; no recipe is a fix for it.
 
 Without `--recipe` the engine's own costs apply. `auto` is not the default yet: with the
 two-layer costs the deliberately unroutable test board (`fixtures/route_demo` behind a
-keep-out wall) came back with a starved thermal on a ground pad it cannot connect,
-where the engine's costs leave none. `run` now repairs a starved thermal of its own
-making (`docs/spokes.md`), which is the condition for making `auto` the default.
+keep-out wall) comes back with a starved thermal where the engine's costs give a valid,
+incomplete board. The wall cuts that board's back pour in two in the input. With the
+two-layer costs the run connects a ground pin on the smaller piece by a track on the
+front, and KiCad then reports the pin's thermal relief on the back ("spokes connected to
+isolated island"): the pin is on its net by another way, and its spokes end in fill cut
+off from the rest. None of the run's copper is in the way, so the repair of
+`docs/spokes.md` has nothing to clear. With the engine's costs that connection stays
+open. Until the run takes such a track out again, `auto` stays a choice.
 
 ### Search grid and keep-outs
 

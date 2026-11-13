@@ -1733,9 +1733,12 @@ RECIPES = {
     "two-layer-bus": ["--layer-costs", "1.0", "1.0", "--direction-preference-cost", "4000",
                       "--turn-cost", "2000", "--via-cost", "150"],
 }
-# `auto` is not the default yet: with the two-layer costs the deliberately unroutable test board
-# came back with a starved thermal on a ground pad it cannot connect. `run` repairs a starved
-# thermal of its own making since AGENTEE-660 (thermals.py), the condition for changing this.
+# `auto` is not the default yet (AGENTEE-691). With the two-layer costs the deliberately
+# unroutable test board comes back with a starved thermal: the wall of that fixture cuts the back
+# pour in two in the input, the run connects a ground pin on the smaller piece by a track on the
+# front, and KiCad then reports the pin's thermal relief ("spokes connected to isolated island").
+# None of the run's copper is in the way, so the pour repair (thermals.py) has nothing to clear;
+# with the engine's costs that connection stays open and the board is valid.
 RECIPE_DEFAULT = "default"
 
 
