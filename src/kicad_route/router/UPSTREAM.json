@@ -196,6 +196,7 @@
   "local_files_note": "__init__.py and build_router.py replace upstream files of the same name: the package marker, and the source-only builder (cargo --locked into the routing venv, no prebuilt download) that kicad-route update and agent-ee's image run.",
   "history": {
     "extracted_from": "295f9ee197517e8323726853361eb137cc08ba9e (v0.23.1), 2026-10-20, through the fork commit 0494a05e30063b849c9cf1b9ac02098073d82216",
-    "moved_to_upstream_head": "AGENTEE-642, 2026-11-10: 31 locally changed upstream files reduced to the changes above; the rest is upstream's own now or was dropped (docs/upstream-engine.md)."
+    "moved_to_upstream_head": "AGENTEE-642, 2026-11-10: 31 locally changed upstream files reduced to the changes above; the rest is upstream's own now or was dropped (docs/upstream-engine.md).",
+    "package_over_module": "2026-11-13: the carried set follows a package over a module of the same name beside it, as Python's import does. The engine had carried upstream's command-line fronts qfn_fanout.py and bga_fanout.py and not the package qfn_fanout/, so every `from qfn_fanout import ...` failed where it ran: the fan-out rescue of a pin that no tap reaches (net_rescue.py) printed an import error and gave up. The package arrives and the two fronts, which no entry point imports, leave."
   }
 }

@@ -37,10 +37,13 @@ def module_files(base, name):
     target = base.joinpath(*parts)
     module = target.with_suffix(".py") if parts else None
     package = target / "__init__.py"
-    if module and module.is_file():
-        leaf = module
-    elif package.is_file():
+    # A package wins over a module of the same name beside it, as in Python's own import: upstream
+    # has qfn_fanout.py (a command-line front) beside the package qfn_fanout/ that it runs, and
+    # `from qfn_fanout import ...` means the package.
+    if package.is_file():
         leaf = package
+    elif module and module.is_file():
+        leaf = module
     else:
         return []
     parents = [base.joinpath(*parts[:i], "__init__.py")

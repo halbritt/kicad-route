@@ -59,7 +59,11 @@ generated `krt-*` skills name) in the target tree, plus its `ASSETS` (licence, v
 requirements, the Rust crate, the two adapted skills, two upstream test files the
 engine's own tests use). Upstream's GUI plugin, placer and plan tools, bus step (`awx/`),
 tests, documentation and release files are not carried. A module upstream starts
-importing arrives with the next sync; one it stops importing leaves.
+importing arrives with the next sync; one it stops importing leaves. Where upstream has a
+package and a module of one name side by side (`qfn_fanout/` and its command-line front
+`qfn_fanout.py`), an import means the package, as it does to Python. Until 2026-11-13
+the closure took the module, the engine carried the front without the package, and the
+engine's fan-out rescue of a pin that no tap reaches failed at its import.
 
 `VERSION` is upstream's release (for example 0.23.9). The Rust crate has its own
 version (`rust_router/Cargo.toml`), which upstream raises only when the crate changes;

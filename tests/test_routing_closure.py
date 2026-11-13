@@ -43,3 +43,20 @@ def test_inventory_follows_packages_and_literal_dynamic_imports(tmp_path):
     }]
     assert report["files"]["py_router/cleanup.py"]["sha256"]
     assert not report["runtime_closure_proven"]
+
+
+def test_a_package_wins_over_a_module_of_the_same_name_beside_it(tmp_path):
+    # upstream has qfn_fanout.py, a command-line front, beside the package qfn_fanout/ that it
+    # runs; the engine carried the front, and every `from qfn_fanout import ...` failed in it
+    source = tmp_path / "source"
+    (source / "py_router" / "fanout").mkdir(parents=True)
+    (source / "py_router" / "route.py").write_text("def late():\n    from fanout import escape\n")
+    (source / "py_router" / "fanout.py").write_text("from fanout import main\nmain()\n")
+    (source / "py_router" / "fanout" / "__init__.py").write_text("from fanout.types import Stub\n")
+    (source / "py_router" / "fanout" / "types.py").write_text("Stub = tuple\n")
+
+    report = load_inventory().inventory(source, ["py_router/route.py"])
+
+    assert set(report["files"]) == {
+        "py_router/route.py", "py_router/fanout/__init__.py", "py_router/fanout/types.py",
+    }
