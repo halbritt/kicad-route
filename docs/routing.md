@@ -539,7 +539,7 @@ connections open before and after).
 
 New tracks around a pad can ring the pour it sits in off from the rest of that pour. A
 piece of copper is left whose only tie to its net is that one pad's thermal spokes, and
-KiCad counts no spoke into such a piece. That shows in one of two ways:
+KiCad counts no spoke into such a piece. That shows in one of three ways:
 
 - **spokes.** The pad still has spokes into live copper on that layer, but fewer than
   the board's minimum spoke count: `starved_thermal`, "Thermal relief connection to zone
@@ -551,10 +551,17 @@ KiCad counts no spoke into such a piece. That shows in one of two ways:
   from its net, and the board has an open connection it did not have before routing.
   This case does not need thermal relief; a pad that its pour joins solidly is cut off
   the same way.
+- **tied.** All the pad's spokes of that layer end in the piece, and the pad is on its
+  net by a track: KiCad reports the same finding with N all of them. While the piece is
+  the pad's only connection KiCad reports nothing, so a new track to such a pad is what
+  brings the finding, also where the piece was cut off before the run. The test board
+  that a keep-out wall makes unroutable has its back pour cut in two by the wall and a
+  ground pin on the smaller side; at the two-layer costs the run ties that pin to its net
+  by a track on the front, and KiCad reported the pin's thermal relief on the back.
 
-A pad with all its spokes of a layer in such a piece and a connection elsewhere (a pin
-that reaches the pour on the other side) is neither. KiCad has no finding, and nothing is
-done.
+A pad with all its spokes of a layer in such a piece and a connection elsewhere through
+pour alone (a pin that reaches the pour on the other side) is none of these, and nothing
+is done.
 
 A third kind of piece has nothing of its net on it at all:
 

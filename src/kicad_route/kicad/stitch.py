@@ -21,8 +21,15 @@ a piece, and that shows in one of two ways:
           neighbouring pins left two ground pins of a 48-pin package on patches of pour less
           than a square millimetre each.
 
-A pad with all its spokes of a layer in such a piece and a connection elsewhere (a pin that
-reaches the pour on the other side) is neither: KiCad says nothing, and nothing is done.
+  tied    all the pad's spokes of that layer end in the piece and the pad is on its net by a
+          track: KiCad then reports "(N spokes connected to isolated island)" with N all of
+          them. A pad whose only connection is the piece is not reported, so a new track to
+          such a pad is what brings the finding. A board with a keep-out wall across its back
+          pour had a ground pin on the smaller side; the run tied the pin to its net by a
+          track on the front, and KiCad reported the pin's thermal relief on the back.
+
+A pad with all its spokes of a layer in such a piece and a connection elsewhere through pour
+alone (a pin that reaches the pour on the other side) is none of these: nothing is done.
 
 A third kind of piece has nothing of its net on it at all:
 
@@ -35,7 +42,7 @@ A third kind of piece has nothing of its net on it at all:
 
 A designer puts a via in the piece, or beside the pin. `place` does the same. After a refill
 in memory it looks at every filled piece of every zone with a net, finds those that one pad
-alone ties to the net, and for each that is one of the two cases looks for a place for a via
+alone ties to the net, and for each that is one of the three cases looks for a place for a via
 of the net's class (raised to the board's minimum via, hole and annular ring): its centre in
 the piece and, on another layer, in copper of the same net that is not cut off itself (a
 piece of pour that is tied to the net, or a track of the net, the via then sitting on the
@@ -47,7 +54,7 @@ every layer; off the copper of the pads of its own net; the board's edge clearan
 no rule area against vias (the corridors that --reserve-spokes holds for a pad's own spokes
 do not count). The place with the most of the piece around it wins. A piece with no such
 place is left and listed with the reasons. Only nets named in NETS.json (the run's scope) get
-a via, and for the first two cases only for a pad that BEFORE did not have in the same state
+a via, and for the three pad cases only for a pad that BEFORE did not have in the same state
 already: what the input brought is the input's. (An isolated piece of a net in scope is the
 routing's to join whatever the input looked like: on an unrouted board every plane is one.) ROUTED is saved only when a via was placed, without the refill.
 
@@ -183,8 +190,8 @@ def survey(board, pcbnew):
 
 def cut_off(board, pieces, pcbnew):
     """The pieces to tie back to their net, each with "case" and "pad": the ones that one pad alone
-    ties to its net and that count against that pad ("spokes", "open"), and the ones with nothing
-    of their net on them ("isolated", pad None). See the top of this file. `pieces` is survey(board)."""
+    ties to its net and that count against that pad ("spokes", "open", "tied"), and the ones with
+    nothing of their net on them ("isolated", pad None). See the top of this file. `pieces` is survey(board)."""
     minimum = board.GetDesignSettings().m_MinResolvedSpokes
     connectivity = board.GetConnectivity()
     found = []
@@ -200,6 +207,9 @@ def cut_off(board, pieces, pcbnew):
                               spokes=_spokes(cut["piece"], cut["zone"], pad, layer, pcbnew)))
         elif not any(p["live"] for p in same_pad) and not len(connectivity.GetConnectedTracks(pad)):
             found.append(dict(cut, pad=pad, case="open"))
+        elif thermal and minimum > 0 and live == 0 and len(connectivity.GetConnectedTracks(pad)):
+            found.append(dict(cut, pad=pad, case="tied", live_spokes=0,
+                              spokes=_spokes(cut["piece"], cut["zone"], pad, layer, pcbnew)))
     found += [dict(cut, pad=None, case="isolated") for cut in pieces if not cut["attached"]]
     return found
 
@@ -354,7 +364,7 @@ def place(before_path, routed_path, nets_path, pcbnew):
         where = {"net": net, "layer": board.GetLayerName(layer), "area_mm2": round(cut["area"] / 1e12, 3),
                  "pads": [f"{pad.GetParentFootprint().GetReference()}.{pad.GetNumber()}"] if pad is not None else [],
                  "case": cut["case"]}
-        if cut["case"] == "spokes":
+        if cut["case"] in ("spokes", "tied"):
             where.update(spokes=cut["spokes"], live_spokes=cut["live_spokes"])
         leg = None
         if best is None and cut["case"] == "isolated":
