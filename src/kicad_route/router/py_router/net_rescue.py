@@ -2272,7 +2272,8 @@ def _attempt_net_at_geometry(pcb_data, net_id, cfg, net_clearances,
     failed_gaps = set()
     attempts = 0
     num, comp_points, comp_pads = _net_component_info(pcb_data, net_id)
-    while attempts < defaults.RESCUE_MAX_EDGES_PER_NET and num > 1:
+    max_edges = max(defaults.RESCUE_MAX_EDGES_PER_NET, num + 4)
+    while attempts < max_edges and num > 1:
         if cancel_check and cancel_check():
             break
         main = _main_component(comp_pads)
@@ -2305,7 +2306,7 @@ def _attempt_net_at_geometry(pcb_data, net_id, cfg, net_clearances,
         if split_err:
             src_over = tgt_over = None
         if progress:
-            progress(f"gap {attempts}/{defaults.RESCUE_MAX_EDGES_PER_NET}")
+            progress(f"gap {attempts}/{max_edges}")
         _gst, _g0 = {}, time.time()
         result = route_net_with_obstacles(pcb_data, net_id, cfg, obstacles,
                                           sources_override=src_over,
@@ -2314,7 +2315,7 @@ def _attempt_net_at_geometry(pcb_data, net_id, cfg, net_clearances,
         if stats is not None:
             for _k, _v in _gst.items():
                 stats[_k] = stats.get(_k, 0) + _v
-        _gk = (attempts, defaults.RESCUE_MAX_EDGES_PER_NET, gap)
+        _gk = (attempts, max_edges, gap)
         if not result or result.get('failed') \
                 or _tie_band_rejects(pcb_data, net_id, cfg, result,
                                      'whole-net edge'):
@@ -2339,7 +2340,8 @@ def _attempt_net_at_geometry(pcb_data, net_id, cfg, net_clearances,
     return edge_results, num <= 1
 
 
-def _commit_whole_net(state, net_name, net_id, edge_results, flag):
+def _commit_whole_net(state, net_name, net_id, edge_results, flag,
+                      fully=True, comp_pads=None):
     """Merge a whole-net retry's accepted copper (already on pcb_data) into
     the run's result channels: as the net's result when it had none, else
     folded into its authoritative result, whose pad debt clears (the net
@@ -2365,18 +2367,36 @@ def _commit_whole_net(state, net_name, net_id, edge_results, flag):
             state.remaining_net_ids.remove(net_id)
         if net_id not in state.routed_net_ids:
             state.routed_net_ids.append(net_id)
+        if not fully and comp_pads:
+            unconnected = _unconnected_pads_info(comp_pads)
+            if unconnected:
+                merged['failed_pads_info'] = unconnected
     else:
         # Kept-but-open / partial multipoint: fold the copper INTO the
         # net's AUTHORITATIVE result (a separate entry is dropped by the
         # #87 superseded-result filter -- the rescue's partial-branch
-        # lesson). Fully connected now, so the pad debt clears.
+        # lesson).
         _fold_into_result(state, prev, merged)
         prev_failed = prev.get('failed_pads_info') or []
-        if prev_failed:
-            prev['failed_pads_info'] = []
-            if 'tap_pads_connected' in prev:
-                prev['tap_pads_connected'] = (
-                    prev.get('tap_pads_connected', 0) + len(prev_failed))
+        if fully:
+            if prev_failed:
+                prev['failed_pads_info'] = []
+                if 'tap_pads_connected' in prev:
+                    prev['tap_pads_connected'] = (
+                        prev.get('tap_pads_connected', 0) + len(prev_failed))
+        else:
+            unconnected = _unconnected_pads_info(comp_pads) if comp_pads else []
+            still = {(p['component_ref'], p['pad_number']) for p in unconnected}
+            if prev_failed:
+                new_failed = [p for p in prev_failed
+                              if (p['component_ref'], p['pad_number']) in still]
+                reconnected = len(prev_failed) - len(new_failed)
+                prev['failed_pads_info'] = new_failed
+                if reconnected and 'tap_pads_connected' in prev:
+                    prev['tap_pads_connected'] = (prev.get('tap_pads_connected', 0)
+                                                  + reconnected)
+            else:
+                prev['failed_pads_info'] = unconnected
 
 
 def own_requirement_config(config, net_id):
@@ -2428,13 +2448,18 @@ def own_requirement_retry(state, single_ended_nets, net_clearances=None,
     config). Returns {'attempted', 'nets': {name: 'recovered' |
     'unrecovered'}, 'time'} or None when nothing was attempted."""
     from pcb_modification import remove_route_from_pcb_data
+    from route import _dedicated_inner_plane_layer_owners
     pcb_data = state.pcb_data
     config = state.config
+    plane_owners = _dedicated_inner_plane_layer_owners(pcb_data, config.layers)
+    dedicated_plane_net_ids = {nid for s in plane_owners.values() for nid in s}
     candidates = []
     for net_name, net_id in sorted(set(single_ended_nets)):
         if cancel_check and cancel_check():
             break
         if net_id not in pcb_data.nets:
+            continue
+        if net_id in dedicated_plane_net_ids:
             continue
         if len(pcb_data.pads_by_net.get(net_id, [])) < 2:
             continue
@@ -2456,6 +2481,9 @@ def own_requirement_retry(state, single_ended_nets, net_clearances=None,
     for _idx, (net_name, net_id, num0, cfg) in enumerate(candidates):
         if cancel_check and cancel_check():
             break
+        if time.time() - t0 > 20.0:
+            print(f"    own-requirement retry: 20.0s time cap reached, exiting early to preserve rescue budget")
+            break
         if progress_callback:
             progress_callback(_idx + 1, len(candidates),
                               f"Own-requirement retry: {net_name}")
@@ -2466,7 +2494,8 @@ def own_requirement_retry(state, single_ended_nets, net_clearances=None,
         edges, fully = _attempt_net_at_geometry(
             pcb_data, net_id, cfg, net_clearances, cancel_check,
             scope_key=('own_requirement',), progress=_prog)
-        if not fully:
+        num_after, _, comp_pads = _net_component_info(pcb_data, net_id)
+        if not fully and (not edges or num_after >= num0):
             for r in reversed(edges):
                 remove_route_from_pcb_data(pcb_data, r)
             outcomes[net_name] = 'unrecovered'
@@ -2475,16 +2504,27 @@ def own_requirement_retry(state, single_ended_nets, net_clearances=None,
             print(f"    own-requirement retry: {net_name} unrecovered")
             continue
         _commit_whole_net(state, net_name, net_id, edges,
-                          'is_own_requirement_retry')
-        outcomes[net_name] = 'recovered'
-        record_net_event(state, net_id, "own_requirement_retry_succeeded",
-                         {"edges_routed": len(edges), "components_before": num0})
-        print(f"    {GREEN}own-requirement retry: {net_name} recovered{RESET} "
-              f"({num0} -> 1 parts)")
+                          'is_own_requirement_retry',
+                          fully=fully, comp_pads=comp_pads)
+        from obstacle_cache import refresh_net_obstacles
+        refresh_net_obstacles(getattr(state, 'working_obstacles', None),
+                              getattr(state, 'net_obstacles_cache', None),
+                              pcb_data, config, [net_id])
+        outcomes[net_name] = 'recovered' if fully else 'partial'
+        record_net_event(state, net_id, "own_requirement_retry_succeeded" if fully else "own_requirement_retry_partial",
+                         {"edges_routed": len(edges), "components_before": num0,
+                          "components_after": num_after})
+        if fully:
+            print(f"    {GREEN}own-requirement retry: {net_name} recovered{RESET} "
+                  f"({num0} -> 1 parts)")
+        else:
+            print(f"    {GREEN}own-requirement retry: {net_name} partial{RESET} "
+                  f"({num0} -> {num_after} parts, {len(edges)} edge(s) kept)")
     summary['time'] = round(time.time() - t0, 2)
     _rec = sum(1 for v in outcomes.values() if v == 'recovered')
-    print(f"Own-requirement retry: {_rec} recovered, "
-          f"{summary['attempted'] - _rec} unrecovered ({summary['time']:.1f}s)")
+    _part = sum(1 for v in outcomes.values() if v == 'partial')
+    print(f"Own-requirement retry: {_rec} recovered, {_part} partial, "
+          f"{summary['attempted'] - _rec - _part} unrecovered ({summary['time']:.1f}s)")
     return summary if summary['attempted'] else None
 
 
