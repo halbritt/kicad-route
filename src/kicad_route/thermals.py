@@ -49,7 +49,7 @@ def _counts(report):
 # than the board asks, and a pad the fill no longer touches at all. KiCad reports the first as
 # starved_thermal and the second not at all: with every spoke gone it sees no thermal connection
 # to be short of. A pad on a pour piece that is cut off is the stitch step's (stitch.py).
-KINDS = ("spokes_below_minimum", "lost_fill_contact")
+KINDS = ("spokes_below_minimum", "lost_fill_contact", "isolated_island")
 
 
 def _pour_facts(copy):
@@ -124,7 +124,9 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
     rec["starved_before"] = rec["starved_after"] = len(short)
     if not short:
         return rec
-    if stitch.SPOKE_AREAS in output.read_bytes():
+    has_islands = (any("isolated island" in v.get("description", "") for v in starved(base))
+                   or any(p.get("kind") == "isolated_island" for p in (short.values() if isinstance(short, dict) else [])))
+    if stitch.SPOKE_AREAS in output.read_bytes() and not has_islands:
         # --reserve-spokes / --reserve-spoke-pad: the caller chose the corridors of this run, they
         # are still on the board, and a second set cannot be reserved beside them
         return dict(rec, note="the run reserved spoke corridors itself; its starved thermals are left to the caller")
@@ -132,15 +134,27 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
     api.copy_project(board.parent, folder / "plan")
     plan_board = folder / "plan" / board.name
     shutil.copyfile(before, plan_board)
+    if stitch.SPOKE_AREAS in plan_board.read_bytes():
+        helper("strip-plan.log", "strip", plan_board)
     planned, tag = helper("plan.log", "plan", plan_board, folder / "plan-all.json", "--include-solid", "1")
     plan = common.load_json(folder / "plan-all.json") if tag is not None else None
     if plan is None:
         return failed(f"could not plan the spoke corridors (see {planned['log']})")
-    in_plan = {f"{p['ref']}.{p['pad']}@{p['layer']}": f"{p['uuid']}@{p['layer']}" for p in plan["pads"]}
+    in_plan = {}
+    for p in plan.get("pads") or []:
+        in_plan[f"{p['ref']}.{p['pad']}@{p['layer']}"] = f"{p['uuid']}@{p['layer']}"
+        if p.get("layer") in ("B.Cu", "bottom_copper"):
+            in_plan[f"{p['ref']}.{p['pad']}@B.Cu"] = f"{p['uuid']}@{p['layer']}"
+            in_plan[f"{p['ref']}.{p['pad']}@bottom_copper"] = f"{p['uuid']}@{p['layer']}"
+        elif p.get("layer") in ("F.Cu", "top_copper"):
+            in_plan[f"{p['ref']}.{p['pad']}@F.Cu"] = f"{p['uuid']}@{p['layer']}"
+            in_plan[f"{p['ref']}.{p['pad']}@top_copper"] = f"{p['uuid']}@{p['layer']}"
     current, report = output, base
     # First every starved pad at once. When that is not kept, each pad on its own: one net that
     # cannot be routed again then costs its own pad's repair and not the others'.
-    queue, together, index, left = [None], 0, 0, max(0.0, float(seconds))
+    # When output already reserved spoke corridors, leave those corridors alone and proceed to tie-islands.
+    reserved_caller = stitch.SPOKE_AREAS in output.read_bytes()
+    queue, together, index, left = ([] if reserved_caller else [None]), 0, 0, max(0.0, float(seconds))
     rec["budget_s"], allowed = int(left), left
     while queue:
         min_s = 15 if queue[0] is not None else MIN_PASS_S
@@ -163,6 +177,8 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
         api.copy_project(board.parent, folder / f"round-{index}")
         trial = folder / f"round-{index}" / board.name
         shutil.copyfile(current, trial)
+        if stitch.SPOKE_AREAS in trial.read_bytes():
+            helper(f"strip-existing-{index}.log", "strip", trial)
         cleared, tag = helper(f"clear-{index}.log", "clear", before, trial, plan_path)
         if tag is None:
             return failed(f"could not clear the spoke corridors (see {cleared['log']})")
@@ -228,6 +244,39 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
                 max_zp = max((zone_pad_counts.get(n, 0) for n in nets_k), default=0)
                 return (max_zp, len(nets_k), k)
             queue = [[key] for key in sorted(keys, key=_pad_order)[:SINGLE_PADS]]
+    has_islands = (any("isolated island" in v.get("description", "") for v in starved(report))
+                   or any(p.get("kind") == "isolated_island" for p in (short.values() if isinstance(short, dict) else [])))
+    if short and has_islands:
+        index += 1
+        api.copy_project(board.parent, folder / "round-tie")
+        trial = folder / "round-tie" / board.name
+        shutil.copyfile(current, trial)
+        if stitch.SPOKE_AREAS in trial.read_bytes():
+            helper("strip-tie.log", "strip", trial)
+        drc_json = folder / "round-tie-drc.json"
+        tie_payload = dict(report)
+        tie_payload["short"] = list(short.keys()) if isinstance(short, dict) else list(short)
+        common.write_json(drc_json, tie_payload)
+        tied, ttag = helper("tie-islands.log", "tie-islands", trial, drc_json)
+        if ttag and ttag.get("added_tracks"):
+            swept = common.run_cmd([api.pcbnew_python(), api.KICAD_SCRIPTS / "dangling.py", "sweep", before, trial],
+                                   work, folder / f"dangling-tie.log", timeout=900)
+            rec["commands"].append(common.public(swept))
+            after, short_after = short_pads(api, work, board.parent, before, trial, "after-tie", folder.name + "-drc")
+            if after is not None:
+                (open_before, found_before), (open_after, found_after) = _counts(report), _counts(after)
+                non_starved_before = found_before - len(starved(report))
+                non_starved_after = found_after - len(starved(after))
+                tie_kept = not (open_after > open_before or len(short_after) >= len(short)
+                                or found_after > found_before or non_starved_after > non_starved_before)
+                entry = {"round": index, "type": "tie-islands", "pads": len(ttag.get("tied_pads", [])),
+                         "added_tracks": ttag.get("added_tracks", 0),
+                         "drc_counts": {"before": [open_before, found_before], "after": [open_after, found_after]},
+                         "starved_after": len(short_after),
+                         "result": "kept" if tie_kept else "the board was not the better for it and stays as it was"}
+                rec["rounds"].append(entry)
+                if tie_kept:
+                    current, report, short = trial, after, short_after
     rec["used_s"] = round(allowed - left, 1)
     if current == output:
         tried = any("nets" in entry and entry["nets"] for entry in rec["rounds"])

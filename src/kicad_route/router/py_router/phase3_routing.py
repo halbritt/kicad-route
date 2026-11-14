@@ -1016,11 +1016,14 @@ def try_phase3_ripup(
     # ripping a multi-branch or distribution tree (e.g. +3V3, +5V, +1V8, bus lines)
     # to resolve a single tap edge destroys its routed tree, almost always causing net
     # loss and massive search time churn.
-    rippable_blockers = [
-        b for b in rippable_blockers
-        if len(routed_results.get(b.net_id, {}).get('mst_edges', [])) <= 3
-        and len(getattr(pcb_data.nets.get(b.net_id), 'pads', [])) <= 4
-    ]
+    from route import _dedicated_inner_plane_layer_owners
+    has_dedicated_planes = bool(_dedicated_inner_plane_layer_owners(pcb_data, config.layers))
+    if has_dedicated_planes:
+        rippable_blockers = [
+            b for b in rippable_blockers
+            if len(routed_results.get(b.net_id, {}).get('mst_edges', [])) <= 4
+            and len(getattr(pcb_data.nets.get(b.net_id), 'pads', [])) <= 5
+        ]
     if reroute_depth >= 1:
         rippable_blockers = [
             b for b in rippable_blockers
@@ -1078,8 +1081,9 @@ def try_phase3_ripup(
             next_blocker = None
             for b in fresh_blockers:
                 if (b.net_id in routed_results
-                        and len(routed_results.get(b.net_id, {}).get('mst_edges', [])) <= 3
-                        and len(getattr(pcb_data.nets.get(b.net_id), 'pads', [])) <= 4
+                        and (not has_dedicated_planes or (
+                            len(routed_results.get(b.net_id, {}).get('mst_edges', [])) <= 4
+                            and len(getattr(pcb_data.nets.get(b.net_id), 'pads', [])) <= 5))
                         and not rip_refusal(
                             pcb_data, b.net_id, "phase3 tap cascade",
                             diff_pair_by_net_id)):
@@ -1169,26 +1173,34 @@ def try_phase3_ripup(
             )
 
         # Retry tap routing
-        # Keep already-routed tap tree intact and retry only the failed tap edges
+        is_large_tree = has_dedicated_planes and len(completed_result.get('mst_edges', [])) > 25
         tap_input = dict(completed_result)
-        tap_input['new_segments'] = list(completed_result.get('new_segments', []))
-        tap_input['new_vias'] = list(completed_result.get('new_vias', []))
-        tap_input['routed_pad_indices'] = set(completed_result.get('routed_pad_indices', set()))
-        if not tap_input['routed_pad_indices']:
+        if is_large_tree:
+            tap_input['new_segments'] = list(completed_result.get('new_segments', []))
+            tap_input['new_vias'] = list(completed_result.get('new_vias', []))
+            tap_input['routed_pad_indices'] = set(completed_result.get('routed_pad_indices', set()))
+            if not tap_input['routed_pad_indices']:
+                mst_edges = completed_result.get('mst_edges', [])
+                if mst_edges:
+                    idx_a, idx_b, _ = mst_edges[0]
+                    tap_input['routed_pad_indices'] = {idx_a, idx_b}
+        else:
+            tap_input['new_segments'] = list(lm_segments)
+            tap_input['new_vias'] = list(lm_vias)
             mst_edges = completed_result.get('mst_edges', [])
             if mst_edges:
                 idx_a, idx_b, _ = mst_edges[0]
                 tap_input['routed_pad_indices'] = {idx_a, idx_b}
+            tap_input['tap_edges_routed'] = 1
         tap_input.pop('failed_edge_blocking', None)
         tap_input['tap_edges_failed'] = 0
 
         # Exempt plane-owning net on its dedicated plane layers
         retry_config = config
         from dataclasses import replace
-        # Fast-fail retry budget for tap rip-up: the rip freed local copper;
-        # if a path is feasible it is found within 40k iters. Avoid spending
-        # 410k iters on impossible edges.
-        if config.max_iterations > 40_000:
+        # Fast-fail retry budget for tap rip-up on large trees: avoid spending
+        # 410k iters on impossible edges of massive distribution rails.
+        if is_large_tree and config.max_iterations > 40_000:
             retry_config = replace(retry_config, max_iterations=40_000)
         if getattr(config, 'layer_costs', None):
             from route import _dedicated_inner_plane_layer_owners
@@ -1208,7 +1220,7 @@ def try_phase3_ripup(
             retry_failed = retry_result.get('tap_edges_failed', 0)
             orig_pads_failed = len(completed_result.get('failed_pads_info') or [])
             retry_pads_failed = len(retry_result.get('failed_pads_info') or [])
-            improved = (retry_failed < original_failed_count) or (orig_pads_failed > 0 and retry_pads_failed < orig_pads_failed)
+            improved = (retry_failed < original_failed_count) or (has_dedicated_planes and orig_pads_failed > 0 and retry_pads_failed < orig_pads_failed)
             if improved:
                 print(f"    {net_name}: Retry SUCCESS (N={N}): {original_failed_count} -> {retry_failed} failed edges")
 
@@ -1546,11 +1558,14 @@ def _retry_victim_main_with_ripup(
     rippable_blockers, seen_canonical_ids = filter_rippable_blockers(
         blockers, routed_results, diff_pair_by_net_id, get_canonical_net_id,
         pcb_data=pcb_data, context="phase3 victim reroute")
-    rippable_blockers = [
-        b for b in rippable_blockers
-        if len(routed_results.get(b.net_id, {}).get('mst_edges', [])) <= 3
-        and len(getattr(pcb_data.nets.get(b.net_id), 'pads', [])) <= 4
-    ]
+    from route import _dedicated_inner_plane_layer_owners
+    has_dedicated_planes = bool(_dedicated_inner_plane_layer_owners(pcb_data, config.layers))
+    if has_dedicated_planes:
+        rippable_blockers = [
+            b for b in rippable_blockers
+            if len(routed_results.get(b.net_id, {}).get('mst_edges', [])) <= 4
+            and len(getattr(pcb_data.nets.get(b.net_id), 'pads', [])) <= 5
+        ]
     if not rippable_blockers:
         print(f"    {victim_name}: main re-route blocked, no rippable blockers")
         try:   # #652

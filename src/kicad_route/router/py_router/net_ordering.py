@@ -238,3 +238,129 @@ def separate_nets_by_type(
             single_ended_nets.append((net_name, net_id))
 
     return diff_pair_ids_to_route, single_ended_nets
+
+
+def order_fine_pitch_perimeter_nets(
+    pcb_data: PCBData,
+    net_ids: List[Tuple[str, int]]
+) -> List[Tuple[str, int]]:
+    """Prioritize nets whose fine-pitch (<= 0.55 mm) perimeter pads have fewer open
+    exit directions ahead of less-constrained neighbors on the same package edge.
+
+    Within each fine-pitch package edge (QFN/LQFP), inner pads flanked on both
+    sides by adjacent pins must escape straight outward with zero lateral degrees
+    of freedom; corner/end pads have access to the open corner quadrant. Prioritizing
+    inner constrained pads ahead of less-constrained edge neighbors prevents earlier
+    corner routes from monopolizing the outward exit corridor.
+
+    Strictly structural (zero reference/net name matching) and zero segment mutation.
+    """
+    import heapq
+    from qfn_fanout.joint_escape import find_fine_pitch_footprints
+    from qfn_fanout.layout import analyze_pad
+
+    fine_fps = find_fine_pitch_footprints(pcb_data)
+    if not fine_fps:
+        return net_ids
+
+    precedence_edges = set()
+
+    for fp, layout in fine_fps:
+        pitch = layout.pad_pitch or 0.5
+        pads_by_side = {'top': [], 'bottom': [], 'left': [], 'right': []}
+        for pad in fp.pads:
+            if pad.net_id <= 0:
+                continue
+            info = analyze_pad(pad, layout)
+            if info.side in pads_by_side:
+                pads_by_side[info.side].append((pad, info))
+
+        for side, edge_pads in pads_by_side.items():
+            if len(edge_pads) < 2:
+                continue
+
+            # Sort pads along the edge by local coordinate
+            if side in ('top', 'bottom'):
+                edge_pads.sort(key=lambda item: item[0].local_x)
+            else:
+                edge_pads.sort(key=lambda item: item[0].local_y)
+
+            # Measure distance from center of edge (inner pads are near center)
+            n_pads = len(edge_pads)
+            center_idx = (n_pads - 1) / 2.0
+
+            # Find constraint level for each pad:
+            # Flanked inner pad (dist_from_center smaller) has fewer exit directions.
+            pad_constraints = []
+            for i, (pad, info) in enumerate(edge_pads):
+                # Check if flanked on both sides by close neighbors
+                has_prev = (i > 0 and abs(
+                    (edge_pads[i][0].local_x if side in ('top', 'bottom') else edge_pads[i][0].local_y) -
+                    (edge_pads[i-1][0].local_x if side in ('top', 'bottom') else edge_pads[i-1][0].local_y)
+                ) <= 1.5 * pitch)
+                has_next = (i < n_pads - 1 and abs(
+                    (edge_pads[i+1][0].local_x if side in ('top', 'bottom') else edge_pads[i+1][0].local_y) -
+                    (edge_pads[i][0].local_x if side in ('top', 'bottom') else edge_pads[i][0].local_y)
+                ) <= 1.5 * pitch)
+
+                # Fewer open exit directions = lower rank number (higher priority)
+                if has_prev and has_next:
+                    # Flanked on both sides: only 1 outward direction
+                    open_dirs = 1
+                elif has_prev or has_next:
+                    # Corner/end pad: 2+ exit directions
+                    open_dirs = 2
+                else:
+                    open_dirs = 3
+
+                dist_from_center = abs(i - center_idx)
+                pad_constraints.append((pad.net_id, open_dirs, dist_from_center))
+
+            # Pairwise precedence on the same package edge:
+            # Inner/constrained pads (open_dirs=1) must precede less-constrained pads (open_dirs>=2)
+            for i in range(len(pad_constraints)):
+                net_i, dirs_i, dist_i = pad_constraints[i]
+                for j in range(i + 1, len(pad_constraints)):
+                    net_j, dirs_j, dist_j = pad_constraints[j]
+                    if net_i == net_j:
+                        continue
+                    if dirs_i < dirs_j or (dirs_i == dirs_j and dist_i < dist_j):
+                        precedence_edges.add((net_i, net_j))
+                    elif dirs_j < dirs_i or (dirs_i == dirs_j and dist_j < dist_i):
+                        precedence_edges.add((net_j, net_i))
+
+    if not precedence_edges:
+        return net_ids
+
+    # Topological ordering respecting precedence, preserving original order as tie-breaker
+    items = [nid for _, nid in net_ids]
+    item_set = set(items)
+    orig_idx = {nid: i for i, nid in enumerate(items)}
+    id_to_tuple = {nid: (name, nid) for name, nid in net_ids}
+
+    adj = {nid: [] for nid in items}
+    in_degree = {nid: 0 for nid in items}
+
+    for u, v in precedence_edges:
+        if u in item_set and v in item_set and u != v:
+            adj[u].append(v)
+            in_degree[v] += 1
+
+    pq = [(orig_idx[nid], nid) for nid in items if in_degree[nid] == 0]
+    heapq.heapify(pq)
+
+    ordered_nids = []
+    while pq:
+        idx, u = heapq.heappop(pq)
+        ordered_nids.append(u)
+        for v in adj[u]:
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                heapq.heappush(pq, (orig_idx[v], v))
+
+    if len(ordered_nids) < len(items):
+        remaining = [x for x in items if x not in set(ordered_nids)]
+        ordered_nids.extend(remaining)
+
+    return [id_to_tuple[nid] for nid in ordered_nids if nid in id_to_tuple]
+

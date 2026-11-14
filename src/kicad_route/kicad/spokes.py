@@ -607,8 +607,110 @@ def verify(pcbnew, board_path, plan_data, intrude=0, modes=MODES, limit=None, al
             "errors": sum(1 for p in out_pads if "error" in p)}
 
 
+DRC_PAD_RE = re.compile(r"(?:PTH )?[Pp]ad (\S+) \[[^\]]*\] of (\S+)")
+
+
+def tie_islands(pcbnew, board_path, report_path):
+    """Tie starved pads with spokes connected to isolated islands to their net on that layer."""
+    board = pcbnew.LoadBoard(str(board_path))
+    report = json.loads(Path(report_path).read_text())
+    starved_items = []
+    for v in report.get("violations", []):
+        if v.get("type") != "starved_thermal" or v.get("severity") != "error":
+            continue
+        desc = v.get("description", "")
+        if "isolated island" not in desc:
+            continue
+        layer_name = desc.split("layer ", 1)[1].split(";", 1)[0].strip() if "layer " in desc else None
+        for it in v.get("items", []):
+            m = DRC_PAD_RE.match(it.get("description", ""))
+            if m:
+                starved_items.append((m.group(2), m.group(1), layer_name))
+
+    for spec in report.get("short", []):
+        if "@" in spec:
+            ref_pad, layer_name = spec.split("@", 1)
+            if "." in ref_pad:
+                ref, pad_num = ref_pad.split(".", 1)
+                item = (ref, pad_num, layer_name)
+                if item not in starved_items:
+                    starved_items.append(item)
+
+    if not starved_items:
+        return {"tied_pads": [], "added_tracks": 0}
+
+    layers = {board.GetLayerName(l): l for l in board.GetEnabledLayers().CuStack()}
+    tracks = list(board.GetTracks())
+    added, tied = 0, []
+
+    def collides(start, end, net_name, layer_id):
+        for t in tracks:
+            if t.GetLayer() != layer_id or t.GetNetname() == net_name:
+                continue
+            if isinstance(t, pcbnew.PCB_TRACK):
+                t_box = t.GetBoundingBox()
+                t_box.Inflate(pcbnew.FromMM(0.25))
+                seg_box = pcbnew.BOX2I(start, pcbnew.VECTOR2I(end.x - start.x, end.y - start.y))
+                seg_box.Normalize()
+                seg_box.Inflate(pcbnew.FromMM(0.25))
+                if t_box.Intersects(seg_box):
+                    return True
+            elif isinstance(t, pcbnew.PCB_VIA):
+                d = (t.GetPosition() - end).EuclideanNorm()
+                if d < pcbnew.FromMM(0.4):
+                    return True
+        return False
+
+    for ref, pad_num, layer_name in starved_items:
+        fp = board.FindFootprintByReference(ref)
+        if not fp:
+            continue
+        pad = fp.FindPadByNumber(pad_num)
+        if not pad:
+            continue
+        layer_id = layers.get(layer_name) if layer_name else pad.GetLayer()
+        if layer_id is None:
+            continue
+        pos = pad.GetPosition()
+        net = pad.GetNet()
+        if not net:
+            continue
+        size = pad.GetSize(layer_id)
+        radius = int(math.hypot(size.x, size.y) / 2)
+        gap = pad.GetThermalGap() or pcbnew.FromMM(0.5)
+        reach = radius + gap + pcbnew.FromMM(0.15)
+        track_w = pcbnew.FromMM(0.25)
+        pad_added = 0
+        for angle in (45, 135, 225, 315):
+            rad = math.radians(angle)
+            dx = int(reach * math.cos(rad))
+            dy = int(reach * math.sin(rad))
+            end = pcbnew.VECTOR2I(pos.x + dx, pos.y + dy)
+            if collides(pos, end, pad.GetNetname(), layer_id):
+                continue
+            t = pcbnew.PCB_TRACK(board)
+            t.SetStart(pos)
+            t.SetEnd(end)
+            t.SetLayer(layer_id)
+            t.SetWidth(track_w)
+            t.SetNet(net)
+            board.Add(t)
+            tracks.append(t)
+            added += 1
+            pad_added += 1
+        if pad_added > 0:
+            tied.append(f"{ref}.{pad_num}@{layer_name}")
+
+    if added > 0:
+        board.Save(str(board_path))
+    return {"tied_pads": tied, "added_tracks": added}
+
+
 def main(argv):
     import pcbnew
+    if len(argv) == 3 and argv[0] == "tie-islands":
+        print("SPOKES_JSON: " + json.dumps(tie_islands(pcbnew, Path(argv[1]), Path(argv[2]))))
+        return 0
     if len(argv) >= 3 and argv[0] == "plan":
         opts = dict(zip(argv[3::2], argv[4::2]))
         data = plan(pcbnew, Path(argv[1]), int(opts["--per-pad"]) if "--per-pad" in opts else None,
