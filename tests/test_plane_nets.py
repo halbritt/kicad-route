@@ -395,10 +395,10 @@ def test_detect_dedicated_inner_plane_layers():
     py_router_dir = str(Path(__file__).resolve().parents[1] / 'src' / 'kicad_route' / 'router' / 'py_router')
     if py_router_dir not in sys.path:
         sys.path.insert(0, py_router_dir)
-    from route import _detect_dedicated_inner_plane_layers
+    from route import _detect_dedicated_inner_plane_layers, _dedicated_inner_plane_layer_owners
     from types import SimpleNamespace
 
-    # Multi-layer board with INNERPLANES zone spanning In1.Cu and In2.Cu
+    # Multi-layer board with zone spanning In1.Cu and In2.Cu (multi-layer inner zone, name is None)
     board_info = SimpleNamespace(
         copper_layers=['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu'],
         board_bounds=(0.0, 0.0, 100.0, 100.0),
@@ -407,7 +407,7 @@ def test_detect_dedicated_inner_plane_layers():
     zone = SimpleNamespace(
         in_footprint=False,
         net_id=1,
-        name='INNERPLANES',
+        name=None,  # No string name - strictly geometric detection
         layers=['In1.Cu', 'In2.Cu'],
         polygon=poly,
     )
@@ -418,6 +418,33 @@ def test_detect_dedicated_inner_plane_layers():
     )
     res = _detect_dedicated_inner_plane_layers(pcb, ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu'])
     assert res == {'In1.Cu', 'In2.Cu'}
+    owners = _dedicated_inner_plane_layer_owners(pcb, ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu'])
+    assert owners == {'In1.Cu': {1}, 'In2.Cu': {1}}
+
+    # Multiple inner layers with separate zones on the same net (same_net_inner_count > 0, name is empty)
+    zone_in1 = SimpleNamespace(
+        in_footprint=False,
+        net_id=3,
+        name='',  # Empty name
+        layers=None,
+        layer='In1.Cu',
+        polygon=poly,
+    )
+    zone_in2 = SimpleNamespace(
+        in_footprint=False,
+        net_id=3,
+        name='',  # Empty name
+        layers=None,
+        layer='In2.Cu',
+        polygon=poly,
+    )
+    pcb_sep = SimpleNamespace(
+        board_info=board_info,
+        zones=[zone_in1, zone_in2],
+        nets={3: SimpleNamespace(name='GND')},
+    )
+    assert _detect_dedicated_inner_plane_layers(pcb_sep, ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu']) == {'In1.Cu', 'In2.Cu'}
+    assert _dedicated_inner_plane_layer_owners(pcb_sep, ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu']) == {'In1.Cu': {3}, 'In2.Cu': {3}}
 
     # 4-layer board with separate signal layers / no plane zones
     pcb_no_zones = SimpleNamespace(
@@ -429,3 +456,48 @@ def test_detect_dedicated_inner_plane_layers():
 
     # 2-layer board has no inner layers
     assert _detect_dedicated_inner_plane_layers(pcb, ['F.Cu', 'B.Cu']) == set()
+
+
+def test_zone_owner_exempt_from_plane_layer_penalty():
+    from types import SimpleNamespace
+    from route import _dedicated_inner_plane_layer_owners
+
+    board_info = SimpleNamespace(
+        copper_layers=['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu'],
+        board_bounds=(0.0, 0.0, 100.0, 100.0),
+    )
+    poly = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
+    zone = SimpleNamespace(
+        in_footprint=False,
+        net_id=3,
+        name=None,
+        layers=['In1.Cu', 'In2.Cu'],
+        polygon=poly,
+    )
+    pcb = SimpleNamespace(
+        board_info=board_info,
+        zones=[zone],
+        nets={3: SimpleNamespace(name='GND'), 8: SimpleNamespace(name='+3V3')},
+    )
+    layers = ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu']
+    plane_owners = _dedicated_inner_plane_layer_owners(pcb, layers)
+
+    # When routing GND alone (e.g. krt-last): In1.Cu and In2.Cu are exempt (1.0x)
+    gnd_nids = {3}
+    gnd_costs = [
+        (1.0 if (gnd_nids and all(nid in plane_owners.get(l, set()) for nid in gnd_nids))
+         else (25.0 if l in plane_owners
+               else 1.0))
+        for l in layers
+    ]
+    assert gnd_costs == [1.0, 1.0, 1.0, 1.0]
+
+    # When routing +3V3 (signal/power net): In1.Cu and In2.Cu have 9.0x penalty
+    sig_nids = {8}
+    sig_costs = [
+        (1.0 if (sig_nids and all(nid in plane_owners.get(l, set()) for nid in sig_nids))
+         else (9.0 if l in plane_owners
+               else 1.0))
+        for l in layers
+    ]
+    assert sig_costs == [1.0, 9.0, 9.0, 1.0]

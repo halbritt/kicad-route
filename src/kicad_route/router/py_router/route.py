@@ -2260,23 +2260,24 @@ class _StopFlag:
         return False
 
 
-def _detect_dedicated_inner_plane_layers(pcb_data, layers) -> Set[str]:
-    """Inner copper layers that are dedicated copper plane layers (AGENTEE-656).
+def _dedicated_inner_plane_layer_owners(pcb_data, layers) -> Dict[str, Set[int]]:
+    """Dedicated inner copper plane layers and the net IDs that own them (AGENTEE-656).
 
     An inner layer is a dedicated plane layer if:
     1. It is an inner layer (not F.Cu or B.Cu).
-    2. It carries a board-level zone for a power/ground net covering >= 75% of the board bounding box,
-       with zone name indicating planes (e.g. 'innerplanes', 'plane'), or a multi-layer inner
-       zone (e.g. (layers 'In1.Cu' 'In2.Cu')), or redundant full-board planes for the same net.
+    2. It carries a board-level zone covering >= 75% of the board bounding box,
+       which is either a multi-layer inner zone (e.g. layers ['In1.Cu', 'In2.Cu'])
+       or where multiple inner layers carry zones on the same net (>= 75% area each).
+    Never branches on zone/net/board string names (R1).
     """
     if not pcb_data or not layers or len(layers) < 4:
-        return set()
+        return {}
     inner = [l for l in layers if l not in ('F.Cu', 'B.Cu')]
     if not inner or not getattr(pcb_data, 'zones', None):
-        return set()
+        return {}
     bounds = getattr(getattr(pcb_data, 'board_info', None), 'board_bounds', None)
     if not bounds:
-        return set()
+        return {}
     board_area = max(1e-9, (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]))
     inner_set = set(inner)
 
@@ -2293,28 +2294,30 @@ def _detect_dedicated_inner_plane_layers(pcb_data, layers) -> Set[str]:
         n = len(poly)
         area = 0.5 * abs(sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1] for i in range(n)))
         fraction = area / board_area
-        name = (getattr(z, 'name', '') or '').lower()
         net_id = getattr(z, 'net_id', None)
         multi = len(z_layers) > 1 and all(l in inner_set for l in z_layers)
         for l in z_layers:
-            candidates.setdefault(l, []).append((net_id, fraction, name, multi))
+            candidates.setdefault(l, []).append((net_id, fraction, multi))
 
-    dedicated = set()
+    layer_owners: Dict[str, Set[int]] = {}
     for l, z_list in candidates.items():
-        total_frac = sum(frac for _, frac, _, _ in z_list)
+        total_frac = sum(frac for _, frac, _ in z_list)
         if total_frac < 0.75:
             continue
-        for net_id, frac, name, multi in z_list:
-            if frac >= 0.75:
-                is_plane_name = any(kw in name for kw in ('plane', 'innerplane', 'inner_plane'))
+        for net_id, frac, multi in z_list:
+            if frac >= 0.75 and net_id is not None:
                 same_net_inner_count = sum(
                     1 for other_l, other_zs in candidates.items()
-                    if other_l != l and any(onid == net_id and ofrac >= 0.75 for onid, ofrac, _, _ in other_zs)
+                    if other_l != l and any(onid == net_id and ofrac >= 0.75 for onid, ofrac, _ in other_zs)
                 )
-                if is_plane_name or multi or same_net_inner_count > 0:
-                    dedicated.add(l)
-                    break
-    return dedicated
+                if multi or same_net_inner_count > 0:
+                    layer_owners.setdefault(l, set()).add(net_id)
+    return layer_owners
+
+
+def _detect_dedicated_inner_plane_layers(pcb_data, layers) -> Set[str]:
+    """Inner copper layers that are dedicated copper plane layers (AGENTEE-656)."""
+    return set(_dedicated_inner_plane_layer_owners(pcb_data, layers).keys())
 
 
 def batch_route(input_file: str, output_file: str, net_names: List[str],
@@ -3001,18 +3004,26 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # Set default layer costs if not specified
     # 4+ layers: all 1.0 (inner layers available for routing)
     # 2 layers: F.Cu=1.0, B.Cu=3.0 (prefer top layer)
-    # AGENTEE-656: dedicated inner copper plane layers receive 50.0x cost so
+    # AGENTEE-656: dedicated inner copper plane layers receive 9.0x cost so
     # general signal/tap routing stays on outer signal layers except for local escape.
     if not layer_costs:
-        dedicated_planes = _detect_dedicated_inner_plane_layers(pcb_data, layers)
+        plane_owners = _dedicated_inner_plane_layer_owners(pcb_data, layers)
+        dedicated_planes = set(plane_owners.keys())
         if dedicated_planes:
+            routed_nids = {nid for nid, n in pcb_data.nets.items() if n.name in (net_names or [])} if (net_names and getattr(pcb_data, 'nets', None)) else set()
+            # If all nets being routed in this call own the dedicated plane layers (e.g. krt-last with GND),
+            # exempt them completely.
             layer_costs = [
-                50.0 if l in dedicated_planes
-                else (1.0 if len(layers) >= 4 else (1.0 if l == 'F.Cu' else 3.0))
+                (1.0 if (routed_nids and all(nid in plane_owners.get(l, set()) for nid in routed_nids))
+                 else (9.0 if l in dedicated_planes
+                       else (1.0 if len(layers) >= 4 else (1.0 if l == 'F.Cu' else 3.0))))
                 for l in layers
             ]
-            print(f"  Plane-layer discipline (AGENTEE-656): dedicated inner plane(s) "
-                  f"{', '.join(sorted(dedicated_planes))} set to 50.0x cost")
+            if any(c > 1.0 for c in layer_costs):
+                print(f"  Plane-layer discipline (AGENTEE-656): dedicated inner plane(s) "
+                      f"{', '.join(sorted(dedicated_planes))} set to 9.0x cost")
+            else:
+                print(f"  Plane-layer discipline (AGENTEE-656): zone-owning net(s) exempt from inner plane penalty")
         elif len(layers) >= 4:
             layer_costs = [1.0] * len(layers)
         else:
@@ -7693,6 +7704,12 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                       f"{', '.join(sorted(set(_zn)))}")
                 import time as _time9
                 _t9 = _time9.time()
+                _plane_owners9 = _dedicated_inner_plane_layer_owners(pcb_data, config.layers)
+                _zn_ids9 = {n.net_id for n in pcb_data.nets.values() if n.name in _zn} if getattr(pcb_data, 'nets', None) else set()
+                _finalize_layer_costs = [
+                    (1.0 if (_zn_ids9 and any(nid in _plane_owners9.get(l, set()) for nid in _zn_ids9)) else c)
+                    for l, c in zip(config.layers, config.layer_costs)
+                ] if config.layer_costs else None
                 # Live-board reuse (KICAD_PLANE_FINALIZE_LIVE=1): hand the
                 # engine THIS run's pcb_data instead of re-parsing the file it
                 # just wrote -- kills the parse and, bigger, reuses the
@@ -7785,9 +7802,8 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                         power_nets=power_nets,
                         power_nets_widths=power_nets_widths,
                         # #658: the chain's layer economics reach the
-                        # finalize legs (previously uniform 1.0 -- welds
-                        # traveled priced-up layers for free).
-                        layer_costs=list(config.layer_costs or []) or None,
+                        # finalize legs (exempting zone owners on own planes).
+                        layer_costs=_finalize_layer_costs,
                         pcb_data=pcb_data, return_results=True,
                         # kicad-route (deadline): the stop request ends the plane
                         # repair too, between two nets or two pads.
@@ -7880,13 +7896,9 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                         hands_off_nets=sorted(_hands_off9(pcb_data)),
                         power_nets=power_nets,
                         power_nets_widths=power_nets_widths,
-                        # #658: same layer economics as the GUI leg above.
-                        # 34d2e448 forwarded layer_costs to the _gui9 branch
-                        # ONLY, so on the CLI -- every replay, stress and
-                        # corpus run -- the finalize's welds/taps/reconnects
-                        # still travelled priced-up layers for free, which is
-                        # the exact defect that commit set out to close.
-                        layer_costs=list(config.layer_costs or []) or None,
+                        # #658: same layer economics as the GUI leg above
+                        # (exempting zone owners on own planes).
+                        layer_costs=_finalize_layer_costs,
                         pcb_data=_live9,
                         # kicad-route (deadline): as for the in-memory leg above
                         cancel_check=cancel_check,

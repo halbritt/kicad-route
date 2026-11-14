@@ -785,6 +785,16 @@ def _attempt_edge(pcb_data, net_id, gap, config, net_clearances,
     from routing_config import GridCoord
     from single_ended_routing import route_net_with_obstacles
 
+    if getattr(config, 'layer_costs', None):
+        from route import _dedicated_inner_plane_layer_owners
+        _po = _dedicated_inner_plane_layer_owners(pcb_data, config.layers)
+        if any(net_id in _po.get(l, set()) for l in config.layers):
+            from dataclasses import replace
+            config = replace(config, layer_costs=[
+                1.0 if net_id in _po.get(l, set()) else c
+                for l, c in zip(config.layers, config.layer_costs)
+            ])
+
     d, ax, ay, bx, by = gap
     cx, cy = (ax + bx) / 2, (ay + by) / 2
     half = max(d / 2 + defaults.RESCUE_WINDOW_MARGIN,
