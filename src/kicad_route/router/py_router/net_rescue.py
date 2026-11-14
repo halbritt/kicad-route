@@ -498,7 +498,7 @@ def _pristine_rescue_map(board, parent_pcb, cfg, net_id, net_clearances,
         for k in [k for k in cache if k[2] != epoch]:
             del cache[k]
         cache[key] = entry
-        while len(cache) > 4:
+        while len(cache) > 64:
             cache.popitem(last=False)
     else:
         cache.move_to_end(key)
@@ -738,6 +738,23 @@ def _tally_search(stats, result):
                                + int((result or {}).get('iterations') or 0))
 
 
+def _cached_snpc_cells(pcb_data, net_id, c):
+    """Memoized same-net pad via keepout cells to cut per-rung recalculation."""
+    snpc = getattr(c, 'same_net_pad_clearance', -1.0)
+    if snpc is None or snpc <= 0:
+        return ()
+    memo = getattr(pcb_data, '_snpc_cells_cache', None)
+    if memo is None:
+        memo = pcb_data._snpc_cells_cache = {}
+    key = (net_id, c.grid_step, c.via_size, snpc)
+    res = memo.get(key)
+    if res is None:
+        from obstacle_map import same_net_pad_via_keepout_cells
+        res = same_net_pad_via_keepout_cells(pcb_data, net_id, c)
+        memo[key] = res
+    return res
+
+
 def _attempt_edge(pcb_data, net_id, gap, config, net_clearances,
                   strict_endpoints: bool = False, island_points=None,
                   endpoints=None, stats=None, cancel_check=None):
@@ -833,16 +850,18 @@ def _attempt_edge(pcb_data, net_id, gap, config, net_clearances,
         # BUS pad whose center sat 2.6mm outside). Stamp the same-net pad via
         # keep-out from the FULL board; cells outside the fenced window are
         # unreachable anyway, so the extra stamps are inert.
-        from obstacle_map import same_net_pad_via_keepout_cells, _stamp_rungs_at_own_via
-        _cells581 = same_net_pad_via_keepout_cells(pcb_data, net_id, cfg)
-        if len(_cells581):
-            obstacles.add_blocked_vias_batch(_cells581)
-            # #1226: and the rungs the net may search at, each at its own via.
-            _stamp_rungs_at_own_via(
-                obstacles, cfg,
-                lambda s, c: s.add_blocked_vias_batch(
-                    same_net_pad_via_keepout_cells(pcb_data, net_id, c)),
-                populated_only=True)
+        _snpc = getattr(cfg, 'same_net_pad_clearance', -1.0)
+        if _snpc is not None and _snpc > 0:
+            from obstacle_map import _stamp_rungs_at_own_via
+            _cells581 = _cached_snpc_cells(pcb_data, net_id, cfg)
+            if len(_cells581):
+                obstacles.add_blocked_vias_batch(_cells581)
+                # #1226: and the rungs the net may search at, each at its own via.
+                _stamp_rungs_at_own_via(
+                    obstacles, cfg,
+                    lambda s, c: s.add_blocked_vias_batch(
+                        _cached_snpc_cells(pcb_data, net_id, c)),
+                    populated_only=True)
         # Constrain the route to the window: drop endpoints outside it and keep the
         # source/target overrides from punching the fence, so the A* can never leave
         # the stamped region and cross foreign copper the window never modelled (#396).
@@ -1821,6 +1840,9 @@ def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
         used_widths = []
         stepped_vias = []   # (via the edge's rung drew, vias it shipped)
         failed_gaps = set()
+        _exhausted_gaps = getattr(pcb_data, '_exhausted_rescue_gaps', None)
+        if _exhausted_gaps is None:
+            _exhausted_gaps = pcb_data._exhausted_rescue_gaps = set()
         attempts = 0
         num = num0
         while attempts < defaults.RESCUE_MAX_EDGES_PER_NET and num > 1:
@@ -1828,6 +1850,7 @@ def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
                 break  # additive copper: keep what landed, stop attempting
             main = _main_component(comp_pads)
             gaps = []
+            epoch = getattr(pcb_data, '_copper_epoch', 0)
             for cid, pts in comp_points.items():
                 if cid == main or cid not in comp_pads:
                     continue
@@ -1836,13 +1859,14 @@ def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
                     continue
                 key = (round((pair[1] + pair[3]) / 2, 2),
                        round((pair[2] + pair[4]) / 2, 2))
-                if key not in failed_gaps:
+                if key not in failed_gaps and (net_id, key, epoch) not in _exhausted_gaps:
                     gaps.append((key, pair, cid))
             if not gaps:
                 break
             gaps.sort(key=lambda g: g[1][0])
             key, gap, gap_cid = gaps[0]
             attempts += 1
+            gap_epoch_key = (net_id, key, epoch)
             # The rescue KNOWS the partition -- hand the island's own points
             # to the window split so the route is aimed island<->trunk by
             # MEMBERSHIP. Proximity assignment put trunk cells on both sides
@@ -1866,6 +1890,7 @@ def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
             if result is None:
                 print(_gap_line(*_gk, "no route", _gst, time.time() - _g0))
                 failed_gaps.add(key)
+                _exhausted_gaps.add(gap_epoch_key)
                 continue
             add_route_to_pcb_data(pcb_data, result,
                                   debug_lines=config.debug_lines)
@@ -1879,6 +1904,7 @@ def rescue_failed_nets(state, single_ended_nets, net_clearances=None,
                 print(_gap_line(*_gk, "routed but joined nothing (undone)",
                                 _gst, time.time() - _g0))
                 failed_gaps.add(key)
+                _exhausted_gaps.add(gap_epoch_key)
                 continue
             print(_gap_line(*_gk, f"joined ({num} -> {num_after} parts)",
                             _gst, time.time() - _g0))

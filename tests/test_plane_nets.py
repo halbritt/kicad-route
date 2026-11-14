@@ -381,3 +381,51 @@ def test_the_zone_nets_of_the_last_pass_are_the_owners_of_any_zone_in_the_scope(
     assert plane_nets.repair_nets(SCOPE, FACTS, {}) == ["+3V3", "/SW", "GND"]
     assert plane_nets.repair_nets(["/A", "/B"], FACTS, {}) == []
     assert plane_nets.repair_nets(SCOPE, FACTS, {"bus": {}}) == [] and plane_nets.repair_nets(SCOPE, FACTS, {"length_match": {}}) == []
+
+
+def test_detect_dedicated_inner_plane_layers():
+    import sys
+    from pathlib import Path
+    from kicad_route import cli as route_cli
+    py_bin = route_cli.route_python()
+    if py_bin:
+        sp = py_bin.parent.parent / 'lib' / f'python{sys.version_info.major}.{sys.version_info.minor}' / 'site-packages'
+        if sp.exists() and str(sp) not in sys.path:
+            sys.path.insert(0, str(sp))
+    py_router_dir = str(Path(__file__).resolve().parents[1] / 'src' / 'kicad_route' / 'router' / 'py_router')
+    if py_router_dir not in sys.path:
+        sys.path.insert(0, py_router_dir)
+    from route import _detect_dedicated_inner_plane_layers
+    from types import SimpleNamespace
+
+    # Multi-layer board with INNERPLANES zone spanning In1.Cu and In2.Cu
+    board_info = SimpleNamespace(
+        copper_layers=['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu'],
+        board_bounds=(0.0, 0.0, 100.0, 100.0),
+    )
+    poly = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
+    zone = SimpleNamespace(
+        in_footprint=False,
+        net_id=1,
+        name='INNERPLANES',
+        layers=['In1.Cu', 'In2.Cu'],
+        polygon=poly,
+    )
+    pcb = SimpleNamespace(
+        board_info=board_info,
+        zones=[zone],
+        nets={1: SimpleNamespace(name='GND')},
+    )
+    res = _detect_dedicated_inner_plane_layers(pcb, ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu'])
+    assert res == {'In1.Cu', 'In2.Cu'}
+
+    # 4-layer board with separate signal layers / no plane zones
+    pcb_no_zones = SimpleNamespace(
+        board_info=board_info,
+        zones=[],
+        nets={1: SimpleNamespace(name='GND')},
+    )
+    assert _detect_dedicated_inner_plane_layers(pcb_no_zones, ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu']) == set()
+
+    # 2-layer board has no inner layers
+    assert _detect_dedicated_inner_plane_layers(pcb, ['F.Cu', 'B.Cu']) == set()

@@ -2260,6 +2260,63 @@ class _StopFlag:
         return False
 
 
+def _detect_dedicated_inner_plane_layers(pcb_data, layers) -> Set[str]:
+    """Inner copper layers that are dedicated copper plane layers (AGENTEE-656).
+
+    An inner layer is a dedicated plane layer if:
+    1. It is an inner layer (not F.Cu or B.Cu).
+    2. It carries a board-level zone for a power/ground net covering >= 75% of the board bounding box,
+       with zone name indicating planes (e.g. 'innerplanes', 'plane'), or a multi-layer inner
+       zone (e.g. (layers 'In1.Cu' 'In2.Cu')), or redundant full-board planes for the same net.
+    """
+    if not pcb_data or not layers or len(layers) < 4:
+        return set()
+    inner = [l for l in layers if l not in ('F.Cu', 'B.Cu')]
+    if not inner or not getattr(pcb_data, 'zones', None):
+        return set()
+    bounds = getattr(getattr(pcb_data, 'board_info', None), 'board_bounds', None)
+    if not bounds:
+        return set()
+    board_area = max(1e-9, (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]))
+    inner_set = set(inner)
+
+    candidates: Dict[str, list] = {}
+    for z in pcb_data.zones:
+        if getattr(z, 'in_footprint', False):
+            continue
+        z_layers = [l for l in (getattr(z, 'layers', None) or [getattr(z, 'layer', None)]) if l in inner_set]
+        if not z_layers:
+            continue
+        poly = getattr(z, 'polygon', None) or ()
+        if len(poly) < 3:
+            continue
+        n = len(poly)
+        area = 0.5 * abs(sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1] for i in range(n)))
+        fraction = area / board_area
+        name = (getattr(z, 'name', '') or '').lower()
+        net_id = getattr(z, 'net_id', None)
+        multi = len(z_layers) > 1 and all(l in inner_set for l in z_layers)
+        for l in z_layers:
+            candidates.setdefault(l, []).append((net_id, fraction, name, multi))
+
+    dedicated = set()
+    for l, z_list in candidates.items():
+        total_frac = sum(frac for _, frac, _, _ in z_list)
+        if total_frac < 0.75:
+            continue
+        for net_id, frac, name, multi in z_list:
+            if frac >= 0.75:
+                is_plane_name = any(kw in name for kw in ('plane', 'innerplane', 'inner_plane'))
+                same_net_inner_count = sum(
+                    1 for other_l, other_zs in candidates.items()
+                    if other_l != l and any(onid == net_id and ofrac >= 0.75 for onid, ofrac, _, _ in other_zs)
+                )
+                if is_plane_name or multi or same_net_inner_count > 0:
+                    dedicated.add(l)
+                    break
+    return dedicated
+
+
 def batch_route(input_file: str, output_file: str, net_names: List[str],
                 layers: List[str] = None,
                 # #530: cap every auto-read net class at this clearance (the
@@ -2944,8 +3001,19 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # Set default layer costs if not specified
     # 4+ layers: all 1.0 (inner layers available for routing)
     # 2 layers: F.Cu=1.0, B.Cu=3.0 (prefer top layer)
+    # AGENTEE-656: dedicated inner copper plane layers receive 50.0x cost so
+    # general signal/tap routing stays on outer signal layers except for local escape.
     if not layer_costs:
-        if len(layers) >= 4:
+        dedicated_planes = _detect_dedicated_inner_plane_layers(pcb_data, layers)
+        if dedicated_planes:
+            layer_costs = [
+                50.0 if l in dedicated_planes
+                else (1.0 if len(layers) >= 4 else (1.0 if l == 'F.Cu' else 3.0))
+                for l in layers
+            ]
+            print(f"  Plane-layer discipline (AGENTEE-656): dedicated inner plane(s) "
+                  f"{', '.join(sorted(dedicated_planes))} set to 50.0x cost")
+        elif len(layers) >= 4:
             layer_costs = [1.0] * len(layers)
         else:
             layer_costs = [1.0 if layer == 'F.Cu' else 3.0 for layer in layers]
@@ -9244,6 +9312,17 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
     # route_summary carries it through the merge. Like every other summary
     # key it describes the run's attempt: if the improvement gate below then
     # reverts the output, the gate's own line says so.
+    # Deduplicate shipped board parsing across post-route disclosures
+    _shipped_board_memo = {}
+
+    def _load_shipped_board(path):
+        if not path or not os.path.isfile(path):
+            return None
+        if path not in _shipped_board_memo:
+            from kicad_parser import parse_kicad_pcb
+            _shipped_board_memo[path] = parse_kicad_pcb(path)
+        return _shipped_board_memo[path]
+
     if (final_reconcile and not _ckpt_stop
             and (getattr(config, 'power_net_widths', None) or {})):
         try:
@@ -9258,8 +9337,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                 _as1033, _ = _gui_write_model(results_data)
                 _segs1033 = [s for _l in _as1033.values() for s in _l]
             elif output_file and os.path.isfile(output_file):
-                from kicad_parser import parse_kicad_pcb as _pk1033
-                _board1033 = _pk1033(output_file)
+                _board1033 = _load_shipped_board(output_file)
                 _segs1033 = _board1033.segments
             if _board1033 is not None:
                 _ids1033 = {_nn.name: _ni
@@ -9399,8 +9477,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                     _names1282 = {_n: _nn.name
                                   for _n, _nn in pcb_data.nets.items()}
                 elif output_file and os.path.isfile(output_file):
-                    from kicad_parser import parse_kicad_pcb as _pk1282
-                    _b1282 = _pk1282(output_file)
+                    _b1282 = _load_shipped_board(output_file)
                     _segs1282 = _b1282.segments
                     _names1282 = {_n: _nn.name
                                   for _n, _nn in _b1282.nets.items()}
@@ -9451,8 +9528,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                 _vias1371 = [_v for _l in _av1371.values() for _v in _l]
                 _names1371 = {_n: _nn.name for _n, _nn in pcb_data.nets.items()}
             elif output_file and os.path.isfile(output_file):
-                from kicad_parser import parse_kicad_pcb as _pk1371
-                _b1371 = _pk1371(output_file)
+                _b1371 = _load_shipped_board(output_file)
                 _vias1371 = _b1371.vias
                 _names1371 = {_n: _nn.name for _n, _nn in _b1371.nets.items()}
             if _vias1371 is not None:
@@ -9552,8 +9628,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                                      [v for _l in _ka_v.values() for v in _l])
             _ka_on = 'change-set (write model)'
         elif output_file and os.path.isfile(output_file):
-            from kicad_parser import parse_kicad_pcb as _pk_ka
-            _ka_board = _pk_ka(output_file)
+            _ka_board = _load_shipped_board(output_file)
             _ka_on = 'written board'
         if _ka_board is not None:
             _ka_shipped = disclose_keep_away(_ka_board, config, quiet=True)
@@ -9586,8 +9661,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                 _pc_copper = ([s for _l in _pc_s.values() for s in _l],
                               [v for _l in _pc_v.values() for v in _l])
             elif output_file and os.path.isfile(output_file):
-                from kicad_parser import parse_kicad_pcb as _pk_pc
-                _pc_board = _pk_pc(output_file)
+                _pc_board = _load_shipped_board(output_file)
                 _pc_copper = (_pc_board.segments, _pc_board.vias)
             if _pc_board is not None:
                 _pour_cuts = audit_pour_cuts(pcb_data, _pour_audit[1],
@@ -9618,8 +9692,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                 _nk_copper = ([s for _l in _nk_s.values() for s in _l],
                               [v for _l in _nk_v.values() for v in _l])
             elif output_file and os.path.isfile(output_file):
-                from kicad_parser import parse_kicad_pcb as _pk_nk
-                _nk_board = _pk_nk(output_file)
+                _nk_board = _load_shipped_board(output_file)
                 _nk_copper = (_nk_board.segments, _nk_board.vias)
             if _nk_board is not None:
                 _nk_shipped = _nk_audit(_nk_board, *_nk_copper,
@@ -9646,8 +9719,7 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                 _ra_copper = ([s for _l in _ra_s.values() for s in _l],
                               [v for _l in _ra_v.values() for v in _l])
             elif output_file and os.path.isfile(output_file):
-                from kicad_parser import parse_kicad_pcb as _pk_ra
-                _ra_board = _pk_ra(output_file)
+                _ra_board = _load_shipped_board(output_file)
                 _ra_copper = (_ra_board.segments, _ra_board.vias)
             if _ra_board is not None:
                 _ra_shipped = rule_area_audit(_ra_board, *_ra_copper)
@@ -9682,9 +9754,8 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
             _rd_pcl['pad_contacts'] = _pad_contacts_left
             _rd_pcl['pad_grazes'] = _pad_grazes_left
         elif output_file and os.path.isfile(output_file):
-            from kicad_parser import parse_kicad_pcb as _pk_pcl
             _pad_contacts_left, _pad_grazes_left = audit_shipped(
-                _pk_pcl(output_file), clearance=_pcl_floor)
+                _load_shipped_board(output_file), clearance=_pcl_floor)
 
     # Per-net story dump (KICAD_NET_STORY=1): the complete journey of every
     # net -- bus membership, ordering, failures with named blockers, rips,
