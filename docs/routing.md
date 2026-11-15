@@ -80,6 +80,13 @@ regression checks that a later call reserves the larger gap. These checks cover 
 they do not establish that every custom hole rule reaches every via or fanout
 path. Native DRC still grades the saved board.
 
+A rip-up retry that retains connected branches must connect another pad before
+the router keeps it. Its smaller search set can produce fewer failed searches
+without improving connectivity. Retries that rebuild the full tree retain their
+existing failure-count comparison. The retry fixture covers both modes, the
+retention boundary, and restoration when a retained retry makes no pad progress;
+it does not establish a board-level routing improvement.
+
 ### What the adapters switch off
 
 The built-in router relaxes by default. The adapter (`KRT_FLAGS` / `KRT_ENV` in `kicad_route/cli.py`) passes

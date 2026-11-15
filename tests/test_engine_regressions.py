@@ -69,3 +69,7 @@ def test_layer_and_stub_safety(script, sections):
 
 def test_bga_rescue_config_does_not_depend_on_plane_ownership():
     _run_source_regression("test_rescue_bga_config.py")
+
+
+def test_phase3_retry_requires_connectivity_progress():
+    _run_source_regression("test_phase3_retry_progress.py")

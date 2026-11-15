@@ -1220,9 +1220,14 @@ def try_phase3_ripup(
             retry_failed = retry_result.get('tap_edges_failed', 0)
             orig_pads_failed = len(completed_result.get('failed_pads_info') or [])
             retry_pads_failed = len(retry_result.get('failed_pads_info') or [])
-            improved = (retry_failed < original_failed_count) or (has_dedicated_planes and orig_pads_failed > 0 and retry_pads_failed < orig_pads_failed)
+            # A retained tree retries a smaller search set: its failure count
+            # cannot be compared with the original full pass. Reset retries
+            # still search the full tree and keep their existing acceptance.
+            improved = (retry_pads_failed < orig_pads_failed if is_large_tree else
+                        (retry_failed < original_failed_count or
+                         (has_dedicated_planes and retry_pads_failed < orig_pads_failed)))
             if improved:
-                print(f"    {net_name}: Retry SUCCESS (N={N}): {original_failed_count} -> {retry_failed} failed edges")
+                print(f"    {net_name}: Retry SUCCESS (N={N}): {orig_pads_failed} -> {retry_pads_failed} unconnected pads")
 
                 # Add retry result's tap segments to obstacles TEMPORARILY for re-routing ripped nets.
                 # This prevents ripped nets from routing through our tap area.
@@ -1434,8 +1439,9 @@ def try_phase3_ripup(
 
                 return retry_result
             else:
-                print(f"    {net_name}: Retry FAILED (N={N}): still {retry_failed} failed edges")
-                # Dropped: the next rung re-taps from the main route again.
+                print(f"    {net_name}: Retry FAILED (N={N}): {retry_pads_failed} unconnected pads "
+                      f"(was {orig_pads_failed}; {retry_failed} failed searches)")
+                # Discard this retry's changes before the next rung.
                 uncommit_dropped_result(pcb_data, retry_result,
                                         kept=completed_result)
                 # Store blocked cells from retry for next iteration's analysis
