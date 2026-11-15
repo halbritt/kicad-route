@@ -92,7 +92,7 @@ def short_pads(api, work, project_dir, before, board_file, label, folder):
     return report, dict(sorted(found.items()))
 
 
-def repair(work, board, before, output, route_again, api, label="", seconds=PASS_S, pour_nets=()):
+def repair(work, board, before, output, route_again, api, label="", seconds=PASS_S):
     """Repair the starved thermals of `output` (in place) that this run's copper causes.
     `label` keeps the work files and pass names of one call apart from another's.
     `seconds` is the engine time the whole repair may take, all its passes together: the time of
@@ -104,10 +104,6 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
     routing. `route_again(name, board_file, nets, seconds)` routes those nets on that board with
     the run's own engine settings and returns a record with "status" ("routed", with "output",
     or "failed", with "reason") and "command".
-
-    `pour_nets` are pour nets already inside the outer route's scope. A repaired pad's
-    pour net is included in its subpass so the engine can reconnect pour pieces displaced
-    by the new signal route; unrelated or out-of-scope pour nets are not added.
 
     Returns the record; "status" is "none" (no starved thermal, or none of this run's making),
     "repaired", "kept" (KiCad's report was not the better for the repair: the board is as it
@@ -204,17 +200,7 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
             share = int(min(PASS_S, max(15, left / (len(queue) + 1))))
         else:
             share = int(min(PASS_S, left))
-        # Reserving a thermal's corridors can split its pour. The engine excludes a
-        # pour outside --nets from finalization and can revert a successful signal
-        # repair for that disconnected pour. Keep only the affected pour nets that
-        # the outer route already owns in this subpass's scope as well.
-        along = sorted({p['net'] for p in plan.get('pads') or []
-                        if p.get('net') in pour_nets and f"{p['uuid']}@{p['layer']}" in keys}
-                       - set(entry['nets']))
-        if along:
-            entry['pour_nets'] = along
-        routed = route_again(f"thermal-{label + '-' if label else ''}{index}", trial,
-                             entry["nets"] + along, share)
+        routed = route_again(f"thermal-{label + '-' if label else ''}{index}", trial, entry["nets"], share)
         left -= routed.get("used_s") or share
         if routed.get("command"):
             rec["commands"].append(routed["command"])

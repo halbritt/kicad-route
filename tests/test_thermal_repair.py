@@ -141,9 +141,7 @@ def test_clear_takes_only_the_runs_copper_out_of_the_needed_corridors(pour_dir, 
     record("thermal_clear", got)
 
 
-@pytest.mark.parametrize("pour_nets,along", [((), []), (("GND", "UNRELATED"), ["GND"]),
-                                           (("UNRELATED",), [])])
-def test_a_starved_thermal_is_repaired(pour_dir, tmp_path, pour_nets, along):
+def test_a_starved_thermal_repair_routes_only_cleared_nets(pour_dir, tmp_path):
     work, board, before, output = stage(pour_dir, tmp_path, HUGGING)
     assert starved_of(work, board, output, "routed") == (1, 4)       # C1.2; the other nets are not routed here
     calls = []
@@ -158,13 +156,12 @@ def test_a_starved_thermal_is_repaired(pour_dir, tmp_path, pour_nets, along):
         edit(board_file, out, drop_unlocked="/SIG_A", track=CLEAR)
         return {"status": "routed", "output": out, "command": None}
 
-    rec = thermals.repair(work, board, before, output, route_again, route, pour_nets=pour_nets)
+    rec = thermals.repair(work, board, before, output, route_again, route)
     record("thermal_repair", {k: v for k, v in rec.items() if k != "commands"})
     assert rec["status"] == "repaired" and (rec["starved_before"], rec["starved_after"]) == (1, 0), rec
-    assert calls == [("thermal-1", ["/SIG_A"] + along, thermals.PASS_S, "spokes.py")]
+    assert calls == [("thermal-1", ["/SIG_A"], thermals.PASS_S, "spokes.py")]
     only = rec["rounds"]
     assert len(only) == 1 and only[0]["result"] == "kept" and only[0]["nets"] == ["/SIG_A"]
-    assert only[0].get("pour_nets", []) == along
     assert only[0]["removed_tracks"] == 1 and only[0]["reserved"] == 2 and only[0]["cut_by"] == {"C1.2 on F.Cu": ["/SIG_A"]}
     assert "kicad-route:spoke:" not in output.read_text()            # the corridors came off again
     assert starved_of(work, board, output, "repaired") == (0, 4)
