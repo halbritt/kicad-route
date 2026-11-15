@@ -73,7 +73,10 @@ than the hole rule. The direct map and per-net cache use the actual circular or
 slotted drill, including its rotation and offset. Custom `hole_clearance` rules
 are resolved for the pad and each routed net, on each layer; the shared map uses
 the largest requirement within that routing call. Removing a net's cache opens
-its own pads for connection. These checks cover tracks near plated pad holes;
+its own pads for connection. Both `route.batch_route` and the differential
+router install the full routed set before building fresh per-net caches for
+each call; those caches are not passed into the next call. A widening-set
+regression checks that a later call reserves the larger gap. These checks cover tracks near plated pad holes;
 they do not establish that every custom hole rule reaches every via or fanout
 path. Native DRC still grades the saved board.
 

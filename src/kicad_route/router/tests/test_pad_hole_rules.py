@@ -19,7 +19,8 @@ from kicad_dru import install_track_clearances
 from routing_config import GridCoord, GridRouteConfig
 from obstacle_map import GridObstacleMap, _add_pad_obstacle, build_base_obstacle_map
 from obstacle_cache import (precompute_net_obstacles, add_net_obstacles_from_cache,
-                            remove_net_obstacles_from_cache)
+                            remove_net_obstacles_from_cache, precompute_all_net_obstacles,
+                            build_working_obstacle_map)
 
 LAYERS = ['F.Cu', 'B.Cu']
 RULE_TEXT = '''(version 1)
@@ -128,6 +129,23 @@ class PadHoleRules(unittest.TestCase):
         direct, cached, _ = maps(pcb, pad, cfg)
         self.assertFalse(direct.is_blocked(425, 400, 0))
         self.assertFalse(cached.is_blocked(425, 400, 0))
+
+    def test_new_routing_call_rebuilds_cache_for_wider_net_set(self):
+        pcb, pad, cfg = fixture(routed=(3,))
+        # The route and diff fronts install the full call's set, then build
+        # fresh caches. A later call may include a net with a larger gap.
+        narrow = precompute_all_net_obstacles(pcb, [1], cfg)
+        first = build_working_obstacle_map(GridObstacleMap(2), narrow)
+        self.assertFalse(first.is_blocked(425, 400, 0))
+        install_track_clearances(cfg, {}, '', pcb, routed_net_ids=[1, 2, 3])
+        wide = precompute_all_net_obstacles(pcb, [1], cfg)
+        second = build_working_obstacle_map(GridObstacleMap(2), wide)
+        self.assertTrue(second.is_blocked(425, 400, 0))
+        self.assertFalse(second.is_blocked(425, 400, 1))
+        # Even under the wider set its own pad remains a usable terminal.
+        remove_net_obstacles_from_cache(second, wide[1])
+        self.assertEqual(second.get_stats()[:2], (0, 0))
+        self.assertFalse(second.is_blocked(400, 400, 0))
 
     def test_native_drc_agrees_at_straight_drill_wall(self):
         import pcbnew
