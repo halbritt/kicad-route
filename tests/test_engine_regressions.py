@@ -64,3 +64,7 @@ def test_owned_rule_floors(section):
 ])
 def test_layer_and_stub_safety(script, sections):
     _run_source_regression(script, *sections)
+
+
+def test_bga_rescue_config_does_not_depend_on_plane_ownership():
+    _run_source_regression("test_rescue_bga_config.py")
