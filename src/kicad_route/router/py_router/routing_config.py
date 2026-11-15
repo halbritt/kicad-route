@@ -498,6 +498,9 @@ class GridRouteConfig:
     # The legacy per-channel maps above are being migrated onto it; consumers
     # that resolve through it must treat None as "no rules declared".
     rules: Optional[object] = None
+    # The nets sharing this call's obstacle map. None means the caller has not
+    # selected a set; hole-rule stamps then consider every named board net.
+    hole_rule_nets: Optional[FrozenSet[int]] = None
     # #530 decision 4: per-net VIA geometry {net_id: (diameter, drill)} for
     # nets whose resolved draw size differs from via_size/via_drill (their
     # net class or a .kicad_dru via_diameter/hole_size rule). Filled by
@@ -614,6 +617,24 @@ class GridRouteConfig:
         if hole <= 0 and self.rules is not None:
             hole = (getattr(self.rules, 'board_min', None) or {}).get('min_hole_clearance', 0.0) or 0.0
         return hole if hole > 0 else 0.0
+
+    def pad_track_hole_clearance(self, pad, layer: str) -> float:
+        """Hole gap for foreign tracks sharing a pad obstacle stamp.
+
+        Resolve the real pad against each routed net on this layer. The
+        shared cache needs the largest requirement among those nets; an
+        unrelated net outside the call cannot inflate it. Own-net access is
+        handled by removing the pad's cache before routing that net.
+        """
+        rules = self.rules
+        if rules is None or not any('hole_clearance' in r.constraints for r in rules.rules):
+            return self.hole_minimum()
+        nets = rules.net_names if self.hole_rule_nets is None else self.hole_rule_nets
+        item = rules.item_for_pad(pad)
+        values = [rules.resolve('hole_clearance',
+                                rules.item_for_net(n, 'track', layer), item, layer).min or 0.0
+                  for n in nets if n != pad.net_id]
+        return max([self.hole_clearance or 0.0] + values)
 
     def via_hole_reach(self, via_drill: float = None) -> float:
         """How far a via's CENTRE must stay from foreign copper for its HOLE

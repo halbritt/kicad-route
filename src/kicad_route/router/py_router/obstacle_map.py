@@ -4720,6 +4720,36 @@ def _assemble_net_tie_lifts(corridors, recorded, layer_map):
     return lifts
 
 
+def pad_track_hole_cells(pad, coord, layer_map, config, extra_clearance=0.0):
+    """Track keep-outs of a plated drill, shared by direct and cached maps.
+
+    Copper clearance does not imply hole clearance when the annular ring is
+    small. Rasterize the real drill capsule, including rotation and offset;
+    the normal pad rasterizer also protects steps round its curved ends.
+    These cells belong to the pad's net, so its own tracks can reach it.
+    """
+    if pad.drill <= 0 or pad.pad_type == 'np_thru_hole':
+        return
+    (x1, y1), (x2, y2), radius = pad_drill_capsule(pad)
+    x, y = (x1 + x2) / 2, (y1 + y2) / 2
+    gx, gy = coord.to_grid(x, y)
+    angle = math.degrees(math.atan2(y2 - y1, x2 - x1))
+    half_length = math.hypot(x2 - x1, y2 - y1) / 2 + radius
+    groups = {}
+    for layer, li in layer_map.items():
+        gap = config.pad_track_hole_clearance(pad, layer)
+        if gap > 0:
+            margin = gap + config.stamp_track_width(layer) / 2 + extra_on_layer(extra_clearance, layer)
+            groups.setdefault(margin, []).append(li)
+    for margin, indices in groups.items():
+        cells = pad_blocked_cells_array(
+            gx, gy, half_length, radius, margin, coord.grid_step, radius,
+            off_x=x - gx * coord.grid_step, off_y=y - gy * coord.grid_step,
+            rotation_deg=angle)
+        for li in indices:
+            yield li, cells
+
+
 def _add_pad_obstacle(obstacles: GridObstacleMap, pad, coord: GridCoord,
                       layer_map: Dict[str, int], config: GridRouteConfig,
                       extra_clearance: float = 0.0,
@@ -4745,6 +4775,13 @@ def _add_pad_obstacle(obstacles: GridObstacleMap, pad, coord: GridCoord,
         skip_cell: Optional (gx, gy) -> bool predicate; cells for which it returns
             True are left unblocked (used for connector-region exemptions)
     """
+    if not isinstance(obstacles, _RungViaSink):
+        for li, cells in pad_track_hole_cells(pad, coord, layer_map, config, extra_clearance):
+            if skip_cell is not None and len(cells):
+                keep = np.fromiter((not skip_cell(int(cx), int(cy)) for cx, cy in cells),
+                                   dtype=bool, count=len(cells))
+                cells = cells[keep]
+            _batch_cells_one_layer(obstacles, cells, li, blocked_cells, sink=cell_sink)
     gx, gy = coord.to_grid(pad.global_x, pad.global_y)
     # Sub-cell offset of the real pad center from its quantized cell, so blocking
     # is measured from the real center, not the grid cell (issue #70).

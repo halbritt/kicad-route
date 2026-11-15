@@ -67,6 +67,16 @@ fallback dimensions against the installed native API; the retained four-layer
 reproduction is `build/native-default-vias` (zero opens, all preservation checks
 pass after this correction).
 
+Track obstacles around plated pads also reserve the drill's copper-to-hole
+clearance. This matters when the annular ring plus copper clearance is smaller
+than the hole rule. The direct map and per-net cache use the actual circular or
+slotted drill, including its rotation and offset. Custom `hole_clearance` rules
+are resolved for the pad and each routed net, on each layer; the shared map uses
+the largest requirement within that routing call. Removing a net's cache opens
+its own pads for connection. These checks cover tracks near plated pad holes;
+they do not establish that every custom hole rule reaches every via or fanout
+path. Native DRC still grades the saved board.
+
 ### What the adapters switch off
 
 The built-in router relaxes by default. The adapter (`KRT_FLAGS` / `KRT_ENV` in `kicad_route/cli.py`) passes

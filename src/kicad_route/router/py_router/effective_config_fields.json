@@ -108,6 +108,7 @@
   "track_partner_clearances",
   "scoped_clearance",
   "rules",
+  "hole_rule_nets",
   "net_via_sizes",
   "pour_barriers",
   "quick",

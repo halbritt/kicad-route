@@ -960,6 +960,8 @@ def install_track_clearances(config, track_clearances, input_file,
     shipped copper the main pass had refused (#1602)."""
     config.track_partner_clearances = {}
     config.scoped_clearance = None
+    config.hole_rule_nets = (None if routed_net_ids is None
+                            else frozenset(routed_net_ids))
     if not input_file:
         input_file = getattr(pcb_data, 'source_path', "") or ""
     # #1491: the class/type-scoped rules, over the same routed set (the same

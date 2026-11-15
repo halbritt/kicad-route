@@ -1169,6 +1169,12 @@ def _collect_pad_obstacles(pad, coord: GridCoord, layer_map: Dict[str, int],
     obs_clearance: the pad net's KiCad cross-class clearance (== config.clearance
     when no per-net map is active); priced by precompute_net_obstacles.
     """
+    from obstacle_map import pad_track_hole_cells
+    for li, cells in pad_track_hole_cells(pad, coord, layer_map, config, extra_clearance):
+        rows = np.empty((len(cells), 3), dtype=np.int32)
+        rows[:, :2] = cells
+        rows[:, 2] = li
+        blocked_cells.append(rows)
     if obs_clearance is None:
         obs_clearance = config.clearance
     gx, gy = coord.to_grid(pad.global_x, pad.global_y)
