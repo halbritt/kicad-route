@@ -325,7 +325,7 @@ def test_the_repair_has_one_time_allowance_for_all_its_passes(pour_dir, tmp_path
     assert asked == [45] and rec["budget_s"] == 0 and rec["used_s"] == 0 and "not started" in rec["out_of_time"]
 
 
-def test_pour_only_island_is_selected_for_repair(tmp_path):
+def test_pour_only_island_is_repaired(tmp_path):
     """A solid pad can lose its main pour without a starved_thermal DRC finding."""
     source = tmp_path / "source"
     shutil.copytree(FIXTURE, source)
@@ -341,9 +341,12 @@ def test_pour_only_island_is_selected_for_repair(tmp_path):
 
     rec = thermals.repair(work, board, before, output, no_search, route, seconds=0)
     assert any("tie-islands" in c["argv"] for c in rec["commands"]), rec
+    assert rec["status"] == "repaired", rec
+    assert any(r.get("type") == "tie-islands" and r["result"] == "kept" for r in rec["rounds"]), rec
     after, remaining = thermals.short_pads(route, work, board.parent, before, output, "after", "island-drc")
-    assert len(after["unconnected_items"]) <= len(report["unconnected_items"])
-    assert len(remaining) <= len(short)
+    assert "J2.2@B.Cu" not in remaining, remaining
+    assert len(after["unconnected_items"]) < len(report["unconnected_items"])
+    assert not after["violations"], after["violations"]
 
 
 @pytest.mark.parametrize("class_width,minimum", [(0.8, 0.2), (0.2, 0.8)])

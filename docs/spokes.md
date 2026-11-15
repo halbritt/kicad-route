@@ -134,7 +134,9 @@ pour:
 
 1. The routed board and the board before routing are compared with the zones refilled, as
    the `pour_integrity` check compares them (`docs/pour.md`). Without a pad whose spokes
-   went below the board's minimum or whose fill contact was lost, nothing more is done.
+   went below the board's minimum, whose fill contact was lost, or whose connection to
+   the main pour was lost, nothing more is done. The last case includes solid pads
+   that KiCad does not report as `starved_thermal`.
 2. The corridors are planned on the board as it was before routing, and those pads are
    selected in that plan.
 3. `spokes.py clear` takes this run's own tracks and vias out of as many corridors as each
@@ -150,6 +152,15 @@ pour:
    compared again. The repair is kept only when fewer pads are short of their pour, no
    more connections are open than before and KiCad's report has no finding more.
    Otherwise the board stays as the router left it, and the findings stand.
+
+If a pad remains isolated from the main pour, the repair also tries short same-net
+tracks from that pad into the surrounding fill. Their width is the larger of the
+pad's effective net-class track width and the board minimum. This local attempt
+does not run the search engine, so it can run with no search time left. Its board
+is refilled and checked before any change is kept: fewer pads must be short,
+open connections must not increase, and neither the total DRC finding count nor
+the count excluding starved thermals may increase. A tie attempt alone does not
+mean the pad was repaired.
 
 All such pads are tried together first, and once more for a pad the new routes starved.
 When that is not kept, up to six pads are tried one by one, so that a net which cannot be
@@ -172,8 +183,9 @@ This is a repair after the fact, for the pads that need it. `--reserve-spokes` k
 copper out of every thermal pad's corridors from the start and costs routing room on a
 dense board. A run made with `--reserve-spokes` or `--reserve-spoke-pad` has the caller's
 corridors on its board until the routing is over, and a second set cannot be reserved
-beside them: such a run is not repaired, and a starved thermal it still has is the
-caller's to act on (`process.thermal_repair.note` says so).
+beside them: such a run skips corridor repair, and a starved thermal it still has
+is the caller's to act on (`process.thermal_repair.note` says so). The local
+island-tie attempt can still run when a pad lost its main-pour connection.
 
 ## `kicad-route spokes RUN_DIR`
 
