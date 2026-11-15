@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'py_router'))
@@ -17,7 +18,7 @@ from design_rules import DesignRules, parse_dru
 from kicad_parser import BoardInfo, Net, Pad, PCBData, pad_drill_capsule
 from kicad_dru import install_track_clearances
 from routing_config import GridCoord, GridRouteConfig
-from obstacle_map import GridObstacleMap, _add_pad_obstacle, build_base_obstacle_map
+from obstacle_map import GridObstacleMap, _add_pad_obstacle, build_base_obstacle_map, pad_track_hole_cells
 from obstacle_cache import (precompute_net_obstacles, add_net_obstacles_from_cache,
                             remove_net_obstacles_from_cache, precompute_all_net_obstacles,
                             build_working_obstacle_map)
@@ -146,6 +147,14 @@ class PadHoleRules(unittest.TestCase):
         remove_net_obstacles_from_cache(second, wide[1])
         self.assertEqual(second.get_stats()[:2], (0, 0))
         self.assertFalse(second.is_blocked(400, 400, 0))
+
+    def test_no_hole_gap_skips_drill_geometry(self):
+        _, pad, cfg = fixture(slot=True, angle=37, offset=True)
+        cfg.rules.rules = []
+        cfg.rules.board_min.clear()
+        with patch('obstacle_map.pad_drill_capsule', side_effect=AssertionError('unused drill geometry')):
+            self.assertEqual(list(pad_track_hole_cells(pad, GridCoord(cfg.grid_step),
+                                                      {'F.Cu': 0, 'B.Cu': 1}, cfg)), [])
 
     def test_native_drc_agrees_at_straight_drill_wall(self):
         import pcbnew

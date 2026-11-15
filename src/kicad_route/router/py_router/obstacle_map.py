@@ -4730,17 +4730,21 @@ def pad_track_hole_cells(pad, coord, layer_map, config, extra_clearance=0.0):
     """
     if pad.drill <= 0 or pad.pad_type == 'np_thru_hole':
         return
-    (x1, y1), (x2, y2), radius = pad_drill_capsule(pad)
-    x, y = (x1 + x2) / 2, (y1 + y2) / 2
-    gx, gy = coord.to_grid(x, y)
-    angle = math.degrees(math.atan2(y2 - y1, x2 - x1))
-    half_length = math.hypot(x2 - x1, y2 - y1) / 2 + radius
     groups = {}
     for layer, li in layer_map.items():
         gap = config.pad_track_hole_clearance(pad, layer)
         if gap > 0:
             margin = gap + config.stamp_track_width(layer) / 2 + extra_on_layer(extra_clearance, layer)
             groups.setdefault(margin, []).append(li)
+    # Most boards declare no copper-to-hole gap. Do not construct a drill
+    # capsule on every obstacle-map build when it cannot contribute cells.
+    if not groups:
+        return
+    (x1, y1), (x2, y2), radius = pad_drill_capsule(pad)
+    x, y = (x1 + x2) / 2, (y1 + y2) / 2
+    gx, gy = coord.to_grid(x, y)
+    angle = math.degrees(math.atan2(y2 - y1, x2 - x1))
+    half_length = math.hypot(x2 - x1, y2 - y1) / 2 + radius
     for margin, indices in groups.items():
         cells = pad_blocked_cells_array(
             gx, gy, half_length, radius, margin, coord.grid_step, radius,
