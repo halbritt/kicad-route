@@ -531,9 +531,15 @@ each as `track_dangling` or `via_dangling`, every new finding counts against the
 candidate, and runs with a dozen connections open and no rule broken came back as
 boards not to adopt because of one or two such pieces (one of them 0.2 mm long).
 
-Before the board is graded, the wrapper removes them (`kicad/dangling.py`): every track
-and via that the board did not have before routing and that KiCad's own test calls
-dangling, and then what dangles once those are gone, until nothing does. The test runs
+Before the board is graded, the wrapper removes them (`kicad/dangling.py`): tracks
+and vias that the board did not have before routing and that KiCad's own test calls
+dangling, provided their removal leaves their copper neighbours connected to each
+other. A track with a dangling end can also carry a branch in its middle; deleting
+that whole track would open the branch. Such a track stays, with its native warning.
+This step does not trim the tail. The connectivity check uses native track, via and
+pad contacts; it does not assume that separate pieces of a zone are connected.
+Each removal updates those contacts before the next item is considered. The sweep
+then checks what dangles once the safe removals are gone. The native dangling test runs
 on a copy in memory with the zones refilled, as the candidate is graded, so a track that
 ends in a pour of its net is connected and stays. Copper the board had before routing
 is never touched, its own stubs included: it is matched by exact geometry, as the lock

@@ -9,8 +9,11 @@ as `track_dangling` or `via_dangling`, kicad-route counts every new finding agai
 candidate, and a board with a dozen connections open and nothing else wrong came back as one
 not to adopt because of one 0.2 mm stub.
 
-`sweep` removes them: every track and via of ROUTED that BEFORE does not have and that KiCad's
-own test calls dangling, and then what dangles once those are gone, until nothing does. It asks
+`sweep` removes tracks and vias of ROUTED that BEFORE does not have and that KiCad's
+own test calls dangling, unless removing the whole item would disconnect its copper neighbours.
+A dangling end can belong to a track with a connected branch in its middle: that track stays,
+with its native warning, until a separate repair trims the tail. The sweep then removes what
+dangles once the safe removals are gone, until nothing more can be removed. It asks
 on a copy held in memory with the zones refilled, as the candidate is graded, so a track that
 ends in a pour of its net is connected and stays. Copper of BEFORE is never touched: it is
 matched by exact geometry, as locks.py matches it, so a backend that rewrites UUIDs is no
@@ -37,6 +40,41 @@ def new_items(board, had, pcbnew):
     return new
 
 
+def copper_graph(board, connectivity):
+    """Direct native contacts between tracks, vias and pads, without merging zone islands."""
+    items = list(board.GetTracks()) + [p for fp in board.GetFootprints() for p in fp.Pads()]
+    graph = {item.m_Uuid.AsString(): set() for item in items}
+    for item in items:
+        key = item.m_Uuid.AsString()
+        neighbours = list(connectivity.GetConnectedTracks(item)) + list(connectivity.GetConnectedPads(item))
+        for other in neighbours:
+            other_key = other.m_Uuid.AsString()
+            if other_key != key and other_key in graph and other.GetNetCode() == item.GetNetCode():
+                graph[key].add(other_key)
+                graph[other_key].add(key)
+    return graph
+
+
+def removable(graph, key):
+    """The item's remaining neighbours must still reach each other without it."""
+    neighbours = graph[key]
+    if len(neighbours) < 2:
+        return True
+    pending = [next(iter(neighbours))]
+    seen = {key}
+    needed = set(neighbours)
+    while pending:
+        node = pending.pop()
+        if node in seen:
+            continue
+        seen.add(node)
+        needed.discard(node)
+        if not needed:
+            return True
+        pending.extend(graph[node] - seen)
+    return False
+
+
 def sweep(before_path, routed_path, pcbnew):
     had = locks.multiset(locks.key(item, pcbnew) for item in pcbnew.LoadBoard(before_path).GetTracks())
     judged = pcbnew.LoadBoard(routed_path)
@@ -51,13 +89,25 @@ def sweep(before_path, routed_path, pcbnew):
         dangling = [item for item in new if connectivity.TestTrackEndpointDangling(item, True)]
         if not dangling:
             break
-        result["rounds"] += 1
+        graph = copper_graph(judged, connectivity)
+        removed_this_round = 0
         for item in dangling:
+            key = item.m_Uuid.AsString()
+            if not removable(graph, key):
+                continue
+            # Update after each removal: two individually redundant tracks need
+            # not be redundant when removed together.
+            for neighbour in graph.pop(key):
+                graph[neighbour].discard(key)
             result["removed_vias" if isinstance(item, pcbnew.PCB_VIA) else "removed_tracks"] += 1
-            doomed.add(item.m_Uuid.AsString())
+            doomed.add(key)
             removed.append(locks.key(item, pcbnew))
             judged.RemoveNative(item)
             new.remove(item)
+            removed_this_round += 1
+        if not removed_this_round:
+            break
+        result["rounds"] += 1
     if doomed:
         board = pcbnew.LoadBoard(routed_path)      # as the backend wrote it: no refill is saved
         for item in list(board.GetTracks()):
