@@ -2170,6 +2170,9 @@ def krt_route(work, board, scope, facts, settings):
             log(f"[route] stitched {len(stitched['vias'])} pour piece(s) the routing had ringed off: "
                 + ", ".join(f"{v['net']} at {'/'.join(v['pads'])} on {v['layer']}" for v in stitched["vias"][:6]))
     has_pour = any(zone.get("net") for zone in facts.get("zones") or [])
+    routed_here = set(scope)
+    repair_pour_nets = {zone['net'] for zone in facts.get('zones') or []
+                       if zone.get('net') in routed_here}
 
     def thermal_pass(name, board_file, nets, seconds):
         return krt_plane_pass(name, work, board_file, argv, env, nets, facts, settings, seconds,
@@ -2187,7 +2190,6 @@ def krt_route(work, board, scope, facts, settings):
         thermal_reserve = ((thermals.PASS_S if settings["budget_s"] < 2 * thermals.PASS_S
                             else thermals.MIN_PASS_S) if has_pour else 0)
         left = spare - thermal_reserve
-        routed_here = set(scope)
 
         def close_again(name, board_file, nets, seconds, strategy):
             return krt_plane_pass(name, work, board_file, argv, env, nets, facts, settings, seconds,
@@ -2203,12 +2205,12 @@ def krt_route(work, board, scope, facts, settings):
             if round_in.is_file() and Path(board_file).read_bytes() == round_in.read_bytes():
                 return [], 0
             settled = thermals.repair(work, board, before, board_file, thermal_pass, sys.modules[__name__],
-                                      label=name, seconds=min(thermals.PASS_S, seconds))
+                                      label=name, seconds=min(thermals.PASS_S, seconds),
+                                      pour_nets=repair_pour_nets)
             return settled["commands"], settled.get("used_s") or 0
         closed = closing.close(work, board, before, output, close_again, left, sys.modules[__name__],
                                in_scope=routed_here.__contains__, settle=settle,
-                               pour_nets={zone["net"] for zone in facts.get("zones") or []
-                                          if zone.get("net") in routed_here})
+                               pour_nets=repair_pour_nets)
         proc["commands"] += closed.pop("commands")
         proc["closing"] = closed
         spare -= closed.get("used_s") or 0
@@ -2227,7 +2229,8 @@ def krt_route(work, board, scope, facts, settings):
         # stays inside what its caller already had to allow for an engine stopped at the budget
         # (budget_grace): a repair is part of the run, not a second run after it.
         thermal = thermals.repair(work, board, before, output, thermal_pass, sys.modules[__name__],
-                                  seconds=spare + budget_grace(settings["budget_s"]))
+                                  seconds=spare + budget_grace(settings["budget_s"]),
+                                  pour_nets=repair_pour_nets)
         proc["commands"] += thermal.pop("commands")
         proc["thermal_repair"] = thermal
         if thermal["status"] == "failed":

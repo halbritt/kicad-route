@@ -162,6 +162,14 @@ open connections must not increase, and neither the total DRC finding count nor
 the count excluding starved thermals may increase. A tie attempt alone does not
 mean the pad was repaired.
 
+A thermal subpass also includes the affected pad's pour net when that net is
+already in the outer route's scope. Otherwise the engine can reconnect the
+signal and then revert it because the pour is outside its finalization scope.
+Unrelated pours and nets excluded by the original route are not added. This
+uses the same repair time allowance and the same native acceptance checks.
+The round's `pour_nets` lists these additional nets separately from the signal
+nets whose copper was cleared.
+
 All such pads are tried together first, and once more for a pad the new routes starved.
 When that is not kept, up to six pads are tried one by one, so that a net which cannot be
 routed again costs its own pad's repair only. The
