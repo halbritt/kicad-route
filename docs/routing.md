@@ -53,7 +53,7 @@ spelling.
 | Net-class scope | wrapper expands classes to names | same DSN mechanism |
 | Budget | wall clock: `KICAD_STOP_FILE` at the budget, kill after a grace period; `--max-iterations` | `--router.job_timeout`, kill after budget + 60 s; `--passes` → `--router.autorouter.max_passes` |
 | Existing copper | locked copper never touched; with `--protect existing` (default) the wrapper locks all input copper for the run (`kicad/locks.py`) and restores the flags | all pre-existing copper is frozen by Freerouting; the bridge locks it for the round trip and restores the flags |
-| Custom `.kicad_dru` rules | reads only a subset (track-to-track class rules, layer clearances); logs the rest as skipped — surfaced in `unsupported` | not in Specctra; the bridge translates net-class-to-net-class `clearance` rules to `class_class` rules; others listed as untranslated |
+| Custom `.kicad_dru` rules | reads a subset, including track-to-track class rules, layer clearances and track-to-plated-pad hole clearances; unsupported rules are reported | not in Specctra; the bridge translates net-class-to-net-class `clearance` rules to `class_class` rules; others listed as untranslated |
 
 MCP is not used: both backends have working local CLIs, and agents drive kicad-route
 through its CLI (or a project's make targets). Neither backend contacts the network

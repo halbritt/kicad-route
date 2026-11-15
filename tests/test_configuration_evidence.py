@@ -227,7 +227,12 @@ def test_complete_manifest_matches_versioned_schema(tmp_path):
     import jsonschema
     _, manifest, _, _ = capture(tmp_path)
     schema = json.loads((ROOT / 'schemas/effective-configuration-1.json').read_text())
-    jsonschema.validate(json.loads(manifest.read_text()), schema)
+    document = json.loads(manifest.read_text())
+    jsonschema.validate(document, schema)
+    # Existing version-1 records predate the routed-net hole-rule field.
+    document['field_names'].remove('hole_rule_nets')
+    document['configuration'].pop('hole_rule_nets')
+    jsonschema.validate(document, schema)
 
 
 def test_ambient_routing_controls_are_bound_not_only_caller_overrides(tmp_path):
