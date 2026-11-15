@@ -38,6 +38,9 @@ import json, sys
 import pcbnew
 board = pcbnew.LoadBoard(sys.argv[1])
 job = json.loads(sys.argv[3])
+if job.get("solid"):
+    ref, number = job["solid"]
+    board.FindFootprintByReference(ref).FindPadByNumber(number).SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
 if job.get("pour"):
     zone = pcbnew.ZONE(board)
     zone.SetLayer(pcbnew.F_Cu)
@@ -59,7 +62,7 @@ for a, b in zip(points, points[1:]):
     t.SetStart(pcbnew.VECTOR2I(pcbnew.FromMM(a[0]), pcbnew.FromMM(a[1])))
     t.SetEnd(pcbnew.VECTOR2I(pcbnew.FromMM(b[0]), pcbnew.FromMM(b[1])))
     t.SetWidth(pcbnew.FromMM(0.2))
-    t.SetLayer(pcbnew.F_Cu)
+    t.SetLayer(pcbnew.B_Cu if job.get("back") else pcbnew.F_Cu)
     t.SetNet(board.FindNet("/SIG_A"))
     board.Add(t)
 board.Save(sys.argv[2])
@@ -285,7 +288,8 @@ def test_a_pad_that_lost_its_pour_altogether_is_repaired(pour_dir, tmp_path):
     names both, and the repair takes both."""
     work, board, before, output = stage(pour_dir, tmp_path, ENCLOSING)
     report, short = thermals.short_pads(route, work, board.parent, before, output, "routed", "test-pour")
-    assert short == ["C1.2@F.Cu"], short
+    assert set(short) == {"C1.2@F.Cu"}, short
+    assert "lost_fill_contact" in short["C1.2@F.Cu"]
     drc_names_it = len(thermals.starved(report))
 
     def route_again(name, board_file, nets, seconds):
@@ -298,7 +302,7 @@ def test_a_pad_that_lost_its_pour_altogether_is_repaired(pour_dir, tmp_path):
     record("thermal_repair_lost_contact", {"kicad_starved_thermal_findings": drc_names_it,
                                            **{k: v for k, v in rec.items() if k != "commands"}})
     assert rec["status"] == "repaired" and (rec["starved_before"], rec["starved_after"]) == (1, 0), rec
-    assert thermals.short_pads(route, work, board.parent, before, output, "repaired", "test-pour")[1] == []
+    assert thermals.short_pads(route, work, board.parent, before, output, "repaired", "test-pour")[1] == {}
 
 
 def test_the_repair_has_one_time_allowance_for_all_its_passes(pour_dir, tmp_path):
@@ -319,3 +323,47 @@ def test_the_repair_has_one_time_allowance_for_all_its_passes(pour_dir, tmp_path
     # a run that is already past its budget and its grace has nothing for the repair
     rec = thermals.repair(work, board, before, output, route_again, route, seconds=-40)
     assert asked == [45] and rec["budget_s"] == 0 and rec["used_s"] == 0 and "not started" in rec["out_of_time"]
+
+
+def test_pour_only_island_is_selected_for_repair(tmp_path):
+    """A solid pad can lose its main pour without a starved_thermal DRC finding."""
+    source = tmp_path / "source"
+    shutil.copytree(FIXTURE, source)
+    edit(source / BOARD, source / BOARD, solid=["J2", "2"])
+    work, board, before, output = stage(source, tmp_path / "run", [])
+    edit(output, output, back=True, track=[(142, 100.4), (142, 129.6)])
+    report, short = thermals.short_pads(route, work, board.parent, before, output, "routed", "island-drc")
+    assert not thermals.starved(report)
+    assert "isolated_island" in short["J2.2@B.Cu"]
+
+    def no_search(*args):
+        raise AssertionError("no engine search is allowed with a zero search budget")
+
+    rec = thermals.repair(work, board, before, output, no_search, route, seconds=0)
+    assert any("tie-islands" in c["argv"] for c in rec["commands"]), rec
+    after, remaining = thermals.short_pads(route, work, board.parent, before, output, "after", "island-drc")
+    assert len(after["unconnected_items"]) <= len(report["unconnected_items"])
+    assert len(remaining) <= len(short)
+
+
+@pytest.mark.parametrize("class_width,minimum", [(0.8, 0.2), (0.2, 0.8)])
+def test_island_ties_use_the_class_width_and_board_minimum(tmp_path, class_width, minimum):
+    import pcbnew
+    project = tmp_path / "project"
+    shutil.copytree(FIXTURE, project)
+    pro = project / "route_demo.kicad_pro"
+    settings = json.loads(pro.read_text())
+    for netclass in settings["net_settings"]["classes"]:
+        netclass["track_width"] = class_width
+    settings["board"]["design_settings"]["rules"]["min_track_width"] = minimum
+    pro.write_text(json.dumps(settings))
+    board = pcbnew.LoadBoard(str(project / BOARD))
+    original = {t.m_Uuid.AsString() for t in board.GetTracks()}
+    report = tmp_path / "short.json"
+    report.write_text(json.dumps({"short": ["J2.2@B.Cu"]}))
+    result = spoke_script("tie-islands", project / BOARD, report)
+    assert result["added_tracks"] > 0, result
+    board = pcbnew.LoadBoard(str(project / BOARD))
+    added = [t for t in board.GetTracks() if t.m_Uuid.AsString() not in original]
+    assert len(added) == result["added_tracks"]
+    assert {t.GetWidth() for t in added} == {pcbnew.FromMM(max(class_width, minimum))}

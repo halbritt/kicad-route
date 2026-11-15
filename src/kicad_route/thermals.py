@@ -63,7 +63,7 @@ def _pour_facts(copy):
 
 def short_pads(api, work, project_dir, before, board_file, label, folder):
     """(KiCad's report of `board_file`, the pads that the copper laid since `before` left short
-    of their pour, as "REF.PAD@layer"), or (None, None) when a step could not run."""
+    of their pour, as {"REF.PAD@layer": {failure kinds}}), or (None, None) when a step could not run."""
     ref_report, reference = stitch._refilled(api, work, project_dir, before, "reference", folder)
     report, copy = stitch._refilled(api, work, project_dir, board_file, label, folder)
     if ref_report is None or reference is None or report is None or copy is None:
@@ -72,7 +72,10 @@ def short_pads(api, work, project_dir, before, board_file, label, folder):
     if then is None or now is None:
         return None, None
     _, delta = pour.compare(then, now)
-    found = {failure["pad"] for failure in delta["failures"] if failure["kind"] in KINDS}
+    found = {}
+    for failure in delta["failures"]:
+        if failure["kind"] in KINDS:
+            found.setdefault(failure["pad"], set()).add(failure["kind"])
     new_v, _ = api.drc_delta(ref_report, report, "violations")
     for v in new_v:
         if v.get("type") != "starved_thermal" or v.get("severity") != "error":
@@ -84,8 +87,9 @@ def short_pads(api, work, project_dir, before, board_file, label, folder):
         for it in v.get("items", []):
             m = DRC_PAD_RE.match(it.get("description", ""))
             if m:
-                found.add(f"{m.group(2)}.{m.group(1)}@{layer}")
-    return report, sorted(found)
+                kind = "isolated_island" if "isolated island" in desc else "spokes_below_minimum"
+                found.setdefault(f"{m.group(2)}.{m.group(1)}@{layer}", set()).add(kind)
+    return report, dict(sorted(found.items()))
 
 
 def repair(work, board, before, output, route_again, api, label="", seconds=PASS_S):
@@ -124,8 +128,7 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
     rec["starved_before"] = rec["starved_after"] = len(short)
     if not short:
         return rec
-    has_islands = (any("isolated island" in v.get("description", "") for v in starved(base))
-                   or any(p.get("kind") == "isolated_island" for p in (short.values() if isinstance(short, dict) else [])))
+    has_islands = any("isolated_island" in kinds for kinds in short.values())
     if stitch.SPOKE_AREAS in output.read_bytes() and not has_islands:
         # --reserve-spokes / --reserve-spoke-pad: the caller chose the corridors of this run, they
         # are still on the board, and a second set cannot be reserved beside them
@@ -244,8 +247,7 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
                 max_zp = max((zone_pad_counts.get(n, 0) for n in nets_k), default=0)
                 return (max_zp, len(nets_k), k)
             queue = [[key] for key in sorted(keys, key=_pad_order)[:SINGLE_PADS]]
-    has_islands = (any("isolated island" in v.get("description", "") for v in starved(report))
-                   or any(p.get("kind") == "isolated_island" for p in (short.values() if isinstance(short, dict) else [])))
+    has_islands = any("isolated_island" in kinds for kinds in short.values())
     if short and has_islands:
         index += 1
         api.copy_project(board.parent, folder / "round-tie")
@@ -255,13 +257,15 @@ def repair(work, board, before, output, route_again, api, label="", seconds=PASS
             helper("strip-tie.log", "strip", trial)
         drc_json = folder / "round-tie-drc.json"
         tie_payload = dict(report)
-        tie_payload["short"] = list(short.keys()) if isinstance(short, dict) else list(short)
+        tie_payload["short"] = list(short)
         common.write_json(drc_json, tie_payload)
         tied, ttag = helper("tie-islands.log", "tie-islands", trial, drc_json)
         if ttag and ttag.get("added_tracks"):
             swept = common.run_cmd([api.pcbnew_python(), api.KICAD_SCRIPTS / "dangling.py", "sweep", before, trial],
                                    work, folder / f"dangling-tie.log", timeout=900)
             rec["commands"].append(common.public(swept))
+            if swept["exit_code"] != 0:
+                return failed(f"could not look for dangling copper after the island repair (see {swept['log']})")
             after, short_after = short_pads(api, work, board.parent, before, trial, "after-tie", folder.name + "-drc")
             if after is not None:
                 (open_before, found_before), (open_after, found_after) = _counts(report), _counts(after)

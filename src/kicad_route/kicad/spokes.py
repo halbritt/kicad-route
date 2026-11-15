@@ -679,7 +679,9 @@ def tie_islands(pcbnew, board_path, report_path):
         radius = int(math.hypot(size.x, size.y) / 2)
         gap = pad.GetThermalGap() or pcbnew.FromMM(0.5)
         reach = radius + gap + pcbnew.FromMM(0.15)
-        track_w = pcbnew.FromMM(0.25)
+        settings = board.GetDesignSettings()
+        netclass = settings.m_NetSettings.GetEffectiveNetClass(pad.GetNetname())
+        track_w = int(max(netclass.GetTrackWidth(), settings.m_TrackMinWidth))
         pad_added = 0
         for angle in (45, 135, 225, 315):
             rad = math.radians(angle)
