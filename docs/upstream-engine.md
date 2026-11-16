@@ -137,3 +137,18 @@ carry about 500 changed lines in twelve listed changes.
 The fork's own trim of a track that runs past its pad (92 lines) stays dropped. The
 third change is 19 lines inside upstream's dangle trim and uses its connectivity
 gate and its handling of input copper.
+
+## Explicit copper item identities
+
+`kicad_writer.generate_segment_sexpr` and `generate_via_sexpr` accept the
+keyword-only `item_uuid` argument. A supplied value must be canonical lowercase,
+hyphenated, non-nil UUID text; it is emitted unchanged. Other types raise
+`TypeError`, and malformed, noncanonical or nil strings raise `ValueError`.
+Omitting it, or passing `None`, keeps the existing fresh UUID4 behavior.
+
+This is an opt-in serialization interface. Existing callers still allocate new
+identities. A caller supplying an ID must ensure the original item is not also
+retained in the output text; the serializer neither removes that item nor checks
+board-wide uniqueness. This interface alone does not establish authoritative
+board state or ownership. `tests/test_writer_identity.py` checks identity and
+fields through the owned parser and native pcbnew save/reload.

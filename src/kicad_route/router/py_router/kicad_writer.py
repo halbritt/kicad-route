@@ -335,14 +335,34 @@ def move_copper_graphics_to_silkscreen(content: str) -> str:
 EDGE_ROUNDING_MM = 2 ** 0.5 * 1e-6
 
 
+def _serialized_item_uuid(item_uuid: Optional[str]) -> str:
+    """Use a supplied canonical non-nil UUID, or allocate a new item identity."""
+    if item_uuid is None:
+        return str(uuid.uuid4())
+    if not isinstance(item_uuid, str):
+        raise TypeError('item_uuid must be a canonical UUID string or None')
+    try:
+        parsed = uuid.UUID(item_uuid)
+    except ValueError as error:
+        raise ValueError('item_uuid must be a canonical lowercase non-nil UUID') from error
+    if str(parsed) != item_uuid or parsed.int == 0:
+        raise ValueError('item_uuid must be a canonical lowercase non-nil UUID')
+    return item_uuid
+
+
 def generate_segment_sexpr(start: Tuple[float, float], end: Tuple[float, float],
                            width: float, layer: str, net_id: int,
-                           net_name: str = None) -> str:
+                           net_name: str = None, *, item_uuid: Optional[str] = None) -> str:
     """Generate KiCad S-expression for a track segment.
 
     Args:
         net_name: If provided, output KiCad 10 format (net "name") instead of (net id).
+        item_uuid: Canonical lowercase, hyphenated, non-nil UUID text to emit
+            exactly. None (the default) allocates a fresh UUID4. Other types
+            raise TypeError; malformed/noncanonical/nil values raise ValueError.
+            The caller must ensure this identity is not already in the output.
     """
+    identity = _serialized_item_uuid(item_uuid)
     net_str = f'(net "{_escape_net_name(net_name)}")' if net_name is not None else f'(net {net_id})'
     return f'''	(segment
 		(start {start[0]:.6f} {start[1]:.6f})
@@ -350,7 +370,7 @@ def generate_segment_sexpr(start: Tuple[float, float], end: Tuple[float, float],
 		(width {width})
 		(layer "{layer}")
 		{net_str}
-		(uuid "{uuid.uuid4()}")
+		(uuid "{identity}")
 	)'''
 
 
@@ -597,10 +617,13 @@ def generate_via_sexpr(x: float, y: float, size: float, drill: float,
                        layers: List[str], net_id: int, free: bool = False,
                        net_name: str = None, tenting_attrs: dict = None,
                        inherit_when_unspecified: bool = False,
-                       via_type: str = None) -> str:
+                       via_type: str = None, *, item_uuid: Optional[str] = None) -> str:
     """Generate KiCad S-expression for a via.
 
     Args:
+        item_uuid: Same explicit identity contract as generate_segment_sexpr:
+            canonical lowercase, hyphenated, non-nil UUID text, or None for a
+            fresh UUID4. Caller owns uniqueness in the output board.
         free: If True, adds (free yes) to prevent KiCad from auto-assigning net based on overlapping tracks.
         net_name: If provided, output KiCad 10 format (net "name") instead of (net id).
         tenting_attrs: The via's own protection spec as parsed from the board
@@ -622,6 +645,7 @@ def generate_via_sexpr(x: float, y: float, size: float, drill: float,
             `buried` (KiCad 10's word, which KiCad 9 refuses to load) only ever
             goes back into the KiCad 10 file it was read from.
     """
+    identity = _serialized_item_uuid(item_uuid)
     layers_str = '" "'.join(layers)
     type_word = f' {via_type}' if via_type in PARTIAL_VIA_TYPES else ''
     free_str = "\n\t\t(free yes)" if free else ""
@@ -635,7 +659,7 @@ def generate_via_sexpr(x: float, y: float, size: float, drill: float,
 		(drill {drill})
 		(layers "{layers_str}"){tenting_str}{free_str}
 		{net_str}
-		(uuid "{uuid.uuid4()}")
+		(uuid "{identity}")
 	)'''
 
 

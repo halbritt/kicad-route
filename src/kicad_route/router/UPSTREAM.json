@@ -173,6 +173,13 @@
       "tests": [
         "tests/test_nested_net_story.py"
       ]
+    },
+    {
+      "id": "explicit-copper-item-identity",
+      "purpose": "Segment and via serializers optionally emit a caller-supplied canonical non-nil UUID; omission retains fresh identity allocation. No existing call sites opt in.",
+      "files": [
+        "py_router/kicad_writer.py"
+      ]
     }
   ],
   "local_files": [
