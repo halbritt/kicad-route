@@ -293,7 +293,7 @@ def test_snapshot_failure_retains_journal_and_reports_incomplete(tmp_path, monke
         event(s, 'accepted')
         return 42
 
-    def fail_snapshot(*args):
+    def fail_snapshot(*args, **kwargs):
         raise ValueError('bad result metadata')
 
     with monkeypatch.context() as m:
@@ -303,3 +303,101 @@ def test_snapshot_failure_retains_journal_and_reports_incomplete(tmp_path, monke
     assert len(events(story)) == 1
     assert story['diagnostics_complete'] is False
     assert story['diagnostic_errors'] == [{'call_id': 0, 'error': 'bad result metadata'}]
+
+
+@pytest.mark.parametrize('broken', ['repr', 'cycle', 'name'])
+@pytest.mark.parametrize('routing_error', [False, True])
+def test_event_capture_failure_is_diagnostic_only(tmp_path, broken, routing_error):
+    board = str(tmp_path / 'capture-failure.kicad_pcb')
+
+    class BrokenRepr:
+        def __repr__(self):
+            raise ValueError('broken diagnostic repr')
+
+    class BrokenName:
+        @property
+        def name(self):
+            raise ValueError('broken diagnostic name')
+
+    @diagnostic_run
+    def route(input_file, output_file):
+        s = state()
+        bind_state(s)
+        payload = {'debug': BrokenRepr()} if broken == 'repr' else {}
+        if broken == 'cycle':
+            payload['cycle'] = payload
+        if broken == 'name':
+            s.pcb_data.nets[3] = BrokenName()
+        record_net_event(s, 3, 'attempt', payload)
+        s.pcb_data.nets[3] = NS(name='GND')
+        event(s, 'continued')
+        if routing_error:
+            raise RuntimeError('original routing error')
+        return 42
+
+    if routing_error:
+        with pytest.raises(RuntimeError, match='original routing error'):
+            route(board, board)
+    else:
+        assert route(board, board) == 42
+    story = read(board)
+    assert story['diagnostics_complete'] is False
+    assert story['calls'][0]['event_count'] == 2
+    captured = events(story)
+    assert len(captured) == 2
+    assert [e['event'] for e in captured] == ['attempt', 'phase3_cascade']
+    error = story['diagnostic_errors'][0]
+    assert error['call_id'] == 0 and error['order'] == 0 and error['net_id'] == 3
+    assert error['event'] == 'attempt'
+    assert error['stage'] == ('net_name' if broken == 'name' else 'event_details')
+    assert error['error_type'] == ('RecursionError' if broken == 'cycle' else 'ValueError')
+    assert captured[0]['capture_errors'] == [error]
+    assert 'capture_errors' not in captured[1]
+    assert story['calls'][0]['completion'] == ('raised' if routing_error else 'returned')
+
+
+def test_numpy_item_values_are_detached_at_capture(tmp_path):
+    import numpy as np
+    board = str(tmp_path / 'numpy.kicad_pcb')
+
+    @diagnostic_run
+    def route(input_file, output_file):
+        s = state()
+        bind_state(s)
+        nested = {'pads': ['original']}
+        obj = np.empty((), dtype=object)
+        obj[()] = nested
+        record_net_event(s, 3, 'attempt', {'number': np.int64(7), 'object': obj})
+        nested['pads'].append('later')
+        event(s, 'continued')
+
+    route(board, board)
+    story = read(board)
+    assert story['diagnostics_complete']
+    assert events(story)[0]['details'] == {'number': 7, 'object': {'pads': ['original']}}
+
+
+@pytest.mark.parametrize('signal', [KeyboardInterrupt, SystemExit])
+def test_event_capture_does_not_swallow_process_signals(tmp_path, signal):
+    board = str(tmp_path / 'signal.kicad_pcb')
+
+    class InterruptingRepr:
+        def __repr__(self):
+            raise signal('stop')
+
+    @diagnostic_run
+    def route(input_file, output_file):
+        s = state()
+        bind_state(s)
+        record_net_event(s, 3, 'attempt', {'debug': InterruptingRepr()})
+        return 'must not return'
+
+    with pytest.raises(signal, match='stop'):
+        route(board, board)
+    story = read(board)
+    assert story['calls'][0]['completion'] == 'raised'
+    assert story['calls'][0]['exception'] == signal.__name__
+    assert not story['diagnostics_complete']
+    assert story['calls'][0]['event_count'] == 1
+    assert len(events(story)) == 1
+    assert events(story)[0]['capture_errors'][0]['error_type'] == signal.__name__

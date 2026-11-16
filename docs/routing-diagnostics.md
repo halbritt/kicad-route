@@ -25,7 +25,14 @@ all the attempted copper in the event history.
 
 `completion: returned` describes control flow, including a normal budget-stop
 return; it is not routing success. `completion: raised` includes the exception
-type. Both paths publish recorded history when Python unwinds. Snapshot errors
+type. Both paths publish recorded history when Python unwinds. Event conversion
+or net-name failures retain one event with `capture_errors`, also listed under
+`diagnostic_errors`, and set `diagnostics_complete: false`. The error identifies
+the call, event order/sequence, numeric net ID, capture stage and exception.
+Unconvertible details are `null`; unresolved names use `net<id>`. Ordinary
+capture errors preserve routing's return or later exception. KeyboardInterrupt
+and SystemExit are recorded and re-raised. NumPy object values returned by
+`item()` are recursively detached, just like ordinary containers. Snapshot errors
 set `diagnostics_complete: false` and appear in `diagnostic_errors`; recorded
 events remain. This flag measures diagnostic collection, not board correctness.
 Write errors print a diagnostic failure and remove a stale destination when

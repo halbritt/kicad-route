@@ -54,13 +54,18 @@ def _jsonable(x) -> Any:
         return x
     if hasattr(x, 'item'):  # numpy scalar
         try:
-            return x.item()
+            value = x.item()
         except Exception:
             pass
+        else:
+            # Object scalars can contain mutable dicts/lists. Detach those too;
+            # long-double scalars may return their own type, so use repr there.
+            if type(value) is not type(x):
+                return _jsonable(value)
     return repr(x)
 
 
-def build_net_story(state, output_file: str) -> dict:
+def build_net_story(state, output_file: str, *, include_events=True) -> dict:
     """Snapshot the existing per-net fields of one routing state."""
     pcb_data = state.pcb_data
     story: Dict[str, Any] = {
@@ -98,7 +103,8 @@ def build_net_story(state, output_file: str) -> dict:
                              if nid in bg.net_ids else None),
                 'corridor_planned': bg.name in corridors,
             }
-        events = (getattr(state, 'net_history', {}) or {}).get(nid, [])
+        events = ((getattr(state, 'net_history', {}) or {}).get(nid, [])
+                  if include_events else [])
         entry['events'] = [
             {'seq': e.get('sequence'), 'event': e.get('event'),
              'details': _jsonable(e.get('details'))}

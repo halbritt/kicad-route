@@ -52,7 +52,7 @@ class _Call:
         if self.state is None:
             return
         from net_story import build_net_story, _jsonable
-        snapshot = _jsonable(build_net_story(self.state, self.run.output))
+        snapshot = _jsonable(build_net_story(self.state, self.run.output, include_events=False))
         for net in snapshot['nets'].values():
             # Events live only in the run's journal, not repeated per snapshot.
             net.pop('events')
@@ -77,12 +77,38 @@ def record_event(state, net_id, event):
     # entry. That attempted work belongs to the current call.
     call = active.run.states.get(id(state), active)
     from net_story import _jsonable, _net_name
-    # Detach nested mutable values now, rather than retaining aliases that a
-    # later undo or retry can change. Local sequence numbers remain unchanged.
-    saved = _jsonable({'seq': event['sequence'], 'event': event['event'], 'details': event['details']})
-    saved.update(call_id=call.data['call_id'], order=len(call.run.events))
-    call.run.events.append((_net_name(state.pcb_data, net_id), net_id, saved))
+    # Keep one event even if its optional payload cannot be captured. The
+    # fallback net name is attributable by ID; it is not a resolved net name.
+    saved = {'seq': event['sequence'], 'event': event['event'], 'details': None,
+             'call_id': call.data['call_id'], 'order': len(call.run.events)}
+    captured = [f'net{net_id}', net_id, saved]
+    call.run.events.append(captured)
     call.data['event_count'] += 1
+    try:
+        saved['details'] = _jsonable(event['details'])
+    except BaseException as error:
+        _capture_error(call, saved, net_id, 'event_details', error)
+        if not isinstance(error, Exception):
+            raise  # process signals remain signals, with an incomplete capture
+    try:
+        captured[0] = _net_name(state.pcb_data, net_id)
+    except BaseException as error:
+        _capture_error(call, saved, net_id, 'net_name', error)
+        if not isinstance(error, Exception):
+            raise
+
+
+def _capture_error(call, event, net_id, stage, error):
+    # Exception messages can themselves be user-defined diagnostic objects.
+    try:
+        message = str(error)
+    except Exception:
+        message = '<error message unavailable>'
+    failure = {'call_id': event['call_id'], 'order': event['order'],
+               'seq': event['seq'], 'event': event['event'], 'net_id': net_id,
+               'stage': stage, 'error_type': type(error).__name__, 'error': message}
+    call.run.errors.append(failure)
+    event.setdefault('capture_errors', []).append(failure)
 
 
 def defer_story():
