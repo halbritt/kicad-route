@@ -301,11 +301,14 @@ def record_net_event(state: RoutingState, net_id: int, event: str, details: Dict
     if net_id not in state.net_history:
         state.net_history[net_id] = []
 
-    state.net_history[net_id].append({
+    entry = {
         "event": event,
         "sequence": state.route_index,
         "details": details or {}
-    })
+    }
+    state.net_history[net_id].append(entry)
+    from routing_run_history import record_event
+    record_event(state, net_id, entry)
 
 
 def record_rip_ancestry(state: RoutingState, ripper_net_id: int, ripped_net_id: int):

@@ -5,13 +5,14 @@ its bus membership and corridor, its place in the routing order, every
 recorded event (initial route, failures with named blockers, who ripped
 it and when, reroutes, rescue rungs fired), its multipoint edge structure
 and Phase-3 tap outcomes, and the costs it paid (iterations, length,
-vias, per-layer copper). Assembled at end of run from state the engine
-already tracks -- state.net_history (record_net_event), routed_results,
-the bus maps -- plus a few story-only recordings added for this dump.
+vias, per-layer copper). Events are copied when recorded; per-call results and bus maps are
+snapshotted on exit. The outer batch_route writes once, including nested
+repair calls, so their attempted work survives later geometry rollback.
 
 Enable with KICAD_NET_STORY=1; batch_route writes
 <output_basename>_netstory.json next to the output board. The dump is
-read-only over engine state and never affects routing.
+read-only over engine state. See docs/routing-diagnostics.md for aggregation
+and failure semantics.
 
 Not yet included (needs Rust instrumentation): the A* cost breakdown per
 move class (via cost, turn cost, proximity taxes). The per-net iteration
@@ -19,7 +20,6 @@ count is the search-effort proxy available today.
 """
 from __future__ import annotations
 
-import json
 import os
 from typing import Any, Dict
 
@@ -60,8 +60,8 @@ def _jsonable(x) -> Any:
     return repr(x)
 
 
-def dump_net_story(state, output_file: str) -> str:
-    """Assemble and write the per-net story JSON. Returns the path."""
+def build_net_story(state, output_file: str) -> dict:
+    """Snapshot the existing per-net fields of one routing state."""
     pcb_data = state.pcb_data
     story: Dict[str, Any] = {
         'board': output_file,
@@ -144,10 +144,26 @@ def dump_net_story(state, output_file: str) -> str:
             entry['status'] = 'failed_or_untouched'
         story['nets'][_net_name(pcb_data, nid)] = entry
 
+    return story
+
+
+def story_path(output_file):
     base, _ = os.path.splitext(output_file or 'routing')
-    path = f"{base}_netstory.json"
-    with open(path, 'w') as f:
-        json.dump(story, f, indent=1, sort_keys=True)
+    return f"{base}_netstory.json"
+
+
+def write_net_story(story, output_file):
+    from route_summary import write_summary_file
+    path = story_path(output_file)
+    write_summary_file(path, story)
     print(f"  Net story written to {path} "
           f"({len(story['nets'])} net(s), KICAD_NET_STORY)")
     return path
+
+
+def dump_net_story(state, output_file: str) -> str:
+    """Write a standalone story, or defer to the active outer run owner."""
+    from routing_run_history import defer_story
+    if defer_story():
+        return story_path(output_file)
+    return write_net_story(build_net_story(state, output_file), output_file)

@@ -83,6 +83,7 @@ from routing_context import (
     record_single_ended_success,
 )
 from routing_state import RoutingState, create_routing_state, print_failed_net_histories
+from routing_run_history import diagnostic_run, bind_state
 from memory_debug import (
     get_process_memory_mb, format_memory_stats,
     estimate_net_obstacles_cache_mb, estimate_track_proximity_cache_mb,
@@ -2320,6 +2321,7 @@ def _detect_dedicated_inner_plane_layers(pcb_data, layers) -> Set[str]:
     return set(_dedicated_inner_plane_layer_owners(pcb_data, layers).keys())
 
 
+@diagnostic_run
 def batch_route(input_file: str, output_file: str, net_names: List[str],
                 layers: List[str] = None,
                 # #530: cap every auto-read net class at this clearance (the
@@ -4491,6 +4493,8 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
         cancel_check=cancel_check,
         progress_callback=progress_callback,
     )
+
+    bind_state(state)
 
     # Create local aliases for frequently-used state fields
     routed_net_ids = state.routed_net_ids

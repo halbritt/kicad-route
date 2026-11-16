@@ -158,6 +158,21 @@
       "tests": [
         "tests/test_necked_width_floor.py"
       ]
+    },
+    {
+      "id": "nested-routing-history",
+      "purpose": "One outer routing call publishes diagnostic events from itself and nested repair calls, retaining attempted work across geometry rollback and preserving each call's result snapshot.",
+      "files": [
+        "py_router/net_story.py",
+        "py_router/route.py",
+        "py_router/routing_state.py"
+      ],
+      "local_code": [
+        "py_router/routing_run_history.py"
+      ],
+      "tests": [
+        "tests/test_nested_net_story.py"
+      ]
     }
   ],
   "local_files": [
@@ -167,6 +182,7 @@
     "py_router/effective_config_evidence.py",
     "py_router/effective_config_fields.json",
     "py_router/native_delay.py",
+    "py_router/routing_run_history.py",
     "py_router/sexpr.py",
     "tests/native_lifecycle_support.py",
     "tests/regression_utils.py",
@@ -177,6 +193,7 @@
     "tests/test_krt64_tap_grid.py",
     "tests/test_multipoint_class_via.py",
     "tests/test_necked_width_floor.py",
+    "tests/test_nested_net_story.py",
     "tests/test_no_stub_swap_reaches_config.py",
     "tests/test_obstacle_lifecycle.py",
     "tests/test_pad_corner_allowance.py",

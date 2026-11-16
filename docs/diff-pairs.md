@@ -199,8 +199,8 @@ rule, net identity or authored placement changes. Invalid/nonfinite bounds,
 controls without `--bus`, conflicting raw backend flags and other backends
 refuse before routing.
 
-The actual single-ended process retains its native net-story diagnostic and
-reports observed groups under `process.bus_routing`, including the diagnostic
+The actual single-ended process retains its native [net-story diagnostic](routing-diagnostics.md)
+and reports observed groups under `process.bus_routing`, including the diagnostic
 and raw-board hashes. Missing diagnostics cannot establish a successful bus
 operation. Geometric membership is not electrical bus identity, length/time
 matching or signal-integrity acceptance. Final saved connectivity, geometry and

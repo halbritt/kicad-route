@@ -73,3 +73,7 @@ def test_bga_rescue_config_does_not_depend_on_plane_ownership():
 
 def test_phase3_retry_requires_connectivity_progress():
     _run_source_regression("test_phase3_retry_progress.py")
+
+
+def test_nested_net_story_keeps_real_child_calls():
+    _run_source_regression('test_nested_net_story.py')
