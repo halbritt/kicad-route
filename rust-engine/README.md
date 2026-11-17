@@ -276,6 +276,13 @@ clearance, circle/rectangle/track targets and all subsets of six obstacles.
 A further 256 worlds compare multiple targets and multiple off-grid seeds
 against the independent cost oracle. Envelope checks cover zero cost at
 contacting caps and consistency over full and shortened edges with odd widths.
+The goal-cap contract uses the production contact predicate for circle/rectangle
+pads, axis tracks and arbitrary-angle tracks in both endpoint orders, including
+negative coordinates. The axis-aligned cost oracles retain independent geometry.
+Direct estimate tests protect one work unit per target item and every exact
+cutoff against the caller's shared outer budget, without pinning whole-route
+work totals. The internal estimate receives a nonempty target set from the
+component-join caller; empty targets are outside this private precondition.
 The exact authored two-net native request that previously exhausted 100,000
 expansions is retained byte-for-byte as a Rust regression, including its original
 limits and request SHA-256. Its complete result must connect all components,
@@ -343,6 +350,7 @@ reserves N iterations before an array build, sort or reverse.
 | Component item enumeration, seen initialization, root visits, pending pops, pair visits | 1 per item/iteration; pair visits count even when already seen |
 | Component pair contact, source/goal cap contact, target prefix/cap contact | 1 per exact geometry predicate, including every bisection probe |
 | Source anchors and target enumeration | 1 per source item/anchor/target before processing |
+| Component estimate evaluation | 1 per target item before computing its envelope step bound, including targets visited after an estimate of zero |
 | Edge outline check, pad/track scans, foreign geometry | 1 per edge check, item visit, and applicable geometry predicate |
 | Search seeds, successor attempts, admitted queue pushes and all pops (including stale) | 1 per action; push includes bounded map updates |
 | Path reconstruction, reversal, coalescing and proposal construction | 1 per visited/reserved point per stage |

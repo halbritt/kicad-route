@@ -1,5 +1,6 @@
+use crate::budget::WorkBudget;
 use crate::components::Copper;
-use crate::model::{Failure, Point, Shape, Status, Track};
+use crate::model::{Failure, Point, Rules, Shape, Status, Track};
 use crate::Engine;
 use std::cmp::Reverse;
 use std::collections::{BTreeSet, BinaryHeap, HashMap};
@@ -133,19 +134,7 @@ pub(crate) fn join_components(
         &starts.into_iter().collect::<Vec<_>>(),
         limit,
         expanded,
-        |p| {
-            let mut lower_bound = u64::MAX;
-            for target in targets.iter().flatten() {
-                engine.work.charge(1)?;
-                lower_bound = lower_bound.min(contact_steps(
-                    p,
-                    *target,
-                    engine.input.rules.width_nm,
-                    engine.input.rules.grid_nm,
-                ));
-            }
-            Ok(lower_bound)
-        },
+        |p| component_estimate(p, targets, &engine.input.rules, &engine.work),
         |a, b| {
             // Check the actual shortened goal edge before rejecting the full
             // grid step: its unused suffix may hit an obstacle or board edge.
@@ -166,6 +155,22 @@ pub(crate) fn join_components(
             Ok(false)
         },
     )
+}
+
+// The caller supplies nonempty components from groups[1..] after finding at
+// least two disconnected groups. Estimate work belongs to its active scope.
+fn component_estimate(
+    p: Point,
+    targets: &[Vec<Copper<'_>>],
+    rules: &Rules,
+    work: &WorkBudget,
+) -> Result<u64, Failure> {
+    let mut lower_bound = u64::MAX;
+    for target in targets.iter().flatten() {
+        work.charge(1)?;
+        lower_bound = lower_bound.min(contact_steps(p, *target, rules.width_nm, rules.grid_nm));
+    }
+    Ok(lower_bound)
 }
 
 /// Lower bound to a superset of all endpoint-cap contacts with this target.
