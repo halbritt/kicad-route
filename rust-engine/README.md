@@ -133,11 +133,15 @@ Half-width plus edge clearance applies at both endpoints, sufficient for the
 convex rectangular outline. The coordinate/size limits bound arithmetic;
 critical squares/products, position steps and counters use checked arithmetic.
 
-`Engine` owns an immutable flat median-balanced static spatial index
-(`pad_spatial`) for input pads. The copper store owns immutable input tracks,
-an immutable flat static spatial index (`input_spatial`), generated tracks in
-dense slot storage, a generated-net index, a history-independent deterministic
-treap spatial index (`generated_spatial`), and an undo journal.
+`Engine` owns an immutable leaf-bucketed (`STATIC_LEAF_CAP = 32`) flat
+median-balanced static spatial index (`pad_spatial`) storing contiguous
+`(CopperAabb, net, ordinal)` entries ordered by `(min[0], min[1], ordinal)` and
+compact `PadCore` payloads, enabling same-net filtering and uniform same-net
+leaf fast-charging before exact geometry checks. The copper store owns immutable
+input tracks, an immutable leaf-bucketed static spatial index (`input_spatial`)
+with `TrackGeom` payloads, generated tracks in dense slot storage, a
+generated-net index, an iterative history-independent deterministic treap
+spatial index (`generated_spatial`) storing `(slot, net)`, and an undo journal.
 `Engine::transaction` exposes a borrowed transaction
 view inside a closure. Returning `Ok` commits that scope; returning `Err` rolls
 it back. A panic that unwinds through the closure rolls back and propagates its
@@ -372,7 +376,7 @@ reserves N iterations before an array build, sort or reverse.
 | Component pair contact, source/goal cap contact, target prefix/cap contact | 1 per exact geometry predicate, including every bisection probe |
 | Source anchors and target enumeration | 1 per source item/anchor/target before processing |
 | Component estimate evaluation | 1 per target item before computing its envelope step bound, including targets visited after an estimate of zero |
-| Edge outline check, spatial broad-phase, candidate lookup, foreign geometry | 1 per edge check, 1 per visited/pruned spatial node, 1 per overlapping candidate lookup, and 1 per foreign exact geometry predicate |
+| Edge outline check, spatial broad-phase, candidate lookup, foreign geometry | 1 per edge check; 1 per visited or pruned static/treap node; 1 per entry in overlapping static leaves (before net/AABB filter, bulk-charged on uniform same-net leaves with per-entry exhaustion); 1 per overlapping foreign pad or input track (covering payload access and exact geometry); and 1 per overlapping foreign generated track slot lookup (covering exact geometry; same-net `(slot, net)` entries skip slot lookup) |
 | Search seeds, successor attempts, admitted queue pushes and all pops (including stale) | 1 per action; push includes bounded map updates |
 | Path reconstruction, reversal, coalescing and proposal construction | 1 per visited/reserved point per stage |
 | Collinear overlap subtraction | 1 per scanned track, 1 per overlap before sort, 1 per merge, 1 per reversed/emitted span |

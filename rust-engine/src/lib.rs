@@ -9,14 +9,14 @@ mod spatial;
 pub mod state;
 use components::Copper;
 use model::*;
-use spatial::{CopperAabb, StaticSpatialIndex, SweptAabb};
+use spatial::{CopperAabb, PadCore, StaticSpatialIndex, SweptAabb};
 use state::CopperStore;
 use std::ops::ControlFlow;
 
 pub struct Engine {
     input: Input,
     copper: CopperStore,
-    pad_spatial: StaticSpatialIndex,
+    pad_spatial: StaticSpatialIndex<PadCore>,
     work: budget::WorkBudget,
 }
 /// Engine scope admission errors are distinct from an arbitrary caller error.
@@ -91,9 +91,12 @@ impl Engine {
             .chain(input.tracks.iter().map(|t| t.id.clone()))
             .collect();
         let pad_spatial = StaticSpatialIndex::new(input.pads.iter().enumerate().map(|(i, pad)| {
+            let (lo, hi, radius) = pad.copper_core();
             (
                 u32::try_from(i).expect("bounded input pad count"),
+                pad.net,
                 CopperAabb::from_bounds(pad.copper_bounds()),
+                PadCore { lo, hi, radius },
             )
         }));
         let copper = CopperStore::new(
@@ -203,38 +206,44 @@ impl Engine {
             }
         }
         let swept = SweptAabb::swept(a, b, r.width_nm, r.clearance_nm);
-        let pad_flow = self.pad_spatial.visit(swept, &self.work, |ordinal| {
-            self.work.charge(1)?;
-            let p = &self.input.pads[ordinal as usize];
-            if p.net == 0 || p.net != net {
-                self.work.charge(1)?;
-                if geometry::track_near_pad(a, b, r.width_nm, r.clearance_nm, p, false) {
-                    return Ok(ControlFlow::Break(()));
-                }
-            }
-            Ok(ControlFlow::Continue(()))
-        })?;
+        let pad_flow =
+            self.pad_spatial
+                .visit_matching(swept, Some(net), &self.work, |_ordinal, core| {
+                    self.work.charge(1)?;
+                    if geometry::track_near_core(
+                        a,
+                        b,
+                        r.width_nm,
+                        r.clearance_nm,
+                        core.lo,
+                        core.hi,
+                        core.radius,
+                        false,
+                    ) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                })?;
         if pad_flow.is_break() {
             return Ok(false);
         }
-        let track_flow = self.copper.visit_candidates(swept, &self.work, |t| {
-            if t.net == 0 || t.net != net {
-                self.work.charge(1)?;
-                if geometry::segments_near(
-                    a,
-                    b,
-                    t.start,
-                    t.end,
-                    i128::from(r.width_nm)
-                        + i128::from(t.width_nm)
-                        + 2 * i128::from(r.clearance_nm),
-                    false,
-                ) {
-                    return Ok(ControlFlow::Break(()));
-                }
-            }
-            Ok(ControlFlow::Continue(()))
-        })?;
+        let track_flow =
+            self.copper
+                .visit_candidates_geoms_filtered(swept, Some(net), &self.work, |t| {
+                    if geometry::segments_near(
+                        a,
+                        b,
+                        t.start,
+                        t.end,
+                        i128::from(r.width_nm)
+                            + i128::from(t.width_nm)
+                            + 2 * i128::from(r.clearance_nm),
+                        false,
+                    ) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                })?;
         Ok(track_flow.is_continue())
     }
     fn components(&self, net: u32) -> Result<Vec<Vec<Copper<'_>>>, Failure> {

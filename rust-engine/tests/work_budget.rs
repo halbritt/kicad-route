@@ -507,20 +507,21 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
             locked: true,
         },
     ];
-    // Bounds(1) + 2 input_spatial visits(2) + 2 input lookups(2) + 2 geometry checks(2) = 7.
-    for limit in 0..=7 {
+    // Bounds(1) + 1 input_spatial leaf(1) + 2 leaf entries(2) + 2 foreign track lookups/geom(2) = 6.
+    for limit in 0..=6 {
         input_world.limits.max_work = limit;
         let e = Engine::new(input_world.clone()).unwrap();
         let res = e.legal_edge(1, [10, 30], [50, 30]);
-        if limit < 7 {
+        if limit < 6 {
             assert_eq!(res.unwrap_err().status, Status::WorkExhausted);
         } else {
             assert!(res.unwrap());
-            assert_eq!(e.work_used(), 7);
+            assert_eq!(e.work_used(), 6);
         }
     }
 
-    // Part B: 1 generated track at exact AABB tangency (pads disjoint in X from swept).
+    // Part B: 1 generated track at exact AABB tangency (2 pads share 1 leaf whose
+    // envelope overlaps swept at y=52, though each individual pad's copper is disjoint).
     let mut gen1 = fixture(false);
     gen1.bounds = Bounds {
         min: [-50, 3],
@@ -541,10 +542,14 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
     let mut e1 = Engine::new(gen1).unwrap();
     e1.route(1, 1000).unwrap();
     assert_eq!(e1.copper().generated().count(), 1);
-    // Bounds(1) + pad_spatial(root + pruned left = 2) + generated_spatial root(1)
-    // + generated slot lookup(1) + segments_near(1) = 6.
+    // Bounds(1) + pad_spatial(1 leaf + 2 entries = 3) + generated_spatial root(1)
+    // + generated slot lookup/geom(1) = 6.
     assert!(e1.legal_edge(2, [10, 50], [40, 50]).unwrap());
     assert_eq!(e1.work_used(), 6);
+    // Pruned-root check on both pad_spatial leaf and generated_spatial root:
+    // Bounds(1) + pruned pad leaf(1) + pruned generated treap root(1) = 3.
+    assert!(e1.legal_edge(2, [10, 10], [40, 10]).unwrap());
+    assert_eq!(e1.work_used(), 3);
 
     // Part C: 3 generated tracks at exact AABB tangency across separate nets.
     let mut gen3 = fixture(false);
@@ -583,9 +588,77 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
         e3.route(id, 1000).unwrap();
     }
     assert_eq!(e3.copper().generated().count(), 3);
-    // Bounds(1) + 6 pads * (visit + lookup + segments = 3) + 3 generated * (visit + lookup + segments = 3) = 28.
+    // Bounds(1) + pad_spatial(1 leaf + 6 entries + 6 foreign pads = 13)
+    // + generated_spatial(3 treap nodes + 3 foreign slot lookups/geom = 6) = 20.
     assert!(e3.legal_edge(4, [0, 30], [25, 30]).unwrap());
-    assert_eq!(e3.work_used(), 28);
+    assert_eq!(e3.work_used(), 20);
+
+    // Part D: Pruned non-root treap subtree (seq=3 at [20..25, 33], right child of root seq=2).
+    // Foreign net=4: Bounds(1) + pad_spatial(1 leaf + 6 entries + 2 hits = 9)
+    // + generated_spatial(seq=2: 1, seq=1: 1 + 1 slot = 2, seq=3 pruned: 1) = 14.
+    assert!(e3.legal_edge(4, [0, 30], [5, 30]).unwrap());
+    assert_eq!(e3.work_used(), 14);
+    // Same-net net=1: pad[0..2] skipped inside LeafEntry (1 + 6 = 7), seq=1 skipped via (slot, net) (1 + 1 + 1 = 3) => 11.
+    assert!(e3.legal_edge(1, [0, 30], [5, 30]).unwrap());
+    assert_eq!(e3.work_used(), 11);
+}
+
+#[test]
+fn static_spatial_internal_and_leaf_nodes_charge_before_pruning() {
+    let mut input = fixture(false);
+    input.bounds = Bounds {
+        min: [-10, 0],
+        max: [700, 50],
+    };
+    input.pads.clear();
+    input.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+    ];
+    for n in 0..33 {
+        let x = n * 20;
+        input.tracks.push(Track {
+            id: format!("20000000-0000-4000-8000-{n:012x}"),
+            net: 0,
+            start: [x, 33],
+            end: [x + 10, 33],
+            width_nm: 2,
+            locked: true,
+        });
+    }
+    // 33 items => 1 Internal root + 2 Leaves (16 and 17 entries).
+    // Far query [0, 10] -> [500, 10] prunes at the Internal root:
+    // Bounds(1) + pruned Internal root(1) = 2.
+    for limit in 0..=2 {
+        input.limits.max_work = limit;
+        let e = Engine::new(input.clone()).unwrap();
+        let res = e.legal_edge(1, [0, 10], [500, 10]);
+        if limit < 2 {
+            assert_eq!(res.unwrap_err().status, Status::WorkExhausted);
+        } else {
+            assert!(res.unwrap());
+            assert_eq!(e.work_used(), 2);
+        }
+    }
+    // Left-leaf-only query [0, 30] -> [10, 30]:
+    // Bounds(1) + Internal root(1) + Left Leaf(1) + 16 LeafEntry(16) + 1 hit(1) + pruned Right Leaf(1) = 21.
+    for limit in 0..=21 {
+        input.limits.max_work = limit;
+        let e = Engine::new(input.clone()).unwrap();
+        let res = e.legal_edge(1, [0, 30], [10, 30]);
+        if limit < 21 {
+            assert_eq!(res.unwrap_err().status, Status::WorkExhausted);
+        } else {
+            assert!(res.unwrap());
+            assert_eq!(e.work_used(), 21);
+        }
+    }
 }
 
 #[test]
@@ -642,7 +715,7 @@ fn route_insertion_charges_spatial_index_mutation_work() {
 
     // Exact 1-step route(1, 1000) work on this 2-pad fixture (includes 8 units
     // for generated_spatial.mutation_work() at empty tree before insert).
-    const EXACT_1STEP_WORK: u64 = 134;
+    const EXACT_1STEP_WORK: u64 = 132;
 
     i.limits.max_work = EXACT_1STEP_WORK - 1;
     let mut cutoff = Engine::new(i.clone()).unwrap();

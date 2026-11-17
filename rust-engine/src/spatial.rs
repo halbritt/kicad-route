@@ -1,6 +1,6 @@
-//! Conservative broad phase. Static copper uses a flat median-balanced BST;
-//! dynamic generated copper uses a history-independent deterministic treap.
-//! Exact geometry remains the caller's sole clearance authority.
+//! Conservative broad phase. Static copper uses a leaf-bucketed flat
+//! median-balanced BST; dynamic generated copper uses a history-independent
+//! deterministic treap. Exact geometry remains the caller's sole clearance authority.
 use crate::{
     budget::WorkBudget,
     model::{Failure, Point},
@@ -90,71 +90,201 @@ impl SweptAabb {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct FlatNode {
+pub(crate) const STATIC_LEAF_CAP: usize = 32;
+
+type StaticKey = (i64, i64, u32);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LeafEntry {
     copper: CopperAabb,
-    envelope: CopperAabb,
+    net: u32,
     ordinal: u32,
-    left: u32,
-    right: u32,
 }
 
-const _: () = assert!(std::mem::size_of::<FlatNode>() <= 80);
+const _: () = assert!(std::mem::size_of::<LeafEntry>() == 40);
+
+#[inline(always)]
+fn entry_key(entry: &LeafEntry) -> StaticKey {
+    (entry.copper.min[0], entry.copper.min[1], entry.ordinal)
+}
+
+#[derive(Clone, Copy, Debug)]
+enum StaticKind {
+    Internal {
+        left: u32,
+        right: u32,
+        split_min_x: i64,
+        split_min_y: i64,
+        split_ordinal: u32,
+    },
+    Leaf {
+        start: u32,
+        end: u32,
+        uniform_net: u32,
+    },
+}
+
+#[derive(Clone, Copy, Debug)]
+struct StaticNode {
+    envelope: CopperAabb,
+    kind: StaticKind,
+}
+
+const _: () = assert!(std::mem::size_of::<StaticNode>() <= 64);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PadCore {
+    pub lo: Point,
+    pub hi: Point,
+    pub radius: i64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TrackGeom {
+    pub start: Point,
+    pub end: Point,
+    pub width_nm: i64,
+}
+
+const _: () = assert!(std::mem::size_of::<PadCore>() <= 40);
+const _: () = assert!(std::mem::size_of::<TrackGeom>() <= 40);
 
 #[derive(Debug)]
-pub(crate) struct StaticSpatialIndex {
-    nodes: Vec<FlatNode>,
+pub(crate) struct StaticSpatialIndex<P> {
+    entries: Vec<LeafEntry>,
+    payloads: Vec<P>,
+    nodes: Vec<StaticNode>,
     root: u32,
 }
 
-impl StaticSpatialIndex {
-    pub fn new(items: impl IntoIterator<Item = (u32, CopperAabb)>) -> Self {
-        let mut entries: Vec<(u32, CopperAabb)> = items.into_iter().collect();
-        entries.sort_unstable_by(|a, b| (a.1.min[0], a.0).cmp(&(b.1.min[0], b.0)));
+impl<P: Copy + Eq> StaticSpatialIndex<P> {
+    pub fn new(items: impl IntoIterator<Item = (u32, u32, CopperAabb, P)>) -> Self {
+        let (mut entries, mut payloads): (Vec<LeafEntry>, Vec<P>) = items
+            .into_iter()
+            .map(|(ordinal, net, copper, payload)| {
+                (
+                    LeafEntry {
+                        copper,
+                        net,
+                        ordinal,
+                    },
+                    payload,
+                )
+            })
+            .unzip();
+        if entries.is_empty() {
+            return Self {
+                entries,
+                payloads,
+                nodes: Vec::new(),
+                root: NONE_U32,
+            };
+        }
+        let mut order: Vec<u32> =
+            (0..u32::try_from(entries.len()).expect("bounded static entries")).collect();
+        order.sort_unstable_by(|&a, &b| {
+            entry_key(&entries[a as usize]).cmp(&entry_key(&entries[b as usize]))
+        });
         assert!(
-            entries
+            order
                 .windows(2)
-                .all(|w| (w[0].1.min[0], w[0].0) < (w[1].1.min[0], w[1].0)),
+                .all(|w| entry_key(&entries[w[0] as usize]) < entry_key(&entries[w[1] as usize])),
             "static spatial keys must be unique"
         );
-        let mut nodes = Vec::with_capacity(entries.len());
-        fn build(slice: &[(u32, CopperAabb)], nodes: &mut Vec<FlatNode>) -> u32 {
-            if slice.is_empty() {
-                return NONE_U32;
+        for i in 0..order.len() {
+            let mut dst = i;
+            if order[dst] as usize == dst {
+                continue;
             }
-            let mid = slice.len() / 2;
-            let (ordinal, copper) = slice[mid];
+            let tmp_entry = entries[dst];
+            let tmp_payload = payloads[dst];
+            loop {
+                let src = order[dst] as usize;
+                order[dst] = dst as u32;
+                if src == i {
+                    entries[dst] = tmp_entry;
+                    payloads[dst] = tmp_payload;
+                    break;
+                }
+                entries[dst] = entries[src];
+                payloads[dst] = payloads[src];
+                dst = src;
+            }
+        }
+        drop(order);
+        let approx_leaves = entries.len().div_ceil(STATIC_LEAF_CAP / 2).max(1);
+        let mut nodes = Vec::with_capacity(approx_leaves * 2);
+        fn build(
+            entries: &[LeafEntry],
+            start: usize,
+            end: usize,
+            nodes: &mut Vec<StaticNode>,
+        ) -> u32 {
+            let len = end - start;
             let idx = u32::try_from(nodes.len()).expect("bounded spatial node arena");
-            nodes.push(FlatNode {
-                copper,
-                envelope: copper,
-                ordinal,
-                left: NONE_U32,
-                right: NONE_U32,
+            if len <= STATIC_LEAF_CAP {
+                let first = &entries[start];
+                let mut envelope = first.copper;
+                let mut uniform_net = first.net;
+                for entry in &entries[start + 1..end] {
+                    envelope = envelope.union(entry.copper);
+                    if entry.net != uniform_net {
+                        uniform_net = 0;
+                    }
+                }
+                nodes.push(StaticNode {
+                    envelope,
+                    kind: StaticKind::Leaf {
+                        start: u32::try_from(start).expect("bounded leaf start"),
+                        end: u32::try_from(end).expect("bounded leaf end"),
+                        uniform_net,
+                    },
+                });
+                return idx;
+            }
+            let mid = start + len / 2;
+            let split = entries[mid];
+            nodes.push(StaticNode {
+                envelope: split.copper,
+                kind: StaticKind::Leaf {
+                    start: 0,
+                    end: 0,
+                    uniform_net: 0,
+                },
             });
-            let left = build(&slice[..mid], nodes);
-            let right = build(&slice[mid + 1..], nodes);
-            let mut envelope = copper;
-            if left != NONE_U32 {
-                envelope = envelope.union(nodes[left as usize].envelope);
-            }
-            if right != NONE_U32 {
-                envelope = envelope.union(nodes[right as usize].envelope);
-            }
-            nodes[idx as usize].left = left;
-            nodes[idx as usize].right = right;
-            nodes[idx as usize].envelope = envelope;
+            let left = build(entries, start, mid, nodes);
+            let right = build(entries, mid, end, nodes);
+            let envelope = nodes[left as usize]
+                .envelope
+                .union(nodes[right as usize].envelope);
+            nodes[idx as usize] = StaticNode {
+                envelope,
+                kind: StaticKind::Internal {
+                    left,
+                    right,
+                    split_min_x: split.copper.min[0],
+                    split_min_y: split.copper.min[1],
+                    split_ordinal: split.ordinal,
+                },
+            };
             idx
         }
-        let root = build(&entries, &mut nodes);
-        Self { nodes, root }
+        let root = build(&entries, 0, entries.len(), &mut nodes);
+        Self {
+            entries,
+            payloads,
+            nodes,
+            root,
+        }
     }
 
-    pub fn visit(
+    #[inline(always)]
+    pub fn visit_matching(
         &self,
         bounds: SweptAabb,
+        net_filter: Option<u32>,
         work: &WorkBudget,
-        mut visitor: impl FnMut(u32) -> Result<ControlFlow<()>, Failure>,
+        mut visitor: impl FnMut(u32, &P) -> Result<ControlFlow<()>, Failure>,
     ) -> Result<ControlFlow<()>, Failure> {
         if self.root == NONE_U32 {
             return Ok(ControlFlow::Continue(()));
@@ -163,29 +293,52 @@ impl StaticSpatialIndex {
             work.charge(1)?;
             return Ok(ControlFlow::Continue(()));
         };
-        let mut stack = [NONE_U32; 64];
+        let mut stack = [NONE_U32; 32];
         let mut sp = 0usize;
         let mut idx = self.root;
         loop {
-            // One visit covers the subtree and item AABB tests, including pruned
+            // One visit covers the node (internal or leaf), including pruned
             // nodes. No uncharged linear scan precedes the exact predicates.
             work.charge(1)?;
             let node = &self.nodes[idx as usize];
             if node.envelope.overlaps(q) {
-                if node.copper.overlaps(q) && visitor(node.ordinal)?.is_break() {
-                    return Ok(ControlFlow::Break(()));
-                }
-                if node.left != NONE_U32 {
-                    if node.right != NONE_U32 {
-                        stack[sp] = node.right;
-                        sp += 1;
+                match node.kind {
+                    StaticKind::Leaf {
+                        start,
+                        end,
+                        uniform_net,
+                    } => {
+                        let start = start as usize;
+                        let end = end as usize;
+                        if uniform_net != 0 && net_filter == Some(uniform_net) {
+                            let len = (end - start) as u64;
+                            if work.charge(len).is_err() {
+                                for _ in start..end {
+                                    work.charge(1)?;
+                                }
+                            }
+                        } else {
+                            for (entry, payload) in self.entries[start..end]
+                                .iter()
+                                .zip(&self.payloads[start..end])
+                            {
+                                // Charge before inspecting entry.net or entry.copper.
+                                work.charge(1)?;
+                                if net_filter.is_none_or(|net| entry.net == 0 || entry.net != net)
+                                    && entry.copper.overlaps(q)
+                                    && visitor(entry.ordinal, payload)?.is_break()
+                                {
+                                    return Ok(ControlFlow::Break(()));
+                                }
+                            }
+                        }
                     }
-                    idx = node.left;
-                    continue;
-                }
-                if node.right != NONE_U32 {
-                    idx = node.right;
-                    continue;
+                    StaticKind::Internal { left, right, .. } => {
+                        stack[sp] = right;
+                        sp += 1;
+                        idx = left;
+                        continue;
+                    }
                 }
             }
             if sp == 0 {
@@ -195,6 +348,17 @@ impl StaticSpatialIndex {
             idx = stack[sp];
         }
         Ok(ControlFlow::Continue(()))
+    }
+
+    #[cfg(test)]
+    #[inline]
+    pub fn visit(
+        &self,
+        bounds: SweptAabb,
+        work: &WorkBudget,
+        mut visitor: impl FnMut(u32) -> Result<ControlFlow<()>, Failure>,
+    ) -> Result<ControlFlow<()>, Failure> {
+        self.visit_matching(bounds, None, work, |ordinal, _| visitor(ordinal))
     }
 
     #[cfg(test)]
@@ -208,53 +372,157 @@ impl StaticSpatialIndex {
         Ok(found)
     }
 
-    pub fn consistent(&self, expected: impl IntoIterator<Item = (u32, CopperAabb)>) -> bool {
-        let expected: BTreeMap<u32, CopperAabb> = expected.into_iter().collect();
-        fn inspect(
-            nodes: &[FlatNode],
+    pub fn consistent(
+        &self,
+        expected: impl IntoIterator<Item = (u32, u32, CopperAabb, P)>,
+    ) -> bool {
+        let expected: BTreeMap<u32, (u32, CopperAabb, P)> = expected
+            .into_iter()
+            .map(|(ordinal, net, copper, payload)| (ordinal, (net, copper, payload)))
+            .collect();
+        if self.payloads.len() != self.entries.len() {
+            return false;
+        }
+        if self.root == NONE_U32 {
+            return self.nodes.is_empty() && self.entries.is_empty() && expected.is_empty();
+        }
+        if self.entries.len() != expected.len() {
+            return false;
+        }
+        fn inspect<P: Copy + Eq>(
+            nodes: &[StaticNode],
+            entries: &[LeafEntry],
+            payloads: &[P],
             idx: u32,
-            lo: Option<(i64, u32)>,
-            hi: Option<(i64, u32)>,
+            lo: Option<StaticKey>,
+            hi: Option<StaticKey>,
             visited: &mut BTreeSet<u32>,
-            actual: &mut BTreeMap<u32, CopperAabb>,
-        ) -> Option<Option<CopperAabb>> {
-            if idx == NONE_U32 {
-                return Some(None);
-            }
+            leaf_spans: &mut Vec<(u32, u32)>,
+            actual: &mut BTreeMap<u32, (u32, CopperAabb, P)>,
+        ) -> Option<CopperAabb> {
             if !visited.insert(idx) {
                 return None;
             }
             let n = nodes.get(idx as usize)?;
-            let n_ord = (n.copper.min[0], n.ordinal);
-            if !lo.is_none_or(|b| b < n_ord) || !hi.is_none_or(|b| n_ord < b) {
-                return None;
+            match n.kind {
+                StaticKind::Internal {
+                    left,
+                    right,
+                    split_min_x,
+                    split_min_y,
+                    split_ordinal,
+                } => {
+                    let split = (split_min_x, split_min_y, split_ordinal);
+                    if !lo.is_none_or(|b| b < split) || !hi.is_none_or(|b| split < b) {
+                        return None;
+                    }
+                    let lb = inspect(
+                        nodes,
+                        entries,
+                        payloads,
+                        left,
+                        lo,
+                        Some(split),
+                        visited,
+                        leaf_spans,
+                        actual,
+                    )?;
+                    let rb = inspect(
+                        nodes,
+                        entries,
+                        payloads,
+                        right,
+                        Some(split),
+                        hi,
+                        visited,
+                        leaf_spans,
+                        actual,
+                    )?;
+                    let envelope = lb.union(rb);
+                    if n.envelope != envelope {
+                        return None;
+                    }
+                    Some(envelope)
+                }
+                StaticKind::Leaf {
+                    start,
+                    end,
+                    uniform_net,
+                } => {
+                    if start >= end
+                        || (end as usize) > entries.len()
+                        || (end - start) as usize > STATIC_LEAF_CAP
+                    {
+                        return None;
+                    }
+                    let mut envelope = entries[start as usize].copper;
+                    let mut expected_uniform_net = entries[start as usize].net;
+                    let mut prev: Option<StaticKey> = None;
+                    for entry_idx in start as usize..end as usize {
+                        let entry = &entries[entry_idx];
+                        if entry.net != expected_uniform_net {
+                            expected_uniform_net = 0;
+                        }
+                        let k = entry_key(entry);
+                        if !lo.is_none_or(|b| b <= k) || !hi.is_none_or(|b| k < b) {
+                            return None;
+                        }
+                        if !prev.is_none_or(|p| p < k) {
+                            return None;
+                        }
+                        prev = Some(k);
+                        envelope = envelope.union(entry.copper);
+                        if actual
+                            .insert(
+                                entry.ordinal,
+                                (entry.net, entry.copper, payloads[entry_idx]),
+                            )
+                            .is_some()
+                        {
+                            return None;
+                        }
+                    }
+                    if uniform_net != expected_uniform_net {
+                        return None;
+                    }
+                    if n.envelope != envelope {
+                        return None;
+                    }
+                    leaf_spans.push((start, end));
+                    Some(envelope)
+                }
             }
-            let lb = inspect(nodes, n.left, lo, Some(n_ord), visited, actual)?;
-            let rb = inspect(nodes, n.right, Some(n_ord), hi, visited, actual)?;
-            let mut envelope = n.copper;
-            for child in [lb, rb].into_iter().flatten() {
-                envelope = envelope.union(child);
-            }
-            if n.envelope != envelope || actual.insert(n.ordinal, n.copper).is_some() {
-                return None;
-            }
-            Some(Some(envelope))
         }
         let mut visited = BTreeSet::new();
+        let mut leaf_spans = Vec::new();
         let mut actual = BTreeMap::new();
         if inspect(
             &self.nodes,
+            &self.entries,
+            &self.payloads,
             self.root,
             None,
             None,
             &mut visited,
+            &mut leaf_spans,
             &mut actual,
         )
         .is_none()
         {
             return false;
         }
-        visited.len() == self.nodes.len() && actual == expected
+        if visited.len() != self.nodes.len() || actual != expected {
+            return false;
+        }
+        leaf_spans.sort_unstable();
+        let mut cursor = 0u32;
+        for (start, end) in leaf_spans {
+            if start != cursor {
+                return false;
+            }
+            cursor = end;
+        }
+        cursor as usize == self.entries.len()
     }
 }
 
@@ -306,6 +574,8 @@ struct TreapNode<K, V> {
 
 const _: () = assert!(std::mem::size_of::<TreapNode<u64, u32>>() <= 96);
 const _: () = assert!(std::mem::size_of::<Option<TreapNode<u64, u32>>>() <= 96);
+const _: () = assert!(std::mem::size_of::<TreapNode<u64, (u32, u32)>>() <= 104);
+const _: () = assert!(std::mem::size_of::<Option<TreapNode<u64, (u32, u32)>>>() <= 104);
 
 #[derive(Debug)]
 pub(crate) struct SpatialIndex<K, V> {
@@ -533,6 +803,7 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
         value
     }
 
+    #[inline]
     pub fn visit<'a>(
         &'a self,
         bounds: SweptAabb,
@@ -546,34 +817,50 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
             work.charge(1)?;
             return Ok(ControlFlow::Continue(()));
         };
-        fn walk<'a, K, V>(
-            nodes: &'a [Option<TreapNode<K, V>>],
-            idx: u32,
-            bounds: CopperAabb,
-            work: &WorkBudget,
-            visitor: &mut impl FnMut(&'a K, &'a V) -> Result<ControlFlow<()>, Failure>,
-        ) -> Result<ControlFlow<()>, Failure> {
-            if idx == NONE_U32 {
-                return Ok(ControlFlow::Continue(()));
-            }
+        let mut stack = [NONE_U32; 64];
+        let mut sp = 0usize;
+        let mut overflow: Vec<u32> = Vec::new();
+        let mut idx = self.root;
+        loop {
             // One visit covers the subtree and item AABB tests, including pruned
             // nodes. No uncharged linear scan precedes the exact predicates.
             work.charge(1)?;
-            let node = nodes[idx as usize]
+            let node = self.nodes[idx as usize]
                 .as_ref()
                 .expect("spatial treap index references live node");
-            if !node.envelope.overlaps(bounds) {
-                return Ok(ControlFlow::Continue(()));
+            if node.envelope.overlaps(q) {
+                if node.copper.overlaps(q) && visitor(&node.key, &node.value)?.is_break() {
+                    return Ok(ControlFlow::Break(()));
+                }
+                let left = node.left;
+                let right = node.right;
+                if left != NONE_U32 {
+                    if right != NONE_U32 {
+                        if sp < stack.len() {
+                            stack[sp] = right;
+                            sp += 1;
+                        } else {
+                            overflow.push(right);
+                        }
+                    }
+                    idx = left;
+                    continue;
+                }
+                if right != NONE_U32 {
+                    idx = right;
+                    continue;
+                }
             }
-            if node.copper.overlaps(bounds) && visitor(&node.key, &node.value)?.is_break() {
-                return Ok(ControlFlow::Break(()));
+            if let Some(next) = overflow.pop() {
+                idx = next;
+            } else if sp > 0 {
+                sp -= 1;
+                idx = stack[sp];
+            } else {
+                break;
             }
-            if walk(nodes, node.left, bounds, work, visitor)?.is_break() {
-                return Ok(ControlFlow::Break(()));
-            }
-            walk(nodes, node.right, bounds, work, visitor)
         }
-        walk(&self.nodes, self.root, q, work, &mut visitor)
+        Ok(ControlFlow::Continue(()))
     }
 
     #[cfg(test)]
@@ -675,9 +962,110 @@ mod tests {
 
     #[test]
     fn compact_spatial_node_sizes() {
-        assert!(std::mem::size_of::<FlatNode>() <= 80);
+        assert!(std::mem::size_of::<LeafEntry>() <= 40);
+        assert!(std::mem::size_of::<PadCore>() <= 40);
+        assert!(std::mem::size_of::<TrackGeom>() <= 40);
+        assert!(std::mem::size_of::<StaticNode>() <= 64);
         assert!(std::mem::size_of::<TreapNode<u64, u32>>() <= 96);
         assert!(std::mem::size_of::<Option<TreapNode<u64, u32>>>() <= 96);
+        assert!(std::mem::size_of::<TreapNode<u64, (u32, u32)>>() <= 104);
+        assert!(std::mem::size_of::<Option<TreapNode<u64, (u32, u32)>>>() <= 104);
+    }
+
+    #[test]
+    fn static_spatial_consistent_rejects_broken_invariants() {
+        let items: Vec<(u32, u32, CopperAabb, ())> = (0..33u32)
+            .map(|i| {
+                let x = i64::from(i) * 10;
+                (i, i % 3, CopperAabb::from_bounds(([x, 0], [x + 4, 4])), ())
+            })
+            .collect();
+        let make = || StaticSpatialIndex::new(items.iter().copied());
+        assert!(make().consistent(items.iter().copied()));
+
+        // Empty invariant & non-empty mismatch.
+        let empty: StaticSpatialIndex<()> = StaticSpatialIndex::new(std::iter::empty());
+        assert!(empty.consistent(std::iter::empty()));
+        assert!(!empty.consistent(items.iter().take(1).copied()));
+
+        // Wrong expected item or net.
+        let mut wrong_net = items.clone();
+        wrong_net[0].1 += 1;
+        assert!(!make().consistent(wrong_net));
+
+        // Broken internal split key violating strict (lo, hi) BST bounds.
+        let mut idx = make();
+        if let StaticKind::Internal { split_min_x, .. } = &mut idx.nodes[0].kind {
+            *split_min_x = 10_000;
+        }
+        assert!(!idx.consistent(items.iter().copied()));
+
+        // Stale leaf envelope.
+        let mut idx = make();
+        idx.nodes[1].envelope.max[0] += 1;
+        assert!(!idx.consistent(items.iter().copied()));
+
+        // Out-of-order intra-leaf entries (even if expected matches).
+        let mut idx = make();
+        idx.entries.swap(0, 1);
+        assert!(!idx.consistent(items.iter().copied()));
+
+        // Leaf exceeding STATIC_LEAF_CAP.
+        let mut idx = make();
+        let big_items: Vec<(u32, u32, CopperAabb, ())> = (0..33u32)
+            .map(|i| {
+                let x = i64::from(i) * 10;
+                (i, 0, CopperAabb::from_bounds(([x, 0], [x + 4, 4])), ())
+            })
+            .collect();
+        idx.nodes = vec![StaticNode {
+            envelope: CopperAabb::from_bounds(([0, 0], [324, 4])),
+            kind: StaticKind::Leaf {
+                start: 0,
+                end: 33,
+                uniform_net: 0,
+            },
+        }];
+        idx.root = 0;
+        assert!(!idx.consistent(big_items));
+
+        // Non-contiguous leaf spans (gap) & orphan node.
+        let mut idx = make();
+        let orphan = idx.nodes[1];
+        idx.nodes.push(orphan);
+        assert!(!idx.consistent(items.iter().copied()));
+
+        let mut idx = make();
+        if let StaticKind::Leaf { start, .. } = &mut idx.nodes[2].kind {
+            *start += 1;
+        }
+        assert!(!idx.consistent(items.iter().take(32).copied()));
+
+        // Cycle in internal node.
+        let mut idx = make();
+        if let StaticKind::Internal { left, .. } = &mut idx.nodes[0].kind {
+            *left = 0;
+        }
+        assert!(!idx.consistent(items.iter().copied()));
+
+        // Payload length mismatch.
+        let mut idx = make();
+        idx.payloads.pop();
+        assert!(!idx.consistent(items.iter().copied()));
+
+        // Wrong leaf uniform_net summary.
+        let same_net_items: Vec<(u32, u32, CopperAabb, ())> = (0..4u32)
+            .map(|i| {
+                let x = i64::from(i) * 10;
+                (i, 7, CopperAabb::from_bounds(([x, 0], [x + 4, 4])), ())
+            })
+            .collect();
+        let mut idx = StaticSpatialIndex::new(same_net_items.iter().copied());
+        assert!(idx.consistent(same_net_items.iter().copied()));
+        if let StaticKind::Leaf { uniform_net, .. } = &mut idx.nodes[0].kind {
+            *uniform_net = 0;
+        }
+        assert!(!idx.consistent(same_net_items.iter().copied()));
     }
 
     #[test]
@@ -789,6 +1177,49 @@ mod tests {
         );
         assert!(swept.min.iter().all(|v| *v < i128::from(i64::MIN)));
         assert!(swept.max.iter().all(|v| *v > i128::from(i64::MAX)));
+
+        // Out-of-i64 SweptAabb (clamp_i64() == None) must still charge 1 unit
+        // on non-empty StaticSpatialIndex and SpatialIndex.
+        let off_range = SweptAabb {
+            min: [i128::from(i64::MAX) + 1, 0],
+            max: [i128::from(i64::MAX) + 10, 10],
+        };
+        assert!(off_range.clamp_i64().is_none());
+        let static_idx =
+            StaticSpatialIndex::new([(0u32, 0u32, CopperAabb::from_bounds(([0, 0], [5, 5])), ())]);
+        let mut treap_idx = SpatialIndex::new();
+        treap_idx.insert(1u64, 0u32, CopperAabb::from_bounds(([0, 0], [5, 5])));
+
+        let w_static = WorkBudget::new(Limits::default());
+        let _s1 = w_static.scope();
+        assert!(static_idx.query(off_range, &w_static).unwrap().is_empty());
+        assert_eq!(w_static.used(), 1);
+        drop(_s1);
+
+        let w_treap = WorkBudget::new(Limits::default());
+        let _s2 = w_treap.scope();
+        assert!(treap_idx.query(off_range, &w_treap).unwrap().is_empty());
+        assert_eq!(w_treap.used(), 1);
+        drop(_s2);
+
+        let zero_budget = WorkBudget::new(Limits {
+            max_work: 0,
+            ..Limits::default()
+        });
+        let _s3 = zero_budget.scope();
+        assert_eq!(
+            static_idx
+                .query(off_range, &zero_budget)
+                .unwrap_err()
+                .status,
+            Status::WorkExhausted
+        );
+        assert_eq!(
+            treap_idx.query(off_range, &zero_budget).unwrap_err().status,
+            Status::WorkExhausted
+        );
+        drop(_s3);
+
         let odd = SweptAabb::swept([-7, -3], [9, 11], 3, 2);
         assert_eq!(
             odd,
@@ -800,6 +1231,61 @@ mod tests {
         let corner = CopperAabb::from_bounds(([13, 15], [13, 15]));
         assert!(corner.overlaps_swept(odd));
         assert!(odd.overlaps(SweptAabb::from_copper(corner)));
+    }
+
+    #[test]
+    fn treap_visit_handles_depth_above_64_overflow() {
+        // Construct a left-skewed spine of 80 nodes (bypassing heap balance)
+        // with right leaf children so the iterative stack overflows past 64 frames.
+        let mut index: SpatialIndex<u64, u32> = SpatialIndex::new();
+        let mut expected = Vec::new();
+        let mut prev = NONE_U32;
+        for i in (0..80u64).rev() {
+            let x = i as i64 * 10;
+            let copper = CopperAabb::from_bounds(([x, 0], [x + 4, 4]));
+            let leaf_key = 1000 + i;
+            let leaf_copper = CopperAabb::from_bounds(([x, 10], [x + 4, 14]));
+            let right_idx = index.alloc_node(TreapNode {
+                copper: leaf_copper,
+                envelope: leaf_copper,
+                key: leaf_key,
+                priority: leaf_key.priority(),
+                value: leaf_key as u32,
+                height: NonZeroU32::new(1).unwrap(),
+                left: NONE_U32,
+                right: NONE_U32,
+            });
+            let mut env = copper.union(leaf_copper);
+            if prev != NONE_U32 {
+                env = env.union(index.node(prev).envelope);
+            }
+            let cur_idx = index.alloc_node(TreapNode {
+                copper,
+                envelope: env,
+                key: i,
+                priority: i.priority(),
+                value: i as u32,
+                height: NonZeroU32::new(1 + index.link_height(prev).max(1)).unwrap(),
+                left: prev,
+                right: right_idx,
+            });
+            prev = cur_idx;
+            expected.push(i);
+            expected.push(leaf_key);
+        }
+        index.root = prev;
+        expected.sort();
+        let work = WorkBudget::new(Limits::default());
+        let _s = work.scope();
+        let q = SweptAabb::from_copper(CopperAabb::from_bounds(([-10, -10], [900, 20])));
+        let found: Vec<u64> = index
+            .query(q, &work)
+            .unwrap()
+            .into_iter()
+            .copied()
+            .collect();
+        assert_eq!(found, expected);
+        assert_eq!(work.used(), 160);
     }
 
     fn candidate_fixture(y: i64) -> Input {
@@ -869,7 +1355,7 @@ mod tests {
     #[test]
     fn fixed_sparse_and_dense_candidate_counts_match_actual_legality_work() {
         for (label, y, expected_candidates, expected_total) in
-            [("sparse", 100, 0, 3u64), ("dense", 5, 2000, 6001u64)]
+            [("sparse", 100, 0, 3u64), ("dense", 5, 2000, 4127u64)]
         {
             let input = candidate_fixture(y);
             let engine = Engine::new(input.clone()).unwrap();

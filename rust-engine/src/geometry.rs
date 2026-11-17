@@ -25,6 +25,7 @@ fn compare(a: i128, b: i128, inclusive: bool) -> bool {
     }
 }
 // gap2 is twice the physical distance, retaining odd-nm half widths exactly.
+#[inline]
 pub fn point_near_segment(p: Point, a: Point, b: Point, gap2: i128, inclusive: bool) -> bool {
     if gap2 < 0 {
         return false;
@@ -54,6 +55,7 @@ fn orientation(a: Point, b: Point, c: Point) -> i128 {
 fn on(a: Point, b: Point, p: Point) -> bool {
     (0..2).all(|i| p[i] >= a[i].min(b[i]) && p[i] <= a[i].max(b[i]))
 }
+#[inline]
 pub fn intersects(a: Point, b: Point, c: Point, d: Point) -> bool {
     let (o1, o2, o3, o4) = (
         orientation(a, b, c),
@@ -67,6 +69,7 @@ pub fn intersects(a: Point, b: Point, c: Point, d: Point) -> bool {
         || (o4 == 0 && on(c, d, b))
         || (o1.signum() * o2.signum() < 0 && o3.signum() * o4.signum() < 0)
 }
+#[inline]
 pub fn segments_near(a: Point, b: Point, c: Point, d: Point, gap2: i128, inclusive: bool) -> bool {
     if gap2 < 0 {
         return false;
@@ -79,6 +82,7 @@ pub fn segments_near(a: Point, b: Point, c: Point, d: Point, gap2: i128, inclusi
         || point_near_segment(c, a, b, gap2, inclusive)
         || point_near_segment(d, a, b, gap2, inclusive)
 }
+#[inline]
 pub fn segment_near_rect(
     a: Point,
     b: Point,
@@ -97,6 +101,21 @@ pub fn segment_near_rect(
     let corners = [lo, [hi[0], lo[1]], hi, [lo[0], hi[1]]];
     (0..4).any(|i| segments_near(a, b, corners[i], corners[(i + 1) % 4], gap2, inclusive))
 }
+#[inline]
+pub(crate) fn track_near_core(
+    a: Point,
+    b: Point,
+    width: i64,
+    clearance: i64,
+    lo: Point,
+    hi: Point,
+    radius: i64,
+    inclusive: bool,
+) -> bool {
+    let gap2 = i128::from(width) + 2 * (i128::from(clearance) + i128::from(radius));
+    segment_near_rect(a, b, lo, hi, gap2, inclusive)
+}
+#[inline]
 pub fn track_near_pad(
     a: Point,
     b: Point,
@@ -106,8 +125,7 @@ pub fn track_near_pad(
     inclusive: bool,
 ) -> bool {
     let (lo, hi, radius) = p.copper_core();
-    let gap2 = i128::from(width) + 2 * (i128::from(clearance) + i128::from(radius));
-    segment_near_rect(a, b, lo, hi, gap2, inclusive)
+    track_near_core(a, b, width, clearance, lo, hi, radius, inclusive)
 }
 // Native integer-nm contact rounding can leave a sub-nm diagonal overlap open.
 // Require a full 1 nm of overlap after flooring each track half-width. This

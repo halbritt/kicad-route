@@ -1,7 +1,7 @@
 use crate::{
     budget::WorkBudget,
     model::{Failure, Status, Track},
-    spatial::{CopperAabb, SpatialIndex, StaticSpatialIndex, SweptAabb},
+    spatial::{CopperAabb, SpatialIndex, StaticSpatialIndex, SweptAabb, TrackGeom},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -29,8 +29,8 @@ pub struct CopperStore {
     free_slots: Vec<u32>,
     by_seq: BTreeMap<u64, u32>,
     by_net: BTreeMap<u32, BTreeSet<u64>>,
-    input_spatial: StaticSpatialIndex,
-    generated_spatial: SpatialIndex<u64, u32>,
+    input_spatial: StaticSpatialIndex<TrackGeom>,
+    generated_spatial: SpatialIndex<u64, (u32, u32)>,
     journal: Vec<Undo>,
     frames: Vec<Frame>,
     next: u64,
@@ -58,7 +58,13 @@ impl CopperStore {
         let input_spatial = StaticSpatialIndex::new(input.iter().enumerate().map(|(i, track)| {
             (
                 u32::try_from(i).expect("bounded input track count"),
+                track.net,
                 CopperAabb::from_bounds(track.copper_bounds()),
+                TrackGeom {
+                    start: track.start,
+                    end: track.end,
+                    width_nm: track.width_nm,
+                },
             )
         }));
         Self {
@@ -120,37 +126,100 @@ impl CopperStore {
                 .consistent(self.input.iter().enumerate().map(|(i, t)| {
                     (
                         u32::try_from(i).expect("bounded input track count"),
+                        t.net,
                         CopperAabb::from_bounds(t.copper_bounds()),
+                        TrackGeom {
+                            start: t.start,
+                            end: t.end,
+                            width_nm: t.width_nm,
+                        },
                     )
                 }))
             && self
                 .generated_spatial
                 .consistent(self.by_seq.iter().map(|(&seq, &slot)| {
                     let t = self.slots[slot as usize].as_ref().unwrap();
-                    (seq, slot, CopperAabb::from_bounds(t.copper_bounds()))
+                    (
+                        seq,
+                        (slot, t.net),
+                        CopperAabb::from_bounds(t.copper_bounds()),
+                    )
                 }))
     }
 
+    #[inline(always)]
+    pub(crate) fn visit_candidates_geoms_filtered(
+        &self,
+        bounds: SweptAabb,
+        net_filter: Option<u32>,
+        work: &WorkBudget,
+        mut visitor: impl FnMut(TrackGeom) -> Result<ControlFlow<()>, Failure>,
+    ) -> Result<ControlFlow<()>, Failure> {
+        let flow =
+            self.input_spatial
+                .visit_matching(bounds, net_filter, work, |_ordinal, geom| {
+                    work.charge(1)?;
+                    visitor(*geom)
+                })?;
+        if flow.is_break() {
+            return Ok(ControlFlow::Break(()));
+        }
+        self.generated_spatial
+            .visit(bounds, work, |_seq, &(slot, net)| {
+                if net_filter.is_some_and(|filter| net != 0 && net == filter) {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                work.charge(1)?;
+                let track = self.slots[slot as usize]
+                    .as_ref()
+                    .expect("spatial slot references owned copper");
+                visitor(TrackGeom {
+                    start: track.start,
+                    end: track.end,
+                    width_nm: track.width_nm,
+                })
+            })
+    }
+
+    #[cfg(test)]
+    #[inline]
+    pub(crate) fn visit_candidates_filtered<'a>(
+        &'a self,
+        bounds: SweptAabb,
+        net_filter: Option<u32>,
+        work: &WorkBudget,
+        mut visitor: impl FnMut(&'a Track) -> Result<ControlFlow<()>, Failure>,
+    ) -> Result<ControlFlow<()>, Failure> {
+        let flow =
+            self.input_spatial
+                .visit_matching(bounds, net_filter, work, |ordinal, _geom| {
+                    work.charge(1)?;
+                    visitor(&self.input[ordinal as usize])
+                })?;
+        if flow.is_break() {
+            return Ok(ControlFlow::Break(()));
+        }
+        self.generated_spatial
+            .visit(bounds, work, |_seq, &(slot, net)| {
+                if net_filter.is_some_and(|filter| net != 0 && net == filter) {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                work.charge(1)?;
+                let track = self.slots[slot as usize]
+                    .as_ref()
+                    .expect("spatial slot references owned copper");
+                visitor(track)
+            })
+    }
+
+    #[cfg(test)]
     pub(crate) fn visit_candidates<'a>(
         &'a self,
         bounds: SweptAabb,
         work: &WorkBudget,
-        mut visitor: impl FnMut(&'a Track) -> Result<ControlFlow<()>, Failure>,
+        visitor: impl FnMut(&'a Track) -> Result<ControlFlow<()>, Failure>,
     ) -> Result<ControlFlow<()>, Failure> {
-        let flow = self.input_spatial.visit(bounds, work, |ordinal| {
-            work.charge(1)?;
-            visitor(&self.input[ordinal as usize])
-        })?;
-        if flow.is_break() {
-            return Ok(ControlFlow::Break(()));
-        }
-        self.generated_spatial.visit(bounds, work, |_seq, &slot| {
-            work.charge(1)?;
-            let track = self.slots[slot as usize]
-                .as_ref()
-                .expect("spatial slot references owned copper");
-            visitor(track)
-        })
+        self.visit_candidates_filtered(bounds, None, work, visitor)
     }
 
     #[cfg(test)]
@@ -196,8 +265,11 @@ impl CopperStore {
             slot
         };
         let track = self.slots[slot as usize].as_ref().unwrap();
-        self.generated_spatial
-            .insert(seq, slot, CopperAabb::from_bounds(track.copper_bounds()));
+        self.generated_spatial.insert(
+            seq,
+            (slot, track.net),
+            CopperAabb::from_bounds(track.copper_bounds()),
+        );
         self.by_net.entry(track.net).or_default().insert(seq);
         assert!(self.by_seq.insert(seq, slot).is_none());
     }
@@ -426,6 +498,7 @@ mod tests {
             .unwrap()
             .is_continue());
         assert_eq!(input_hits, 2);
+        assert_eq!(input_only.used(), 4);
 
         let gen_only = WorkBudget::new(Limits::default());
         let _s2 = gen_only.scope();
@@ -439,8 +512,11 @@ mod tests {
             .unwrap()
             .is_continue());
         assert_eq!(gen_hits, 3);
+        assert_eq!(gen_only.used(), 4);
 
-        let total_needed = input_only.used() + input_hits + gen_only.used() + gen_hits;
+        // Hardcoded total: input_spatial (1 leaf + 3 entries + 2 hits = 6) +
+        // generated_spatial (4 treap nodes + 3 hits = 7) = 13.
+        let total_needed: u64 = 13;
         for limit in 0..=total_needed {
             let budget = WorkBudget::new(Limits {
                 max_work: limit,
@@ -454,12 +530,90 @@ mod tests {
             });
             if limit < total_needed {
                 assert_eq!(res.unwrap_err().status, Status::WorkExhausted);
-                assert!(visited < input_hits + gen_hits);
+                assert!(visited < 5);
             } else {
                 assert!(res.unwrap().is_continue());
-                assert_eq!(visited, input_hits + gen_hits);
+                assert_eq!(visited, 5);
                 assert_eq!(budget.used(), total_needed);
             }
         }
+
+        // Pruned treap subtree check on [0, 0] -> [20, 0] (swept [-2, -2] .. [22, 2]):
+        // seq=4 (right child of root seq=2, envelope [35..606]) is pruned before visiting seq=3.
+        let pruned_swept = SweptAabb::swept([0, 0], [20, 0], 2, 1);
+        let gen_pruned_only = WorkBudget::new(Limits::default());
+        let _s3 = gen_pruned_only.scope();
+        let mut gen_pruned_hits = 0u64;
+        assert!(store
+            .generated_spatial
+            .visit(pruned_swept, &gen_pruned_only, |_, _| {
+                gen_pruned_hits += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(gen_pruned_hits, 1);
+        assert_eq!(gen_pruned_only.used(), 3);
+
+        // input_spatial (1 leaf + 3 entries + 1 hit = 5) + generated_spatial (3 nodes + 1 hit = 4) = 9.
+        let pruned_total: u64 = 9;
+        for limit in 0..=pruned_total {
+            let budget = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _s = budget.scope();
+            let mut visited = 0u64;
+            let res = store.visit_candidates_filtered(pruned_swept, None, &budget, |_| {
+                visited += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            });
+            if limit < pruned_total {
+                assert_eq!(res.unwrap_err().status, Status::WorkExhausted);
+                assert_eq!(budget.used(), limit);
+                if limit < 8 {
+                    assert!(visited < 2);
+                }
+            } else {
+                assert!(res.unwrap().is_continue());
+                assert_eq!(visited, 2);
+                assert_eq!(budget.used(), pruned_total);
+            }
+        }
+
+        // Same-net filter (net = 1) skips generated slot lookup (4 -> 3) while
+        // still charging the pruned seq=4 node and retaining input net=0 hit.
+        let same_net_budget = WorkBudget::new(Limits::default());
+        let _s4 = same_net_budget.scope();
+        let mut same_net_visited = 0u64;
+        assert!(store
+            .visit_candidates_filtered(pruned_swept, Some(1), &same_net_budget, |_| {
+                same_net_visited += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(same_net_visited, 1);
+        assert_eq!(same_net_budget.used(), 8);
+
+        // Unconnected net=0 generated copper is never treated as same-net even
+        // when net_filter is Some(0).
+        let mut net0_store = CopperStore::new(Vec::new(), BTreeSet::new(), &source, 0);
+        let setup_w = WorkBudget::new(Limits::default());
+        let _s5 = setup_w.scope();
+        net0_store.insert(dummy_track(0, 10), &setup_w).unwrap();
+        drop(_s5);
+        let net0_q = WorkBudget::new(Limits::default());
+        let _s6 = net0_q.scope();
+        let mut net0_hits = 0u64;
+        assert!(net0_store
+            .visit_candidates_geoms_filtered(pruned_swept, Some(0), &net0_q, |_| {
+                net0_hits += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(net0_hits, 1);
+        assert_eq!(net0_q.used(), 2);
     }
 }

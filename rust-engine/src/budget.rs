@@ -19,17 +19,27 @@ impl WorkBudget {
     pub fn used(&self) -> u64 {
         self.used.get()
     }
+    #[cold]
+    #[inline(never)]
     pub fn failure(&self, status: Status, reason: &str) -> Failure {
         let mut e = Failure::new(status, reason);
         e.work_used = self.used();
         e
     }
     #[inline(always)]
+    pub fn remaining(&self) -> u64 {
+        self.limits.max_work - self.used()
+    }
+    #[inline(always)]
+    pub fn advance(&self, units: u64) {
+        self.used.set(self.used() + units);
+    }
+    #[inline(always)]
     pub fn charge(&self, units: u64) -> Result<(), Failure> {
-        if units > self.limits.max_work - self.used() {
+        if units > self.remaining() {
             return Err(self.failure(Status::WorkExhausted, "total engine work limit exhausted"));
         }
-        self.used.set(self.used() + units);
+        self.advance(units);
         Ok(())
     }
     // Nested entry must never reset consumed work, including after handled errors.
