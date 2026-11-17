@@ -299,6 +299,10 @@ def t4_01(ctx: DriverContext) -> dict[str, Any]:
     pwr_vias = [t for t in board.GetTracks() if t.GetClass() == "PCB_VIA" and t.GetNetname() in power_nets]
     for via in pwr_vias:
         assert int(via.GetWidth(via.TopLayer())) >= 800_000 and int(via.GetDrill()) >= 400_000
+    usb_tracks = [t for t in board.GetTracks() if t.GetClass() == "PCB_TRACK" and t.GetNetname() in ("USB_D_P", "USB_D_N")]
+    assert usb_tracks, "expected routed USB_D_P/USB_D_N tracks"
+    for tr in usb_tracks:
+        assert int(tr.GetWidth()) >= 250_000, f"USB_DP track below 0.25mm: {tr.GetNetname()} {tr.GetWidth()}"
 
     conn = read_native_connectivity(out_pcb)
     v33_parts = conn.pad_partitions_by_net.get("3V3", [])
@@ -545,14 +549,21 @@ def _build_t4_03_board(directory: Path) -> FixtureBundle:
     _hide_ref(jb2)
     b.add_pad(jb2, "1", "SIG_BLIND", (34_000_000, 6_000_000), size_nm=(1_000_000, 1_000_000))
 
-    # F.Cu keepout between JB1 & JB2 + In2.Cu/B.Cu barrier forcing F.Cu <-> In1.Cu blind vias
-    b.add_keepout(
-        [pn.F_Cu],
-        [(23_000_000, 2_000_000), (27_000_000, 2_000_000), (27_000_000, 10_000_000), (23_000_000, 10_000_000)],
-        no_tracks=True,
-        no_vias=True,
-        no_zones=False,
-    )
+    # F.Cu closed keepout ring enclosing JB1 (16, 6) with interior island [14.5..17.5] x [4.5..7.5]
+    # + In2.Cu/B.Cu barrier across [13..37] x [3..9] forcing an (F.Cu, In1.Cu) blind via inside the island
+    for ring_poly in (
+        [(13_500_000, 3_500_000), (18_500_000, 3_500_000), (18_500_000, 4_500_000), (13_500_000, 4_500_000)],
+        [(13_500_000, 7_500_000), (18_500_000, 7_500_000), (18_500_000, 8_500_000), (13_500_000, 8_500_000)],
+        [(13_500_000, 3_500_000), (14_500_000, 3_500_000), (14_500_000, 8_500_000), (13_500_000, 8_500_000)],
+        [(17_500_000, 3_500_000), (18_500_000, 3_500_000), (18_500_000, 8_500_000), (17_500_000, 8_500_000)],
+    ):
+        b.add_keepout(
+            [pn.F_Cu],
+            ring_poly,
+            no_tracks=True,
+            no_vias=True,
+            no_zones=False,
+        )
     b.add_keepout(
         [pn.In2_Cu, pn.B_Cu],
         [(13_000_000, 3_000_000), (37_000_000, 3_000_000), (37_000_000, 9_000_000), (13_000_000, 9_000_000)],
@@ -791,7 +802,7 @@ def _build_t4_05_board(directory: Path) -> FixtureBundle:
 
     b.add_keepout(
         [pn.F_Cu, pn.B_Cu],
-        [(46_000_000, 15_000_000), (50_000_000, 15_000_000), (50_000_000, 48_000_000), (46_000_000, 48_000_000)],
+        [(46_000_000, 9_000_000), (50_000_000, 9_000_000), (50_000_000, 91_000_000), (46_000_000, 91_000_000)],
         no_tracks=True,
         no_vias=True,
         no_zones=True,
@@ -961,7 +972,7 @@ def t4_05(ctx: DriverContext) -> dict[str, Any]:
         step1_pcb,
         extra_args=[
             "--diff-pairs", "auto",
-            "--pair-layers", "F.Cu", "In1.Cu", "In2.Cu", "B.Cu",
+            "--pair-layers", "F.Cu", "In2.Cu", "B.Cu",
             "--nets", "A_P", "A_N", "B_P", "B_N",
             "--length-match-group", "A_P", "A_N", "B_P", "B_N",
             "--group-match-tolerance", "0.15",
@@ -984,7 +995,7 @@ def t4_05(ctx: DriverContext) -> dict[str, Any]:
             "--nets", "DQ0", "DQ1", "DQ2", "DQ3",
             "--length-match-group", "DQ0", "DQ1", "DQ2", "DQ3",
             "--group-delay-tolerance", "1",
-            "--group-meander-amplitude", "3",
+            "--group-meander-amplitude", "2",
         ],
         timeout_s=180.0,
     )
@@ -1136,10 +1147,20 @@ print(json.dumps({
     step2_pcb.parent.mkdir(parents=True, exist_ok=True)
     p1 = ctx.native_driver.run_native(placed_pcb, step1_pcb, extra_args=["--nets", "/IN"], timeout_s=180.0)
     assert p1.returncode == 0, f"T4-06 step1 failed: {p1.stderr}"
-    for suffix in (".kicad_pro", ".kicad_sch"):
+    for suffix in (".kicad_pro", ".kicad_dru", ".kicad_sch"):
         src_sidecar = placed_pcb.with_suffix(suffix)
         if src_sidecar.is_file():
             shutil.copy2(src_sidecar, step1_pcb.with_suffix(suffix))
+    for table in ("fp-lib-table", "sym-lib-table"):
+        src_table = placed_dir / table
+        if src_table.is_file():
+            shutil.copy2(src_table, step1_pcb.parent / table)
+    src_lib = placed_dir / "lib"
+    if src_lib.is_dir():
+        shutil.copytree(src_lib, step1_pcb.parent / "lib", dirs_exist_ok=True)
+    for pretty in placed_dir.glob("*.pretty"):
+        if pretty.is_dir():
+            shutil.copytree(pretty, step1_pcb.parent / pretty.name, dirs_exist_ok=True)
     p2 = ctx.native_driver.run_native(
         step1_pcb, step2_pcb, extra_args=["--protect", "human", "--nets", "!/IN"], timeout_s=180.0
     )
@@ -1292,7 +1313,11 @@ def t4_07(ctx: DriverContext) -> dict[str, Any]:
             board = pn.LoadBoard(str(out_pcb))
             for t in board.GetTracks():
                 if t.GetClass() == "PCB_TRACK" and t.GetNetname() in ("/VIN", "GND"):
-                    assert int(t.GetWidth()) >= 400_000, f"route_demo Power track below class width: {t.GetNetname()} {t.GetWidth()}"
+                    assert int(t.GetWidth()) >= 500_000, f"route_demo Power track below class width: {t.GetNetname()} {t.GetWidth()}"
+                elif t.GetClass() == "PCB_VIA" and t.GetNetname() in ("/VIN", "GND"):
+                    assert int(t.GetWidth(t.TopLayer())) >= 800_000 and int(t.GetDrill()) >= 400_000, (
+                        f"route_demo Power via below class size: {t.GetNetname()} {t.GetWidth(t.TopLayer())}/{t.GetDrill()}"
+                    )
         elif name == "bus_routing":
             conn = read_native_connectivity(out_pcb)
             for net_name in ("AUX", *(f"D{i}" for i in range(8))):
@@ -1319,6 +1344,8 @@ def t4_07(ctx: DriverContext) -> dict[str, Any]:
             )
             assert not ft_p.coverage_errors and not ft_n.coverage_errors
             assert len(ft_p.measurements) == 2 and len(ft_n.measurements) == 2
+            for m in (*ft_p.measurements, *ft_n.measurements):
+                assert m.get("actual") is not None, f"missing actual measurement: {m}"
             sum_p = sum(float(m["actual"]) for m in ft_p.measurements)
             sum_n = sum(float(m["actual"]) for m in ft_n.measurements)
             composed_skew = round(abs(sum_p - sum_n), 6)

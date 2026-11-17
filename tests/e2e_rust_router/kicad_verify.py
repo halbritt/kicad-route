@@ -1129,42 +1129,88 @@ def verify_routed_board(
         if width < min_width:
             raise AssertionError(f"added copper width {width} < min_track_width {min_width}: {snap}")
 
-    conn = read_native_connectivity(after_pcb)
-    if conn.unconnected_count != expected_opens:
-        raise AssertionError(
-            f"expected {expected_opens} native opens, got {conn.unconnected_count}"
-        )
-    if expected_opens == 0:
-        for net_name, comps in conn.pad_partitions_by_net.items():
-            if len(comps) > 1:
+    if refill_zones:
+        with tempfile.TemporaryDirectory(prefix="e2e-verify-") as tmp:
+            td = Path(tmp)
+            refilled_before = (
+                td / "before-refilled.kicad_pcb" if check_partition_ratchet else None
+            )
+            refilled_after = td / "after-refilled.kicad_pcb"
+            before_drc = run_native_drc(
+                before_pcb,
+                refill_zones=True,
+                check_parity=check_parity,
+                require_checks=require_checks,
+                verify_dru=verify_dru,
+                save_board_out=refilled_before,
+            )
+            after_drc = run_native_drc(
+                after_pcb,
+                refill_zones=True,
+                check_parity=check_parity,
+                require_checks=require_checks,
+                sidecar_source=before_pcb,
+                verify_dru=verify_dru,
+                save_board_out=refilled_after,
+            )
+            conn = read_native_connectivity(refilled_after)
+            if conn.unconnected_count != expected_opens:
                 raise AssertionError(
-                    f"net {net_name!r} has {len(comps)} disconnected pad components: {comps}"
+                    f"expected {expected_opens} native opens, got {conn.unconnected_count}"
                 )
+            if expected_opens == 0:
+                for net_name, comps in conn.pad_partitions_by_net.items():
+                    if len(comps) > 1:
+                        raise AssertionError(
+                            f"net {net_name!r} has {len(comps)} disconnected pad components: {comps}"
+                        )
+            if len(after_drc.unconnected_items) != expected_opens:
+                raise AssertionError(
+                    f"DRC unconnected_items={len(after_drc.unconnected_items)} != {expected_opens}"
+                )
+            introduced, resolved = diff_drc_violations(before_drc, after_drc)
+            if introduced:
+                raise AssertionError(f"routed board introduced native DRC violations: {introduced}")
+            if check_partition_ratchet:
+                assert refilled_before is not None
+                verify_partition_ratchet(refilled_before, refilled_after)
+    else:
+        conn = read_native_connectivity(after_pcb)
+        if conn.unconnected_count != expected_opens:
+            raise AssertionError(
+                f"expected {expected_opens} native opens, got {conn.unconnected_count}"
+            )
+        if expected_opens == 0:
+            for net_name, comps in conn.pad_partitions_by_net.items():
+                if len(comps) > 1:
+                    raise AssertionError(
+                        f"net {net_name!r} has {len(comps)} disconnected pad components: {comps}"
+                    )
 
-    before_drc = run_native_drc(
-        before_pcb,
-        refill_zones=refill_zones,
-        check_parity=check_parity,
-        require_checks=require_checks,
-        verify_dru=verify_dru,
-    )
-    after_drc = run_native_drc(
-        after_pcb,
-        refill_zones=refill_zones,
-        check_parity=check_parity,
-        require_checks=require_checks,
-        sidecar_source=before_pcb,
-        verify_dru=verify_dru,
-    )
-    if len(after_drc.unconnected_items) != expected_opens:
-        raise AssertionError(
-            f"DRC unconnected_items={len(after_drc.unconnected_items)} != {expected_opens}"
+        before_drc = run_native_drc(
+            before_pcb,
+            refill_zones=False,
+            check_parity=check_parity,
+            require_checks=require_checks,
+            verify_dru=verify_dru,
         )
-    introduced, resolved = diff_drc_violations(before_drc, after_drc)
-    if introduced:
-        raise AssertionError(f"routed board introduced native DRC violations: {introduced}")
-    if check_partition_ratchet:
-        verify_partition_ratchet(before_pcb, after_pcb)
+        after_drc = run_native_drc(
+            after_pcb,
+            refill_zones=False,
+            check_parity=check_parity,
+            require_checks=require_checks,
+            sidecar_source=before_pcb,
+            verify_dru=verify_dru,
+        )
+        if len(after_drc.unconnected_items) != expected_opens:
+            raise AssertionError(
+                f"DRC unconnected_items={len(after_drc.unconnected_items)} != {expected_opens}"
+            )
+        introduced, resolved = diff_drc_violations(before_drc, after_drc)
+        if introduced:
+            raise AssertionError(f"routed board introduced native DRC violations: {introduced}")
+        if check_partition_ratchet:
+            verify_partition_ratchet(before_pcb, after_pcb)
     pour_info: dict[str, Any] | None = None
     if check_pour_integrity:
         pour_rep = verify_pour_integrity(
