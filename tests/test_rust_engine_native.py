@@ -1066,7 +1066,8 @@ def test_deep_native_report_has_typed_decoder_failure(tmp_path, monkeypatch):
     assert isinstance(failure.value.__cause__, RecursionError)
 
 
-@pytest.mark.parametrize('identity', ['missing', None, True, 1, [], {}, '', '0' * 64, 'A' * 64])
+@pytest.mark.parametrize('identity', ['missing', None, True, 1, [], {}, '', '0' * 64,
+                                    'A' * 64, 'uppercase_correct', 'trailing_space'])
 def test_native_apply_requires_matching_request_identity(native_board, expected_request, guarded_cli, identity):
     run, _ = guarded_cli
     original = native_board.read_bytes()
@@ -1076,6 +1077,12 @@ def test_native_apply_requires_matching_request_identity(native_board, expected_
             'expanded_states': 0, 'work_used': 0}
     if identity != 'missing':
         plan['request_sha256'] = identity
+    digest = hashlib.sha256(expected_request.read_bytes()).hexdigest()
+    if identity == 'uppercase_correct':
+        plan['request_sha256'] = digest.upper()
+        assert plan['request_sha256'] != digest
+    elif identity == 'trailing_space':
+        plan['request_sha256'] = digest + ' '
     plan_path = native_board.with_name('unbound-plan.json')
     plan_path.write_text(json.dumps(plan))
     output = native_board.with_name('unbound-output.kicad_pcb')
@@ -1235,3 +1242,31 @@ def test_exact_request_byte_limit_routes_and_applies(native_board, expected_requ
     run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
          str(native_board), str(plan_path), str(output), '--request', str(expected_request)])
     assert output.exists() and native_board.read_bytes() == original
+
+
+@pytest.mark.parametrize('kind', ['none', 'text', 'bytearray', 'memoryview', 'dict', 'path', 'oversized'])
+@pytest.mark.parametrize('entrypoint', ['apply_plan', 'apply_snapshot'])
+def test_native_request_api_admission(native_board, expected_request, entrypoint, kind):
+    original = native_board.read_bytes()
+    body = expected_request.read_bytes()
+    if kind == 'oversized':
+        # Match the digest of the entire oversized value so a missing size check
+        # cannot be hidden by a later hash mismatch. The native plan is valid.
+        body += b' ' * (bridge.MAX_DOCUMENT_BYTES + 1 - len(body))
+        argument = body
+        reason = f'expected request exceeds {bridge.MAX_DOCUMENT_BYTES} bytes'
+    else:
+        argument = {'none': None, 'text': body.decode(), 'bytearray': bytearray(body),
+                    'memoryview': memoryview(body), 'dict': json.loads(body),
+                    'path': expected_request}[kind]
+        reason = 'expected request must be the exact request bytes'
+    plan = {'version': 3, 'status': 'complete',
+            'request_sha256': hashlib.sha256(body).hexdigest(),
+            'source_id': hashlib.sha256(original).hexdigest(),
+            'added_tracks': connection_tracks(), 'removed_track_ids': [],
+            'expanded_states': 0, 'work_used': 0}
+    output = native_board.with_name('api-refused.kicad_pcb')
+    with pytest.raises(ValueError, match=reason):
+        getattr(bridge, entrypoint)(native_board, plan, output, expected_request=argument)
+    assert not output.exists() and not list(native_board.parent.glob('.api-refused-*'))
+    assert native_board.read_bytes() == original
