@@ -402,6 +402,13 @@
       "ref": "2f4c7e89-ec87-4c40-9149-7d3e7ae77a83/v1",
       "date": "2026-11-16",
       "statement": "Root native two-net fixture exhausts unchanged 100000 expansion budget. Preserve board/rules/budget and improve component search generally before acceptance."
+    },
+    "multiterminal-search-correction-result": {
+      "kind": "implementation-report",
+      "ref": "1a357323-e4c8-49c9-b733-8f25647246f1/v1",
+      "date": "2026-11-17",
+      "reviewed_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
+      "statement": "General component A* envelope heuristic; frozen unchanged request now completes, existing and new independent oracles pass. Root native/full gate independently passed; review pending."
     }
   },
   "requirements": [
@@ -904,7 +911,7 @@
         "acceptance_scope": "M6 whole-request consistency and regression corrections; explicit continuing greenfield role acknowledgment. No full-engine, representative parity or production acceptance."
       }
     ],
-    "next_milestone": "M7 multi-terminal candidate: root native 7 passed, 1 search-budget failure; correct R-M7-01, run combined gate, then obtain fresh independent Fable/Carbon review. All 10 full requirements remain open; holds unchanged.",
+    "next_milestone": "M7 corrected multi-terminal candidate passes root96Rust+3compilefail+167native+95ownership/acceptance checks. Obtain fresh independent Fable/Carbon review of the frozen combined revision before integration. All10full requirements remain open; holds unchanged.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -1839,19 +1846,22 @@
       ],
       "source_ids": [
         "multiterminal-implementation",
-        "multiterminal-search-correction"
+        "multiterminal-search-correction",
+        "multiterminal-search-correction-result"
       ],
       "reviewed_revision": "1a683afd74048521bf54e7552f333c61007464ce",
       "finding": "The initial multi-terminal candidate exhausts 100000 shared expansions on the unchanged native two-net fixture; its structured budget failure is honest, but this capability acceptance case remains unmet.",
       "evidence_class": "Root executed Rust CLI exit4, budget_exhausted, expanded_states100000, work_used12345690 and empty edits. A separate authored six-segment native witness connects all terminals without new native violations under identical rules; this witness is not Rust route success.",
       "request_sha256": "dfce0b7268f51eb34cb2593e8d97e35e37978f9ff91a40f2fdef717f5fc61833",
       "source_board_sha256": "6725b753f85cb3268a5f1d80661e948c3d6acf462c85b2d7b0f59620c69cf0e2",
-      "status": "open",
+      "status": "corrected-awaiting-independent-review",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Improve the general component search and retain an independent correctness oracle plus the fixed native regression; do not relax rules, simplify the board or raise the budget.",
+      "next_action": "Fable and Carbon independently review corrected search soundness, frozen native outcome and rollback/resource controls; preserve original failure and unchanged rules/budget.",
       "observation_deadline": "before M7 integration",
-      "blocks_current_integration": true
+      "blocks_current_integration": true,
+      "candidate_rust_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
+      "current_evidence": "Root actual Rust execution on original exact request completes at9751expansions/work788180/12tracks, exit0. Mandatory native apply verifies zeroopens/no-newviolations and exact pads/nets/incumbents. Root full gate96Rust+3compilefail+167native77.33s+95ownership/acceptance0.55sPASS. Independent acceptance remains required."
     }
   ],
   "reviewed_milestones": [
@@ -2080,7 +2090,7 @@
     "inventory_status": "Initial matrix, not an exhaustive verified inventory; no representative-board parity row accepted."
   },
   "multiterminal_checkpoint": {
-    "state": "candidate-awaiting-search-correction-and-review",
+    "state": "candidate-awaiting-independent-review",
     "baseline_revision": "fb3ac2d24223ad04e1ae30c6b8b43c11e271c634",
     "initial_rust_revision": "1a683afd74048521bf54e7552f333c61007464ce",
     "rust_owner": "agent-1484",
@@ -2090,7 +2100,9 @@
       "multiterminal-contract"
     ],
     "contract": "Input1/result3 unchanged; admit more than two pads within existing item/work/search/expansion/journal/depth limits. Greedy component joining with strict reduction and whole-operation rollback; no Steiner or global-completeness claim.",
-    "validation": "Author reports93Rust+3compilefail passing. Root8newnative nodes:7pass/1fail; three/four/six terminals and preconnected groups pass, shared budget failures publish no board, ignored-terminal plan is rejected. Multiple-net completion remains blocked by R-M7-01. Native witness establishes feasibility only.",
-    "full_requirements": "All 10 remain open; no full-engine, representative parity, production/default or deployment acceptance."
+    "validation": "Initial root native7pass/1fail preserved. Corrected root96Rust+3compilefail+167native77.33s+95ownership/acceptance0.55sPASS. Exact original request succeeds at9751expansions/work788180/12tracks and passes native terminal partitions/preservation/DRC. Full capability and independent acceptance still open.",
+    "full_requirements": "All 10 remain open; no full-engine, representative parity, production/default or deployment acceptance.",
+    "corrected_rust_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
+    "search_correction": "Admissible consistent minimum target-envelope step bound; original directional states, exact attachment/legality and shared resource budgets retained. Every target estimate is charged work; existing4096world and new256multi-target step-cost oracles pass."
   }
 }
