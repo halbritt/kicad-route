@@ -510,3 +510,130 @@ fn unconnected_tracks_and_pads_remain_foreign_obstacles() {
     assert!(out.added_tracks.is_empty());
     assert!(out.removed_track_ids.is_empty());
 }
+
+#[test]
+fn pad_connectivity_requires_positive_overlap_for_all_supported_shapes() {
+    let mut a = pad(1, 1, [20, 20]);
+    a.shape = Shape::Circle { radius_nm: 5 };
+    let mut b = pad(2, 1, [30, 20]);
+    b.shape = Shape::Circle { radius_nm: 5 };
+    assert!(!pads_touch(&a, &b));
+    b.at = [29, 20];
+    assert!(pads_touch(&a, &b));
+    b.shape = Shape::Rect {
+        half_size_nm: [5, 5],
+    };
+    b.at = [30, 20];
+    assert!(!pads_touch(&a, &b));
+    assert!(!pads_touch(&b, &a));
+    b.at = [29, 20];
+    assert!(pads_touch(&a, &b));
+    b.at = [30, 30];
+    a.at = [22, 21]; // 3-4-5 circle/rectangle corner tangency
+    assert!(!pads_touch(&a, &b));
+    a.at = [23, 21];
+    assert!(pads_touch(&a, &b));
+    a.shape = Shape::Rect {
+        half_size_nm: [5, 5],
+    };
+    a.at = [20, 20];
+    for at in [[30, 20], [30, 30]] {
+        b.at = at;
+        assert!(!pads_touch(&a, &b));
+    }
+    b.at = [29, 29];
+    assert!(pads_touch(&a, &b));
+}
+
+#[test]
+fn tangent_track_pad_is_routed_but_positive_overlap_reuses_copper() {
+    for shape in [
+        Shape::Circle { radius_nm: 1 },
+        Shape::Rect {
+            half_size_nm: [1, 1],
+        },
+    ] {
+        for width in [2, 3] {
+            // odd width's half-nm contact is not trusted
+            for end in [48, 49] {
+                let mut i = base();
+                i.pads[1].shape = shape.clone();
+                let mut t = wire(3, 1, [10, 10], [end, 10]);
+                t.width_nm = width;
+                i.tracks.push(t);
+                let o = run(i);
+                assert_eq!(o.status, Status::Complete);
+                assert_eq!(
+                    o.added_tracks.is_empty(),
+                    end == 49,
+                    "width={width}, end={end}, shape={shape:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn tangent_track_chain_is_not_complete_and_odd_widths_are_conservative() {
+    for (wa, wb) in [(2, 2), (3, 2), (3, 3), (4, 3)] {
+        let radius_sum = wa / 2 + wb / 2;
+        for overlap in [0, 1] {
+            let mut i = base();
+            let mut a = wire(3, 1, [10, 10], [29, 10]);
+            a.width_nm = wa;
+            let mut b = wire(4, 1, [29 + radius_sum - overlap, 10], [50, 10]);
+            b.width_nm = wb;
+            i.tracks.extend([a, b]);
+            let o = run(i);
+            assert_eq!(o.status, Status::Complete);
+            assert_eq!(
+                o.added_tracks.is_empty(),
+                overlap == 1,
+                "widths={wa},{wb} overlap={overlap}"
+            );
+        }
+    }
+}
+
+#[test]
+fn tangent_pad_pair_routes_instead_of_skipping() {
+    for shape in [
+        Shape::Circle { radius_nm: 5 },
+        Shape::Rect {
+            half_size_nm: [5, 5],
+        },
+    ] {
+        let mut i = base();
+        i.pads[0].at = [20, 20];
+        i.pads[1].at = [30, 20];
+        i.pads[0].shape = shape.clone();
+        i.pads[1].shape = shape;
+        let o = run(i);
+        assert_eq!(o.status, Status::Complete);
+        assert!(!o.added_tracks.is_empty());
+    }
+}
+
+#[test]
+fn clearance_equality_remains_legal_and_failure_reason_is_scoped() {
+    let mut i = base();
+    i.nets.push(Net {
+        id: 2,
+        name: "B".into(),
+    });
+    i.tracks.push(wire(3, 2, [10, 20], [50, 20]));
+    let e = Engine::new(i).unwrap();
+    assert!(e.legal_edge(1, [10, 17], [50, 17])); // 1+1 half-widths + 1 clearance
+    assert!(!e.legal_edge(1, [10, 18], [50, 18]));
+    let mut i = base();
+    i.nets.push(Net {
+        id: 2,
+        name: "wall".into(),
+    });
+    i.tracks.push(wire(3, 2, [30, 0], [30, 60]));
+    let o = run(i);
+    assert_eq!(o.status, Status::Unroutable);
+    let reason = o.reason.unwrap();
+    assert!(reason.contains("fixed net order"));
+    assert!(reason.contains("not proof of global infeasibility"));
+}

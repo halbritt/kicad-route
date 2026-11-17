@@ -6,6 +6,13 @@ use model::*;
 use state::CopperStore;
 use std::collections::BTreeSet;
 
+// KiCad 10.0.8 can leave a nominal half-nm overlap open. Trust only the
+// integer half-width interior for connectivity. Clearance still uses the full
+// supplied width; this conservative contact rule can require an extra route.
+fn connectivity_width(width_nm: i64) -> i64 {
+    (width_nm / 2) * 2
+}
+
 pub struct Engine {
     input: Input,
     copper: CopperStore,
@@ -76,14 +83,16 @@ impl Engine {
         let mut reached = BTreeSet::new();
         let mut todo = Vec::new();
         for (i, t) in tracks.iter().enumerate() {
-            if geometry::track_near_pad(t.start, t.end, t.width_nm, 0, a, true) {
+            if geometry::track_near_pad(t.start, t.end, connectivity_width(t.width_nm), 0, a, false)
+            {
                 reached.insert(i);
                 todo.push(i);
             }
         }
         while let Some(i) = todo.pop() {
             let t = tracks[i];
-            if geometry::track_near_pad(t.start, t.end, t.width_nm, 0, b, true) {
+            if geometry::track_near_pad(t.start, t.end, connectivity_width(t.width_nm), 0, b, false)
+            {
                 return true;
             }
             for (j, u) in tracks.iter().enumerate() {
@@ -93,8 +102,9 @@ impl Engine {
                         t.end,
                         u.start,
                         u.end,
-                        i128::from(t.width_nm) + i128::from(u.width_nm),
-                        true,
+                        i128::from(connectivity_width(t.width_nm))
+                            + i128::from(connectivity_width(u.width_nm)),
+                        false,
                     )
                 {
                     reached.insert(j);
@@ -162,6 +172,9 @@ impl Engine {
             if let Err(mut e) = self.route_net(net, self.input.max_expansions, &mut expanded) {
                 self.copper.rollback(checkpoint);
                 e.expanded_states = expanded;
+                if e.status == Status::Unroutable {
+                    e.reason = format!("net {net}: {}; failure for fixed net order/current copper, not proof of global infeasibility", e.reason);
+                }
                 return Err(e);
             }
         }

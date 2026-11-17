@@ -111,12 +111,13 @@ pub fn track_near_pad(
         ),
     }
 }
+/// Electrical connectivity requires positive area overlap, not tangency.
 pub fn pads_touch(a: &Pad, b: &Pad) -> bool {
     match (&a.shape, &b.shape) {
-        (Shape::Circle { radius_nm: r }, _) => track_near_pad(a.at, a.at, 2 * r, 0, b, true),
+        (Shape::Circle { radius_nm: r }, _) => track_near_pad(a.at, a.at, 2 * r, 0, b, false),
         (_, Shape::Circle { .. }) => pads_touch(b, a),
         (Shape::Rect { half_size_nm: x }, Shape::Rect { half_size_nm: y }) => (0..2).all(|i| {
-            (i128::from(a.at[i]) - i128::from(b.at[i])).abs() <= i128::from(x[i]) + i128::from(y[i])
+            (i128::from(a.at[i]) - i128::from(b.at[i])).abs() < i128::from(x[i]) + i128::from(y[i])
         }),
     }
 }

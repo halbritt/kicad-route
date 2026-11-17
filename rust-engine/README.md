@@ -18,7 +18,15 @@ are supported. All incumbent tracks, locked or unlocked, are immutable. Connecte
 have at most two pads; zero-terminal/singleton nets remain untouched. Net ID 0
 means unconnected copper: any number of its pads/tracks are foreign obstacles,
 never autorouted or joined as one net. Already connected
-terminals are recognized through pad/track contact and connected track chains.
+terminals require positive overlap through pads/tracks and track chains; exact
+tangency does not establish connectivity. Connectivity conservatively floors
+each track's half-width to integer nm before testing strict overlap. KiCad
+10.0.8 probes leave a 200001 nm track's nominal 0.5 nm overlap with a circular
+pad open; track-track behavior also varies with the odd-width pair. The
+conservative rule can add routing for a tiny overlap KiCad already accepts.
+Clearance uses full widths and still permits equality at the required gap.
+This is not a claim of complete KiCad contact equivalence for arbitrary
+orientations or sub-nanometre boundaries; native validation remains required.
 Vias, zones, rotated pads, custom rules, differential/length constraints and
 other unrepresented native objects must be rejected by the adapter, never
 silently omitted from the request.
