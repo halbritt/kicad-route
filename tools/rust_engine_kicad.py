@@ -306,6 +306,7 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
             shape = pad_shape(pad)
             pads.append({'id': item_id(pad), 'net': int(pad.GetNetCode()),
                          'at': point(pad.GetPosition()), 'shape': shape})
+    pads.sort(key=lambda item: (item['net'], item['at'], item['id']))
     tracks = []
     for track in board.GetTracks():
         if type(track) is not pcbnew.PCB_TRACK or track.GetLayer() != pcbnew.F_Cu:
@@ -313,8 +314,11 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
         tracks.append({'id': item_id(track), 'net': int(track.GetNetCode()),
                        'start': point(track.GetStart()), 'end': point(track.GetEnd()),
                        'width_nm': int(track.GetWidth()), 'locked': bool(track.IsLocked())})
+    tracks.sort(key=lambda item: (item['net'], item['start'], item['end'],
+                                  item['width_nm'], item['locked'], item['id']))
     nets = [{'id': int(code), 'name': net.GetNetname()}
             for code, net in board.GetNetsByNetcode().items()]
+    nets.sort(key=lambda item: (item['id'], item['name']))
     result = {'version': INPUT_VERSION, 'source_id': hashlib.sha256(read_bounded(path)).hexdigest(),
               'layer': 'F.Cu', 'bounds': rectangular_bounds(board), 'rules': rules,
               'nets': nets, 'pads': pads, 'tracks': tracks, 'max_expansions': max_expansions}
