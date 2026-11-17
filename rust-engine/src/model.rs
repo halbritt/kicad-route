@@ -92,6 +92,20 @@ pub struct Pad {
     pub at: Point,
     pub shape: Shape,
 }
+impl Pad {
+    /// Outward copper envelope for an admitted pad. This is candidate-selection
+    /// geometry only; exact clearance and electrical contact remain separate.
+    pub fn copper_bounds(&self) -> (Point, Point) {
+        let half = match self.shape {
+            Shape::Circle { radius_nm } => [radius_nm; 2],
+            Shape::Rect { half_size_nm } => half_size_nm,
+        };
+        (
+            std::array::from_fn(|k| self.at[k] - half[k]),
+            std::array::from_fn(|k| self.at[k] + half[k]),
+        )
+    }
+}
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Shape {
@@ -107,6 +121,17 @@ pub struct Track {
     pub end: Point,
     pub width_nm: i64,
     pub locked: bool,
+}
+impl Track {
+    /// Outward copper envelope for an admitted track, including odd-nm widths
+    /// and diagonal endpoint caps. It is not a final collision predicate.
+    pub fn copper_bounds(&self) -> (Point, Point) {
+        let radius = (self.width_nm + 1) / 2;
+        (
+            std::array::from_fn(|k| self.start[k].min(self.end[k]) - radius),
+            std::array::from_fn(|k| self.start[k].max(self.end[k]) + radius),
+        )
+    }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
