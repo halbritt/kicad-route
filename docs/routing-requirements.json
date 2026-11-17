@@ -8,52 +8,88 @@
       "ref": "4652455e-989c-4258-b064-e90fb0b7fa05/v1",
       "statement": "Complete Rust routing engine owns state, geometry/legality, search, board orchestration, rip/restore and output; minimal justified native seam.",
       "original_user_record": null,
-      "provenance_gap": "Current relay is explicit authority; the asserted earlier original all-Rust instruction was not recovered."
+      "provenance_gap": "Current relay is explicit authority; the asserted earlier original all-Rust instruction was not recovered.",
+      "date": "2026-11-16"
     },
     "owner-foundation": {
       "kind": "owner-relay",
       "ref": "a2a1d99f-c9b3-4f57-abe0-66fbdff11187/v1",
-      "statement": "Robust, elegant, performant foundations before global routing strategy and quality iteration."
+      "statement": "Robust, elegant, performant foundations before global routing strategy and quality iteration.",
+      "date": "2026-11-16"
     },
     "owner-prevention": {
       "kind": "owner-relay",
       "ref": "9011aac7-f5e4-4332-b1f3-f1e686cb4642/v1",
-      "statement": "Implement and demonstrate project and workflow safeguards, preserve requirements and disagreements, verify actions and escalate stalled reviews."
+      "statement": "Implement and demonstrate project and workflow safeguards, preserve requirements and disagreements, verify actions and escalate stalled reviews.",
+      "date": "2026-11-16"
     },
     "owner-oversight": {
       "kind": "owner-relay",
       "ref": "c28b1800-656c-417c-bbe9-c7d6458566db/v1",
-      "statement": "Validated reviewer findings become requirements; Fable1503 and Carbon1502 independently oversee rewrite. GPU potential remains open pending evidence."
+      "statement": "Validated reviewer findings become requirements; Fable1503 and Carbon1502 independently oversee rewrite. GPU potential remains open pending evidence.",
+      "date": "2026-11-16"
     },
     "fable-first": {
       "kind": "review",
       "ref": "0db81fac-9714-4f81-802c-0e7597e18cdb/v1",
-      "url": "https://artifact.harm.org/qrmnwa/report.html"
+      "url": "https://artifact.harm.org/qrmnwa/report.html",
+      "date": "2026-11-16"
     },
     "fable-corrections": {
       "kind": "review-correction",
       "ref": "dee80763-6d57-4351-9050-cb1867aca1fb/v1",
-      "url": "https://artifact.harm.org/egnc4e/addendum.html"
+      "url": "https://artifact.harm.org/egnc4e/addendum.html",
+      "date": "2026-11-16"
     },
     "carbon-first": {
       "kind": "review",
       "ref": "8c605648-cbd0-498a-92eb-08771c905bbf/v1",
-      "url": "https://artifact.harm.org/09ea77/report.html"
+      "url": "https://artifact.harm.org/09ea77/report.html",
+      "date": "2026-11-16"
     },
     "carbon-corrections": {
       "kind": "review-correction",
       "ref": "85ad3095-de4d-40f5-a6b0-17739114ae8f/v1",
-      "url": "https://artifact.harm.org/52w71g/addendum.html"
+      "url": "https://artifact.harm.org/52w71g/addendum.html",
+      "date": "2026-11-16"
     },
     "synthesis": {
       "kind": "supervisor-adjudication",
       "ref": "960b8cea-cf79-4ac3-9d1f-b5f4a178cb45/v1",
-      "url": "https://artifact.harm.org/tubrxk/synthesis.html"
+      "url": "https://artifact.harm.org/tubrxk/synthesis.html",
+      "date": "2026-11-16"
     },
     "first-slice-review": {
       "kind": "review",
       "ref": "4e2f8dc7-a944-4889-995a-4af8daef62a0/v1",
-      "finding": "Native tangent copper is not connected; root reproduced actual Rust false complete."
+      "finding": "Native tangent copper is not connected; root reproduced actual Rust false complete.",
+      "date": "2026-11-16"
+    },
+    "slice-addendum-1": {
+      "kind": "review-correction",
+      "ref": "50579e7e-fa34-483b-8aa1-d6bf65e174e7/v1",
+      "reviewed_revision": "8c059ff",
+      "date": "2026-11-16"
+    },
+    "slice-addendum-2": {
+      "kind": "review-correction",
+      "ref": "023045b1-049c-4388-9510-93bb86cf6154/v1",
+      "reviewed_revision": "f931aad",
+      "finding": "Native diagonal contact disagreement and Margin clearance witness; diagonal engine predicate was translated Python, not an executed Rust false-completion witness.",
+      "date": "2026-11-16"
+    },
+    "fable-remit": {
+      "kind": "review",
+      "ref": "f2829c01-700b-4a90-bbaf-661ff59d7e5b/v1",
+      "reviewed_revision": "5aee9d1 / f931aad",
+      "date": "2026-11-16"
+    },
+    "carbon-remit": {
+      "kind": "review",
+      "ref": "ff7d4f8b-d17d-491f-86ce-38d523f79a23/v1",
+      "reviewed_revision": "5aee9d1 / f931aad",
+      "url": "https://artifact.harm.org/4szfcn/oversight-acceptance.html",
+      "date": "2026-11-16"
     }
   },
   "requirements": [
@@ -91,7 +127,9 @@
         "fable-first",
         "fable-corrections",
         "carbon-first",
-        "carbon-corrections"
+        "carbon-corrections",
+        "fable-remit",
+        "carbon-remit"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -105,7 +143,8 @@
       ],
       "verification": [
         "Independent small-world oracle for each supported constraint, including history-dependent cases when implemented.",
-        "Forbidden recent-via-only reduction must fail a prior-via witness."
+        "Forbidden recent-via-only reduction must fail a prior-via witness.",
+        "If weighted or non-admissible heuristics are introduced, the independent oracle verifies the claimed cost bound, not only reachability."
       ],
       "state": "open",
       "current_evidence": "256-world independent single-net oracle passes for current four-direction subset; via/pose constraints OPEN."
@@ -113,10 +152,14 @@
     {
       "id": "RE-03",
       "title": "Use continuous copper geometry and native contact semantics",
-      "must": "Validate entire swept segments against supported shapes and bounds. Clearance equality and electrical connectivity are separate predicates; tangency cannot falsely close a native open.",
+      "must": "Validate entire swept segments against supported shapes and bounds. Clearance equality and electrical connectivity are separate predicates; tangency cannot falsely close a native open. Failed constrained search never falls back to reduced clearance, disabled via exclusions or another known-illegal result. Include same-net physical drill and mask spacing when those features are enabled.",
       "source_ids": [
         "carbon-corrections",
-        "first-slice-review"
+        "first-slice-review",
+        "fable-remit",
+        "carbon-remit",
+        "slice-addendum-1",
+        "slice-addendum-2"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -131,10 +174,12 @@
       ],
       "verification": [
         "Mid-segment intrusion, crossings, rectangle corners, tangency/positive overlap and odd-width native controls.",
-        "Retained Carbon x=.0975 sampling case is the valid witness, not original prose x=.195."
+        "Retained Carbon x=.0975 sampling case is the valid witness, not original prose x=.195.",
+        "Actual Rust-binary/native diagonal near-tangent regression and positive overlap controls; translated predicates alone do not prove binary behavior.",
+        "Same-net and cross-net drill, pad-hole and mask-web controls when supported."
       ],
       "state": "open",
-      "current_evidence": "Exact predicates and tangency correction pass subset tests; broader native shape/edge coverage OPEN."
+      "current_evidence": "At f931aad, original axis-aligned tangency regression passes. Fable measured 21/400 diagonal native disagreements against a translated exact predicate (0.012-0.427 nm overlap); actual Rust reproduction and correction assigned to agent-1484. No general contact-equivalence acceptance."
     },
     {
       "id": "RE-04",
@@ -161,15 +206,17 @@
         "Failed result has empty edits; stale source cannot be applied; native protected content unchanged."
       ],
       "state": "open",
-      "current_evidence": "Current journal/batch/reroute tests pass; broader input mutation/native publication paths OPEN."
+      "current_evidence": "Current journal/batch/reroute tests pass; broader input mutation/native publication paths OPEN. Carbon nested-commit concern is source-derived and unexecuted; reachable nesting versus the current no-nesting contract must be adjudicated before closure."
     },
     {
       "id": "RE-05",
       "title": "Report termination and bounded work honestly",
-      "must": "Distinguish invalid, unsupported, exhausted and budget-exhausted. State that fixed net-order failure is not global infeasibility. Bound/cancel complete operations and report work as well as wall time.",
+      "must": "Distinguish invalid, unsupported, exhausted and budget-exhausted. State that fixed net-order failure is not global infeasibility. Bound/cancel complete operations and report work as well as wall time. Same input, revision and work budget produce byte-identical edits; wall clock does not choose routes. An outer timeout must be reported as an edit-free failure, never completion.",
       "source_ids": [
         "fable-first",
-        "synthesis"
+        "synthesis",
+        "fable-remit",
+        "carbon-remit"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -184,7 +231,8 @@
       ],
       "verification": [
         "Structured failure/exit controls, one total budget across nets, no partial edits.",
-        "Cancellation and per-phase bounded-work tests as orchestration expands."
+        "Cancellation and per-phase bounded-work tests as orchestration expands.",
+        "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
       "state": "open",
       "current_evidence": "Typed outcomes and total expansion budget pass; fixed-order reason corrected; full cancellation/work-cost bounds OPEN."
@@ -192,11 +240,15 @@
     {
       "id": "RE-06",
       "title": "Represent native rules and geometry or refuse them",
-      "must": "Import effective board/net/layer/local rules and supported geometry. Reject unrepresented projects, offsets, overrides, keepouts, copper graphics and other features explicitly. Never silently narrow required widths.",
+      "must": "Import effective board/net/layer/local rules and supported geometry. Reject unrepresented projects, offsets, overrides, keepouts, copper graphics and other features explicitly. Never silently narrow required widths. Native Margin geometry must be represented or rejected at board and footprint levels. When zones are enabled, verify pour integrity, thermal contact and preserved existing connectivity after native refill.",
       "source_ids": [
         "owner-rust",
         "carbon-corrections",
-        "first-slice-review"
+        "first-slice-review",
+        "fable-remit",
+        "carbon-remit",
+        "slice-addendum-1",
+        "slice-addendum-2"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -210,18 +262,22 @@
       ],
       "verification": [
         "Real native save/reload rejection cases plus supported geometry/control cases.",
-        "Native DRC beside original project/rule files when project import is supported."
+        "Native DRC beside original project/rule files when project import is supported.",
+        "Native board-level and footprint-level Margin rejection with a supported drawing control.",
+        "When zones are supported, native --refill-zones checks cover islands, area loss, thermal spoke survival and lost_fill_contact; no blanket assumption of net-equivalent copper."
       ],
       "state": "open",
-      "current_evidence": "Ten native omission rejections pass; project rules/multilayer/vias/zones and Margin concerns OPEN."
+      "current_evidence": "Ten native omission rejections pass at f931aad. Board-level Margin violation confirmed by native DRC and accepted by adapter; footprint Margin not yet executed. Both rejection cases assigned to agent-1497. Effective project rules, multilayer, vias and zones remain unsupported."
     },
     {
       "id": "RE-07",
       "title": "Acceptance requires the stated native outcome",
-      "must": "Preserve input, copper UUIDs/nets/locks/rules and native connectivity; separate supported-subset fixture success, full capability, comparison equivalence and desired outcome.",
+      "must": "Preserve input, copper UUIDs/nets/locks/rules and native connectivity; separate supported-subset fixture success, full capability, comparison equivalence and desired outcome. Complete must imply the required native connectivity for every accepted input, or the operation must require and report a native connectivity check before claiming completion. Preserve pre-existing per-net connected-component partitions when expanding zone support.",
       "source_ids": [
         "owner-prevention",
-        "synthesis"
+        "synthesis",
+        "fable-remit",
+        "carbon-remit"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -266,7 +322,7 @@
         "CPU/GPU alternatives require bounded evidence before a performance conclusion."
       ],
       "state": "open",
-      "current_evidence": "No speedup, dense-board scaling or GPU conclusion demonstrated."
+      "current_evidence": "No speedup, dense-board scaling or GPU conclusion demonstrated. Withdrawing Python-dominance speculation does not prove Rust dominance; the split remains unknown."
     },
     {
       "id": "RE-09",
@@ -298,7 +354,9 @@
       "must": "Fable and Carbon independently review relevant architecture, patches and native behavior. Keep objections, dispositions, exact revisions, evidence and unresolved gaps; escalate stale/missing review rather than infer acceptance.",
       "source_ids": [
         "owner-oversight",
-        "owner-prevention"
+        "owner-prevention",
+        "fable-remit",
+        "carbon-remit"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -314,7 +372,7 @@
         "Blind skill behavior controls and stalled-review positive/negative cases."
       ],
       "state": "open",
-      "current_evidence": "Named continuing assignments being dispatched; no blanket acceptance."
+      "current_evidence": "Both exact continuing assignments delivered and explicitly accepted: Fable result f2829c01/v1 at 16:55:36 PST; Carbon result ff7d4f8b/v1 at 16:59:11 PST. Both independently confirmed the catalog mapping and proposed additions. Review setup complete; ongoing milestone acceptance remains open."
     }
   ],
   "allowed_compatibility_seam": {
@@ -383,6 +441,118 @@
         "carbon-corrections",
         "owner-oversight"
       ]
+    }
+  ],
+  "continuing_oversight": {
+    "acceptance_owner": "agent-1497",
+    "independence": "Each reviewer records its own milestone view before seeing the other review; supervisor adjudicates disagreements and exact-revision acceptance.",
+    "reviewers": [
+      {
+        "agent": "agent-1503",
+        "model": "claude-fable-5-2",
+        "primary_requirements": [
+          "RE-01",
+          "RE-02",
+          "RE-04",
+          "RE-05",
+          "RE-07",
+          "RE-09",
+          "RE-10"
+        ],
+        "request_event": "8876291a-7fc7-430e-918b-7cd50ec62361",
+        "request_source": "59be5dfb-6995-4c7a-be34-9ebe48eb68ee/v1",
+        "result_source": "f2829c01-700b-4a90-bbaf-661ff59d7e5b/v1",
+        "delivery_state": "handled",
+        "explicit_acceptance": true,
+        "completed_at": "2026-11-16T16:55:36-08:00"
+      },
+      {
+        "agent": "agent-1502",
+        "model": "gemini-4-carbon-high",
+        "primary_requirements": [
+          "RE-03",
+          "RE-06",
+          "RE-07",
+          "RE-08",
+          "RE-09",
+          "RE-10"
+        ],
+        "request_event": "81d9888e-e4ac-411c-95db-21d65d390955",
+        "request_source": "9403fd5f-3a5c-413a-ad64-b70857e1dbca/v1",
+        "result_source": "ff7d4f8b-d17d-491f-86ce-38d523f79a23/v1",
+        "delivery_state": "handled",
+        "explicit_acceptance": true,
+        "completed_at": "2026-11-16T16:59:11-08:00"
+      }
+    ],
+    "next_milestone": "Close or explicitly adjudicate current contact, Margin, nested-commit and minimum-width objections at one fixed revision, then independently review actual Rust/native behavior. Broad multilayer M2 is a reviewer proposal, not the current implementation assignment.",
+    "later_gates": [
+      "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
+      "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
+      "Before new pads/layers/vias/projects/zones: native positive/negative geometry and effective-rule matrix.",
+      "Before performance claims: matched, phase-attributed measurements; GPU potential stays open."
+    ]
+  },
+  "open_findings": [
+    {
+      "id": "F-B1-diagonal",
+      "requirements": [
+        "RE-03",
+        "RE-07"
+      ],
+      "source_ids": [
+        "slice-addendum-2"
+      ],
+      "evidence_class": "native measurement versus translated engine predicate",
+      "status": "open",
+      "owner": "agent-1484",
+      "next_action": "Reproduce with actual Rust binary, correct connectivity conservatively, retain positive and negative tests.",
+      "request_event": "d49155d2-7872-475b-9372-7fde8488d95d",
+      "observation_deadline": "2026-11-16T17:12:00-08:00",
+      "execution_bound": "2026-11-16T17:17:00-08:00"
+    },
+    {
+      "id": "F-G1-Margin",
+      "requirements": [
+        "RE-06"
+      ],
+      "source_ids": [
+        "slice-addendum-2",
+        "carbon-remit"
+      ],
+      "evidence_class": "board-level native DRC witness; footprint case pending",
+      "status": "open",
+      "owner": "agent-1497",
+      "next_action": "Reject board and footprint Margin geometry with native round-trip tests and a supported drawing control.",
+      "observation_deadline": "2026-11-16T17:12:00-08:00"
+    },
+    {
+      "id": "C-M1-01",
+      "requirements": [
+        "RE-04"
+      ],
+      "source_ids": [
+        "carbon-remit"
+      ],
+      "evidence_class": "source-derived, not reproduced",
+      "status": "open",
+      "owner": "agent-1484",
+      "next_action": "Check checkpoint nesting reachability and contract; reproduce or disposition with evidence before future nested orchestration.",
+      "observation_deadline": "2026-11-16T17:12:00-08:00"
+    },
+    {
+      "id": "C-M1-02",
+      "requirements": [
+        "RE-03"
+      ],
+      "source_ids": [
+        "carbon-remit"
+      ],
+      "evidence_class": "source-derived conservative connectivity edge case",
+      "status": "open",
+      "owner": "agent-1484",
+      "next_action": "Define minimum-width accepted domain and distinguish false opens from false completion; supply tests.",
+      "observation_deadline": "2026-11-16T17:12:00-08:00"
     }
   ]
 }
