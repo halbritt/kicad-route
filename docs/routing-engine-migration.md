@@ -6,6 +6,11 @@
 > The baseline commits, fix lists and qualification results below describe the engine
 > as it was extracted, not the engine as it is now.
 
+The production lifecycle remains Python-controlled with Rust search kernels.
+The later standalone Rust rewrite and its separate ownership, fitness and review
+requirements are tracked in [`engine-acceptance.md`](engine-acceptance.md). The
+historical comparison results below do not establish those later requirements.
+
 The owner authorized moving the supported KRT routing implementation into
 `kicad-route` on 2026-10-20. This supersedes the external-backend acquisition
 policy for KRT. Freerouting remains an external backend.

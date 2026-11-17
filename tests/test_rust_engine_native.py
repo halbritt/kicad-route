@@ -2,6 +2,7 @@
 import importlib.util
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import uuid
@@ -16,6 +17,49 @@ bridge = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(bridge)
 RULES = {'width_nm': 250000, 'clearance_nm': 1000000,
          'grid_nm': 250000, 'edge_clearance_nm': 500000}
+
+
+@pytest.fixture
+def guarded_cli(tmp_path):
+    """Exercise real CLIs with project Python policy execution forbidden.
+
+    Keep the normal host environment. A disposable sitecustomize audit hook
+    permits the exact native-I/O exception and rejects other project Python.
+    This is a regression probe, not a hostile-code security boundary.
+    """
+    guard = tmp_path / 'boundary-guard'
+    guard.mkdir()
+    log = guard / 'audit.jsonl'
+    (guard / 'sitecustomize.py').write_text(f'''
+import json, pathlib, sys
+root = pathlib.Path({str(ROOT)!r}).resolve()
+allowed = (root / 'tools/rust_engine_kicad.py').resolve()
+log = pathlib.Path({str(log)!r})
+def record(row):
+    with log.open('a') as out:
+        out.write(json.dumps(row) + '\\n')
+def check(event, args):
+    if event != 'exec':
+        return
+    filename = args[0].co_filename
+    if filename.startswith('<'):
+        return
+    path = pathlib.Path(filename).resolve()
+    if path.is_relative_to(root):
+        record({{'path': str(path), 'allowed': path == allowed}})
+        if path != allowed:
+            raise RuntimeError('ARCHITECTURE_BOUNDARY: project Python policy is forbidden: ' + str(path))
+record({{'guard_started': True}})
+sys.addaudithook(check)
+''')
+    env = dict(os.environ)
+    env['PYTHONPATH'] = str(guard) + os.pathsep + env.get('PYTHONPATH', '')
+    env['PYTHONDONTWRITEBYTECODE'] = '1'
+
+    def run(command, *, check=True):
+        return subprocess.run(command, cwd=ROOT, env=env, check=check,
+                              capture_output=True, text=True, timeout=60)
+    return run, log
 
 
 @pytest.fixture
@@ -91,23 +135,31 @@ def test_native_adapter_applies_exact_edit_list(native_board):
     assert native_board.read_bytes() == original
 
 
-def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_board):
+def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_board, guarded_cli):
+    run, audit_log = guarded_cli
     original = native_board.read_bytes()
-    exported = bridge.export_board(native_board, RULES, 100000)
     request = native_board.with_name('request.json')
     plan_path = native_board.with_name('plan.json')
-    request.write_text(json.dumps(exported))
-    subprocess.run(
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(RULES))
+    run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'export',
+         str(native_board), str(request), '--rules', str(rules_path)])
+    exported = json.loads(request.read_text())
+    run(
         ['cargo', 'run', '--locked', '--offline', '--manifest-path',
          str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)],
-        cwd=ROOT, check=True, capture_output=True, text=True, timeout=60,
     )
     plan = json.loads(plan_path.read_text())
     assert plan['status'] == 'complete'
     assert plan['added_tracks']
     assert 0 < plan['expanded_states'] <= exported['max_expansions']
     output = native_board.with_name('routed.kicad_pcb')
-    bridge.apply_plan(native_board, plan, output)
+    run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
+         str(native_board), str(plan_path), str(output)])
+    observed = [json.loads(line) for line in audit_log.read_text().splitlines()]
+    assert sum(row.get('guard_started', False) for row in observed) >= 2
+    assert sum(row.get('allowed', False) for row in observed) >= 2
+    assert all(row.get('allowed', True) for row in observed)
     actual = bridge.export_board(output, RULES, 100000)
     assert actual['rules'] == exported['rules']
     assert actual['pads'] == exported['pads']
@@ -133,6 +185,17 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     # The intentionally isolated protected track has a pre-existing dangling
     # warning. No new warning or error is allowed, including new copper items.
     assert reports[1]['violations'] == reports[0]['violations']
+
+
+@pytest.mark.parametrize('path', ['src/kicad_route/cli.py',
+                                  'src/kicad_route/router/py_router/route.py'])
+def test_actual_legacy_entrypoints_cannot_pass_the_candidate_boundary(guarded_cli, path):
+    run, audit_log = guarded_cli
+    result = run(['/usr/bin/python3', str(ROOT / path), '--help'], check=False)
+    assert result.returncode != 0
+    assert 'ARCHITECTURE_BOUNDARY' in result.stderr
+    observed = [json.loads(line) for line in audit_log.read_text().splitlines()]
+    assert {'path': str(ROOT / path), 'allowed': False} in observed
 
 
 @pytest.mark.parametrize('contact', ['axis_tangent', 'diagonal_sub_nm'])

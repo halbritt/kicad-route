@@ -116,6 +116,9 @@ sandboxes, and a glossary. The pages below are the reference.
 - [`docs/routing-engine-migration.md`](docs/routing-engine-migration.md) — how the
   router came into this repository (2026-10-20), its build and that migration's
   acceptance requirements.
+- [`docs/engine-acceptance.md`](docs/engine-acceptance.md) — current source
+  requirements, Python/Rust ownership boundaries, guarded CLI checks, and the
+  distinction between equivalence, outcome fitness and architecture acceptance.
 - [`docs/campaign.md`](docs/campaign.md) — `campaign`: automated hard-nets-first chains,
   backlog rounds, ranking, race orderings.
 - [`docs/floor.md`](docs/floor.md) — rule high-water mark and the declared rule floor

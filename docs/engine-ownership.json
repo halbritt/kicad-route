@@ -1,0 +1,87 @@
+{
+  "schema": "kicad-route/engine-ownership/1",
+  "requirement": "RE-01",
+  "source_id": "owner-rust",
+  "required_language": "Rust",
+  "limitations": "Paths and symbols are reviewable ownership declarations, not inferred semantic proof. Runtime boundary checks and exact-revision independent review are required separately.",
+  "implementations": {
+    "current-production": {
+      "role": "current default",
+      "responsibilities": {
+        "state": {
+          "path": "src/kicad_route/router/py_router/route.py",
+          "symbol": "_BoardCopper"
+        },
+        "geometry_legality": {
+          "path": "src/kicad_route/router/py_router/phase3_routing.py",
+          "symbol": "_commit_net_result"
+        },
+        "search": {
+          "path": "src/kicad_route/router/rust_router/src/router.rs",
+          "symbol": "route_multi"
+        },
+        "orchestration": {
+          "path": "src/kicad_route/router/py_router/route.py",
+          "symbol": "batch_route"
+        },
+        "rip_restore": {
+          "path": "src/kicad_route/router/py_router/rip_up_reroute.py",
+          "symbol": "rip_up_net"
+        },
+        "output": {
+          "path": "src/kicad_route/cli.py",
+          "symbol": "krt_route"
+        }
+      },
+      "note": "Geometry/legality spans Python and Rust; this row names the Python commit decision, not every geometric kernel. Rust search kernels do not establish lifecycle ownership."
+    },
+    "rust-candidate": {
+      "role": "standalone incomplete replacement; not default",
+      "responsibilities": {
+        "state": {
+          "path": "rust-engine/src/state.rs",
+          "symbol": "CopperStore"
+        },
+        "geometry_legality": {
+          "path": "rust-engine/src/geometry.rs",
+          "symbol": "track_near_pad"
+        },
+        "search": {
+          "path": "rust-engine/src/search.rs",
+          "symbol": "search"
+        },
+        "orchestration": {
+          "path": "rust-engine/src/lib.rs",
+          "symbol": "route_all"
+        },
+        "rip_restore": {
+          "path": "rust-engine/src/lib.rs",
+          "symbol": "reroute"
+        },
+        "output": {
+          "path": "rust-engine/src/main.rs",
+          "symbol": "main"
+        }
+      }
+    }
+  },
+  "exceptions": [
+    {
+      "responsibility": "native format import/apply/validation",
+      "path": "tools/rust_engine_kicad.py",
+      "language": "Python",
+      "source_id": "owner-rust",
+      "allowed_operations": [
+        "export_board",
+        "apply_plan"
+      ],
+      "forbidden_operations": [
+        "path choice",
+        "victim choice",
+        "routing state",
+        "routing cost",
+        "legacy fallback"
+      ]
+    }
+  ]
+}
