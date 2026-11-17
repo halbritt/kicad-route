@@ -408,6 +408,7 @@ fn cli_structured_errors_replace_old_edits_and_have_nonzero_exit() {
             .success());
         let good: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
         assert_eq!(good["status"], "complete");
+        assert_eq!(good["version"], 2);
         assert!(!good["added_tracks"].as_array().unwrap().is_empty());
         fs::write(&input, b"{broken").unwrap();
         assert!(!Command::new(env!("CARGO_BIN_EXE_kicad-route-engine"))
@@ -417,6 +418,8 @@ fn cli_structured_errors_replace_old_edits_and_have_nonzero_exit() {
             .success());
         let bad: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
         assert_eq!(bad["status"], "invalid");
+        assert_eq!(bad["version"], 2);
+        assert_eq!(bad["removed_track_ids"], json!([]));
         assert!(bad["added_tracks"].as_array().unwrap().is_empty());
         Ok::<(), ()>(())
     })();
@@ -731,4 +734,117 @@ fn full_nm_contact_threshold_handles_corners_and_tiny_widths() {
     assert!(!tracks_connect(&t, &u)); // even intersecting centre lines need enough radius
     assert!(!point_near_segment([0, 0], [0, 0], [10, 10], -2, true));
     assert!(!segments_near([0, 0], [10, 10], [0, 10], [10, 0], -2, true));
+}
+
+#[test]
+fn direct_route_and_reroute_failures_name_the_search_domain() {
+    let mut input = base();
+    input.nets.push(Net {
+        id: 2,
+        name: "wall".into(),
+    });
+    input.tracks.push(wire(3, 2, [30, 0], [30, 60]));
+    let mut e = Engine::new(input).unwrap();
+    let before = serde_json::to_vec(&e.copper().tracks().collect::<Vec<_>>()).unwrap();
+    let route = e.route(1, 10000).unwrap_err();
+    let reroute = e.reroute(1, 10000).unwrap_err();
+    for failure in [route, reroute, e.route_all().unwrap_err()] {
+        assert_eq!(failure.status, Status::Unroutable);
+        assert!(failure.reason.contains("current copper"));
+        assert!(failure
+            .reason
+            .contains("fixed grid and pad-center/track-endpoint seeds"));
+        assert_eq!(
+            failure
+                .reason
+                .matches("not proof of global infeasibility")
+                .count(),
+            1
+        );
+        assert!(failure.expanded_states > 0);
+        assert!(failure.work_used > 0);
+    }
+    assert!(e.copper().index_consistent());
+    assert_eq!(
+        serde_json::to_vec(&e.copper().tracks().collect::<Vec<_>>()).unwrap(),
+        before
+    );
+    assert!(!e
+        .route(1, 1)
+        .unwrap_err()
+        .reason
+        .contains("global infeasibility"));
+    assert!(!e
+        .route(0, 1000)
+        .unwrap_err()
+        .reason
+        .contains("global infeasibility"));
+}
+
+#[test]
+fn net_name_limit_reports_utf8_bytes_at_the_boundary() {
+    for name in ["a".repeat(1024), "é".repeat(512)] {
+        let mut input = base();
+        input.nets[0].name = name;
+        assert_eq!(run(input).status, Status::Complete);
+    }
+    for name in ["a".repeat(1025), "é".repeat(513)] {
+        let mut input = base();
+        input.nets[0].name = name;
+        let result = run(input);
+        assert_eq!(result.status, Status::Invalid);
+        assert_eq!(result.version, 2);
+        assert_eq!(
+            result.reason.as_deref(),
+            Some("net name exceeds 1024 UTF-8 bytes")
+        );
+        assert_eq!(result.work_used, 0);
+        assert!(result.added_tracks.is_empty());
+    }
+}
+
+#[test]
+fn subprocess_input_and_result_versions_are_independent_and_publication_failure_is_explicit() {
+    use std::{fs, process::Command};
+    let dir = std::env::temp_dir().join(format!("kicad-cli-versions-{}", std::process::id()));
+    fs::create_dir(&dir).unwrap();
+    let input = dir.join("in.json");
+    let output = dir.join("out.json");
+    for (version, exit, status) in [
+        (1, 0, "complete"),
+        (2, 2, "unsupported"),
+        (0, 2, "unsupported"),
+    ] {
+        let mut doc = document();
+        doc["version"] = json!(version);
+        fs::write(&input, serde_json::to_vec(&doc).unwrap()).unwrap();
+        let process = Command::new(env!("CARGO_BIN_EXE_kicad-route-engine"))
+            .args([&input, &output])
+            .output()
+            .unwrap();
+        assert_eq!(process.status.code(), Some(exit));
+        let result: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+        assert_eq!(result["version"], 2);
+        assert_eq!(result["status"], status);
+        assert!(result["expanded_states"].is_u64());
+        assert!(result["work_used"].is_u64());
+        assert_eq!(result["removed_track_ids"], json!([]));
+        if exit != 0 {
+            assert_eq!(result["added_tracks"], json!([]));
+        }
+    }
+    fs::write(&input, serde_json::to_vec(&document()).unwrap()).unwrap();
+    fs::remove_file(&output).unwrap();
+    fs::create_dir(&output).unwrap(); // rename cannot replace a directory
+    let process = Command::new(env!("CARGO_BIN_EXE_kicad-route-engine"))
+        .args([&input, &output])
+        .output()
+        .unwrap();
+    assert_eq!(process.status.code(), Some(2));
+    let stderr = String::from_utf8(process.stderr).unwrap();
+    assert!(stderr.contains("no fresh result established"));
+    assert!(stderr.contains("destination may still contain an older result"));
+    assert!(output.is_dir());
+    assert_eq!(fs::read_dir(&dir).unwrap().count(), 2); // owned temporary removed
+    fs::remove_dir_all(dir).unwrap();
 }

@@ -11,7 +11,7 @@ cargo run --locked --manifest-path rust-engine/Cargo.toml -- INPUT.json OUTPUT.j
 mise run host:exec --timeout 5m -- cargo test --locked --offline --manifest-path rust-engine/Cargo.toml
 ```
 
-The version-1 JSON contract is enforced with typed deserialization, including
+The version-1 input JSON contract is enforced with typed deserialization, including
 unknown-field and duplicate-field rejection. Bounds are an axis-aligned
 rectangle; only F.Cu, circular/axis-aligned rectangular pads and straight tracks
 are supported. All incumbent tracks, locked or unlocked, are immutable. Connected net IDs
@@ -134,6 +134,8 @@ when called through a transaction view. A handled operation error leaves prior
 outer changes intact. `route` preserves already-connected copper; `reroute`
 removes only generated copper for that net before searching. Both require a
 known nonzero net and a budget of 1..=1,000,000 expansions for that operation.
+Unroutable errors from all three methods name the fixed current copper, grid
+and pad-center/track-endpoint seed domain, without claiming global infeasibility.
 `route_all` retains its existing batch-wide expansion budget. The enclosing
 transaction shares one total-work limit across all nested calls; expansion
 limits remain per operation.
@@ -157,8 +159,9 @@ remain crate-private and are used only by these engine operations. Concurrent
 mutation of an engine is excluded by its exclusive Rust borrow.
 
 Each proposed segment is validated before insertion. A failed batch rolls back all earlier
-generated routes and publishes no edits. JSON remains version 1, with defaulted limits and an added work counter: the CLI routes one fresh batch and does not expose transaction or
-reroute commands. This API adds transactional ownership, not a routing strategy.
+generated routes and publishes no edits. Input JSON remains version 1 with
+defaulted limits; output JSON is version 2. The CLI routes one fresh batch
+and does not expose transaction or reroute commands. This API adds transactional ownership, not a routing strategy.
 
 Generated IDs use a deterministic custom UUIDv8 layout: a prefix from source_id
 plus a counter, skipping all reserved pad/track IDs. These are board-local stable
@@ -170,10 +173,24 @@ changing their swept geometry.
 Output is atomically replaced. `complete` exits 0; `invalid`/`unsupported` exit 2,
 `unroutable` exits 3, expansion `budget_exhausted` exits 4, total
 `work_exhausted` exits 5, and `admission_exceeded`, `journal_exhausted` or
-`nesting_exhausted` exit 6. Every structured failure has
-empty edit lists and a reason. I/O publication failure exits nonzero and must
-not be interpreted as fresh output. No geometry/search acceptance policy is
-delegated to Python, and no default backend or shared runtime is changed.
+`nesting_exhausted` exit 6. An unwinding executor panic produces
+`internal_error` and exits 7. Every structured failure has
+empty edit lists and a reason. All results carry version 2, independently of
+input version 1, and require unsigned `expanded_states` and `work_used` counters.
+Consumers must refuse older or unsupported result versions, including old
+version-1 results with missing counters. For `internal_error` only, both counters
+are 0 sentinels meaning unavailable, not a measurement of work done; its reason
+says so. A valid source ID is recovered when possible, otherwise it is empty.
+
+The CLI catches unwinding panics around the routing executor only, after
+library transaction scopes have restored state; direct library callers still
+receive the original panic payload. The typed failure atomically replaces any
+older complete output when publication succeeds. Abort, SIGKILL, allocation
+failure and process death are not handled by this boundary. Output publication
+failure exits 2 and stderr states that no fresh result was established and the
+destination may still contain an older result. Callers must check the process
+exit before using output; existence of an old file never establishes success.
+No geometry/search acceptance policy is delegated to Python, and no default backend or shared runtime is changed.
 
 Tests compare direction-state A* against an independent position-only Dijkstra
 oracle over 256 small obstacle worlds (the oracle uses no production geometry
@@ -210,7 +227,8 @@ resource defaults, not board-specific routing settings.
 | `max_depth` | 64 | 256 | Active transaction frames, including routing method scopes |
 
 `Engine::new` admits input cardinality before indexing/validation. Net names
-are at most 1,024 bytes; IDs have their existing fixed sizes. Validation uses
+are at most 1,024 UTF-8 bytes (the refusal reason states this limit); IDs have
+their existing fixed sizes. Validation uses
 bounded linear/logarithmic collections, including pad counts by net rather
 than a net-by-pad quadratic scan. Both the JSON library entry and CLI accept
 at most 16 MiB. Native decoding/export remains the adapter's separate work.

@@ -38,6 +38,11 @@ impl Limits {
     }
 }
 
+// Input and result documents evolve independently. Never infer result shape
+// from the version of the input that produced it.
+pub const INPUT_VERSION: u32 = 1;
+pub const RESULT_VERSION: u32 = 2;
+
 pub type Point = [i64; 2];
 // +/-100 mm coordinates (up to a 200 mm span). These bounds also keep every
 // squared cross-product clearance comparison safely within signed i128.
@@ -115,6 +120,7 @@ pub enum Status {
     AdmissionExceeded,
     JournalExhausted,
     NestingExhausted,
+    InternalError,
 }
 #[derive(Debug, Serialize)]
 pub struct Output {
@@ -173,7 +179,7 @@ impl Input {
         }
         let invalid = |s: &str| Failure::new(Status::Invalid, s);
         let unsupported = |s: &str| Failure::new(Status::Unsupported, s);
-        if self.version != 1 {
+        if self.version != INPUT_VERSION {
             return Err(unsupported("only input version 1 is supported"));
         }
         if self.layer != "F.Cu" {
@@ -218,8 +224,10 @@ impl Input {
         let mut nets = BTreeSet::new();
         let mut names = BTreeSet::new();
         for n in &self.nets {
-            if n.name.len() > 1024
-                || (n.id != 0 && n.name.is_empty())
+            if n.name.len() > 1024 {
+                return Err(invalid("net name exceeds 1024 UTF-8 bytes"));
+            }
+            if (n.id != 0 && n.name.is_empty())
                 || (n.id == 0 && !n.name.is_empty())
                 || !nets.insert(n.id)
                 || !names.insert(&n.name)

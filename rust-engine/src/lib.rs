@@ -309,18 +309,25 @@ impl Engine {
             let engine = &mut *tx.engine;
             let mut expanded = 0;
             engine.work.charge(engine.input.nets.len() as u64)?;
-            let mut nets: Vec<_> = engine.input.nets.iter()
-                .filter(|n| n.id != 0).map(|n| n.id).collect();
+            let mut nets: Vec<_> = engine
+                .input
+                .nets
+                .iter()
+                .filter(|n| n.id != 0)
+                .map(|n| n.id)
+                .collect();
             engine.work.charge(nets.len() as u64)?;
             nets.sort();
             for net in nets {
-                engine.work.charge(1).map_err(|mut e| { e.expanded_states = expanded; e })?;
-                if let Err(mut e) = engine.route_net(net, engine.input.max_expansions, &mut expanded) {
+                engine.work.charge(1).map_err(|mut e| {
                     e.expanded_states = expanded;
-                    if e.status == Status::Unroutable {
-                        e.reason = format!("net {net}: {}; failure for fixed net order/current copper, not proof of global infeasibility", e.reason);
-                    }
-                    return Err(e);
+                    e
+                })?;
+                if let Err(mut e) =
+                    engine.route_net(net, engine.input.max_expansions, &mut expanded)
+                {
+                    e.expanded_states = expanded;
+                    return Err(scoped_routing_failure(e, net));
                 }
             }
             Ok(expanded)
@@ -363,16 +370,22 @@ impl Engine {
                 .route_net(net, max_expansions, &mut expanded)
                 .map_err(|mut e| {
                     e.expanded_states = expanded;
-                    e
+                    scoped_routing_failure(e, net)
                 })?;
             Ok(expanded)
         })
     }
 }
+fn scoped_routing_failure(mut e: Failure, net: u32) -> Failure {
+    if e.status == Status::Unroutable {
+        e.reason = format!("net {net}: {}; failure for fixed net order/current copper, fixed grid and pad-center/track-endpoint seeds; not proof of global infeasibility", e.reason);
+    }
+    e
+}
 impl Output {
     pub fn failure(source_id: String, e: Failure) -> Self {
         Self {
-            version: 1,
+            version: RESULT_VERSION,
             source_id,
             status: e.status,
             added_tracks: Vec::new(),
@@ -391,7 +404,7 @@ pub fn run(input: Input) -> Output {
     };
     match engine.route_all() {
         Ok(expanded) => Output {
-            version: 1,
+            version: RESULT_VERSION,
             source_id: source,
             status: Status::Complete,
             added_tracks: engine.copper.generated().cloned().collect(),
