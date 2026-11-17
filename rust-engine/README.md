@@ -40,7 +40,7 @@ track/circle, track/rectangle-corner, circle/circle and circle/rectangle-corner
 contacts had no false completion after this change. These are bounded contact
 experiments, not proof of KiCad equivalence at all orientations, sizes or
 sub-nanometre boundaries. Native validation remains required after routing.
-Vias, zones, rotated pads, custom rules, differential/length constraints and
+Vias, zones, non-orthogonally rotated pads, custom rules, differential/length constraints and
 other unrepresented native objects must be rejected by the adapter, never
 silently omitted from the request.
 
