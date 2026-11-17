@@ -560,6 +560,8 @@ impl SpatialKey for String {
     }
 }
 
+pub(crate) const TREAP_UNIFORM_SKIP_CAP: u32 = 32;
+
 #[derive(Clone, Debug)]
 struct TreapNode<K, V> {
     copper: CopperAabb,
@@ -567,15 +569,16 @@ struct TreapNode<K, V> {
     key: K,
     priority: u64,
     value: V,
+    net: u32,
+    subtree_uniform_net: u32,
+    subtree_len: u32,
     height: NonZeroU32,
     left: u32,
     right: u32,
 }
 
-const _: () = assert!(std::mem::size_of::<TreapNode<u64, u32>>() <= 96);
-const _: () = assert!(std::mem::size_of::<Option<TreapNode<u64, u32>>>() <= 96);
-const _: () = assert!(std::mem::size_of::<TreapNode<u64, (u32, u32)>>() <= 104);
-const _: () = assert!(std::mem::size_of::<Option<TreapNode<u64, (u32, u32)>>>() <= 104);
+const _: () = assert!(std::mem::size_of::<TreapNode<u64, u32>>() <= 112);
+const _: () = assert!(std::mem::size_of::<Option<TreapNode<u64, u32>>>() <= 112);
 
 #[derive(Debug)]
 pub(crate) struct SpatialIndex<K, V> {
@@ -645,22 +648,38 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
     }
 
     fn refresh(&mut self, idx: u32) {
-        let (copper, left, right) = {
+        let (copper, net, left, right) = {
             let n = self.node(idx);
-            (n.copper, n.left, n.right)
+            (n.copper, n.net, n.left, n.right)
         };
-        let lh = self.link_height(left);
-        let rh = self.link_height(right);
+        let mut lh = 0;
+        let mut rh = 0;
         let mut envelope = copper;
+        let mut subtree_len = 1u32;
+        let mut subtree_uniform_net = net;
         if left != NONE_U32 {
-            envelope = envelope.union(self.node(left).envelope);
+            let l = self.node(left);
+            lh = l.height.get();
+            envelope = envelope.union(l.envelope);
+            subtree_len += l.subtree_len;
+            if l.subtree_uniform_net != subtree_uniform_net {
+                subtree_uniform_net = 0;
+            }
         }
         if right != NONE_U32 {
-            envelope = envelope.union(self.node(right).envelope);
+            let r = self.node(right);
+            rh = r.height.get();
+            envelope = envelope.union(r.envelope);
+            subtree_len += r.subtree_len;
+            if r.subtree_uniform_net != subtree_uniform_net {
+                subtree_uniform_net = 0;
+            }
         }
         let n = self.node_mut(idx);
         n.height = NonZeroU32::new(1 + lh.max(rh)).expect("treap height >= 1");
         n.envelope = envelope;
+        n.subtree_uniform_net = subtree_uniform_net;
+        n.subtree_len = subtree_len;
     }
 
     fn heap_gt(&self, a: u32, b: u32) -> bool {
@@ -727,7 +746,7 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
         }
     }
 
-    pub fn insert(&mut self, key: K, value: V, bounds: CopperAabb) {
+    pub fn insert(&mut self, key: K, value: V, net: u32, bounds: CopperAabb) {
         let priority = key.priority();
         let idx = self.alloc_node(TreapNode {
             copper: bounds,
@@ -735,6 +754,9 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
             key,
             priority,
             value,
+            net,
+            subtree_uniform_net: net,
+            subtree_len: 1,
             height: NonZeroU32::new(1).expect("height >= 1"),
             left: NONE_U32,
             right: NONE_U32,
@@ -803,10 +825,11 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
         value
     }
 
-    #[inline]
-    pub fn visit<'a>(
+    #[inline(always)]
+    pub fn visit_matching<'a>(
         &'a self,
         bounds: SweptAabb,
+        net_filter: Option<u32>,
         work: &WorkBudget,
         mut visitor: impl FnMut(&'a K, &'a V) -> Result<ControlFlow<()>, Failure>,
     ) -> Result<ControlFlow<()>, Failure> {
@@ -829,31 +852,50 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
                 .as_ref()
                 .expect("spatial treap index references live node");
             if node.envelope.overlaps(q) {
-                if node.copper.overlaps(q) && visitor(&node.key, &node.value)?.is_break() {
-                    return Ok(ControlFlow::Break(()));
-                }
-                let left = node.left;
-                let right = node.right;
-                if left != NONE_U32 {
-                    if right != NONE_U32 {
-                        if sp < stack.len() {
-                            stack[sp] = right;
-                            sp += 1;
-                        } else {
-                            overflow.push(right);
+                if node.subtree_uniform_net != 0
+                    && net_filter == Some(node.subtree_uniform_net)
+                    && node.subtree_len <= TREAP_UNIFORM_SKIP_CAP
+                {
+                    let rest = u64::from(node.subtree_len - 1);
+                    if rest > 0 && work.charge(rest).is_err() {
+                        for _ in 0..rest {
+                            work.charge(1)?;
                         }
                     }
-                    idx = left;
-                    continue;
+                } else {
+                    if net_filter.is_none_or(|filter| node.net == 0 || node.net != filter)
+                        && node.copper.overlaps(q)
+                        && visitor(&node.key, &node.value)?.is_break()
+                    {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    let left = node.left;
+                    let right = node.right;
+                    if left != NONE_U32 {
+                        if right != NONE_U32 {
+                            if sp < stack.len() {
+                                stack[sp] = right;
+                                sp += 1;
+                            } else {
+                                overflow.push(right);
+                            }
+                        }
+                        idx = left;
+                        continue;
+                    }
+                    if right != NONE_U32 {
+                        idx = right;
+                        continue;
+                    }
                 }
-                if right != NONE_U32 {
-                    idx = right;
+            }
+            if sp == stack.len() {
+                if let Some(next) = overflow.pop() {
+                    idx = next;
                     continue;
                 }
             }
-            if let Some(next) = overflow.pop() {
-                idx = next;
-            } else if sp > 0 {
+            if sp > 0 {
                 sp -= 1;
                 idx = stack[sp];
             } else {
@@ -861,6 +903,17 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
             }
         }
         Ok(ControlFlow::Continue(()))
+    }
+
+    #[cfg(test)]
+    #[inline]
+    pub fn visit<'a>(
+        &'a self,
+        bounds: SweptAabb,
+        work: &WorkBudget,
+        visitor: impl FnMut(&'a K, &'a V) -> Result<ControlFlow<()>, Failure>,
+    ) -> Result<ControlFlow<()>, Failure> {
+        self.visit_matching(bounds, None, work, visitor)
     }
 
     #[cfg(test)]
@@ -874,22 +927,24 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
         Ok(found)
     }
 
-    pub fn consistent(&self, expected: impl IntoIterator<Item = (K, V, CopperAabb)>) -> bool
+    pub fn consistent(&self, expected: impl IntoIterator<Item = (K, V, u32, CopperAabb)>) -> bool
     where
         V: Eq + Clone,
     {
-        let expected: BTreeMap<K, (V, CopperAabb)> =
-            expected.into_iter().map(|(k, v, b)| (k, (v, b))).collect();
+        let expected: BTreeMap<K, (V, u32, CopperAabb)> = expected
+            .into_iter()
+            .map(|(k, v, net, b)| (k, (v, net, b)))
+            .collect();
         fn inspect<'a, K: SpatialKey, V: Eq + Clone>(
             nodes: &'a [Option<TreapNode<K, V>>],
             idx: u32,
             lo: Option<(i64, &'a K)>,
             hi: Option<(i64, &'a K)>,
             visited: &mut BTreeSet<u32>,
-            actual: &mut BTreeMap<K, (V, CopperAabb)>,
-        ) -> Option<(u32, Option<CopperAabb>)> {
+            actual: &mut BTreeMap<K, (V, u32, CopperAabb)>,
+        ) -> Option<(u32, u32, u32, Option<CopperAabb>)> {
             if idx == NONE_U32 {
-                return Some((0, None));
+                return Some((0, 0, 0, None));
             }
             if !visited.insert(idx) {
                 return None;
@@ -911,21 +966,32 @@ impl<K: SpatialKey, V> SpatialIndex<K, V> {
                     }
                 }
             }
-            let (lh, lb) = inspect(nodes, n.left, lo, Some(n_ord), visited, actual)?;
-            let (rh, rb) = inspect(nodes, n.right, Some(n_ord), hi, visited, actual)?;
+            let (lh, l_len, l_unif, lb) = inspect(nodes, n.left, lo, Some(n_ord), visited, actual)?;
+            let (rh, r_len, r_unif, rb) =
+                inspect(nodes, n.right, Some(n_ord), hi, visited, actual)?;
             let mut envelope = n.copper;
             for child in [lb, rb].into_iter().flatten() {
                 envelope = envelope.union(child);
             }
+            let expected_len = 1u32.checked_add(l_len)?.checked_add(r_len)?;
+            let mut expected_unif = n.net;
+            if n.left != NONE_U32 && l_unif != expected_unif {
+                expected_unif = 0;
+            }
+            if n.right != NONE_U32 && r_unif != expected_unif {
+                expected_unif = 0;
+            }
             if n.height.get() != 1 + lh.max(rh)
+                || n.subtree_len != expected_len
+                || n.subtree_uniform_net != expected_unif
                 || n.envelope != envelope
                 || actual
-                    .insert(n.key.clone(), (n.value.clone(), n.copper))
+                    .insert(n.key.clone(), (n.value.clone(), n.net, n.copper))
                     .is_some()
             {
                 return None;
             }
-            Some((n.height.get(), Some(envelope)))
+            Some((n.height.get(), expected_len, expected_unif, Some(envelope)))
         }
         let mut visited = BTreeSet::new();
         let mut actual = BTreeMap::new();
@@ -966,10 +1032,8 @@ mod tests {
         assert!(std::mem::size_of::<PadCore>() <= 40);
         assert!(std::mem::size_of::<TrackGeom>() <= 40);
         assert!(std::mem::size_of::<StaticNode>() <= 64);
-        assert!(std::mem::size_of::<TreapNode<u64, u32>>() <= 96);
-        assert!(std::mem::size_of::<Option<TreapNode<u64, u32>>>() <= 96);
-        assert!(std::mem::size_of::<TreapNode<u64, (u32, u32)>>() <= 104);
-        assert!(std::mem::size_of::<Option<TreapNode<u64, (u32, u32)>>>() <= 104);
+        assert!(std::mem::size_of::<TreapNode<u64, u32>>() <= 112);
+        assert!(std::mem::size_of::<Option<TreapNode<u64, u32>>>() <= 112);
     }
 
     #[test]
@@ -993,12 +1057,30 @@ mod tests {
         wrong_net[0].1 += 1;
         assert!(!make().consistent(wrong_net));
 
-        // Broken internal split key violating strict (lo, hi) BST bounds.
+        // Broken internal split key violating strict (lo, hi) BST bounds:
+        // test both root (exercising leaf [lo, hi) check) and non-root internal (66 items).
         let mut idx = make();
         if let StaticKind::Internal { split_min_x, .. } = &mut idx.nodes[0].kind {
             *split_min_x = 10_000;
         }
         assert!(!idx.consistent(items.iter().copied()));
+
+        let items66: Vec<(u32, u32, CopperAabb, ())> = (0..66u32)
+            .map(|i| {
+                let x = i64::from(i) * 10;
+                (i, i % 3, CopperAabb::from_bounds(([x, 0], [x + 4, 4])), ())
+            })
+            .collect();
+        let mut idx66 = StaticSpatialIndex::new(items66.iter().copied());
+        assert!(idx66.consistent(items66.iter().copied()));
+        if let StaticKind::Internal { left, .. } = idx66.nodes[0].kind {
+            if let StaticKind::Internal { split_min_x, .. } = &mut idx66.nodes[left as usize].kind {
+                *split_min_x = 10_000;
+            } else {
+                panic!("expected non-root internal node for 66 items");
+            }
+        }
+        assert!(!idx66.consistent(items66.iter().copied()));
 
         // Stale leaf envelope.
         let mut idx = make();
@@ -1083,10 +1165,15 @@ mod tests {
                 let x = key as i64 * 11 - 1500;
                 let bounds =
                     CopperAabb::from_bounds(([x, (step % 17) - 8], [x + 13, (step % 17) + 5]));
-                index.insert(key, key as u32, bounds);
+                index.insert(key, key as u32, (key % 5) as u32, bounds);
                 expected.insert(key, bounds);
             }
-            assert!(index.consistent(expected.iter().map(|(k, b)| (*k, *k as u32, *b))));
+            assert!(index.consistent(expected.iter().map(|(k, b)| (
+                *k,
+                *k as u32,
+                (*k % 5) as u32,
+                *b
+            ))));
             let work = WorkBudget::new(Limits::default());
             let query = SweptAabb::from_copper(CopperAabb::from_bounds((
                 [key as i64 * 7 - 1000, -3],
@@ -1107,7 +1194,7 @@ mod tests {
             if step % 200 == 199 {
                 let mut rebuilt = SpatialIndex::new();
                 for (&k, &b) in expected.iter().rev() {
-                    rebuilt.insert(k, k as u32, b);
+                    rebuilt.insert(k, k as u32, (k % 5) as u32, b);
                 }
                 let w1 = WorkBudget::new(Limits::default());
                 let w2 = WorkBudget::new(Limits::default());
@@ -1122,7 +1209,12 @@ mod tests {
         for (key, bounds) in expected.clone() {
             index.remove(&key, bounds);
             expected.remove(&key);
-            assert!(index.consistent(expected.iter().map(|(k, b)| (*k, *k as u32, *b))));
+            assert!(index.consistent(expected.iter().map(|(k, b)| (
+                *k,
+                *k as u32,
+                (*k % 5) as u32,
+                *b
+            ))));
         }
         assert_eq!(index.root, NONE_U32);
     }
@@ -1133,10 +1225,14 @@ mod tests {
         let b1 = CopperAabb::from_bounds(([10, 0], [20, 10]));
         let b2 = CopperAabb::from_bounds(([30, 0], [40, 10]));
         let b3 = CopperAabb::from_bounds(([50, 0], [60, 10]));
-        index.insert(1u64, 0u32, b1);
-        index.insert(2u64, 1u32, b2);
-        index.insert(3u64, 2u32, b3);
-        let expected = [(1u64, 0u32, b1), (2u64, 1u32, b2), (3u64, 2u32, b3)];
+        index.insert(1u64, 0u32, 1, b1);
+        index.insert(2u64, 1u32, 2, b2);
+        index.insert(3u64, 2u32, 3, b3);
+        let expected = [
+            (1u64, 0u32, 1u32, b1),
+            (2u64, 1u32, 2u32, b2),
+            (3u64, 2u32, 3u32, b3),
+        ];
         assert!(index.consistent(expected));
 
         // Violate BST key order on a node without changing expected map contents.
@@ -1144,7 +1240,11 @@ mod tests {
         let orig_copper = index.node(root_idx).copper;
         index.node_mut(root_idx).copper = CopperAabb::from_bounds(([1000, 0], [1010, 10]));
         index.refresh(root_idx);
-        assert!(!index.consistent([(1u64, 0u32, b1), (2u64, 1u32, b2), (3u64, 2u32, b3)]));
+        assert!(!index.consistent([
+            (1u64, 0u32, 1u32, b1),
+            (2u64, 1u32, 2u32, b2),
+            (3u64, 2u32, 3u32, b3)
+        ]));
         index.node_mut(root_idx).copper = orig_copper;
         index.refresh(root_idx);
         assert!(index.consistent(expected));
@@ -1155,15 +1255,26 @@ mod tests {
         index.node_mut(root_idx).priority ^= 1;
         assert!(index.consistent(expected));
 
+        // Violate BST order with unchanged expected map, heap, and envelopes by swapping left/right.
+        let orig_left = index.node(root_idx).left;
+        let orig_right = index.node(root_idx).right;
+        assert!(orig_left != NONE_U32 && orig_right != NONE_U32);
+        index.node_mut(root_idx).left = orig_right;
+        index.node_mut(root_idx).right = orig_left;
+        assert!(!index.consistent(expected));
+        index.node_mut(root_idx).left = orig_left;
+        index.node_mut(root_idx).right = orig_right;
+        assert!(index.consistent(expected));
+
         // Exercise String key priority determinism as well.
         let mut s_index = SpatialIndex::new();
         let sa = CopperAabb::from_bounds(([0, 0], [5, 5]));
         let sb = CopperAabb::from_bounds(([10, 0], [15, 5]));
-        s_index.insert("alpha".to_string(), 1u32, sa);
-        s_index.insert("beta".to_string(), 2u32, sb);
+        s_index.insert("alpha".to_string(), 1u32, 1, sa);
+        s_index.insert("beta".to_string(), 2u32, 2, sb);
         assert!(s_index.consistent([
-            ("alpha".to_string(), 1u32, sa),
-            ("beta".to_string(), 2u32, sb)
+            ("alpha".to_string(), 1u32, 1u32, sa),
+            ("beta".to_string(), 2u32, 2u32, sb)
         ]));
     }
 
@@ -1188,7 +1299,7 @@ mod tests {
         let static_idx =
             StaticSpatialIndex::new([(0u32, 0u32, CopperAabb::from_bounds(([0, 0], [5, 5])), ())]);
         let mut treap_idx = SpatialIndex::new();
-        treap_idx.insert(1u64, 0u32, CopperAabb::from_bounds(([0, 0], [5, 5])));
+        treap_idx.insert(1u64, 0u32, 0, CopperAabb::from_bounds(([0, 0], [5, 5])));
 
         let w_static = WorkBudget::new(Limits::default());
         let _s1 = w_static.scope();
@@ -1240,6 +1351,7 @@ mod tests {
         let mut index: SpatialIndex<u64, u32> = SpatialIndex::new();
         let mut expected = Vec::new();
         let mut prev = NONE_U32;
+        let mut prev_len = 0u32;
         for i in (0..80u64).rev() {
             let x = i as i64 * 10;
             let copper = CopperAabb::from_bounds(([x, 0], [x + 4, 4]));
@@ -1251,6 +1363,9 @@ mod tests {
                 key: leaf_key,
                 priority: leaf_key.priority(),
                 value: leaf_key as u32,
+                net: 0,
+                subtree_uniform_net: 0,
+                subtree_len: 1,
                 height: NonZeroU32::new(1).unwrap(),
                 left: NONE_U32,
                 right: NONE_U32,
@@ -1259,12 +1374,16 @@ mod tests {
             if prev != NONE_U32 {
                 env = env.union(index.node(prev).envelope);
             }
+            prev_len += 2;
             let cur_idx = index.alloc_node(TreapNode {
                 copper,
                 envelope: env,
                 key: i,
                 priority: i.priority(),
                 value: i as u32,
+                net: 0,
+                subtree_uniform_net: 0,
+                subtree_len: prev_len,
                 height: NonZeroU32::new(1 + index.link_height(prev).max(1)).unwrap(),
                 left: prev,
                 right: right_idx,
@@ -1286,6 +1405,17 @@ mod tests {
             .collect();
         assert_eq!(found, expected);
         assert_eq!(work.used(), 160);
+        for limit in [65u64, 159u64] {
+            let short = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _short_s = short.scope();
+            let err = index.query(q, &short).unwrap_err();
+            assert_eq!(err.status, Status::WorkExhausted);
+            assert_eq!(err.work_used, limit);
+            assert_eq!(short.used(), limit);
+        }
     }
 
     fn candidate_fixture(y: i64) -> Input {
@@ -1500,5 +1630,519 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn static_uniform_net_partial_budgets_and_edge_cases() {
+        let items: Vec<(u32, u32, CopperAabb, u32)> = (0..4u32)
+            .map(|i| {
+                let x = i64::from(i) * 10;
+                (i, 1, CopperAabb::from_bounds(([x, 0], [x + 4, 4])), i)
+            })
+            .collect();
+        let idx = StaticSpatialIndex::new(items);
+        let q_all = SweptAabb::from_copper(CopperAabb::from_bounds(([-1, -1], [35, 5])));
+        for limit in 0..=5u64 {
+            let work = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _s = work.scope();
+            let mut calls = 0u64;
+            let res = idx.visit_matching(q_all, Some(1), &work, |_, _| {
+                calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            });
+            if limit < 5 {
+                let err = res.unwrap_err();
+                assert_eq!(err.status, Status::WorkExhausted);
+                assert_eq!(err.work_used, limit);
+                assert_eq!(work.used(), limit);
+                assert_eq!(calls, 0);
+            } else {
+                assert!(res.unwrap().is_continue());
+                assert_eq!(calls, 0);
+                assert_eq!(work.used(), 5);
+            }
+        }
+        for limit in 0..=5u64 {
+            let work = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _s = work.scope();
+            let mut calls = 0u64;
+            let res = idx.visit(q_all, &work, |_| {
+                calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            });
+            if limit < 5 {
+                let err = res.unwrap_err();
+                assert_eq!(err.status, Status::WorkExhausted);
+                assert_eq!(err.work_used, limit);
+                assert_eq!(calls, limit.saturating_sub(1));
+            } else {
+                assert!(res.unwrap().is_continue());
+                assert_eq!(calls, 4);
+                assert_eq!(work.used(), 5);
+            }
+        }
+        for net_filter in [Some(2), Some(0)] {
+            let work = WorkBudget::new(Limits::default());
+            let _s = work.scope();
+            let mut calls = 0u64;
+            assert!(idx
+                .visit_matching(q_all, net_filter, &work, |_, _| {
+                    calls += 1;
+                    Ok::<_, Failure>(ControlFlow::Continue(()))
+                })
+                .unwrap()
+                .is_continue());
+            assert_eq!(calls, 4);
+            assert_eq!(work.used(), 5);
+        }
+
+        let q_disjoint = SweptAabb::from_copper(CopperAabb::from_bounds(([100, 100], [110, 110])));
+        let w0 = WorkBudget::new(Limits {
+            max_work: 0,
+            ..Limits::default()
+        });
+        let _s0 = w0.scope();
+        assert_eq!(
+            idx.visit_matching(q_disjoint, Some(1), &w0, |_, _| Ok(ControlFlow::Continue(
+                ()
+            )))
+            .unwrap_err()
+            .work_used,
+            0
+        );
+        drop(_s0);
+        let w1 = WorkBudget::new(Limits {
+            max_work: 1,
+            ..Limits::default()
+        });
+        let _s1 = w1.scope();
+        let mut calls = 0u64;
+        assert!(idx
+            .visit_matching(q_disjoint, Some(1), &w1, |_, _| {
+                calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(calls, 0);
+        assert_eq!(w1.used(), 1);
+        drop(_s1);
+
+        let net0_idx = StaticSpatialIndex::new((0..4u32).map(|i| {
+            let x = i64::from(i) * 10;
+            (i, 0, CopperAabb::from_bounds(([x, 0], [x + 4, 4])), i)
+        }));
+        let w_net0 = WorkBudget::new(Limits::default());
+        let _sn0 = w_net0.scope();
+        let mut net0_calls = 0u64;
+        assert!(net0_idx
+            .visit_matching(q_all, Some(0), &w_net0, |_, _| {
+                net0_calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(net0_calls, 4);
+        assert_eq!(w_net0.used(), 5);
+        drop(_sn0);
+
+        let mixed_idx =
+            StaticSpatialIndex::new([1u32, 1, 2, 1].into_iter().enumerate().map(|(i, net)| {
+                let x = i64::try_from(i).unwrap() * 10;
+                (
+                    i as u32,
+                    net,
+                    CopperAabb::from_bounds(([x, 0], [x + 4, 4])),
+                    i as u32,
+                )
+            }));
+        let w_mix = WorkBudget::new(Limits::default());
+        let _smix = w_mix.scope();
+        let mut mix_calls = 0u64;
+        assert!(mixed_idx
+            .visit_matching(q_all, Some(1), &w_mix, |_, _| {
+                mix_calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(mix_calls, 1);
+        assert_eq!(w_mix.used(), 5);
+        drop(_smix);
+
+        // 2-leaf StaticSpatialIndex (34 items): left 17 uniform net=1, right 16 net=1 + 1 net=2.
+        let two_leaf_items: Vec<(u32, u32, CopperAabb, u32)> = (0..34u32)
+            .map(|i| {
+                let x = if i < 17 {
+                    i64::from(i) * 10
+                } else {
+                    200 + i64::from(i - 17) * 10
+                };
+                let net = if i == 33 { 2 } else { 1 };
+                (i, net, CopperAabb::from_bounds(([x, 0], [x + 4, 4])), i)
+            })
+            .collect();
+        let two_leaf = StaticSpatialIndex::new(two_leaf_items);
+        let q_two_all = SweptAabb::from_copper(CopperAabb::from_bounds(([-5, -5], [400, 10])));
+        for limit in 0..=37u64 {
+            let work = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _s = work.scope();
+            let mut calls = 0u64;
+            let res = two_leaf.visit_matching(q_two_all, Some(1), &work, |_, _| {
+                calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            });
+            if limit < 37 {
+                let err = res.unwrap_err();
+                assert_eq!(err.status, Status::WorkExhausted);
+                assert_eq!(err.work_used, limit);
+            } else {
+                assert!(res.unwrap().is_continue());
+                assert_eq!(calls, 1);
+                assert_eq!(work.used(), 37);
+            }
+        }
+        let q_left_only = SweptAabb::from_copper(CopperAabb::from_bounds(([-5, -5], [170, 10])));
+        for limit in 0..=20u64 {
+            let work = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _s = work.scope();
+            let mut calls = 0u64;
+            let res = two_leaf.visit_matching(q_left_only, Some(1), &work, |_, _| {
+                calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            });
+            if limit < 20 {
+                let err = res.unwrap_err();
+                assert_eq!(err.status, Status::WorkExhausted);
+                assert_eq!(err.work_used, limit);
+            } else {
+                assert!(res.unwrap().is_continue());
+                assert_eq!(calls, 0);
+                assert_eq!(work.used(), 20);
+            }
+        }
+
+        // 4-node treap partial WorkExhausted check across 0..=4.
+        let mut treap4 = SpatialIndex::new();
+        for i in 1..=4u64 {
+            let x = i as i64 * 10;
+            treap4.insert(
+                i,
+                i as u32,
+                0,
+                CopperAabb::from_bounds(([x, 0], [x + 4, 4])),
+            );
+        }
+        let q_t4 = SweptAabb::from_copper(CopperAabb::from_bounds(([0, -2], [60, 10])));
+        for limit in 0..=4u64 {
+            let work = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _s = work.scope();
+            let res = treap4.visit(q_t4, &work, |_, _| Ok(ControlFlow::Continue(())));
+            if limit < 4 {
+                let err = res.unwrap_err();
+                assert_eq!(err.status, Status::WorkExhausted);
+                assert_eq!(err.work_used, limit);
+            } else {
+                assert!(res.unwrap().is_continue());
+                assert_eq!(work.used(), 4);
+            }
+        }
+    }
+
+    #[test]
+    fn treap_uniform_net_bulk_skip_and_exact_work_cutoff() {
+        // 1. n=16 (<= TREAP_UNIFORM_SKIP_CAP) & n=64 (> TREAP_UNIFORM_SKIP_CAP) uniform net=1.
+        for n in [16u64, 64u64] {
+            let mut idx = SpatialIndex::new();
+            let mut expected = Vec::new();
+            for i in 1..=n {
+                let x = i as i64 * 10;
+                let b = CopperAabb::from_bounds(([x, 0], [x + 4, 4]));
+                idx.insert(i, i as u32, 1, b);
+                expected.push((i, i as u32, 1u32, b));
+            }
+            assert!(idx.consistent(expected));
+            let q_all =
+                SweptAabb::from_copper(CopperAabb::from_bounds(([0, -2], [n as i64 * 10 + 10, 8])));
+            for limit in 0..=n {
+                let work = WorkBudget::new(Limits {
+                    max_work: limit,
+                    ..Limits::default()
+                });
+                let _s = work.scope();
+                let mut calls = 0u64;
+                let res = idx.visit_matching(q_all, Some(1), &work, |_, _| {
+                    calls += 1;
+                    Ok::<_, Failure>(ControlFlow::Continue(()))
+                });
+                if limit < n {
+                    let err = res.unwrap_err();
+                    assert_eq!(err.status, Status::WorkExhausted);
+                    assert_eq!(err.work_used, limit);
+                    assert_eq!(work.used(), limit);
+                    assert_eq!(calls, 0);
+                } else {
+                    assert!(res.unwrap().is_continue());
+                    assert_eq!(calls, 0);
+                    assert_eq!(work.used(), n);
+                }
+            }
+            for filter in [Some(2), None] {
+                let work = WorkBudget::new(Limits::default());
+                let _s = work.scope();
+                let mut calls = 0u64;
+                assert!(idx
+                    .visit_matching(q_all, filter, &work, |_, _| {
+                        calls += 1;
+                        Ok::<_, Failure>(ControlFlow::Continue(()))
+                    })
+                    .unwrap()
+                    .is_continue());
+                assert_eq!(calls, n);
+                assert_eq!(work.used(), n);
+            }
+            if n == 64 {
+                // Capped skip prevents root bulk-charge explosion on a small local query.
+                let q_local = SweptAabb::from_copper(CopperAabb::from_bounds(([10, 0], [14, 4])));
+                let work = WorkBudget::new(Limits::default());
+                let _s = work.scope();
+                assert!(idx
+                    .visit_matching(q_local, Some(1), &work, |_, _| {
+                        Ok(ControlFlow::Continue(()))
+                    })
+                    .unwrap()
+                    .is_continue());
+                assert_eq!(work.used(), 37);
+            }
+        }
+
+        // 2. Non-root uniform subtree: root key=6 (net=2), left 1..=4 (net=1), right 7..=8 (net=3).
+        let mut non_root = SpatialIndex::new();
+        for (k, net) in [(1u64, 1u32), (2, 1), (3, 1), (4, 1), (6, 2), (7, 3), (8, 3)] {
+            let x = k as i64 * 10;
+            non_root.insert(
+                k,
+                k as u32,
+                net,
+                CopperAabb::from_bounds(([x, 0], [x + 4, 4])),
+            );
+        }
+        assert_eq!(non_root.node(non_root.root).net, 2);
+        assert_eq!(non_root.node(non_root.root).subtree_uniform_net, 0);
+        let q_sub = SweptAabb::from_copper(CopperAabb::from_bounds(([0, -2], [100, 8])));
+        for limit in 0..=7u64 {
+            let work = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _s = work.scope();
+            let mut calls = 0u64;
+            let res = non_root.visit_matching(q_sub, Some(1), &work, |_, _| {
+                calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            });
+            if limit < 7 {
+                let err = res.unwrap_err();
+                assert_eq!(err.status, Status::WorkExhausted);
+                assert_eq!(err.work_used, limit);
+            } else {
+                assert!(res.unwrap().is_continue());
+                assert_eq!(calls, 3); // root(net=2) + right(7,8 net=3)
+                assert_eq!(work.used(), 7);
+            }
+        }
+
+        // 3. net=0 with Some(0), disjoint q on uniform net=1, and sibling right subtree continuation.
+        let mut net0_idx = SpatialIndex::new();
+        for k in 1..=4u64 {
+            let x = k as i64 * 10;
+            net0_idx.insert(
+                k,
+                k as u32,
+                0,
+                CopperAabb::from_bounds(([x, 0], [x + 4, 4])),
+            );
+        }
+        let w_n0 = WorkBudget::new(Limits::default());
+        let _sn0 = w_n0.scope();
+        let mut n0_calls = 0u64;
+        assert!(net0_idx
+            .visit_matching(q_sub, Some(0), &w_n0, |_, _| {
+                n0_calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(n0_calls, 4);
+        assert_eq!(w_n0.used(), 4);
+        drop(_sn0);
+
+        let mut dis_idx = SpatialIndex::new();
+        for k in 1..=6u64 {
+            let x = 100 + k as i64 * 10;
+            dis_idx.insert(
+                k,
+                k as u32,
+                1,
+                CopperAabb::from_bounds(([x, 0], [x + 4, 4])),
+            );
+        }
+        let q_dis = SweptAabb::from_copper(CopperAabb::from_bounds(([0, 0], [10, 10])));
+        for limit in 0..=1u64 {
+            let work = WorkBudget::new(Limits {
+                max_work: limit,
+                ..Limits::default()
+            });
+            let _s = work.scope();
+            let mut calls = 0u64;
+            let res = dis_idx.visit_matching(q_dis, Some(1), &work, |_, _| {
+                calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            });
+            if limit == 0 {
+                assert_eq!(res.unwrap_err().work_used, 0);
+            } else {
+                assert!(res.unwrap().is_continue());
+                assert_eq!(calls, 0);
+                assert_eq!(work.used(), 1);
+            }
+        }
+
+        // 4. Sibling right subtree continuation after left uniform subtree skip.
+        let mut sib = SpatialIndex::new();
+        for (k, net) in [(1u64, 1u32), (2, 1), (3, 1), (6, 1), (7, 2)] {
+            let x = k as i64 * 10;
+            sib.insert(
+                k,
+                k as u32,
+                net,
+                CopperAabb::from_bounds(([x, 0], [x + 4, 4])),
+            );
+        }
+        let w_sib = WorkBudget::new(Limits::default());
+        let _ssib = w_sib.scope();
+        let mut sib_calls = 0u64;
+        assert!(sib
+            .visit_matching(q_sub, Some(1), &w_sib, |_, _| {
+                sib_calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(sib_calls, 1);
+        assert_eq!(w_sib.used(), 5);
+        drop(_ssib);
+
+        // 5. Rotations (insert + remove), left-only/right-only child refresh, and consistent() corruptions.
+        let mut rot = SpatialIndex::new();
+        let mut exp_rot: BTreeMap<u64, (u32, CopperAabb)> = BTreeMap::new();
+        for k in 1..=16u64 {
+            let net = if matches!(k, 1 | 8 | 16) { 2 } else { 1 };
+            let b = CopperAabb::from_bounds(([k as i64 * 10, 0], [k as i64 * 10 + 4, 4]));
+            rot.insert(k, k as u32, net, b);
+            exp_rot.insert(k, (net, b));
+        }
+        assert!(rot.consistent(exp_rot.iter().map(|(&k, &(net, b))| (k, k as u32, net, b))));
+        let q_rot = SweptAabb::from_copper(CopperAabb::from_bounds(([0, -2], [200, 8])));
+        let w_rot1 = WorkBudget::new(Limits::default());
+        let _sr1 = w_rot1.scope();
+        let mut rot_calls = 0u64;
+        assert!(rot
+            .visit_matching(q_rot, Some(1), &w_rot1, |_, _| {
+                rot_calls += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(rot_calls, 3);
+        drop(_sr1);
+
+        for k in [1u64, 8, 16] {
+            let (_, b) = exp_rot.remove(&k).unwrap();
+            rot.remove(&k, b);
+        }
+        assert!(rot.consistent(exp_rot.iter().map(|(&k, &(net, b))| (k, k as u32, net, b))));
+        let w_rot2 = WorkBudget::new(Limits::default());
+        let _sr2 = w_rot2.scope();
+        let mut rot_calls2 = 0u64;
+        assert!(rot
+            .visit_matching(q_rot, Some(1), &w_rot2, |_, _| {
+                rot_calls2 += 1;
+                Ok::<_, Failure>(ControlFlow::Continue(()))
+            })
+            .unwrap()
+            .is_continue());
+        assert_eq!(rot_calls2, 0);
+        assert_eq!(w_rot2.used(), 13);
+        drop(_sr2);
+
+        // Left-only and right-only 2-node child refresh (root net=1, child net=2).
+        for (root_k, child_k) in [(6u64, 1u64), (6u64, 7u64)] {
+            let mut lr = SpatialIndex::new();
+            let br =
+                CopperAabb::from_bounds(([root_k as i64 * 10, 0], [root_k as i64 * 10 + 4, 4]));
+            let bc =
+                CopperAabb::from_bounds(([child_k as i64 * 10, 0], [child_k as i64 * 10 + 4, 4]));
+            lr.insert(root_k, root_k as u32, 1, br);
+            lr.insert(child_k, child_k as u32, 2, bc);
+            assert!(lr.consistent([
+                (root_k, root_k as u32, 1, br),
+                (child_k, child_k as u32, 2, bc)
+            ]));
+            let w_lr = WorkBudget::new(Limits::default());
+            let _slr = w_lr.scope();
+            let mut lr_calls = 0u64;
+            assert!(lr
+                .visit_matching(q_sub, Some(1), &w_lr, |_, _| {
+                    lr_calls += 1;
+                    Ok::<_, Failure>(ControlFlow::Continue(()))
+                })
+                .unwrap()
+                .is_continue());
+            assert_eq!(lr_calls, 1);
+        }
+
+        // Direct consistent() corruptions on subtree_uniform_net, subtree_len, and node.net.
+        let mut cor = SpatialIndex::new();
+        let b1 = CopperAabb::from_bounds(([10, 0], [14, 4]));
+        let b6 = CopperAabb::from_bounds(([60, 0], [64, 4]));
+        cor.insert(1u64, 1, 1, b1);
+        cor.insert(6u64, 6, 1, b6);
+        let exp_cor = [(1u64, 1u32, 1u32, b1), (6u64, 6u32, 1u32, b6)];
+        assert!(cor.consistent(exp_cor));
+        let r = cor.root;
+        let l = cor.node(r).left;
+        cor.node_mut(r).subtree_uniform_net = 0;
+        assert!(!cor.consistent(exp_cor));
+        cor.node_mut(r).subtree_uniform_net = 2;
+        assert!(!cor.consistent(exp_cor));
+        cor.node_mut(r).subtree_uniform_net = 1;
+        cor.node_mut(l).subtree_uniform_net = 0;
+        assert!(!cor.consistent(exp_cor));
+        cor.node_mut(l).subtree_uniform_net = 1;
+        cor.node_mut(r).subtree_len += 1;
+        assert!(!cor.consistent(exp_cor));
+        cor.node_mut(r).subtree_len -= 2;
+        assert!(!cor.consistent(exp_cor));
+        cor.node_mut(r).subtree_len = 0;
+        assert!(!cor.consistent(exp_cor));
+        cor.node_mut(r).subtree_len = 2;
+        cor.node_mut(l).net = 2;
+        assert!(!cor.consistent(exp_cor));
     }
 }

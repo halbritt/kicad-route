@@ -136,7 +136,7 @@ fn standalone_clearance_query_charges_pruning_and_candidate_geometry_before_work
             if limit < needed {
                 let failure = result.unwrap_err();
                 assert_eq!(failure.status, Status::WorkExhausted);
-                assert!(failure.work_used <= limit);
+                assert_eq!(failure.work_used, limit);
             } else {
                 assert_eq!(result.unwrap(), y == 10);
                 assert_eq!(e.work_used(), needed);
@@ -728,4 +728,219 @@ fn route_insertion_charges_spatial_index_mutation_work() {
     ok_engine.route(1, 1000).unwrap();
     assert_eq!(ok_engine.work_used(), EXACT_1STEP_WORK);
     assert_eq!(ok_engine.copper().generated().count(), 1);
+}
+
+#[test]
+fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
+    let base_input = || -> Input {
+        let mut i = fixture(false);
+        i.bounds = Bounds {
+            min: [0, 0],
+            max: [100, 100],
+        };
+        i.rules.grid_nm = 1;
+        i.nets = vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "N1".into(),
+            },
+            Net {
+                id: 2,
+                name: "N2".into(),
+            },
+        ];
+        i.pads.clear();
+        i.tracks.clear();
+        i
+    };
+
+    // Setup 1: 4 same-net pads on net=1, empty tracks.
+    let mut s1 = base_input();
+    for (idx, x) in [10i64, 20, 30, 40].into_iter().enumerate() {
+        s1.pads.push(Pad {
+            id: format!("10000000-0000-4000-8000-{:012x}", idx + 1),
+            net: 1,
+            at: [x, 33],
+            shape: Shape::Circle { radius_nm: 1 },
+        });
+    }
+    for limit in 0..=6u64 {
+        s1.limits.max_work = limit;
+        let e = Engine::new(s1.clone()).unwrap();
+        let res = e.legal_edge(1, [10, 30], [40, 30]);
+        if limit < 6 {
+            let err = res.unwrap_err();
+            assert_eq!(err.status, Status::WorkExhausted);
+            assert_eq!(err.work_used, limit);
+            assert_eq!(e.work_used(), limit);
+        } else {
+            assert!(res.unwrap());
+            assert_eq!(e.work_used(), 6);
+        }
+    }
+    s1.limits.max_work = Limits::default().max_work;
+    let e1 = Engine::new(s1.clone()).unwrap();
+    assert!(e1.legal_edge(2, [10, 30], [40, 30]).unwrap());
+    assert_eq!(e1.work_used(), 10);
+    assert!(!e1.legal_edge(2, [10, 31], [40, 31]).unwrap());
+    assert_eq!(e1.work_used(), 4);
+    assert!(e1.legal_edge(0, [10, 30], [40, 30]).unwrap());
+    assert_eq!(e1.work_used(), 10);
+
+    // Setup 2: 4 same-net input tracks on net=1, empty pads.
+    let mut s2 = base_input();
+    for (idx, x) in [10i64, 20, 30, 40].into_iter().enumerate() {
+        s2.tracks.push(Track {
+            id: format!("20000000-0000-4000-8000-{:012x}", idx + 1),
+            net: 1,
+            start: [x, 33],
+            end: [x + 5, 33],
+            width_nm: 2,
+            locked: true,
+        });
+    }
+    for limit in 0..=6u64 {
+        s2.limits.max_work = limit;
+        let e = Engine::new(s2.clone()).unwrap();
+        let res = e.legal_edge(1, [10, 30], [40, 30]);
+        if limit < 6 {
+            let err = res.unwrap_err();
+            assert_eq!(err.status, Status::WorkExhausted);
+            assert_eq!(err.work_used, limit);
+            assert_eq!(e.work_used(), limit);
+        } else {
+            assert!(res.unwrap());
+            assert_eq!(e.work_used(), 6);
+        }
+    }
+    s2.limits.max_work = Limits::default().max_work;
+    let e2 = Engine::new(s2).unwrap();
+    assert!(e2.legal_edge(2, [10, 30], [40, 30]).unwrap());
+    assert_eq!(e2.work_used(), 10);
+    assert!(e2.legal_edge(0, [10, 30], [40, 30]).unwrap());
+    assert_eq!(e2.work_used(), 10);
+
+    // Setup 3: net=0 uniform input tracks & mixed-net pads.
+    let mut s3a = base_input();
+    for (idx, x) in [10i64, 20, 30, 40].into_iter().enumerate() {
+        s3a.tracks.push(Track {
+            id: format!("30000000-0000-4000-8000-{:012x}", idx + 1),
+            net: 0,
+            start: [x, 33],
+            end: [x + 5, 33],
+            width_nm: 2,
+            locked: true,
+        });
+    }
+    let e3a = Engine::new(s3a).unwrap();
+    assert!(e3a.legal_edge(0, [10, 30], [40, 30]).unwrap());
+    assert_eq!(e3a.work_used(), 10);
+
+    let mut s3b = base_input();
+    for (idx, (x, net)) in [(10i64, 1u32), (20, 1), (30, 2), (40, 1)]
+        .into_iter()
+        .enumerate()
+    {
+        s3b.pads.push(Pad {
+            id: format!("40000000-0000-4000-8000-{:012x}", idx + 1),
+            net,
+            at: [x, 33],
+            shape: Shape::Circle { radius_nm: 1 },
+        });
+    }
+    let e3b = Engine::new(s3b).unwrap();
+    assert!(e3b.legal_edge(1, [10, 30], [40, 30]).unwrap());
+    assert_eq!(e3b.work_used(), 7);
+}
+
+#[test]
+fn generated_uniform_net_and_net0_work_accounting() {
+    // 2 pads on net=1 routed -> 1 generated track; net=0 input track blocks legal_edge(0, ...).
+    let mut i = fixture(true);
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 100],
+    };
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+        Net {
+            id: 2,
+            name: "N2".into(),
+        },
+    ];
+    i.tracks.push(Track {
+        id: "50000000-0000-4000-8000-000000000001".into(),
+        net: 0,
+        start: [30, 50],
+        end: [30, 70],
+        width_nm: 2,
+        locked: true,
+    });
+    let mut e = Engine::new(i).unwrap();
+    e.route(1, 1000).unwrap();
+    assert_eq!(e.copper().generated().count(), 1);
+    assert!(!e.legal_edge(0, [20, 60], [40, 60]).unwrap());
+    // Bounds(1) + pruned pad leaf(1) + input_spatial leaf(1) + 1 entry(1) + 1 geom hit(1) = 5.
+    assert_eq!(e.work_used(), 5);
+    assert!(!e.legal_edge(2, [30, 20], [30, 40]).unwrap());
+    assert_eq!(e.work_used(), 7);
+    assert!(e.legal_edge(1, [30, 20], [30, 40]).unwrap());
+    assert_eq!(e.work_used(), 6);
+
+    // Multi-segment generated uniform-net=1 route (3 pads on net=1 with a net=0 obstacle):
+    // join 1 inserts >= 3 uniform net=1 segments into generated_spatial, then join 2
+    // calls legal_edge(1, ...) during A* so every limit cutoff exercises SpatialIndex::visit_matching
+    // bulk-charge WorkExhausted fallback through Engine::route.
+    let mut multi = fixture(true);
+    multi.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 100],
+    };
+    multi.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+    ];
+    multi.pads.push(Pad {
+        id: "50000000-0000-4000-8000-000000000002".into(),
+        net: 0,
+        at: [30, 30],
+        shape: Shape::Circle { radius_nm: 3 },
+    });
+    multi.pads.push(Pad {
+        id: "50000000-0000-4000-8000-000000000003".into(),
+        net: 1,
+        at: [50, 60],
+        shape: Shape::Circle { radius_nm: 1 },
+    });
+    const MULTI_GEN_ROUTE_WORK: u64 = 2191;
+    let mut probe = Engine::new(multi.clone()).unwrap();
+    probe.route(1, 1000).unwrap();
+    assert_eq!(probe.work_used(), MULTI_GEN_ROUTE_WORK);
+    assert_eq!(probe.copper().generated().count(), 5);
+    for limit in [1413u64, 1414, 1426, 1427, 1434, 1435] {
+        multi.limits.max_work = limit;
+        let mut em = Engine::new(multi.clone()).unwrap();
+        let err = em.route(1, 1000).unwrap_err();
+        assert_eq!(err.status, Status::WorkExhausted);
+        assert_eq!(err.work_used, limit);
+        assert_eq!(em.work_used(), limit);
+        assert_eq!(em.copper().generated().count(), 0);
+    }
 }

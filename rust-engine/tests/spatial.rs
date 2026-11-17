@@ -636,9 +636,10 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
         for x in (-190..=190).step_by(20) {
             for y in (-190..=190).step_by(20) {
                 let (a, b) = ([x, y], [x + 10, y]);
-                let left = fresh.legal_edge(0, a, b).unwrap();
+                let net = (query_cases % 5) as u32;
+                let left = fresh.legal_edge(net, a, b).unwrap();
                 let left_work = fresh.work_used();
-                let right = history.legal_edge(0, a, b).unwrap();
+                let right = history.legal_edge(net, a, b).unwrap();
                 let right_work = history.work_used();
                 assert_eq!(left, right);
                 query_cases += 1;
@@ -677,4 +678,73 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
     assert!(op_cases >= 52, "expected >= 52 ops, got {op_cases}");
     assert_eq!(query_differs, 0, "post-rollback query work_used differed");
     assert_eq!(op_differs, 0, "post-rollback reroute work_used differed");
+}
+
+#[test]
+fn generated_samenet_rollback_determinism() {
+    let mut input = routing_fixture();
+    input.bounds = Bounds {
+        min: [-120, -120],
+        max: [120, 120],
+    };
+    input.pads = vec![
+        Pad {
+            id: uuid(1),
+            net: 1,
+            at: [-50, -20],
+            shape: Shape::Circle { radius_nm: 3 },
+        },
+        Pad {
+            id: uuid(2),
+            net: 1,
+            at: [50, -20],
+            shape: Shape::Circle { radius_nm: 3 },
+        },
+        Pad {
+            id: uuid(3),
+            net: 2,
+            at: [-50, 20],
+            shape: Shape::Circle { radius_nm: 3 },
+        },
+        Pad {
+            id: uuid(4),
+            net: 2,
+            at: [50, 20],
+            shape: Shape::Circle { radius_nm: 3 },
+        },
+    ];
+    let mut fresh = Engine::new(input.clone()).unwrap();
+    fresh.route_all().unwrap();
+    let mut history = Engine::new(input).unwrap();
+    history.route_all().unwrap();
+    assert_eq!(bytes(&fresh), bytes(&history));
+
+    let _ = history.transaction(|outer| {
+        outer.reroute(1, 1000).unwrap();
+        outer
+            .transaction(|inner| {
+                inner.reroute(2, 1000).unwrap();
+                Ok::<_, ()>(())
+            })
+            .unwrap();
+        Err::<(), _>(())
+    });
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        let _: Result<(), TransactionError<()>> = history.transaction(|tx| {
+            let _ = tx.reroute(1, 50_000);
+            std::panic::panic_any(11u32)
+        });
+    }));
+    assert_eq!(bytes(&fresh), bytes(&history));
+    for net in [1u32, 2u32] {
+        for y in (-40..=40).step_by(10) {
+            let f_ok = fresh.legal_edge(net, [-40, y], [40, y]).unwrap();
+            let fw = fresh.work_used();
+            let h_ok = history.legal_edge(net, [-40, y], [40, y]).unwrap();
+            let hw = history.work_used();
+            assert_eq!(f_ok, h_ok);
+            assert_eq!(fw, hw);
+            assert_eq!(f_ok, (net == 1 && y != 20) || (net == 2 && y != -20));
+        }
+    }
 }
