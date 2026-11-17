@@ -143,9 +143,10 @@ def test_native_adapter_applies_exact_edit_list(native_board):
 
 
 @pytest.mark.parametrize('variant', ['circle', 'rect_90', 'net_zero_pad', 'foreign_pad',
-    'two_signal_nets', 'joined_pads_stray_track', 'track_components'])
+    'two_signal_nets', 'joined_pads_stray_track', 'track_components', 'clipped_goal'])
 def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_board, guarded_cli, variant):
     run, audit_log = guarded_cli
+    rules = RULES
     if variant != 'circle':
         board = pcbnew.LoadBoard(str(native_board))
         if variant == 'rect_90':
@@ -153,6 +154,27 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
                 pad.SetShape(pcbnew.PAD_SHAPE_RECT)
                 pad.SetSize(pcbnew.VECTOR2I(2000000, 1000000))
                 pad.SetOrientationDegrees(90)
+        elif variant == 'clipped_goal':
+            rules = {**RULES, 'grid_nm': 10000000, 'width_nm': 2000000}
+            for footprint in list(board.GetFootprints()):
+                if footprint.GetReference() == 'J2':
+                    board.Remove(footprint)
+                else:
+                    footprint.SetPosition(pcbnew.VECTOR2I(10000000, 10000000))
+                    for pad in footprint.Pads():
+                        pad.SetSize(pcbnew.VECTOR2I(2000000, 2000000))
+            wall = next(iter(board.GetTracks()))
+            wall.SetStart(pcbnew.VECTOR2I(18000000, 1000000))
+            wall.SetEnd(pcbnew.VECTOR2I(18000000, 19000000))
+            wall.SetWidth(2000000)
+            target = pcbnew.PCB_TRACK(board)
+            target.SetLayer(pcbnew.F_Cu)
+            target.SetNetCode(1)
+            target.SetStart(pcbnew.VECTOR2I(15000000, 5000000))
+            target.SetEnd(pcbnew.VECTOR2I(15000000, 15000000))
+            target.SetWidth(2000000)
+            target.SetLocked(True)
+            board.Add(target)
         elif variant in ('joined_pads_stray_track', 'track_components'):
             additions = connection_tracks() if variant == 'joined_pads_stray_track' else []
             additions.append({
@@ -198,7 +220,7 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     request = native_board.with_name('request.json')
     plan_path = native_board.with_name('plan.json')
     rules_path = native_board.with_name('rules.json')
-    rules_path.write_text(json.dumps(RULES))
+    rules_path.write_text(json.dumps(rules))
     run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'export',
          str(native_board), str(request), '--rules', str(rules_path)])
     exported = json.loads(request.read_text())
@@ -220,7 +242,7 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     assert sum(row.get('guard_started', False) for row in observed) >= 2
     assert sum(row.get('allowed', False) for row in observed) >= 2
     assert all(row.get('allowed', True) for row in observed)
-    actual = bridge.export_board(output, RULES, 100000)
+    actual = bridge.export_board(output, rules, 100000)
     assert actual['rules'] == exported['rules']
     assert actual['pads'] == exported['pads']
     assert actual['nets'] == exported['nets']

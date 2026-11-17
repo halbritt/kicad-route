@@ -147,6 +147,18 @@
       "ref": "03a1556e-c8b8-44a0-8cb3-4de6837ec316/v1",
       "date": "2026-11-16",
       "statement": "Agent1484 owns general supported copper-component connectivity correction, with conservative geometry, unchanged native fixture, budget/rollback and independent acceptance obligations."
+    },
+    "component-implementation": {
+      "kind": "implementation-report",
+      "ref": "565a178f-ed1c-44d9-89e0-1373c9c81acf/v1",
+      "date": "2026-11-16",
+      "statement": "General pad/track component routing implemented at6babad0;43 Rust tests,3 compile-fail examples,66 native checks reported passing. Independent acceptance pending."
+    },
+    "attachment-correction-assignment": {
+      "kind": "executed-finding-and-assignment",
+      "ref": "3b8ea03c-7eb8-40a1-a8bf-f229743567a7/v1",
+      "date": "2026-11-16",
+      "statement": "Root actual binary and native witness confirm a legal shortened goal segment is rejected because its unused full-grid remainder is illegal. Native manual witness closes1->0 opens and passes mandatory publication. General correction assigned; fixture unchanged."
     }
   },
   "requirements": [
@@ -346,7 +358,8 @@
         "carbon-remit",
         "fable-milestone-2",
         "carbon-milestone-2",
-        "native-component-gap"
+        "native-component-gap",
+        "component-implementation"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -363,7 +376,7 @@
         "Equivalent incomplete baseline must not satisfy outcome-fitness claim."
       ],
       "state": "open",
-      "current_evidence": "Prior native publication gate accepted atf70e35d; wider native coverage exposed pad-only completion ignoring disconnected incumbent copper. The gate correctly refused publication; general component correction and its native success regressions are active. Full engine, production migration and fabrication acceptance remain OPEN."
+      "current_evidence": "Component correction6babad0 closes the singleton/incumbent regression;43 Rust,3 compile-fail and66 native checks reported passing. Root reproduced a further clipped-goal false-unroutable case with a valid native manual witness; correction active, no candidate acceptance yet. Mandatory native publication retained. Full engine, production migration and fabrication acceptance remain OPEN."
     },
     {
       "id": "RE-08",
@@ -713,16 +726,37 @@
       ],
       "source_ids": [
         "native-component-gap",
-        "component-correction-assignment"
+        "component-correction-assignment",
+        "component-implementation"
       ],
-      "status": "open-correction-active",
+      "status": "implemented-independent-review-pending",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
       "request_event": "be2bd299-5c7c-415a-b625-361b2d9077e1",
       "observation_deadline": "2026-11-16T18:10:00-08:00",
       "checkpoint": "2026-11-16T18:20:00-08:00",
       "evidence_class": "actual Rust/native fixture failure; successful publication prevented",
-      "next_action": "Connect general supported pad/track components without tuning fixtures; retain one-pad+track, joined-pads+stray and pad-free track-component native cases; verify budget rollback and independent exact-revision review."
+      "next_action": "Independently review component correction after clipped-goal follow-up; retain singleton/incumbent, joined-pads/stray and track-only native cases.",
+      "implementation_revision": "6babad0"
+    },
+    {
+      "id": "R-M3-clipped-goal",
+      "requirements": [
+        "RE-02",
+        "RE-03",
+        "RE-07"
+      ],
+      "source_ids": [
+        "attachment-correction-assignment"
+      ],
+      "status": "open-correction-active",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "request_event": "311ff5ad-efa3-41b4-8f17-9b7906ab719f",
+      "observation_deadline": "2026-11-16T18:20:00-08:00",
+      "checkpoint": "2026-11-16T18:25:00-08:00",
+      "evidence_class": "actual Rust binary refuses after1 expansion; independent manual native plan proves a legal connection,1->0 opens with DRC non-regression",
+      "next_action": "Check shortened final-edge legality before rejecting its unused remainder, while preserving settled-cost search and budget semantics. Retain clipped_goal native regression and independent review."
     }
   ],
   "reviewed_milestones": [
