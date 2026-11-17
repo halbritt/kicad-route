@@ -24,6 +24,12 @@ pub fn search(
     limit: u64,
     expanded: &mut u64,
 ) -> Result<Path, Failure> {
+    if net == 0 {
+        return Err(Failure::new(
+            Status::Invalid,
+            "net 0 is unconnected copper and cannot be routed",
+        ));
+    }
     let grid = engine.input.rules.grid_nm;
     let heuristic =
         |p: Point| ((p[0] - goal[0]).abs() / grid + (p[1] - goal[1]).abs() / grid) as u64;

@@ -159,9 +159,13 @@ impl Input {
         let mut nets = BTreeSet::new();
         let mut names = BTreeSet::new();
         for n in &self.nets {
-            if n.id == 0 || n.name.is_empty() || !nets.insert(n.id) || !names.insert(&n.name) {
+            if (n.id != 0 && n.name.is_empty())
+                || (n.id == 0 && !n.name.is_empty())
+                || !nets.insert(n.id)
+                || !names.insert(&n.name)
+            {
                 return Err(invalid(
-                    "net IDs/names must be nonempty and unique; net IDs positive",
+                    "net IDs/names must be unique; only unconnected net 0 has an empty name",
                 ));
             }
         }
@@ -206,7 +210,7 @@ impl Input {
             }
         }
         for n in &self.nets {
-            if self.pads.iter().filter(|p| p.net == n.id).count() > 2 {
+            if n.id != 0 && self.pads.iter().filter(|p| p.net == n.id).count() > 2 {
                 return Err(unsupported(
                     "only zero-, one- and two-terminal nets are supported",
                 ));

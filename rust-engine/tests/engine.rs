@@ -460,3 +460,53 @@ fn every_structured_failure_has_no_edits() {
         assert!(o.reason.is_some());
     }
 }
+
+#[test]
+fn unconnected_net_is_declared_but_never_routed_or_joined() {
+    let mut i = base();
+    i.nets = vec![Net {
+        id: 0,
+        name: String::new(),
+    }];
+    i.pads = vec![
+        pad(1, 0, [10, 10]),
+        pad(2, 0, [50, 10]),
+        pad(3, 0, [30, 30]),
+    ];
+    i.tracks = vec![wire(4, 0, [10, 10], [50, 10])];
+    let original = i.tracks.clone();
+    let mut e = Engine::new(i).unwrap();
+    assert_eq!(e.route_all().unwrap(), 0);
+    assert_eq!(e.copper().input(), original);
+    assert_eq!(e.copper().generated().count(), 0);
+    assert_eq!(e.reroute(0, 100).unwrap_err().status, Status::Invalid);
+    assert!(!e.legal_edge(0, [10, 10], [50, 10]));
+    assert_eq!(
+        search::search(&e, 0, [10, 10], [50, 10], 100, &mut 0)
+            .unwrap_err()
+            .status,
+        Status::Invalid
+    );
+}
+#[test]
+fn unconnected_tracks_and_pads_remain_foreign_obstacles() {
+    let mut i = base();
+    i.nets.push(Net {
+        id: 0,
+        name: String::new(),
+    });
+    assert_eq!(run(i.clone()).status, Status::Complete); // native net table always includes 0
+    i.pads.push(pad(3, 0, [30, 10]));
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    assert!(out.added_tracks.iter().all(|t| t.net == 1));
+    assert!(out
+        .added_tracks
+        .iter()
+        .any(|t| t.start[1] > 10 || t.end[1] > 10));
+    i.tracks.push(wire(4, 0, [30, 0], [30, 60]));
+    let out = run(i);
+    assert_eq!(out.status, Status::Unroutable);
+    assert!(out.added_tracks.is_empty());
+    assert!(out.removed_track_ids.is_empty());
+}

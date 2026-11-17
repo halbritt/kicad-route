@@ -43,12 +43,13 @@ impl Engine {
             }
         }
         if self.input.pads.iter().any(|p| {
-            p.net != net && geometry::track_near_pad(a, b, r.width_nm, r.clearance_nm, p, false)
+            (p.net == 0 || p.net != net)
+                && geometry::track_near_pad(a, b, r.width_nm, r.clearance_nm, p, false)
         }) {
             return false;
         }
         !self.copper.tracks().any(|t| {
-            t.net != net
+            (t.net == 0 || t.net != net)
                 && geometry::segments_near(
                     a,
                     b,
@@ -65,6 +66,9 @@ impl Engine {
         self.input.pads.iter().filter(|p| p.net == net).collect()
     }
     fn connected(&self, a: &Pad, b: &Pad) -> bool {
+        if a.net == 0 || a.net != b.net {
+            return false;
+        }
         if geometry::pads_touch(a, b) {
             return true;
         }
@@ -146,7 +150,13 @@ impl Engine {
     pub fn route_all(&mut self) -> Result<u64, Failure> {
         let checkpoint = self.copper.checkpoint();
         let mut expanded = 0;
-        let mut nets: Vec<_> = self.input.nets.iter().map(|n| n.id).collect();
+        let mut nets: Vec<_> = self
+            .input
+            .nets
+            .iter()
+            .filter(|n| n.id != 0)
+            .map(|n| n.id)
+            .collect();
         nets.sort();
         for net in nets {
             if let Err(mut e) = self.route_net(net, self.input.max_expansions, &mut expanded) {
@@ -161,13 +171,14 @@ impl Engine {
     /// Remove only generated copper for a net, then route again. Failure
     /// restores the exact removed objects, index and ID allocator checkpoint.
     pub fn reroute(&mut self, net: u32, max_expansions: u64) -> Result<u64, Failure> {
-        if max_expansions == 0
+        if net == 0
+            || max_expansions == 0
             || max_expansions > MAX_EXPANSIONS
             || !self.input.nets.iter().any(|n| n.id == net)
         {
             return Err(Failure::new(
                 Status::Invalid,
-                "reroute needs a known net and budget 1..=1000000",
+                "reroute needs a known nonzero net and budget 1..=1000000",
             ));
         }
         let c = self.copper.checkpoint();

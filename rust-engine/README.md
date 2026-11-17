@@ -14,8 +14,10 @@ mise run host:exec --timeout 5m -- cargo test --locked --offline --manifest-path
 The version-1 JSON contract is enforced with typed deserialization, including
 unknown-field and duplicate-field rejection. Bounds are an axis-aligned
 rectangle; only F.Cu, circular/axis-aligned rectangular pads and straight tracks
-are supported. All incumbent tracks, locked or unlocked, are immutable. Nets
-have at most two pads; zero/singleton nets remain untouched. Already connected
+are supported. All incumbent tracks, locked or unlocked, are immutable. Connected net IDs
+have at most two pads; zero-terminal/singleton nets remain untouched. Net ID 0
+means unconnected copper: any number of its pads/tracks are foreign obstacles,
+never autorouted or joined as one net. Already connected
 terminals are recognized through pad/track contact and connected track chains.
 Vias, zones, rotated pads, custom rules, differential/length constraints and
 other unrepresented native objects must be rejected by the adapter, never
@@ -26,8 +28,8 @@ span). Pad centers and track endpoints must lie inside bounds; positive pad
 sizes and track widths are at most 100,000,000 nm. This is structural validation,
 not a certification of existing copper clearance. Width/grid are positive and
 clearances nonnegative, each at most 100,000,000 nm. Pad centers align to grid
-relative to `bounds.min`. Nets have unique positive integer IDs and nonempty,
-unique names. Item IDs are globally unique canonical lowercase non-nil UUIDs.
+relative to `bounds.min`. Nets have unique integer IDs and unique names; positive IDs require a
+nonempty name, while net ID 0 requires the empty name. Item IDs are globally unique canonical lowercase non-nil UUIDs.
 `source_id` is exactly 64 lowercase SHA256 hex digits, echoed unchanged; the
 adapter checks it against the original board bytes. CLI input is at most 16 MiB.
 
