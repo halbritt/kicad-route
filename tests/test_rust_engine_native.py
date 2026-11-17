@@ -1,9 +1,8 @@
-"""Native I/O checks for the independent Rust routing engine.
-
-These adapter checks do not claim that a Rust route has yet been produced.
-"""
+"""Native I/O and executable vertical-slice checks for the Rust engine."""
 import importlib.util
+import json
 from pathlib import Path
+import subprocess
 import uuid
 
 import pcbnew
@@ -89,6 +88,50 @@ def test_native_adapter_applies_exact_edit_list(native_board):
         exported['tracks'][0]['id']: exported['tracks'][0], ident: added}
     assert actual['pads'] == exported['pads']
     assert native_board.read_bytes() == original
+
+
+def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_board):
+    original = native_board.read_bytes()
+    exported = bridge.export_board(native_board, RULES, 100000)
+    request = native_board.with_name('request.json')
+    plan_path = native_board.with_name('plan.json')
+    request.write_text(json.dumps(exported))
+    subprocess.run(
+        ['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)],
+        cwd=ROOT, check=True, capture_output=True, text=True, timeout=60,
+    )
+    plan = json.loads(plan_path.read_text())
+    assert plan['status'] == 'complete'
+    assert plan['added_tracks']
+    assert 0 < plan['expanded_states'] <= exported['max_expansions']
+    output = native_board.with_name('routed.kicad_pcb')
+    bridge.apply_plan(native_board, plan, output)
+    actual = bridge.export_board(output, RULES, 100000)
+    assert actual['rules'] == exported['rules']
+    assert actual['pads'] == exported['pads']
+    assert actual['nets'] == exported['nets']
+    assert {t['id']: t for t in actual['tracks']} == {
+        t['id']: t for t in exported['tracks'] + plan['added_tracks']}
+    assert native_board.read_bytes() == original
+
+    reports = []
+    for label, path, expected_opens in [('before', native_board, 1), ('after', output, 0)]:
+        board = pcbnew.LoadBoard(str(path))
+        board.BuildConnectivity()
+        assert board.GetConnectivity().GetUnconnectedCount(False) == expected_opens
+        report_path = native_board.with_name(f'{label}-drc.json')
+        subprocess.run(
+            ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all',
+             '--output', str(report_path), str(path)],
+            check=True, capture_output=True, text=True, timeout=30,
+        )
+        report = json.loads(report_path.read_text())
+        assert len(report['unconnected_items']) == expected_opens
+        reports.append(report)
+    # The intentionally isolated protected track has a pre-existing dangling
+    # warning. No new warning or error is allowed, including new copper items.
+    assert reports[1]['violations'] == reports[0]['violations']
 
 
 @pytest.mark.parametrize('suffix', ['.kicad_pro', '.kicad_dru'])
