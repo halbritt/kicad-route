@@ -40,9 +40,16 @@ def load_supported(path: Path):
         raise UnsupportedBoard('zones are not supported by the first Rust slice')
     if board.GetCopperLayerCount() != 2:
         raise UnsupportedBoard('the first native slice requires a two-layer board')
+    settings = board.GetDesignSettings()
+    if any(value != 0 for value in (
+            settings.m_SolderMaskExpansion, settings.m_SolderMaskMinWidth,
+            settings.m_SolderMaskToCopperClearance)):
+        raise UnsupportedBoard('nondefault solder-mask rules are not represented')
     for footprint in board.GetFootprints():
         if footprint.GetLocalClearance() is not None:
             raise UnsupportedBoard('footprint clearance overrides are not represented')
+        if footprint.GetLocalSolderMaskMargin() is not None:
+            raise UnsupportedBoard('footprint solder-mask margins are not represented')
         if footprint.Zones():
             raise UnsupportedBoard('footprint zones and rule areas are not represented')
         if footprint.IsNetTie():
@@ -56,6 +63,8 @@ def load_supported(path: Path):
         for pad in footprint.Pads():
             if pad.GetLocalClearance() is not None:
                 raise UnsupportedBoard('pad clearance overrides are not represented')
+            if pad.GetLocalSolderMaskMargin() is not None:
+                raise UnsupportedBoard('pad solder-mask margins are not represented')
             if point(pad.GetOffset()) != [0, 0]:
                 raise UnsupportedBoard('offset pad copper is not represented')
     return board

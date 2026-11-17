@@ -135,6 +135,44 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     assert reports[1]['violations'] == reports[0]['violations']
 
 
+def test_rust_does_not_report_tangent_copper_as_connected(native_board):
+    board = pcbnew.LoadBoard(str(native_board))
+    board.Remove(next(iter(board.GetTracks())))
+    track = pcbnew.PCB_TRACK(board)
+    track.SetLayer(pcbnew.F_Cu)
+    track.SetNetCode(1)
+    track.SetStart(pcbnew.VECTOR2I(3000000, 10000000))
+    track.SetEnd(pcbnew.VECTOR2I(16400000, 10000000))
+    track.SetWidth(200000)
+    board.Add(track)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    board = pcbnew.LoadBoard(str(native_board))
+    board.BuildConnectivity()
+    assert board.GetConnectivity().GetUnconnectedCount(False) == 1
+    original = native_board.read_bytes()
+    exported = bridge.export_board(native_board, RULES, 100000)
+    request = native_board.with_name('request.json')
+    plan_path = native_board.with_name('plan.json')
+    request.write_text(json.dumps(exported))
+    subprocess.run(
+        ['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)],
+        cwd=ROOT, check=True, capture_output=True, text=True, timeout=60,
+    )
+    plan = json.loads(plan_path.read_text())
+    assert plan['status'] == 'complete'
+    assert plan['added_tracks'], 'KiCad still has an open: tangent contact cannot skip routing'
+    output = native_board.with_name('routed.kicad_pcb')
+    bridge.apply_plan(native_board, plan, output)
+    board = pcbnew.LoadBoard(str(output))
+    board.BuildConnectivity()
+    assert board.GetConnectivity().GetUnconnectedCount(False) == 0
+    actual = bridge.export_board(output, RULES, 100000)
+    assert {t['id']: t for t in actual['tracks']} == {
+        t['id']: t for t in exported['tracks'] + plan['added_tracks']}
+    assert native_board.read_bytes() == original
+
+
 @pytest.mark.parametrize('suffix', ['.kicad_pro', '.kicad_dru'])
 def test_native_adapter_rejects_unimplemented_rule_import(native_board, suffix):
     native_board.with_suffix(suffix).write_text('{}')
@@ -149,7 +187,7 @@ def test_native_adapter_rejects_below_native_floor(native_board):
 
 @pytest.mark.parametrize('feature', [
     'pad_offset', 'pad_clearance', 'footprint_clearance', 'copper_field',
-    'footprint_edge', 'footprint_zone', 'net_tie',
+    'footprint_edge', 'footprint_zone', 'net_tie', 'pad_mask', 'footprint_mask', 'board_mask',
 ])
 def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_board, feature):
     board = pcbnew.LoadBoard(str(native_board))
@@ -161,6 +199,12 @@ def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_b
         pad.SetLocalClearance(2000000)
     elif feature == 'footprint_clearance':
         footprint.SetLocalClearance(2000000)
+    elif feature == 'pad_mask':
+        pad.SetLocalSolderMaskMargin(2000000)
+    elif feature == 'footprint_mask':
+        footprint.SetLocalSolderMaskMargin(2000000)
+    elif feature == 'board_mask':
+        board.GetDesignSettings().m_SolderMaskExpansion = 2000000
     elif feature == 'copper_field':
         footprint.Reference().SetLayer(pcbnew.F_Cu)
         footprint.Reference().SetVisible(True)

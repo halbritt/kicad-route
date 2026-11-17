@@ -44,7 +44,8 @@ are missing capabilities, not ignored inputs. Pad centres initially must align
 to the requested routing grid; Rust checks this. Pad offsets, pad/footprint
 clearance overrides, net ties, footprint zones/keepouts, copper fields and
 footprint board cuts are also rejected on import and output application until
-the interchange represents them.
+the interchange represents them. Nondefault board solder-mask rules and local
+pad/footprint mask margins are also outside this first native contract.
 
 The version1 exchange uses integer nanometres, explicit net and item IDs, bounds,
 rules, fixed copper and a total search-work budget. Rust assigns the added item
@@ -94,7 +95,7 @@ samples and demonstrates a 24 micrometre missed clearance intrusion. The first
 report's midpoint coordinate was wrong. Both reports and their corrections
 are linked from the [supervisor synthesis](https://artifact.harm.org/tubrxk/synthesis.html).
 
-The first executable slice passes 18 Rust tests, including an independent
+The initial executable slice passed 18 Rust tests, including an independent
 Dijkstra oracle over 256 small obstacle worlds, generated-net rollback and
 explicit failure outcomes. Fifteen native tests cover extraction, exact
 identity/geometry readback, unchanged input, unsupported geometry/rules and
@@ -103,7 +104,11 @@ two-terminal board with protected foreign copper. KiCad 10.0.8 reports one
 unconnected pair before routing and zero after; the same pre-existing dangling
 track warning remains, with no new DRC violations. This is a supported-subset
 fixture, not a whole-board capability or performance claim. Independent code
-acceptance remains pending. No production backend changed.
+review subsequently found a real connectivity mismatch: exact copper tangency
+was considered connected by Rust but remains open in KiCad. The added native
+tangency regression reproduces the false `complete` result and blocks first-slice
+acceptance until corrected. Three additional mask-rejection cases pass; the
+other 18 native tests pass. No production backend changed.
 
 Run the combined focused gate with `mise run test:rust-engine`. It uses the
 existing host process boundary, locked offline Cargo dependencies and the native
