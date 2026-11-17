@@ -121,15 +121,24 @@ quadratic and are charged to total work, separately from search expansions. This
 provide a wall-time or real-board quality guarantee.
 
 Every proposed edge checks its entire swept copper against foreign-net pads
-and incumbent/generated tracks. Exact integer-fraction comparisons in i128
-cover segment/segment, segment/circle and segment/rectangle distance, including
-corners and endpoint caps. Equality at the requested clearance is allowed.
+and incumbent/generated tracks. A conservative broad-phase spatial index prunes
+disjoint subtrees using outward `Pad::copper_bounds` and `Track::copper_bounds`
+`i64` envelopes (`CopperAabb`) against a wide `i128` swept query box
+(`SweptAabb`) with inclusive `<=` overlap checks so exact tangency candidates
+are never dropped. Exact integer-fraction comparisons in `i128` cover
+segment/segment, segment/circle, segment/rectangle, and segment/roundrect
+(`copper_core`) distance, including corners and endpoint caps, and remain the
+sole clearance authority. Equality at the requested clearance is allowed.
 Half-width plus edge clearance applies at both endpoints, sufficient for the
 convex rectangular outline. The coordinate/size limits bound arithmetic;
 critical squares/products, position steps and counters use checked arithmetic.
 
-The copper store owns immutable input tracks, generated tracks, a generated-net
-index and an undo journal. `Engine::transaction` exposes a borrowed transaction
+`Engine` owns an immutable flat median-balanced static spatial index
+(`pad_spatial`) for input pads. The copper store owns immutable input tracks,
+an immutable flat static spatial index (`input_spatial`), generated tracks in
+dense slot storage, a generated-net index, a history-independent deterministic
+treap spatial index (`generated_spatial`), and an undo journal.
+`Engine::transaction` exposes a borrowed transaction
 view inside a closure. Returning `Ok` commits that scope; returning `Err` rolls
 it back. A panic that unwinds through the closure rolls back and propagates its
 original payload. A caller may catch an inner panic outside the inner scope and
@@ -166,9 +175,15 @@ limits remain per operation.
 
 Inner commits retain their journal entries for an outer rollback; only the
 outermost commit releases them. Rollback restores generated object fields and
-IDs, the by-net index and the ID allocator; immutable input copper stays intact.
+IDs, the by-net index, `generated_spatial` (via `add_raw`/`remove_raw` without
+consuming forward work), and the ID allocator; immutable input copper and static
+indexes stay intact. Because `generated_spatial` is a deterministic-priority
+treap keyed solely by live `(copper.min[0], seq)` with deterministic
+`splitmix64` priority, tree topology and subsequent query/reroute `work_used`
+are invariant across rolled-back attempts and unwinds.
 Each frame holds only its journal offset and allocator position, and undo work
-is proportional to the changed generated objects, without whole-board copies.
+is proportional to the changed generated objects (and treap height), without
+whole-board copies.
 Journal memory is admitted before mutation against a fixed entry limit,
 including changes retained by every active outer scope. Scope entry checks a
 nesting-depth limit before invoking the closure. Rollback and journal cleanup
@@ -266,8 +281,13 @@ or search). Other checks cover exact swept clearance, odd half-widths and
 boundaries, competing nets, total budgets, last-net failure, failed reroute
 restoration, deterministic IDs, immutable incumbents, malformed/unsupported
 input and the executable output protocol. These tests do not measure real-board
-quality or speedup. Obstacle scans are currently linear; input-copper
-connectivity checks can be quadratic in a net's track count.
+quality or speedup. Obstacle broad-phase queries use conservative AABB spatial
+indexes (`StaticSpatialIndex` for pads/input tracks and deterministic-priority
+`SpatialIndex` treap for generated tracks) verified against linear-scan and
+per-object superset oracles in `tests/spatial.rs`, though dense neighborhoods
+with overlapping envelopes can still visit up to `O(N)` candidates, and
+input-copper connectivity checks (`components::partition`) and collinear overlap
+subtraction remain linear/quadratic in a net's track count.
 
 The component-search test oracle enumerates every integer terminal endpoint
 on every reachable grid edge in 4,096 small axis-aligned worlds. Independent
@@ -352,16 +372,17 @@ reserves N iterations before an array build, sort or reverse.
 | Component pair contact, source/goal cap contact, target prefix/cap contact | 1 per exact geometry predicate, including every bisection probe |
 | Source anchors and target enumeration | 1 per source item/anchor/target before processing |
 | Component estimate evaluation | 1 per target item before computing its envelope step bound, including targets visited after an estimate of zero |
-| Edge outline check, pad/track scans, foreign geometry | 1 per edge check, item visit, and applicable geometry predicate |
+| Edge outline check, spatial broad-phase, candidate lookup, foreign geometry | 1 per edge check, 1 per visited/pruned spatial node, 1 per overlapping candidate lookup, and 1 per foreign exact geometry predicate |
 | Search seeds, successor attempts, admitted queue pushes and all pops (including stale) | 1 per action; push includes bounded map updates |
 | Path reconstruction, reversal, coalescing and proposal construction | 1 per visited/reserved point per stage |
 | Collinear overlap subtraction | 1 per scanned track, 1 per overlap before sort, 1 per merge, 1 per reversed/emitted span |
-| Copper insert/remove | 1 per mutation; 1 per ID candidate; removal additionally reserves 1 per copied ID |
+| Copper insert/remove | Insert: 1 + ID candidates + `generated_spatial.mutation_work()`. Remove: 1 per removed track + `1 + generated_spatial.mutation_work()` per removal |
 
 Admission checks bound combined queue/maps before insertion, total copper before
 insertion, undo history before mutation, and frame depth before push. Collection
-capacity growth and balanced-tree/heap comparisons are included in their
-bounded abstract action, not charged per allocator byte or comparison. Search
+capacity growth and spatial/heap comparisons are included in their
+bounded abstract action, not charged per allocator byte or comparison. `Engine::new`
+builds `pad_spatial` and `input_spatial` after `max_items` admission. Search
 maps/queue can hold stale entries only within the admitted sum. Seed and path
 scratch storage is additionally bounded by admitted item/search cardinalities;
 these limits are entry counts, not an exact process RSS cap.

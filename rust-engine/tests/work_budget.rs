@@ -119,26 +119,29 @@ fn exhausted_work_stops_before_quadratic_partition() {
     assert!(o.added_tracks.is_empty());
 }
 #[test]
-fn standalone_clearance_query_charges_scan_and_geometry_before_work() {
+fn standalone_clearance_query_charges_pruning_and_candidate_geometry_before_work() {
     let mut i = fixture(false);
     i.pads[0].net = 0;
     i.nets = vec![Net {
         id: 0,
         name: String::new(),
     }];
-    // Bounds check1, foreign pad visit1, geometry1. It is far from the edge.
-    for limit in 0..=3 {
-        i.limits.max_work = limit;
-        let e = Engine::new(i.clone()).unwrap();
-        let r = e.legal_edge(1, [10, 10], [50, 10]);
-        if limit < 3 {
-            let f = r.unwrap_err();
-            assert_eq!(f.status, Status::WorkExhausted);
-            assert_eq!(f.work_used, limit);
-        } else {
-            assert!(r.unwrap());
+    for (y, needed) in [(10, 2), (30, 4)] {
+        // Far: bounds1 + pruned root1. Near: bounds1 + root visit1 +
+        // pad lookup1 + geometry1.
+        for limit in 0..=needed {
+            i.limits.max_work = limit;
+            let e = Engine::new(i.clone()).unwrap();
+            let result = e.legal_edge(1, [10, y], [50, y]);
+            if limit < needed {
+                let failure = result.unwrap_err();
+                assert_eq!(failure.status, Status::WorkExhausted);
+                assert!(failure.work_used <= limit);
+            } else {
+                assert_eq!(result.unwrap(), y == 10);
+                assert_eq!(e.work_used(), needed);
+            }
         }
-        assert_eq!(e.work_used(), limit);
     }
 }
 #[test]
@@ -469,4 +472,187 @@ fn oversized_json_has_same_typed_refusal_in_cli_and_library() {
         serde_json::from_slice(&std::fs::read(&output).unwrap()).unwrap();
     assert_eq!(observed, serde_json::to_value(expected).unwrap());
     std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn standalone_clearance_query_charges_input_and_generated_lookups() {
+    // Part A: 2 foreign input tracks at exact AABB tangency & clearance equality.
+    let mut input_world = fixture(false);
+    input_world.pads.clear();
+    input_world.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N".into(),
+        },
+    ];
+    input_world.tracks = vec![
+        Track {
+            id: "10000000-0000-4000-8000-000000000010".into(),
+            net: 0,
+            start: [10, 33],
+            end: [20, 33],
+            width_nm: 2,
+            locked: true,
+        },
+        Track {
+            id: "10000000-0000-4000-8000-000000000011".into(),
+            net: 0,
+            start: [30, 33],
+            end: [40, 33],
+            width_nm: 2,
+            locked: true,
+        },
+    ];
+    // Bounds(1) + 2 input_spatial visits(2) + 2 input lookups(2) + 2 geometry checks(2) = 7.
+    for limit in 0..=7 {
+        input_world.limits.max_work = limit;
+        let e = Engine::new(input_world.clone()).unwrap();
+        let res = e.legal_edge(1, [10, 30], [50, 30]);
+        if limit < 7 {
+            assert_eq!(res.unwrap_err().status, Status::WorkExhausted);
+        } else {
+            assert!(res.unwrap());
+            assert_eq!(e.work_used(), 7);
+        }
+    }
+
+    // Part B: 1 generated track at exact AABB tangency (pads disjoint in X from swept).
+    let mut gen1 = fixture(false);
+    gen1.bounds = Bounds {
+        min: [-50, 3],
+        max: [80, 80],
+    };
+    gen1.rules.grid_nm = 50;
+    gen1.pads[0].at = [0, 53];
+    gen1.pads.push(Pad {
+        id: "10000000-0000-4000-8000-000000000002".into(),
+        net: 1,
+        at: [50, 53],
+        shape: Shape::Circle { radius_nm: 1 },
+    });
+    gen1.nets.push(Net {
+        id: 2,
+        name: "Q".into(),
+    });
+    let mut e1 = Engine::new(gen1).unwrap();
+    e1.route(1, 1000).unwrap();
+    assert_eq!(e1.copper().generated().count(), 1);
+    // Bounds(1) + pad_spatial(root + pruned left = 2) + generated_spatial root(1)
+    // + generated slot lookup(1) + segments_near(1) = 6.
+    assert!(e1.legal_edge(2, [10, 50], [40, 50]).unwrap());
+    assert_eq!(e1.work_used(), 6);
+
+    // Part C: 3 generated tracks at exact AABB tangency across separate nets.
+    let mut gen3 = fixture(false);
+    gen3.bounds = Bounds {
+        min: [-10, 3],
+        max: [100, 100],
+    };
+    gen3.rules.grid_nm = 5;
+    gen3.pads.clear();
+    gen3.nets.clear();
+    for id in 1..=3u32 {
+        gen3.nets.push(Net {
+            id,
+            name: format!("N{id}"),
+        });
+        let x0 = i64::from(id - 1) * 10;
+        gen3.pads.push(Pad {
+            id: format!("10000000-0000-4000-8000-{:012x}", id * 2 - 1),
+            net: id,
+            at: [x0, 33],
+            shape: Shape::Circle { radius_nm: 1 },
+        });
+        gen3.pads.push(Pad {
+            id: format!("10000000-0000-4000-8000-{:012x}", id * 2),
+            net: id,
+            at: [x0 + 5, 33],
+            shape: Shape::Circle { radius_nm: 1 },
+        });
+    }
+    gen3.nets.push(Net {
+        id: 4,
+        name: "Q".into(),
+    });
+    let mut e3 = Engine::new(gen3).unwrap();
+    for id in 1..=3u32 {
+        e3.route(id, 1000).unwrap();
+    }
+    assert_eq!(e3.copper().generated().count(), 3);
+    // Bounds(1) + 6 pads * (visit + lookup + segments = 3) + 3 generated * (visit + lookup + segments = 3) = 28.
+    assert!(e3.legal_edge(4, [0, 30], [25, 30]).unwrap());
+    assert_eq!(e3.work_used(), 28);
+}
+
+#[test]
+fn reroute_charges_spatial_index_mutation_work_before_search() {
+    let mut i = fixture(true);
+    i.nets.push(Net {
+        id: 2,
+        name: "N2".into(),
+    });
+    for (idx, x) in [(3usize, 10i64), (4, 50)] {
+        let mut p = i.pads[0].clone();
+        p.id = format!("10000000-0000-4000-8000-{idx:012x}");
+        p.net = 2;
+        p.at = [x, 50];
+        i.pads.push(p);
+    }
+    let mut base = Engine::new(i.clone()).unwrap();
+    let setup_work = base
+        .transaction(|outer| {
+            outer.route(1, 1000)?;
+            outer.route(2, 1000)?;
+            Ok::<_, Failure>(outer.work_used())
+        })
+        .unwrap();
+    assert_eq!(base.copper().generated().count(), 2);
+
+    // Height of 2-node treap is 2, so mutation_work = 8 * (2 + 1) = 24.
+    // Pre-charge inside reroute(1, 1): begin(1) + route_selected nets(2) + count(1) = 4.
+    // remove_net then atomically charges 1 + 24 = 25 before remove_raw / route_net.
+    let pre_charge = 4;
+    i.limits.max_work = setup_work + pre_charge + 24;
+    let mut e = Engine::new(i).unwrap();
+    e.transaction(|outer| {
+        outer.route(1, 1000).unwrap();
+        outer.route(2, 1000).unwrap();
+        assert_eq!(outer.work_used(), setup_work);
+        let failure = outer.reroute(1, 1).unwrap_err();
+        assert_eq!(failure.status, Status::WorkExhausted);
+        assert_eq!(failure.expanded_states, 0);
+        assert_eq!(failure.work_used, setup_work + pre_charge);
+        assert_eq!(outer.copper().generated().count(), 2);
+        Ok::<_, Failure>(())
+    })
+    .unwrap();
+}
+
+#[test]
+fn route_insertion_charges_spatial_index_mutation_work() {
+    let mut i = fixture(false);
+    let mut p = i.pads[0].clone();
+    p.id = "10000000-0000-4000-8000-000000000002".into();
+    p.at = [20, 30];
+    i.pads.push(p);
+
+    // Exact 1-step route(1, 1000) work on this 2-pad fixture (includes 8 units
+    // for generated_spatial.mutation_work() at empty tree before insert).
+    const EXACT_1STEP_WORK: u64 = 134;
+
+    i.limits.max_work = EXACT_1STEP_WORK - 1;
+    let mut cutoff = Engine::new(i.clone()).unwrap();
+    let err = cutoff.route(1, 1000).unwrap_err();
+    assert_eq!(err.status, Status::WorkExhausted);
+    assert_eq!(cutoff.copper().generated().count(), 0);
+
+    i.limits.max_work = EXACT_1STEP_WORK;
+    let mut ok_engine = Engine::new(i).unwrap();
+    ok_engine.route(1, 1000).unwrap();
+    assert_eq!(ok_engine.work_used(), EXACT_1STEP_WORK);
+    assert_eq!(ok_engine.copper().generated().count(), 1);
 }

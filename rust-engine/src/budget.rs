@@ -24,6 +24,7 @@ impl WorkBudget {
         e.work_used = self.used();
         e
     }
+    #[inline(always)]
     pub fn charge(&self, units: u64) -> Result<(), Failure> {
         if units > self.limits.max_work - self.used() {
             return Err(self.failure(Status::WorkExhausted, "total engine work limit exhausted"));

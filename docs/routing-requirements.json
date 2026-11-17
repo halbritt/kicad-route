@@ -571,7 +571,7 @@
         "Before chaining engine and native apply, prove request/result freshness: a failed run must not cause an older same-board result with different requested rules to be consumed. Retain mandatory expected request, mismatched A/B refusal and matching A/A and B/B native controls; F-M5-N1 is closed for changed-request consistency at cb57c35; identical-byte invocation identity remains C-M6-02."
       ],
       "state": "open",
-      "current_evidence": "Scoped nested transactions restore copper/index/allocator on errors and unwinding panic;32 recursive histories and3 compile-fail controls independently reviewed. Both reviewers accept cb57c35 request/result consistency and regression corrections: exact whole-request digest, exit8, mandatory expected native bytes, mismatch refusal and matching native controls. Abort/kill/OOM, crash durability, identical-byte invocation identity and full requirement remain open."
+      "current_evidence": "Scoped nested transactions restore copper/index/allocator on errors and unwinding panic;32 recursive histories and3 compile-fail controls independently reviewed. Both reviewers accept cb57c35 request/result consistency and regression corrections: exact whole-request digest, exit8, mandatory expected native bytes, mismatch refusal and matching native controls. M2.1 integrates history-independent StaticSpatialIndex (pad_spatial/input_spatial) and deterministic-priority arena Treap (generated_spatial) with dense slot storage in CopperStore, strict (lo,hi) BST key-order and max-heap priority checks in index_consistent(), and 0/5,200+ query + 0/52+ reroute post-rollback work_used diffs (awaiting M6 audit). Abort/kill/OOM, crash durability, identical-byte invocation identity and full requirement remain open."
     },
     {
       "id": "RE-05",
@@ -621,7 +621,7 @@
         "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
       "state": "open",
-      "current_evidence": "Shared outer-operation work and bounded item/search/journal/depth admission accepted at M4; executor-only unwind accepted at M5. Both reviewers accept cb57c35 whole-request consistency and corrected regression sensitivity. Required Fable reads are complete. Wall-clock cancellation, non-executor unwind, abort/kill/OOM and future orchestration remain open. Identical request bytes repeat identity across invocations/builds; callers must still inspect process outcome and use fresh output paths."
+      "current_evidence": "Shared outer-operation work and bounded item/search/journal/depth admission accepted at M4; executor-only unwind accepted at M5. Both reviewers accept cb57c35 whole-request consistency and corrected regression sensitivity. Required Fable reads are complete. M2.1 adds spatial broad-phase visit/lookup/mutation work accounting with search-free unit tests in state.rs and integration cutoff tests in tests/work_budget.rs killing all 26 applicable spatial, RoundRect bounds, rollback, and charge-deletion mutants, plus 0 post-rollback query/reroute work_used diffs (awaiting M6 audit). Wall-clock cancellation, non-executor unwind, abort/kill/OOM and future orchestration remain open. Identical request bytes repeat identity across invocations/builds; callers must still inspect process outcome and use fresh output paths."
     },
     {
       "id": "RE-06",
@@ -743,7 +743,7 @@
         "CPU/GPU alternatives require bounded evidence before a performance conclusion."
       ],
       "state": "open",
-      "current_evidence": "Forward abstract work units and admitted entry counts are deterministic bounds, not CPU/time/RSS measurements. Input parsing is capped separately at16MiB before cardinality checks; no measured small RSS multiplier is asserted. Large accepted ceilings remain unprofiled. No speedup, dense-board scaling or GPU conclusion demonstrated; phase attribution remains open."
+      "current_evidence": "Forward abstract work units and admitted entry counts are deterministic bounds, not CPU/time/RSS replacements. M2.1 release benchmarks (--release --locked --offline, taskset -c 0, 1 warmup + 5 alternating runs, /usr/bin/time + 4ms RSS poll) comparing 1ca08e72 vs M2.1 show bit-identical copper/expanded_states across S1 (route_all 4.17s->0.023s, max_rss 3668->3748 KiB), S2 (27.29s->0.040s, 6428->7212 KiB), D1 (0.976s->0.0031s, 3452->3632 KiB), D1_overlap (1.071s->0.0064s, 3452->3624 KiB), D2_churn (0.660s->0.021s, 2780->2772 KiB), D3 50k items (1.137s->0.0009s route_all, 19956->23724 KiB max_rss ~77 B/item), N1 native F.Cu (0.161s->0.0014s, 0 opens/0 new DRC), and pathological 100%-overlap d1_worst (1.577s->1.671s, 1.059x <= 1.10x ceiling). components::partition quadratic scans, collinear overlap subtraction, large ceilings, and GPU potential remain OPEN."
     },
     {
       "id": "RE-09",
