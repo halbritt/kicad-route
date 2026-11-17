@@ -17,6 +17,31 @@ It includes the specifically allowed Python native-I/O adapter. These are
 reviewable responsibility declarations, not a call graph inferred from filenames.
 Review changes to the declarations together with the affected implementation.
 
+## Greenfield implementation and capability parity
+
+Heath's direction (`owner-greenfield`, Cairn
+`d159855b-5bc5-4632-b43d-5ab2d70ea942/v1`) governs the replacement: build a greenfield
+Rust engine that replicates KRT's useful routing capabilities. KRT supplies
+behavioral references and test cases; wrapping, forking or continuously syncing
+its implementation is not the migration strategy. Rust owns routing state,
+geometry, legality, search, orchestration, transactions and route edits. Python
+is limited to justified native KiCad import/apply/validation and must not choose
+routes, victims, costs or routing policy.
+
+Use the [parity matrix](rust-parity.md) to name each useful capability, its
+representative input and its independent acceptance conditions. A passing row
+requires frozen source/input/rule/toolchain records, native connectivity and
+rule checks, preservation checks, and relevant adverse controls. Legacy output
+is comparison evidence, not the correctness oracle; known defects become
+regressions that the new implementation must refuse or fix. Report unsupported
+and untested capabilities explicitly. Synthetic fixture passes do not establish
+complete parity or authorize held project/benchmark runs.
+
+Keep the existing KRT backend separately available during migration. Its upstream
+sync workflow must not dictate the Rust architecture. Document any source reuse
+and retain applicable licenses and attribution. Existing holds and deployment or
+default permissions are unchanged.
+
 ## Separate the three conclusions
 
 1. **Equivalence:** the retained comparison behavior matches the selected baseline.

@@ -1,7 +1,7 @@
 {
   "schema": "kicad-route/architecture-requirements/1",
   "project": "kicad-route",
-  "authority_note": "Owner-relayed requirements are labelled as such; a missing earlier original is visible and is not fabricated. Current explicit direction remains active.",
+  "authority_note": "Owner-relayed requirements are labelled as such; a missing earlier original is visible and is not fabricated. Current explicit direction remains active. Heath greenfield clarification d159855b/v1 governs ongoing implementation and independent review; recorded explicitly under owner-greenfield.",
   "sources": {
     "owner-rust": {
       "kind": "owner-relay",
@@ -334,18 +334,25 @@
       "ref": "dee70a8a-157f-4d3e-8ab2-3577c618f2e5/v1",
       "date": "2026-11-16",
       "statement": "Complete explicit full catalog/docs and named M5 reports/native-focused log reads, preserve original review and report attribution corrections; independent acceptance not assumed from dispatch."
+    },
+    "owner-greenfield": {
+      "kind": "owner-direction-relayed",
+      "ref": "d159855b-5bc5-4632-b43d-5ab2d70ea942/v1",
+      "date": "2026-11-16",
+      "statement": "Heath explicitly requires a greenfield Rust engine replicating useful KRT capabilities. KRT is a behavioral reference/test source, not an implementation to wrap/fork/continuously sync. Rust owns full routing lifecycle; Python only narrow justified KiCad integration. Prove representative-board capability parity with independent acceptance, never reproduce known bugs or equate output matching with correctness. Keep KRT separately; upstream sync is no design constraint; preserve licenses/attribution and all holds."
     }
   },
   "requirements": [
     {
       "id": "RE-01",
       "title": "Rust owns the complete routing lifecycle",
-      "must": "Rust must own state, legality, search, board-wide scheduling, rip/restore and output semantics; the native adapter may only import/apply/validate.",
+      "must": "Build a greenfield Rust engine, not a wrapper, fork or continuously synchronized KRT implementation. Rust owns state, geometry, legality, search, board-wide orchestration, transactions, rip/restore and route edits. Python may only perform narrow justified native KiCad import/apply/validation with no routing decisions. Keep KRT separately as a behavioral reference and test source; upstream sync convenience is no design constraint.",
       "source_ids": [
         "owner-rust",
         "owner-oversight",
         "fable-milestone-2",
-        "carbon-milestone-2"
+        "carbon-milestone-2",
+        "owner-greenfield"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -357,11 +364,13 @@
         "rust-engine/src/lib.rs",
         "rust-engine/src/state.rs",
         "rust-engine/src/main.rs",
-        "rust-engine/src/cli.rs"
+        "rust-engine/src/cli.rs",
+        "docs/rust-parity.md"
       ],
       "verification": [
         "Production-entry run with legacy Python engine unavailable; negative fallback injection must fail.",
-        "Full responsibility/feature inventory and explicit incomplete rows."
+        "Full responsibility/feature inventory and explicit incomplete rows.",
+        "Trace candidate runtime and source ownership independently of KRT; retain legacy backend separately and record any reused-code attribution/license obligations."
       ],
       "state": "open",
       "current_evidence": "Candidate source inventory names six Rust lifecycle owners and an explicit native Python seam; the current production inventory fails five language rows. Guarded real export/Rust/apply CLI execution succeeds while legacy entrypoints are refused. These are bounded path probes and symbol locators, not complete semantic ownership proof. Full replacement remains OPEN."
@@ -534,7 +543,8 @@
         "fable-milestone-2",
         "carbon-milestone-2",
         "fable-milestone-5-correction",
-        "carbon-milestone-5-correction"
+        "carbon-milestone-5-correction",
+        "owner-greenfield"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -544,7 +554,8 @@
       ],
       "paths": [
         "tools/rust_engine_kicad.py",
-        "rust-engine/src/model.rs"
+        "rust-engine/src/model.rs",
+        "docs/rust-parity.md"
       ],
       "verification": [
         "Real native save/reload rejection cases plus supported geometry/control cases.",
@@ -558,7 +569,7 @@
     {
       "id": "RE-07",
       "title": "Acceptance requires the stated native outcome",
-      "must": "Preserve input, copper UUIDs/nets/locks/rules and native connectivity; separate supported-subset fixture success, full capability, comparison equivalence and desired outcome. Complete must imply the required native connectivity for every accepted input, or the operation must require and report a native connectivity check before claiming completion. Preserve pre-existing per-net connected-component partitions when expanding zone support.",
+      "must": "Preserve input, copper UUIDs/nets/locks/rules and native connectivity; separate supported-subset fixture success, full capability, comparison equivalence and desired outcome. Complete must imply the required native connectivity for every accepted input, or the operation must require and report a native connectivity check before claiming completion. Preserve pre-existing per-net connected-component partitions when expanding zone support. Demonstrate useful KRT capability parity with representative boards and explicit acceptance tests; do not reproduce known bugs or treat matching legacy output as correctness.",
       "source_ids": [
         "owner-prevention",
         "synthesis",
@@ -576,7 +587,8 @@
         "request-freshness-assignment",
         "request-freshness-contract",
         "fable-milestone-6",
-        "carbon-milestone-6"
+        "carbon-milestone-6",
+        "owner-greenfield"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -588,11 +600,13 @@
         "tests/test_rust_engine_native.py",
         "scripts/compare_router.py",
         "rust-engine/src/identity.rs",
-        "tools/rust_engine_kicad.py"
+        "tools/rust_engine_kicad.py",
+        "docs/rust-parity.md"
       ],
       "verification": [
         "Native connectivity/DRC and exact preservation; complete/incomplete positive and negative controls.",
-        "Equivalent incomplete baseline must not satisfy outcome-fitness claim."
+        "Equivalent incomplete baseline must not satisfy outcome-fitness claim.",
+        "Maintain docs/rust-parity.md with representative inputs, explicit native/preservation/adverse acceptance and unsupported/untested gaps. Legacy bug cases must be refused or corrected, not copied as expected outputs."
       ],
       "state": "open",
       "current_evidence": "Both reviewers accept input1/result2, typed executor unwind, explicit publication-failure semantics and native serializer/admission corrections at179c106. Native validation remains mandatory. Source hash does not bind requested rules; F-M5-N1 stays open before orchestration. M6 candidate adds whole-request identity, distinct exit8 and mandatory expected bytes at native apply; independent acceptance remains pending."
@@ -640,7 +654,8 @@
       "source_ids": [
         "owner-foundation",
         "owner-rust",
-        "synthesis"
+        "synthesis",
+        "owner-greenfield"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -649,7 +664,8 @@
         "agent-1502"
       ],
       "paths": [
-        "rust-engine/src/lib.rs"
+        "rust-engine/src/lib.rs",
+        "docs/rust-parity.md"
       ],
       "verification": [
         "Multi-net native fixtures and deterministic recovery; later admitted comparative boards under unchanged rules."
@@ -677,7 +693,8 @@
         "fable-milestone-5-correction",
         "carbon-milestone-5-correction",
         "fable-milestone-6",
-        "carbon-milestone-6"
+        "carbon-milestone-6",
+        "owner-greenfield"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -686,7 +703,8 @@
         "agent-1502"
       ],
       "paths": [
-        "docs/routing-requirements.json"
+        "docs/routing-requirements.json",
+        "docs/rust-parity.md"
       ],
       "verification": [
         "Exact-revision review results and tested dispositions; materially changed inputs invalidate affected acceptance.",
@@ -1761,5 +1779,26 @@
     "native_test_correction": "9f6235516e1f7dd728b439f3767a1604d2186cef",
     "correction_scope": "Tests and catalog only; production Rust/native bytes unchanged from4dbfa43. Required Fable read coverage addendum pending.",
     "correction_validation": "81 Rust +3 compile-fail +159 native64.93s PASS;95 ownership/fitness PASS;0 failures/skips. Focused25native PASS. Exact-node native control16PASS; case-insensitive mutant1fail, APIcap mutant2fail, typecoercion mutant12fail,0errors/skips. Rust omit-limits mutant compiles successfully then both new shipped tests fail assertions. Executable unchanged; independent focused rereview and Fable required coverage still pending."
+  },
+  "greenfield_contract": {
+    "source_id": "owner-greenfield",
+    "implementation": "greenfield Rust; not a KRT wrapper, fork or continuously synchronized implementation",
+    "rust_owns": [
+      "routing state",
+      "geometry",
+      "legality",
+      "search",
+      "orchestration",
+      "transactions",
+      "route edits"
+    ],
+    "python_exception": "Narrow justified KiCad import/apply/validation only; no routing decisions",
+    "reference_backend": "Keep existing KRT backend separately during migration as behavioral reference and test source",
+    "design_constraint": "Upstream sync convenience does not constrain the new design",
+    "acceptance_matrix": "docs/rust-parity.md",
+    "acceptance": "Representative boards, explicit capability tests, native validity and preservation, adverse controls and independent review; legacy output equivalence alone is insufficient",
+    "known_bugs": "Use as negative regressions, not expected behavior",
+    "reuse": "Record provenance and retain applicable attribution/licenses for reused code",
+    "status": "All full requirements remain open; no capability parity claim or new benchmark/deployment admission"
   }
 }

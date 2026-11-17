@@ -1,11 +1,21 @@
 # Rust routing engine migration
 
-The replacement is a routing engine in Rust, not another search accelerator for
-the Python engine. Rust owns copper state, geometry and legality, search, net
+The replacement is a greenfield routing engine in Rust. KRT is a behavioral
+reference and a source of test cases, not an implementation to wrap, fork or
+continuously synchronize. Upstream sync convenience does not constrain the new
+design. Rust owns copper state, geometry and legality, search, net
 ordering, speculative edits and restore, and the exact output edit list. Existing
 `src/kicad_route/router` code stays intact as a reference and current backend.
 The new engine does not become the default or update the installed runtime as a
 side effect of building or testing it.
+
+Heath's explicit direction is `owner-greenfield` in the requirements catalog
+(Cairn `d159855b-5bc5-4632-b43d-5ab2d70ea942/v1`). Replicate useful KRT capabilities
+with representative boards and explicit acceptance tests; do not reproduce known
+bugs or treat matching KRT output as correctness. The [parity matrix](rust-parity.md)
+separates demonstrated fixture behavior from missing capabilities. Retain the
+existing KRT backend separately during migration. Record any source reuse and
+honor its attribution and license obligations.
 
 ## Modules and invariants
 

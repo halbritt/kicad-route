@@ -1,5 +1,13 @@
 # Rust routing engine: first supported slice
 
+This is a greenfield implementation. KRT is a behavioral reference and a source
+of test cases, not an implementation to wrap, fork or continuously sync. Follow
+the owner's [capability acceptance matrix](../docs/rust-parity.md); matching legacy
+output does not prove correctness, and known bugs must not become target behavior.
+The existing backend remains separate during migration. Upstream sync convenience
+does not constrain this design; any source reuse retains required attribution and
+license obligations.
+
 This crate owns route decisions, geometry checks, search, copper state,
 generated IDs, reroute rollback and output edits. It does not invoke the Python
 router. The native adapter is outside this crate and owns KiCad extraction and
