@@ -1,3 +1,5 @@
+pub mod identity;
+pub use identity::{input_request_sha256, request_sha256};
 mod budget;
 mod components;
 pub mod geometry;
@@ -386,6 +388,7 @@ impl Output {
     pub fn failure(source_id: String, e: Failure) -> Self {
         Self {
             version: RESULT_VERSION,
+            request_sha256: None,
             source_id,
             status: e.status,
             added_tracks: Vec::new(),
@@ -396,7 +399,15 @@ impl Output {
         }
     }
 }
+/// Route a typed request, identified by its full compact serde_json serialization.
+/// Original JSON formatting and omitted defaults cannot be recovered from Input.
 pub fn run(input: Input) -> Output {
+    let identity = input_request_sha256(&input);
+    let mut result = run_unidentified(input);
+    result.request_sha256 = Some(identity);
+    result
+}
+fn run_unidentified(input: Input) -> Output {
     let source = input.source_id.clone();
     let mut engine = match Engine::new(input) {
         Ok(e) => e,
@@ -405,6 +416,7 @@ pub fn run(input: Input) -> Output {
     match engine.route_all() {
         Ok(expanded) => Output {
             version: RESULT_VERSION,
+            request_sha256: None,
             source_id: source,
             status: Status::Complete,
             added_tracks: engine.copper.generated().cloned().collect(),
@@ -417,7 +429,7 @@ pub fn run(input: Input) -> Output {
     }
 }
 pub fn run_json(bytes: &[u8]) -> Output {
-    if bytes.len() > 16 * 1024 * 1024 {
+    if bytes.len() > identity::MAX_REQUEST_BYTES {
         return Output::failure(
             String::new(),
             Failure::new(Status::AdmissionExceeded, "JSON input exceeds 16 MiB"),
@@ -425,8 +437,8 @@ pub fn run_json(bytes: &[u8]) -> Output {
     }
     // Deserialize directly into the contract: going through Value first would
     // erase duplicate keys, including a second `tracks` field hiding copper.
-    match serde_json::from_slice::<Input>(bytes) {
-        Ok(input) => run(input),
+    let mut result = match serde_json::from_slice::<Input>(bytes) {
+        Ok(input) => run_unidentified(input),
         Err(error) => {
             let source = serde_json::from_slice::<serde_json::Value>(bytes)
                 .ok()
@@ -445,5 +457,7 @@ pub fn run_json(bytes: &[u8]) -> Output {
             };
             Output::failure(source, Failure::new(status, message))
         }
-    }
+    };
+    result.request_sha256 = request_sha256(bytes);
+    result
 }

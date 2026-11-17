@@ -1,5 +1,8 @@
 //! Process boundary only. Routing-library panics still unwind to their caller.
-use kicad_route_engine::model::{Failure, Output, Status};
+use kicad_route_engine::{
+    identity::MAX_REQUEST_BYTES,
+    model::{Failure, Output, Status},
+};
 use std::{
     ffi::OsString,
     fs,
@@ -11,7 +14,7 @@ use std::{
 // Best effort identity recovery is only for an edit-free panic result. It does
 // not validate input or confer permission to apply any result.
 fn recover_source_id(bytes: &[u8]) -> String {
-    if bytes.len() > 16 * 1024 * 1024 {
+    if bytes.len() > MAX_REQUEST_BYTES {
         return String::new();
     }
     serde_json::from_slice::<serde_json::Value>(bytes)
@@ -58,24 +61,28 @@ pub(crate) fn run(args: &[OsString], executor: impl FnOnce(&[u8]) -> Output) -> 
                 .zip(fs::canonicalize(&args[2]).ok())
                 .is_some_and(|(a, b)| a == b));
     if args.len() != 3 || same_file {
-        eprintln!("usage: kicad-route-engine INPUT.json OUTPUT.json (distinct paths)");
-        return 2;
+        eprintln!("usage: kicad-route-engine INPUT.json OUTPUT.json (distinct paths); no fresh result established");
+        return 8;
     }
     let bytes: std::io::Result<Vec<u8>> = (|| {
         let mut bytes = Vec::new();
         fs::File::open(&args[1])?
-            .take(16 * 1024 * 1024 + 1)
+            .take((MAX_REQUEST_BYTES + 1) as u64)
             .read_to_end(&mut bytes)?;
         Ok(bytes)
     })();
     let output = match bytes {
         Ok(bytes) => match catch_unwind(AssertUnwindSafe(|| executor(&bytes))) {
             Ok(output) => output,
-            Err(_) => Output::failure(
-                recover_source_id(&bytes),
-                Failure::new(Status::InternalError,
-                    "routing executor panicked; edits discarded; expansion/work counters unavailable (reported as 0)"),
-            ),
+            Err(_) => {
+                let failure = Failure::new(
+                    Status::InternalError,
+                    "routing executor panicked; edits discarded; expansion/work counters unavailable (reported as 0)",
+                );
+                let mut output = Output::failure(recover_source_id(&bytes), failure);
+                output.request_sha256 = kicad_route_engine::request_sha256(&bytes);
+                output
+            }
         },
         Err(e) => Output::failure(
             String::new(),
@@ -84,7 +91,7 @@ pub(crate) fn run(args: &[OsString], executor: impl FnOnce(&[u8]) -> Output) -> 
     };
     if let Err(e) = write_output(Path::new(&args[2]), &output) {
         eprintln!("cannot publish output: {e}; no fresh result established; destination may still contain an older result");
-        return 2;
+        return 8;
     }
     match output.status {
         Status::Complete => 0,

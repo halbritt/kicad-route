@@ -73,8 +73,12 @@ fn unwinding_executor_replaces_old_complete_and_rolls_back_library_state() {
     assert_eq!(run(&files.args(), |_| staged_panic(&mut e)), 7);
     assert_eq!(copper(&e), before);
     let result = files.output();
-    assert_eq!(result["version"], 2);
+    assert_eq!(result["version"], 3);
     assert_eq!(result["status"], "internal_error");
+    assert_eq!(
+        result["request_sha256"],
+        json!(kicad_route_engine::request_sha256(&bytes))
+    );
     assert_eq!(result["source_id"], "a".repeat(64));
     assert_eq!(result["added_tracks"], json!([]));
     assert_eq!(result["removed_track_ids"], json!([]));
@@ -110,11 +114,25 @@ fn publication_failure_keeps_old_bytes_and_foreign_temporary_but_returns_nonzero
     let files = Files::new();
     files.seed();
     let old = fs::read(files.0.join("out.json")).unwrap();
+    let mut request_b: Value =
+        serde_json::from_slice(&fs::read(files.0.join("in.json")).unwrap()).unwrap();
+    request_b["rules"]["width_nm"] = json!(4);
+    let bytes_b = serde_json::to_vec(&request_b).unwrap();
+    fs::write(files.0.join("in.json"), &bytes_b).unwrap();
+    let result_b = run_json(&bytes_b);
+    assert_eq!(result_b.status, Status::Complete);
+    assert_ne!(
+        files.output()["request_sha256"],
+        json!(result_b.request_sha256)
+    );
+
     let temporary = files
         .0
         .join(format!(".out.json.{}.tmp", std::process::id()));
     fs::write(&temporary, b"another publication owns this file").unwrap();
-    assert_eq!(run(&files.args(), |_| panic!("executor failed")), 2);
+    assert_eq!(run(&files.args(), run_json), 8);
+    assert_eq!(fs::read(files.0.join("out.json")).unwrap(), old);
+    assert_eq!(run(&files.args(), |_| panic!("executor failed")), 8);
     assert_eq!(fs::read(files.0.join("out.json")).unwrap(), old);
     assert_eq!(
         fs::read(&temporary).unwrap(),
@@ -128,8 +146,9 @@ fn missing_input_replaces_old_complete_with_read_failure() {
     fs::remove_file(files.0.join("in.json")).unwrap();
     assert_eq!(run(&files.args(), |_| panic!("must not execute")), 2);
     let result = files.output();
-    assert_eq!(result["version"], 2);
+    assert_eq!(result["version"], 3);
     assert_eq!(result["status"], "invalid");
+    assert!(result["request_sha256"].is_null());
     assert_eq!(result["added_tracks"], json!([]));
     assert!(result["reason"]
         .as_str()
@@ -142,14 +161,14 @@ fn same_input_output_is_refused_before_executor_or_write() {
     let bytes = files.seed();
     let mut args = files.args();
     args[2] = args[1].clone();
-    assert_eq!(run(&args, |_| panic!("must not execute")), 2);
+    assert_eq!(run(&args, |_| panic!("must not execute")), 8);
     assert_eq!(fs::read(&args[1]).unwrap(), bytes);
     #[cfg(unix)]
     {
         let alias = files.0.join("alias.json");
         std::os::unix::fs::symlink(&args[1], &alias).unwrap();
         args[2] = alias.into_os_string();
-        assert_eq!(run(&args, |_| panic!("must not execute")), 2);
+        assert_eq!(run(&args, |_| panic!("must not execute")), 8);
         assert_eq!(fs::read(&args[1]).unwrap(), bytes);
     }
 }
@@ -163,6 +182,10 @@ fn panic_without_valid_source_still_publishes_edit_free_failure() {
         let result = files.output();
         assert_eq!(result["source_id"], "");
         assert_eq!(result["status"], "internal_error");
+        assert_eq!(
+            result["request_sha256"],
+            json!(kicad_route_engine::request_sha256(&bytes))
+        );
         assert_eq!(result["added_tracks"], json!([]));
         assert_eq!(result["removed_track_ids"], json!([]));
     }

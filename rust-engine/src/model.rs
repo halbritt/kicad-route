@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Limits {
     pub max_work: u64,
@@ -41,7 +41,7 @@ impl Limits {
 // Input and result documents evolve independently. Never infer result shape
 // from the version of the input that produced it.
 pub const INPUT_VERSION: u32 = 1;
-pub const RESULT_VERSION: u32 = 2;
+pub const RESULT_VERSION: u32 = 3;
 
 pub type Point = [i64; 2];
 // +/-100 mm coordinates (up to a 200 mm span). These bounds also keep every
@@ -49,7 +49,7 @@ pub type Point = [i64; 2];
 pub const MAX_NM: i64 = 100_000_000;
 pub const MAX_EXPANSIONS: u64 = 1_000_000;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Input {
     pub version: u32,
@@ -64,13 +64,13 @@ pub struct Input {
     #[serde(default)]
     pub limits: Limits,
 }
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Bounds {
     pub min: Point,
     pub max: Point,
 }
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rules {
     pub width_nm: i64,
@@ -78,13 +78,13 @@ pub struct Rules {
     pub grid_nm: i64,
     pub edge_clearance_nm: i64,
 }
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Net {
     pub id: u32,
     pub name: String,
 }
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Pad {
     pub id: String,
@@ -92,7 +92,7 @@ pub struct Pad {
     pub at: Point,
     pub shape: Shape,
 }
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Shape {
     Circle { radius_nm: i64 },
@@ -125,6 +125,7 @@ pub enum Status {
 #[derive(Debug, Serialize)]
 pub struct Output {
     pub version: u32,
+    pub request_sha256: Option<String>,
     pub source_id: String,
     pub status: Status,
     pub added_tracks: Vec<Track>,

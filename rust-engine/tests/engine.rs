@@ -408,7 +408,7 @@ fn cli_structured_errors_replace_old_edits_and_have_nonzero_exit() {
             .success());
         let good: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
         assert_eq!(good["status"], "complete");
-        assert_eq!(good["version"], 2);
+        assert_eq!(good["version"], 3);
         assert!(!good["added_tracks"].as_array().unwrap().is_empty());
         fs::write(&input, b"{broken").unwrap();
         assert!(!Command::new(env!("CARGO_BIN_EXE_kicad-route-engine"))
@@ -418,7 +418,7 @@ fn cli_structured_errors_replace_old_edits_and_have_nonzero_exit() {
             .success());
         let bad: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
         assert_eq!(bad["status"], "invalid");
-        assert_eq!(bad["version"], 2);
+        assert_eq!(bad["version"], 3);
         assert_eq!(bad["removed_track_ids"], json!([]));
         assert!(bad["added_tracks"].as_array().unwrap().is_empty());
         Ok::<(), ()>(())
@@ -793,7 +793,7 @@ fn net_name_limit_reports_utf8_bytes_at_the_boundary() {
         input.nets[0].name = name;
         let result = run(input);
         assert_eq!(result.status, Status::Invalid);
-        assert_eq!(result.version, 2);
+        assert_eq!(result.version, 3);
         assert_eq!(
             result.reason.as_deref(),
             Some("net name exceeds 1024 UTF-8 bytes")
@@ -824,7 +824,7 @@ fn subprocess_input_and_result_versions_are_independent_and_publication_failure_
             .unwrap();
         assert_eq!(process.status.code(), Some(exit));
         let result: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
-        assert_eq!(result["version"], 2);
+        assert_eq!(result["version"], 3);
         assert_eq!(result["status"], status);
         assert!(result["expanded_states"].is_u64());
         assert!(result["work_used"].is_u64());
@@ -840,11 +840,172 @@ fn subprocess_input_and_result_versions_are_independent_and_publication_failure_
         .args([&input, &output])
         .output()
         .unwrap();
-    assert_eq!(process.status.code(), Some(2));
+    assert_eq!(process.status.code(), Some(8));
     let stderr = String::from_utf8(process.stderr).unwrap();
     assert!(stderr.contains("no fresh result established"));
     assert!(stderr.contains("destination may still contain an older result"));
     assert!(output.is_dir());
     assert_eq!(fs::read_dir(&dir).unwrap().count(), 2); // owned temporary removed
     fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn exact_request_identity_binds_rules_limits_budget_and_byte_representation() {
+    use kicad_route_engine::{input_request_sha256, request_sha256};
+    let doc = document();
+    let original = serde_json::to_vec(&doc).unwrap();
+    let expected = request_sha256(&original).unwrap();
+    assert_eq!(
+        run_json(&original).request_sha256.as_deref(),
+        Some(expected.as_str())
+    );
+    for (pointer, value) in [
+        ("/rules/width_nm", json!(4)),
+        ("/rules/clearance_nm", json!(2)),
+        ("/rules/grid_nm", json!(5)),
+        ("/rules/edge_clearance_nm", json!(1)),
+        ("/max_expansions", json!(1)),
+        ("/source_id", json!("b".repeat(64))),
+    ] {
+        let mut changed = doc.clone();
+        *changed.pointer_mut(pointer).unwrap() = value;
+        let output = run_json(&serde_json::to_vec(&changed).unwrap());
+        assert_ne!(
+            output.request_sha256.as_deref(),
+            Some(expected.as_str()),
+            "{pointer}"
+        );
+    }
+    for field in [
+        "max_work",
+        "max_items",
+        "max_search_entries",
+        "max_journal_entries",
+        "max_depth",
+    ] {
+        let mut changed = doc.clone();
+        changed["limits"] = json!({field: 0});
+        let output = run_json(&serde_json::to_vec(&changed).unwrap());
+        assert_ne!(output.status, Status::Complete);
+        assert_ne!(
+            output.request_sha256.as_deref(),
+            Some(expected.as_str()),
+            "{field}"
+        );
+    }
+    let pretty = serde_json::to_vec_pretty(&doc).unwrap();
+    assert_ne!(request_sha256(&pretty), Some(expected));
+    assert_eq!(run_json(&pretty).status, Status::Complete);
+    let typed: Input = serde_json::from_value(doc).unwrap();
+    let serialized = serde_json::to_vec(&typed).unwrap();
+    let typed_digest = input_request_sha256(&typed);
+    assert_eq!(
+        request_sha256(&serialized).as_deref(),
+        Some(typed_digest.as_str())
+    );
+    assert_ne!(request_sha256(&original), Some(typed_digest.clone())); // defaults are explicit
+    assert_eq!(
+        serde_json::to_value(run(typed)).unwrap(),
+        serde_json::to_value(run_json(&serialized)).unwrap()
+    );
+}
+
+#[test]
+fn malformed_and_oversized_request_identity_is_explicit() {
+    use kicad_route_engine::{identity::MAX_REQUEST_BYTES, request_sha256};
+    for bytes in [b"{broken".as_slice(), b"", b"{\"version\":1,\"version\":1}"] {
+        let result = run_json(bytes);
+        assert_ne!(result.status, Status::Complete);
+        assert_eq!(result.request_sha256, request_sha256(bytes));
+        assert!(result.request_sha256.is_some());
+    }
+    let mut exact = serde_json::to_vec(&document()).unwrap();
+    exact.resize(MAX_REQUEST_BYTES, b' ');
+    assert_eq!(run_json(&exact).request_sha256, request_sha256(&exact));
+    assert_eq!(run_json(&exact).status, Status::Complete);
+    exact.push(b' ');
+    let over = run_json(&exact);
+    assert_eq!(over.status, Status::AdmissionExceeded);
+    assert!(over.request_sha256.is_none());
+    assert!(request_sha256(&exact).is_none());
+    assert_eq!(
+        serde_json::to_value(over).unwrap()["request_sha256"],
+        Value::Null
+    );
+}
+
+#[test]
+fn subprocess_matches_full_request_and_distinguishes_no_publication() {
+    use std::{fs, process::Command};
+    let dir = std::env::temp_dir().join(format!("rust-request-freshness-{}", std::process::id()));
+    fs::create_dir(&dir).unwrap();
+    let input = dir.join("in.json");
+    let output = dir.join("out.json");
+    let mut old_digest = None;
+    let mut doc = document();
+    for change in 0..4 {
+        match change {
+            1 => doc["rules"]["width_nm"] = json!(4),
+            2 => doc["limits"] = json!({"max_work": 0}),
+            3 => doc["max_expansions"] = json!(1),
+            _ => {}
+        }
+        let bytes = serde_json::to_vec(&doc).unwrap();
+        fs::write(&input, &bytes).unwrap();
+        let process = Command::new(env!("CARGO_BIN_EXE_kicad-route-engine"))
+            .args([&input, &output])
+            .output()
+            .unwrap();
+        assert_eq!(process.status.code(), Some(if change < 2 { 0 } else { 5 }));
+        let result: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+        assert_eq!(result, serde_json::to_value(run_json(&bytes)).unwrap());
+        let digest = result["request_sha256"].as_str().unwrap().to_owned();
+        assert_ne!(Some(&digest), old_digest.as_ref());
+        old_digest = Some(digest);
+    }
+    fs::write(&input, b"{broken").unwrap();
+    let invalid = Command::new(env!("CARGO_BIN_EXE_kicad-route-engine"))
+        .args([&input, &output])
+        .output()
+        .unwrap();
+    assert_eq!(invalid.status.code(), Some(2));
+    let invalid_bytes = fs::read(&output).unwrap();
+    let invalid_json: Value = serde_json::from_slice(&invalid_bytes).unwrap();
+    assert_eq!(invalid_json["status"], "invalid");
+    assert_eq!(
+        invalid_json["request_sha256"],
+        json!(kicad_route_engine::request_sha256(b"{broken"))
+    );
+    let refused = Command::new(env!("CARGO_BIN_EXE_kicad-route-engine"))
+        .args([&output, &output])
+        .output()
+        .unwrap();
+    assert_eq!(refused.status.code(), Some(8));
+    assert_eq!(fs::read(&output).unwrap(), invalid_bytes);
+    let usage = Command::new(env!("CARGO_BIN_EXE_kicad-route-engine"))
+        .output()
+        .unwrap();
+    assert_eq!(usage.status.code(), Some(8));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn typed_request_hashes_the_entire_input_without_a_wire_prefix_identity() {
+    use kicad_route_engine::{identity::MAX_REQUEST_BYTES, input_request_sha256, request_sha256};
+    let mut input = base();
+    input.nets[0].name = "a".repeat(MAX_REQUEST_BYTES + 1);
+    let bytes = serde_json::to_vec(&input).unwrap();
+    assert!(request_sha256(&bytes).is_none());
+    let first = input_request_sha256(&input);
+    input.nets[0].name.push('b'); // past any CLI bounded prefix
+    let second = input_request_sha256(&input);
+    assert_ne!(first, second);
+    let result = run(input);
+    assert_eq!(result.status, Status::Invalid);
+    assert_eq!(
+        result.reason.as_deref(),
+        Some("net name exceeds 1024 UTF-8 bytes")
+    );
+    assert_eq!(result.request_sha256, Some(second));
+    assert!(result.added_tracks.is_empty());
 }

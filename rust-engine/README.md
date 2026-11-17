@@ -160,7 +160,7 @@ mutation of an engine is excluded by its exclusive Rust borrow.
 
 Each proposed segment is validated before insertion. A failed batch rolls back all earlier
 generated routes and publishes no edits. Input JSON remains version 1 with
-defaulted limits; output JSON is version 2. The CLI routes one fresh batch
+defaulted limits; output JSON is version 3. The CLI routes one fresh batch
 and does not expose transaction or reroute commands. This API adds transactional ownership, not a routing strategy.
 
 Generated IDs use a deterministic custom UUIDv8 layout: a prefix from source_id
@@ -175,10 +175,10 @@ Output is atomically replaced. `complete` exits 0; `invalid`/`unsupported` exit 
 `work_exhausted` exits 5, and `admission_exceeded`, `journal_exhausted` or
 `nesting_exhausted` exit 6. An unwinding executor panic produces
 `internal_error` and exits 7. Every structured failure has
-empty edit lists and a reason. All results carry version 2, independently of
+empty edit lists and a reason. All results carry version 3, independently of
 input version 1, and require unsigned `expanded_states` and `work_used` counters.
 Consumers must refuse older or unsupported result versions, including old
-version-1 results with missing counters. For `internal_error` only, both counters
+version-1 results with missing counters and version-2 results without request identity. For `internal_error` only, both counters
 are 0 sentinels meaning unavailable, not a measurement of work done; its reason
 says so. A valid source ID is recovered when possible, otherwise it is empty.
 
@@ -187,10 +187,54 @@ library transaction scopes have restored state; direct library callers still
 receive the original panic payload. The typed failure atomically replaces any
 older complete output when publication succeeds. Abort, SIGKILL, allocation
 failure and process death are not handled by this boundary. Output publication
-failure exits 2 and stderr states that no fresh result was established and the
+failure exits 8 and stderr states that no fresh result was established and the
 destination may still contain an older result. Callers must check the process
 exit before using output; existence of an old file never establishes success.
-No geometry/search acceptance policy is delegated to Python, and no default backend or shared runtime is changed.
+Argument-count and same-input/output path refusals also exit 8 without writing
+output. Thus 2 means a fresh invalid/unsupported result was published, while 8
+means no fresh result was established. A read failure can publish an edit-free
+invalid result (exit 2); if that publication also fails, exit 8 takes precedence.
+No geometry/search acceptance policy is delegated to Python, and no default
+backend or shared runtime is changed.
+
+### Request identity
+
+Every version-3 result contains `request_sha256`. Complete results require a
+64-character lowercase SHA-256 digest. For the CLI and `run_json`, this is the
+hash of the exact input bytes, without normalization or a domain prefix. It
+covers rules, limits, expansion budget, copper and all other fields. Whitespace,
+key order and explicit versus omitted defaults also change the identity.
+Unchanged bytes yield the same identity; this is request consistency, not an
+invocation nonce, authentication or proof of provenance.
+
+A fully read request of at most 16 MiB gets its digest even when malformed or
+when its executor panics. An oversized request, failed or partial read, or
+`Output::failure` constructed without a request has JSON null in this required
+field. Oversized input is never identified by the CLI's bounded prefix, and
+`run_json` follows the same rule even when supplied an entire oversized slice.
+Null identity is allowed only for failure output; it is never permission to
+apply edits. Consumers must retain the expected request document and compare
+its exact-byte digest with the result, in addition to checking the board's
+`source_id`, result version, status and counters. A same-board old result cannot
+satisfy a changed request. An old complete file may remain after exit 8; its
+identity still belongs to its original request.
+
+Typed `run(Input)` has no original wire bytes. Its identity is the hash of the
+full compact `serde_json` serialization of `Input`: all defaults explicit,
+struct fields in declaration order, vector order retained. `Input` and nested
+input types implement Serialize, and `input_request_sha256(&Input)` exposes the
+same digest without routing. Serialization streams into the digest without
+allocating another whole document. The typed API keeps its structural/item
+limits and does not impose the wire's 16 MiB cap or hash a prefix. For serialized
+inputs within that cap, `run(input)` and `run_json(serde_json::to_vec(&input))`
+agree. Parsing arbitrary original JSON to Input loses formatting and omitted
+fields; do not expect that original byte hash to equal the typed hash. Use
+`run_json` and retain the original bytes when byte identity is needed.
+
+Digesting/serialization is outside charged routing work, like JSON parsing;
+it does not refund or alter routing counters. SHA-256 uses RustCrypto
+[`sha2` 0.11.0](https://docs.rs/sha2/0.11.0/sha2/), pinned with transitive versions
+and registry checksums in Cargo.lock. No custom digest algorithm is used.
 
 Tests compare direction-state A* against an independent position-only Dijkstra
 oracle over 256 small obstacle worlds (the oracle uses no production geometry
