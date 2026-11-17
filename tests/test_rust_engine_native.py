@@ -1755,3 +1755,244 @@ def test_multiterminal_t_corridor_partial_overlap_trims_cleanly(native_board, gu
     assert before['unconnected_items'] and after['unconnected_items'] == []
     key = lambda violation: json.dumps(violation, sort_keys=True)
     assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
+
+
+def _built_rust_engine(run):
+    run(['cargo', 'build', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml')])
+    return ROOT / 'rust-engine/target/debug/kicad-route-engine'
+
+
+def test_route_native_end_to_end_under_guarded_cli(native_board, guarded_cli):
+    run, audit_log = guarded_cli
+    engine = _built_rust_engine(run)
+    original = native_board.read_bytes()
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(RULES))
+
+    output_a = native_board.with_name('native-routed-a.kicad_pcb')
+    op_result_a = native_board.with_name('native-op-a.json')
+    saved_req_a = native_board.with_name('native-req-a.json')
+    res_a = run([
+        str(engine), 'route-native', str(native_board), str(output_a),
+        '--rules', str(rules_path),
+        '--operation-result', str(op_result_a),
+        '--save-request', str(saved_req_a),
+    ], check=False)
+    assert res_a.returncode == 0, res_a.stderr
+
+    op_a = json.loads(res_a.stdout)
+    assert op_result_a.read_text() == res_a.stdout
+    assert op_a['schema'] == 'kicad-route/native-operation/1'
+    assert op_a['version'] == 1
+    assert op_a['status'] == 'complete' and op_a['exit_code'] == 0
+    assert op_a['binary']['name'] == 'kicad-route-engine'
+    assert op_a['binary']['binary_sha256'] == hashlib.sha256(engine.read_bytes()).hexdigest()
+    assert op_a['source']['source_sha256'] == hashlib.sha256(original).hexdigest()
+    assert op_a['source']['snapshot_sha256'] == op_a['source']['source_sha256']
+    assert op_a['source']['sidecar_check']['passed'] is True
+    assert op_a['request']['request_sha256'] == hashlib.sha256(saved_req_a.read_bytes()).hexdigest()
+    assert op_a['request']['request_json'].encode('utf-8') == saved_req_a.read_bytes()
+    assert op_a['routing']['status'] == 'complete'
+    assert op_a['routing']['added_track_count'] > 0
+    assert op_a['staging']['cleaned_up'] is True
+    assert not Path(op_a['staging']['dir']).exists()
+    assert op_a['publication']['commit_point_reached'] is True
+    assert op_a['publication']['published'] is True
+    assert op_a['publication']['ambiguous_termination'] is False
+    assert op_a['publication']['output_sha256'] == hashlib.sha256(output_a.read_bytes()).hexdigest()
+
+    # Verify native KiCad connectivity, DRC, and copper preservation.
+    assert native_board.read_bytes() == original
+    board = pcbnew.LoadBoard(str(output_a))
+    board.BuildConnectivity()
+    assert board.GetConnectivity().GetUnconnectedCount(False) == 0
+    before = bridge.native_violations(native_board, native_board.with_name('native-before-drc.json'))
+    after = bridge.native_violations(output_a, native_board.with_name('native-after-drc.json'))
+    assert before['unconnected_items'] and after['unconnected_items'] == []
+    key = lambda violation: json.dumps(violation, sort_keys=True)
+    assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
+
+    # A second run on identical inputs must have a distinct operation_id nonce.
+    output_b = native_board.with_name('native-routed-b.kicad_pcb')
+    res_b = run([
+        str(engine), 'route-native', str(native_board), str(output_b),
+        '--rules', str(rules_path),
+    ], check=False)
+    assert res_b.returncode == 0, res_b.stderr
+    op_b = json.loads(res_b.stdout)
+    assert op_b['operation_id'] != op_a['operation_id']
+    assert op_b['request']['request_sha256'] == op_a['request']['request_sha256']
+    assert op_b['publication']['output_sha256'] == op_a['publication']['output_sha256']
+
+    observed = [json.loads(line) for line in audit_log.read_text().splitlines()]
+    assert sum(row.get('guard_started', False) for row in observed) >= 4
+    assert sum(row.get('allowed', False) for row in observed) >= 4
+    assert all(row.get('allowed', True) for row in observed)
+
+
+@pytest.mark.parametrize('mode', ['pro', 'dru', 'dangling_pro', 'symlinked_board_with_dru'])
+def test_route_native_rejects_original_and_symlink_sidecars_before_python(
+        native_board, guarded_cli, tmp_path, mode):
+    run, audit_log = guarded_cli
+    engine = _built_rust_engine(run)
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(RULES))
+
+    source = native_board
+    if mode == 'pro':
+        native_board.with_suffix('.kicad_pro').write_text('{}')
+    elif mode == 'dru':
+        native_board.with_suffix('.kicad_dru').write_text('(version 1)')
+    elif mode == 'dangling_pro':
+        native_board.with_suffix('.kicad_pro').symlink_to(tmp_path / 'absent.kicad_pro')
+    else:
+        native_board.with_suffix('.kicad_dru').write_text('(version 1)')
+        clean_dir = tmp_path / 'clean-dir'
+        clean_dir.mkdir()
+        source = clean_dir / 'alias.kicad_pcb'
+        source.symlink_to(native_board)
+
+    output = tmp_path / 'rejected-sidecar.kicad_pcb'
+    res = run([
+        str(engine), 'route-native', str(source), str(output),
+        '--rules', str(rules_path),
+    ], check=False)
+    assert res.returncode == 2
+    op = json.loads(res.stdout)
+    assert op['status'] == 'unsupported'
+    assert op['source']['sidecar_check']['passed'] is False
+    assert op['staging']['dir'] is None
+    assert not output.exists()
+    assert not audit_log.exists() or audit_log.read_text() == ''
+
+
+def test_route_native_pins_snapshot_under_source_mutation(native_board, guarded_cli, tmp_path):
+    run, audit_log = guarded_cli
+    engine = _built_rust_engine(run)
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(RULES))
+    t0_expected = bridge.export_board(native_board, RULES, 100000)
+
+    changed = pcbnew.LoadBoard(str(native_board))
+    for footprint in changed.GetFootprints():
+        if footprint.GetReference() == 'J2':
+            footprint.SetPosition(pcbnew.VECTOR2I(17000000, 12000000))
+    mutated_tmp = tmp_path / 'mutated.kicad_pcb'
+    assert pcbnew.SaveBoard(str(mutated_tmp), changed)
+    mutated_bytes = mutated_tmp.read_bytes()
+
+    wrapper = tmp_path / 'mutating_bridge.py'
+    wrapper.write_text(f'''import pathlib, runpy, sys
+real_bridge = {str(ROOT / 'tools/rust_engine_kicad.py')!r}
+source_path = pathlib.Path({str(native_board)!r})
+mutated = pathlib.Path({str(mutated_tmp)!r}).read_bytes()
+sys.argv[0] = real_bridge
+try:
+    runpy.run_path(real_bridge, run_name='__main__')
+finally:
+    if sys.argv[1] == 'export':
+        source_path.write_bytes(mutated)
+''')
+    output = tmp_path / 'snapshot-pinned.kicad_pcb'
+    res = run([
+        str(engine), 'route-native', str(native_board), str(output),
+        '--rules', str(rules_path), '--native-bridge', str(wrapper),
+    ], check=False)
+    assert res.returncode == 0, res.stderr
+    assert native_board.read_bytes() == mutated_bytes
+    assert bridge.export_board(output, RULES, 100000)['pads'] == t0_expected['pads']
+    observed = [json.loads(line) for line in audit_log.read_text().splitlines()]
+    assert all(row.get('allowed', True) for row in observed)
+
+
+def test_route_native_preserves_existing_destination_and_concurrent_writer(
+        native_board, guarded_cli, tmp_path):
+    run, audit_log = guarded_cli
+    engine = _built_rust_engine(run)
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(RULES))
+
+    # 1) Pre-existing destination refused before Python
+    existing = tmp_path / 'existing.kicad_pcb'
+    existing.write_bytes(b'incumbent board')
+    res_ex = run([
+        str(engine), 'route-native', str(native_board), str(existing),
+        '--rules', str(rules_path),
+    ], check=False)
+    assert res_ex.returncode == 8
+    assert existing.read_bytes() == b'incumbent board'
+    assert json.loads(res_ex.stdout)['status'] == 'destination_exists'
+    assert not audit_log.exists() or audit_log.read_text() == ''
+
+    # 2) Concurrent writer creates destination during apply before hard_link
+    raced = tmp_path / 'raced.kicad_pcb'
+    wrapper = tmp_path / 'race_bridge.py'
+    wrapper.write_text(f'''import pathlib, runpy, sys
+real_bridge = {str(ROOT / 'tools/rust_engine_kicad.py')!r}
+dest = pathlib.Path({str(raced)!r})
+sys.argv[0] = real_bridge
+try:
+    runpy.run_path(real_bridge, run_name='__main__')
+except SystemExit as exc:
+    if exc.code not in (None, 0):
+        raise
+if sys.argv[1] == 'apply':
+    dest.write_bytes(b'concurrent writer board')
+''')
+    res_race = run([
+        str(engine), 'route-native', str(native_board), str(raced),
+        '--rules', str(rules_path), '--native-bridge', str(wrapper),
+    ], check=False)
+    assert res_race.returncode == 8
+    assert raced.read_bytes() == b'concurrent writer board'
+    op_race = json.loads(res_race.stdout)
+    assert op_race['status'] == 'destination_exists'
+    assert op_race['publication']['published'] is False
+    assert op_race['staging']['cleaned_up'] is True
+    assert not list(tmp_path.glob('.kicad-route-pub-*'))
+
+
+@pytest.mark.parametrize('kind,expected_exit,expected_status', [
+    ('max_expansions', 4, 'budget_exhausted'),
+    ('max_work', 5, 'work_exhausted'),
+])
+def test_route_native_budget_exhaustion_and_residue_immunity(
+        native_board, guarded_cli, tmp_path, kind, expected_exit, expected_status):
+    run, audit_log = guarded_cli
+    engine = _built_rust_engine(run)
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(RULES))
+
+    out = tmp_path / f'{kind}.kicad_pcb'
+    cmd = [
+        str(engine), 'route-native', str(native_board), str(out),
+        '--rules', str(rules_path),
+    ]
+    if kind == 'max_expansions':
+        cmd.extend(['--max-expansions', '1'])
+    else:
+        limits_path = native_board.with_name('limits-zero.json')
+        limits_path.write_text(json.dumps({'max_work': 0}))
+        cmd.extend(['--limits', str(limits_path)])
+
+    res = run(cmd, check=False)
+    assert res.returncode == expected_exit, res.stderr
+    op = json.loads(res.stdout)
+    assert op['status'] == expected_status
+    assert op['publication']['published'] is False
+    assert op['staging']['cleaned_up'] is True
+    assert not out.exists()
+
+    # F-M5-N4 residue immunity: foreign PID-named temp files never block route-native
+    clean_out = tmp_path / 'residue-clean.kicad_pcb'
+    for pid_guess in (os.getpid(), os.getpid() + 1):
+        (tmp_path / f'.{clean_out.name}.{pid_guess}.tmp').write_bytes(b'foreign')
+    res_ok = run([
+        str(engine), 'route-native', str(native_board), str(clean_out),
+        '--rules', str(rules_path),
+    ], check=False)
+    assert res_ok.returncode == 0, res_ok.stderr
+    assert clean_out.exists()
+    observed = [json.loads(line) for line in audit_log.read_text().splitlines()]
+    assert all(row.get('allowed', True) for row in observed)

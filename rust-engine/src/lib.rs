@@ -4,6 +4,7 @@ mod budget;
 mod components;
 pub mod geometry;
 pub mod model;
+pub mod orchestration;
 pub mod search;
 mod spatial;
 pub mod state;

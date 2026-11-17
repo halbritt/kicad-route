@@ -53,6 +53,13 @@ fn write_output(path: &Path, output: &Output) -> std::io::Result<()> {
     }
     result
 }
+pub(crate) fn run_main(args: &[OsString]) -> u8 {
+    if args.get(1).is_some_and(|arg| arg == "route-native") {
+        return kicad_route_engine::orchestration::run_cli(&args[2..]);
+    }
+    run(args, kicad_route_engine::run_json)
+}
+
 pub(crate) fn run(args: &[OsString], executor: impl FnOnce(&[u8]) -> Output) -> u8 {
     let same_file = args.len() == 3
         && (args[1] == args[2]

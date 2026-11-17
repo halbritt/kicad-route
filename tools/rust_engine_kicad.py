@@ -17,9 +17,11 @@ import math
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 
 import pcbnew
@@ -29,6 +31,7 @@ INPUT_VERSION = 1
 RESULT_VERSION = 3
 # Per-document admission, not a bound on parsed/native allocations or runtime.
 MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
+_ORIGINAL_SUBPROCESS_RUN = subprocess.run
 
 
 def read_bounded(path: Path):
@@ -47,17 +50,44 @@ class NativeValidationError(ValueError):
     pass
 
 
-def native_violations(path: Path, report: Path):
+def native_violations(path: Path, report: Path, *, timeout: float = 30.0):
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise NativeValidationError('native DRC timeout must be positive and finite')
+    command = ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors',
+               '--output', str(report), str(path)]
     try:
-        subprocess.run(
-            ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors',
-             '--output', str(report), str(path)],
-            check=True, capture_output=True, text=True, timeout=30,
-        )
+        if subprocess.run is not _ORIGINAL_SUBPROCESS_RUN:
+            subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
+        else:
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            in_main = threading.current_thread() is threading.main_thread()
+            previous_sigterm = None
+            if in_main:
+                def _on_sigterm(_signum, _frame):
+                    raise InterruptedError('native DRC interrupted by SIGTERM')
+                previous_sigterm = signal.signal(signal.SIGTERM, _on_sigterm)
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout)
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(proc.returncode, command, output=stdout, stderr=stderr)
+            except subprocess.TimeoutExpired as error:
+                proc.kill()
+                proc.wait()
+                raise NativeValidationError(f'native DRC timed out after {timeout}s') from error
+            except BaseException:
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait()
+                raise
+            finally:
+                if in_main and previous_sigterm is not None:
+                    signal.signal(signal.SIGTERM, previous_sigterm)
         data = json.loads(read_bounded(report))
         if not isinstance(data, dict) or not isinstance(data.get('violations'), list) or not isinstance(data.get('unconnected_items'), list):
             raise ValueError('native DRC report has invalid violation/connectivity fields')
         return data
+    except NativeValidationError:
+        raise
     except (OSError, ValueError, KeyError, RecursionError, subprocess.SubprocessError) as error:
         raise NativeValidationError(f'native DRC did not produce a valid result: {error}') from error
 
@@ -71,9 +101,14 @@ def item_id(item):
 
 
 def reject_external_rules(path: Path):
-    for suffix in ('.kicad_pro', '.kicad_dru'):
-        if path.with_suffix(suffix).exists():
-            raise UnsupportedBoard(f'project/custom-rule import is not implemented: {suffix}')
+    candidates = [path]
+    resolved = path.resolve()
+    if resolved != path:
+        candidates.append(resolved)
+    for candidate in candidates:
+        for suffix in ('.kicad_pro', '.kicad_dru'):
+            if os.path.lexists(candidate.with_suffix(suffix)):
+                raise UnsupportedBoard(f'project/custom-rule import is not implemented: {suffix}')
 
 
 @contextmanager
@@ -278,7 +313,10 @@ def rectangular_bounds(board):
     return {'min': list(corners[0]), 'max': list(corners[2])}
 
 
-def export_board(path: Path, rules: dict, max_expansions: int, limits: dict | None = None):
+def export_board(path: Path, rules: dict, max_expansions: int, limits: dict | None = None,
+                 *, original_source: Path | None = None):
+    if original_source is not None:
+        reject_external_rules(original_source)
     with source_snapshot(path) as snapshot:
         return export_snapshot(snapshot, rules, max_expansions, limits)
 
@@ -329,16 +367,30 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
     return result
 
 
-def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request: bytes):
+def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
+               original_source: Path | None = None, drc_timeout: float = 30.0,
+               validation_report: Path | None = None):
     if source.resolve() == destination.resolve():
         raise ValueError('output must be a new path distinct from the input')
-    if destination.exists():
+    if os.path.lexists(destination):
         raise FileExistsError(f'output already exists: {destination}')
+    if validation_report is not None and os.path.lexists(validation_report):
+        raise FileExistsError(f'validation report already exists: {validation_report}')
+    if original_source is not None:
+        reject_external_rules(original_source)
     with source_snapshot(source) as snapshot:
-        apply_snapshot(snapshot, plan, destination, expected_request=expected_request)
+        apply_snapshot(snapshot, plan, destination, expected_request=expected_request,
+                       drc_timeout=drc_timeout, validation_report=validation_report)
 
 
-def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes):
+def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
+                   drc_timeout: float = 30.0, validation_report: Path | None = None):
+    if not math.isfinite(drc_timeout) or drc_timeout <= 0:
+        raise ValueError('drc timeout must be positive and finite')
+    if os.path.lexists(destination):
+        raise FileExistsError(f'output already exists: {destination}')
+    if validation_report is not None and os.path.lexists(validation_report):
+        raise FileExistsError(f'validation report already exists: {validation_report}')
     if not isinstance(plan, dict) or type(plan.get('version')) is not int or plan.get('version') != RESULT_VERSION or plan.get('status') != 'complete':
         raise ValueError('only a complete version3 Rust result can be written')
     if not isinstance(expected_request, bytes):
@@ -348,12 +400,14 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     # Bind to the complete retained request, including rules and limits, before
     # loading or applying native edits. This checks consistency, not provenance.
     # Do not parse/re-serialize: whitespace and explicit defaults affect identity.
-    if plan.get('request_sha256') != hashlib.sha256(expected_request).hexdigest():
+    request_digest = hashlib.sha256(expected_request).hexdigest()
+    if plan.get('request_sha256') != request_digest:
         raise ValueError('Rust plan request_sha256 does not match the expected request')
     for counter in ('expanded_states', 'work_used'):
         if type(plan.get(counter)) is not int or not 0 <= plan[counter] < 2**64:
             raise ValueError(f'Rust plan requires {counter} as an unsigned 64-bit integer')
-    if plan.get('source_id') != hashlib.sha256(read_bounded(source)).hexdigest():
+    source_digest = hashlib.sha256(read_bounded(source)).hexdigest()
+    if plan.get('source_id') != source_digest:
         raise ValueError('Rust plan does not match the input board')
     removals = plan.get('removed_track_ids')
     if not isinstance(removals, list) or any(not isinstance(ident, str) for ident in removals):
@@ -404,18 +458,43 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         if saved is None:
             raise NativeValidationError('KiCad could not reload the saved candidate')
         saved.BuildConnectivity()
-        if saved.GetConnectivity().GetUnconnectedCount(False) != 0:
+        before_unconnected = saved.GetConnectivity().GetUnconnectedCount(False)
+        if before_unconnected != 0:
             raise NativeValidationError('native connectivity still has open connections')
-        before = native_violations(source, directory / 'before-drc.json')
-        after = native_violations(temporary, directory / 'after-drc.json')
+        before = native_violations(source, directory / 'before-drc.json', timeout=drc_timeout)
+        after = native_violations(temporary, directory / 'after-drc.json', timeout=drc_timeout)
         if after['unconnected_items']:
             raise NativeValidationError('native DRC still reports open connections')
         key = lambda violation: json.dumps(violation, sort_keys=True)
         introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
         if introduced:
             raise NativeValidationError('candidate introduces native DRC violations')
+        if validation_report is not None:
+            digest = hashlib.sha256()
+            candidate_bytes = 0
+            with temporary.open('rb') as stream:
+                while chunk := stream.read(65536):
+                    digest.update(chunk)
+                    candidate_bytes += len(chunk)
+            report_payload = {
+                'schema': 'kicad-route/native-apply-report/1',
+                'version': 1,
+                'source_id': source_digest,
+                'request_sha256': request_digest,
+                'candidate_sha256': digest.hexdigest(),
+                'candidate_bytes': candidate_bytes,
+                'before_unconnected_count': len(before['unconnected_items']),
+                'after_unconnected_count': len(after['unconnected_items']),
+                'before_violation_count': len(before['violations']),
+                'after_violation_count': len(after['violations']),
+                'introduced_violation_count': sum(introduced.values()),
+                'added_track_count': len(additions),
+                'kicad_version': str(pcbnew.Version()) if hasattr(pcbnew, 'Version') else 'unknown',
+            }
         # Atomic create-if-absent: a concurrent writer's destination is preserved.
         os.link(temporary, destination)
+        if validation_report is not None:
+            write_request(report_payload, validation_report)
 
 
 def read_object(path: Path):
@@ -461,21 +540,33 @@ def main():
     export.add_argument('--max-expansions', type=int, default=100000)
     export.add_argument('--limits', type=Path,
                         help='optional Rust resource limits JSON; Rust validates policy and defaults')
+    export.add_argument('--original-source', type=Path, default=None,
+                        help='optional original source board path for sidecar checks before snapshotting')
     apply = sub.add_parser('apply')
     apply.add_argument('board', type=Path)
     apply.add_argument('plan', type=Path)
     apply.add_argument('output', type=Path)
     apply.add_argument('--request', type=Path, required=True,
                        help='exact retained request JSON passed to the Rust engine')
+    apply.add_argument('--original-source', type=Path, default=None,
+                       help='optional original source board path for sidecar checks before snapshotting')
+    apply.add_argument('--drc-timeout', type=float, default=30.0,
+                       help='timeout in seconds for each native KiCad DRC invocation')
+    apply.add_argument('--validation-report', type=Path, default=None,
+                       help='optional atomic output path for native apply validation metadata')
     args = parser.parse_args()
     try:
         if args.command == 'export':
             limits = read_object(args.limits) if args.limits is not None else None
-            result = export_board(args.board, read_object(args.rules), args.max_expansions, limits)
+            result = export_board(args.board, read_object(args.rules), args.max_expansions, limits,
+                                  original_source=args.original_source)
             write_request(result, args.output)
         else:
             apply_plan(args.board, read_object(args.plan), args.output,
-                       expected_request=read_bounded(args.request))
+                       expected_request=read_bounded(args.request),
+                       original_source=args.original_source,
+                       drc_timeout=args.drc_timeout,
+                       validation_report=args.validation_report)
     except (UnsupportedBoard, NativeValidationError, FileExistsError, OSError, ValueError) as error:
         if isinstance(error, UnsupportedBoard):
             status = 'unsupported'
