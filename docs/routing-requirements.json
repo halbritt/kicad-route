@@ -215,6 +215,31 @@
       "ref": "3595efc3-db10-41b2-a5f6-5b00af60a429/v1",
       "date": "2026-11-16",
       "statement": "Optional defaulted Limits in input; required work_used on results; distinct work/admission/journal/nesting failures with empty edits. Input compatibility retained; old result plans lacking counters must be regenerated. Contract read and acknowledged; implementation acceptance pending."
+    },
+    "work-budget-implementation": {
+      "kind": "implementation-report",
+      "ref": "ce434382-2ce6-413f-8892-9df85f5ef139/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "714288bd0a20812a6d5bd16a5755f24192009ae7"
+    },
+    "fable-milestone-4": {
+      "kind": "review",
+      "ref": "b085924b-8aeb-4f9a-b8f7-d7fa11bfbc6e/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866"
+    },
+    "fable-milestone-4-addendum": {
+      "kind": "review-correction",
+      "ref": "63502fc2-44d8-4094-81f3-717a61b140ae/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866"
+    },
+    "carbon-milestone-4": {
+      "kind": "review",
+      "ref": "536b5d11-9cfe-427d-a51f-f968861de456/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "url": "https://artifact.harm.org/8hgxdh/milestone-4-work-budget.html"
     }
   },
   "requirements": [
@@ -350,7 +375,10 @@
         "fable-remit",
         "carbon-remit",
         "work-budget-assignment",
-        "work-budget-contract"
+        "work-budget-contract",
+        "fable-milestone-4",
+        "fable-milestone-4-addendum",
+        "carbon-milestone-4"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -370,7 +398,7 @@
         "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
       "state": "open",
-      "current_evidence": "Transaction/component increment accepted at2a4b730 and integrated at3121b15. Work-budget implementation714288b adds shared charged work and item/search/journal/depth admission with typed failures. Root65Rust+3compile-fail+95native+95ownership/fitness PASS;38 actual CLI boundary/type/unknown-field probes PASS. Fresh independent acceptance pending. Full wall-clock cancellation, unexpected CLI panic publication and global orchestration remain open."
+      "current_evidence": "Shared outer-operation work and item/search/journal/depth admission accepted atb081bfb by both reviewers after Fable coverage/probe correction. Root65Rust+3compile-fail+95native+95ownership/fitness,38CLI policy probes and144collision-fixture work cutoffs pass. Child failure/panic does not refund work; all structured failures are edit-free. Full wall-clock cancellation, CLI panic/stale-output protocol and future orchestration remain open."
     },
     {
       "id": "RE-06",
@@ -435,7 +463,7 @@
         "Equivalent incomplete baseline must not satisfy outcome-fitness claim."
       ],
       "state": "open",
-      "current_evidence": "Mandatory native publication and strict schema/typed CLI failures retained.69 native cases cover rectangle rotation,net0,foreign pads,multiple nets,stray and track-only components,clipped/first-contact goals and faults;all-track DRC,source/copper preservation and zero opens are required. Broad native feature acceptance remains open."
+      "current_evidence": "Mandatory native publication retained.95native cases include budget/admission/journal/depth refusal, strict result counters, original geometry/contact witnesses, exact source/copper preservation and zero opens/no added DRC. Carbon independently verifies mid-search and post-search budget refusal on native first-contact board. Broad native feature acceptance and stable result-schema policy remain open."
     },
     {
       "id": "RE-08",
@@ -445,7 +473,10 @@
         "owner-foundation",
         "owner-oversight",
         "fable-corrections",
-        "carbon-corrections"
+        "carbon-corrections",
+        "fable-milestone-4",
+        "fable-milestone-4-addendum",
+        "carbon-milestone-4"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -463,7 +494,7 @@
         "CPU/GPU alternatives require bounded evidence before a performance conclusion."
       ],
       "state": "open",
-      "current_evidence": "No speedup, dense-board scaling or GPU conclusion demonstrated. Withdrawing Python-dominance speculation does not prove Rust dominance; the split remains unknown."
+      "current_evidence": "Forward abstract work units and admitted entry counts are deterministic bounds, not CPU/time/RSS measurements. Input parsing is capped separately at16MiB before cardinality checks; no measured small RSS multiplier is asserted. Large accepted ceilings remain unprofiled. No speedup, dense-board scaling or GPU conclusion demonstrated; phase attribution remains open."
     },
     {
       "id": "RE-09",
@@ -499,7 +530,10 @@
         "fable-remit",
         "carbon-remit",
         "fable-milestone-2",
-        "carbon-milestone-2"
+        "carbon-milestone-2",
+        "fable-milestone-4",
+        "fable-milestone-4-addendum",
+        "carbon-milestone-4"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -515,7 +549,7 @@
         "Blind skill behavior controls and stalled-review positive/negative cases."
       ],
       "state": "open",
-      "current_evidence": "Fable and Carbon independently accepted bounded candidate2a4b730 after the first-contact/oracle correction;root adjudicated and accepted experimental integration. Coverage limits and new nonblocking test-helper/two-pad boundaries remain recorded. All10 full rewrite requirements remain open."
+      "current_evidence": "Fable and Carbon independently accept boundedb081bfb. Root required Fable missing reads and corrected allocator/query probes, then read addendum and verified18archived source files againstHEAD. Root restricted Carbon collision-reset claim and independently swept144cutoffs with post-failure work and ID equality. Exact source/coverage/corrections retained; all10fullrequirements open."
     }
   ],
   "allowed_compatibility_seam": {
@@ -602,14 +636,16 @@
           "RE-09",
           "RE-10"
         ],
-        "request_event": "23a3d6a0-5651-4a29-9a1c-033310c32421",
-        "request_source": "8b1a3ac6-8951-4f7a-b787-c5dbd8bb2444/v1",
-        "result_source": "52db29a8-5f12-46cf-91ef-aca1e01c399f/v1",
+        "request_event": "3eccd9b6-58bd-4ad0-8c0f-e77ff6bbc18b",
+        "request_source": "e745914e-1d48-4c1a-a89e-f0b97c62a59c/v1",
+        "result_source": "b085924b-8aeb-4f9a-b8f7-d7fa11bfbc6e/v1",
         "delivery_state": "handled",
         "explicit_acceptance": true,
-        "completed_at": "2026-11-16T18:46:57-08:00",
-        "reviewed_revision": "2a4b730c3aef8ca9102aa61794beb90af9c67481",
-        "acceptance_scope": "Bounded experimental non-default transaction/component increment. Full engine and all10requirements remain open."
+        "completed_at": "2026-11-16T19:38:17-08:00",
+        "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+        "acceptance_scope": "Bounded deterministic outer work and entry-count storage; full engine remains open.",
+        "addendum_request_event": "0c9c86c2-e12b-47d6-8f23-c841331580f6",
+        "addendum_result_source": "63502fc2-44d8-4094-81f3-717a61b140ae/v1"
       },
       {
         "agent": "agent-1502",
@@ -622,17 +658,17 @@
           "RE-09",
           "RE-10"
         ],
-        "request_event": "83e384bc-35f4-45b8-b049-ae259d2cae39",
-        "request_source": "0bbaa51e-4bab-4af0-b8ab-efe323380a4b/v1",
-        "result_source": "80c19dc8-9e0d-4ac7-a2e8-92285b555c21/v1",
+        "request_event": "0e6a2b90-fdf7-47a2-affc-3036756c5a0d",
+        "request_source": "63c8f56a-f164-4844-80b3-1c802e9c23ed/v1",
+        "result_source": "536b5d11-9cfe-427d-a51f-f968861de456/v1",
         "delivery_state": "handled",
         "explicit_acceptance": true,
-        "completed_at": "2026-11-16T18:56:54-08:00",
-        "reviewed_revision": "2a4b730c3aef8ca9102aa61794beb90af9c67481",
-        "acceptance_scope": "Bounded experimental non-default transaction/component increment. Full engine and all10requirements remain open."
+        "completed_at": "2026-11-16T19:44:39-08:00",
+        "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+        "acceptance_scope": "Bounded deterministic outer work and entry-count storage; full engine remains open."
       }
     ],
-    "next_milestone": "Transaction/component increment integrated at3121b15. Freeze and independently review shared work and journal/depth/storage limits before rip-up loops. Keep seed/phase, two-pad dispatch, test-helper domain and CLI crash-output limits explicit.",
+    "next_milestone": "Integrate accepted work/storage increment, then address scoped failure reasons, result-schema compatibility and unexpected CLI termination/stale-output behavior before broader orchestration. Keep native admission, seed/phase and geometry limits explicit.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -922,16 +958,23 @@
         "work-budget-assignment",
         "work-budget-contract"
       ],
-      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
       "finding": "Per-operation expansion limit excludes geometry/component scans and outer transaction composition.",
       "evidence_class": "Source-derived:quadratic partitions,linear obstacle scans,independent child budgets.",
-      "status": "open",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Complete candidate shared forward-work and storage bounds, freeze revision, verify native refusal and retained oracles, then obtain independent Fable/Carbon acceptance before integration or rip-up loops.",
+      "next_action": "Retain shared-work and storage regressions. Put future retry/rip-up loops inside an outer transaction; cancellation, RSS and measured cost remain under RE-05/RE-08.",
       "observation_deadline": "2026-11-16T19:20:00-08:00",
       "checkpoint_deadline": "2026-11-16T19:35:00-08:00",
-      "current_evidence": "Author implementation714288b committed before19:35 checkpoint; actual busy/WIP observed19:18 before19:20 observation deadline. Root independently passed65Rust+3compile-fail+95native+95ownership/fitness and38 CLI policy probes. Shared outer-budget and storage contracts implemented; independent exact-revision acceptance still pending."
+      "current_evidence": "Both independent reviewers accept bounded forward work and storage/journal/depth admission. Root confirms full gates and144work-cutoff collision fixture with fresh-route work/copper/ID equality. Fable1954sampled nested-reroute failures verify next-ID restoration. Native failures cannot publish.",
+      "implementation_revision": "714288bd0a20812a6d5bd16a5755f24192009ae7",
+      "review_source_ids": [
+        "fable-milestone-4",
+        "fable-milestone-4-addendum",
+        "carbon-milestone-4"
+      ],
+      "blocks_current_integration": false
     },
     {
       "id": "F-M3-05",
@@ -1049,6 +1092,100 @@
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
       "next_action": "Track with F-M3-03 seed/search-domain work; unify dispatch before claiming general pad-edge completeness."
+    },
+    {
+      "id": "F-M4-N1",
+      "requirements": [
+        "RE-05",
+        "RE-07"
+      ],
+      "source_ids": [
+        "fable-milestone-4"
+      ],
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "finding": "Output work_used became required under version1; old plans are refused. Input compatibility remains.",
+      "evidence_class": "Source-derived and native legacy-plan refusal.",
+      "status": "open",
+      "owner": "agent-1484 and agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Define a stable result schema and compatibility rule before additional consumers rely on plans.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M4-N4",
+      "requirements": [
+        "RE-05"
+      ],
+      "source_ids": [
+        "fable-milestone-4"
+      ],
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "finding": "Independent outer calls each receive a fresh work allowance; an external caller loop is not bounded by one allowance.",
+      "evidence_class": "Documented boundary; nested nonrefund tested.",
+      "status": "open",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Keep future engine-controlled orchestration/retry loops inside one outer transaction; exercise total-work exhaustion when adding loops.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M4-N6",
+      "requirements": [
+        "RE-05",
+        "RE-08"
+      ],
+      "source_ids": [
+        "fable-milestone-4"
+      ],
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "finding": "Native adapter input decoding, JSON files and whole operation are outside the Rust work/admission limits; only DRC has a timeout.",
+      "evidence_class": "Source-derived stated exclusion.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Add explicit native input admission and whole-process termination coverage before claiming full-path resource bounds.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "C-M4-01",
+      "requirements": [
+        "RE-05",
+        "RE-08"
+      ],
+      "source_ids": [
+        "carbon-milestone-4"
+      ],
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "finding": "Input JSON is materialized before item/name admission; the preceding16MiB byte guard bounds input size rather than providing streaming admission.",
+      "evidence_class": "Source-derived plus exact16MiB boundary execution; no measured RSS multiplier.",
+      "status": "recorded-nonblocking-boundary",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Retain the byte guard and measure parse peak memory before claiming an RSS bound.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "C-M4-02",
+      "requirements": [
+        "RE-05",
+        "RE-07"
+      ],
+      "source_ids": [
+        "carbon-milestone-4"
+      ],
+      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "finding": "Oversized net names use a uniqueness/empty-name reason; missing/non-list removed_track_ids is classified unsupported instead of invalid by native apply.",
+      "evidence_class": "Executed name boundary plus adapter source; all refuse publication.",
+      "status": "open",
+      "owner": "agent-1484 and agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Make validation reasons/classification precise in the next input/output failure-contract slice.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
     }
   ],
   "reviewed_milestones": [
@@ -1086,6 +1223,25 @@
       "scope": "Scoped nested transactions,typed native adapter errors,all supported pad/track components,clipped goal legality,first integer contact,nearest target and independent finite-world oracle. No full-engine or performance acceptance.",
       "validation": "Root and both reviewers48Rust+3compilefail+69native PASS;root/Carbon95ownership+fitness PASS. Fable mutation makes oracle fail on old attachment;root independently verified120angle probes with checked exits/fresh outputs. Carbon native rectangle near-edge success and two-pad refusal control.",
       "coverage": "Fable full changed implementation and selected docs,partial old native diff/unchanged README;Carbon reports full crate,adapter/tests,architecture docs and implementer reports. Root read both full reports; prior report line-cut concern eliminated by measured line lengths."
+    },
+    {
+      "candidate_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "review_source_ids": [
+        "fable-milestone-4",
+        "fable-milestone-4-addendum",
+        "carbon-milestone-4"
+      ],
+      "supervisor": "agent-1497",
+      "disposition": "accepted-for-experimental-non-default-integration",
+      "scope": "Shared outer forward-work counter, bounded item/search/journal/depth admission, typed failures and native refusal. Full RE-01..RE-10 remain open.",
+      "validation": "Root and both reviewers65Rust+3compilefail+95nativePASS;root/Carbon95ownership/fitnessPASS. Root38CLI policy cases and144collision work cutoffsPASS. Fable6adversarial probes include1954failed nested cutoffs with subsequentID restoration;Carbon bisection scaling, admission and actualnative mid/postsearch refusal controls.",
+      "coverage": "Fable addendum completes required reads and strengthens probeF/E;Carbon full changed source/native/docs read. Peer milestone reports excluded until independent verdicts.",
+      "root_adjudication": "Carbon P2b same eventual reserved-skipping ID alone does not prove counter reset, and subtracting two from total work does not locate an ID-loop cutoff. Root instead executed every insufficient child work allowance on the same5-collision fixture, verifying subsequent full work144 and identical copper/IDs at all144cutoffs. No small RSS multiplier is accepted from the16MiB raw input cap.",
+      "nonblocking_notes": [
+        "Per-charge failure may follow earlier mutations; scope rollback is required and tested.",
+        "Search-bearing cutoff cost is measured from the engine; no-search costs are independently hand-counted.",
+        "Standalone query work_used describes that last outer query."
+      ]
     }
   ],
   "correction_checkpoint": {
@@ -1097,5 +1253,16 @@
       "fable-milestone-3-correction",
       "carbon-milestone-3-correction"
     ]
+  },
+  "work_budget_checkpoint": {
+    "candidate_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+    "disposition": "accepted-for-experimental-non-default-integration",
+    "review_source_ids": [
+      "fable-milestone-4",
+      "fable-milestone-4-addendum",
+      "carbon-milestone-4"
+    ],
+    "full_requirements": "RE-01..RE-10 remain open",
+    "remaining": "CLI exceptional output, result versioning, whole-path cancellation/admission, profile/geometry/orchestration remain separate."
   }
 }
