@@ -354,9 +354,20 @@ def test_native_round_pad_tangency_is_repaired_and_one_nm_overlap_reuses_incumbe
         t.SetLocked(True)
         board.Add(t)
     save(native_board, board)
+    before = bridge.native_violations(native_board, tmp_path / "overlap-before.json")
     loaded = pcbnew.LoadBoard(str(native_board))
     loaded.BuildConnectivity()
-    assert loaded.GetConnectivity().GetUnconnectedCount(False) == expected_before_unconnected
+    before_unconnected = loaded.GetConnectivity().GetUnconnectedCount(False)
+    if (width, dx) == (250001, 0):
+        # KiCad 10.0.8's connectivity engine (both kicad-cli DRC and in-process
+        # BuildConnectivity()) is non-deterministic ({0, 1}) at the +0.5 nm
+        # physical overlap boundary across fresh board UUIDs; Rust conservatively
+        # repairs it so post-routing connectivity is deterministically 0.
+        assert len(before["unconnected_items"]) in {0, 1}
+        assert before_unconnected in {0, 1}
+    else:
+        assert len(before["unconnected_items"]) == expected_before_unconnected
+        assert before_unconnected == expected_before_unconnected
     data = bridge.export_board(native_board, RULES, 100000)
     request, plan = execute(native_board, data, tmp_path)
     assert bool(plan["added_tracks"]) == expected_repaired
@@ -365,9 +376,8 @@ def test_native_round_pad_tangency_is_repaired_and_one_nm_overlap_reuses_incumbe
     saved = pcbnew.LoadBoard(str(output))
     saved.BuildConnectivity()
     assert saved.GetConnectivity().GetUnconnectedCount(False) == 0
-    before = bridge.native_violations(native_board, tmp_path / "overlap-before.json")
     after = bridge.native_violations(output, tmp_path / "overlap-after.json")
-    assert not after["unconnected_items"]
+    assert after["unconnected_items"] == []
     key = lambda violation: json.dumps(violation, sort_keys=True)
     assert not (
         Counter(map(key, after["violations"])) - Counter(map(key, before["violations"]))

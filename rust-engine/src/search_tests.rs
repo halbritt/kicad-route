@@ -757,3 +757,55 @@ fn component_estimate_and_join_components_refuse_empty_targets_without_panicking
         assert_eq!(expanded, 0);
     }
 }
+
+#[test]
+fn join_components_empty_starts_records_work_used_and_expanded_states() {
+    let rules = Rules {
+        width_nm: 2,
+        clearance_nm: 10,
+        grid_nm: 10,
+        edge_clearance_nm: 0,
+    };
+    let p1 = pad(1, 1, [10, 10], Shape::Circle { radius_nm: 1 });
+    let p2 = pad(2, 1, [40, 40], Shape::Circle { radius_nm: 1 });
+    let blocker = pad(3, 2, [20, 10], Shape::Circle { radius_nm: 1 });
+    let i = Input {
+        version: 1,
+        source_id: "a".repeat(64),
+        layer: "F.Cu".into(),
+        bounds: Bounds {
+            min: [0, 0],
+            max: [50, 50],
+        },
+        rules,
+        nets: vec![
+            Net {
+                id: 1,
+                name: "N1".into(),
+            },
+            Net {
+                id: 2,
+                name: "N2".into(),
+            },
+        ],
+        pads: vec![p1.clone(), p2.clone(), blocker],
+        tracks: vec![],
+        max_expansions: 100,
+        limits: Limits::default(),
+    };
+    let engine = Engine::new(i).unwrap();
+    let mut expanded = 0;
+    let err = join_components(
+        &engine,
+        1,
+        &[Copper::Pad(&p1)],
+        &[vec![Copper::Pad(&p2)]],
+        100,
+        &mut expanded,
+    )
+    .unwrap_err();
+    assert_eq!(err.status, Status::Unroutable);
+    assert_eq!(expanded, 0);
+    assert_eq!(err.expanded_states, 0);
+    assert!(err.work_used > 0);
+}

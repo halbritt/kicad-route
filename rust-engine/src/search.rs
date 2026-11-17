@@ -118,10 +118,13 @@ pub(crate) fn join_components(
         }
     }
     if starts.is_empty() {
-        return Err(Failure::new(
+        let mut failure = Failure::new(
             Status::Unroutable,
             "component has no legal pad-center or incumbent-endpoint search seed",
-        ));
+        );
+        failure.work_used = engine.work.used();
+        failure.expanded_states = *expanded;
+        return Err(failure);
     }
     let attachment = |a, b| -> Result<Option<Point>, Failure> {
         let mut nearest = None;
