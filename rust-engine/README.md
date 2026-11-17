@@ -77,7 +77,15 @@ batch rolls back all earlier generated routes and publishes no edits. The Rust
 `Engine::reroute` API removes only generated copper for one net and restores its
 exact IDs/geometry/index/allocator on failure. The current CLI only routes a
 fresh batch; it does not expose reroute as a separate JSON command. Nested public
-transactions and concurrent mutation are not supported.
+transactions and concurrent mutation are not supported. `CopperStore` construction,
+checkpoint, commit, rollback and mutation methods are crate-private; the public
+`Engine::copper()` accessor exposes only a shared reference. The two transaction
+entry points, `route_all` and `reroute`, each open one checkpoint and call the
+private `route_net`, which does not open another checkpoint or call either entry
+point. Thus nested commits are not reachable through the current API or call
+graph. The journal's commit operation discards its undo entries and would not
+support an outer rollback if a future internal caller introduced nesting; that
+extension would require different commit semantics before it could be used.
 
 Generated IDs use a deterministic custom UUIDv8 layout: a prefix from source_id
 plus a counter, skipping all reserved pad/track IDs. These are board-local stable
