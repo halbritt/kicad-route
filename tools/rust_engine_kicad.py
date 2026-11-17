@@ -40,6 +40,8 @@ def load_supported(path: Path):
         raise UnsupportedBoard('zones are not supported by the first Rust slice')
     if board.GetCopperLayerCount() != 2:
         raise UnsupportedBoard('the first native slice requires a two-layer board')
+    if any(drawing.GetLayer() == pcbnew.Margin for drawing in board.GetDrawings()):
+        raise UnsupportedBoard('board Margin geometry is not represented')
     settings = board.GetDesignSettings()
     if any(value != 0 for value in (
             settings.m_SolderMaskExpansion, settings.m_SolderMaskMinWidth,
@@ -58,6 +60,8 @@ def load_supported(path: Path):
             if pcbnew.IsCopperLayer(field.GetLayer()):
                 raise UnsupportedBoard('footprint copper fields are not represented')
         for drawing in footprint.GraphicalItems():
+            if drawing.GetLayer() == pcbnew.Margin:
+                raise UnsupportedBoard('footprint Margin geometry is not represented')
             if pcbnew.IsCopperLayer(drawing.GetLayer()) or drawing.GetLayer() == pcbnew.Edge_Cuts:
                 raise UnsupportedBoard('footprint copper graphics and board cuts are not represented')
         for pad in footprint.Pads():

@@ -46,6 +46,8 @@ clearance overrides, net ties, footprint zones/keepouts, copper fields and
 footprint board cuts are also rejected on import and output application until
 the interchange represents them. Nondefault board solder-mask rules and local
 pad/footprint mask margins are also outside this first native contract.
+Board and footprint Margin drawings are rejected on both import and application:
+KiCad treats them as clearance boundaries, unlike ordinary documentation graphics.
 
 The version1 exchange uses integer nanometres, explicit net and item IDs, bounds,
 rules, fixed copper and a total search-work budget. Rust assigns the added item
@@ -86,7 +88,11 @@ copper. This first supported subset is not complete board-tool compatibility.
 Agent-1484 (existing Codex-3 session) owns `rust-engine/`, including CLI and Rust
 tests. Agent-1497 owns this migration, native adapter and integration tests, and
 acceptance. Fable agent-1503 and Carbon agent-1502 produced independent first
-reviews; their addenda and supervisor synthesis remain part of this work.
+reviews and explicitly accepted continuing independent oversight; their addenda
+and supervisor synthesis remain part of this work. Fable primarily reviews search,
+state, transactions and orchestration. Carbon primarily reviews geometry, native
+rules/outcomes and measured performance. Each records its own view before seeing
+the other review. Agent-1497 adjudicates findings and exact-revision acceptance.
 Review claims are checked against source: timing counters that cover selected
 passes are not whole-engine profiles; rejected proposals do not prove failed
 rollback; a proposed last-via-only state is insufficient for an all-prior-via
@@ -95,20 +101,24 @@ samples and demonstrates a 24 micrometre missed clearance intrusion. The first
 report's midpoint coordinate was wrong. Both reports and their corrections
 are linked from the [supervisor synthesis](https://artifact.harm.org/tubrxk/synthesis.html).
 
-The initial executable slice passed 18 Rust tests, including an independent
-Dijkstra oracle over 256 small obstacle worlds, generated-net rollback and
-explicit failure outcomes. Fifteen native tests cover extraction, exact
-identity/geometry readback, unchanged input, unsupported geometry/rules and
-failed/stale-plan refusal. One test runs the actual Rust CLI on a native
-two-terminal board with protected foreign copper. KiCad 10.0.8 reports one
-unconnected pair before routing and zero after; the same pre-existing dangling
-track warning remains, with no new DRC violations. This is a supported-subset
-fixture, not a whole-board capability or performance claim. Independent code
-review subsequently found a real connectivity mismatch: exact copper tangency
-was considered connected by Rust but remains open in KiCad. The added native
-tangency regression reproduces the false `complete` result and blocks first-slice
-acceptance until corrected. Three additional mask-rejection cases pass; the
-other 18 native tests pass. No production backend changed.
+At `f931aad`, the combined gate passed 23 Rust and 19 native tests, including an
+independent Dijkstra oracle over 256 small single-net obstacle worlds and the
+actual Rust CLI routing a native two-terminal fixture around protected copper.
+KiCad 10.0.8 reports one open before and zero after, with no introduced DRC
+violation. The original axis-aligned tangency false-completion regression is
+fixed; clearance and contact remain separate predicates. This is bounded fixture
+evidence, not complete capability or performance acceptance.
+
+Continuing review found a diagonal sub-nanometre contact disagreement: 21 of 400
+native pairs were open despite a translated exact engine predicate finding
+overlap. Actual Rust-binary reproduction and correction remain pending. Carbon's
+nested-checkpoint and one-nanometre width objections are source-derived and still
+need contract/reachability adjudication; they are not executed failure evidence.
+Margin rejection now has four passing native controls: board and footprint
+Margin drawings cause native edge-clearance errors and are refused; identical
+Dwgs.User drawings cause no such error and remain accepted. The next combined
+gate and independent reviews must identify the final correction revision.
+First-slice acceptance remains open. No production backend changed.
 
 Run the combined focused gate with `mise run test:rust-engine`. It uses the
 existing host process boundary, locked offline Cargo dependencies and the native

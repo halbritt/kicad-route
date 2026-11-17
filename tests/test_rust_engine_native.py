@@ -239,6 +239,48 @@ def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_b
     assert not output.exists()
 
 
+@pytest.mark.parametrize('location', ['board', 'footprint'])
+@pytest.mark.parametrize('layer', [pcbnew.Margin, pcbnew.Dwgs_User])
+def test_native_margin_geometry_is_rejected_but_documentation_graphics_are_allowed(
+        native_board, location, layer):
+    board = pcbnew.LoadBoard(str(native_board))
+    parent = board if location == 'board' else next(iter(board.GetFootprints()))
+    shape = pcbnew.PCB_SHAPE(parent)
+    shape.SetShape(pcbnew.SHAPE_T_SEGMENT)
+    shape.SetLayer(layer)
+    shape.SetStart(pcbnew.VECTOR2I(10000000, 5000000))
+    shape.SetEnd(pcbnew.VECTOR2I(10000000, 15000000))
+    shape.SetWidth(50000)
+    parent.Add(shape)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    # Save/reload and native DRC establish why otherwise identical drawings
+    # have different acceptance outcomes; this is not only a layer-name check.
+    report_path = native_board.with_name('margin-drc.json')
+    subprocess.run(
+        ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all',
+         '--output', str(report_path), str(native_board)],
+        check=True, capture_output=True, text=True, timeout=30,
+    )
+    report = json.loads(report_path.read_text())
+    edge_errors = [v for v in report['violations'] if v['type'] == 'copper_edge_clearance']
+    output = native_board.with_name('margin-output.kicad_pcb')
+    plan = {'version': 1, 'status': 'complete',
+            'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
+            'added_tracks': [], 'removed_track_ids': []}
+    if layer == pcbnew.Margin:
+        assert edge_errors, 'native DRC must demonstrate the unrepresented rule'
+        with pytest.raises(bridge.UnsupportedBoard, match='Margin'):
+            bridge.export_board(native_board, RULES, 100000)
+        with pytest.raises(bridge.UnsupportedBoard, match='Margin'):
+            bridge.apply_plan(native_board, plan, output)
+        assert not output.exists()
+    else:
+        assert not edge_errors
+        bridge.export_board(native_board, RULES, 100000)
+        bridge.apply_plan(native_board, plan, output)
+        assert output.exists()
+
+
 @pytest.mark.parametrize('status,source', [('unroutable', None), ('complete', 'stale')])
 def test_native_adapter_does_not_write_failed_or_stale_plan(native_board, status, source):
     original = native_board.read_bytes()
