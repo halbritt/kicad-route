@@ -203,6 +203,18 @@
       "reviewed_revision": "2a4b730c3aef8ca9102aa61794beb90af9c67481",
       "date": "2026-11-16",
       "url": "https://artifact.harm.org/fk1c2v/milestone-3-correction.html"
+    },
+    "work-budget-assignment": {
+      "kind": "coordination-assignment",
+      "ref": "928353ab-ad04-4322-8a4c-241718e28cb5/v1",
+      "date": "2026-11-16",
+      "statement": "Existing author1484 implements shared deterministic outer-operation work and bounded journal/depth/storage before rip-up loops. Root owns native seam/tests; fresh independent Fable and Carbon acceptance required."
+    },
+    "work-budget-contract": {
+      "kind": "implementation-contract",
+      "ref": "3595efc3-db10-41b2-a5f6-5b00af60a429/v1",
+      "date": "2026-11-16",
+      "statement": "Optional defaulted Limits in input; required work_used on results; distinct work/admission/journal/nesting failures with empty edits. Input compatibility retained; old result plans lacking counters must be regenerated. Contract read and acknowledged; implementation acceptance pending."
     }
   },
   "requirements": [
@@ -336,7 +348,9 @@
         "fable-first",
         "synthesis",
         "fable-remit",
-        "carbon-remit"
+        "carbon-remit",
+        "work-budget-assignment",
+        "work-budget-contract"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -347,7 +361,8 @@
       "paths": [
         "rust-engine/src/model.rs",
         "rust-engine/src/search.rs",
-        "rust-engine/src/lib.rs"
+        "rust-engine/src/lib.rs",
+        "rust-engine/src/budget.rs"
       ],
       "verification": [
         "Structured failure/exit controls, one total budget across nets, no partial edits.",
@@ -355,7 +370,7 @@
         "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
       "state": "open",
-      "current_evidence": "Rust typed outcomes and total per-operation expansion budget retained. Adapter expected invalid/unsupported/native-validation/I/O/output-exists failures are typed at80ab11c;24 focused negative/fault checks pass including malformed native reports. Unexpected programming/argument-parser failures and full cancellation/work-cost bounds remain separate open work. Independent review pending."
+      "current_evidence": "Transaction/component increment accepted at2a4b730 and integrated at3121b15. Work-budget implementation714288b adds shared charged work and item/search/journal/depth admission with typed failures. Root65Rust+3compile-fail+95native+95ownership/fitness PASS;38 actual CLI boundary/type/unknown-field probes PASS. Fresh independent acceptance pending. Full wall-clock cancellation, unexpected CLI panic publication and global orchestration remain open."
     },
     {
       "id": "RE-06",
@@ -617,7 +632,7 @@
         "acceptance_scope": "Bounded experimental non-default transaction/component increment. Full engine and all10requirements remain open."
       }
     ],
-    "next_milestone": "Integrate accepted transaction/component increment, then implement deterministic operation-wide work and journal bounds before rip-up loops. Keep seed/phase, two-pad dispatch, test-helper domain and CLI crash-output limits explicit.",
+    "next_milestone": "Transaction/component increment integrated at3121b15. Freeze and independently review shared work and journal/depth/storage limits before rip-up loops. Keep seed/phase, two-pad dispatch, test-helper domain and CLI crash-output limits explicit.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -903,7 +918,9 @@
         "RE-08"
       ],
       "source_ids": [
-        "fable-milestone-3"
+        "fable-milestone-3",
+        "work-budget-assignment",
+        "work-budget-contract"
       ],
       "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
       "finding": "Per-operation expansion limit excludes geometry/component scans and outer transaction composition.",
@@ -911,7 +928,10 @@
       "status": "open",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Define deterministic outer-operation work and memory bounds before rip-up or repeated retry loops; count geometry/component work."
+      "next_action": "Complete candidate shared forward-work and storage bounds, freeze revision, verify native refusal and retained oracles, then obtain independent Fable/Carbon acceptance before integration or rip-up loops.",
+      "observation_deadline": "2026-11-16T19:20:00-08:00",
+      "checkpoint_deadline": "2026-11-16T19:35:00-08:00",
+      "current_evidence": "Author implementation714288b committed before19:35 checkpoint; actual busy/WIP observed19:18 before19:20 observation deadline. Root independently passed65Rust+3compile-fail+95native+95ownership/fitness and38 CLI policy probes. Shared outer-budget and storage contracts implemented; independent exact-revision acceptance still pending."
     },
     {
       "id": "F-M3-05",

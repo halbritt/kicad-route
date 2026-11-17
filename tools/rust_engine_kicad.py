@@ -139,12 +139,14 @@ def rectangular_bounds(board):
     return {'min': list(corners[0]), 'max': list(corners[2])}
 
 
-def export_board(path: Path, rules: dict, max_expansions: int):
+def export_board(path: Path, rules: dict, max_expansions: int, limits: dict | None = None):
     with source_snapshot(path) as snapshot:
-        return export_snapshot(snapshot, rules, max_expansions)
+        return export_snapshot(snapshot, rules, max_expansions, limits)
 
 
-def export_snapshot(path: Path, rules: dict, max_expansions: int):
+def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict | None = None):
+    if limits is not None and not isinstance(limits, dict):
+        raise ValueError('limits must be an object')
     board = load_supported(path)
     settings = board.GetDesignSettings()
     minima = {'width_nm': settings.m_TrackMinWidth,
@@ -188,9 +190,14 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int):
                        'width_nm': int(track.GetWidth()), 'locked': bool(track.IsLocked())})
     nets = [{'id': int(code), 'name': net.GetNetname()}
             for code, net in board.GetNetsByNetcode().items()]
-    return {'version': 1, 'source_id': hashlib.sha256(path.read_bytes()).hexdigest(),
-            'layer': 'F.Cu', 'bounds': rectangular_bounds(board), 'rules': rules,
-            'nets': nets, 'pads': pads, 'tracks': tracks, 'max_expansions': max_expansions}
+    result = {'version': 1, 'source_id': hashlib.sha256(path.read_bytes()).hexdigest(),
+              'layer': 'F.Cu', 'bounds': rectangular_bounds(board), 'rules': rules,
+              'nets': nets, 'pads': pads, 'tracks': tracks, 'max_expansions': max_expansions}
+    # Resource policy and defaults belong to Rust. Preserve supplied limits
+    # exactly; omitting them retains the existing input contract.
+    if limits is not None:
+        result['limits'] = limits
+    return result
 
 
 def apply_plan(source: Path, plan: dict, destination: Path):
@@ -205,6 +212,9 @@ def apply_plan(source: Path, plan: dict, destination: Path):
 def apply_snapshot(source: Path, plan: dict, destination: Path):
     if not isinstance(plan, dict) or type(plan.get('version')) is not int or plan.get('version') != 1 or plan.get('status') != 'complete':
         raise ValueError('only a complete version1 Rust plan can be written')
+    for counter in ('expanded_states', 'work_used'):
+        if type(plan.get(counter)) is not int or not 0 <= plan[counter] < 2**64:
+            raise ValueError(f'Rust plan requires {counter} as an unsigned 64-bit integer')
     if plan.get('source_id') != hashlib.sha256(source.read_bytes()).hexdigest():
         raise ValueError('Rust plan does not match the input board')
     if plan.get('removed_track_ids') != []:
@@ -297,6 +307,8 @@ def main():
     export.add_argument('output', type=Path)
     export.add_argument('--rules', type=Path, required=True)
     export.add_argument('--max-expansions', type=int, default=100000)
+    export.add_argument('--limits', type=Path,
+                        help='optional Rust resource limits JSON; Rust validates policy and defaults')
     apply = sub.add_parser('apply')
     apply.add_argument('board', type=Path)
     apply.add_argument('plan', type=Path)
@@ -304,7 +316,8 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == 'export':
-            result = export_board(args.board, read_object(args.rules), args.max_expansions)
+            limits = read_object(args.limits) if args.limits is not None else None
+            result = export_board(args.board, read_object(args.rules), args.max_expansions, limits)
             write_request(result, args.output)
         else:
             apply_plan(args.board, read_object(args.plan), args.output)

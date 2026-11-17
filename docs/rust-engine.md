@@ -70,7 +70,14 @@ Board and footprint Margin drawings are rejected on both import and application:
 KiCad treats them as clearance boundaries, unlike ordinary documentation graphics.
 
 The version1 exchange uses integer nanometres, explicit net and item IDs, bounds,
-rules, fixed copper and a total search-work budget. Rust assigns the added item
+rules, fixed copper, an expansion budget and optional resource `limits`. Rust
+owns the limits and their defaults; native export passes `--limits FILE` through
+without selecting routing policy. Results require unsigned `expanded_states`
+and `work_used` counters. Work, admission, journal and nesting failures publish
+empty edits and cannot be applied as a native board. The Rust README records the
+charged operations, separately bounded initialization and exclusions; the work
+counter is not elapsed time or a process-memory measurement.
+Rust assigns the added item
 UUIDs. The adapter checks source identity, requires a complete plan and applies
 the exact geometry and IDs to a new file. The first slice cannot delete input
 copper. This first supported subset is not complete board-tool compatibility.

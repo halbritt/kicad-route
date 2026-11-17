@@ -58,6 +58,25 @@ The operation pins one private source snapshot and requests all native track
 errors. Source mutation, input-directory preservation, destination races and DRC
 timeout controls complement the ordinary positive and negative routing cases.
 
+The resource-limit fixture passes an optional `limits` JSON object through the
+native export CLI with `--limits`. Rust owns its field validation, defaults and
+ceilings. Existing inputs without it retain defaults. Engine results now require
+both `expanded_states` and `work_used` as unsigned 64-bit integers; old complete
+plans missing either counter must be regenerated. These counters describe the
+engine result and do not replace native validation.
+
+Actual executable controls exhaust work, item/search admission, undo history
+and nesting depth separately. Each must return its typed failure, empty edits
+and a work counter, and the native apply command must refuse publication while
+preserving the source. Expansion exhaustion remains a separate outcome. Rust
+tests exercise shared outer-transaction work, nested errors and panic recovery,
+exact budget boundaries, and journal/allocator/index restoration after failure.
+The [accounting inventory](../rust-engine/README.md#accounting-inventory) states
+what is charged and what is separately bounded or excluded. Entry limits are
+not a process-memory cap; this contract does not interrupt arbitrary caller
+closures, native tools or the process at a wall-clock deadline. Full cancellation
+and complete-engine acceptance remain open.
+
 Inspect an inventory directly with:
 
 ```sh
