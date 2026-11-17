@@ -305,3 +305,150 @@ fn nearer_contact_wins_regardless_of_target_order() {
         assert_eq!(path.points.last().unwrap()[0], 7);
     }
 }
+
+#[test]
+fn contact_bound_contains_caps_and_is_consistent_on_shortened_edges() {
+    let circle = pad(1, 1, [11, 12], Shape::Circle { radius_nm: 3 });
+    let rect = pad(
+        2,
+        1,
+        [11, 12],
+        Shape::Rect {
+            half_size_nm: [2, 4],
+        },
+    );
+    let vertical = track(3, 1, [13, 6], [13, 16], 3);
+    let horizontal = track(4, 1, [6, 13], [16, 13], 5);
+    let targets = [
+        Copper::Pad(&circle),
+        Copper::Pad(&rect),
+        Copper::Track(&vertical),
+        Copper::Track(&horizontal),
+    ];
+    let bodies = [
+        Body::pad(&circle),
+        Body::pad(&rect),
+        Body::track(&vertical),
+        Body::track(&horizontal),
+    ];
+    let mut contacts = 0;
+    for width in [1, 2, 3, 6] {
+        for grid in [1, 4, 7] {
+            for x in -2..=24 {
+                for y in -2..=24 {
+                    let p = [x, y];
+                    for (target, body) in targets.iter().zip(bodies) {
+                        let h = contact_steps(p, *target, width, grid);
+                        if body.contacts(Body::segment(p, p, width)) {
+                            contacts += 1;
+                            assert_eq!(h, 0, "goal cap must have zero heuristic");
+                        }
+                        for delta in [[1, 0], [0, 1], [-1, 0], [0, -1]] {
+                            for length in 1..=grid {
+                                let q = [x + length * delta[0], y + length * delta[1]];
+                                assert!(h <= 1 + contact_steps(q, *target, width, grid));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(contacts > 0);
+}
+
+#[test]
+fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
+    let mut reachable = 0;
+    let mut unreachable = 0;
+    for width in [2, 3, 4, 6] {
+        for grid in [4, 5] {
+            for shift in [0, 1] {
+                for mask in 0..16 {
+                    let source = track(1, 1, [3 + shift, 3], [7 + shift, 3], 2);
+                    let target_pad =
+                        pad(2, 1, [3 * grid, 3 * grid], Shape::Circle { radius_nm: 2 });
+                    let target_track = track(3, 1, [16, 5], [16, 9], 3);
+                    let mut i = Input {
+                        version: 1,
+                        source_id: "a".repeat(64),
+                        layer: "F.Cu".into(),
+                        bounds: Bounds {
+                            min: [0, 0],
+                            max: [20, 20],
+                        },
+                        rules: Rules {
+                            width_nm: width,
+                            clearance_nm: 1,
+                            grid_nm: grid,
+                            edge_clearance_nm: 0,
+                        },
+                        nets: vec![
+                            Net {
+                                id: 0,
+                                name: String::new(),
+                            },
+                            Net {
+                                id: 1,
+                                name: "N".into(),
+                            },
+                        ],
+                        pads: vec![target_pad.clone()],
+                        tracks: vec![source.clone(), target_track.clone()],
+                        max_expansions: 10000,
+                        limits: Limits::default(),
+                    };
+                    for (bit, a, b) in [
+                        (1, [10, 0], [10, 10]),
+                        (2, [10, 10], [10, 20]),
+                        (4, [0, 10], [10, 10]),
+                        (8, [10, 10], [20, 10]),
+                    ] {
+                        if mask & bit != 0 {
+                            i.tracks.push(track(10 + bit, 0, a, b, 2));
+                        }
+                    }
+                    let foreign: Vec<_> = i
+                        .tracks
+                        .iter()
+                        .filter(|t| t.net == 0)
+                        .map(Body::track)
+                        .collect();
+                    let expected = oracle(
+                        &i,
+                        &[source.start, source.end],
+                        &[Body::track(&source)],
+                        &[Body::pad(&target_pad), Body::track(&target_track)],
+                        &foreign,
+                    );
+                    let engine = Engine::new(i.clone()).unwrap();
+                    let targets = [
+                        vec![Copper::Pad(&target_pad)],
+                        vec![Copper::Track(&target_track)],
+                    ];
+                    let actual = join_components(
+                        &engine,
+                        1,
+                        &[Copper::Track(&source)],
+                        &targets,
+                        10000,
+                        &mut 0,
+                    );
+                    match (expected, actual) {
+                        (Some(cost), Ok(path)) => {
+                            reachable += 1;
+                            assert_eq!(path.steps, cost, "width={width} grid={grid} shift={shift} mask={mask}");
+                            assert!(path.points.windows(2).all(|p| legal(&i, &foreign, p[0], p[1])));
+                            let cap = Body::segment(*path.points.last().unwrap(), *path.points.last().unwrap(), width);
+                            assert!(Body::pad(&target_pad).contacts(cap) || Body::track(&target_track).contacts(cap));
+                        }
+                        (None, Err(e)) => { unreachable += 1; assert_eq!(e.status, Status::Unroutable); }
+                        (expected, actual) => panic!("width={width} grid={grid} shift={shift} mask={mask}: oracle={expected:?} search={actual:?}"),
+                    }
+                }
+            }
+        }
+    }
+    assert!(reachable > 0 && unreachable > 0);
+    eprintln!("256 multi-target worlds: {reachable} reachable, {unreachable} unreachable");
+}

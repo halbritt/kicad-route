@@ -575,3 +575,29 @@ fn already_connected_six_terminal_incumbent_tree_needs_no_edits() {
     assert!(generated(&e).is_empty());
     valid_complete(&i, &[]);
 }
+
+// Exact owner-authored native failure, retained byte-for-byte with its limits.
+#[test]
+fn frozen_native_two_net_request_completes_with_original_budget() {
+    let raw = include_str!("fixtures/multiterminal-native-two-nets.json");
+    let input: Input = serde_json::from_str(raw).unwrap();
+    assert_eq!(input.max_expansions, 100000);
+    let output = run_json(raw.as_bytes());
+    assert_eq!(
+        output.request_sha256.as_deref(),
+        Some("dfce0b7268f51eb34cb2593e8d97e35e37978f9ff91a40f2fdef717f5fc61833")
+    );
+    assert_eq!(output.status, Status::Complete, "{output:?}");
+    valid_complete(&input, &output.added_tracks);
+    assert!(output.expanded_states <= input.max_expansions);
+    assert_eq!(
+        serde_json::to_vec(&output).unwrap(),
+        serde_json::to_vec(&run_json(raw.as_bytes())).unwrap()
+    );
+    eprintln!(
+        "frozen native request: expansions={} work={} tracks={}",
+        output.expanded_states,
+        output.work_used,
+        output.added_tracks.len()
+    );
+}

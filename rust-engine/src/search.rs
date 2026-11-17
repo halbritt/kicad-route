@@ -1,5 +1,5 @@
 use crate::components::Copper;
-use crate::model::{Failure, Point, Status, Track};
+use crate::model::{Failure, Point, Shape, Status, Track};
 use crate::Engine;
 use std::cmp::Reverse;
 use std::collections::{BTreeSet, BinaryHeap, HashMap};
@@ -60,13 +60,13 @@ fn search_inner(
         &[start],
         limit,
         expanded,
-        heuristic,
+        |p| Ok(heuristic(p)),
         |a, b| Ok(engine.legal_edge(net, a, b)?.then_some(b)),
         |at, _| Ok(at == goal),
     )
 }
 
-/// Unit-cost multi-source search. The existing copper component is free to
+/// Unit-cost multi-source A* search. The existing copper component is free to
 /// traverse; each legal pad-center/track-endpoint starts its own grid phase.
 /// A target may attach anywhere along the last swept edge, not only at a
 /// grid node or an incumbent endpoint. This is a bounded grid search, not a
@@ -133,7 +133,19 @@ pub(crate) fn join_components(
         &starts.into_iter().collect::<Vec<_>>(),
         limit,
         expanded,
-        |_| 0,
+        |p| {
+            let mut lower_bound = u64::MAX;
+            for target in targets.iter().flatten() {
+                engine.work.charge(1)?;
+                lower_bound = lower_bound.min(contact_steps(
+                    p,
+                    *target,
+                    engine.input.rules.width_nm,
+                    engine.input.rules.grid_nm,
+                ));
+            }
+            Ok(lower_bound)
+        },
         |a, b| {
             // Check the actual shortened goal edge before rejecting the full
             // grid step: its unused suffix may hit an obstacle or board edge.
@@ -156,12 +168,49 @@ pub(crate) fn join_components(
     )
 }
 
+/// Lower bound to a superset of all endpoint-cap contacts with this target.
+/// Each orthogonal edge moves at most `grid` in one axis, including a shortened
+/// final edge. The sum of ceil(axis gap / grid) therefore cannot exceed the
+/// remaining step cost. Full copper bounds plus the rounded-up route radius
+/// contain even the conservative one-nm-overlap contact set. Ignoring obstacles
+/// and rounding the envelope outward can only decrease this bound. Each bound
+/// changes by at most one across an edge; the minimum over all targets is also
+/// consistent and is zero at every accepted contact endpoint.
+fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
+    let route_radius = (width + 1) / 2;
+    let (lo, hi): (Point, Point) = match target {
+        Copper::Pad(pad) => {
+            let half = match pad.shape {
+                Shape::Circle { radius_nm } => [radius_nm; 2],
+                Shape::Rect { half_size_nm } => half_size_nm,
+            };
+            (
+                std::array::from_fn(|k| pad.at[k] - half[k] - route_radius),
+                std::array::from_fn(|k| pad.at[k] + half[k] + route_radius),
+            )
+        }
+        Copper::Track(t) => {
+            let radius = (t.width_nm + 1) / 2 + route_radius;
+            (
+                std::array::from_fn(|k| t.start[k].min(t.end[k]) - radius),
+                std::array::from_fn(|k| t.start[k].max(t.end[k]) + radius),
+            )
+        }
+    };
+    (0..2)
+        .map(|k| {
+            let gap = (lo[k] - p[k]).max(p[k] - hi[k]).max(0);
+            ((gap + grid - 1) / grid) as u64
+        })
+        .sum()
+}
+
 fn walk(
     engine: &Engine,
     starts: &[Point],
     limit: u64,
     expanded: &mut u64,
-    heuristic: impl Fn(Point) -> u64,
+    heuristic: impl Fn(Point) -> Result<u64, Failure>,
     advance: impl Fn(Point, Point) -> Result<Option<Point>, Failure>,
     finished: impl Fn(Point, Option<Point>) -> Result<bool, Failure>,
 ) -> Result<Path, Failure> {
@@ -178,7 +227,7 @@ fn walk(
             at: *at,
             direction: 4,
         };
-        queue.push(Reverse((heuristic(*at), 0, initial)));
+        queue.push(Reverse((heuristic(*at)?, 0, initial)));
         best.insert(initial, 0u64);
     }
     while !queue.is_empty() {
@@ -242,7 +291,7 @@ fn walk(
             best.insert(next, g);
             parent.insert(next, state);
             queue.push(Reverse((
-                g.checked_add(heuristic(next.at))
+                g.checked_add(heuristic(next.at)?)
                     .expect("bounded heuristic"),
                 g,
                 next,

@@ -64,9 +64,15 @@ adapter checks it against the original board bytes. CLI input is at most 16 MiB.
 
 Search uses four orthogonal directions, uniform one-step cost and an incoming
 heading in the dominance key. Two isolated pads retain center-to-center A* with
-a Manhattan heuristic. General component joins use multi-source Dijkstra
-(zero heuristic) from every legal pad center and incumbent/generated track
-endpoint in the first component, targeting all other components. Each seed
+a Manhattan heuristic. General component joins use multi-source A* from every
+legal pad center and incumbent/generated track endpoint in the first component, targeting all other components. Its heuristic
+is the minimum, over target items, of the sum of the two rounded-up axis gaps
+in grid steps to that item's copper bounding box expanded by the route radius.
+These outward-rounded boxes contain every endpoint-cap contact; each cardinal
+edge, including a shortened final edge, moves at most one grid step in one axis.
+The estimate therefore underestimates remaining unit-step cost, is consistent
+across edges, and is zero at every accepted goal. Obstacles do not enter the
+estimate. Each target evaluation is charged to the shared work budget. Each seed
 retains its own grid phase, so off-grid incumbent endpoints are supported.
 Attachment targets the entire copper geometry, including arbitrary-angle
 interiors, not only target endpoints. The final edge stops at the first integer endpoint in the target contact
@@ -267,6 +273,13 @@ on every reachable grid edge in 4,096 small axis-aligned worlds. Independent
 box-gap geometry checks clearance/contact, and position-only breadth-first
 search checks reachability and unit-step cost. Cases vary grid phase, width,
 clearance, circle/rectangle/track targets and all subsets of six obstacles.
+A further 256 worlds compare multiple targets and multiple off-grid seeds
+against the independent cost oracle. Envelope checks cover zero cost at
+contacting caps and consistency over full and shortened edges with odd widths.
+The exact authored two-net native request that previously exhausted 100,000
+expansions is retained byte-for-byte as a Rust regression, including its original
+limits and request SHA-256. Its complete result must connect all components,
+obey independent clearance checks, and repeat identically.
 This bounded enumeration does not prove arbitrary-angle geometry, continuous
 completeness, component ordering or multi-net optimality. Separate diagonal
 contact controls and mandatory native checks cover different concerns.
