@@ -1087,19 +1087,19 @@ mod tests {
         idx.nodes[1].envelope.max[0] += 1;
         assert!(!idx.consistent(items.iter().copied()));
 
+        // Stale internal envelope.
+        let mut idx = make();
+        assert!(matches!(idx.nodes[0].kind, StaticKind::Internal { .. }));
+        idx.nodes[0].envelope.max[0] += 1;
+        assert!(!idx.consistent(items.iter().copied()));
+
         // Out-of-order intra-leaf entries (even if expected matches).
         let mut idx = make();
         idx.entries.swap(0, 1);
         assert!(!idx.consistent(items.iter().copied()));
 
-        // Leaf exceeding STATIC_LEAF_CAP.
+        // Leaf exceeding STATIC_LEAF_CAP (matching items' exact net/copper/payload).
         let mut idx = make();
-        let big_items: Vec<(u32, u32, CopperAabb, ())> = (0..33u32)
-            .map(|i| {
-                let x = i64::from(i) * 10;
-                (i, 0, CopperAabb::from_bounds(([x, 0], [x + 4, 4])), ())
-            })
-            .collect();
         idx.nodes = vec![StaticNode {
             envelope: CopperAabb::from_bounds(([0, 0], [324, 4])),
             kind: StaticKind::Leaf {
@@ -1109,7 +1109,7 @@ mod tests {
             },
         }];
         idx.root = 0;
-        assert!(!idx.consistent(big_items));
+        assert!(!idx.consistent(items.iter().copied()));
 
         // Non-contiguous leaf spans (gap) & orphan node.
         let mut idx = make();
@@ -1266,7 +1266,65 @@ mod tests {
         index.node_mut(root_idx).right = orig_right;
         assert!(index.consistent(expected));
 
-        // Exercise String key priority determinism as well.
+        // Corrupt TreapNode.height (to another NonZeroU32).
+        let orig_height = index.node(root_idx).height;
+        index.node_mut(root_idx).height = NonZeroU32::new(orig_height.get() + 1).unwrap();
+        assert!(!index.consistent(expected));
+        index.node_mut(root_idx).height = orig_height;
+        assert!(index.consistent(expected));
+
+        // Corrupt TreapNode.envelope without changing copper or expected.
+        index.node_mut(root_idx).envelope.max[0] += 1;
+        assert!(!index.consistent(expected));
+        index.refresh(root_idx);
+        assert!(index.consistent(expected));
+
+        // Corrupt free-slot / arena disjointness (untracked None slot & in-use index in free).
+        index.nodes.push(None);
+        assert!(!index.consistent(expected));
+        index.nodes.pop();
+        assert!(index.consistent(expected));
+        index.free.push(root_idx);
+        assert!(!index.consistent(expected));
+        index.free.pop();
+        assert!(index.consistent(expected));
+
+        // Valid-priority, valid-BST, heap-violating 2-node treap (child priority > parent priority).
+        let mut heap_viol = SpatialIndex::new();
+        heap_viol.insert(1u64, 0u32, 1, b1);
+        heap_viol.insert(2u64, 1u32, 2, b2);
+        let hv_expected = [(1u64, 0u32, 1u32, b1), (2u64, 1u32, 2u32, b2)];
+        assert!(heap_viol.consistent(hv_expected));
+        let hv_parent = heap_viol.root;
+        let hv_child = if heap_viol.node(hv_parent).left != NONE_U32 {
+            heap_viol.node(hv_parent).left
+        } else {
+            heap_viol.node(hv_parent).right
+        };
+        assert!(hv_child != NONE_U32);
+        heap_viol.node_mut(hv_parent).left = NONE_U32;
+        heap_viol.node_mut(hv_parent).right = NONE_U32;
+        if heap_viol.node(hv_parent).key < heap_viol.node(hv_child).key {
+            heap_viol.node_mut(hv_child).left = hv_parent;
+            heap_viol.node_mut(hv_child).right = NONE_U32;
+        } else {
+            heap_viol.node_mut(hv_child).left = NONE_U32;
+            heap_viol.node_mut(hv_child).right = hv_parent;
+        }
+        heap_viol.refresh(hv_parent);
+        heap_viol.refresh(hv_child);
+        heap_viol.root = hv_child;
+        assert!(!heap_viol.consistent(hv_expected));
+
+        // Wrong expected map contents.
+        assert!(!index.consistent([(1u64, 0u32, 1u32, b1)]));
+
+        // Exercise String key priority determinism and non-triviality as well.
+        assert_ne!("alpha".to_string().priority(), 0);
+        assert_ne!(
+            "alpha".to_string().priority(),
+            "beta".to_string().priority()
+        );
         let mut s_index = SpatialIndex::new();
         let sa = CopperAabb::from_bounds(([0, 0], [5, 5]));
         let sb = CopperAabb::from_bounds(([10, 0], [15, 5]));
@@ -1866,8 +1924,8 @@ mod tests {
 
     #[test]
     fn treap_uniform_net_bulk_skip_and_exact_work_cutoff() {
-        // 1. n=16 (<= TREAP_UNIFORM_SKIP_CAP) & n=64 (> TREAP_UNIFORM_SKIP_CAP) uniform net=1.
-        for n in [16u64, 64u64] {
+        // 1. n=16 (< cap), n=32 (== TREAP_UNIFORM_SKIP_CAP), & n=64 (> cap) uniform net=1.
+        for n in [16u64, 32u64, 64u64] {
             let mut idx = SpatialIndex::new();
             let mut expected = Vec::new();
             for i in 1..=n {
@@ -1915,6 +1973,37 @@ mod tests {
                     .is_continue());
                 assert_eq!(calls, n);
                 assert_eq!(work.used(), n);
+            }
+            if n == 32 {
+                // At exact TREAP_UNIFORM_SKIP_CAP (32), a partial-overlap query overlapping root's
+                // envelope (key 32 at [320, 0]..=[324, 4]) while missing disjoint children (1..=31)
+                // still bulk-skips all 32 units.
+                assert_eq!(idx.node(idx.root).subtree_len, 32);
+                let q_partial =
+                    SweptAabb::from_copper(CopperAabb::from_bounds(([320, 0], [324, 4])));
+                for limit in 0..=32u64 {
+                    let work = WorkBudget::new(Limits {
+                        max_work: limit,
+                        ..Limits::default()
+                    });
+                    let _s = work.scope();
+                    let mut calls = 0u64;
+                    let res = idx.visit_matching(q_partial, Some(1), &work, |_, _| {
+                        calls += 1;
+                        Ok::<_, Failure>(ControlFlow::Continue(()))
+                    });
+                    if limit < 32 {
+                        let err = res.unwrap_err();
+                        assert_eq!(err.status, Status::WorkExhausted);
+                        assert_eq!(err.work_used, limit);
+                        assert_eq!(work.used(), limit);
+                        assert_eq!(calls, 0);
+                    } else {
+                        assert!(res.unwrap().is_continue());
+                        assert_eq!(calls, 0);
+                        assert_eq!(work.used(), 32);
+                    }
+                }
             }
             if n == 64 {
                 // Capped skip prevents root bulk-charge explosion on a small local query.
