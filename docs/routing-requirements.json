@@ -240,6 +240,18 @@
       "date": "2026-11-16",
       "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
       "url": "https://artifact.harm.org/8hgxdh/milestone-4-work-budget.html"
+    },
+    "cli-contract-assignment": {
+      "kind": "coordination-assignment",
+      "ref": "3d2f295f-19eb-4feb-a2ab-c3c8b7716339/v1",
+      "date": "2026-11-16",
+      "statement": "Existing Rust author1484 and root1497 implement scoped failure/result-version/native-admission contracts. Fresh independent Fable and Carbon review required before integration."
+    },
+    "cli-contract-notice": {
+      "kind": "implementation-contract",
+      "ref": "e44c7345-4a97-4b37-a57f-f9450ec7dc22/v1",
+      "date": "2026-11-16",
+      "statement": "Input version1 retained, output version2 required. CLI executor unwind produces edit-free internal_error exit7; unavailable counters zero; failed publication exits2 and cannot establish freshness. Exact notice read and acknowledged; acceptance pending."
     }
   },
   "requirements": [
@@ -668,7 +680,7 @@
         "acceptance_scope": "Bounded deterministic outer work and entry-count storage; full engine remains open."
       }
     ],
-    "next_milestone": "Integrate accepted work/storage increment, then address scoped failure reasons, result-schema compatibility and unexpected CLI termination/stale-output behavior before broader orchestration. Keep native admission, seed/phase and geometry limits explicit.",
+    "next_milestone": "Review the combined CLI/result/native-admission candidate before integration. Retain all seed, phase, geometry, full-process cancellation and memory exclusions before broader orchestration.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -937,7 +949,9 @@
         "RE-05"
       ],
       "source_ids": [
-        "fable-milestone-3"
+        "fable-milestone-3",
+        "cli-contract-assignment",
+        "cli-contract-notice"
       ],
       "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
       "finding": "Only first-component pad centers/track endpoints seed search; direct route/reroute failure text omits route_all completeness qualifier.",
@@ -945,7 +959,9 @@
       "status": "open",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Keep seed/phase limits explicit; unify scoped failure reasons before broadening orchestration."
+      "next_action": "Keep seed/phase limits explicit; independent review of unified reasons is pending. Broader completeness remains open.",
+      "correction_evidence": "Direct route, reroute and batch reasons now name fixed copper/grid and pad-center/track-endpoint seeds. Rust tests verify scope; seed/phase search algorithm unchanged.",
+      "correction_review": "pending independent review of combined candidate"
     },
     {
       "id": "F-M3-04",
@@ -983,7 +999,9 @@
         "RE-07"
       ],
       "source_ids": [
-        "fable-milestone-3"
+        "fable-milestone-3",
+        "cli-contract-assignment",
+        "cli-contract-notice"
       ],
       "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
       "finding": "Unexpected Rust CLI panic can leave an older output file unchanged.",
@@ -991,7 +1009,9 @@
       "status": "open",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Define and test stale-output/crash contract before relying on CLI output after exceptional termination."
+      "next_action": "Review real stale-output/panic/write-failure tests on the combined candidate; never infer freshness from file existence.",
+      "correction_evidence": "Rust48513e7 catches executor unwind at the CLI boundary and publishes edit-free internal_error when possible. Library rollback/panic payload unchanged; publication errors explicitly establish no fresh result. Abort/kill/OOM remain excluded.",
+      "correction_review": "pending independent review of combined candidate"
     },
     {
       "id": "C-M3-01",
@@ -1100,7 +1120,9 @@
         "RE-07"
       ],
       "source_ids": [
-        "fable-milestone-4"
+        "fable-milestone-4",
+        "cli-contract-assignment",
+        "cli-contract-notice"
       ],
       "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
       "finding": "Output work_used became required under version1; old plans are refused. Input compatibility remains.",
@@ -1108,9 +1130,11 @@
       "status": "open",
       "owner": "agent-1484 and agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Define a stable result schema and compatibility rule before additional consumers rely on plans.",
+      "next_action": "Independently review combined producer/consumer compatibility and refusal tests before accepting the schema change.",
       "observation_deadline": "before acceptance of the next affected milestone",
-      "blocks_current_integration": false
+      "blocks_current_integration": false,
+      "correction_evidence": "Separate input1/result2 constants and strict native version2 consumption implemented. Legacy results with or without counters are refused; counters remain mandatory u64.",
+      "correction_review": "pending independent review of combined candidate"
     },
     {
       "id": "F-M4-N4",
@@ -1137,7 +1161,9 @@
         "RE-08"
       ],
       "source_ids": [
-        "fable-milestone-4"
+        "fable-milestone-4",
+        "cli-contract-assignment",
+        "cli-contract-notice"
       ],
       "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
       "finding": "Native adapter input decoding, JSON files and whole operation are outside the Rust work/admission limits; only DRC has a timeout.",
@@ -1145,9 +1171,11 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Add explicit native input admission and whole-process termination coverage before claiming full-path resource bounds.",
+      "next_action": "Review exact-boundary and refusal controls. Whole-process cancellation and measured parse/native memory remain open.",
       "observation_deadline": "before acceptance of the next affected milestone",
-      "blocks_current_integration": false
+      "blocks_current_integration": false,
+      "correction_evidence": "Native file reads capped at16MiB plus1 read sentinel before decoding; source/plan/rules/limits/consumedDRC and exported JSON covered. Parsed allocations, native report generation, in-memory API arguments and whole-operation runtime remain outside this limit.",
+      "correction_review": "pending independent review of combined candidate"
     },
     {
       "id": "C-M4-01",
@@ -1175,7 +1203,9 @@
         "RE-07"
       ],
       "source_ids": [
-        "carbon-milestone-4"
+        "carbon-milestone-4",
+        "cli-contract-assignment",
+        "cli-contract-notice"
       ],
       "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
       "finding": "Oversized net names use a uniqueness/empty-name reason; missing/non-list removed_track_ids is classified unsupported instead of invalid by native apply.",
@@ -1183,9 +1213,11 @@
       "status": "open",
       "owner": "agent-1484 and agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Make validation reasons/classification precise in the next input/output failure-contract slice.",
+      "next_action": "Independently verify name-byte boundaries and actual native CLI classifications before closing.",
       "observation_deadline": "before acceptance of the next affected milestone",
-      "blocks_current_integration": false
+      "blocks_current_integration": false,
+      "correction_evidence": "Rust name reason now specifies1024UTF-8bytes; native missing/non-list/nonstring removals are invalid, explicit nonempty string lists unsupported.",
+      "correction_review": "pending independent review of combined candidate"
     }
   ],
   "reviewed_milestones": [
@@ -1264,5 +1296,20 @@
     ],
     "full_requirements": "RE-01..RE-10 remain open",
     "remaining": "CLI exceptional output, result versioning, whole-path cancellation/admission, profile/geometry/orchestration remain separate."
+  },
+  "cli_contract_checkpoint": {
+    "state": "validated-pending-independent-review",
+    "baseline_revision": "b09dbcd1b933cd9da2784b914b4d24ff753dedf8",
+    "rust_revision": "48513e7",
+    "native_owner": "agent-1497",
+    "rust_owner": "agent-1484",
+    "full_requirements": "All10remainopen; no full-engine or production acceptance.",
+    "exclusions": [
+      "No routing/seed/geometry algorithm expansion",
+      "No abort/kill/OOM or whole-process cancellation guarantee",
+      "No RSS, CPU or throughput claim",
+      "No production/default/deployment/release change"
+    ],
+    "root_validation": "74 Rust tests +3 compile-fail +117 native (51.67s) +95 ownership/fitness (0.55s) PASS,0failures/skips. Prior run116native passed and1newtest assumed parser recursion refusal; Python3.14 accepts depth2000, so corrected test explicitly permits typed parser refusal or exact invalid-result-schema refusal. Original failed log retained; no board constraint or routing fixture changed."
   }
 }

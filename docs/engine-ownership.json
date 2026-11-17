@@ -59,8 +59,8 @@
           "symbol": "reroute"
         },
         "output": {
-          "path": "rust-engine/src/main.rs",
-          "symbol": "main"
+          "path": "rust-engine/src/cli.rs",
+          "symbol": "run"
         }
       }
     }

@@ -69,11 +69,13 @@ pad/footprint mask margins are also outside this first native contract.
 Board and footprint Margin drawings are rejected on both import and application:
 KiCad treats them as clearance boundaries, unlike ordinary documentation graphics.
 
-The version1 exchange uses integer nanometres, explicit net and item IDs, bounds,
+The version1 input uses integer nanometres, explicit net and item IDs, bounds,
 rules, fixed copper, an expansion budget and optional resource `limits`. Rust
 owns the limits and their defaults; native export passes `--limits FILE` through
-without selecting routing policy. Results require unsigned `expanded_states`
-and `work_used` counters. Work, admission, journal and nesting failures publish
+without selecting routing policy. Results are separately versioned at **2** and
+require unsigned 64-bit `expanded_states` and `work_used` counters. Native apply
+rejects version1 results even when they have counters; regenerate those plans.
+Work, admission, journal and nesting failures publish
 empty edits and cannot be applied as a native board. The Rust README records the
 charged operations, separately bounded initialization and exclusions; the work
 counter is not elapsed time or a process-memory measurement.
@@ -81,6 +83,26 @@ Rust assigns the added item
 UUIDs. The adapter checks source identity, requires a complete plan and applies
 the exact geometry and IDs to a new file. The first slice cannot delete input
 copper. This first supported subset is not complete board-tool compatibility.
+
+An unwinding routing-executor panic produces an edit-free version2
+`internal_error` result and exit 7 when publication succeeds. Its counters are
+zero sentinels for unavailable measurements, as stated in its reason. Library
+transactions still restore state and propagate the original panic. Failed
+publication exits 2 and reports that no fresh result was established; an older
+file may remain. Callers must check exit status before consuming a result.
+Abort, SIGKILL, OOM, panic-abort builds and process death remain outside this
+unwind contract. Direct route, reroute and batch failures describe the fixed
+copper/grid/seed domain rather than asserting global infeasibility.
+
+Native file admission limits each source board, plan, rules/limits JSON and
+consumed DRC report to 16 MiB. Reads request at most the limit plus one byte;
+source boards are checked before KiCad decoding. Export also refuses to publish
+JSON exceeding the Rust input limit. Oversized inputs are `invalid`; oversized
+DRC reports are `native_validation_failed`. JSON decoder recursion errors are
+typed; the supported depth depends on the host parser.
+These byte limits do not measure or bound parsed/native allocations, report
+generation, in-memory API arguments, CPU or whole-operation wall time. DRC keeps
+its existing timeout; full-process cancellation and memory accounting remain open.
 
 ## Implementation sequence and acceptance
 

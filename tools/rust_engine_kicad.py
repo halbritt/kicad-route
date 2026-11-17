@@ -22,6 +22,20 @@ import uuid
 import pcbnew
 
 
+INPUT_VERSION = 1
+RESULT_VERSION = 2
+# Per-document admission, not a bound on parsed/native allocations or runtime.
+MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
+
+
+def read_bounded(path: Path):
+    with path.open('rb') as stream:
+        body = stream.read(MAX_DOCUMENT_BYTES + 1)
+    if len(body) > MAX_DOCUMENT_BYTES:
+        raise ValueError(f'input document exceeds {MAX_DOCUMENT_BYTES} bytes: {path}')
+    return body
+
+
 class UnsupportedBoard(ValueError):
     pass
 
@@ -37,11 +51,11 @@ def native_violations(path: Path, report: Path):
              '--output', str(report), str(path)],
             check=True, capture_output=True, text=True, timeout=30,
         )
-        data = json.loads(report.read_text())
+        data = json.loads(read_bounded(report))
         if not isinstance(data, dict) or not isinstance(data.get('violations'), list) or not isinstance(data.get('unconnected_items'), list):
             raise ValueError('native DRC report has invalid violation/connectivity fields')
         return data
-    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, KeyError, RecursionError, subprocess.SubprocessError) as error:
         raise NativeValidationError(f'native DRC did not produce a valid result: {error}') from error
 
 
@@ -64,7 +78,7 @@ def source_snapshot(path: Path):
     # Reject rules beside the real source before isolating its standalone bytes.
     # One read defines the source identity, parsed geometry and DRC baseline.
     reject_external_rules(path)
-    body = path.read_bytes()
+    body = read_bounded(path)
     with tempfile.TemporaryDirectory(prefix='kicad-route-source-') as directory:
         snapshot = Path(directory) / 'source.kicad_pcb'
         snapshot.write_bytes(body)
@@ -190,7 +204,7 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
                        'width_nm': int(track.GetWidth()), 'locked': bool(track.IsLocked())})
     nets = [{'id': int(code), 'name': net.GetNetname()}
             for code, net in board.GetNetsByNetcode().items()]
-    result = {'version': 1, 'source_id': hashlib.sha256(path.read_bytes()).hexdigest(),
+    result = {'version': INPUT_VERSION, 'source_id': hashlib.sha256(read_bounded(path)).hexdigest(),
               'layer': 'F.Cu', 'bounds': rectangular_bounds(board), 'rules': rules,
               'nets': nets, 'pads': pads, 'tracks': tracks, 'max_expansions': max_expansions}
     # Resource policy and defaults belong to Rust. Preserve supplied limits
@@ -210,14 +224,17 @@ def apply_plan(source: Path, plan: dict, destination: Path):
 
 
 def apply_snapshot(source: Path, plan: dict, destination: Path):
-    if not isinstance(plan, dict) or type(plan.get('version')) is not int or plan.get('version') != 1 or plan.get('status') != 'complete':
-        raise ValueError('only a complete version1 Rust plan can be written')
+    if not isinstance(plan, dict) or type(plan.get('version')) is not int or plan.get('version') != RESULT_VERSION or plan.get('status') != 'complete':
+        raise ValueError('only a complete version2 Rust result can be written')
     for counter in ('expanded_states', 'work_used'):
         if type(plan.get(counter)) is not int or not 0 <= plan[counter] < 2**64:
             raise ValueError(f'Rust plan requires {counter} as an unsigned 64-bit integer')
-    if plan.get('source_id') != hashlib.sha256(source.read_bytes()).hexdigest():
+    if plan.get('source_id') != hashlib.sha256(read_bounded(source)).hexdigest():
         raise ValueError('Rust plan does not match the input board')
-    if plan.get('removed_track_ids') != []:
+    removals = plan.get('removed_track_ids')
+    if not isinstance(removals, list) or any(not isinstance(ident, str) for ident in removals):
+        raise ValueError('Rust result requires an explicit removed_track_ids list of strings')
+    if removals:
         raise UnsupportedBoard('this slice cannot remove input copper')
     additions = plan.get('added_tracks')
     if not isinstance(additions, list):
@@ -286,16 +303,23 @@ def read_object(path: Path):
             result[key] = value
         return result
 
-    result = json.loads(path.read_text(), object_pairs_hook=unique_keys)
+    try:
+        result = json.loads(read_bounded(path), object_pairs_hook=unique_keys)
+    except RecursionError as error:
+        raise ValueError('JSON input exceeds parser nesting capacity') from error
     if not isinstance(result, dict):
         raise ValueError('JSON input must be an object')
     return result
 
 
 def write_request(result: dict, destination: Path):
+    body = json.dumps(result, indent=2) + '\n'
+    # ensure_ascii's default makes every serialized character exactly one byte.
+    if len(body) > MAX_DOCUMENT_BYTES:
+        raise ValueError(f'exported JSON exceeds {MAX_DOCUMENT_BYTES} bytes')
     with tempfile.TemporaryDirectory(prefix=f'.{destination.stem}-', dir=destination.parent) as directory:
         temporary = Path(directory) / destination.name
-        temporary.write_text(json.dumps(result, indent=2) + '\n')
+        temporary.write_text(body, encoding='utf-8')
         os.link(temporary, destination)
 
 

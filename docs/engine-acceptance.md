@@ -60,10 +60,25 @@ timeout controls complement the ordinary positive and negative routing cases.
 
 The resource-limit fixture passes an optional `limits` JSON object through the
 native export CLI with `--limits`. Rust owns its field validation, defaults and
-ceilings. Existing inputs without it retain defaults. Engine results now require
-both `expanded_states` and `work_used` as unsigned 64-bit integers; old complete
-plans missing either counter must be regenerated. These counters describe the
+ceilings. Existing version1 inputs without it retain defaults. Version2 engine
+results require both `expanded_states` and `work_used` as unsigned 64-bit integers;
+all version1 plans must be regenerated, with or without counters. These counters describe the
 engine result and do not replace native validation.
+
+The production CLI boundary is tested with an injected executor that panics
+after staged routing over an actual older complete result. Successful publication
+must replace that file with an edit-free `internal_error` and return 7; its zero
+counters explicitly mean unavailable. State, index and subsequent generated IDs
+must be restored, and a separate library call must preserve the original panic
+payload. Publication refusal must return nonzero and preserve foreign files.
+Actual subprocess controls exercise invalid-input replacement and write errors.
+Process abort/kill/OOM and arbitrary native failure remain outside this contract.
+
+Native admission controls cover each 16 MiB document limit, exact-boundary board
+and JSON acceptance, oversized export/report refusal and malformed deep JSON. They
+retain the source snapshot race and atomic destination controls. Missing/non-list
+removals are invalid schema; an explicit nonempty string list requests unsupported
+copper removal. This is file admission, not an RSS or whole-operation deadline.
 
 Actual executable controls exhaust work, item/search admission, undo history
 and nesting depth separately. Each must return its typed failure, empty edits
