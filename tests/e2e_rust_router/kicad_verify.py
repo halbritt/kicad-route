@@ -489,19 +489,33 @@ def _stage_board_bundle(
 
     for suffix in (".kicad_pro", ".kicad_dru", ".kicad_sch"):
         cand = src_dir / f"{stem}{suffix}"
+        if sidecar_dir is not None and sidecar_stem is not None:
+            sidecar_file = sidecar_dir / f"{sidecar_stem}{suffix}"
+            if (
+                suffix in (".kicad_pro", ".kicad_dru")
+                and cand.is_file()
+                and cand.resolve() != sidecar_file.resolve()
+                and (
+                    not sidecar_file.is_file()
+                    or cand.read_bytes() != sidecar_file.read_bytes()
+                )
+            ):
+                raise AssertionError(
+                    f"output board sidecar {cand} conflicts with authoritative {sidecar_file}"
+                )
+            if sidecar_file.is_file():
+                shutil.copy2(sidecar_file, stage_dir / f"{stem}{suffix}")
+                continue
         if cand.is_file():
             shutil.copy2(cand, stage_dir / cand.name)
-        elif sidecar_dir is not None and sidecar_stem is not None:
-            fallback = sidecar_dir / f"{sidecar_stem}{suffix}"
-            if fallback.is_file():
-                shutil.copy2(fallback, stage_dir / f"{stem}{suffix}")
 
     for table in ("fp-lib-table", "sym-lib-table"):
         cand = src_dir / table
-        if cand.is_file():
+        sidecar_table = (sidecar_dir / table) if sidecar_dir is not None else None
+        if sidecar_table is not None and sidecar_table.is_file():
+            shutil.copy2(sidecar_table, stage_dir / table)
+        elif cand.is_file():
             shutil.copy2(cand, stage_dir / table)
-        elif sidecar_dir is not None and (sidecar_dir / table).is_file():
-            shutil.copy2(sidecar_dir / table, stage_dir / table)
 
     for pretty in src_dir.glob("*.pretty"):
         if pretty.is_dir():
