@@ -94,12 +94,14 @@ Abort, SIGKILL, OOM, panic-abort builds and process death remain outside this
 unwind contract. Direct route, reroute and batch failures describe the fixed
 copper/grid/seed domain rather than asserting global infeasibility.
 
-Native file admission limits each source board, plan, rules/limits JSON and
-consumed DRC report to 16 MiB. Reads request at most the limit plus one byte;
-source boards are checked before KiCad decoding. Export also refuses to publish
+The native export/apply entrypoints limit each source board, plan, rules/limits
+JSON and consumed DRC report to 16 MiB. Reads request at most the limit plus one
+byte; source boards are checked before KiCad decoding. The internal snapshot
+helpers expect an already admitted private snapshot. Export also refuses to publish
 JSON exceeding the Rust input limit. Oversized inputs are `invalid`; oversized
-DRC reports are `native_validation_failed`. JSON decoder recursion errors are
-typed; the supported depth depends on the host parser.
+DRC reports are `native_validation_failed`. JSON decoder and export encoder
+recursion errors are typed; supported depths depend on the host implementation.
+Export uses compact JSON to avoid quadratic indentation growth with nesting.
 These byte limits do not measure or bound parsed/native allocations, report
 generation, in-memory API arguments, CPU or whole-operation wall time. DRC keeps
 its existing timeout; full-process cancellation and memory accounting remain open.

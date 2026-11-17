@@ -313,7 +313,11 @@ def read_object(path: Path):
 
 
 def write_request(result: dict, destination: Path):
-    body = json.dumps(result, indent=2) + '\n'
+    try:
+        # Indentation grows quadratically with nesting before admission can run.
+        body = json.dumps(result, separators=(',', ':')) + '\n'
+    except RecursionError as error:
+        raise ValueError('exported JSON exceeds encoder nesting capacity') from error
     # ensure_ascii's default makes every serialized character exactly one byte.
     if len(body) > MAX_DOCUMENT_BYTES:
         raise ValueError(f'exported JSON exceeds {MAX_DOCUMENT_BYTES} bytes')

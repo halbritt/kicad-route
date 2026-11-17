@@ -956,20 +956,23 @@ def test_native_exact_document_boundary_accepts_board_and_json(native_board, gua
     assert exported['source_id'] == hashlib.sha256(native_board.read_bytes()).hexdigest()
 
 
-def test_deep_invalid_json_has_typed_cli_failure(native_board, guarded_cli):
+@pytest.mark.parametrize('depth', [2000, 500000])
+def test_deep_invalid_json_has_typed_cli_failure(native_board, guarded_cli, depth):
     run, _ = guarded_cli
     plan = native_board.with_name('deep-plan.json')
-    plan.write_text('{"nested":' + '[' * 2000 + '0' + ']' * 2000 + '}')
+    plan.write_text('{"nested":' + '[' * depth + '0' + ']' * depth + '}')
     output = native_board.with_name('deep-output.kicad_pcb')
     result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
                   'apply', str(native_board), str(plan), str(output)], check=False)
     assert result.returncode == 2
     failure = json.loads(result.stderr.splitlines()[-1])
     assert failure['status'] == 'invalid'
-    # Python 3.14's decoder accepts this depth; older decoders can refuse it.
-    # Either path must refuse this non-result before native publication.
-    assert ('nesting capacity' in failure['reason'] or
-            failure['reason'] == 'only a complete version2 Rust result can be written')
+    if depth == 500000:
+        assert failure['reason'] == 'JSON input exceeds parser nesting capacity'
+    else:
+        # Python 3.14's decoder accepts this depth; older decoders can refuse it.
+        assert ('nesting capacity' in failure['reason'] or
+                failure['reason'] == 'only a complete version2 Rust result can be written')
     assert 'Traceback' not in result.stderr and not output.exists()
 
 
@@ -979,6 +982,47 @@ def test_export_refuses_serialization_above_engine_input_limit(tmp_path):
     with pytest.raises(ValueError, match='exported JSON exceeds'):
         bridge.write_request({'padding': 'x' * bridge.MAX_DOCUMENT_BYTES}, output)
     assert not list(tmp_path.iterdir())
+
+
+def test_export_serialization_has_no_nesting_indentation_growth(tmp_path):
+    depth = 2000
+    nested = 0
+    for _ in range(depth):
+        nested = [nested]
+    output = tmp_path / 'request.json'
+    bridge.write_request({'limits': {'nested': nested}}, output)
+    assert output.stat().st_size < depth * 3 + 100
+    # The representation is still the same object; the native seam does not
+    # pre-empt Rust's validation of limits or select resource policy.
+    loaded = json.loads(output.read_bytes())['limits']['nested']
+    for _ in range(depth):
+        assert isinstance(loaded, list) and len(loaded) == 1
+        loaded = loaded[0]
+    assert loaded == 0
+
+
+def test_export_encoder_recursion_is_typed_and_leaves_no_output(tmp_path):
+    nested = 0
+    for _ in range(100000):
+        nested = [nested]
+    output = tmp_path / 'request.json'
+    with pytest.raises(ValueError, match='exported JSON exceeds encoder nesting capacity'):
+        bridge.write_request({'limits': {'nested': nested}}, output)
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('extra', [0, 1])
+def test_export_serialization_exact_byte_boundary(tmp_path, extra):
+    output = tmp_path / 'request.json'
+    payload = 'x' * (bridge.MAX_DOCUMENT_BYTES - len(b'{"padding":""}\n') + extra)
+    if extra:
+        with pytest.raises(ValueError, match='exported JSON exceeds'):
+            bridge.write_request({'padding': payload}, output)
+        assert not list(tmp_path.iterdir())
+    else:
+        bridge.write_request({'padding': payload}, output)
+        assert output.stat().st_size == bridge.MAX_DOCUMENT_BYTES
+        assert json.loads(output.read_bytes()) == {'padding': payload}
 
 
 def test_oversized_native_report_is_a_validation_failure(tmp_path, monkeypatch):
@@ -991,3 +1035,16 @@ def test_oversized_native_report_is_a_validation_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(bridge.subprocess, 'run', large_report)
     with pytest.raises(bridge.NativeValidationError, match='exceeds'):
         bridge.native_violations(tmp_path / 'board.kicad_pcb', report)
+
+
+def test_deep_native_report_has_typed_decoder_failure(tmp_path, monkeypatch):
+    report = tmp_path / 'drc.json'
+
+    def deep_report(command, **kwargs):
+        report.write_text('{"nested":' + '[' * 500000 + '0' + ']' * 500000 + '}')
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(bridge.subprocess, 'run', deep_report)
+    with pytest.raises(bridge.NativeValidationError) as failure:
+        bridge.native_violations(tmp_path / 'board.kicad_pcb', report)
+    assert isinstance(failure.value.__cause__, RecursionError)

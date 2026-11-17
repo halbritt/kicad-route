@@ -252,6 +252,31 @@
       "ref": "e44c7345-4a97-4b37-a57f-f9450ec7dc22/v1",
       "date": "2026-11-16",
       "statement": "Input version1 retained, output version2 required. CLI executor unwind produces edit-free internal_error exit7; unavailable counters zero; failed publication exits2 and cannot establish freshness. Exact notice read and acknowledged; acceptance pending."
+    },
+    "cli-contract-implementation": {
+      "kind": "implementation-report",
+      "ref": "d4c1ac28-5180-4e06-a8d0-47ef91fba5aa/v1",
+      "reviewed_revision": "48513e72a1346c537671a93de1f70c7f4727c009",
+      "date": "2026-11-16"
+    },
+    "fable-milestone-5": {
+      "kind": "review",
+      "ref": "ec11e5b6-797b-4ed2-a2eb-f72e5d770abc/v1",
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "date": "2026-11-16"
+    },
+    "fable-milestone-5-addendum": {
+      "kind": "review-correction",
+      "ref": "f3d0dd6b-96c1-4282-98c7-1be8e743408e/v1",
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "date": "2026-11-16"
+    },
+    "carbon-milestone-5": {
+      "kind": "review",
+      "ref": "e743d6c4-fab2-49a9-a1a1-fe61293bed2f/v1",
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "date": "2026-11-16",
+      "url": "https://artifact.harm.org/1bxv27/milestone-5-cli-contract.html"
     }
   },
   "requirements": [
@@ -274,7 +299,8 @@
       "paths": [
         "rust-engine/src/lib.rs",
         "rust-engine/src/state.rs",
-        "rust-engine/src/main.rs"
+        "rust-engine/src/main.rs",
+        "rust-engine/src/cli.rs"
       ],
       "verification": [
         "Production-entry run with legacy Python engine unavailable; negative fallback injection must fail.",
@@ -356,7 +382,10 @@
         "synthesis",
         "fable-milestone-2",
         "carbon-milestone-2",
-        "transaction-implementation"
+        "transaction-implementation",
+        "fable-milestone-5",
+        "fable-milestone-5-addendum",
+        "carbon-milestone-5"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -368,11 +397,13 @@
         "rust-engine/src/state.rs",
         "rust-engine/src/lib.rs",
         "rust-engine/src/main.rs",
-        "tools/rust_engine_kicad.py"
+        "tools/rust_engine_kicad.py",
+        "rust-engine/src/cli.rs"
       ],
       "verification": [
         "Failure injection across mutations/publication; exact ID/geometry/index restoration.",
-        "Failed result has empty edits; stale source cannot be applied; native protected content unchanged."
+        "Failed result has empty edits; stale source cannot be applied; native protected content unchanged.",
+        "Before chaining engine and native apply, prove request/result freshness: a failed run must not cause an older same-board result with different requested rules to be consumed. F-M5-N1 remains open."
       ],
       "state": "open",
       "current_evidence": "Scoped nested transactions preserve inner commits for outer rollback and restore generated copper/index/allocator on error or unwinding panic;32 recursive histories and3 compile-fail API controls independently reviewed. Operation and native publication failures are tested. Abort/kill/OOM and crash durability remain outside this guarantee; full requirement open."
@@ -390,7 +421,10 @@
         "work-budget-contract",
         "fable-milestone-4",
         "fable-milestone-4-addendum",
-        "carbon-milestone-4"
+        "carbon-milestone-4",
+        "fable-milestone-5",
+        "fable-milestone-5-addendum",
+        "carbon-milestone-5"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -402,7 +436,8 @@
         "rust-engine/src/model.rs",
         "rust-engine/src/search.rs",
         "rust-engine/src/lib.rs",
-        "rust-engine/src/budget.rs"
+        "rust-engine/src/budget.rs",
+        "rust-engine/src/cli.rs"
       ],
       "verification": [
         "Structured failure/exit controls, one total budget across nets, no partial edits.",
@@ -458,7 +493,10 @@
         "fable-milestone-2",
         "carbon-milestone-2",
         "native-component-gap",
-        "component-implementation"
+        "component-implementation",
+        "fable-milestone-5",
+        "fable-milestone-5-addendum",
+        "carbon-milestone-5"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -475,7 +513,7 @@
         "Equivalent incomplete baseline must not satisfy outcome-fitness claim."
       ],
       "state": "open",
-      "current_evidence": "Mandatory native publication retained.95native cases include budget/admission/journal/depth refusal, strict result counters, original geometry/contact witnesses, exact source/copper preservation and zero opens/no added DRC. Carbon independently verifies mid-search and post-search budget refusal on native first-contact board. Broad native feature acceptance and stable result-schema policy remain open."
+      "current_evidence": "Both reviewers accept input1/result2, typed executor unwind and explicit publication-failure semantics at47e98ec. Native validation and byte admission retained. Source hash does not bind requested rules; F-M5-N1 stale-result reuse remains open before orchestration. Deep serialization correction awaits focused review."
     },
     {
       "id": "RE-08",
@@ -488,7 +526,10 @@
         "carbon-corrections",
         "fable-milestone-4",
         "fable-milestone-4-addendum",
-        "carbon-milestone-4"
+        "carbon-milestone-4",
+        "fable-milestone-5",
+        "fable-milestone-5-addendum",
+        "carbon-milestone-5"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -545,7 +586,10 @@
         "carbon-milestone-2",
         "fable-milestone-4",
         "fable-milestone-4-addendum",
-        "carbon-milestone-4"
+        "carbon-milestone-4",
+        "fable-milestone-5",
+        "fable-milestone-5-addendum",
+        "carbon-milestone-5"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -561,7 +605,7 @@
         "Blind skill behavior controls and stalled-review positive/negative cases."
       ],
       "state": "open",
-      "current_evidence": "Fable and Carbon independently accept boundedb081bfb. Root required Fable missing reads and corrected allocator/query probes, then read addendum and verified18archived source files againstHEAD. Root restricted Carbon collision-reset claim and independently swept144cutoffs with post-failure work and ID equality. Exact source/coverage/corrections retained; all10fullrequirements open."
+      "current_evidence": "Both reviewers independently accept bounded47e98ec. Fable full-catalog addendum closes missing reads and corrects native byte-comparison attribution; Carbon full changed-file coverage and independent probes retained. Root verifies strict decoder negative control and fixes encoder growth/typing before final affected review. Full RE-01..RE-10 remain open."
     }
   ],
   "allowed_compatibility_seam": {
@@ -680,7 +724,7 @@
         "acceptance_scope": "Bounded deterministic outer work and entry-count storage; full engine remains open."
       }
     ],
-    "next_milestone": "Review the combined CLI/result/native-admission candidate before integration. Retain all seed, phase, geometry, full-process cancellation and memory exclusions before broader orchestration.",
+    "next_milestone": "Confirm final native encoder/test/catalog correction, then integrate bounded M5. Before orchestration, resolve request/result freshness F-M5-N1. Full geometry, seed/phase, memory and cancellation requirements remain open.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -961,7 +1005,7 @@
       "acceptance_owner": "agent-1497",
       "next_action": "Keep seed/phase limits explicit; independent review of unified reasons is pending. Broader completeness remains open.",
       "correction_evidence": "Direct route, reroute and batch reasons now name fixed copper/grid and pad-center/track-endpoint seeds. Rust tests verify scope; seed/phase search algorithm unchanged.",
-      "correction_review": "pending independent review of combined candidate"
+      "correction_review": "Both reviewers close the wording half at47e98ec; source-component seed/phase completeness remains open."
     },
     {
       "id": "F-M3-04",
@@ -1003,15 +1047,20 @@
         "cli-contract-assignment",
         "cli-contract-notice"
       ],
-      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "Unexpected Rust CLI panic can leave an older output file unchanged.",
       "evidence_class": "Source-derived main.rs boundary; structured failures have different publication behavior.",
-      "status": "open",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Review real stale-output/panic/write-failure tests on the combined candidate; never infer freshness from file existence.",
+      "next_action": "Retain executor-unwind tests; F-M5-N1 tracks request/freshness on publication failure. Abort/kill/OOM and non-executor unwind remain excluded.",
       "correction_evidence": "Rust48513e7 catches executor unwind at the CLI boundary and publishes edit-free internal_error when possible. Library rollback/panic payload unchanged; publication errors explicitly establish no fresh result. Abort/kill/OOM remain excluded.",
-      "correction_review": "pending independent review of combined candidate"
+      "correction_review": "Both reviewers accept this bounded correction at47e98ec.",
+      "review_source_ids": [
+        "fable-milestone-5",
+        "fable-milestone-5-addendum",
+        "carbon-milestone-5"
+      ]
     },
     {
       "id": "C-M3-01",
@@ -1124,17 +1173,22 @@
         "cli-contract-assignment",
         "cli-contract-notice"
       ],
-      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "Output work_used became required under version1; old plans are refused. Input compatibility remains.",
       "evidence_class": "Source-derived and native legacy-plan refusal.",
-      "status": "open",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1484 and agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Independently review combined producer/consumer compatibility and refusal tests before accepting the schema change.",
+      "next_action": "Keep result2/input1 separation and legacy-result refusal. Bind future orchestration to its actual request and successful invocation.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false,
       "correction_evidence": "Separate input1/result2 constants and strict native version2 consumption implemented. Legacy results with or without counters are refused; counters remain mandatory u64.",
-      "correction_review": "pending independent review of combined candidate"
+      "correction_review": "Both reviewers accept this bounded correction at47e98ec.",
+      "review_source_ids": [
+        "fable-milestone-5",
+        "fable-milestone-5-addendum",
+        "carbon-milestone-5"
+      ]
     },
     {
       "id": "F-M4-N4",
@@ -1171,11 +1225,11 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Review exact-boundary and refusal controls. Whole-process cancellation and measured parse/native memory remain open.",
+      "next_action": "Retain file admission controls; review compact encoder correction C-M5-01. Whole-process cancellation and measured parse/native memory remain open.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false,
       "correction_evidence": "Native file reads capped at16MiB plus1 read sentinel before decoding; source/plan/rules/limits/consumedDRC and exported JSON covered. Parsed allocations, native report generation, in-memory API arguments and whole-operation runtime remain outside this limit.",
-      "correction_review": "pending independent review of combined candidate"
+      "correction_review": "Both reviewers accept file-byte admission at47e98ec. Encoder correction and full-process cancellation/memory remain separate."
     },
     {
       "id": "C-M4-01",
@@ -1207,17 +1261,175 @@
         "cli-contract-assignment",
         "cli-contract-notice"
       ],
-      "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "Oversized net names use a uniqueness/empty-name reason; missing/non-list removed_track_ids is classified unsupported instead of invalid by native apply.",
       "evidence_class": "Executed name boundary plus adapter source; all refuse publication.",
-      "status": "open",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1484 and agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Independently verify name-byte boundaries and actual native CLI classifications before closing.",
+      "next_action": "Retain UTF-8 name and removal-schema controls; validate removal UUIDs before implementing removal (C-M5-03).",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false,
       "correction_evidence": "Rust name reason now specifies1024UTF-8bytes; native missing/non-list/nonstring removals are invalid, explicit nonempty string lists unsupported.",
-      "correction_review": "pending independent review of combined candidate"
+      "correction_review": "Both reviewers accept this bounded correction at47e98ec.",
+      "review_source_ids": [
+        "fable-milestone-5",
+        "fable-milestone-5-addendum",
+        "carbon-milestone-5"
+      ]
+    },
+    {
+      "id": "F-M5-N1",
+      "requirements": [
+        "RE-04",
+        "RE-05",
+        "RE-07"
+      ],
+      "source_ids": [
+        "fable-milestone-5",
+        "fable-milestone-5-addendum"
+      ],
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "finding": "After failed publication, a caller ignoring nonzero exit can apply an old complete result for the same source with different requested rules. Source hash does not bind the request.",
+      "evidence_class": "Executed native export/engine/apply witness; original JSON equality and v2 byte equality distinguished.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Before orchestration, bind results to requests and invocation success; consider distinct no-publication exit. Current callers must check exit. Retain stale-result refusal as a required future outcome.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M5-N2",
+      "requirements": [
+        "RE-05",
+        "RE-06"
+      ],
+      "source_ids": [
+        "fable-milestone-5",
+        "carbon-milestone-5"
+      ],
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "finding": "Depth2000 parses on Python3.14, so the original test does not exercise the decoder recursion handler (also C-M5-02).",
+      "evidence_class": "Executed deep inputs and root handler-deletion negative control.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Strict500000-depth apply and DRC recursion controls implemented; verify and obtain focused review.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M5-N3",
+      "requirements": [
+        "RE-05",
+        "RE-07"
+      ],
+      "source_ids": [
+        "fable-milestone-5"
+      ],
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "finding": "Only executor unwinding is caught; no reachable panic in source recovery/serialization/publication demonstrated.",
+      "evidence_class": "Source-derived scope limitation.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Keep exclusions explicit; reassess when changing the CLI boundary. Do not infer all-process termination handling.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M5-N4",
+      "requirements": [
+        "RE-05",
+        "RE-07"
+      ],
+      "source_ids": [
+        "fable-milestone-5"
+      ],
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "finding": "A killed process can leave a PID-named temporary that refuses a later publication with reused PID.",
+      "evidence_class": "Source-derived fail-closed behavior.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Preserve foreign temporary files; revisit collision-safe publication naming/recovery when extending process lifecycle.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M5-N5",
+      "requirements": [
+        "RE-05",
+        "RE-08"
+      ],
+      "source_ids": [
+        "fable-milestone-5"
+      ],
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "finding": "File-byte admission does not bound parsed/native allocation or whole-operation runtime.",
+      "evidence_class": "Documented exclusion, also F-M4-N6/C-M4-01.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Keep full-path cancellation and measured memory requirements open; do not infer RSS from a raw byte cap.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M5-N6",
+      "requirements": [
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-5-addendum"
+      ],
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "finding": "RE-01/04/05 paths omit new cli.rs boundary.",
+      "evidence_class": "Source-derived catalog drift, root confirmed.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "cli.rs added to all three path lists; focused review pending.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "C-M5-01",
+      "requirements": [
+        "RE-05",
+        "RE-08"
+      ],
+      "source_ids": [
+        "carbon-milestone-5"
+      ],
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "finding": "Export encoder RecursionError is uncaught after read_object succeeds near its stack ceiling; indent2 can grow output quadratically before byte admission.",
+      "evidence_class": "Executed read_object/write_request API witness; full CLI encoder failure path inferred from source.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Compact encoding and typed encoder RecursionError implemented without duplicating Rust limits policy; verify exact-byte, nesting-growth and no-output controls, then obtain affected review.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "C-M5-03",
+      "requirements": [
+        "RE-07"
+      ],
+      "source_ids": [
+        "carbon-milestone-5"
+      ],
+      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "finding": "Non-UUID removed_track_ids strings classify as unsupported before UUID validation.",
+      "evidence_class": "Executed refusal matrix; no removal/publication occurs.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Validate canonical nonzero UUIDs before implementing track removal.",
+      "observation_deadline": "before acceptance of the next affected milestone",
+      "blocks_current_integration": false
     }
   ],
   "reviewed_milestones": [
@@ -1298,7 +1510,7 @@
     "remaining": "CLI exceptional output, result versioning, whole-path cancellation/admission, profile/geometry/orchestration remain separate."
   },
   "cli_contract_checkpoint": {
-    "state": "validated-pending-independent-review",
+    "state": "both-reviews-accept-base-correction-pending-review",
     "baseline_revision": "b09dbcd1b933cd9da2784b914b4d24ff753dedf8",
     "rust_revision": "48513e7",
     "native_owner": "agent-1497",
@@ -1310,6 +1522,14 @@
       "No RSS, CPU or throughput claim",
       "No production/default/deployment/release change"
     ],
-    "root_validation": "74 Rust tests +3 compile-fail +117 native (51.67s) +95 ownership/fitness (0.55s) PASS,0failures/skips. Prior run116native passed and1newtest assumed parser recursion refusal; Python3.14 accepts depth2000, so corrected test explicitly permits typed parser refusal or exact invalid-result-schema refusal. Original failed log retained; no board constraint or routing fixture changed."
+    "root_validation": "74 Rust tests +3 compile-fail +117 native (51.67s) +95 ownership/fitness (0.55s) PASS,0failures/skips. Prior run116native passed and1newtest assumed parser recursion refusal; Python3.14 accepts depth2000, so corrected test explicitly permits typed parser refusal or exact invalid-result-schema refusal. Original failed log retained; no board constraint or routing fixture changed.",
+    "reviewed_base": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+    "review_source_ids": [
+      "fable-milestone-5",
+      "fable-milestone-5-addendum",
+      "carbon-milestone-5"
+    ],
+    "correction": "Compact export JSON and typed encoder recursion; strict500000depth decoder/DRC cases; encoder growth/recursion and exact byte controls; RE01/04/05 cli.rs paths. Native implementation/test changes require focused independent review.",
+    "correction_validation": "74Rust+3compilefail+123native55.26sPASS;95ownership/fitness0.51sPASS;0failures/skips. Focused serializer checks7PASS before final full gate. Only native serializer/test/docs/catalog changed; Rust executable unchanged from accepted47e98ec."
   }
 }

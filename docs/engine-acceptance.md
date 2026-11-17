@@ -79,6 +79,9 @@ and JSON acceptance, oversized export/report refusal and malformed deep JSON. Th
 retain the source snapshot race and atomic destination controls. Missing/non-list
 removals are invalid schema; an explicit nonempty string list requests unsupported
 copper removal. This is file admission, not an RSS or whole-operation deadline.
+The 500,000-level decoder control requires the recursion-specific failure. Export
+checks typed encoder recursion, linear-size compact serialization at depth 2,000,
+and exact serialized-byte admission; it does not duplicate Rust's limits policy.
 
 Actual executable controls exhaust work, item/search admission, undo history
 and nesting depth separately. Each must return its typed failure, empty edits
