@@ -150,7 +150,7 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int):
     minima = {'width_nm': settings.m_TrackMinWidth,
               'clearance_nm': max(settings.m_MinClearance, settings.GetBiggestClearanceValue()),
               'edge_clearance_nm': settings.m_CopperEdgeClearance}
-    if set(rules) != {'width_nm', 'clearance_nm', 'grid_nm', 'edge_clearance_nm'}:
+    if not isinstance(rules, dict) or set(rules) != {'width_nm', 'clearance_nm', 'grid_nm', 'edge_clearance_nm'}:
         raise ValueError('all four explicit routing rules are required')
     if any(type(v) is not int or v <= 0 for v in rules.values()):
         raise ValueError('routing rules must be positive integer nanometres')
@@ -194,14 +194,16 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int):
 
 
 def apply_plan(source: Path, plan: dict, destination: Path):
-    if source.resolve() == destination.resolve() or destination.exists():
+    if source.resolve() == destination.resolve():
         raise ValueError('output must be a new path distinct from the input')
+    if destination.exists():
+        raise FileExistsError(f'output already exists: {destination}')
     with source_snapshot(source) as snapshot:
         apply_snapshot(snapshot, plan, destination)
 
 
 def apply_snapshot(source: Path, plan: dict, destination: Path):
-    if plan.get('version') != 1 or plan.get('status') != 'complete':
+    if not isinstance(plan, dict) or type(plan.get('version')) is not int or plan.get('version') != 1 or plan.get('status') != 'complete':
         raise ValueError('only a complete version1 Rust plan can be written')
     if plan.get('source_id') != hashlib.sha256(source.read_bytes()).hexdigest():
         raise ValueError('Rust plan does not match the input board')
@@ -215,15 +217,21 @@ def apply_snapshot(source: Path, plan: dict, destination: Path):
     used_ids |= {item_id(x) for x in board.GetFootprints()} | {item_id(x) for x in board.GetDrawings()}
     nets = set(board.GetNetsByNetcode())
     for item in additions:
+        if not isinstance(item, dict) or set(item) != {'id', 'net', 'start', 'end', 'width_nm', 'locked'}:
+            raise ValueError('Rust output track must contain exactly id, net, start, end, width_nm and locked')
         ident = item['id']
-        if str(uuid.UUID(ident)) != ident or uuid.UUID(ident).int == 0 or ident in used_ids:
+        if not isinstance(ident, str) or str(uuid.UUID(ident)) != ident or uuid.UUID(ident).int == 0 or ident in used_ids:
             raise ValueError('Rust output item identity must be canonical, nonzero and unique')
-        if item['net'] not in nets or item['net'] == 0 or type(item['width_nm']) is not int or item['width_nm'] <= 0:
-            raise ValueError('Rust output track requires a known net and positive width')
+        if type(item['net']) is not int or item['net'] not in nets or item['net'] == 0 or type(item['width_nm']) is not int or not 0 < item['width_nm'] <= 1_000_000_000:
+            raise ValueError('Rust output track requires a known integer net and width within the supported native range')
+        if type(item['locked']) is not bool:
+            raise ValueError('Rust output lock flag must be boolean')
         if item['width_nm'] < board.GetDesignSettings().m_TrackMinWidth:
             raise NativeValidationError('Rust output track width is below the native minimum')
-        if any(len(item[key]) != 2 or any(type(n) is not int or abs(n) > 1_000_000_000 for n in item[key]) for key in ('start', 'end')):
+        if any(not isinstance(item[key], list) or len(item[key]) != 2 or any(type(n) is not int or abs(n) > 1_000_000_000 for n in item[key]) for key in ('start', 'end')):
             raise ValueError('Rust output coordinates exceed the supported native range')
+        if item['start'] == item['end']:
+            raise ValueError('Rust output track must have distinct endpoints')
         track = pcbnew.PCB_TRACK(board)
         track.SetUuid(pcbnew.KIID(ident))
         track.SetNetCode(item['net'])
@@ -259,6 +267,28 @@ def apply_snapshot(source: Path, plan: dict, destination: Path):
         os.link(temporary, destination)
 
 
+def read_object(path: Path):
+    def unique_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f'duplicate JSON field: {key}')
+            result[key] = value
+        return result
+
+    result = json.loads(path.read_text(), object_pairs_hook=unique_keys)
+    if not isinstance(result, dict):
+        raise ValueError('JSON input must be an object')
+    return result
+
+
+def write_request(result: dict, destination: Path):
+    with tempfile.TemporaryDirectory(prefix=f'.{destination.stem}-', dir=destination.parent) as directory:
+        temporary = Path(directory) / destination.name
+        temporary.write_text(json.dumps(result, indent=2) + '\n')
+        os.link(temporary, destination)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -272,17 +302,25 @@ def main():
     apply.add_argument('plan', type=Path)
     apply.add_argument('output', type=Path)
     args = parser.parse_args()
-    if args.command == 'export':
-        result = export_board(args.board, json.loads(args.rules.read_text()), args.max_expansions)
-        with args.output.open('x') as handle:
-            json.dump(result, handle, indent=2)
-            handle.write('\n')
-    else:
-        try:
-            apply_plan(args.board, json.loads(args.plan.read_text()), args.output)
-        except NativeValidationError as error:
-            print(json.dumps({'status': 'native_validation_failed', 'reason': str(error)}), file=sys.stderr)
-            return 2
+    try:
+        if args.command == 'export':
+            result = export_board(args.board, read_object(args.rules), args.max_expansions)
+            write_request(result, args.output)
+        else:
+            apply_plan(args.board, read_object(args.plan), args.output)
+    except (UnsupportedBoard, NativeValidationError, FileExistsError, OSError, ValueError) as error:
+        if isinstance(error, UnsupportedBoard):
+            status = 'unsupported'
+        elif isinstance(error, NativeValidationError):
+            status = 'native_validation_failed'
+        elif isinstance(error, FileExistsError):
+            status = 'output_exists'
+        elif isinstance(error, OSError):
+            status = 'io_error'
+        else:
+            status = 'invalid'
+        print(json.dumps({'status': status, 'reason': str(error)}), file=sys.stderr)
+        return 2
     return 0
 
 

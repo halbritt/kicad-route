@@ -1,5 +1,6 @@
 """Native I/O and executable vertical-slice checks for the Rust engine."""
 import importlib.util
+from collections import Counter
 import hashlib
 import json
 import os
@@ -141,8 +142,40 @@ def test_native_adapter_applies_exact_edit_list(native_board):
     assert native_board.read_bytes() == original
 
 
-def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_board, guarded_cli):
+@pytest.mark.parametrize('variant', ['circle', 'rect_90', 'net_zero_pad', 'foreign_pad', 'two_signal_nets'])
+def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_board, guarded_cli, variant):
     run, audit_log = guarded_cli
+    if variant != 'circle':
+        board = pcbnew.LoadBoard(str(native_board))
+        if variant == 'rect_90':
+            for pad in board.GetPads():
+                pad.SetShape(pcbnew.PAD_SHAPE_RECT)
+                pad.SetSize(pcbnew.VECTOR2I(2000000, 1000000))
+                pad.SetOrientationDegrees(90)
+        else:
+            net = 0 if variant == 'net_zero_pad' else 2
+            positions = [(10000000, 2000000)]
+            if variant == 'two_signal_nets':
+                net = 3
+                board.Add(pcbnew.NETINFO_ITEM(board, 'SECOND_SIGNAL', net))
+                positions = [(3000000, 5000000), (17000000, 5000000)]
+            for index, position in enumerate(positions, 3):
+                footprint = pcbnew.FOOTPRINT(board)
+                footprint.SetReference(f'J{index}')
+                footprint.SetPosition(pcbnew.VECTOR2I(*position))
+                board.Add(footprint)
+                pad = pcbnew.PAD(footprint)
+                pad.SetNumber('1')
+                pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+                pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+                pad.SetSize(pcbnew.VECTOR2I(1000000, 1000000))
+                pad.SetPosition(pcbnew.VECTOR2I(*position))
+                layers = pcbnew.LSET()
+                layers.AddLayer(pcbnew.F_Cu)
+                pad.SetLayerSet(layers)
+                pad.SetNetCode(net)
+                footprint.Add(pad)
+        assert pcbnew.SaveBoard(str(native_board), board)
     original = native_board.read_bytes()
     request = native_board.with_name('request.json')
     plan_path = native_board.with_name('plan.json')
@@ -151,6 +184,9 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'export',
          str(native_board), str(request), '--rules', str(rules_path)])
     exported = json.loads(request.read_text())
+    if variant == 'rect_90':
+        assert all(p['shape'] == {'kind': 'rect', 'half_size_nm': [500000, 1000000]}
+                   for p in exported['pads'])
     run(
         ['cargo', 'run', '--locked', '--offline', '--manifest-path',
          str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)],
@@ -175,13 +211,14 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     assert native_board.read_bytes() == original
 
     reports = []
-    for label, path, expected_opens in [('before', native_board, 1), ('after', output, 0)]:
+    before_opens = 2 if variant in ('two_signal_nets', 'foreign_pad') else 1
+    for label, path, expected_opens in [('before', native_board, before_opens), ('after', output, 0)]:
         board = pcbnew.LoadBoard(str(path))
         board.BuildConnectivity()
         assert board.GetConnectivity().GetUnconnectedCount(False) == expected_opens
         report_path = native_board.with_name(f'{label}-drc.json')
         subprocess.run(
-            ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all',
+            ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors',
              '--output', str(report_path), str(path)],
             check=True, capture_output=True, text=True, timeout=30,
         )
@@ -190,7 +227,9 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
         reports.append(report)
     # The intentionally isolated protected track has a pre-existing dangling
     # warning. No new warning or error is allowed, including new copper items.
-    assert reports[1]['violations'] == reports[0]['violations']
+    key = lambda violation: json.dumps(violation, sort_keys=True)
+    assert not (Counter(map(key, reports[1]['violations']))
+                - Counter(map(key, reports[0]['violations'])))
 
 
 @pytest.mark.parametrize('tamper,reason', [
@@ -503,3 +542,111 @@ def test_native_drc_timeout_refuses_publication(native_board, monkeypatch):
         bridge.apply_plan(native_board, plan, output)
     assert not output.exists()
     assert not list(native_board.parent.glob('.timeout-output-*'))
+
+
+@pytest.mark.parametrize('case,status', [
+    ('stale', 'invalid'), ('failed_plan', 'invalid'), ('missing_field', 'invalid'),
+    ('boolean_net', 'invalid'), ('lock_string', 'invalid'), ('huge_width', 'invalid'),
+    ('bad_coordinate', 'invalid'), ('zero_length', 'invalid'), ('duplicate_id', 'invalid'),
+    ('duplicate_json', 'invalid'), ('invalid_json', 'invalid'), ('root_list', 'invalid'),
+    ('missing_file', 'io_error'), ('existing_output', 'output_exists'),
+    ('unsupported_rules', 'unsupported'),
+])
+def test_apply_cli_reports_input_failures_without_publication(native_board, guarded_cli, case, status):
+    run, _ = guarded_cli
+    original = native_board.read_bytes()
+    additions = connection_tracks()
+    plan = {'version': 1, 'status': 'complete',
+            'source_id': hashlib.sha256(original).hexdigest(),
+            'added_tracks': additions, 'removed_track_ids': []}
+    if case == 'stale':
+        plan['source_id'] = '0' * 64
+    elif case == 'failed_plan':
+        plan['status'] = 'budget_exhausted'
+    elif case == 'missing_field':
+        del additions[0]['start']
+    elif case == 'boolean_net':
+        additions[0]['net'] = True
+    elif case == 'lock_string':
+        additions[0]['locked'] = 'false'
+    elif case == 'huge_width':
+        additions[0]['width_nm'] = 2 ** 32
+    elif case == 'bad_coordinate':
+        additions[0]['start'] = 42
+    elif case == 'zero_length':
+        additions.append({**additions[0], 'id': str(uuid.uuid4()), 'end': additions[0]['start']})
+    elif case == 'duplicate_id':
+        additions[1]['id'] = additions[0]['id']
+    elif case == 'unsupported_rules':
+        native_board.with_suffix('.kicad_dru').write_text('(version 1)')
+    plan_path = native_board.with_name('invalid-plan.json')
+    text = json.dumps(plan)
+    if case == 'duplicate_json':
+        text = text.replace('"version": 1', '"version": 1, "version": 1')
+    elif case == 'invalid_json':
+        text = '{'
+    elif case == 'root_list':
+        text = '[]'
+    if case != 'missing_file':
+        plan_path.write_text(text)
+    output = native_board.with_name('invalid-output.kicad_pcb')
+    if case == 'existing_output':
+        output.write_bytes(b'existing owner output')
+    result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
+                  'apply', str(native_board), str(plan_path), str(output)], check=False)
+    assert result.returncode == 2
+    outcome = json.loads(result.stderr.splitlines()[-1])
+    assert outcome['status'] == status
+    assert outcome['reason']
+    assert 'Traceback' not in result.stderr
+    if case == 'existing_output':
+        assert output.read_bytes() == b'existing owner output'
+    else:
+        assert not output.exists()
+    assert not list(native_board.parent.glob('.invalid-output-*'))
+    assert native_board.read_bytes() == original
+
+
+@pytest.mark.parametrize('case,status', [('rules_list', 'invalid'),
+    ('native_floor', 'invalid'), ('missing_source', 'io_error'),
+    ('project_rules', 'unsupported'), ('existing_output', 'output_exists')])
+def test_export_cli_reports_input_failures_without_publication(native_board, guarded_cli, case, status):
+    run, _ = guarded_cli
+    original = native_board.read_bytes()
+    rules = [] if case == 'rules_list' else dict(RULES)
+    if case == 'native_floor':
+        rules['width_nm'] = 1
+    if case == 'project_rules':
+        native_board.with_suffix('.kicad_pro').write_text('{}')
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(rules))
+    source = native_board.with_name('missing.kicad_pcb') if case == 'missing_source' else native_board
+    output = native_board.with_name('failed-request.json')
+    if case == 'existing_output':
+        output.write_bytes(b'existing owner output')
+    result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
+                  'export', str(source), str(output), '--rules', str(rules_path)], check=False)
+    assert result.returncode == 2
+    assert json.loads(result.stderr.splitlines()[-1])['status'] == status
+    assert 'Traceback' not in result.stderr
+    if case == 'existing_output':
+        assert output.read_bytes() == b'existing owner output'
+    else:
+        assert not output.exists()
+    assert not list(native_board.parent.glob('.failed-request-*'))
+    assert native_board.read_bytes() == original
+
+
+def test_export_write_failure_does_not_publish_partial_json(tmp_path, monkeypatch):
+    output = tmp_path / 'request.json'
+    write = Path.write_text
+
+    def fail(path, text, **kwargs):
+        write(path, text[:4], **kwargs)
+        raise OSError('injected short write')
+
+    monkeypatch.setattr(Path, 'write_text', fail)
+    with pytest.raises(OSError, match='short write'):
+        bridge.write_request({'version': 1}, output)
+    assert not output.exists()
+    assert not list(tmp_path.iterdir())
