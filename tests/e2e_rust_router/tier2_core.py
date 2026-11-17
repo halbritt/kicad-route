@@ -1659,6 +1659,11 @@ def t2_f5_03(ctx: DriverContext) -> dict[str, Any]:
     for idx, x in enumerate((3_000_000, 17_000_000), 1):
         fp = b.add_footprint(f"J{idx}", (x, 10_000_000))
         b.add_pad(fp, "1", "SIGNAL", (x, 10_000_000), size_nm=(1_000_000, 1_000_000))
+    # Foreign-net pad anchored under the F_Mask aperture so KiCad 10 DRC flags solder_mask_bridge
+    # whenever a SIGNAL copper track intrudes into the exposed mask window.
+    fp_obs = b.add_footprint("TP_OBS", (10_000_000, 8_000_000))
+    fp_obs.Reference().SetVisible(False)
+    b.add_pad(fp_obs, "1", "OBSTACLE", (10_000_000, 8_000_000), size_nm=(400_000, 400_000))
     b.add_drawing(pn.F_Mask, pn.SHAPE_T_SEGMENT, (10_000_000, 8_000_000), (10_000_000, 12_000_000), width_nm=1_000_000)
     bundle = b.save(ctx.work_dir / "src")
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
@@ -1671,7 +1676,7 @@ def t2_f5_03(ctx: DriverContext) -> dict[str, Any]:
         failed_res = res.export_res if res.stage_failed == "export" else res.engine_res
         assert failed_res is not None and failed_res.proc.returncode == 2
         assert not out_pcb.exists()
-        return {"refused": failed_res.stderr_json}
+        return {"refused": failed_res.stderr_json or failed_res.output_json}
     if res.returncode == 0:
         return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
     assert res.returncode == 2
@@ -1709,7 +1714,7 @@ def t2_f5_04(ctx: DriverContext) -> dict[str, Any]:
         failed_res = res.export_res if res.stage_failed == "export" else res.engine_res
         assert failed_res is not None and failed_res.proc.returncode == 2
         assert not out_pcb.exists()
-        return {"refused": failed_res.stderr_json}
+        return {"refused": failed_res.stderr_json or failed_res.output_json}
     if res.returncode == 0:
         return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
     assert res.returncode == 2
@@ -1745,17 +1750,14 @@ def t2_f5_05(ctx: DriverContext) -> dict[str, Any]:
     bundle_a = ba.save(ctx.work_dir / "src_a")
     out_a = ctx.work_dir / "out_a" / "routed.kicad_pcb"
     out_a.parent.mkdir(parents=True, exist_ok=True)
-    mode_a, res_a, bh_a = run_m3_board_direct(ctx, bundle_a, out_a, mode=m3_mode, tag="custom_poly")
+    mode_a, res_a, _ = run_m3_board_direct(ctx, bundle_a, out_a, mode=m3_mode, tag="custom_poly")
     if mode_a == "wire":
-        if res_a.stage_failed is None:
-            assert_clean_e2e(bundle_a.pcb_path, out_a, before_hashes=bh_a, source_dir=bundle_a.directory)
-        else:
-            assert res_a.stage_failed in ("export", "engine")
-            failed_a = res_a.export_res if res_a.stage_failed == "export" else res_a.engine_res
-            assert failed_a is not None and failed_a.proc.returncode == 2
-            assert not out_a.exists()
-    elif res_a.returncode == 0:
-        assert_clean_e2e(bundle_a.pcb_path, out_a, before_hashes=bh_a, source_dir=bundle_a.directory)
+        assert res_a.stage_failed in ("export", "engine"), (
+            f"expected fail-closed exit 2 refusal for PAD_SHAPE_CUSTOM, got stage_failed={res_a.stage_failed!r}"
+        )
+        failed_a = res_a.export_res if res_a.stage_failed == "export" else res_a.engine_res
+        assert failed_a is not None and failed_a.proc.returncode == 2
+        assert not out_a.exists()
     else:
         assert res_a.returncode == 2 and not out_a.exists()
 
@@ -1777,17 +1779,14 @@ def t2_f5_05(ctx: DriverContext) -> dict[str, Any]:
     bundle_b = bb.save(ctx.work_dir / "src_b")
     out_b = ctx.work_dir / "out_b" / "routed.kicad_pcb"
     out_b.parent.mkdir(parents=True, exist_ok=True)
-    mode_b, res_b, bh_b = run_m3_board_direct(ctx, bundle_b, out_b, mode=m3_mode, tag="bezier")
+    mode_b, res_b, _ = run_m3_board_direct(ctx, bundle_b, out_b, mode=m3_mode, tag="bezier")
     if mode_b == "wire":
-        if res_b.stage_failed is None:
-            assert_clean_e2e(bundle_b.pcb_path, out_b, before_hashes=bh_b, source_dir=bundle_b.directory)
-        else:
-            assert res_b.stage_failed in ("export", "engine")
-            failed_b = res_b.export_res if res_b.stage_failed == "export" else res_b.engine_res
-            assert failed_b is not None and failed_b.proc.returncode == 2
-            assert not out_b.exists()
-    elif res_b.returncode == 0:
-        assert_clean_e2e(bundle_b.pcb_path, out_b, before_hashes=bh_b, source_dir=bundle_b.directory)
+        assert res_b.stage_failed in ("export", "engine"), (
+            f"expected fail-closed exit 2 refusal for SHAPE_T_BEZIER, got stage_failed={res_b.stage_failed!r}"
+        )
+        failed_b = res_b.export_res if res_b.stage_failed == "export" else res_b.engine_res
+        assert failed_b is not None and failed_b.proc.returncode == 2
+        assert not out_b.exists()
     else:
         assert res_b.returncode == 2 and not out_b.exists()
     return {"checked": ["PAD_SHAPE_CUSTOM", "SHAPE_T_BEZIER"]}
