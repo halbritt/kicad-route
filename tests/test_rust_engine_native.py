@@ -135,22 +135,37 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     assert reports[1]['violations'] == reports[0]['violations']
 
 
-def test_rust_does_not_report_tangent_copper_as_connected(native_board):
+@pytest.mark.parametrize('contact', ['axis_tangent', 'diagonal_sub_nm'])
+def test_rust_does_not_report_tangent_copper_as_connected(native_board, contact):
     board = pcbnew.LoadBoard(str(native_board))
     board.Remove(next(iter(board.GetTracks())))
-    track = pcbnew.PCB_TRACK(board)
-    track.SetLayer(pcbnew.F_Cu)
-    track.SetNetCode(1)
-    track.SetStart(pcbnew.VECTOR2I(3000000, 10000000))
-    track.SetEnd(pcbnew.VECTOR2I(16400000, 10000000))
-    track.SetWidth(200000)
-    board.Add(track)
+    rules = RULES
+    segments = [((3000000, 10000000), (16400000, 10000000))]
+    if contact == 'diagonal_sub_nm':
+        # Retained native/Rust counterexample: 0.185 nm ideal overlap still
+        # leaves a native open. The shifted second terminal fits a 0.1 mm grid.
+        positions = {'J1': (1000000, 4000000), 'J2': (2400000, 5400000)}
+        for footprint in board.GetFootprints():
+            footprint.SetPosition(pcbnew.VECTOR2I(*positions[footprint.GetReference()]))
+            for pad in footprint.Pads():
+                pad.SetSize(pcbnew.VECTOR2I(200000, 200000))
+        segments = [((1000000, 4000000), (3142620, 3416878)),
+                    ((2050220, 3921453), (2444123, 5368809))]
+        rules = {**RULES, 'grid_nm': 100000}
+    for start, end in segments:
+        track = pcbnew.PCB_TRACK(board)
+        track.SetLayer(pcbnew.F_Cu)
+        track.SetNetCode(1)
+        track.SetStart(pcbnew.VECTOR2I(*start))
+        track.SetEnd(pcbnew.VECTOR2I(*end))
+        track.SetWidth(200000)
+        board.Add(track)
     assert pcbnew.SaveBoard(str(native_board), board)
     board = pcbnew.LoadBoard(str(native_board))
     board.BuildConnectivity()
     assert board.GetConnectivity().GetUnconnectedCount(False) == 1
     original = native_board.read_bytes()
-    exported = bridge.export_board(native_board, RULES, 100000)
+    exported = bridge.export_board(native_board, rules, 100000)
     request = native_board.with_name('request.json')
     plan_path = native_board.with_name('plan.json')
     request.write_text(json.dumps(exported))
@@ -167,7 +182,7 @@ def test_rust_does_not_report_tangent_copper_as_connected(native_board):
     board = pcbnew.LoadBoard(str(output))
     board.BuildConnectivity()
     assert board.GetConnectivity().GetUnconnectedCount(False) == 0
-    actual = bridge.export_board(output, RULES, 100000)
+    actual = bridge.export_board(output, rules, 100000)
     assert {t['id']: t for t in actual['tracks']} == {
         t['id']: t for t in exported['tracks'] + plan['added_tracks']}
     assert native_board.read_bytes() == original

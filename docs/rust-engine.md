@@ -109,16 +109,27 @@ violation. The original axis-aligned tangency false-completion regression is
 fixed; clearance and contact remain separate predicates. This is bounded fixture
 evidence, not complete capability or performance acceptance.
 
-Continuing review found a diagonal sub-nanometre contact disagreement: 21 of 400
-native pairs were open despite a translated exact engine predicate finding
-overlap. Actual Rust-binary reproduction and correction remain pending. Carbon's
-nested-checkpoint and one-nanometre width objections are source-derived and still
-need contract/reachability adjudication; they are not executed failure evidence.
-Margin rejection now has four passing native controls: board and footprint
-Margin drawings cause native edge-clearance errors and are refused; identical
-Dwgs.User drawings cause no such error and remain accepted. The next combined
-gate and independent reviews must identify the final correction revision.
-First-slice acceptance remains open. No production backend changed.
+Continuing review found a diagonal sub-nanometre contact disagreement, subsequently
+reproduced with the actual Rust binary: 21 of 400 near-tangent pairs returned
+complete despite a native open. `06ea2ca` requires a full nanometre of overlap
+after flooring track radii, without changing clearance. In those 400 cases and
+800 further contact samples, no false completion remained; conservative extra
+routing remains possible. This sampling is not a universal KiCad rounding proof.
+The native regression suite retains an actual diagonal counterexample and checks
+that routing closes its open while preserving all incumbent copper.
+
+Carbon's nested-checkpoint objection concerns a future extension: the current
+crate-private mutation API and call graph cannot nest transactions, as documented
+at `d7e488f`. The journal does not support nested commits. One-nanometre tracks
+remain conservatively disconnected by the contact predicate; this can cause
+extra routing or budget exhaustion and is not a manufacturability claim.
+Both dispositions await independent review.
+
+The combined gate after these corrections and the retained diagonal regression
+passes 26 Rust and 24 native tests. Four native Margin controls prove that board
+and footprint Margin drawings cause edge-clearance errors and are refused;
+identical Dwgs.User drawings remain accepted. First-slice acceptance remains
+open pending independent exact-revision review. No production backend changed.
 
 Run the combined focused gate with `mise run test:rust-engine`. It uses the
 existing host process boundary, locked offline Cargo dependencies and the native
