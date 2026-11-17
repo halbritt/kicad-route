@@ -19,6 +19,14 @@ RULES = {'width_nm': 250000, 'clearance_nm': 1000000,
          'grid_nm': 250000, 'edge_clearance_nm': 500000}
 
 
+def connection_tracks():
+    corners = [[3000000, 10000000], [3000000, 2000000],
+               [17000000, 2000000], [17000000, 10000000]]
+    return [{'id': str(uuid.uuid4()), 'net': 1, 'start': start, 'end': end,
+             'width_nm': 250000, 'locked': False}
+            for start, end in zip(corners, corners[1:])]
+
+
 @pytest.fixture
 def guarded_cli(tmp_path):
     """Exercise real CLIs with project Python policy execution forbidden.
@@ -121,16 +129,14 @@ def test_native_export_preserves_identity_rules_and_fixed_copper(native_board):
 def test_native_adapter_applies_exact_edit_list(native_board):
     original = native_board.read_bytes()
     exported = bridge.export_board(native_board, RULES, 100000)
-    ident = str(uuid.uuid4())
-    added = {'id': ident, 'net': 1, 'start': [3000000, 10000000],
-             'end': [5000000, 10000000], 'width_nm': 250000, 'locked': False}
+    added = connection_tracks()
     plan = {'version': 1, 'source_id': exported['source_id'], 'status': 'complete',
-            'added_tracks': [added], 'removed_track_ids': [], 'expanded_states': 0}
+            'added_tracks': added, 'removed_track_ids': [], 'expanded_states': 0}
     output = native_board.with_name('output.kicad_pcb')
     bridge.apply_plan(native_board, plan, output)
     actual = bridge.export_board(output, RULES, 100000)
     assert {t['id']: t for t in actual['tracks']} == {
-        exported['tracks'][0]['id']: exported['tracks'][0], ident: added}
+        t['id']: t for t in exported['tracks'] + added}
     assert actual['pads'] == exported['pads']
     assert native_board.read_bytes() == original
 
@@ -185,6 +191,58 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     # The intentionally isolated protected track has a pre-existing dangling
     # warning. No new warning or error is allowed, including new copper items.
     assert reports[1]['violations'] == reports[0]['violations']
+
+
+@pytest.mark.parametrize('tamper,reason', [
+    ('empty', 'open connections'), ('crossing', 'DRC violations'),
+    ('thin', 'native minimum'),
+])
+def test_native_apply_rejects_false_complete_plans_before_publication(native_board, tamper, reason):
+    original = native_board.read_bytes()
+    added = connection_tracks()
+    if tamper == 'empty':
+        added = []
+    elif tamper == 'crossing':
+        added = [{**added[0], 'end': [17000000, 10000000]}]
+    else:
+        added[0]['width_nm'] = 1
+    plan = {'version': 1, 'status': 'complete',
+            'source_id': hashlib.sha256(original).hexdigest(),
+            'added_tracks': added, 'removed_track_ids': []}
+    output = native_board.with_name('rejected.kicad_pcb')
+    with pytest.raises(bridge.NativeValidationError, match=reason):
+        bridge.apply_plan(native_board, plan, output)
+    assert not output.exists()
+    assert not list(native_board.parent.glob('.rejected-*'))
+    assert native_board.read_bytes() == original
+
+
+def test_native_apply_cli_reports_typed_validation_failure(native_board, guarded_cli):
+    run, _ = guarded_cli
+    plan = native_board.with_name('empty-plan.json')
+    plan.write_text(json.dumps({'version': 1, 'status': 'complete',
+        'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
+        'added_tracks': [], 'removed_track_ids': []}))
+    output = native_board.with_name('rejected.kicad_pcb')
+    result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
+                  'apply', str(native_board), str(plan), str(output)], check=False)
+    assert result.returncode == 2
+    assert json.loads(result.stderr.splitlines()[-1])['status'] == 'native_validation_failed'
+    assert not output.exists()
+
+
+def test_missing_native_drc_tool_cannot_publish_a_candidate(native_board, monkeypatch, tmp_path):
+    empty_path = tmp_path / 'no-native-tool'
+    empty_path.mkdir()
+    monkeypatch.setenv('PATH', str(empty_path))
+    plan = {'version': 1, 'status': 'complete',
+            'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
+            'added_tracks': connection_tracks(), 'removed_track_ids': []}
+    output = native_board.with_name('no-drc-output.kicad_pcb')
+    with pytest.raises(bridge.NativeValidationError, match='native DRC did not produce'):
+        bridge.apply_plan(native_board, plan, output)
+    assert not output.exists()
+    assert not list(native_board.parent.glob('.no-drc-output-*'))
 
 
 @pytest.mark.parametrize('path', ['src/kicad_route/cli.py',
@@ -311,7 +369,7 @@ def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_b
     output = native_board.with_name('unsupported-output.kicad_pcb')
     plan = {'version': 1, 'status': 'complete',
             'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
-            'added_tracks': [], 'removed_track_ids': []}
+            'added_tracks': connection_tracks(), 'removed_track_ids': []}
     with pytest.raises(bridge.UnsupportedBoard):
         bridge.apply_plan(native_board, plan, output)
     assert not output.exists()
@@ -344,7 +402,7 @@ def test_native_margin_geometry_is_rejected_but_documentation_graphics_are_allow
     output = native_board.with_name('margin-output.kicad_pcb')
     plan = {'version': 1, 'status': 'complete',
             'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
-            'added_tracks': [], 'removed_track_ids': []}
+            'added_tracks': connection_tracks(), 'removed_track_ids': []}
     if layer == pcbnew.Margin:
         assert edge_errors, 'native DRC must demonstrate the unrepresented rule'
         with pytest.raises(bridge.UnsupportedBoard, match='Margin'):

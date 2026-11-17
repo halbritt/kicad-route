@@ -48,6 +48,13 @@ close the native open and introduce no DRC violations. A missing hook, legacy
 execution, process failure or missing result fails the test. Rust/native failure
 and refusal cases remain in the same suite.
 
+Native application also enforces its result outside tests: it reloads the staged
+board, requires zero native opens, compares native DRC against the input, and
+rejects added widths below the native minimum. Only then does it publish a new
+destination. False-complete, shorting, undersized and unavailable-native-tool
+controls must leave no published candidate. This does not turn the incomplete
+Rust engine into a production backend.
+
 Inspect an inventory directly with:
 
 ```sh

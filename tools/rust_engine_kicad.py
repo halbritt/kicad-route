@@ -8,10 +8,14 @@ native decoding and encoding. Unsupported native features are rejected.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import uuid
 
 import pcbnew
@@ -19,6 +23,25 @@ import pcbnew
 
 class UnsupportedBoard(ValueError):
     pass
+
+
+class NativeValidationError(ValueError):
+    pass
+
+
+def native_violations(path: Path, report: Path):
+    try:
+        subprocess.run(
+            ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all',
+             '--output', str(report), str(path)],
+            check=True, capture_output=True, text=True, timeout=30,
+        )
+        data = json.loads(report.read_text())
+        if not isinstance(data['violations'], list) or not isinstance(data['unconnected_items'], list):
+            raise ValueError('native DRC report has invalid violation/connectivity fields')
+        return data
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        raise NativeValidationError(f'native DRC did not produce a valid result: {error}') from error
 
 
 def point(value):
@@ -170,6 +193,8 @@ def apply_plan(source: Path, plan: dict, destination: Path):
             raise ValueError('Rust output item identity must be canonical, nonzero and unique')
         if item['net'] not in nets or item['net'] == 0 or type(item['width_nm']) is not int or item['width_nm'] <= 0:
             raise ValueError('Rust output track requires a known net and positive width')
+        if item['width_nm'] < board.GetDesignSettings().m_TrackMinWidth:
+            raise NativeValidationError('Rust output track width is below the native minimum')
         if any(len(item[key]) != 2 or any(type(n) is not int or abs(n) > 1_000_000_000 for n in item[key]) for key in ('start', 'end')):
             raise ValueError('Rust output coordinates exceed the supported native range')
         track = pcbnew.PCB_TRACK(board)
@@ -182,13 +207,29 @@ def apply_plan(source: Path, plan: dict, destination: Path):
         track.SetLocked(item['locked'])
         board.Add(track)
         used_ids.add(ident)
-    temporary = destination.with_name(f'.{destination.name}.{os.getpid()}.kicad_pcb')
-    try:
+    # Keep the candidate unpublished until the saved native representation
+    # independently confirms completion and DRC non-regression.
+    with tempfile.TemporaryDirectory(prefix=f'.{destination.stem}-', dir=destination.parent) as directory:
+        directory = Path(directory)
+        temporary = directory / destination.name
         if not pcbnew.SaveBoard(str(temporary), board):
             raise OSError('KiCad did not save the candidate board')
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
+        saved = pcbnew.LoadBoard(str(temporary))
+        if saved is None:
+            raise NativeValidationError('KiCad could not reload the saved candidate')
+        saved.BuildConnectivity()
+        if saved.GetConnectivity().GetUnconnectedCount(False) != 0:
+            raise NativeValidationError('native connectivity still has open connections')
+        before = native_violations(source, directory / 'before-drc.json')
+        after = native_violations(temporary, directory / 'after-drc.json')
+        if after['unconnected_items']:
+            raise NativeValidationError('native DRC still reports open connections')
+        key = lambda violation: json.dumps(violation, sort_keys=True)
+        introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
+        if introduced:
+            raise NativeValidationError('candidate introduces native DRC violations')
+        # Atomic create-if-absent: a concurrent writer's destination is preserved.
+        os.link(temporary, destination)
 
 
 def main():
@@ -210,8 +251,13 @@ def main():
             json.dump(result, handle, indent=2)
             handle.write('\n')
     else:
-        apply_plan(args.board, json.loads(args.plan.read_text()), args.output)
+        try:
+            apply_plan(args.board, json.loads(args.plan.read_text()), args.output)
+        except NativeValidationError as error:
+            print(json.dumps({'status': 'native_validation_failed', 'reason': str(error)}), file=sys.stderr)
+            return 2
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

@@ -33,7 +33,12 @@ controller. Global routing improvements follow a sound, measured foundation.
 objects and encode Rust's explicit edit list. It does not select paths, victims,
 IDs, geometry or routing costs. This is justified by KiCad's native Python
 bindings; a Rust KiCad-format reader can replace it later without moving engine
-policy. Native KiCad DRC and connectivity remain external acceptance checks.
+policy. Applying a plan independently validates the saved native board before
+publishing it: zero native open connections, no new native DRC violations and
+added widths at least the native minimum. A missing or failed DRC command also
+refuses publication. Validation failures have a `native_validation_failed`
+CLI result on stderr and exit 2. Publication atomically creates a new destination;
+it does not overwrite a concurrent writer's output.
 
 The first adapter accepts standalone rectangular two-layer boards with front
 copper SMD circular/axis-aligned rectangular pads and straight existing tracks.
@@ -129,7 +134,10 @@ The combined gate after these corrections and the retained diagonal regression
 passes 26 Rust and 24 native tests. Four native Margin controls prove that board
 and footprint Margin drawings cause edge-clearance errors and are refused;
 identical Dwgs.User drawings remain accepted. First-slice acceptance remains
-open pending independent exact-revision review. No production backend changed.
+open pending independent exact-revision review. Both continuing reviewers accepted
+the correction scope at `3a763b7` but identified native validation inside the
+operation as the next foundation gate. The integrated candidate now implements
+that gate; its review remains pending. No production backend changed.
 
 Run the combined focused gate with `mise run test:rust-engine`. It uses the
 existing host process boundary, locked offline Cargo dependencies and the native
