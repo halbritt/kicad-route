@@ -22,8 +22,8 @@ mise run host:exec --timeout 5m -- cargo test --locked --offline --manifest-path
 The version-1 input JSON contract is enforced with typed deserialization, including
 unknown-field and duplicate-field rejection. Bounds are an axis-aligned
 rectangle; only F.Cu, circular/axis-aligned rectangular pads and straight tracks
-are supported. All incumbent tracks, locked or unlocked, are immutable. Connected net IDs
-have at most two pads. Every nonzero net is partitioned into connected components
+are supported. All incumbent tracks, locked or unlocked, are immutable. Nonzero nets may have any number of pads within the admitted item and work
+limits. Every nonzero net is partitioned into connected components
 of all its pads and incumbent/generated tracks, including zero-pad or singleton
 nets. A net is complete only when it has at most one copper component. Two pads
 already joined do not excuse a detached incumbent track. Net ID 0 means
@@ -95,7 +95,16 @@ The component search is not complete for continuous routing. A component whose
 pad centers and track endpoints are all illegal seeds can fail even when a
 mid-span exit exists. The grid may miss a legal corridor or an attachment away from its searched
 edges. Along each searched edge, integer terminal endpoints are covered by the
-convex-interval calculation; this does not add mid-span source seeds. Thin copper that the
+convex-interval calculation; this does not add mid-span source seeds. Multi-terminal routing repeatedly joins the first current component to a
+reachable target component and recomputes connectivity after every join.
+Already-connected pad groups and disconnected incumbent tracks participate
+equally; a net succeeds only when all required copper is connected. This can
+produce branches but does not optimize a Steiner tree or promise invariance
+under input permutation. Identical inputs remain deterministic. The original
+two-singleton-pad A* dispatch stays intact. Work and expansions are shared
+across all joins (and nets for route_all); failure rolls back the whole operation.
+
+Thin copper that the
 conservative contact model cannot join fails honestly rather than reporting
 complete. Native connectivity can merge contacts that this model separates or
 apply other integer geometry rules; no universal native equivalence is claimed.
@@ -281,8 +290,8 @@ resource defaults, not board-specific routing settings.
 `Engine::new` admits input cardinality before indexing/validation. Net names
 are at most 1,024 UTF-8 bytes (the refusal reason states this limit); IDs have
 their existing fixed sizes. Validation uses
-bounded linear/logarithmic collections, including pad counts by net rather
-than a net-by-pad quadratic scan. Both the JSON library entry and CLI accept
+bounded linear/logarithmic collections. Pad count per net is no longer an
+admission restriction; total input items remain bounded before validation. Both the JSON library entry and CLI accept
 at most 16 MiB. Native decoding/export remains the adapter's separate work.
 The defaults cap storage without using a board's coordinates, nets or outcome.
 They retain all existing witness coverage; they are not a wall-time promise.
@@ -354,3 +363,16 @@ pre-mutation journal/depth admission, panic payload preservation and CLI/library
 counter equality. The two existing search oracles and all their world inputs
 remain intact. The contact test helper still excludes rectangle/rectangle
 pairs; none of the budget tests extends that helper's domain.
+
+
+Multi-terminal controls cover 3, 4, 6 and 9 pads, branched joins, connected
+incumbent groups plus isolated tracks, multiple nets, nested reroute/rollback,
+late work/expansion exhaustion and next-ID restoration. An independent
+axis-aligned contact graph checks every terminal and incumbent component,
+generated clearance and item identity. A separate position-only flood fill
+classifies 620 small worlds with 3/4/6/8 terminals and optional full-span walls:
+175 connected and 445 disconnected. This proves reachability/completion only
+in that chamber domain, not general path optimality, arbitrary geometry,
+continuous completeness or native parity. The earlier 256-world and 4,096-world
+oracles remain. Representative native boards and native publication checks are
+still required; these Rust controls alone are not fabrication acceptance.

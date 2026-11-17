@@ -278,17 +278,6 @@ impl Input {
                 ));
             }
         }
-        let mut pad_counts = std::collections::BTreeMap::new();
-        for p in &self.pads {
-            *pad_counts.entry(p.net).or_insert(0usize) += 1;
-        }
-        for n in &self.nets {
-            if n.id != 0 && pad_counts.get(&n.id).copied().unwrap_or(0) > 2 {
-                return Err(unsupported(
-                    "only zero-, one- and two-terminal nets are supported",
-                ));
-            }
-        }
         Ok(())
     }
 }

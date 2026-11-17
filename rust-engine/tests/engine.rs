@@ -378,7 +378,7 @@ fn malformed_and_unsupported_never_become_empty_success() {
     assert_eq!(run_json(b"{}").status, Status::Invalid);
     let mut i = base();
     i.pads.push(pad(3, 1, [30, 30]));
-    assert_eq!(run(i).status, Status::Unsupported);
+    assert_eq!(run(i).status, Status::Complete); // multi-terminal input is supported
 }
 #[test]
 fn singleton_nets_and_immutable_unlocked_copper_are_preserved() {
