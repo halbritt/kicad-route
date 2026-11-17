@@ -251,7 +251,9 @@
       "kind": "implementation-contract",
       "ref": "e44c7345-4a97-4b37-a57f-f9450ec7dc22/v1",
       "date": "2026-11-16",
-      "statement": "Input version1 retained, output version2 required. CLI executor unwind produces edit-free internal_error exit7; unavailable counters zero; failed publication exits2 and cannot establish freshness. Exact notice read and acknowledged; acceptance pending."
+      "statement": "Input version1 retained, output version2 required. CLI executor unwind produces edit-free internal_error exit7; unavailable counters zero; failed publication exits2 and cannot establish freshness. Exact notice read and acknowledged; acceptance pending.",
+      "superseded_by": "request-freshness-contract",
+      "historical_note": "Retained original M5 contract. M6 result3 uses exit8 for no fresh publication and exit2 only for a published invalid/unsupported result."
     },
     "cli-contract-implementation": {
       "kind": "implementation-report",
@@ -340,6 +342,41 @@
       "ref": "d159855b-5bc5-4632-b43d-5ab2d70ea942/v1",
       "date": "2026-11-16",
       "statement": "Heath explicitly requires a greenfield Rust engine replicating useful KRT capabilities. KRT is a behavioral reference/test source, not an implementation to wrap/fork/continuously sync. Rust owns full routing lifecycle; Python only narrow justified KiCad integration. Prove representative-board capability parity with independent acceptance, never reproduce known bugs or equate output matching with correctness. Keep KRT separately; upstream sync is no design constraint; preserve licenses/attribution and all holds."
+    },
+    "fable-milestone-6-addendum": {
+      "kind": "review",
+      "ref": "f731936f-4ce7-466d-95b9-f3a9836758a6/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "4dbfa4393fa7f08414f13140300f4414cf42b08b",
+      "statement": "Required read coverage closed; original unwritable-directory witness rerun against4dbfa43 refuses mismatched B and accepts matching A with zero native opens. Whole143 scratch controls retain two common missing-legacy-fixture failures; remaining141 pass for control and three mutants."
+    },
+    "request-freshness-typed-correction": {
+      "kind": "implementation-report",
+      "ref": "5ab8a275-2cea-4936-8261-98f43545a2a7/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "b70ff2353126e692cb81763065549b893086ff02",
+      "statement": "Two shipped typed-limit tests and successful-compile/failing-assertion negative control atb70ff23."
+    },
+    "author-greenfield-ack": {
+      "kind": "acknowledgment",
+      "ref": "fa12571d-c27e-4b53-b980-8fc04f6c7288/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+      "statement": "Author explicitly accepts owner greenfield direction for continuing implementation, maps Rust ownership/native seam and records provenance limits."
+    },
+    "fable-milestone-6-correction": {
+      "kind": "review",
+      "ref": "548f3176-7052-4ac4-a9e2-af64968d2ddc/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+      "statement": "Accepts cb57c35; F1/F2 closed.81Rust+3compilefail+25focusednative+95ownership pass. All7Rust and6native mutants detected. Explicit greenfield acknowledgment; matrix/provenance/inventory gaps recorded."
+    },
+    "carbon-milestone-6-correction": {
+      "kind": "review",
+      "ref": "1fea32b2-2789-42b9-abc3-d66f4ae1beff/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+      "statement": "Accepts cb57c35 bounded corrections and explicitly acknowledges greenfield direction. Independent fifth-field Rust omission and4native boundary mutants detected; current executable unchanged."
     }
   },
   "requirements": [
@@ -457,7 +494,10 @@
         "request-freshness-assignment",
         "request-freshness-contract",
         "fable-milestone-6",
-        "carbon-milestone-6"
+        "carbon-milestone-6",
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -476,10 +516,10 @@
       "verification": [
         "Failure injection across mutations/publication; exact ID/geometry/index restoration.",
         "Failed result has empty edits; stale source cannot be applied; native protected content unchanged.",
-        "Before chaining engine and native apply, prove request/result freshness: a failed run must not cause an older same-board result with different requested rules to be consumed. Retain mandatory expected request, mismatched A/B refusal and matching A/A and B/B native controls; F-M5-N1 awaits fresh independent review."
+        "Before chaining engine and native apply, prove request/result freshness: a failed run must not cause an older same-board result with different requested rules to be consumed. Retain mandatory expected request, mismatched A/B refusal and matching A/A and B/B native controls; F-M5-N1 is closed for changed-request consistency at cb57c35; identical-byte invocation identity remains C-M6-02."
       ],
       "state": "open",
-      "current_evidence": "Scoped nested transactions preserve inner commits for outer rollback and restore generated copper/index/allocator on error or unwinding panic;32 recursive histories and3 compile-fail API controls independently reviewed. Operation and native publication failures are tested. Abort/kill/OOM and crash durability remain outside this guarantee; full requirement open. M6 candidate adds whole-request identity, distinct exit8 and mandatory expected bytes at native apply; independent acceptance remains pending."
+      "current_evidence": "Scoped nested transactions restore copper/index/allocator on errors and unwinding panic;32 recursive histories and3 compile-fail controls independently reviewed. Both reviewers accept cb57c35 request/result consistency and regression corrections: exact whole-request digest, exit8, mandatory expected native bytes, mismatch refusal and matching native controls. Abort/kill/OOM, crash durability, identical-byte invocation identity and full requirement remain open."
     },
     {
       "id": "RE-05",
@@ -503,7 +543,10 @@
         "request-freshness-assignment",
         "request-freshness-contract",
         "fable-milestone-6",
-        "carbon-milestone-6"
+        "carbon-milestone-6",
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -526,7 +569,7 @@
         "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
       "state": "open",
-      "current_evidence": "Shared outer-operation work and bounded item/search/journal/depth admission accepted at M4. Executor-only unwind protocol accepted at M5. Both M6 reviewers accept the bounded request/result consistency implementation at4dbfa43; regression-sensitivity corrections and explicit required read coverage await final review. Full wall-clock cancellation, non-executor unwind, abort/kill/OOM and future orchestration remain open. Identical requests repeat identity across invocations and engine builds, so callers must still inspect process exit or use fresh output paths."
+      "current_evidence": "Shared outer-operation work and bounded item/search/journal/depth admission accepted at M4; executor-only unwind accepted at M5. Both reviewers accept cb57c35 whole-request consistency and corrected regression sensitivity. Required Fable reads are complete. Wall-clock cancellation, non-executor unwind, abort/kill/OOM and future orchestration remain open. Identical request bytes repeat identity across invocations/builds; callers must still inspect process outcome and use fresh output paths."
     },
     {
       "id": "RE-06",
@@ -588,7 +631,10 @@
         "request-freshness-contract",
         "fable-milestone-6",
         "carbon-milestone-6",
-        "owner-greenfield"
+        "owner-greenfield",
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -609,7 +655,7 @@
         "Maintain docs/rust-parity.md with representative inputs, explicit native/preservation/adverse acceptance and unsupported/untested gaps. Legacy bug cases must be refused or corrected, not copied as expected outputs."
       ],
       "state": "open",
-      "current_evidence": "Both reviewers accept input1/result2, typed executor unwind, explicit publication-failure semantics and native serializer/admission corrections at179c106. Native validation remains mandatory. Source hash does not bind requested rules; F-M5-N1 stays open before orchestration. M6 candidate adds whole-request identity, distinct exit8 and mandatory expected bytes at native apply; independent acceptance remains pending."
+      "current_evidence": "Input1/result3 and mandatory expected-request bytes accepted at cb57c35 by both independent reviewers. Changed-request stale-result witness now refuses; matching A/A native control has zero opens. Source/status/counters/IDs/native DRC/publication checks remain mandatory. Digest consistency does not authenticate results or prove a current invocation succeeded. Broader geometry, rules, representative capability parity and full requirement remain open."
     },
     {
       "id": "RE-08",
@@ -694,7 +740,10 @@
         "carbon-milestone-5-correction",
         "fable-milestone-6",
         "carbon-milestone-6",
-        "owner-greenfield"
+        "owner-greenfield",
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -711,7 +760,7 @@
         "Blind skill behavior controls and stalled-review positive/negative cases."
       ],
       "state": "open",
-      "current_evidence": "Both reviewers independently accept179c106 after full original reviews and affected correction review. Fable catalog read and attribution gaps corrected; five mutation controls all caught. Carbon executed full CLI encoder refusal using55000nested objects, exact serialized byte bounds and native completion. Root read all reports/probe sources/results and preserves evidence distinctions. Full RE-01..RE-10 remain open."
+      "current_evidence": "Both reviewers independently accept cb57c35 after original M6 reviews, Fable required-read addendum and focused correction review. Fable7Rust+6native mutants and Carbon1Rust+4native mutants are detected; root inspected complete reports/scripts/results plus selected individual assertion logs. Reviewer testimony, actual execution, scratch limitations and changed-document adjudication remain distinct. Full RE-01..RE-10 remain open."
     }
   ],
   "allowed_compatibility_seam": {
@@ -798,16 +847,16 @@
           "RE-09",
           "RE-10"
         ],
-        "request_event": "b968b0a0-74c0-4679-a4cf-c9fde5a2fe12",
-        "request_source": "cfc327f8-6bbe-491a-a6b4-6bb5fc838563/v1",
-        "result_source": "127c49be-24e6-4164-858d-ffbe0dcea83b/v1",
+        "request_event": "96ac5c34-bc25-4ff5-a527-060b23103853",
+        "request_source": "5ed94ed0-974a-48f3-9f22-75bbd4cd4b9e/v1",
+        "result_source": "548f3176-7052-4ac4-a9e2-af64968d2ddc/v1",
         "delivery_state": "handled",
         "explicit_acceptance": true,
-        "completed_at": "2026-11-16T20:43:24.987479-08:00",
-        "reviewed_revision": "179c106f3ffe1f4039cd43c258f2dce362309d4d",
-        "acceptance_scope": "Versioned CLI/native result and failure contract, byte admission, compact export and typed recursion; full engine and request/freshness orchestration remain open.",
-        "addendum_request_event": "41705b5e-d937-46cf-be1a-df712ef918d2",
-        "addendum_result_source": "f3d0dd6b-96c1-4282-98c7-1be8e743408e/v1"
+        "completed_at": "2026-11-16T21:41:13.428532-08:00",
+        "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+        "acceptance_scope": "M6 whole-request consistency and regression corrections; explicit continuing greenfield role acknowledgment. No full-engine, representative parity or production acceptance.",
+        "addendum_request_event": "019edfc6-6d0c-4874-beb3-bbbfcc16b055",
+        "addendum_result_source": "f731936f-4ce7-466d-95b9-f3a9836758a6/v1"
       },
       {
         "agent": "agent-1502",
@@ -820,17 +869,17 @@
           "RE-09",
           "RE-10"
         ],
-        "request_event": "cf51fcd9-b3c9-4152-b5aa-e2af211a1d76",
-        "request_source": "f300f209-aa28-4546-8fc9-91e5b722971f/v1",
-        "result_source": "23b2dc61-d876-4fb8-8975-e9ab4289f764/v1",
+        "request_event": "8f592da2-b278-41e7-aa02-fc5fd4f096e2",
+        "request_source": "259fa155-a4d9-4aaf-9bb6-37b6281e4166/v1",
+        "result_source": "1fea32b2-2789-42b9-abc3-d66f4ae1beff/v1",
         "delivery_state": "handled",
         "explicit_acceptance": true,
-        "completed_at": "2026-11-16T20:49:05.493994-08:00",
-        "reviewed_revision": "179c106f3ffe1f4039cd43c258f2dce362309d4d",
-        "acceptance_scope": "Versioned CLI/native result and failure contract, byte admission, compact export and typed recursion; full engine and request/freshness orchestration remain open."
+        "completed_at": "2026-11-16T21:45:40.95967-08:00",
+        "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+        "acceptance_scope": "M6 whole-request consistency and regression corrections; explicit continuing greenfield role acknowledgment. No full-engine, representative parity or production acceptance."
       }
     ],
-    "next_milestone": "Both M6 reviewers accept bounded implementation4dbfa43; supervisor requires regression corrections and explicit read-coverage closure before final acceptance/landing. Full10 requirements and orchestration/geometry/memory/cancellation gaps remain open.",
+    "next_milestone": "M6 bounded consistency accepted. Continue greenfield capability work against docs/rust-parity.md, retaining native/adverse acceptance. Process invocation orchestration, representative inputs, inventory completeness and full10 requirements remain open; existing holds unchanged.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -1397,18 +1446,27 @@
         "request-freshness-assignment",
         "request-freshness-contract",
         "fable-milestone-6",
-        "carbon-milestone-6"
+        "carbon-milestone-6",
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
       ],
-      "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
+      "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
       "finding": "After failed publication, a caller ignoring nonzero exit can apply an old complete result for the same source with different requested rules. Source hash does not bind the request.",
       "evidence_class": "Executed native export/engine/apply witness; original JSON equality and v2 byte equality distinguished.",
-      "status": "open",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Both reviewers accept bounded implementation at4dbfa43. Before final integration, close F-M6-F1/F2 test sensitivity and required Fable read coverage, then adjudicate exact correction revision. Identical-byte/engine-version freshness still requires process exit checking.",
+      "next_action": "Retain changed-request mismatch refusal and matching native controls. Identical-byte request freshness remains C-M6-02; process success and fresh output paths remain required.",
       "observation_deadline": "before acceptance of the next affected milestone",
-      "blocks_current_integration": true,
-      "candidate_rust_revision": "735eddf"
+      "blocks_current_integration": false,
+      "candidate_rust_revision": "735eddf",
+      "review_source_ids": [
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
+      ],
+      "current_evidence": "Fable reran original chmod0500 witness: B exits8, A file byte-identical, B/A apply refuses, A/A applies with zero opens. Carbon independently verifies native consistency. Both accept cb57c35."
     },
     {
       "id": "F-M5-N2",
@@ -1566,15 +1624,26 @@
       ],
       "source_ids": [
         "fable-milestone-6",
-        "request-freshness-test-correction"
+        "request-freshness-test-correction",
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction",
+        "request-freshness-typed-correction"
       ],
       "finding": "A typed limits omission mutant passes shipped tests while a reviewer test fails. Implementation is correct; regression protection must change each typed limit directly.",
       "evidence_class": "Executed scratch Rust mutation;82 shipped tests pass; reviewer probe fails. New shipped tests independently compare changed typed requests and explicit defaults.",
-      "status": "correction-awaiting-independent-review",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Review b70ff23 tests and successful-compile/assertion-failure negative control; no claim of five mutant failures because it stops at max_work.",
-      "blocks_current_integration": true
+      "next_action": "Retain direct tests for all5limits and run/helper identities; every future defaulted typed field needs equivalent direct sensitivity.",
+      "blocks_current_integration": false,
+      "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+      "review_source_ids": [
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
+      ],
+      "current_evidence": "Author all-limits omission compiles then2newassertions fail. Fable separately executes all5field omissions and run-only omission: all7mutants detected by shipped tests. Carbon separately detects fifth-field max_depth omission."
     },
     {
       "id": "F-M6-F2",
@@ -1584,15 +1653,24 @@
         "RE-10"
       ],
       "source_ids": [
-        "fable-milestone-6"
+        "fable-milestone-6",
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
       ],
       "finding": "Case-insensitive digest comparison, removed API byte cap and coercing API types survive the selected34 shipped native tests.",
-      "evidence_class": "Executed selected-test mutations; not the full143 suite. Root9f62355 adds correct-uppercase/trailing-space and direct API types/size;16 exact-node control passes and all3 mutants fail.",
-      "status": "correction-awaiting-independent-review",
+      "evidence_class": "Original selected34 mutations survived. Fable addendum whole143 control and3mutants each had2common missing-legacy-fixture failures,141passes. Corrected16exact-node root control passes and all3originalmutants fail; Fable25focused control and6mutants plus Carbon16control and4mutants confirm sensitivity.",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Independent focused review of new controls and mutation evidence; adapter executable unchanged.",
-      "blocks_current_integration": true
+      "next_action": "Retain exact digest casing/whitespace and both API entrypoint type/size controls; keep oversized matching-digest case so hash mismatch cannot mask absent admission.",
+      "blocks_current_integration": false,
+      "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+      "review_source_ids": [
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
+      ]
     },
     {
       "id": "C-M6-01",
@@ -1628,6 +1706,102 @@
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
       "next_action": "Future orchestration must require successful process outcome or use fresh output paths; never infer current execution success from a matching request hash alone.",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M6-G1",
+      "requirements": [
+        "RE-02",
+        "RE-07",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-6-correction",
+        "owner-greenfield"
+      ],
+      "finding": "Capability matrix lacked explicit search-state soundness regression.",
+      "evidence_class": "Reviewer source inspection and explicit scope limits.",
+      "status": "corrected-documentation",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Added history-dependent continuation/dominance row; implementation/representative acceptance remain RE-02, not closed.",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M6-G2",
+      "requirements": [
+        "RE-01",
+        "RE-07",
+        "RE-09",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-6-correction",
+        "owner-greenfield"
+      ],
+      "finding": "Current reuse position had no recorded basis or audit limits.",
+      "evidence_class": "Reviewer source inspection and explicit scope limits.",
+      "status": "corrected-documentation",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Added author/reviewer testimony and exact dependency lock, with no comprehensive origin-audit claim; retain applicable licenses.",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M6-G3",
+      "requirements": [
+        "RE-07",
+        "RE-09",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-6-correction",
+        "owner-greenfield"
+      ],
+      "finding": "Representative-board acceptance is not established by synthetic fixtures.",
+      "evidence_class": "Reviewer source inspection and explicit scope limits.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Identify representative inputs within existing authorization and preserve every named hold; record native outcomes before accepting any matrix row.",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "F-M6-G4",
+      "requirements": [
+        "RE-07",
+        "RE-09",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-6-correction",
+        "owner-greenfield"
+      ],
+      "finding": "Matrix completeness against useful KRT capabilities is unverified.",
+      "evidence_class": "Reviewer source inspection and explicit scope limits.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Extend source-backed behavioral inventory as capabilities are addressed; do not claim the initial matrix is exhaustive.",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "C-M6C-01",
+      "requirements": [
+        "RE-03",
+        "RE-06",
+        "RE-07"
+      ],
+      "source_ids": [
+        "carbon-milestone-6-correction",
+        "owner-greenfield"
+      ],
+      "finding": "Parity matrix should name pad drills/shapes and hole/mask-web rules explicitly.",
+      "evidence_class": "Reviewer source inspection.",
+      "status": "corrected-documentation",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Explicit matrix text added; native implementation and representative acceptance remain open.",
       "blocks_current_integration": false
     }
   ],
@@ -1702,6 +1876,17 @@
       "coverage": "Complete initial and correction source coverage through verified baseline reads plus full diffs; Fable missing catalog reads completed in addendum. Independent correction verdicts recorded before peer correction reports.",
       "root_adjudication": "Fable array-nesting CLI probes observed decoder refusals; Carbon nested-object probe reaches encoder refusal. Different input shapes explain the results. Original Carbon encoder witness was direct API, now complemented by actual CLI. Native byte-level stale-result claim corrected by explicit v2 comparison. No measured multi-gigabyte RSS claim; old indentation growth is source-derived.",
       "remaining": "F-M5-N1 request/result binding before orchestration; non-executor/abort/kill/OOM termination, native allocation/time, seed/geometry and full-engine capabilities remain open."
+    },
+    {
+      "candidate_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+      "review_source_ids": [
+        "fable-milestone-6-addendum",
+        "fable-milestone-6-correction",
+        "carbon-milestone-6-correction"
+      ],
+      "scope": "Request/result3 consistency, no-fresh-output exit8, strict mandatory native expected request and corrected regression tests; owner greenfield recording acknowledged.",
+      "validation": "Root81Rust+3compilefail+159native+95ownership PASS. Independent focused sensitivity evidence recorded above.",
+      "remaining": "All10fullrequirements OPEN. C-M6-02 invocation/binary identity, geometry/rules, whole-process resource/cancellation, representative parity and performance remain open."
     }
   ],
   "correction_checkpoint": {
@@ -1752,7 +1937,7 @@
     "candidate_revision": "179c106f3ffe1f4039cd43c258f2dce362309d4d"
   },
   "request_freshness_checkpoint": {
-    "state": "test-corrections-awaiting-independent-review",
+    "state": "accepted-for-bounded-milestone",
     "baseline_revision": "29d21200c7e88ad8e4c28867d0283ffdf6e508c0",
     "rust_revision": "735eddf",
     "rust_owner": "agent-1484",
@@ -1769,16 +1954,21 @@
       "No abort/kill/OOM, whole-process cancellation or RSS bound",
       "No production/default/deployment/release change"
     ],
-    "validation": "Root combined gate79 Rust +3 compile-fail +143 native66.82s PASS;95 ownership/fitness0.53s PASS;0 failures/skips. Focused native selection36PASS before final gate. Exact combined-revision independent Fable/Carbon review remains pending.",
+    "validation": "Original root gate79Rust+3compilefail+143native+95ownershipPASS. Corrected root81Rust+3compilefail+159native+95ownershipPASS; both reviewers accept cb57c35.",
     "reviewed_base": "4dbfa4393fa7f08414f13140300f4414cf42b08b",
     "review_source_ids": [
       "fable-milestone-6",
-      "carbon-milestone-6"
+      "carbon-milestone-6",
+      "fable-milestone-6-addendum",
+      "fable-milestone-6-correction",
+      "carbon-milestone-6-correction"
     ],
     "rust_test_correction": "b70ff2353126e692cb81763065549b893086ff02",
     "native_test_correction": "9f6235516e1f7dd728b439f3767a1604d2186cef",
-    "correction_scope": "Tests and catalog only; production Rust/native bytes unchanged from4dbfa43. Required Fable read coverage addendum pending.",
-    "correction_validation": "81 Rust +3 compile-fail +159 native64.93s PASS;95 ownership/fitness PASS;0 failures/skips. Focused25native PASS. Exact-node native control16PASS; case-insensitive mutant1fail, APIcap mutant2fail, typecoercion mutant12fail,0errors/skips. Rust omit-limits mutant compiles successfully then both new shipped tests fail assertions. Executable unchanged; independent focused rereview and Fable required coverage still pending."
+    "correction_scope": "Test corrections plus catalog/greenfield docs; executable bytes unchanged from4dbfa43. Fable required-read addendum complete.",
+    "correction_validation": "Root81+3+159native64.93s+95ownership0.55sPASS. Root4targetedmutants detected. Fable7Rust+6native mutants detected; Carbon1Rust+4native mutants detected. Full details/limitations in exact review sources.",
+    "candidate_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
+    "final_adjudication": "Final commit changes catalog and documentation only: historical wording, explicit search-state matrix row, current provenance position and ACK references. Code and test bytes remain reviewed cb57c35."
   },
   "greenfield_contract": {
     "source_id": "owner-greenfield",
@@ -1799,6 +1989,45 @@
     "acceptance": "Representative boards, explicit capability tests, native validity and preservation, adverse controls and independent review; legacy output equivalence alone is insufficient",
     "known_bugs": "Use as negative regressions, not expected behavior",
     "reuse": "Record provenance and retain applicable attribution/licenses for reused code",
-    "status": "All full requirements remain open; no capability parity claim or new benchmark/deployment admission"
+    "status": "All full requirements remain open; no capability parity claim or new benchmark/deployment admission",
+    "actual_acknowledgments": [
+      {
+        "agent": "agent-1484",
+        "event_id": "cb3091a7-5fed-43d3-ba51-c8ac98003f2c",
+        "request_source": "d451165b-ea4f-42b8-8753-5a12c8745160/v1",
+        "result_source": "fa12571d-c27e-4b53-b980-8fc04f6c7288/v1",
+        "completed_at": "2026-11-16T21:37:24.374431-08:00",
+        "role": "Rust implementation",
+        "implication": "Greenfield Rust routing lifecycle; KRT behavioral reference only, narrow native seam, representative native acceptance, provenance limits recorded.",
+        "handled": true,
+        "explicit_acknowledgment": true,
+        "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065"
+      },
+      {
+        "agent": "agent-1503",
+        "event_id": "96ac5c34-bc25-4ff5-a527-060b23103853",
+        "request_source": "5ed94ed0-974a-48f3-9f22-75bbd4cd4b9e/v1",
+        "result_source": "548f3176-7052-4ac4-a9e2-af64968d2ddc/v1",
+        "completed_at": "2026-11-16T21:41:13.428532-08:00",
+        "role": "Independent Fable oversight",
+        "implication": "No KRT output correctness oracle; known defects become adverse controls; Rust owns routing, Python remains seam; reuse recorded; no sync-driven design.",
+        "handled": true,
+        "explicit_acknowledgment": true,
+        "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065"
+      },
+      {
+        "agent": "agent-1502",
+        "event_id": "8f592da2-b278-41e7-aa02-fc5fd4f096e2",
+        "request_source": "259fa155-a4d9-4aaf-9bb6-37b6281e4166/v1",
+        "result_source": "1fea32b2-2789-42b9-abc3-d66f4ae1beff/v1",
+        "completed_at": "2026-11-16T21:45:40.95967-08:00",
+        "role": "Independent Carbon oversight",
+        "implication": "Reject KRT wrapping/forking/sync coupling and Python routing decisions; require native geometry/connectivity/DRC, preservation, adverse controls and provenance.",
+        "handled": true,
+        "explicit_acknowledgment": true,
+        "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065"
+      }
+    ],
+    "inventory_status": "Initial matrix, not an exhaustive verified inventory; no representative-board parity row accepted."
   }
 }

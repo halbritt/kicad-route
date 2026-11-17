@@ -174,7 +174,7 @@ its existing timeout; full-process cancellation and memory accounting remain ope
    before retiring the old backend. Deployment/default changes require their
    own authorization; this implementation does not grant it.
 
-## Ownership and current evidence
+## Ownership and evidence history
 
 Agent-1484 (existing Codex-3 session) owns `rust-engine/`, including CLI and Rust
 tests. Agent-1497 owns this migration, native adapter and integration tests, and
@@ -209,21 +209,23 @@ routing remains possible. This sampling is not a universal KiCad rounding proof.
 The native regression suite retains an actual diagonal counterexample and checks
 that routing closes its open while preserving all incumbent copper.
 
-Carbon's nested-checkpoint objection concerns a future extension: the current
-crate-private mutation API and call graph cannot nest transactions, as documented
-at `d7e488f`. The journal does not support nested commits. One-nanometre tracks
+At `d7e488f`, Carbon's nested-checkpoint objection concerned a future extension:
+the crate-private API could not nest transactions and its journal did not support
+nested commits. Later scoped nested transactions supersede that early restriction;
+see the current requirements catalog and crate README. One-nanometre tracks
 remain conservatively disconnected by the contact predicate; this can cause
 extra routing or budget exhaustion and is not a manufacturability claim.
-Both dispositions await independent review.
+Both dispositions awaited independent review at that historical checkpoint.
 
 The combined gate after these corrections and the retained diagonal regression
 passes 26 Rust and 24 native tests. Four native Margin controls prove that board
 and footprint Margin drawings cause edge-clearance errors and are refused;
-identical Dwgs.User drawings remain accepted. First-slice acceptance remains
-open pending independent exact-revision review. Both continuing reviewers accepted
+identical Dwgs.User drawings remain accepted. At that point, first-slice acceptance
+remained open pending independent exact-revision review. Both continuing reviewers accepted
 the correction scope at `3a763b7` but identified native validation inside the
-operation as the next foundation gate. The integrated candidate now implements
-that gate; its review remains pending. No production backend changed.
+operation as the next foundation gate. The subsequent candidate implemented
+that gate. Later accepted milestones in the requirements catalog supersede this
+early pending-review status. No production backend changed.
 
 Run the combined focused gate with `mise run test:rust-engine`. It uses the
 existing host process boundary, locked offline Cargo dependencies and the native
