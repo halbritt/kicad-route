@@ -15,11 +15,14 @@ The version-1 JSON contract is enforced with typed deserialization, including
 unknown-field and duplicate-field rejection. Bounds are an axis-aligned
 rectangle; only F.Cu, circular/axis-aligned rectangular pads and straight tracks
 are supported. All incumbent tracks, locked or unlocked, are immutable. Connected net IDs
-have at most two pads; zero-terminal/singleton nets remain untouched. Net ID 0
-means unconnected copper: any number of its pads/tracks are foreign obstacles,
-never autorouted or joined as one net. Already connected
-terminals require at least 1 nm of overlap through pads/tracks and track
-chains; tangency and sub-nanometre overlap do not establish connectivity.
+have at most two pads. Every nonzero net is partitioned into connected components
+of all its pads and incumbent/generated tracks, including zero-pad or singleton
+nets. A net is complete only when it has at most one copper component. Two pads
+already joined do not excuse a detached incumbent track. Net ID 0 means
+unconnected copper: any number of its pads/tracks are foreign obstacles, never
+autorouted or joined as one net. Contact requires at least 1 nm of overlap through
+pads/tracks and track chains; tangency and sub-nanometre overlap do not establish
+connectivity.
 Connectivity floors each track's half-width to integer nm, subtracts 1 nm
 from the summed contact radii, then compares distances inclusively using exact
 integer fractions. Rectangle pairs require at least 1 nm overlap on both axes;
@@ -51,15 +54,39 @@ nonempty name, while net ID 0 requires the empty name. Item IDs are globally uni
 `source_id` is exactly 64 lowercase SHA256 hex digits, echoed unchanged; the
 adapter checks it against the original board bytes. CLI input is at most 16 MiB.
 
-Search uses four orthogonal directions, uniform one-step cost, an incoming
-heading in the dominance key and a Manhattan heuristic. There is no bend cost,
+Search uses four orthogonal directions, uniform one-step cost and an incoming
+heading in the dominance key. Two isolated pads retain center-to-center A* with
+a Manhattan heuristic. General component joins use multi-source Dijkstra
+(zero heuristic) from every legal pad center and incumbent/generated track
+endpoint in the first component, targeting all other components. Each seed
+retains its own grid phase, so off-grid incumbent endpoints are supported.
+Attachment targets the entire copper geometry, including arbitrary-angle
+interiors, not only target endpoints. The final edge is shortened to an integer
+point nearest the target center geometry and exact contact is verified after
+rounding; a full grid step past the target is not published as a dangling spur.
+A shortened final edge still costs one search step. There is no bend cost,
 layer change, arbitrary-angle search, rip-up negotiation or global multi-net
 optimization. Nets route in increasing net-ID order. A later net can fail even
 when a different earlier route would permit a solution; this is reported as
 unroutable, not proof of global routing impossibility. Success/failure is
-deterministic. The expansion budget is 1..=1,000,000 for the whole batch; settled
+deterministic. Each completed join must strictly reduce the net's conservative
+component count, and all joins share the operation/batch expansion budget.
+Failure after earlier joins rolls all of that operation back. The expansion
+budget is 1..=1,000,000 for the whole batch; settled
 states, including the found goal, count once per state/direction. Stale queue
 entries do not count. Frontier exhaustion and budget exhaustion are distinct.
+
+The component search is not complete for continuous routing. A component whose
+pad centers and track endpoints are all illegal seeds can fail even when a
+mid-span exit exists. The grid may miss a legal corridor or integer attachment;
+rounding candidates are verified, never assumed connected. Thin copper that the
+conservative contact model cannot join fails honestly rather than reporting
+complete. Native connectivity can merge contacts that this model separates or
+apply other integer geometry rules; no universal native equivalence is claimed.
+The mandatory native publication check remains necessary. Components are
+recomputed after each join using borrowed nodes; graph contact scans can be
+quadratic and are not charged as search expansions. This increment does not
+provide a wall-time or real-board quality guarantee.
 
 Every proposed edge checks its entire swept copper against foreign-net pads
 and incumbent/generated tracks. Exact integer-fraction comparisons in i128

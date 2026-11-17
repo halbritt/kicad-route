@@ -1,7 +1,8 @@
-use crate::model::{Failure, Point, Status};
+use crate::components::Copper;
+use crate::model::{Failure, Point, Status, Track};
 use crate::Engine;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BTreeSet, BinaryHeap, HashMap};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 struct State {
@@ -39,13 +40,93 @@ pub fn search(
             "terminal center violates routing clearance or board edge",
         ));
     }
-    let initial = State {
-        at: start,
-        direction: 4,
+    walk(
+        engine,
+        net,
+        &[start],
+        limit,
+        expanded,
+        heuristic,
+        |at, _| at == goal,
+    )
+}
+
+/// Unit-cost multi-source search. The existing copper component is free to
+/// traverse; each legal pad-center/track-endpoint starts its own grid phase.
+/// A target may attach anywhere along the last swept edge, not only at a
+/// grid node or an incumbent endpoint. This is a bounded grid search, not a
+/// proof that no continuous attachment exists when the frontier is exhausted.
+pub(crate) fn join_components(
+    engine: &Engine,
+    net: u32,
+    source: &[Copper<'_>],
+    targets: &[Vec<Copper<'_>>],
+    limit: u64,
+    expanded: &mut u64,
+) -> Result<Path, Failure> {
+    let route = |a, b| Track {
+        id: String::new(),
+        net,
+        start: a,
+        end: b,
+        width_nm: engine.input.rules.width_nm,
+        locked: false,
     };
-    let mut queue = BinaryHeap::from([Reverse((heuristic(start), 0, initial))]);
-    let mut best = HashMap::from([(initial, 0u64)]);
-    let mut parent = HashMap::new();
+    let starts: BTreeSet<_> = source
+        .iter()
+        .flat_map(|c| c.anchors())
+        .filter(|p| {
+            engine.legal_edge(net, *p, *p) && source.iter().any(|c| c.touches_route(&route(*p, *p)))
+        })
+        .collect();
+    if starts.is_empty() {
+        return Err(Failure::new(
+            Status::Unroutable,
+            "component has no legal pad-center or incumbent-endpoint search seed",
+        ));
+    }
+    let attachment = |a, b| {
+        targets
+            .iter()
+            .flatten()
+            .find_map(|c| c.attachment(a, b, net, engine.input.rules.width_nm))
+    };
+    let mut path = walk(
+        engine,
+        net,
+        &starts.into_iter().collect::<Vec<_>>(),
+        limit,
+        expanded,
+        |_| 0,
+        |at, previous| previous.is_some_and(|before| attachment(before, at).is_some()),
+    )?;
+    let last = path.points.len() - 1;
+    path.points[last] = attachment(path.points[last - 1], path.points[last])
+        .expect("settled goal edge has a verified attachment");
+    Ok(path)
+}
+
+fn walk(
+    engine: &Engine,
+    net: u32,
+    starts: &[Point],
+    limit: u64,
+    expanded: &mut u64,
+    heuristic: impl Fn(Point) -> u64,
+    finished: impl Fn(Point, Option<Point>) -> bool,
+) -> Result<Path, Failure> {
+    let grid = engine.input.rules.grid_nm;
+    let mut queue = BinaryHeap::new();
+    let mut best = HashMap::new();
+    let mut parent: HashMap<State, State> = HashMap::new();
+    for at in starts {
+        let initial = State {
+            at: *at,
+            direction: 4,
+        };
+        queue.push(Reverse((heuristic(*at), 0, initial)));
+        best.insert(initial, 0u64);
+    }
     while let Some(Reverse((_, cost, state))) = queue.pop() {
         if best.get(&state) != Some(&cost) {
             continue;
@@ -57,11 +138,11 @@ pub fn search(
             ));
         }
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
-        if state.at == goal {
-            let mut path = vec![goal];
+        if finished(state.at, parent.get(&state).map(|p| p.at)) {
+            let mut path = vec![state.at];
             let mut s = state;
-            while s != initial {
-                s = parent[&s];
+            while let Some(previous) = parent.get(&s) {
+                s = *previous;
                 path.push(s.at);
             }
             path.reverse();

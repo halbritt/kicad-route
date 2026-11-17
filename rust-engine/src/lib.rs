@@ -1,10 +1,11 @@
+mod components;
 pub mod geometry;
 pub mod model;
 pub mod search;
 pub mod state;
+use components::Copper;
 use model::*;
 use state::CopperStore;
-use std::collections::BTreeSet;
 
 pub struct Engine {
     input: Input,
@@ -166,45 +167,46 @@ impl Engine {
                 )
         })
     }
-    fn terminals(&self, net: u32) -> Vec<&Pad> {
-        self.input.pads.iter().filter(|p| p.net == net).collect()
-    }
-    fn connected(&self, a: &Pad, b: &Pad) -> bool {
-        if a.net == 0 || a.net != b.net {
-            return false;
-        }
-        if geometry::pads_touch(a, b) {
-            return true;
-        }
-        let tracks: Vec<_> = self.copper.tracks().filter(|t| t.net == a.net).collect();
-        let mut reached = BTreeSet::new();
-        let mut todo = Vec::new();
-        for (i, t) in tracks.iter().enumerate() {
-            if geometry::track_connects_pad(t, a) {
-                reached.insert(i);
-                todo.push(i);
-            }
-        }
-        while let Some(i) = todo.pop() {
-            let t = tracks[i];
-            if geometry::track_connects_pad(t, b) {
-                return true;
-            }
-            for (j, u) in tracks.iter().enumerate() {
-                if !reached.contains(&j) && geometry::tracks_connect(t, u) {
-                    reached.insert(j);
-                    todo.push(j);
-                }
-            }
-        }
-        false
+    fn components(&self, net: u32) -> Vec<Vec<Copper<'_>>> {
+        components::partition(
+            self.input
+                .pads
+                .iter()
+                .filter(|p| p.net == net)
+                .map(Copper::Pad)
+                .chain(
+                    self.copper
+                        .tracks()
+                        .filter(|t| t.net == net)
+                        .map(Copper::Track),
+                )
+                .collect(),
+        )
     }
     fn route_net(&mut self, net: u32, limit: u64, expanded: &mut u64) -> Result<(), Failure> {
-        let terminals = self.terminals(net);
-        if terminals.len() != 2 || self.connected(terminals[0], terminals[1]) {
-            return Ok(());
+        loop {
+            let groups = self.components(net);
+            let before = groups.len();
+            if before <= 1 {
+                return Ok(());
+            }
+            let path = match (&groups[0][..], &groups[1][..]) {
+                // Preserve the original two-terminal cost and expansion contract.
+                ([Copper::Pad(a)], [Copper::Pad(b)]) if before == 2 => {
+                    search::search(self, net, a.at, b.at, limit, expanded)?
+                }
+                _ => search::join_components(self, net, &groups[0], &groups[1..], limit, expanded)?,
+            };
+            self.insert_path(net, path)?;
+            if self.components(net).len() >= before {
+                return Err(Failure::new(
+                    Status::Unroutable,
+                    "proposed route did not reduce conservative copper components",
+                ));
+            }
         }
-        let path = search::search(self, net, terminals[0].at, terminals[1].at, limit, expanded)?;
+    }
+    fn insert_path(&mut self, net: u32, path: search::Path) -> Result<(), Failure> {
         // Coalesce only collinear steps: the swept geometry is unchanged.
         let mut points: Vec<Point> = Vec::new();
         for p in path.points {
@@ -230,7 +232,7 @@ impl Engine {
             .collect();
         if proposal
             .iter()
-            .any(|t| !self.legal_edge(net, t.start, t.end))
+            .any(|t| t.start == t.end || !self.legal_edge(net, t.start, t.end))
         {
             return Err(Failure::new(
                 Status::Unroutable,
