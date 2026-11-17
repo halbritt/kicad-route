@@ -365,7 +365,13 @@ def t2_f8_02(ctx: DriverContext) -> dict[str, Any]:
     out_ok2 = ctx.work_dir / "out_ok2" / "routed.kicad_pcb"
     for p in (out_fail, out_ok1, out_ok2):
         p.parent.mkdir(parents=True, exist_ok=True)
-    run_m4_board_or_pending(ctx, bundle, out_fail, tag="f8_02_fail", max_expansions=5, limits={"max_work": 5})
+    m_fail, r_fail, _ = run_m4_board_or_pending(
+        ctx, bundle, out_fail, tag="f8_02_fail", max_expansions=5, limits={"max_work": 5}
+    )
+    assert (r_fail.returncode != 0 if m_fail == "native" else r_fail.stage_failed is not None), (
+        "tight-budget pre-run unexpectedly succeeded"
+    )
+    assert not out_fail.exists(), f"tight-budget pre-run unexpectedly wrote {out_fail}"
     m1, r1, bh1 = run_m4_board_or_pending(ctx, bundle, out_ok1, tag="f8_02_ok1", limits={"max_work": 5_000_000})
     m2, r2, bh2 = run_m4_board_or_pending(ctx, bundle, out_ok2, tag="f8_02_ok2", limits={"max_work": 5_000_000})
     assert m1 == m2
@@ -573,6 +579,8 @@ def t2_f9_01(ctx: DriverContext) -> dict[str, Any]:
         bundle.pcb_path, out_pcb, extra_args=["--diff-pairs", "auto"]
     )
     assert_no_crash(proc, "T2-F9-01")
+    sj = parse_last_json_line_safe(proc.stderr)
+    assert (sj or {}).get("status") != "unsupported", f"T2-F9-01 returned unsupported: {sj}"
     assert proc.returncode in (2, 3), f"expected unroutable/refusal without single-ended fallback, got {proc.returncode}"
     assert not out_pcb.exists()
     return {"checked": "no_single_ended_fallback"}
@@ -620,6 +628,8 @@ def t2_f9_02(ctx: DriverContext) -> dict[str, Any]:
             bun.pcb_path, out_pcb, extra_args=["--diff-pairs", "auto"]
         )
         assert_no_crash(proc, f"T2-F9-02:{label}")
+        sj = parse_last_json_line_safe(proc.stderr)
+        assert (sj or {}).get("status") != "unsupported", f"T2-F9-02:{label} returned unsupported: {sj}"
         assert proc.returncode in (2, 4), f"{label} expected exit 2/4, got {proc.returncode}"
         assert not out_pcb.exists()
     return {"checked": ["unpaired", "mismatch_class", "gap_lt_clr"]}
@@ -656,6 +666,8 @@ def t2_f9_03(ctx: DriverContext) -> dict[str, Any]:
         ],
     )
     assert_no_crash(proc, "T2-F9-03")
+    sj = parse_last_json_line_safe(proc.stderr)
+    assert (sj or {}).get("status") != "unsupported", f"T2-F9-03 returned unsupported: {sj}"
     assert proc.returncode in (2, 3), f"expected rejection on impossible 1mm uncoupled budget, got {proc.returncode}"
     assert not out_pcb.exists()
     return {"checked": "impossible_uncoupled_meander"}
@@ -717,7 +729,16 @@ def t2_f9_04(ctx: DriverContext) -> dict[str, Any]:
     name="Missing stackup Er/thickness or asymmetric stripline refused fail-closed",
 )
 def t2_f9_05(ctx: DriverContext) -> dict[str, Any]:
-    require_m4_capability(ctx, require_help_flags=("--length-match-group", "--group-delay-tolerance"))
+    require_m4_capability(
+        ctx,
+        require_help_flags=(
+            "--length-match-group",
+            "--group-delay-tolerance",
+            "--diff-pairs",
+            "--pair-layers",
+            "--pair-impedance",
+        ),
+    )
     import re
 
     # (a) Strip epsilon_r from delay_matching stackup
@@ -732,9 +753,11 @@ def t2_f9_05(ctx: DriverContext) -> dict[str, Any]:
         extra_args=["--length-match-group", "DQ0", "DQ1", "--group-delay-tolerance", "1"],
     )
     assert_no_crash(proc_a, "T2-F9-05:no_er")
+    sj_a = parse_last_json_line_safe(proc_a.stderr)
+    assert (sj_a or {}).get("status") != "unsupported", f"T2-F9-05:no_er returned unsupported: {sj_a}"
     assert proc_a.returncode in (2, 4) and not out_a.exists()
 
-    # (b) Asymmetric stripline dielectric thickness in pair_stripline
+    # (b) Asymmetric stripline dielectric thickness in pair_stripline with nominal impedance
     dir_b = stage_fixture_copy(ctx.repo_root / "fixtures" / "pair_stripline", ctx.work_dir / "asym")
     pcb_b = dir_b / "board.kicad_pcb"
     txt_b = pcb_b.read_text(encoding="utf-8")
@@ -743,9 +766,24 @@ def t2_f9_05(ctx: DriverContext) -> dict[str, Any]:
     proc_b = ctx.native_driver.run_native(
         pcb_b,
         out_b,
-        extra_args=["--diff-pairs", "auto", "--pair-layers", "In1.Cu"],
+        extra_args=[
+            "--diff-pairs",
+            "auto",
+            "--pair-layers",
+            "In1.Cu",
+            "--pair-impedance",
+            "100",
+            "--impedance-tolerance",
+            "10",
+            "--impedance-reference",
+            "GND",
+            "--impedance-uncoupled",
+            "4",
+        ],
     )
     assert_no_crash(proc_b, "T2-F9-05:asym")
+    sj_b = parse_last_json_line_safe(proc_b.stderr)
+    assert (sj_b or {}).get("status") != "unsupported", f"T2-F9-05:asym returned unsupported: {sj_b}"
     assert proc_b.returncode in (2, 4) and not out_b.exists()
     return {"checked": ["missing_epsilon_r", "asymmetric_stripline"]}
 
@@ -1018,10 +1056,20 @@ def t2_f10_04(ctx: DriverContext) -> dict[str, Any]:
     pn = _pcbnew()
     b = BoardBuilder(copper_layers=2, seed=10204)
     b.set_rect_outline(0, 0, 30_000_000, 20_000_000)
-    for net, y in (("/SIG_A", 7_000_000), ("/SIG_B", 13_000_000)):
-        for idx, x in enumerate((5_000_000, 25_000_000), 1):
-            fp = b.add_footprint(f"J_{net[-1]}_{idx}", (x, y))
-            b.add_pad(fp, "1", net, (x, y), size_nm=(1_000_000, 1_000_000))
+    # Block B.Cu so /SIG_B (vertical) must cross /SIG_A (horizontal) on F.Cu by detouring around it.
+    b.add_keepout(
+        [pn.B_Cu],
+        [(0, 0), (30_000_000, 0), (30_000_000, 20_000_000), (0, 20_000_000)],
+        no_tracks=True,
+        no_vias=True,
+        no_zones=True,
+    )
+    for idx, x in enumerate((5_000_000, 25_000_000), 1):
+        fp = b.add_footprint(f"J_A_{idx}", (x, 10_000_000))
+        b.add_pad(fp, "1", "/SIG_A", (x, 10_000_000), size_nm=(1_000_000, 1_000_000))
+    for idx, y in enumerate((3_000_000, 17_000_000), 1):
+        fp = b.add_footprint(f"J_B_{idx}", (15_000_000, y))
+        b.add_pad(fp, "1", "/SIG_B", (15_000_000, y), size_nm=(1_000_000, 1_000_000))
     b.set_project_rules()
     bundle = b.save(ctx.work_dir / "src")
     step1_pcb = ctx.work_dir / "step1" / "routed.kicad_pcb"
@@ -1043,15 +1091,22 @@ def t2_f10_04(ctx: DriverContext) -> dict[str, Any]:
     edited_uuid = sig_a_tracks[0].m_Uuid.AsString()
     edited_width = int(sig_a_tracks[0].GetWidth())
     pn.SaveBoard(str(edited_pcb), board, True)
+    edited_bh = snapshot_source_dir(edited_pcb.parent)
 
     p2 = ctx.native_driver.run_native(
         edited_pcb, step2_pcb, extra_args=["--protect", "human", "--nets", "!/SIG_A"]
     )
     assert p2.returncode == 0, f"Step 2 failed: {p2.stderr}"
+    metrics = assert_clean_e2e(
+        edited_pcb,
+        step2_pcb,
+        before_hashes=edited_bh,
+        source_dir=edited_pcb.parent,
+    )
     board2 = pn.LoadBoard(str(step2_pcb))
     after_seg = next(t for t in board2.GetTracks() if t.m_Uuid.AsString() == edited_uuid)
     assert int(after_seg.GetWidth()) == edited_width
-    return {"edited_uuid_preserved": edited_uuid}
+    return {**metrics, "edited_uuid_preserved": edited_uuid}
 
 
 @register_test(

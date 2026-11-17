@@ -19,10 +19,13 @@ from tests.e2e_rust_router.core_helpers import (
     build_diff_pair_board,
     build_keepout_board,
     build_pour_board,
+    parse_last_json_line_safe,
+    require_m4_capability,
     run_m3_board_or_pending,
     run_m4_board_or_pending,
     snapshot_source_dir,
     stage_fixture_copy,
+    write_consistent_schematic,
 )
 from tests.e2e_rust_router.drivers import run_measured, sha256_file
 from tests.e2e_rust_router.kicad_verify import (
@@ -251,6 +254,8 @@ def t1_f8_01(ctx: DriverContext) -> dict[str, Any]:
     if mode == "wire":
         if res.stage_failed == "engine" and res.engine_res is not None and res.engine_res.proc.returncode in (3, 4):
             raise PendingCapability("M4 rip-up/reroute not yet landed on baseline", evidence={"rc": res.engine_res.proc.returncode})
+    elif res.returncode in (3, 4):
+        raise PendingCapability("M4 rip-up/reroute not yet landed in native router", evidence={"rc": res.returncode})
     return _assert_m3_complete(mode, res, bundle.pcb_path, out_pcb, bh, bundle.directory)
 
 
@@ -262,6 +267,7 @@ def t1_f8_01(ctx: DriverContext) -> dict[str, Any]:
     name="Congestion-aware multi-net negotiation (6 crossing nets)",
 )
 def t1_f8_02(ctx: DriverContext) -> dict[str, Any]:
+    require_m4_capability(ctx)
     bundle = build_crossing_nets_board(ctx.work_dir / "src", num_nets=6, seed=8102)
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
@@ -277,6 +283,7 @@ def t1_f8_02(ctx: DriverContext) -> dict[str, Any]:
     name="Whole-net repair preserves immutable input copper and unlocks only generated",
 )
 def t1_f8_03(ctx: DriverContext) -> dict[str, Any]:
+    require_m4_capability(ctx)
     b = BoardBuilder(copper_layers=2, seed=8103)
     b.set_rect_outline(0, 0, 30_000_000, 20_000_000)
     pre_locked = b.add_track("PRE_LOCK", (2_000_000, 3_000_000), (28_000_000, 3_000_000), 250_000, locked=True)
@@ -308,6 +315,7 @@ def t1_f8_03(ctx: DriverContext) -> dict[str, Any]:
     name="Deterministic multi-net scheduling across identical runs (8 nets)",
 )
 def t1_f8_04(ctx: DriverContext) -> dict[str, Any]:
+    require_m4_capability(ctx)
     bundle = build_crossing_nets_board(ctx.work_dir / "src", num_nets=8, seed=8104)
     limits = {"max_work": 5_000_000}
     out_a = ctx.work_dir / "out_a" / "routed.kicad_pcb"
@@ -339,6 +347,7 @@ def t1_f8_04(ctx: DriverContext) -> dict[str, Any]:
     name="Multi-round rip-up inside single outer work budget",
 )
 def t1_f8_05(ctx: DriverContext) -> dict[str, Any]:
+    require_m4_capability(ctx)
     bundle = build_crossing_nets_board(ctx.work_dir / "src", num_nets=4, seed=8105)
     limits = {"max_work": 5_000_000}
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
@@ -374,8 +383,10 @@ def t1_f9_01(ctx: DriverContext) -> dict[str, Any]:
             pro_path=src_dir / "pair.kicad_pro",
             dru_path=src_dir / "pair.kicad_dru",
         )
+        pairs = [("/CAN+", "/CAN-")]
     else:
         bundle = build_diff_pair_board(ctx.work_dir / "src", seed=9101)
+        pairs = [("CAN+", "CAN-")]
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
     mode, res, bh = run_m4_board_or_pending(
@@ -387,7 +398,7 @@ def t1_f9_01(ctx: DriverContext) -> dict[str, Any]:
         tag="f9_01",
     )
     metrics = _assert_m3_complete(mode, res, bundle.pcb_path, out_pcb, bh, bundle.directory)
-    dp = verify_diff_pair_native(bundle.pcb_path, out_pcb, [("CAN+", "CAN-")])
+    dp = verify_diff_pair_native(bundle.pcb_path, out_pcb, pairs)
     return {**metrics, "diff_pair": dp}
 
 
@@ -570,33 +581,44 @@ def t1_f10_01(ctx: DriverContext) -> dict[str, Any]:
     ae_root = ctx.agent_ee_driver.agent_ee_root
     placed_src = ae_root / "fixtures" / "rc" / "stages" / "placed-unrouted"
     assert (placed_src / "rc_stage.kicad_pcb").is_file()
-    placed_dir = stage_fixture_copy(placed_src, ctx.work_dir / "placed")
+    cand_root = ctx.work_dir / "cand"
+    placed_dir = stage_fixture_copy(placed_src, cand_root / "placed")
     before_hashes = snapshot_source_dir(placed_dir)
     checkout = ctx.agent_ee_driver.clone_clean_checkout(ctx.repo_root, ctx.work_dir / "checkout")
+    state = ctx.work_dir / "state"
+    ctx.agent_ee_driver.make_synthetic_state(checkout, state)
     work_root = ctx.work_dir / "step_work"
     work_root.mkdir(parents=True, exist_ok=True)
     script = """
 import json, sys
 from pathlib import Path
-from agent_ee import routing_adapter
+from agent_ee import kicad_route_attempt, routing_adapter
 from agent_ee.executor import execute
 
-placed_dir, work_root, checkout = map(Path, sys.argv[1:4])
+cand_root, work_root, checkout, state = map(Path, sys.argv[1:5])
 spec = routing_adapter.step(
     project='placed', board='rc_stage.kicad_pcb', schematic='rc_stage.kicad_sch',
-    name='rc', label='e2e-m5', checkout=str(checkout), budget=120,
+    name='rc', label='e2e-m5', checkout=str(checkout), state=str(state), budget=120,
 )
-res = execute(spec, candidate=placed_dir.parent, work=work_root)
-summary = routing_adapter.verify(work_root, res['inputs'])
-print(json.dumps({'exit': res['exit'], 'summary': summary}))
+res = execute(
+    cand_root,
+    work_root,
+    spec['argv'],
+    timeout=spec['timeout_s'],
+    extra_ro=[(m['source'], m['at']) for m in spec['mounts']],
+)
+inputs = kicad_route_attempt.files_of(kicad_route_attempt.tree(cand_root))
+summary = routing_adapter.verify(work_root, inputs)
+print(json.dumps({'exit_code': res['exit_code'], 'summary': summary}))
 """
     proc = ctx.agent_ee_driver.run_python(
-        script, str(placed_dir), str(work_root), str(checkout), timeout_s=300.0
+        script, str(cand_root), str(work_root), str(checkout), str(state), timeout_s=300.0
     )
     assert_no_crash(proc, "T1-F10-01")
     assert proc.returncode == 0, f"agent-ee step failed: {proc.stderr}"
     assert_source_dir_untouched(placed_dir, before_hashes)
     payload = json.loads(proc.stdout)
+    assert payload["exit_code"] == 0, f"executor exit_code={payload['exit_code']}: {payload}"
     assert payload["summary"]["proposal"] == "eligible"
     cand_pcb = work_root / "routing" / "candidate" / "placed" / "rc_stage.kicad_pcb"
     return assert_clean_e2e(
@@ -642,39 +664,53 @@ def t1_f10_02(ctx: DriverContext) -> dict[str, Any]:
         ],
         rule_severities={"annular_width": "error", "hole_clearance": "error"},
     )
-    bundle = b.save(ctx.work_dir / "src" / "project")
-    (bundle.directory / "board.kicad_sch").write_text(
-        '(kicad_sch (version 20260306) (generator "e2e"))\n', encoding="utf-8"
-    )
+    cand_root = ctx.work_dir / "cand"
+    bundle = b.save(cand_root / "project")
+    write_consistent_schematic(bundle, project_name="board")
     before_hashes = snapshot_source_dir(bundle.directory)
     checkout = ctx.agent_ee_driver.clone_clean_checkout(ctx.repo_root, ctx.work_dir / "checkout")
+    state = ctx.work_dir / "state"
+    ctx.agent_ee_driver.make_synthetic_state(checkout, state)
     work_root = ctx.work_dir / "step_work"
     work_root.mkdir(parents=True, exist_ok=True)
     script = """
 import json, sys
 from pathlib import Path
-from agent_ee import routing_adapter
+from agent_ee import kicad_route_attempt, routing_adapter
 from agent_ee.executor import execute
 
-proj_dir, work_root, checkout = map(Path, sys.argv[1:4])
+cand_root, work_root, checkout, state = map(Path, sys.argv[1:5])
 spec = routing_adapter.step(
     project='project', board='board.kicad_pcb', schematic='board.kicad_sch',
-    name='via_board', label='e2e-m5', checkout=str(checkout), budget=120,
+    name='via_board', label='e2e-m5', checkout=str(checkout), state=str(state), budget=120,
 )
-res = execute(spec, candidate=proj_dir.parent, work=work_root)
-summary = routing_adapter.verify(work_root, res['inputs'])
-print(json.dumps(summary))
+res = execute(
+    cand_root,
+    work_root,
+    spec['argv'],
+    timeout=spec['timeout_s'],
+    extra_ro=[(m['source'], m['at']) for m in spec['mounts']],
+)
+inputs = kicad_route_attempt.files_of(kicad_route_attempt.tree(cand_root))
+summary = routing_adapter.verify(work_root, inputs)
+print(json.dumps({'exit_code': res['exit_code'], 'summary': summary}))
 """
     proc = ctx.agent_ee_driver.run_python(
-        script, str(bundle.directory), str(work_root), str(checkout), timeout_s=300.0
+        script, str(cand_root), str(work_root), str(checkout), str(state), timeout_s=300.0
     )
     assert_no_crash(proc, "T1-F10-02")
     assert proc.returncode == 0, f"VIA_BOARD failed: {proc.stderr}"
-    summary = json.loads(proc.stdout)
+    payload = json.loads(proc.stdout)
+    assert payload["exit_code"] == 0, f"VIA_BOARD executor exit_code={payload['exit_code']}: {payload}"
+    summary = payload["summary"]
     assert summary["classification"] == "complete"
     cand_pcb = work_root / "routing" / "candidate" / "project" / "board.kicad_pcb"
     metrics = assert_clean_e2e(
-        bundle.pcb_path, cand_pcb, before_hashes=before_hashes, source_dir=bundle.directory
+        bundle.pcb_path,
+        cand_pcb,
+        before_hashes=before_hashes,
+        source_dir=bundle.directory,
+        check_parity=True,
     )
     board = pn.LoadBoard(str(cand_pcb))
     vias = [t for t in board.GetTracks() if t.GetClass() == "PCB_VIA"]
@@ -693,40 +729,54 @@ print(json.dumps(summary))
 )
 def t1_f10_03(ctx: DriverContext) -> dict[str, Any]:
     ctx.agent_ee_driver.probe_rust_integration(ctx.native_driver)
-    bundle = build_diff_pair_board(ctx.work_dir / "src" / "project", seed=10103)
-    (bundle.directory / "board.kicad_sch").write_text(
-        '(kicad_sch (version 20260306) (generator "e2e"))\n', encoding="utf-8"
-    )
+    cand_root = ctx.work_dir / "cand"
+    bundle = build_diff_pair_board(cand_root / "project", seed=10103)
+    write_consistent_schematic(bundle, project_name="board")
     before_hashes = snapshot_source_dir(bundle.directory)
     checkout = ctx.agent_ee_driver.clone_clean_checkout(ctx.repo_root, ctx.work_dir / "checkout")
+    state = ctx.work_dir / "state"
+    ctx.agent_ee_driver.make_synthetic_state(checkout, state)
     work_root = ctx.work_dir / "step_work"
     work_root.mkdir(parents=True, exist_ok=True)
     script = """
 import json, sys
 from pathlib import Path
-from agent_ee import routing_adapter
+from agent_ee import kicad_route_attempt, routing_adapter
 from agent_ee.executor import execute
 
-proj_dir, work_root, checkout = map(Path, sys.argv[1:4])
+cand_root, work_root, checkout, state = map(Path, sys.argv[1:5])
 spec = routing_adapter.step(
     project='project', board='board.kicad_pcb', schematic='board.kicad_sch',
-    name='pair_board', label='e2e-m5', checkout=str(checkout), budget=120,
+    name='pair_board', label='e2e-m5', checkout=str(checkout), state=str(state), budget=120,
     diff_pairs='auto',
 )
-res = execute(spec, candidate=proj_dir.parent, work=work_root)
-summary = routing_adapter.verify(work_root, res['inputs'])
-print(json.dumps(summary))
+res = execute(
+    cand_root,
+    work_root,
+    spec['argv'],
+    timeout=spec['timeout_s'],
+    extra_ro=[(m['source'], m['at']) for m in spec['mounts']],
+)
+inputs = kicad_route_attempt.files_of(kicad_route_attempt.tree(cand_root))
+summary = routing_adapter.verify(work_root, inputs)
+print(json.dumps({'exit_code': res['exit_code'], 'summary': summary}))
 """
     proc = ctx.agent_ee_driver.run_python(
-        script, str(bundle.directory), str(work_root), str(checkout), timeout_s=300.0
+        script, str(cand_root), str(work_root), str(checkout), str(state), timeout_s=300.0
     )
     assert_no_crash(proc, "T1-F10-03")
     assert proc.returncode == 0, f"PAIR_BOARD failed: {proc.stderr}"
-    summary = json.loads(proc.stdout)
+    payload = json.loads(proc.stdout)
+    assert payload["exit_code"] == 0, f"PAIR_BOARD executor exit_code={payload['exit_code']}: {payload}"
+    summary = payload["summary"]
     assert summary["classification"] == "complete"
     cand_pcb = work_root / "routing" / "candidate" / "project" / "board.kicad_pcb"
     metrics = assert_clean_e2e(
-        bundle.pcb_path, cand_pcb, before_hashes=before_hashes, source_dir=bundle.directory
+        bundle.pcb_path,
+        cand_pcb,
+        before_hashes=before_hashes,
+        source_dir=bundle.directory,
+        check_parity=True,
     )
     dp = verify_diff_pair_native(bundle.pcb_path, cand_pcb, [("CAN+", "CAN-")])
     return {**metrics, "diff_pair": dp}
@@ -750,6 +800,7 @@ def t1_f10_04(ctx: DriverContext) -> dict[str, Any]:
     b.add_track("/SIG_B", (5_000_000, 13_000_000), (25_000_000, 13_000_000), 250_000, locked=False)
     b.set_project_rules()
     bundle = b.save(ctx.work_dir / "src")
+    bh = snapshot_source_dir(bundle.directory)
     step1_pcb = ctx.work_dir / "step1" / "routed.kicad_pcb"
     step2_pcb = ctx.work_dir / "step2" / "routed.kicad_pcb"
     step1_pcb.parent.mkdir(parents=True, exist_ok=True)
@@ -766,7 +817,7 @@ def t1_f10_04(ctx: DriverContext) -> dict[str, Any]:
     return assert_clean_e2e(
         bundle.pcb_path,
         step2_pcb,
-        before_hashes=snapshot_source_dir(bundle.directory),
+        before_hashes=bh,
         source_dir=bundle.directory,
         check_partition_ratchet=True,
     )
@@ -871,6 +922,21 @@ def t1_f11_02(ctx: DriverContext) -> dict[str, Any]:
     assert proc.metrics.wall_s >= 0.0
     assert proc.metrics.cpu_s >= 0.0
     assert proc.metrics.max_rss_kib > 0
+    summary = parse_last_json_line_safe(proc.stdout) or parse_last_json_line_safe(proc.stderr)
+    assert isinstance(summary, dict), (
+        f"expected native JSON phase summary: stdout={proc.stdout!r}, stderr={proc.stderr!r}"
+    )
+    phases = summary.get("phases") if isinstance(summary.get("phases"), dict) else summary
+    for key in ("export_s", "search_s", "apply_drc_s"):
+        val = phases.get(key)
+        assert isinstance(val, (int, float)) and not isinstance(val, bool) and val >= 0.0, (
+            f"missing or invalid phase timing {key!r} in {summary}"
+        )
+    for key in ("work_used", "expanded_states"):
+        val = summary.get(key)
+        assert isinstance(val, int) and not isinstance(val, bool) and val >= 0, (
+            f"missing or invalid counter {key!r} in {summary}"
+        )
     clean = assert_clean_e2e(
         bundle.pcb_path, out_pcb, before_hashes=before_hashes, source_dir=bundle.directory
     )
@@ -879,6 +945,11 @@ def t1_f11_02(ctx: DriverContext) -> dict[str, Any]:
         "wall_s": proc.metrics.wall_s,
         "cpu_s": proc.metrics.cpu_s,
         "max_rss_kib": proc.metrics.max_rss_kib,
+        "export_s": phases["export_s"],
+        "search_s": phases["search_s"],
+        "apply_drc_s": phases["apply_drc_s"],
+        "work_used": summary["work_used"],
+        "expanded_states": summary["expanded_states"],
     }
 
 
@@ -1008,6 +1079,24 @@ def t1_f11_05(ctx: DriverContext) -> dict[str, Any]:
     if not seam_rel or not (ctx.repo_root / seam_rel).is_file():
         missing_paths.append(f"seam:{seam_rel}")
     assert not missing_paths, f"stale or missing paths in routing-requirements.json: {missing_paths}"
+    parity_text = parity_path.read_text(encoding="utf-8")
+    table_lines = [ln.strip() for ln in parity_text.splitlines() if ln.strip().startswith("|")]
+    data_rows = [
+        [c.strip() for c in ln.strip("|").split("|")]
+        for ln in table_lines
+        if not re.match(r"^\|\s*---", ln) and not ln.startswith("| Capability ")
+    ]
+    assert len(data_rows) >= 9, f"expected >= 9 capability rows in docs/rust-parity.md, got {len(data_rows)}"
+    for idx, cols in enumerate(data_rows):
+        assert len(cols) == 3 and all(cols), f"malformed parity row {idx}: {cols}"
+    for doc_rel in re.findall(r"`(docs/[A-Za-z0-9_.\-/]+\.md)`", parity_text):
+        assert (ctx.repo_root / doc_rel).is_file(), f"missing doc referenced in rust-parity.md: {doc_rel}"
+    cargo_text = cargo_toml.read_text(encoding="utf-8")
+    for dep in ("serde", "serde_json", "sha2"):
+        assert re.search(rf"^\s*{re.escape(dep)}\s*=", cargo_text, re.M), f"missing dep {dep} in Cargo.toml"
+    assert (ctx.repo_root / "rust-engine" / "Cargo.lock").is_file()
+    assert (ctx.repo_root / "LICENSE").is_file()
+    assert (ctx.repo_root / "src" / "kicad_route" / "router" / "LICENSE").is_file()
     head = subprocess.run(
         ["git", "-C", str(ctx.repo_root), "rev-parse", "HEAD"],
         check=True,
@@ -1016,4 +1105,8 @@ def t1_f11_05(ctx: DriverContext) -> dict[str, Any]:
         timeout=15,
     ).stdout.strip()
     assert re.fullmatch(r"[0-9a-f]{40}", head)
-    return {"head": head, "requirements_checked": len(expected_ids)}
+    return {
+        "head": head,
+        "requirements_checked": len(expected_ids),
+        "parity_rows": len(data_rows),
+    }

@@ -1354,6 +1354,7 @@ def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
                     "_tiles": tile(s),
                     "_bounds": bounds(s.BBox()),
                     "_layer": layer,
+                    "_zone_idx": zi,
                 }
                 uf.find(("poly", pid))
 
@@ -1388,7 +1389,7 @@ def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
             if (
                 pa["net"] == pb["net"]
                 and pa["_layer"] == pb["_layer"]
-                and pa["zone"] != pb["zone"]
+                and pa["_zone_idx"] != pb["_zone_idx"]
                 and hits(pa["_bounds"], pb["_bounds"])
                 and any(hits(ta, tb) and overlap(qa, qb) > 0 for ta, qa in pa["_tiles"] for tb, qb in pb["_tiles"])
             ):
@@ -1421,6 +1422,13 @@ def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
                     via_fill.add(vi)
                     uf.union(("via", vi), ("poly", pid))
         via_shapes.append(per_layer)
+
+    for vi, per_layer in enumerate(via_shapes):
+        v_net = vias[vi].GetNetname()
+        for layer, vs in per_layer.items():
+            for (key, p_layer), ps in pad_shapes.items():
+                if p_layer == layer and pads[key].GetNetname() == v_net and overlap(ps, vs) > 0:
+                    uf.union(("via", vi), ("pad", key))
 
     grid: dict[tuple[str, int, tuple[int, int]], list[tuple[str, Any, Any]]] = {}
 
@@ -1512,6 +1520,8 @@ def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
                 fill = local_fill(net, layer, rb) if (net, layer) in filled_layers else None
                 touches = fill is not None and overlap(ps, fill) > 0
                 spokes, coverage, solid, track_spokes = 0, 0.0, False, 0
+                ring = None
+                hit = None
                 if fill is not None:
                     ring = shape(pad, layer, edge_band)
                     ring.BooleanSubtract(shape(pad, layer, -edge_band, pn.ERROR_OUTSIDE))
@@ -1521,11 +1531,17 @@ def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
                     ring_area = ring.Area()
                     coverage = hit.Area() / ring_area if ring_area > 0 else 0.0
                     solid = any(hit.HoleCount(i) > 0 for i in range(hit.OutlineCount()))
-                for ti in {ti for ti, lyr in track_pads.get(key, []) if lyr == layer}:
-                    ends = [pn.VECTOR2I(int(x), int(y)) for x, y in (track_data[ti][2][0], track_data[ti][2][-1])]
-                    inside = [bool(ps.Contains(e)) for e in ends]
-                    if inside.count(True) == 1 and in_fill(net, layer, ends[inside.index(False)]):
-                        track_spokes += 1
+                if ring is not None and hit is not None:
+                    combined = pn.SHAPE_POLY_SET(hit)
+                    for ti in {ti for ti, lyr in track_pads.get(key, []) if lyr == layer}:
+                        ends = [pn.VECTOR2I(int(x), int(y)) for x, y in (track_data[ti][2][0], track_data[ti][2][-1])]
+                        inside = [bool(ps.Contains(e)) for e in ends]
+                        if inside.count(True) == 1 and in_fill(net, layer, ends[inside.index(False)]):
+                            t_ring = pn.SHAPE_POLY_SET(ring)
+                            t_ring.BooleanIntersection(shape(tracks[ti], layer))
+                            if t_ring.OutlineCount() > 0:
+                                combined.BooleanAdd(t_ring)
+                    track_spokes = max(0, int(combined.OutlineCount()) - spokes)
                 on_layer = [ti for ti, lyr in track_pads.get(key, []) if lyr == layer]
                 via_spokes = sum(
                     1
@@ -1555,6 +1571,30 @@ def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
                     "track_spokes": track_spokes,
                     "via_spokes": via_spokes,
                 }
+
+    pad_reach: dict[str, dict[str, Any]] = {}
+    for key, pad in pads.items():
+        net = pad.GetNetname()
+        pad_root = uf.find(("pad", key))
+        touches_fill = any(key in p["pads"] for p in polygons.values() if p["net"] == net)
+        in_fill_via = any(
+            vi in via_fill and uf.find(("via", vi)) == pad_root
+            for vi, v in enumerate(vias)
+            if v.GetNetname() == net
+        )
+        in_fill_track = any(
+            p["tracks"] > 0 and uf.find(("poly", pid)) == pad_root
+            for pid, p in polygons.items()
+            if p["net"] == net
+        )
+        pad_reach[key] = {
+            "pad": key,
+            "net": net,
+            "in_main": pad_root == main.get(net),
+            "touches_fill": touches_fill,
+            "via_fill": in_fill_via,
+            "in_any_fill": touches_fill or in_fill_via or in_fill_track,
+        }
 
     layers: dict[str, dict[str, Any]] = {}
     for p in polygons.values():
@@ -1588,6 +1628,7 @@ def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
             for pid, p in sorted(polygons.items())
         },
         "pads": dict(sorted(pad_records.items())),
+        "pad_reach": dict(sorted(pad_reach.items())),
     }
 
 
@@ -1695,6 +1736,28 @@ def verify_pour_integrity(
             failures.append({"kind": "spokes_below_minimum", **rec, "minimum": minimum})
         elif es_c < es_r or (r["solid"] and not c["solid"]):
             info.append({"kind": "spokes_reduced", **rec})
+
+    flagged_pads = {f.get("pad") for f in failures if f.get("pad")}
+    ref_reach = ref.get("pad_reach", {})
+    cand_reach = cand.get("pad_reach", {})
+    for key in sorted(set(ref_reach) | set(cand_reach)):
+        if any(fp == key or fp.startswith(f"{key}@") for fp in flagged_pads):
+            continue
+        rr, cr = ref_reach.get(key), cand_reach.get(key)
+        if rr is None or cr is None:
+            if rr is not None and rr["in_any_fill"]:
+                failures.append({"kind": "lost_pad_reach", "pad": key, "net": rr["net"]})
+            continue
+        if rr["in_any_fill"] and not cr["in_any_fill"]:
+            failures.append({"kind": "lost_fill_contact", "pad": key, "net": rr["net"]})
+        elif rr["in_main"] and not cr["in_main"]:
+            failures.append(
+                {"kind": "isolated_island", "pad": key, "net": rr["net"], "in_main": [True, False]}
+            )
+        elif cr["in_any_fill"] and not cr["in_main"] and not (rr["in_any_fill"] and not rr["in_main"]):
+            failures.append(
+                {"kind": "isolated_island", "pad": key, "net": cr["net"], "in_main": [rr["in_main"], False]}
+            )
 
     return PourIntegrityReport(
         passed=not failures,
@@ -1881,21 +1944,49 @@ def verify_diff_pair_native(
     *,
     check_drc_rules: bool = True,
     sidecar_source: Path | None = None,
+    max_uncoupled_mm: float = 4.0,
 ) -> dict[str, Any]:
     pn = _pcbnew()
     board = pn.LoadBoard(str(after_pcb))
     if board is None:
         raise AssertionError(f"pcbnew could not load {after_pcb}")
     conn = read_native_connectivity(after_pcb)
-    drc = (
-        run_native_drc(
-            after_pcb,
-            sidecar_source=(sidecar_source or before_pcb),
-            verify_dru=False,
-        )
-        if check_drc_rules
-        else None
-    )
+    drc = None
+    if check_drc_rules:
+        with tempfile.TemporaryDirectory(prefix="e2e-diffpair-") as tmp:
+            td = Path(tmp)
+            staged_pcb = _stage_board_bundle(
+                after_pcb, td, sidecar_source=(sidecar_source or before_pcb)
+            )
+            pro_path = staged_pcb.with_suffix(".kicad_pro")
+            pro_data = (
+                json.loads(pro_path.read_text(encoding="utf-8"))
+                if pro_path.is_file()
+                else {"meta": {"version": 3}}
+            )
+            pro_data.setdefault("board", {}).setdefault("design_settings", {}).setdefault(
+                "rule_severities", {}
+            )
+            sevs = pro_data["board"]["design_settings"]["rule_severities"]
+            sevs["diff_pair_gap_out_of_range"] = "error"
+            sevs["diff_pair_uncoupled_length_too_long"] = "error"
+            pro_path.write_text(json.dumps(pro_data, indent=2) + "\n", encoding="utf-8")
+
+            dru_path = staged_pcb.with_suffix(".kicad_dru")
+            existing_dru = dru_path.read_text(encoding="utf-8") if dru_path.is_file() else "(version 1)\n"
+            if "diff_pair_uncoupled" not in existing_dru:
+                existing_dru = (
+                    existing_dru.rstrip()
+                    + f'\n(rule "_e2e_verify_diff_pair_uncoupled"\n'
+                    + f"  (constraint diff_pair_uncoupled (max {max_uncoupled_mm:.3f}mm))\n"
+                    + ")\n"
+                )
+                dru_path.write_text(existing_dru, encoding="utf-8")
+            drc = run_native_drc(
+                staged_pcb,
+                require_checks=("diff_pair_gap_out_of_range", "diff_pair_uncoupled_length_too_long"),
+                verify_dru=False,
+            )
     pair_gap_errs = (
         [v for v in drc.violations if v.get("type") == "diff_pair_gap_out_of_range"]
         if drc is not None

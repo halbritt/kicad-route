@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 from typing import Any
+import uuid
 
 from tests.e2e_rust_router.drivers import (
     MeasuredProcessResult,
@@ -18,6 +19,7 @@ from tests.e2e_rust_router.kicad_verify import (
     FixtureBundle,
     _pcbnew,
     is_canonical_non_nil_uuid,
+    read_native_connectivity,
     verify_routed_board,
 )
 from tests.e2e_rust_router.runner import DriverContext, PendingCapability
@@ -312,6 +314,11 @@ def require_m3_capability(ctx: DriverContext) -> str:
         assert proc.returncode == 0, (
             f"M3 positive control failed unexpectedly (rc={proc.returncode}): {proc.stderr}"
         )
+        assert out_pcb.is_file(), f"M3 positive control did not write output: {out_pcb}"
+        conn = read_native_connectivity(out_pcb)
+        assert conn.unconnected_count == 0, (
+            f"M3 positive control left {conn.unconnected_count} unconnected item(s)"
+        )
         return "native"
 
     res, _ = run_wire_or_pending(
@@ -462,6 +469,11 @@ def require_m4_capability(
                 f"M4 rip-up positive control did not complete (rc={res.returncode}): {res.stderr}",
                 evidence={"returncode": res.returncode},
             )
+        assert out_pcb.is_file(), f"M4 rip-up positive control did not write output: {out_pcb}"
+        conn = read_native_connectivity(out_pcb)
+        assert conn.unconnected_count == 0, (
+            f"M4 rip-up positive control exited 0 with {conn.unconnected_count} unconnected item(s)"
+        )
         return "native"
     if res.stage_failed is not None:
         raise PendingCapability(
@@ -575,19 +587,62 @@ def build_crossing_nets_board_builder(
     seed: int = 801,
 ) -> BoardBuilder:
     if num_nets == 2:
+        pn = _pcbnew()
         b = BoardBuilder(copper_layers=2, seed=seed)
         b.set_rect_outline(0, 0, 24_000_000, 16_000_000)
-        # Net A wants horizontal middle corridor y=8mm, Net B needs vertical bottleneck x=12mm.
-        # B.Cu blocked by locked keepout/tracks on B.Cu so F.Cu rip-up/detour is forced.
+        b.set_design_settings(
+            min_track_width=250_000,
+            min_clearance=1_000_000,
+            min_copper_edge_clearance=500_000,
+        )
+        # B.Cu blocked across entire board so F.Cu rip-up/detour is forced.
+        b.add_keepout(
+            [pn.B_Cu],
+            [(0, 0), (24_000_000, 0), (24_000_000, 16_000_000), (0, 16_000_000)],
+            no_tracks=True,
+            no_vias=True,
+            no_zones=True,
+        )
+        # NET_A wants horizontal middle corridor y=8mm; NET_B needs vertical bottleneck x=12mm.
+        # JB1 is enclosed on top/left/right by an F.Cu no_tracks keepout U-box down to y=7.5mm;
+        # straight NET_A at y=8mm (clearance reaching y=6.875mm) completely seals the mouth, while
+        # NET_A detouring above y=2mm (e.g. y=1mm) or below JB2 lets both route cleanly on F.Cu.
         for idx, pos in enumerate(((4_000_000, 8_000_000), (20_000_000, 8_000_000)), 1):
             fp = b.add_footprint(f"JA{idx}", pos)
             b.add_pad(fp, "1", "NET_A", pos, size_nm=(1_000_000, 1_000_000))
-        for idx, pos in enumerate(((12_000_000, 3_000_000), (12_000_000, 13_000_000)), 1):
+        for idx, pos in enumerate(((12_000_000, 4_500_000), (12_000_000, 13_000_000)), 1):
             fp = b.add_footprint(f"JB{idx}", pos)
             b.add_pad(fp, "1", "NET_B", pos, size_nm=(1_000_000, 1_000_000))
-        b.add_track("OBSTACLE", (10_000_000, 2_000_000), (10_000_000, 6_500_000), 250_000, locked=True)
-        b.add_track("OBSTACLE", (14_000_000, 2_000_000), (14_000_000, 6_500_000), 250_000, locked=True)
-        b.set_project_rules()
+        b.add_keepout(
+            [pn.F_Cu],
+            [
+                (9_000_000, 2_000_000),
+                (15_000_000, 2_000_000),
+                (15_000_000, 7_500_000),
+                (14_000_000, 7_500_000),
+                (14_000_000, 3_000_000),
+                (10_000_000, 3_000_000),
+                (10_000_000, 7_500_000),
+                (9_000_000, 7_500_000),
+            ],
+            no_tracks=True,
+            no_vias=True,
+            no_zones=True,
+        )
+        b.set_project_rules(
+            classes=[
+                {
+                    "name": "Default",
+                    "priority": 0,
+                    "clearance": 1.0,
+                    "track_width": 0.25,
+                    "via_diameter": 0.6,
+                    "via_drill": 0.3,
+                    "microvia_diameter": 0.3,
+                    "microvia_drill": 0.15,
+                }
+            ]
+        )
         return b
 
     b = BoardBuilder(copper_layers=2, seed=seed)
@@ -633,7 +688,7 @@ def build_diff_pair_board(
                 str(p_idx),
                 net_name,
                 (x, 10_000_000 + (p_idx - 1) * pitch_nm),
-                size_nm=(600_000, 600_000),
+                size_nm=(400_000, 400_000),
             )
     b.set_project_rules(
         classes=[
@@ -659,3 +714,130 @@ def build_diff_pair_board(
         f')\n'
     )
     return b.save(directory)
+
+
+def write_consistent_schematic(
+    bundle: FixtureBundle,
+    *,
+    project_name: str | None = None,
+) -> Path:
+    """Emit a minimal KiCad 10 .kicad_sch matching every footprint/pad net on bundle.pcb_path."""
+    pn = _pcbnew()
+    board = pn.LoadBoard(str(bundle.pcb_path))
+    if board is None:
+        raise AssertionError(f"pcbnew could not load {bundle.pcb_path}")
+    sch_path = bundle.pcb_path.with_suffix(".kicad_sch")
+    proj = project_name or bundle.pcb_path.stem
+    root_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"e2e-sch-root-{proj}"))
+
+    lib_blocks: list[str] = []
+    sym_blocks: list[str] = []
+    label_blocks: list[str] = []
+    fps = sorted(board.GetFootprints(), key=lambda f: f.GetReference())
+    pcb_updated = False
+    for fp in fps:
+        if not fp.GetValue():
+            fp.SetValue("Conn")
+            pcb_updated = True
+    if pcb_updated:
+        pn.SaveBoard(str(bundle.pcb_path), board, True)
+    for fp_idx, fp in enumerate(fps):
+        ref = fp.GetReference()
+        val = fp.GetValue()
+        fp_name = fp.GetFPID().GetUniStringLibId() or ""
+        pads = sorted(fp.Pads(), key=lambda p: p.GetNumber())
+        lib_id = f"E2E:{ref}"
+        sx = 50.8 + fp_idx * 40.64
+        sy = 50.8
+
+        pins_def: list[str] = []
+        pin_insts: list[str] = []
+        for p_idx, pad in enumerate(pads):
+            num = pad.GetNumber()
+            net_name = pad.GetNetname() if pad.GetNetCode() > 0 else ""
+            py_rel = 2.54 - p_idx * 2.54
+            pins_def.append(
+                f'\t\t\t\t(pin passive line\n'
+                f'\t\t\t\t\t(at -5.08 {py_rel:.4f} 0)\n'
+                f'\t\t\t\t\t(length 3.81)\n'
+                f'\t\t\t\t\t(name "P{num}" (effects (font (size 1.27 1.27))))\n'
+                f'\t\t\t\t\t(number "{num}" (effects (font (size 1.27 1.27))))\n'
+                f'\t\t\t\t)'
+            )
+            puuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{proj}-{ref}-pin-{num}"))
+            pin_insts.append(f'\t\t(pin "{num}" (uuid "{puuid}"))')
+            if net_name:
+                lx = sx - 5.08
+                ly = sy - py_rel
+                luuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{proj}-{ref}-lbl-{num}-{net_name}"))
+                if net_name.startswith("/"):
+                    local_name = net_name[1:]
+                    label_blocks.append(
+                        f'\t(label "{local_name}" (at {lx:.4f} {ly:.4f} 0) '
+                        f'(effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "{luuid}"))'
+                    )
+                else:
+                    label_blocks.append(
+                        f'\t(global_label "{net_name}" (shape input) (at {lx:.4f} {ly:.4f} 0) '
+                        f'(effects (font (size 1.27 1.27)) (justify right)) (uuid "{luuid}"))'
+                    )
+
+        lib_blocks.append(
+            f'\t\t(symbol "{lib_id}"\n'
+            f'\t\t\t(in_bom yes)\n'
+            f'\t\t\t(on_board yes)\n'
+            f'\t\t\t(property "Reference" "{ref[:1] or "U"}" (at 0 5.08 0) (effects (font (size 1.27 1.27))))\n'
+            f'\t\t\t(property "Value" "{val}" (at 0 -7.62 0) (effects (font (size 1.27 1.27))))\n'
+            f'\t\t\t(property "Footprint" "{fp_name}" (at 0 0 0) (hide yes) (effects (font (size 1.27 1.27))))\n'
+            f'\t\t\t(property "Datasheet" "" (at 0 0 0) (hide yes) (effects (font (size 1.27 1.27))))\n'
+            f'\t\t\t(symbol "{ref}_1_1"\n'
+            + "\n".join(pins_def)
+            + "\n\t\t\t)\n\t\t)"
+        )
+        suuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{proj}-sym-{ref}"))
+        sym_blocks.append(
+            f'\t(symbol\n'
+            f'\t\t(lib_id "{lib_id}")\n'
+            f'\t\t(at {sx:.4f} {sy:.4f} 0)\n'
+            f'\t\t(unit 1)\n'
+            f'\t\t(in_bom yes)\n'
+            f'\t\t(on_board yes)\n'
+            f'\t\t(uuid "{suuid}")\n'
+            f'\t\t(property "Reference" "{ref}" (at {sx:.4f} {sy - 5.08:.4f} 0) (effects (font (size 1.27 1.27))))\n'
+            f'\t\t(property "Value" "{val}" (at {sx:.4f} {sy + 7.62:.4f} 0) (effects (font (size 1.27 1.27))))\n'
+            f'\t\t(property "Footprint" "{fp_name}" (at {sx:.4f} {sy:.4f} 0) (hide yes) (effects (font (size 1.27 1.27))))\n'
+            f'\t\t(property "Datasheet" "" (at {sx:.4f} {sy:.4f} 0) (hide yes) (effects (font (size 1.27 1.27))))\n'
+            + "\n".join(pin_insts)
+            + f'\n\t\t(instances\n'
+            f'\t\t\t(project "{proj}"\n'
+            f'\t\t\t\t(path "/{root_uuid}"\n'
+            f'\t\t\t\t\t(reference "{ref}")\n'
+            f'\t\t\t\t\t(unit 1)\n'
+            f'\t\t\t\t)\n'
+            f'\t\t\t)\n'
+            f'\t\t)\n'
+            f'\t)'
+        )
+
+    sch_text = (
+        f'(kicad_sch\n'
+        f'\t(version 20260306)\n'
+        f'\t(generator "eeschema")\n'
+        f'\t(generator_version "10.0")\n'
+        f'\t(uuid "{root_uuid}")\n'
+        f'\t(paper "A4")\n'
+        f'\t(lib_symbols\n'
+        + "\n".join(lib_blocks)
+        + f'\n\t)\n'
+        + "\n".join(sym_blocks)
+        + "\n"
+        + "\n".join(label_blocks)
+        + f'\n\t(sheet_instances\n'
+        f'\t\t(path "/"\n'
+        f'\t\t\t(page "1")\n'
+        f'\t\t)\n'
+        f'\t)\n'
+        f')\n'
+    )
+    sch_path.write_text(sch_text, encoding="utf-8")
+    return sch_path

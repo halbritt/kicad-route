@@ -123,9 +123,11 @@ def t3_02(ctx: DriverContext) -> dict[str, Any]:
         plan_json=res1.engine_res.output_json,
         request_bytes=res1.export_res.output_bytes,
     )
-    run_wire_or_pending(
+    res_fail, _ = run_wire_or_pending(
         ctx, bundle.pcb_path, out_fail, STD_RULES, tag="t3_02_fail", max_expansions=500_000, limits={"max_work": 10}
     )
+    assert res_fail.stage_failed == "engine", f"expected tight-budget fail, got {res_fail.stage_failed}"
+    assert not out_fail.exists(), f"tight-budget run unexpectedly wrote {out_fail}"
     res2, _ = run_wire_or_pending(ctx, bundle.pcb_path, out_ok2, STD_RULES, tag="t3_02_ok2", max_expansions=500_000)
     assert res2.stage_failed is None and res2.engine_res is not None
     assert res1.engine_res.output_bytes == res2.engine_res.output_bytes
@@ -230,7 +232,10 @@ def t3_04(ctx: DriverContext) -> dict[str, Any]:
     p_sig = ctx.native_driver.run_native(
         bundle.pcb_path, out_sig, rules_path=rules_p, cancel_after_s=0.01, cancel_signal=signal.SIGTERM
     )
-    assert p_sig.returncode != 0 or out_sig.is_file()
+    if p_sig.returncode == 0:
+        assert_clean_e2e(bundle.pcb_path, out_sig, before_hashes=bh, source_dir=bundle.directory)
+    else:
+        assert not out_sig.exists(), f"killed process left partial destination: {out_sig}"
     assert_source_dir_untouched(bundle.directory, bh)
     return metrics
 
@@ -400,7 +405,13 @@ def t3_09(ctx: DriverContext) -> dict[str, Any]:
     out_ok2 = ctx.work_dir / "out_ok2" / "routed.kicad_pcb"
     for p in (out_fail, out_ok1, out_ok2):
         p.parent.mkdir(parents=True, exist_ok=True)
-    run_m4_board_or_pending(ctx, bundle, out_fail, tag="t3_09_fail", max_expansions=5, limits={"max_work": 10})
+    m_fail, r_fail, _ = run_m4_board_or_pending(
+        ctx, bundle, out_fail, tag="t3_09_fail", max_expansions=5, limits={"max_work": 10}
+    )
+    assert (r_fail.returncode != 0 if m_fail == "native" else r_fail.stage_failed is not None), (
+        "tight-budget pre-run unexpectedly succeeded"
+    )
+    assert not out_fail.exists(), f"tight-budget pre-run unexpectedly wrote {out_fail}"
     m1, r1, bh1 = run_m4_board_or_pending(ctx, bundle, out_ok1, tag="t3_09_ok1", limits={"max_work": 5_000_000})
     m2, r2, _ = run_m4_board_or_pending(ctx, bundle, out_ok2, tag="t3_09_ok2", limits={"max_work": 5_000_000})
     assert m1 == m2
@@ -548,8 +559,8 @@ def t3_13(ctx: DriverContext) -> dict[str, Any]:
     b.set_rect_outline(0, 0, 35_000_000, 25_000_000)
     for ref, x in (("J1", 5_000_000), ("J2", 30_000_000)):
         fp = b.add_footprint(ref, (x, 12_000_000))
-        b.add_pad(fp, "1", "CAN+", (x, 12_000_000), size_nm=(600_000, 600_000))
-        b.add_pad(fp, "2", "CAN-", (x, 12_600_000), size_nm=(600_000, 600_000))
+        b.add_pad(fp, "1", "CAN+", (x, 12_000_000), size_nm=(400_000, 400_000))
+        b.add_pad(fp, "2", "CAN-", (x, 12_600_000), size_nm=(400_000, 400_000))
     for i in range(4):
         x0 = 10_000_000 + i * 4_500_000
         fp1 = b.add_footprint(f"JS{i}A", (x0, 5_000_000))
@@ -596,34 +607,45 @@ def t3_14(ctx: DriverContext) -> dict[str, Any]:
     ctx.agent_ee_driver.probe_rust_integration(ctx.native_driver)
     ae_root = ctx.agent_ee_driver.agent_ee_root
     placed_src = ae_root / "fixtures" / "rc" / "stages" / "placed-unrouted"
-    placed_dir = stage_fixture_copy(placed_src, ctx.work_dir / "placed")
+    cand_root = ctx.work_dir / "cand"
+    placed_dir = stage_fixture_copy(placed_src, cand_root / "placed")
     before_hashes = snapshot_source_dir(placed_dir)
     checkout = ctx.agent_ee_driver.clone_clean_checkout(ctx.repo_root, ctx.work_dir / "checkout")
+    state = ctx.work_dir / "state"
+    ctx.agent_ee_driver.make_synthetic_state(checkout, state)
     work_root = ctx.work_dir / "step_work"
     work_root.mkdir(parents=True, exist_ok=True)
     script = """
 import json, sys
 from pathlib import Path
-from agent_ee import routing_adapter
+from agent_ee import kicad_route_attempt, routing_adapter
 from agent_ee.executor import execute
 
-placed_dir, work_root, checkout = map(Path, sys.argv[1:4])
+cand_root, work_root, checkout, state = map(Path, sys.argv[1:5])
 spec = routing_adapter.step(
     project='placed', board='rc_stage.kicad_pcb', schematic='rc_stage.kicad_sch',
-    name='rc', label='e2e-t3-14', checkout=str(checkout), budget=120,
+    name='rc', label='e2e-t3-14', checkout=str(checkout), state=str(state), budget=120,
 )
-res = execute(spec, candidate=placed_dir.parent, work=work_root)
-summary = routing_adapter.verify(work_root, res['inputs'])
+res = execute(
+    cand_root,
+    work_root,
+    spec['argv'],
+    timeout=spec['timeout_s'],
+    extra_ro=[(m['source'], m['at']) for m in spec['mounts']],
+)
+inputs = kicad_route_attempt.files_of(kicad_route_attempt.tree(cand_root))
+summary = routing_adapter.verify(work_root, inputs)
 report = json.loads((work_root / 'routing/adapter-report.json').read_text(encoding='utf-8'))
-print(json.dumps({'exit': res['exit'], 'summary': summary, 'state_write_probe': report['state_write_probe']}))
+print(json.dumps({'exit_code': res['exit_code'], 'summary': summary, 'state_write_probe': report['state_write_probe']}))
 """
     proc = ctx.agent_ee_driver.run_python(
-        script, str(placed_dir), str(work_root), str(checkout), timeout_s=300.0
+        script, str(cand_root), str(work_root), str(checkout), str(state), timeout_s=300.0
     )
     assert_no_crash(proc, "T3-14")
     assert proc.returncode == 0, f"T3-14 failed: {proc.stderr}"
     assert_source_dir_untouched(placed_dir, before_hashes)
     payload = json.loads(proc.stdout)
+    assert payload["exit_code"] == 0, f"T3-14 executor exit_code={payload['exit_code']}: {payload}"
     assert payload["summary"]["proposal"] == "eligible"
     assert all(p.get("refused") is True for p in payload["state_write_probe"])
     cand_pcb = work_root / "routing" / "candidate" / "placed" / "rc_stage.kicad_pcb"
