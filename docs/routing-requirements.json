@@ -116,6 +116,19 @@
       "reviewed_revision": "0289d9f",
       "date": "2026-11-16",
       "url": "https://artifact.harm.org/ahm9sn/milestone-2.html"
+    },
+    "fable-milestone-2-correction": {
+      "kind": "review",
+      "ref": "1c6e6da2-d00e-4d8b-9b2b-7adf766ee0ea/v1",
+      "reviewed_revision": "dd9b564",
+      "date": "2026-11-16"
+    },
+    "carbon-milestone-2-correction": {
+      "kind": "review",
+      "ref": "bbd183bb-0f67-4c0f-adcb-ed117f301ad7/v1",
+      "reviewed_revision": "dd9b564",
+      "date": "2026-11-16",
+      "url": "https://artifact.harm.org/1jgqzm/milestone-2-correction.html"
     }
   },
   "requirements": [
@@ -301,7 +314,7 @@
         "When zones are supported, native --refill-zones checks cover islands, area loss, thermal spoke survival and lost_fill_contact; no blanket assumption of net-equivalent copper."
       ],
       "state": "open",
-      "current_evidence": "Both reviews close Margin, local-rule omission and tiny-width objections within the accepted first subset. Native minimum added width and native DRC non-regression are mandatory at publication. Effective project rules, multilayer, vias and zones remain unsupported; all-track-errors and single-source snapshot follow-up review is pending."
+      "current_evidence": "Both reviews close Margin, local-rule omission and tiny-width objections within the accepted first subset. Native minimum added width and native DRC non-regression are mandatory at publication. Effective project rules, multilayer, vias and zones remain unsupported; all-track-errors and single-source snapshot corrections independently accepted atdd9b564."
     },
     {
       "id": "RE-07",
@@ -410,7 +423,7 @@
         "Blind skill behavior controls and stalled-review positive/negative cases."
       ],
       "state": "open",
-      "current_evidence": "Both continuing reviewers independently returned exact-revision milestone1(3a763b7) and milestone2(0289d9f), with accepted bounded corrections and carried gaps. Source-snapshot/all-track-errors follow-ups are implemented for final review. No blanket acceptance."
+      "current_evidence": "Both reviewers independently accepted bounded milestone1(3a763b7), milestone2(0289d9f) and final corrections(dd9b564). Root accepts the experimental non-default increment for integration; full rewrite and all ten requirements remain open."
     }
   ],
   "allowed_compatibility_seam": {
@@ -523,7 +536,7 @@
         "completed_at": "2026-11-16T16:59:11-08:00"
       }
     ],
-    "next_milestone": "Final source-snapshot and all-track-errors correction review, then integration of the experimental foundation/prevention increment. Next engine feature increment remains unassigned; full rewrite continues.",
+    "next_milestone": "Integrate the reviewed foundation/prevention increment, then strengthen transaction/termination contracts and accepted native coverage before expanding geometry, layers or global routing strategy.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -637,10 +650,15 @@
       "source_ids": [
         "fable-milestone-2"
       ],
-      "status": "implemented-awaiting-review",
+      "status": "closed-for-first-slice",
       "owner": "agent-1497",
       "evidence_class": "native source-sidecar finding and source-read race",
-      "next_action": "Review single immutable source snapshot for export/apply, source directory preservation and source mutation controls."
+      "next_action": "Retain the native regression controls when extending the accepted domain.",
+      "implementation_revision": "dd9b564",
+      "review_source_ids": [
+        "fable-milestone-2-correction",
+        "carbon-milestone-2-correction"
+      ]
     },
     {
       "id": "M2-all-track-errors",
@@ -652,10 +670,28 @@
         "fable-milestone-2",
         "carbon-milestone-2"
       ],
-      "status": "implemented-awaiting-review",
+      "status": "closed-for-first-slice",
       "owner": "agent-1497",
       "evidence_class": "installed native CLI option verified",
-      "next_action": "Review exhaustive per-track DRC reporting on both native comparisons."
+      "next_action": "Retain the native regression controls when extending the accepted domain.",
+      "implementation_revision": "dd9b564",
+      "review_source_ids": [
+        "fable-milestone-2-correction",
+        "carbon-milestone-2-correction"
+      ]
+    }
+  ],
+  "reviewed_milestones": [
+    {
+      "candidate_revision": "dd9b5640e7786003a39a105d6e39881ae49247ed",
+      "review_source_ids": [
+        "fable-milestone-2-correction",
+        "carbon-milestone-2-correction"
+      ],
+      "supervisor": "agent-1497",
+      "disposition": "accepted-for-experimental-non-default-integration",
+      "scope": "First supported Rust subset, mandatory native publication checks, ownership/fitness/workflow prevention safeguards. No full-engine, production-use, performance or fabrication acceptance.",
+      "validation": "130 architecture/acceptance/native cases; unchanged Rust source26tests. Both reviewers independently passed35native cases on final correction."
     }
   ]
 }
