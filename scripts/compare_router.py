@@ -73,10 +73,12 @@ def _quality_errors(quality):
     return errors
 
 
-def compare(reference, candidate, warmup=None, mode="migration-equivalence"):
+def compare(reference, candidate, warmup=None, mode="migration-equivalence", claim="comparison"):
     failures = []
     if mode not in ("migration-equivalence", "algorithm-change"):
         raise ValueError(f"unknown comparison mode: {mode}")
+    if claim not in ("comparison", "outcome-fitness"):
+        raise ValueError(f"unknown acceptance claim: {claim}")
     if len(reference) < 3 or len(candidate) < 3:
         failures.append("at least three measured repetitions are required")
     if not warmup or set(warmup) != {"reference", "candidate"}:
@@ -121,8 +123,30 @@ def compare(reference, candidate, warmup=None, mode="migration-equivalence"):
                         "ratio": ratio, "limit": 1.1}
         if after > before * 1.1:
             failures.append(f"{key} exceeds 10% regression limit")
+    # Equivalence to an incomplete reference is useful migration evidence. It
+    # must not imply that the desired routing outcome or architecture is met.
+    fitness_failures = []
+    candidate_samples = [*candidate]
+    if warmup and 'candidate' in warmup:
+        candidate_samples.append(warmup['candidate'])
+    if not candidate_samples:
+        fitness_failures.append('missing candidate outcome evidence')
+    for sample in candidate_samples:
+        q = sample.get('quality') or {}
+        fitness_failures.extend(_quality_errors(q))
+        if q.get('routing') != 'COMPLETE' or q.get('unconnected') != 0 or q.get('open_nets') != []:
+            fitness_failures.append('candidate does not meet zero-open routing outcome')
+    comparison_passed = not failures
+    if claim == 'outcome-fitness':
+        failures.extend(fitness_failures)
     return {"passed": not failures, "failures": sorted(set(failures)), "metrics": metrics,
-            "copper_geometry_equal": copper_equal, "mode": mode}
+            "copper_geometry_equal": copper_equal, "mode": mode, "claim": claim,
+            "comparison_passed": comparison_passed,
+            "outcome_fitness": {"passed": not fitness_failures,
+                                "failures": sorted(set(fitness_failures)),
+                                "scope": "retained candidate samples only; not a general capability proof"},
+            "architecture_conformance": {"status": "NOT_EVALUATED",
+                                         "reason": "board equivalence and quality do not establish engine ownership"}}
 
 
 def quality(result):
@@ -238,6 +262,8 @@ def main():
     parser.add_argument("--arg", action="append", default=[])
     parser.add_argument("--mode", choices=["migration-equivalence", "algorithm-change"],
                         default="migration-equivalence")
+    parser.add_argument("--claim", choices=["comparison", "outcome-fitness"], default="comparison",
+                        help="outcome-fitness also requires zero opens in every candidate sample")
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--timeout", type=float, default=900)
     parser.add_argument("--reference-backend", choices=["krt", "builtin"], default="krt",
@@ -255,7 +281,7 @@ def main():
     report = {"schema": "kicad-route/engine-comparison/2", "project": str(args.project),
               "args": args.arg, "reference_backend": args.reference_backend,
               "candidate_backend": args.candidate_backend, "reference": reference, "candidate": candidate, "warmup": warmup,
-              "mode": args.mode, "cpu_affinity": sorted(os.sched_getaffinity(0)),
+              "mode": args.mode, "claim": args.claim, "cpu_affinity": sorted(os.sched_getaffinity(0)),
               "measurement": "medians: full-CLI wall time, GNU-time largest individual-process RSS, "
                              "and sampled concurrent process-tree summed RSS (50 ms polling wait, actual intervals retained); "
                              "all three gates enforce 1.10. Sampled RSS is a lower bound on peak."}
@@ -268,7 +294,7 @@ def main():
             else:
                 (reference if side == "reference" else candidate).append(sample)
             (args.output / "samples.json").write_text(json.dumps(report, indent=2) + "\n")
-    report["verdict"] = compare(reference, candidate, warmup, args.mode)
+    report["verdict"] = compare(reference, candidate, warmup, args.mode, args.claim)
     (args.output / "comparison.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report["verdict"], indent=2))
     return 0 if report["verdict"]["passed"] else 1

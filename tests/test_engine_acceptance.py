@@ -176,6 +176,39 @@ def test_minimum_repeats_and_warmup_are_required():
     assert not module.compare([], [])['passed']
 
 
+def test_equivalent_incomplete_engines_cannot_establish_outcome_fitness():
+    reference, candidate = [sample() for _ in range(3)], [sample() for _ in range(3)]
+    warmup = {'reference': sample(), 'candidate': sample()}
+    for row in [*reference, *candidate, *warmup.values()]:
+        row['quality'].update(routing='INCOMPLETE', unconnected=2, open_nets=['A', 'B'])
+    comparison = module.compare(reference, candidate, warmup)
+    assert comparison['passed'] and comparison['comparison_passed']
+    assert comparison['outcome_fitness']['passed'] is False
+    assert comparison['architecture_conformance']['status'] == 'NOT_EVALUATED'
+    fitness = module.compare(reference, candidate, warmup, claim='outcome-fitness')
+    assert fitness['passed'] is False and fitness['comparison_passed'] is True
+    assert 'candidate does not meet zero-open routing outcome' in fitness['failures']
+
+
+def test_complete_candidate_can_meet_fitness_without_proving_architecture():
+    reference, candidate, warmup = paired_comparison()
+    verdict = module.compare(reference, candidate, warmup, claim='outcome-fitness')
+    assert verdict['passed'] and verdict['outcome_fitness']['passed']
+    assert verdict['architecture_conformance']['status'] == 'NOT_EVALUATED'
+
+
+def test_fitness_checks_warmup_and_preserves_required_comparison_checks():
+    reference, candidate, warmup = paired_comparison()
+    warmup['candidate']['quality'].update(routing='INCOMPLETE', unconnected=1, open_nets=['A'])
+    assert not module.compare(reference, candidate, warmup, claim='outcome-fitness')['passed']
+    reference, candidate, warmup = paired_comparison()
+    for row in candidate:
+        row['wall_s'] *= 2
+    verdict = module.compare(reference, candidate, warmup, claim='outcome-fitness')
+    assert verdict['outcome_fitness']['passed']
+    assert not verdict['passed']
+
+
 def test_quality_retains_pair_routing_and_any_intermediate_wall_clock_stop():
     result = {'schema': 'kicad-route/route/2', 'process': {'status': 'PASS', 'commands': [{}, {'stalled': True}]},
               'routing': {'status': 'COMPLETE'}, 'pairs': [{'routed': False, 'status': 'INCOMPLETE'}]}
