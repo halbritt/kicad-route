@@ -11,6 +11,7 @@ import argparse
 from collections import Counter
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
+import errno
 import hashlib
 import json
 import math
@@ -18,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -31,6 +33,7 @@ INPUT_VERSION = 1
 RESULT_VERSION = 3
 # Per-document admission, not a bound on parsed/native allocations or runtime.
 MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
+MAX_SYMLINK_HOPS = 40
 _ORIGINAL_SUBPROCESS_RUN = subprocess.run
 
 
@@ -100,15 +103,56 @@ def item_id(item):
     return item.m_Uuid.AsString()
 
 
+def _check_sidecar_at(path: Path):
+    if not path.name:
+        return
+    for suffix in ('.kicad_pro', '.kicad_dru'):
+        sidecar = path.with_suffix(suffix)
+        try:
+            os.lstat(sidecar)
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        raise UnsupportedBoard(f'project/custom-rule import is not implemented: {suffix}')
+
+
 def reject_external_rules(path: Path):
-    candidates = [path]
-    resolved = path.resolve()
-    if resolved != path:
-        candidates.append(resolved)
-    for candidate in candidates:
-        for suffix in ('.kicad_pro', '.kicad_dru'):
-            if os.path.lexists(candidate.with_suffix(suffix)):
-                raise UnsupportedBoard(f'project/custom-rule import is not implemented: {suffix}')
+    cur = path
+    seen: set[Path] = set()
+    for hop in range(MAX_SYMLINK_HOPS + 1):
+        if cur not in seen:
+            seen.add(cur)
+            _check_sidecar_at(cur)
+        parent = cur.parent if cur.parent != Path('') else Path('.')
+        canon_parent: Path | None = None
+        if cur.name:
+            try:
+                canon_parent = Path(os.path.realpath(parent))
+                norm_cur = canon_parent / cur.name
+                if norm_cur not in seen:
+                    seen.add(norm_cur)
+                    _check_sidecar_at(norm_cur)
+            except OSError:
+                canon_parent = None
+        try:
+            st = os.lstat(cur)
+        except OSError:
+            break
+        if not stat.S_ISLNK(st.st_mode):
+            break
+        if hop >= MAX_SYMLINK_HOPS:
+            raise OSError(errno.ELOOP, 'too many levels of symbolic links', str(path))
+        target = Path(os.readlink(cur))
+        if target.is_absolute():
+            cur = target
+        else:
+            base = canon_parent if canon_parent is not None else parent
+            cur = base / target
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return
+    if resolved not in seen:
+        _check_sidecar_at(resolved)
 
 
 @contextmanager
@@ -117,6 +161,7 @@ def source_snapshot(path: Path):
     # One read defines the source identity, parsed geometry and DRC baseline.
     reject_external_rules(path)
     body = read_bounded(path)
+    reject_external_rules(path)
     with tempfile.TemporaryDirectory(prefix='kicad-route-source-') as directory:
         snapshot = Path(directory) / 'source.kicad_pcb'
         snapshot.write_bytes(body)

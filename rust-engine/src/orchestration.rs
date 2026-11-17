@@ -5,7 +5,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::hash_map::RandomState,
+    collections::{hash_map::RandomState, HashSet},
     ffi::OsString,
     fs::{self, DirBuilder, File, OpenOptions},
     hash::{BuildHasher, Hasher},
@@ -15,7 +15,7 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -23,7 +23,7 @@ use std::{
 
 #[cfg(unix)]
 use std::os::unix::{
-    fs::{DirBuilderExt, OpenOptionsExt},
+    fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
     process::{CommandExt, ExitStatusExt},
 };
 
@@ -41,6 +41,7 @@ pub const MIN_CHILD_OUTPUT_BYTES: usize = 1024;
 pub const MAX_CHILD_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
 const STDERR_TAIL_BYTES: usize = 4096;
 const CHILD_KILL_GRACE_MS: u64 = 200;
+const MAX_SYMLINK_HOPS: usize = 40;
 
 static OP_SEQ: AtomicU64 = AtomicU64::new(1);
 
@@ -51,6 +52,7 @@ mod unix_sys {
     pub const SIGTERM: c_int = 15;
     pub const SIGKILL: c_int = 9;
     pub const SIG_IGN: usize = 1;
+    pub const SIG_ERR: usize = usize::MAX;
 
     extern "C" {
         pub fn kill(pid: c_int, sig: c_int) -> c_int;
@@ -63,20 +65,56 @@ static CANCEL_SIGNAL: AtomicI32 = AtomicI32::new(0);
 #[cfg(unix)]
 static SIGNAL_STATE: Mutex<SignalInstallState> = Mutex::new(SignalInstallState {
     ref_count: 0,
-    prev_sigint: 0,
-    prev_sigterm: 0,
+    prev_sigint: None,
+    prev_sigterm: None,
 });
 
 #[cfg(unix)]
 struct SignalInstallState {
     ref_count: usize,
-    prev_sigint: usize,
-    prev_sigterm: usize,
+    prev_sigint: Option<usize>,
+    prev_sigterm: Option<usize>,
 }
 
 #[cfg(unix)]
 extern "C" fn handle_cancel_signal(sig: std::ffi::c_int) {
     CANCEL_SIGNAL.store(sig, Ordering::SeqCst);
+}
+
+#[cfg(all(unix, target_os = "linux"))]
+fn is_signal_ignored_proc(sig: std::ffi::c_int) -> Option<bool> {
+    if !(1..=64).contains(&sig) {
+        return None;
+    }
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    let hex = status
+        .lines()
+        .find_map(|line| line.strip_prefix("SigIgn:"))?
+        .trim();
+    let mask = u64::from_str_radix(hex, 16).ok()?;
+    Some((mask & (1u64 << (sig - 1))) != 0)
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+fn is_signal_ignored_proc(_sig: std::ffi::c_int) -> Option<bool> {
+    None
+}
+
+#[cfg(unix)]
+unsafe fn install_cancel_handler(sig: std::ffi::c_int, handler: usize) -> Option<usize> {
+    if is_signal_ignored_proc(sig) == Some(true) {
+        return None;
+    }
+    let prev = unix_sys::signal(sig, handler);
+    if prev == unix_sys::SIG_ERR {
+        return None;
+    }
+    if prev == unix_sys::SIG_IGN {
+        let _ = unix_sys::signal(sig, unix_sys::SIG_IGN);
+        let _ = CANCEL_SIGNAL.compare_exchange(sig, 0, Ordering::SeqCst, Ordering::SeqCst);
+        return None;
+    }
+    Some(prev)
 }
 
 #[cfg(unix)]
@@ -91,22 +129,18 @@ impl SignalGuard {
         if state.ref_count == 0 {
             CANCEL_SIGNAL.store(0, Ordering::SeqCst);
             let h = handle_cancel_signal as *const () as usize;
-            // SAFETY: installing a signal-safe atomic store handler and restoring
-            // the previous handler on drop; SIG_IGN is preserved if inherited.
+            // SAFETY: installing a signal-safe atomic store handler; SIG_IGN and
+            // SIG_ERR are never queued for restoration, and prior handlers are
+            // restored on final Drop.
             unsafe {
-                let prev_int = unix_sys::signal(unix_sys::SIGINT, h);
-                if prev_int == unix_sys::SIG_IGN {
-                    let _ = unix_sys::signal(unix_sys::SIGINT, unix_sys::SIG_IGN);
-                }
-                let prev_term = unix_sys::signal(unix_sys::SIGTERM, h);
-                if prev_term == unix_sys::SIG_IGN {
-                    let _ = unix_sys::signal(unix_sys::SIGTERM, unix_sys::SIG_IGN);
-                }
-                state.prev_sigint = prev_int;
-                state.prev_sigterm = prev_term;
+                state.prev_sigint = install_cancel_handler(unix_sys::SIGINT, h);
+                state.prev_sigterm = install_cancel_handler(unix_sys::SIGTERM, h);
             }
         }
-        state.ref_count += 1;
+        state.ref_count = state
+            .ref_count
+            .checked_add(1)
+            .expect("SignalGuard ref_count overflow");
         Self
     }
 }
@@ -120,12 +154,16 @@ impl Drop for SignalGuard {
         if state.ref_count > 0 {
             state.ref_count -= 1;
             if state.ref_count == 0 {
-                CANCEL_SIGNAL.store(0, Ordering::SeqCst);
-                // SAFETY: restoring previously saved signal dispositions.
+                // SAFETY: restoring previously saved signal dispositions (excluding SIG_IGN/SIG_ERR).
                 unsafe {
-                    let _ = unix_sys::signal(unix_sys::SIGINT, state.prev_sigint);
-                    let _ = unix_sys::signal(unix_sys::SIGTERM, state.prev_sigterm);
+                    if let Some(prev) = state.prev_sigint.take() {
+                        let _ = unix_sys::signal(unix_sys::SIGINT, prev);
+                    }
+                    if let Some(prev) = state.prev_sigterm.take() {
+                        let _ = unix_sys::signal(unix_sys::SIGTERM, prev);
+                    }
                 }
+                CANCEL_SIGNAL.store(0, Ordering::SeqCst);
             }
         }
     }
@@ -334,6 +372,8 @@ pub struct OperationResult {
     pub routing: Option<RoutingSummary>,
     pub staging: StagingRecord,
     pub publication: PublicationRecord,
+    #[serde(skip)]
+    operation_result_admitted: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -386,30 +426,35 @@ fn generate_operation_id() -> String {
 }
 
 fn compute_binary_identity() -> BinaryIdentity {
-    let binary_sha256 = std::env::current_exe().ok().and_then(|exe| {
-        let mut file = File::open(exe).ok()?;
-        let mut hasher = Sha256::new();
-        let mut buf = [0u8; 65536];
-        loop {
-            let n = file.read(&mut buf).ok()?;
-            if n == 0 {
-                break;
+    static BINARY_IDENTITY: OnceLock<BinaryIdentity> = OnceLock::new();
+    BINARY_IDENTITY
+        .get_or_init(|| {
+            let binary_sha256 = std::env::current_exe().ok().and_then(|exe| {
+                let mut file = File::open(exe).ok()?;
+                let mut hasher = Sha256::new();
+                let mut buf = [0u8; 65536];
+                loop {
+                    let n = file.read(&mut buf).ok()?;
+                    if n == 0 {
+                        break;
+                    }
+                    hasher.update(&buf[..n]);
+                }
+                Some(
+                    hasher
+                        .finalize()
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect(),
+                )
+            });
+            BinaryIdentity {
+                name: "kicad-route-engine".to_owned(),
+                crate_version: env!("CARGO_PKG_VERSION").to_owned(),
+                binary_sha256,
             }
-            hasher.update(&buf[..n]);
-        }
-        Some(
-            hasher
-                .finalize()
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect(),
-        )
-    });
-    BinaryIdentity {
-        name: "kicad-route-engine".to_owned(),
-        crate_version: env!("CARGO_PKG_VERSION").to_owned(),
-        binary_sha256,
-    }
+        })
+        .clone()
 }
 
 struct OwnedTempDir {
@@ -580,6 +625,9 @@ fn check_sidecar_at(
     path: &Path,
     check: &mut SidecarCheck,
 ) -> Result<(), (OperationStatus, String)> {
+    if path.file_name().is_none() {
+        return Ok(());
+    }
     for (ext, flag) in [
         ("kicad_pro", &mut check.kicad_pro_present),
         ("kicad_dru", &mut check.kicad_dru_present),
@@ -612,12 +660,75 @@ fn check_source_sidecars(
         kicad_dru_present: false,
         passed: false,
     };
-    if let Err(err) = check_sidecar_at(original, &mut check) {
-        return (check, Err(err));
+    let mut seen: HashSet<PathBuf> = HashSet::new();
+    let mut cur = original.to_path_buf();
+
+    for hop in 0..=MAX_SYMLINK_HOPS {
+        if seen.insert(cur.clone()) {
+            if let Err(err) = check_sidecar_at(&cur, &mut check) {
+                return (check, Err(err));
+            }
+        }
+        let parent = parent_dir_or_dot(&cur);
+        let canon_parent = fs::canonicalize(parent).ok();
+        if let (Some(name), Some(cp)) = (cur.file_name(), canon_parent.as_ref()) {
+            let norm_cur = cp.join(name);
+            if seen.insert(norm_cur.clone()) {
+                if let Err(err) = check_sidecar_at(&norm_cur, &mut check) {
+                    return (check, Err(err));
+                }
+            }
+        }
+        match fs::symlink_metadata(&cur) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                if hop >= MAX_SYMLINK_HOPS {
+                    return (
+                        check,
+                        Err((
+                            OperationStatus::Invalid,
+                            format!(
+                                "too many symbolic link levels resolving source {}",
+                                original.display()
+                            ),
+                        )),
+                    );
+                }
+                let target = match fs::read_link(&cur) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        return (
+                            check,
+                            Err((
+                                OperationStatus::Invalid,
+                                format!("cannot read symlink {}: {e}", cur.display()),
+                            )),
+                        );
+                    }
+                };
+                cur = if target.is_absolute() {
+                    target
+                } else {
+                    canon_parent
+                        .unwrap_or_else(|| parent.to_path_buf())
+                        .join(target)
+                };
+            }
+            Ok(_) => break,
+            Err(e) => {
+                return (
+                    check,
+                    Err((
+                        OperationStatus::Invalid,
+                        format!("cannot inspect source {}: {e}", cur.display()),
+                    )),
+                );
+            }
+        }
     }
+
     if let Some(canon) = canonical {
         check.checked_canonical_path = true;
-        if canon != original {
+        if seen.insert(canon.to_path_buf()) {
             if let Err(err) = check_sidecar_at(canon, &mut check) {
                 return (check, Err(err));
             }
@@ -657,11 +768,11 @@ impl BoundedReadError {
     }
 }
 
-fn read_bounded_regular(
+fn read_bounded_regular_with_meta(
     path: &Path,
     max_bytes: usize,
     label: &str,
-) -> Result<Vec<u8>, BoundedReadError> {
+) -> Result<(Vec<u8>, fs::Metadata), BoundedReadError> {
     let pre_meta = fs::metadata(path).map_err(|e| {
         BoundedReadError::Io(format!("cannot stat {label} {}: {e}", path.display()))
     })?;
@@ -695,7 +806,15 @@ fn read_bounded_regular(
             path.display()
         )));
     }
-    Ok(bytes)
+    Ok((bytes, open_meta))
+}
+
+fn read_bounded_regular(
+    path: &Path,
+    max_bytes: usize,
+    label: &str,
+) -> Result<Vec<u8>, BoundedReadError> {
+    read_bounded_regular_with_meta(path, max_bytes, label).map(|(bytes, _)| bytes)
 }
 
 fn verify_regular_non_symlink(path: &Path, label: &str) -> Result<(), String> {
@@ -1096,15 +1215,16 @@ fn run_native_with_hooks(
     config: &OperationConfig,
     hooks: Option<CommitHooks<'_>>,
 ) -> OperationResult {
-    let start = Instant::now();
+    let binary = compute_binary_identity();
     let op_id = generate_operation_id();
     let _signal_guard = SignalGuard::acquire();
+    let start = Instant::now();
 
     let mut result = OperationResult {
         schema: OPERATION_SCHEMA.to_owned(),
         version: OPERATION_VERSION,
         operation_id: op_id.clone(),
-        binary: compute_binary_identity(),
+        binary,
         status: OperationStatus::InternalError,
         exit_code: OperationStatus::InternalError.exit_code(),
         reason: None,
@@ -1150,6 +1270,7 @@ fn run_native_with_hooks(
             ambiguous_termination: false,
             reconciliation_note: None,
         },
+        operation_result_admitted: false,
     };
 
     let outcome = catch_unwind(AssertUnwindSafe(|| {
@@ -1253,11 +1374,110 @@ fn check_output_preflight(path: &Path, label: &str) -> Result<(), (OperationStat
     }
 }
 
+fn check_operation_result_preflight(config: &OperationConfig, bridge_path: Option<&Path>) -> bool {
+    let Some(op_result_path) = &config.operation_result else {
+        return false;
+    };
+    if check_output_preflight(op_result_path, "operation-result").is_err() {
+        return false;
+    }
+    let mut others: Vec<&Path> = vec![
+        &config.source,
+        &config.rules,
+        &config.output,
+        &config.python,
+    ];
+    if let Some(l) = &config.limits {
+        others.push(l);
+    }
+    if let Some(b) = bridge_path.or(config.native_bridge.as_deref()) {
+        others.push(b);
+    }
+    if let Some(sr) = &config.save_request {
+        others.push(sr);
+    }
+    !others.iter().any(|p| paths_may_alias(op_result_path, p))
+}
+
+fn admit_source_board_with_hook(
+    source: &Path,
+    result: &mut OperationResult,
+    after_read_hook: Option<&mut dyn FnMut()>,
+) -> Result<(Vec<u8>, String), (OperationStatus, String)> {
+    let canon_source = fs::canonicalize(source).map_err(|e| {
+        (
+            OperationStatus::Invalid,
+            format!("cannot resolve source {}: {e}", source.display()),
+        )
+    })?;
+    result.source.canonical_path = Some(canon_source.display().to_string());
+
+    let (sidecar_check, sidecar_res) = check_source_sidecars(source, Some(&canon_source));
+    result.source.sidecar_check = sidecar_check;
+    sidecar_res?;
+
+    let (source_bytes, open_meta) =
+        read_bounded_regular_with_meta(source, MAX_REQUEST_BYTES, "source board")
+            .map_err(BoundedReadError::into_status)?;
+
+    if let Some(hook) = after_read_hook {
+        hook();
+    }
+
+    let canon_after = fs::canonicalize(source).map_err(|e| {
+        (
+            OperationStatus::Invalid,
+            format!("cannot re-resolve source {}: {e}", source.display()),
+        )
+    })?;
+    let (recheck, recheck_res) = check_source_sidecars(source, Some(&canon_after));
+    result.source.sidecar_check = recheck;
+    recheck_res?;
+
+    if canon_after != canon_source {
+        return Err((
+            OperationStatus::Invalid,
+            format!(
+                "source board symlink/path changed during read: {} -> {}",
+                canon_source.display(),
+                canon_after.display()
+            ),
+        ));
+    }
+    let canon_meta = fs::metadata(&canon_after).map_err(|e| {
+        (
+            OperationStatus::Invalid,
+            format!(
+                "cannot inspect resolved source {}: {e}",
+                canon_after.display()
+            ),
+        )
+    })?;
+    #[cfg(unix)]
+    if (open_meta.dev(), open_meta.ino()) != (canon_meta.dev(), canon_meta.ino()) {
+        return Err((
+            OperationStatus::Invalid,
+            format!(
+                "source board changed during read (device/inode mismatch): {}",
+                source.display()
+            ),
+        ));
+    }
+    #[cfg(not(unix))]
+    let _ = (open_meta, canon_meta);
+
+    let source_sha256 = sha256_hex(&source_bytes);
+    result.source.source_sha256 = Some(source_sha256.clone());
+    result.source.source_bytes = Some(source_bytes.len() as u64);
+    Ok((source_bytes, source_sha256))
+}
+
 fn phase_pre_snapshot_admission(
     config: &OperationConfig,
     result: &mut OperationResult,
 ) -> Result<AdmittedInputs, (OperationStatus, String)> {
     let t0 = Instant::now();
+    result.operation_result_admitted = check_operation_result_preflight(config, None);
     let res = (|| -> Result<AdmittedInputs, (OperationStatus, String)> {
         if config.max_expansions == 0 || config.max_expansions > crate::model::MAX_EXPANSIONS {
             return Err((
@@ -1286,6 +1506,8 @@ fn phase_pre_snapshot_admission(
         }
         let bridge_path = resolve_native_bridge(config.native_bridge.as_deref())
             .map_err(|m| (OperationStatus::Invalid, m))?;
+        result.operation_result_admitted =
+            check_operation_result_preflight(config, Some(&bridge_path));
 
         let mut inputs: Vec<(&Path, &str)> = vec![
             (&config.source, "source"),
@@ -1327,28 +1549,8 @@ fn phase_pre_snapshot_admission(
             check_output_preflight(out_p, out_lbl)?;
         }
 
-        let canon_source = fs::canonicalize(&config.source).map_err(|e| {
-            (
-                OperationStatus::Invalid,
-                format!("cannot resolve source {}: {e}", config.source.display()),
-            )
-        })?;
-        result.source.canonical_path = Some(canon_source.display().to_string());
-
-        let (sidecar_check, sidecar_res) =
-            check_source_sidecars(&config.source, Some(&canon_source));
-        result.source.sidecar_check = sidecar_check;
-        sidecar_res?;
-
-        let source_bytes = read_bounded_regular(&config.source, MAX_REQUEST_BYTES, "source board")
-            .map_err(BoundedReadError::into_status)?;
-        let (recheck, recheck_res) = check_source_sidecars(&config.source, Some(&canon_source));
-        result.source.sidecar_check = recheck;
-        recheck_res?;
-
-        let source_sha256 = sha256_hex(&source_bytes);
-        result.source.source_sha256 = Some(source_sha256.clone());
-        result.source.source_bytes = Some(source_bytes.len() as u64);
+        let (source_bytes, source_sha256) =
+            admit_source_board_with_hook(&config.source, result, None)?;
 
         let rules_bytes = read_bounded_regular(&config.rules, MAX_REQUEST_BYTES, "rules")
             .map_err(BoundedReadError::into_status)?;
@@ -1512,6 +1714,109 @@ fn cleanup_staging(staging_guard: &mut OwnedTempDir, result: &mut OperationResul
     }
 }
 
+fn push_failed_phase(
+    result: &mut OperationResult,
+    phase: &str,
+    elapsed: Duration,
+    detail: String,
+    child: Option<ChildProcessRecord>,
+) {
+    result.phases.push(PhaseRecord {
+        phase: phase.to_owned(),
+        status: "failed".to_owned(),
+        elapsed_ms: elapsed.as_millis() as u64,
+        detail: Some(detail),
+        child,
+    });
+}
+
+fn phase_rust_route_with_hook(
+    request_bytes: &[u8],
+    req_sha: &str,
+    source_sha256: &str,
+    staging_dir: &Path,
+    deadline: Instant,
+    result: &mut OperationResult,
+    after_route_hook: Option<&mut dyn FnMut()>,
+) -> Result<(crate::model::Output, PathBuf), (OperationStatus, String)> {
+    if let Err(err) = check_cancel_or_deadline(deadline) {
+        push_failed_phase(result, "rust_route", Duration::ZERO, err.1.clone(), None);
+        return Err(err);
+    }
+    let t_route = Instant::now();
+    let route_output = match catch_unwind(AssertUnwindSafe(|| crate::run_json(request_bytes))) {
+        Ok(out) => out,
+        Err(_) => {
+            let msg = "routing executor panicked; edits discarded".to_owned();
+            push_failed_phase(result, "rust_route", t_route.elapsed(), msg.clone(), None);
+            return Err((OperationStatus::InternalError, msg));
+        }
+    };
+    result.routing = Some(RoutingSummary {
+        result_version: route_output.version,
+        status: serde_json::to_value(route_output.status)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "unknown".to_owned()),
+        expanded_states: route_output.expanded_states,
+        work_used: route_output.work_used,
+        added_track_count: route_output.added_tracks.len(),
+        removed_track_count: route_output.removed_track_ids.len(),
+        request_sha256: route_output.request_sha256.clone(),
+    });
+    if let Some(hook) = after_route_hook {
+        hook();
+    }
+    if let Err(err) = check_cancel_or_deadline(deadline) {
+        push_failed_phase(result, "rust_route", t_route.elapsed(), err.1.clone(), None);
+        return Err(err);
+    }
+    if route_output.version != RESULT_VERSION
+        || route_output.request_sha256.as_deref() != Some(req_sha)
+    {
+        let msg = "routing output version or request_sha256 mismatch".to_owned();
+        push_failed_phase(result, "rust_route", t_route.elapsed(), msg.clone(), None);
+        return Err((OperationStatus::InternalError, msg));
+    }
+    if route_output.status != Status::Complete {
+        let st = map_routing_status(route_output.status);
+        let msg = route_output
+            .reason
+            .clone()
+            .unwrap_or_else(|| "routing failed".to_owned());
+        push_failed_phase(result, "rust_route", t_route.elapsed(), msg.clone(), None);
+        return Err((st, msg));
+    }
+    if route_output.source_id != source_sha256 {
+        let msg = "routing output source_id does not match staged snapshot".to_owned();
+        push_failed_phase(result, "rust_route", t_route.elapsed(), msg.clone(), None);
+        return Err((OperationStatus::InternalError, msg));
+    }
+
+    let staged_plan = staging_dir.join("plan.json");
+    let plan_bytes = match serde_json::to_vec(&route_output) {
+        Ok(b) => b,
+        Err(e) => {
+            let msg = format!("cannot serialize routing output: {e}");
+            push_failed_phase(result, "rust_route", t_route.elapsed(), msg.clone(), None);
+            return Err((OperationStatus::InternalError, msg));
+        }
+    };
+    if let Err(e) = write_file_create_new(&staged_plan, &plan_bytes, 0o600) {
+        let msg = format!("cannot write staging plan.json: {e}");
+        push_failed_phase(result, "rust_route", t_route.elapsed(), msg.clone(), None);
+        return Err((OperationStatus::InternalError, msg));
+    }
+    result.phases.push(PhaseRecord {
+        phase: "rust_route".to_owned(),
+        status: "ok".to_owned(),
+        elapsed_ms: t_route.elapsed().as_millis() as u64,
+        detail: None,
+        child: None,
+    });
+    Ok((route_output, staged_plan))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn execute_staged_phases(
     config: &OperationConfig,
@@ -1526,7 +1831,10 @@ fn execute_staged_phases(
     hooks: &mut Option<CommitHooks<'_>>,
 ) -> Result<(), (OperationStatus, String)> {
     // Phase 3: native_export
-    check_cancel_or_deadline(deadline)?;
+    if let Err(err) = check_cancel_or_deadline(deadline) {
+        push_failed_phase(result, "native_export", Duration::ZERO, err.1.clone(), None);
+        return Err(err);
+    }
     let staged_request = staging_dir.join("request.json");
     let mut export_args: Vec<OsString> = vec![
         "-B".into(),
@@ -1622,115 +1930,40 @@ fn execute_staged_phases(
     });
 
     // Phase 4: rust_route
-    check_cancel_or_deadline(deadline)?;
-    let t_route = Instant::now();
-    let route_output = match catch_unwind(AssertUnwindSafe(|| crate::run_json(&request_bytes))) {
-        Ok(out) => out,
-        Err(_) => {
-            let msg = "routing executor panicked; edits discarded".to_owned();
-            result.phases.push(PhaseRecord {
-                phase: "rust_route".to_owned(),
-                status: "failed".to_owned(),
-                elapsed_ms: t_route.elapsed().as_millis() as u64,
-                detail: Some(msg.clone()),
-                child: None,
-            });
-            return Err((OperationStatus::InternalError, msg));
-        }
-    };
-    result.routing = Some(RoutingSummary {
-        result_version: route_output.version,
-        status: serde_json::to_value(route_output.status)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or_else(|| "unknown".to_owned()),
-        expanded_states: route_output.expanded_states,
-        work_used: route_output.work_used,
-        added_track_count: route_output.added_tracks.len(),
-        removed_track_count: route_output.removed_track_ids.len(),
-        request_sha256: route_output.request_sha256.clone(),
-    });
-    if route_output.version != RESULT_VERSION
-        || route_output.request_sha256.as_deref() != Some(req_sha.as_str())
-    {
-        let msg = "routing output version or request_sha256 mismatch".to_owned();
-        result.phases.push(PhaseRecord {
-            phase: "rust_route".to_owned(),
-            status: "failed".to_owned(),
-            elapsed_ms: t_route.elapsed().as_millis() as u64,
-            detail: Some(msg.clone()),
-            child: None,
-        });
-        return Err((OperationStatus::InternalError, msg));
-    }
-    if route_output.status != Status::Complete {
-        let st = map_routing_status(route_output.status);
-        let msg = route_output
-            .reason
-            .clone()
-            .unwrap_or_else(|| "routing failed".to_owned());
-        result.phases.push(PhaseRecord {
-            phase: "rust_route".to_owned(),
-            status: "failed".to_owned(),
-            elapsed_ms: t_route.elapsed().as_millis() as u64,
-            detail: Some(msg.clone()),
-            child: None,
-        });
-        return Err((st, msg));
-    }
-    if route_output.source_id != admitted.source_sha256 {
-        let msg = "routing output source_id does not match staged snapshot".to_owned();
-        result.phases.push(PhaseRecord {
-            phase: "rust_route".to_owned(),
-            status: "failed".to_owned(),
-            elapsed_ms: t_route.elapsed().as_millis() as u64,
-            detail: Some(msg.clone()),
-            child: None,
-        });
-        return Err((OperationStatus::InternalError, msg));
-    }
-    if let Err(err) = check_cancel_or_deadline(deadline) {
-        result.phases.push(PhaseRecord {
-            phase: "rust_route".to_owned(),
-            status: "failed".to_owned(),
-            elapsed_ms: t_route.elapsed().as_millis() as u64,
-            detail: Some(err.1.clone()),
-            child: None,
-        });
-        return Err(err);
-    }
-
-    let staged_plan = staging_dir.join("plan.json");
-    let plan_bytes = serde_json::to_vec(&route_output).map_err(|e| {
-        (
-            OperationStatus::InternalError,
-            format!("cannot serialize routing output: {e}"),
-        )
-    })?;
-    write_file_create_new(&staged_plan, &plan_bytes, 0o600).map_err(|e| {
-        (
-            OperationStatus::InternalError,
-            format!("cannot write staging plan.json: {e}"),
-        )
-    })?;
-    result.phases.push(PhaseRecord {
-        phase: "rust_route".to_owned(),
-        status: "ok".to_owned(),
-        elapsed_ms: t_route.elapsed().as_millis() as u64,
-        detail: None,
-        child: None,
-    });
+    let (route_output, staged_plan) = phase_rust_route_with_hook(
+        &request_bytes,
+        &req_sha,
+        &admitted.source_sha256,
+        staging_dir,
+        deadline,
+        result,
+        None,
+    )?;
 
     // Phase 5: native_apply_validate
-    check_cancel_or_deadline(deadline)?;
+    if let Err(err) = check_cancel_or_deadline(deadline) {
+        push_failed_phase(
+            result,
+            "native_apply_validate",
+            Duration::ZERO,
+            err.1.clone(),
+            None,
+        );
+        return Err(err);
+    }
     let remaining_ms = deadline
         .saturating_duration_since(Instant::now())
         .as_millis();
     if remaining_ms == 0 {
-        return Err((
-            OperationStatus::OperationTimeout,
-            "operation wall-clock timeout exceeded before apply".to_owned(),
-        ));
+        let msg = "operation wall-clock timeout exceeded before apply".to_owned();
+        push_failed_phase(
+            result,
+            "native_apply_validate",
+            Duration::ZERO,
+            msg.clone(),
+            None,
+        );
+        return Err((OperationStatus::OperationTimeout, msg));
     }
     let drc_timeout_secs = ((remaining_ms as f64) / 1000.0).max(0.05);
     let staged_candidate = staging_dir.join("candidate.kicad_pcb");
@@ -1885,12 +2118,14 @@ fn execute_staged_phases(
     }
     let t_pub = Instant::now();
     let dest_parent = parent_dir_or_dot(&config.output);
-    let dest_name = config.output.file_name().ok_or_else(|| {
-        (
-            OperationStatus::UsageRefused,
-            "output needs a filename".to_owned(),
-        )
-    })?;
+    let dest_name = match config.output.file_name() {
+        Some(name) => name,
+        None => {
+            let msg = "output needs a filename".to_owned();
+            push_failed_phase(result, "final_publish", t_pub.elapsed(), msg.clone(), None);
+            return Err((OperationStatus::UsageRefused, msg));
+        }
+    };
     let mut pub_dir =
         OwnedTempDir::create_in(dest_parent, ".kicad-route-pub-", op_id).map_err(|e| {
             let msg = format!("cannot create publication staging dir: {e}");
@@ -1935,9 +2170,9 @@ fn execute_staged_phases(
         return Err(err);
     }
 
-    result.publication.commit_point_reached = true;
     match fs::hard_link(&pub_candidate, &config.output) {
         Ok(()) => {
+            result.publication.commit_point_reached = true;
             result.publication.published = true;
             result.publication.output_sha256 = Some(candidate_sha256);
             result.publication.output_bytes = Some(candidate_bytes_len);
@@ -2204,28 +2439,6 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
     })
 }
 
-fn can_write_operation_result(config: &OperationConfig, op_result_path: &Path) -> bool {
-    if check_output_preflight(op_result_path, "operation-result").is_err() {
-        return false;
-    }
-    let mut others: Vec<&Path> = vec![
-        &config.source,
-        &config.rules,
-        &config.output,
-        &config.python,
-    ];
-    if let Some(l) = &config.limits {
-        others.push(l);
-    }
-    if let Some(b) = &config.native_bridge {
-        others.push(b);
-    }
-    if let Some(sr) = &config.save_request {
-        others.push(sr);
-    }
-    !others.iter().any(|p| paths_may_alias(op_result_path, p))
-}
-
 fn usage_error_result(reason: String) -> OperationResult {
     let op_id = generate_operation_id();
     OperationResult {
@@ -2278,6 +2491,7 @@ fn usage_error_result(reason: String) -> OperationResult {
             ambiguous_termination: false,
             reconciliation_note: None,
         },
+        operation_result_admitted: false,
     }
 }
 
@@ -2296,7 +2510,7 @@ pub fn run_cli(args: &[OsString]) -> u8 {
 
     let mut result = run_native(&config);
     if let Some(op_result_path) = &config.operation_result {
-        if can_write_operation_result(&config, op_result_path) {
+        if result.operation_result_admitted {
             match serde_json::to_vec_pretty(&result) {
                 Ok(mut bytes) => {
                     bytes.push(b'\n');
@@ -2309,19 +2523,32 @@ pub fn run_cli(args: &[OsString]) -> u8 {
                         if result.publication.published {
                             result.publication.ambiguous_termination = true;
                             result.status = OperationStatus::AmbiguousTermination;
-                            result.exit_code = 8;
+                            result.exit_code = OperationStatus::AmbiguousTermination.exit_code();
                             let note = format!(
-                                "destination board was published, but writing --operation-result failed: {e}"
+                                "destination board was published, but writing --operation-result {} failed: {e}",
+                                op_result_path.display()
                             );
-                            result.publication.reconciliation_note = Some(note.clone());
-                            result.reason = Some(note);
+                            let combined = match result.publication.reconciliation_note.take() {
+                                Some(prev) => format!("{prev}; {note}"),
+                                None => note,
+                            };
+                            result.publication.reconciliation_note = Some(combined.clone());
+                            result.reason = Some(combined);
                         } else {
-                            result.status = OperationStatus::PublicationRefused;
-                            result.exit_code = 8;
-                            result.reason = Some(format!(
+                            result.status = if e.kind() == ErrorKind::AlreadyExists {
+                                OperationStatus::DestinationExists
+                            } else {
+                                OperationStatus::PublicationRefused
+                            };
+                            result.exit_code = result.status.exit_code();
+                            let write_err = format!(
                                 "cannot write --operation-result {}: {e}",
                                 op_result_path.display()
-                            ));
+                            );
+                            result.reason = Some(match result.reason.take() {
+                                Some(prev) => format!("{write_err} (prior error: {prev})"),
+                                None => write_err,
+                            });
                         }
                     }
                 }
@@ -2349,7 +2576,7 @@ pub fn run_cli(args: &[OsString]) -> u8 {
         Ok(json_text) => println!("{json_text}"),
         Err(e) => {
             eprintln!("cannot serialize operation result: {e}");
-            return if result.publication.commit_point_reached {
+            return if result.publication.commit_point_reached || result.exit_code == 8 {
                 8
             } else {
                 7
@@ -2534,6 +2761,221 @@ elif cmd == "apply":
             assert!(cfg.output.exists());
             assert!(res.staging.cleaned_up);
         }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn signal_guard_ref_count_and_sig_ign_preservation() {
+        let _guard = UNIT_SIGNAL_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let prev = unsafe { unix_sys::signal(unix_sys::SIGTERM, unix_sys::SIG_IGN) };
+        CANCEL_SIGNAL.store(0, Ordering::SeqCst);
+
+        let g1 = SignalGuard::acquire();
+        {
+            let st = SIGNAL_STATE.lock().unwrap_or_else(|p| p.into_inner());
+            assert_eq!(st.ref_count, 1);
+            assert!(st.prev_sigterm.is_none());
+        }
+        let g2 = SignalGuard::acquire();
+        {
+            let st = SIGNAL_STATE.lock().unwrap_or_else(|p| p.into_inner());
+            assert_eq!(st.ref_count, 2);
+        }
+        unsafe {
+            let _ = unix_sys::kill(std::process::id() as std::ffi::c_int, unix_sys::SIGTERM);
+        }
+        assert_eq!(CANCEL_SIGNAL.load(Ordering::SeqCst), 0);
+
+        drop(g2);
+        {
+            let st = SIGNAL_STATE.lock().unwrap_or_else(|p| p.into_inner());
+            assert_eq!(st.ref_count, 1);
+        }
+        drop(g1);
+        {
+            let st = SIGNAL_STATE.lock().unwrap_or_else(|p| p.into_inner());
+            assert_eq!(st.ref_count, 0);
+        }
+
+        let after = unsafe { unix_sys::signal(unix_sys::SIGTERM, prev) };
+        assert_eq!(after, unix_sys::SIG_IGN);
+        CANCEL_SIGNAL.store(0, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn rust_route_cancel_beats_work_exhausted_and_emits_failed_phase() {
+        let _guard = UNIT_SIGNAL_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let dir = test_dir("cancel-vs-work");
+        let bridge = make_stub_bridge(&dir);
+        let cfg = base_config(&dir, &bridge);
+        let mut res = usage_error_result("init".to_owned());
+        let source_bytes = b"(kicad_pcb)";
+        let source_sha = sha256_hex(source_bytes);
+        let req = serde_json::json!({
+            "version": 1,
+            "source_id": source_sha,
+            "layer": "F.Cu",
+            "bounds": {"min": [0, 0], "max": [60, 60]},
+            "rules": {"width_nm": 2, "clearance_nm": 1, "grid_nm": 10, "edge_clearance_nm": 0},
+            "nets": [{"id": 1, "name": "A"}],
+            "pads": [
+                {"id": "10000000-0000-4000-8000-000000000001", "net": 1, "at": [10, 10], "shape": {"kind": "circle", "radius_nm": 1}},
+                {"id": "10000000-0000-4000-8000-000000000002", "net": 1, "at": [50, 10], "shape": {"kind": "circle", "radius_nm": 1}}
+            ],
+            "tracks": [],
+            "max_expansions": 1000,
+            "limits": {"max_work": 0}
+        });
+        let req_bytes = serde_json::to_vec(&req).unwrap();
+        let req_sha = sha256_hex(&req_bytes);
+        let deadline = Instant::now() + Duration::from_secs(10);
+
+        #[cfg(unix)]
+        {
+            CANCEL_SIGNAL.store(0, Ordering::SeqCst);
+            let mut hook = || {
+                CANCEL_SIGNAL.store(unix_sys::SIGTERM, Ordering::SeqCst);
+            };
+            let err = phase_rust_route_with_hook(
+                &req_bytes,
+                &req_sha,
+                &source_sha,
+                &dir,
+                deadline,
+                &mut res,
+                Some(&mut hook),
+            )
+            .unwrap_err();
+            CANCEL_SIGNAL.store(0, Ordering::SeqCst);
+            assert_eq!(err.0, OperationStatus::Cancelled);
+            assert_eq!(res.routing.as_ref().unwrap().status, "work_exhausted");
+            assert_eq!(res.phases.last().unwrap().phase, "rust_route");
+            assert_eq!(res.phases.last().unwrap().status, "failed");
+        }
+        let _ = cfg;
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn compute_binary_identity_cached_and_native_export_deadline_emits_failed_phase() {
+        let _guard = UNIT_SIGNAL_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let id_a = compute_binary_identity();
+        let id_b = compute_binary_identity();
+        assert_eq!(id_a.name, id_b.name);
+        assert_eq!(id_a.binary_sha256, id_b.binary_sha256);
+
+        let dir = test_dir("expired-export");
+        let bridge = make_stub_bridge(&dir);
+        let cfg = base_config(&dir, &bridge);
+        let admitted = AdmittedInputs {
+            bridge_path: bridge,
+            source_bytes: b"(kicad_pcb)".to_vec(),
+            source_sha256: sha256_hex(b"(kicad_pcb)"),
+            rules_bytes: b"{}".to_vec(),
+            limits_bytes: None,
+        };
+        let mut res = usage_error_result("init".to_owned());
+        let expired = Instant::now() - Duration::from_millis(1);
+        let mut hooks = None;
+        let err = execute_staged_phases(
+            &cfg,
+            "op-expired",
+            expired,
+            &admitted,
+            &dir,
+            &cfg.source,
+            &cfg.rules,
+            None,
+            &mut res,
+            &mut hooks,
+        )
+        .unwrap_err();
+        assert_eq!(err.0, OperationStatus::OperationTimeout);
+        assert_eq!(res.phases.len(), 1);
+        assert_eq!(res.phases[0].phase, "native_export");
+        assert_eq!(res.phases[0].status, "failed");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn admit_source_rejects_mid_read_symlink_retarget_and_inode_swap() {
+        let dir = test_dir("toctou-source");
+        let clean_a = dir.join("clean_a.kicad_pcb");
+        let clean_b = dir.join("clean_b.kicad_pcb");
+        fs::write(&clean_a, b"(kicad_pcb a)").unwrap();
+        fs::write(&clean_b, b"(kicad_pcb b)").unwrap();
+
+        // Case A: symlink retarget between read and post-read canonicalization
+        let link = dir.join("link.kicad_pcb");
+        std::os::unix::fs::symlink(&clean_a, &link).unwrap();
+        let mut res_a = usage_error_result("toctou-a".to_owned());
+        let mut retarget_hook = || {
+            let tmp = dir.join(".link.tmp");
+            std::os::unix::fs::symlink(&clean_b, &tmp).unwrap();
+            fs::rename(&tmp, &link).unwrap();
+        };
+        let err_a =
+            admit_source_board_with_hook(&link, &mut res_a, Some(&mut retarget_hook)).unwrap_err();
+        assert_eq!(err_a.0, OperationStatus::Invalid);
+        assert!(err_a.1.contains("changed during read"), "got: {}", err_a.1);
+
+        // Case B: same-path inode replacement via atomic rename
+        let target = dir.join("target.kicad_pcb");
+        let replacement = dir.join("replacement.kicad_pcb");
+        fs::write(&target, b"(kicad_pcb v1)").unwrap();
+        fs::write(&replacement, b"(kicad_pcb v2)").unwrap();
+        let mut res_b = usage_error_result("toctou-b".to_owned());
+        let mut swap_hook = || {
+            fs::rename(&replacement, &target).unwrap();
+        };
+        let err_b =
+            admit_source_board_with_hook(&target, &mut res_b, Some(&mut swap_hook)).unwrap_err();
+        assert_eq!(err_b.0, OperationStatus::Invalid);
+        assert!(
+            err_b.1.contains("device/inode mismatch"),
+            "got: {}",
+            err_b.1
+        );
+
+        // Case C: sidecar created after read
+        let plain = dir.join("plain.kicad_pcb");
+        fs::write(&plain, b"(kicad_pcb plain)").unwrap();
+        let mut res_c = usage_error_result("toctou-c".to_owned());
+        let mut sidecar_hook = || {
+            fs::write(plain.with_extension("kicad_pro"), b"{}").unwrap();
+        };
+        let err_c =
+            admit_source_board_with_hook(&plain, &mut res_c, Some(&mut sidecar_hook)).unwrap_err();
+        assert_eq!(err_c.0, OperationStatus::Unsupported);
+        assert!(res_c.source.sidecar_check.kicad_pro_present);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn check_source_sidecars_rejects_symlink_loop_and_excessive_hops() {
+        let dir = test_dir("symlink-hops");
+        let real = dir.join("real.kicad_pcb");
+        fs::write(&real, b"(kicad_pcb)").unwrap();
+
+        let mut prev = real.clone();
+        for i in 0..=MAX_SYMLINK_HOPS {
+            let link = dir.join(format!("hop_{i}.kicad_pcb"));
+            std::os::unix::fs::symlink(&prev, &link).unwrap();
+            prev = link;
+        }
+        let (check, res) = check_source_sidecars(&prev, None);
+        assert!(!check.passed);
+        let err = res.unwrap_err();
+        assert_eq!(err.0, OperationStatus::Invalid);
+        assert!(
+            err.1.contains("too many symbolic link levels"),
+            "got: {}",
+            err.1
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -1867,6 +1867,112 @@ def test_route_native_rejects_original_and_symlink_sidecars_before_python(
     assert not audit_log.exists() or audit_log.read_text() == ''
 
 
+@pytest.mark.parametrize('mode', ['chained_pro', 'chained_dru', 'chained_parent_dir_pro'])
+def test_route_native_rejects_chained_symlink_sidecars_before_python(
+        native_board, guarded_cli, tmp_path, mode):
+    run, audit_log = guarded_cli
+    engine = _built_rust_engine(run)
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(RULES))
+
+    d1 = tmp_path / 'd1'
+    d2 = tmp_path / 'd2'
+    d3 = tmp_path / 'd3'
+    for d in (d1, d2, d3):
+        d.mkdir()
+    real = d3 / 'real.kicad_pcb'
+    real.write_bytes(native_board.read_bytes())
+
+    mid = d2 / 'mid.kicad_pcb'
+    mid.symlink_to(Path('..') / 'd3' / 'real.kicad_pcb')
+
+    if mode == 'chained_pro':
+        (d2 / 'mid.kicad_pro').write_text('{}')
+        top = d1 / 'top.kicad_pcb'
+        top.symlink_to(Path('..') / 'd2' / 'mid.kicad_pcb')
+    elif mode == 'chained_dru':
+        (d2 / 'mid.kicad_dru').write_text('(version 1)')
+        top = d1 / 'top.kicad_pcb'
+        top.symlink_to(Path('..') / 'd2' / 'mid.kicad_pcb')
+    else:
+        link_d2 = d1 / 'link_d2'
+        link_d2.symlink_to(Path('..') / 'd2')
+        (d2 / 'mid.kicad_pro').write_text('{}')
+        top = d1 / 'top.kicad_pcb'
+        top.symlink_to(Path('link_d2') / 'mid.kicad_pcb')
+
+    output = tmp_path / 'rejected-chained.kicad_pcb'
+    res = run([
+        str(engine), 'route-native', str(top), str(output),
+        '--rules', str(rules_path),
+    ], check=False)
+    assert res.returncode == 2
+    op = json.loads(res.stdout)
+    assert op['status'] == 'unsupported'
+    assert op['source']['sidecar_check']['passed'] is False
+    assert op['staging']['dir'] is None
+    assert not output.exists()
+    assert not audit_log.exists() or audit_log.read_text() == ''
+
+
+def test_native_adapter_rejects_chained_symlink_sidecars(
+        native_board, expected_request, tmp_path, monkeypatch):
+    d1 = tmp_path / 'd1'
+    d2 = tmp_path / 'd2'
+    d3 = tmp_path / 'd3'
+    for d in (d1, d2, d3):
+        d.mkdir()
+    real = d3 / 'real.kicad_pcb'
+    real.write_bytes(native_board.read_bytes())
+    mid = d2 / 'mid.kicad_pcb'
+    mid.symlink_to(Path('..') / 'd3' / 'real.kicad_pcb')
+    top = d1 / 'top.kicad_pcb'
+    top.symlink_to(Path('..') / 'd2' / 'mid.kicad_pcb')
+
+    # Clean 2-hop symlink chain succeeds on export_board
+    exported = bridge.export_board(top, RULES, 100000)
+    assert exported['source_id'] == hashlib.sha256(real.read_bytes()).hexdigest()
+
+    # Intermediate .kicad_pro and .kicad_dru sidecars rejected in both export_board and apply_plan
+    plan = {
+        'version': 3,
+        'status': 'complete',
+        'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(),
+        'source_id': hashlib.sha256(real.read_bytes()).hexdigest(),
+        'added_tracks': connection_tracks(),
+        'removed_track_ids': [],
+        'expanded_states': 0,
+        'work_used': 0,
+    }
+    for suffix, content in (('.kicad_pro', '{}'), ('.kicad_dru', '(version 1)')):
+        sidecar = d2 / f'mid{suffix}'
+        sidecar.write_text(content)
+        with pytest.raises(bridge.UnsupportedBoard, match='project/custom-rule'):
+            bridge.export_board(top, RULES, 100000)
+        with pytest.raises(bridge.UnsupportedBoard, match='project/custom-rule'):
+            bridge.apply_plan(
+                top,
+                plan,
+                tmp_path / f'out{suffix}.kicad_pcb',
+                expected_request=expected_request.read_bytes(),
+            )
+        sidecar.unlink()
+
+    # Post-read sidecar creation caught by source_snapshot re-check
+    orig_read_bounded = bridge.read_bounded
+
+    def add_sidecar_during_read(path):
+        data = orig_read_bounded(path)
+        if path == top:
+            (d2 / 'mid.kicad_pro').write_text('{}')
+        return data
+
+    monkeypatch.setattr(bridge, 'read_bounded', add_sidecar_during_read)
+    with pytest.raises(bridge.UnsupportedBoard, match='project/custom-rule'):
+        with bridge.source_snapshot(top):
+            pass
+
+
 def test_route_native_pins_snapshot_under_source_mutation(native_board, guarded_cli, tmp_path):
     run, audit_log = guarded_cli
     engine = _built_rust_engine(run)

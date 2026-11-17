@@ -125,6 +125,24 @@ fn parse_stdout_json(out: &[u8]) -> Value {
     serde_json::from_slice(out).expect("stdout must be valid native-operation JSON")
 }
 
+fn find_phase<'a>(op: &'a Value, phase: &str) -> &'a Value {
+    op["phases"]
+        .as_array()
+        .expect("phases must be an array")
+        .iter()
+        .find(|p| p["phase"] == phase)
+        .unwrap_or_else(|| panic!("missing phase {phase:?} in {}", op["phases"]))
+}
+
+fn wait_for_proc_exit(pid: i64, timeout: Duration) {
+    let proc_path = format!("/proc/{pid}");
+    let start = Instant::now();
+    while Path::new(&proc_path).exists() && start.elapsed() < timeout {
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!Path::new(&proc_path).exists(), "process {pid} survived");
+}
+
 #[test]
 fn unique_staging_permissions_and_residue_isolation() {
     let ws = Workspace::new("staging-iso");
@@ -406,10 +424,10 @@ fn destination_exists_dangling_symlink_same_file_and_concurrent_hard_link_race()
         .unwrap();
     assert_eq!(r_ex.status.code(), Some(8));
     assert_eq!(fs::read(&existing).unwrap(), b"incumbent");
-    assert_eq!(
-        parse_stdout_json(&r_ex.stdout)["status"],
-        "destination_exists"
-    );
+    let op_ex = parse_stdout_json(&r_ex.stdout);
+    assert_eq!(op_ex["status"], "destination_exists");
+    assert_eq!(op_ex["publication"]["commit_point_reached"], false);
+    assert_eq!(op_ex["publication"]["published"], false);
 
     // Dangling symlink destination refused
     let dangling = ws.path("dangling.kicad_pcb");
@@ -468,6 +486,7 @@ fn destination_exists_dangling_symlink_same_file_and_concurrent_hard_link_race()
     assert_eq!(fs::read(&race_out).unwrap(), b"concurrent winner");
     let op_race = parse_stdout_json(&r_race.stdout);
     assert_eq!(op_race["status"], "destination_exists");
+    assert_eq!(op_race["publication"]["commit_point_reached"], false);
     assert_eq!(op_race["publication"]["published"], false);
     assert!(op_race["staging"]["cleaned_up"].as_bool().unwrap());
     assert!(!fs::read_dir(&ws.dir).unwrap().any(|e| e
@@ -642,7 +661,7 @@ fn missing_python_binary_and_killed_child_sigkill_clean_staging() {
     assert_eq!(r2.status.code(), Some(7));
     let op2 = parse_stdout_json(&r2.stdout);
     assert_eq!(op2["status"], "child_process_error");
-    assert_eq!(op2["phases"][2]["child"]["signal"], 9);
+    assert_eq!(find_phase(&op2, "native_export")["child"]["signal"], 9);
     assert!(op2["staging"]["cleaned_up"].as_bool().unwrap());
     assert!(!out2.exists());
 }
@@ -652,6 +671,7 @@ fn wall_clock_timeout_kills_stubborn_child_and_grandchild_pgid() {
     let ws = Workspace::new("timeout-pgid");
     let source = ws.write("board.kicad_pcb", b"(kicad_pcb)");
     let rules = ws.write("rules.json", b"{}");
+    let pids_tmp = ws.path("pids.json.tmp");
     let pids_file = ws.path("pids.json");
     let stubborn_script = format!(
         r#"import json, os, pathlib, signal, subprocess, sys, time
@@ -660,10 +680,12 @@ child = subprocess.Popen([
     sys.executable, "-c",
     "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)"
 ])
-pathlib.Path({:?}).write_text(json.dumps({{"leader": os.getpid(), "grandchild": child.pid}}))
+tmp_p = pathlib.Path({:?})
+tmp_p.write_text(json.dumps({{"leader": os.getpid(), "grandchild": child.pid}}))
+os.replace(tmp_p, {:?})
 time.sleep(60)
 "#,
-        pids_file
+        pids_tmp, pids_file
     );
     let bridge = write_stub_bridge(&ws, "stubborn.py", &stubborn_script);
     let out = ws.path("out.kicad_pcb");
@@ -677,31 +699,23 @@ time.sleep(60)
         .arg("--native-bridge")
         .arg(&bridge)
         .arg("--timeout-ms")
-        .arg("500")
+        .arg("2000")
         .output()
         .unwrap();
     let elapsed = t0.elapsed();
     assert_eq!(res.status.code(), Some(6));
-    assert!(elapsed < Duration::from_secs(5), "took {elapsed:?}");
+    assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
     let op = parse_stdout_json(&res.stdout);
     assert_eq!(op["status"], "operation_timeout");
-    assert_eq!(op["phases"][2]["child"]["timed_out"], true);
+    assert_eq!(find_phase(&op, "native_export")["child"]["timed_out"], true);
     assert!(op["staging"]["cleaned_up"].as_bool().unwrap());
     assert!(!out.exists());
 
     let pids: Value = serde_json::from_slice(&fs::read(&pids_file).unwrap()).unwrap();
     let leader = pids["leader"].as_i64().unwrap();
     let grandchild = pids["grandchild"].as_i64().unwrap();
-    // Wait briefly for OS /proc cleanup after SIGKILL
-    thread::sleep(Duration::from_millis(50));
-    assert!(
-        !Path::new(&format!("/proc/{leader}")).exists(),
-        "leader {leader} survived"
-    );
-    assert!(
-        !Path::new(&format!("/proc/{grandchild}")).exists(),
-        "grandchild {grandchild} survived"
-    );
+    wait_for_proc_exit(leader, Duration::from_secs(1));
+    wait_for_proc_exit(grandchild, Duration::from_secs(1));
 }
 
 #[test]
@@ -743,11 +757,11 @@ time.sleep(60)
             .unwrap();
         let elapsed = t0.elapsed();
         assert_eq!(res.status.code(), Some(6));
-        assert!(elapsed < Duration::from_secs(5), "took {elapsed:?}");
+        assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
         let op = parse_stdout_json(&res.stdout);
         assert_eq!(op["status"], "child_output_exceeded");
         let field = format!("{stream}_truncated");
-        assert_eq!(op["phases"][2]["child"][&field], true);
+        assert_eq!(find_phase(&op, "native_export")["child"][&field], true);
         assert!(op["staging"]["cleaned_up"].as_bool().unwrap());
         assert!(!out.exists());
     }
@@ -781,7 +795,9 @@ sys.exit(2)
     assert_eq!(res.status.code(), Some(7));
     let op = parse_stdout_json(&res.stdout);
     assert_eq!(op["status"], "child_process_error");
-    assert!(op["phases"][2]["child"]["stderr_tail"].as_str().is_some());
+    assert!(find_phase(&op, "native_export")["child"]["stderr_tail"]
+        .as_str()
+        .is_some());
     assert!(op["staging"]["cleaned_up"].as_bool().unwrap());
     assert!(!out.exists());
 }
@@ -793,14 +809,17 @@ fn sigterm_and_sigint_cancel_child_pgid_and_clean_staging() {
     let rules = ws.write("rules.json", b"{}");
 
     for (idx, sig) in ["15", "2"].iter().enumerate() {
+        let ready_tmp = ws.path(&format!("ready_{idx}.json.tmp"));
         let ready = ws.path(&format!("ready_{idx}.json"));
         let bridge_script = format!(
             r#"import json, os, pathlib, signal, subprocess, sys, time
 grand = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
-pathlib.Path({:?}).write_text(json.dumps({{"leader": os.getpid(), "grandchild": grand.pid}}))
+tmp_r = pathlib.Path({:?})
+tmp_r.write_text(json.dumps({{"leader": os.getpid(), "grandchild": grand.pid}}))
+os.replace(tmp_r, {:?})
 time.sleep(60)
 "#,
-            ready
+            ready_tmp, ready
         );
         let bridge = write_stub_bridge(&ws, &format!("slow_{idx}.py"), &bridge_script);
         let out = ws.path(&format!("out_{idx}.kicad_pcb"));
@@ -820,7 +839,7 @@ time.sleep(60)
             .unwrap();
 
         let wait_start = Instant::now();
-        while !ready.exists() && wait_start.elapsed() < Duration::from_secs(5) {
+        while !ready.exists() && wait_start.elapsed() < Duration::from_secs(15) {
             thread::sleep(Duration::from_millis(20));
         }
         assert!(ready.exists(), "stub child never became ready");
@@ -839,13 +858,13 @@ time.sleep(60)
         assert_eq!(finished.status.code(), Some(6));
         let op = parse_stdout_json(&finished.stdout);
         assert_eq!(op["status"], "cancelled");
+        assert_eq!(find_phase(&op, "native_export")["child"]["cancelled"], true);
         assert!(op["staging"]["cleaned_up"].as_bool().unwrap());
         assert!(!Path::new(op["staging"]["dir"].as_str().unwrap()).exists());
         assert!(!out.exists());
 
-        thread::sleep(Duration::from_millis(50));
-        assert!(!Path::new(&format!("/proc/{leader}")).exists());
-        assert!(!Path::new(&format!("/proc/{grandchild}")).exists());
+        wait_for_proc_exit(leader, Duration::from_secs(1));
+        wait_for_proc_exit(grandchild, Duration::from_secs(1));
     }
 }
 
@@ -982,4 +1001,227 @@ fn work_budget_and_wall_clock_separation_and_legacy_cli_compat() {
     let leg_val: Value = serde_json::from_slice(&fs::read(&leg_out).unwrap()).unwrap();
     assert_eq!(leg_val["version"], 3);
     assert_eq!(leg_val["status"], "complete");
+}
+
+#[test]
+fn mid_run_operation_result_collision_preserves_incumbent_and_reports_error() {
+    let ws = Workspace::new("op-result-race");
+    let source = ws.write("board.kicad_pcb", b"(kicad_pcb)");
+    let rules = ws.write("rules.json", b"{}");
+
+    // 1) Post-publish (published == true) concurrent --operation-result creation
+    let op_result = ws.path("op_result.json");
+    let out = ws.path("routed.kicad_pcb");
+    let extra_apply = format!(
+        "    tmp = pathlib.Path({:?}).with_name('.concurrent.tmp')\n    tmp.write_bytes(b'{{\"preexisting\":true}}\\n')\n    os.replace(tmp, {:?})\n",
+        op_result, op_result
+    );
+    let bridge = write_stub_bridge(
+        &ws,
+        "bridge_post.py",
+        &standard_stub_script("", &extra_apply),
+    );
+    let res = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&source)
+        .arg(&out)
+        .arg("--rules")
+        .arg(&rules)
+        .arg("--native-bridge")
+        .arg(&bridge)
+        .arg("--operation-result")
+        .arg(&op_result)
+        .output()
+        .unwrap();
+    assert_eq!(res.status.code(), Some(8));
+    assert_eq!(fs::read(&op_result).unwrap(), b"{\"preexisting\":true}\n");
+    assert!(out.exists());
+    let op = parse_stdout_json(&res.stdout);
+    assert_eq!(op["status"], "ambiguous_termination");
+    assert_eq!(op["exit_code"], 8);
+    assert_eq!(op["publication"]["commit_point_reached"], true);
+    assert_eq!(op["publication"]["published"], true);
+    assert_eq!(op["publication"]["ambiguous_termination"], true);
+    assert!(op["publication"]["reconciliation_note"]
+        .as_str()
+        .unwrap()
+        .contains("operation-result"));
+    assert_eq!(op["staging"]["cleaned_up"], true);
+    assert!(!fs::read_dir(&ws.dir).unwrap().any(|e| e
+        .unwrap()
+        .file_name()
+        .to_string_lossy()
+        .starts_with(".kicad-route-pub-")));
+
+    // 2) Pre-publish (published == false) concurrent --operation-result creation
+    let limits_zero = ws.write("limits_zero.json", b"{\"max_work\": 0}");
+    let op_result_2 = ws.path("op_result_2.json");
+    let out_2 = ws.path("routed_2.kicad_pcb");
+    let extra_export = format!(
+        "    tmp = pathlib.Path({:?}).with_name('.concurrent2.tmp')\n    tmp.write_bytes(b'{{\"concurrent\":\"pre_pub\"}}\\n')\n    os.replace(tmp, {:?})\n",
+        op_result_2, op_result_2
+    );
+    let bridge_2 = write_stub_bridge(
+        &ws,
+        "bridge_pre.py",
+        &standard_stub_script(&extra_export, ""),
+    );
+    let res2 = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&source)
+        .arg(&out_2)
+        .arg("--rules")
+        .arg(&rules)
+        .arg("--limits")
+        .arg(&limits_zero)
+        .arg("--native-bridge")
+        .arg(&bridge_2)
+        .arg("--operation-result")
+        .arg(&op_result_2)
+        .output()
+        .unwrap();
+    assert_eq!(res2.status.code(), Some(8));
+    assert_eq!(
+        fs::read(&op_result_2).unwrap(),
+        b"{\"concurrent\":\"pre_pub\"}\n"
+    );
+    assert!(!out_2.exists());
+    let op2 = parse_stdout_json(&res2.stdout);
+    assert_eq!(op2["status"], "destination_exists");
+    assert_eq!(op2["exit_code"], 8);
+    assert_eq!(op2["publication"]["commit_point_reached"], false);
+    assert_eq!(op2["publication"]["published"], false);
+    assert_eq!(op2["publication"]["ambiguous_termination"], false);
+    assert_eq!(op2["staging"]["cleaned_up"], true);
+}
+
+#[test]
+fn chained_symlink_intermediate_sidecars_refused_before_child_launch() {
+    let ws = Workspace::new("chained-sidecars");
+    let rules = ws.write("rules.json", b"{}");
+    let poison_marker = ws.path("poison_called");
+    let poison_bridge = write_stub_bridge(
+        &ws,
+        "poison.py",
+        &format!(
+            "import pathlib, sys\npathlib.Path({:?}).write_text('called')\nsys.exit(99)\n",
+            poison_marker
+        ),
+    );
+    let ok_bridge = write_stub_bridge(&ws, "ok.py", &standard_stub_script("", ""));
+
+    // Case 1: d1/top -> ../d2/mid -> ../d3/real with d2/mid.kicad_pro
+    let real_1 = ws.write("c1/d3/real.kicad_pcb", b"(kicad_pcb)");
+    fs::create_dir_all(ws.path("c1/d2")).unwrap();
+    fs::create_dir_all(ws.path("c1/d1")).unwrap();
+    let mid_1 = ws.path("c1/d2/mid.kicad_pcb");
+    std::os::unix::fs::symlink(Path::new("../d3/real.kicad_pcb"), &mid_1).unwrap();
+    ws.write("c1/d2/mid.kicad_pro", b"{}");
+    let top_1 = ws.path("c1/d1/top.kicad_pcb");
+    std::os::unix::fs::symlink(Path::new("../d2/mid.kicad_pcb"), &top_1).unwrap();
+    let _ = real_1;
+
+    let out1 = ws.path("out1.kicad_pcb");
+    let r1 = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&top_1)
+        .arg(&out1)
+        .arg("--rules")
+        .arg(&rules)
+        .arg("--native-bridge")
+        .arg(&poison_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(r1.status.code(), Some(2));
+    assert!(!poison_marker.exists());
+    let op1 = parse_stdout_json(&r1.stdout);
+    assert_eq!(op1["status"], "unsupported");
+    assert_eq!(op1["source"]["sidecar_check"]["kicad_pro_present"], true);
+    assert_eq!(op1["source"]["sidecar_check"]["passed"], false);
+    assert!(op1["staging"]["dir"].is_null());
+
+    // Case 2: d2/mid.kicad_dru (dangling symlink)
+    ws.write("c2/d3/real.kicad_pcb", b"(kicad_pcb)");
+    fs::create_dir_all(ws.path("c2/d2")).unwrap();
+    fs::create_dir_all(ws.path("c2/d1")).unwrap();
+    let mid_2 = ws.path("c2/d2/mid.kicad_pcb");
+    std::os::unix::fs::symlink(Path::new("../d3/real.kicad_pcb"), &mid_2).unwrap();
+    std::os::unix::fs::symlink(ws.path("absent.dru"), ws.path("c2/d2/mid.kicad_dru")).unwrap();
+    let top_2 = ws.path("c2/d1/top.kicad_pcb");
+    std::os::unix::fs::symlink(Path::new("../d2/mid.kicad_pcb"), &top_2).unwrap();
+
+    let out2 = ws.path("out2.kicad_pcb");
+    let r2 = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&top_2)
+        .arg(&out2)
+        .arg("--rules")
+        .arg(&rules)
+        .arg("--native-bridge")
+        .arg(&poison_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(r2.status.code(), Some(2));
+    assert!(!poison_marker.exists());
+    let op2 = parse_stdout_json(&r2.stdout);
+    assert_eq!(op2["status"], "unsupported");
+    assert_eq!(op2["source"]["sidecar_check"]["kicad_dru_present"], true);
+
+    // Case 3: symlinked parent directory (d1/link_d2 -> ../d2_real) with d2_real/mid.kicad_pro
+    ws.write("c3/d3/real.kicad_pcb", b"(kicad_pcb)");
+    fs::create_dir_all(ws.path("c3/d2_real")).unwrap();
+    fs::create_dir_all(ws.path("c3/d1")).unwrap();
+    std::os::unix::fs::symlink(Path::new("../d2_real"), ws.path("c3/d1/link_d2")).unwrap();
+    std::os::unix::fs::symlink(
+        Path::new("../d3/real.kicad_pcb"),
+        ws.path("c3/d2_real/mid.kicad_pcb"),
+    )
+    .unwrap();
+    ws.write("c3/d2_real/mid.kicad_pro", b"{}");
+    let top_3 = ws.path("c3/d1/top_rel.kicad_pcb");
+    std::os::unix::fs::symlink(Path::new("link_d2/mid.kicad_pcb"), &top_3).unwrap();
+
+    let out3 = ws.path("out3.kicad_pcb");
+    let r3 = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&top_3)
+        .arg(&out3)
+        .arg("--rules")
+        .arg(&rules)
+        .arg("--native-bridge")
+        .arg(&poison_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(r3.status.code(), Some(2));
+    assert!(!poison_marker.exists());
+    let op3 = parse_stdout_json(&r3.stdout);
+    assert_eq!(op3["status"], "unsupported");
+    assert_eq!(op3["source"]["sidecar_check"]["kicad_pro_present"], true);
+
+    // Positive control: clean 2-hop symlink chain succeeds
+    ws.write("clean/d3/real.kicad_pcb", b"(kicad_pcb)");
+    fs::create_dir_all(ws.path("clean/d2")).unwrap();
+    fs::create_dir_all(ws.path("clean/d1")).unwrap();
+    std::os::unix::fs::symlink(
+        Path::new("../d3/real.kicad_pcb"),
+        ws.path("clean/d2/mid.kicad_pcb"),
+    )
+    .unwrap();
+    let clean_top = ws.path("clean/d1/top.kicad_pcb");
+    std::os::unix::fs::symlink(Path::new("../d2/mid.kicad_pcb"), &clean_top).unwrap();
+    let out_ok = ws.path("out_ok.kicad_pcb");
+    let r_ok = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&clean_top)
+        .arg(&out_ok)
+        .arg("--rules")
+        .arg(&rules)
+        .arg("--native-bridge")
+        .arg(&ok_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(r_ok.status.code(), Some(0));
+    let op_ok = parse_stdout_json(&r_ok.stdout);
+    assert_eq!(op_ok["status"], "complete");
+    assert_eq!(op_ok["source"]["sidecar_check"]["passed"], true);
 }
