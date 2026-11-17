@@ -86,10 +86,14 @@ pub(crate) fn join_components(
         ));
     }
     let attachment = |a, b| {
-        targets.iter().flatten().find_map(|c| {
-            c.attachment(a, b, net, engine.input.rules.width_nm)
-                .filter(|p| engine.legal_edge(net, a, *p))
-        })
+        targets
+            .iter()
+            .flatten()
+            .filter_map(|c| {
+                c.attachment(a, b, net, engine.input.rules.width_nm)
+                    .filter(|p| engine.legal_edge(net, a, *p))
+            })
+            .min_by_key(|p| ((p[0] - a[0]).abs() + (p[1] - a[1]).abs(), *p))
     };
     walk(
         engine,
@@ -193,3 +197,7 @@ fn walk(
         "search frontier exhausted",
     ))
 }
+
+#[cfg(test)]
+#[path = "search_tests.rs"]
+mod tests;

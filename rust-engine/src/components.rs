@@ -27,60 +27,45 @@ impl Copper<'_> {
             Self::Track(t) => geometry::tracks_connect(route, t),
         }
     }
-    /// Snap the final orthogonal edge to an integer point nearest the target's
-    /// center geometry. Verify contact exactly after rounding; do not publish
-    /// a full grid step extending past the target as a dangling spur.
+    /// First integer endpoint in the convex contact interval along an edge.
+    /// A prefix capsule touches iff the edge has entered that interval, so the
+    /// exact swept-contact predicate is monotone in prefix length. Bisection
+    /// locates its first integer length; the final cap check rejects an interval
+    /// lying entirely between integer endpoints. No square roots or tolerance.
     pub(crate) fn attachment(self, a: Point, b: Point, net: u32, width: i64) -> Option<Point> {
         let k = if a[0] != b[0] { 0 } else { 1 };
-        let j = 1 - k;
-        let lo = a[k].min(b[k]);
-        let hi = a[k].max(b[k]);
-        let mut coordinates = Vec::new();
-        match self {
-            Self::Pad(p) => coordinates.push(p.at[k]),
-            Self::Track(t) => {
-                coordinates.extend([t.start[k], t.end[k]]);
-                let delta = i128::from(t.end[j]) - i128::from(t.start[j]);
-                if delta != 0 {
-                    let offset = i128::from(a[j]) - i128::from(t.start[j]);
-                    if (delta > 0 && offset >= 0 && offset <= delta)
-                        || (delta < 0 && offset <= 0 && offset >= delta)
-                    {
-                        let numerator = i128::from(t.start[k]) * delta
-                            + (i128::from(t.end[k]) - i128::from(t.start[k])) * offset;
-                        let floor = if delta > 0 {
-                            numerator.div_euclid(delta)
-                        } else {
-                            (-numerator).div_euclid(-delta)
-                        };
-                        coordinates.extend([floor as i64, (floor + 1) as i64]);
-                    }
-                }
-            }
+        let length = (b[k] - a[k]).abs();
+        if length == 0 {
+            return None;
         }
-        // A one-nm segment can be needed when the closest point is the seed
-        // itself: zero-length copper is not a valid output object.
-        coordinates.push(a[k] + (b[k] - a[k]).signum());
-        coordinates.sort_by_key(|v| ((*v).clamp(lo, hi) - a[k]).abs());
-        for coordinate in coordinates {
+        let point = |distance| {
             let mut p = a;
-            p[k] = coordinate.clamp(lo, hi);
-            if p == a {
-                continue;
-            }
-            let cap = Track {
-                id: String::new(),
-                net,
-                start: p,
-                end: p,
-                width_nm: width,
-                locked: false,
-            };
-            if self.touches_route(&cap) {
-                return Some(p);
+            p[k] += distance * (b[k] - a[k]).signum();
+            p
+        };
+        let route = |start, end| Track {
+            id: String::new(),
+            net,
+            start,
+            end,
+            width_nm: width,
+            locked: false,
+        };
+        if !self.touches_route(&route(a, b)) {
+            return None;
+        }
+        let mut lo = 1;
+        let mut hi = length;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if self.touches_route(&route(a, point(mid))) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
             }
         }
-        None
+        let p = point(lo);
+        self.touches_route(&route(p, p)).then_some(p)
     }
     pub(crate) fn anchors(self) -> Vec<Point> {
         match self {

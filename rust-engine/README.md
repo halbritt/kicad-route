@@ -61,9 +61,13 @@ a Manhattan heuristic. General component joins use multi-source Dijkstra
 endpoint in the first component, targeting all other components. Each seed
 retains its own grid phase, so off-grid incumbent endpoints are supported.
 Attachment targets the entire copper geometry, including arbitrary-angle
-interiors, not only target endpoints. The final edge is shortened to an integer
-point nearest the target center geometry and exact contact is verified after
-rounding; a full grid step past the target is not published as a dangling spur.
+interiors, not only target endpoints. The final edge stops at the first integer endpoint in the target contact
+interval. Exact swept-prefix contact is monotone for these convex targets;
+bisection finds the first integer prefix and an endpoint-cap check rejects
+intervals lying wholly between integer endpoints. No floating-point rounding
+or extra contact margin is used. If several targets intersect an edge, the
+nearest legal contact is selected independently of target order. A full grid
+step past the target is not published as a dangling spur.
 A shortened goal edge is checked for clearance before the full grid step is
 rejected: an obstacle or board boundary beyond the attachment cannot invalidate
 the shorter route. It is queued at the same one-step cost and must be settled
@@ -81,8 +85,9 @@ entries do not count. Frontier exhaustion and budget exhaustion are distinct.
 
 The component search is not complete for continuous routing. A component whose
 pad centers and track endpoints are all illegal seeds can fail even when a
-mid-span exit exists. The grid may miss a legal corridor or integer attachment;
-rounding candidates are verified, never assumed connected. Thin copper that the
+mid-span exit exists. The grid may miss a legal corridor or an attachment away from its searched
+edges. Along each searched edge, integer terminal endpoints are covered by the
+convex-interval calculation; this does not add mid-span source seeds. Thin copper that the
 conservative contact model cannot join fails honestly rather than reporting
 complete. Native connectivity can merge contacts that this model separates or
 apply other integer geometry rules; no universal native equivalence is claimed.
@@ -175,3 +180,12 @@ restoration, deterministic IDs, immutable incumbents, malformed/unsupported
 input and the executable output protocol. These tests do not measure real-board
 quality or speedup. Obstacle scans are currently linear; input-copper
 connectivity checks can be quadratic in a net's track count.
+
+The component-search test oracle enumerates every integer terminal endpoint
+on every reachable grid edge in 4,096 small axis-aligned worlds. Independent
+box-gap geometry checks clearance/contact, and position-only breadth-first
+search checks reachability and unit-step cost. Cases vary grid phase, width,
+clearance, circle/rectangle/track targets and all subsets of six obstacles.
+This bounded enumeration does not prove arbitrary-angle geometry, continuous
+completeness, component ordering or multi-net optimality. Separate diagonal
+contact controls and mandatory native checks cover different concerns.
