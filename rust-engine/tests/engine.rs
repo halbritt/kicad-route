@@ -1009,3 +1009,91 @@ fn typed_request_hashes_the_entire_input_without_a_wire_prefix_identity() {
     assert_eq!(result.request_sha256, Some(second));
     assert!(result.added_tracks.is_empty());
 }
+
+#[test]
+fn typed_limits_each_change_request_identity() {
+    use kicad_route_engine::input_request_sha256;
+    let input = base();
+    let baseline_digest = input_request_sha256(&input);
+    let baseline_result = run(input.clone());
+    assert_eq!(baseline_result.status, Status::Complete);
+    assert_eq!(
+        baseline_result.request_sha256.as_ref(),
+        Some(&baseline_digest)
+    );
+    let defaults = input.limits;
+    let changes = [
+        (
+            "max_work",
+            Limits {
+                max_work: defaults.max_work - 1,
+                ..defaults
+            },
+        ),
+        (
+            "max_items",
+            Limits {
+                max_items: defaults.max_items - 1,
+                ..defaults
+            },
+        ),
+        (
+            "max_search_entries",
+            Limits {
+                max_search_entries: defaults.max_search_entries - 1,
+                ..defaults
+            },
+        ),
+        (
+            "max_journal_entries",
+            Limits {
+                max_journal_entries: defaults.max_journal_entries - 1,
+                ..defaults
+            },
+        ),
+        (
+            "max_depth",
+            Limits {
+                max_depth: defaults.max_depth - 1,
+                ..defaults
+            },
+        ),
+    ];
+    for (field, limits) in changes {
+        let mut changed = input.clone();
+        changed.limits = limits;
+        let digest = input_request_sha256(&changed);
+        let result = run(changed);
+        // These limits still permit the same route: identity must bind the
+        // request even when the resulting edits and counters do not change.
+        assert_eq!(result.status, Status::Complete, "{field}");
+        assert_eq!(result.added_tracks, baseline_result.added_tracks, "{field}");
+        assert_eq!(
+            result.expanded_states, baseline_result.expanded_states,
+            "{field}"
+        );
+        assert_eq!(result.work_used, baseline_result.work_used, "{field}");
+        assert_ne!(digest, baseline_digest, "helper omitted typed {field}");
+        assert_ne!(
+            result.request_sha256, baseline_result.request_sha256,
+            "run omitted typed {field}"
+        );
+        assert_eq!(result.request_sha256.as_ref(), Some(&digest), "{field}");
+    }
+}
+
+#[test]
+fn typed_limits_defaults_are_explicit_in_serialized_input() {
+    let input: Input = serde_json::from_value(document()).unwrap();
+    let serialized = serde_json::to_value(input).unwrap();
+    assert_eq!(
+        serialized["limits"],
+        json!({
+            "max_work": 100_000_000,
+            "max_items": 100_000,
+            "max_search_entries": 1_000_000,
+            "max_journal_entries": 1_000_000,
+            "max_depth": 64
+        })
+    );
+}
