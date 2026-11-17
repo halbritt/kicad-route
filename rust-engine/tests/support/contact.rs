@@ -16,6 +16,14 @@ impl Body {
                 hi: p.at,
                 radius2: 2 * r,
             },
+            Shape::RoundRect {
+                half_size_nm: h,
+                radius_nm: r,
+            } => Self {
+                lo: [p.at[0] - h[0] + r, p.at[1] - h[1] + r],
+                hi: [p.at[0] + h[0] - r, p.at[1] + h[1] - r],
+                radius2: 2 * r,
+            },
             Shape::Rect { half_size_nm: h } => Self {
                 lo: [p.at[0] - h[0], p.at[1] - h[1]],
                 hi: [p.at[0] + h[0], p.at[1] + h[1]],

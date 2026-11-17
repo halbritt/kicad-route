@@ -1,6 +1,6 @@
 //! Exact swept-copper tests. Distances are compared as integer fractions;
 //! no raster sampling, floating point tolerances, or square roots.
-use crate::model::{Pad, Point, Shape, Track};
+use crate::model::{Pad, Point, Track};
 fn sub(a: Point, b: Point) -> [i128; 2] {
     [
         i128::from(a[0]) - i128::from(b[0]),
@@ -105,20 +105,9 @@ pub fn track_near_pad(
     p: &Pad,
     inclusive: bool,
 ) -> bool {
-    let gap2 = i128::from(width) + 2 * i128::from(clearance);
-    match p.shape {
-        Shape::Circle { radius_nm } => {
-            point_near_segment(p.at, a, b, gap2 + 2 * i128::from(radius_nm), inclusive)
-        }
-        Shape::Rect { half_size_nm: h } => segment_near_rect(
-            a,
-            b,
-            [p.at[0] - h[0], p.at[1] - h[1]],
-            [p.at[0] + h[0], p.at[1] + h[1]],
-            gap2,
-            inclusive,
-        ),
-    }
+    let (lo, hi, radius) = p.copper_core();
+    let gap2 = i128::from(width) + 2 * (i128::from(clearance) + i128::from(radius));
+    segment_near_rect(a, b, lo, hi, gap2, inclusive)
 }
 // Native integer-nm contact rounding can leave a sub-nm diagonal overlap open.
 // Require a full 1 nm of overlap after flooring each track half-width. This
@@ -145,14 +134,25 @@ pub fn tracks_connect(a: &Track, b: &Track) -> bool {
 
 /// Conservative contact: at least one whole nm of overlap, including corners.
 pub fn pads_touch(a: &Pad, b: &Pad) -> bool {
-    match (&a.shape, &b.shape) {
-        (Shape::Circle { radius_nm: r }, _) => {
-            track_near_pad(a.at, a.at, 2 * r, -CONTACT_OVERLAP_NM, b, true)
-        }
-        (_, Shape::Circle { .. }) => pads_touch(b, a),
-        (Shape::Rect { half_size_nm: x }, Shape::Rect { half_size_nm: y }) => (0..2).all(|i| {
-            (i128::from(a.at[i]) - i128::from(b.at[i])).abs()
-                <= i128::from(x[i]) + i128::from(y[i]) - i128::from(CONTACT_OVERLAP_NM)
-        }),
+    let (alo, ahi, ar) = a.copper_core();
+    let (blo, bhi, br) = b.copper_core();
+    if ar == 0 && br == 0 {
+        return (0..2).all(|k| {
+            i128::from(ahi[k].min(bhi[k])) - i128::from(alo[k].max(blo[k]))
+                >= i128::from(CONTACT_OVERLAP_NM)
+        });
     }
+    let gap = i128::from(ar) + i128::from(br) - i128::from(CONTACT_OVERLAP_NM);
+    if gap < 0 {
+        return false;
+    }
+    let distance2: i128 = (0..2)
+        .map(|k| {
+            let d = (i128::from(alo[k]) - i128::from(bhi[k]))
+                .max(i128::from(blo[k]) - i128::from(ahi[k]))
+                .max(0);
+            d * d
+        })
+        .sum();
+    distance2 <= gap * gap
 }

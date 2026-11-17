@@ -93,12 +93,28 @@ pub struct Pad {
     pub shape: Shape,
 }
 impl Pad {
+    pub(crate) fn copper_core(&self) -> (Point, Point, i64) {
+        let (half, radius) = match self.shape {
+            Shape::Circle { radius_nm } => ([0; 2], radius_nm),
+            Shape::Rect { half_size_nm } => (half_size_nm, 0),
+            Shape::RoundRect {
+                half_size_nm: h,
+                radius_nm: r,
+            } => ([h[0] - r, h[1] - r], r),
+        };
+        (
+            std::array::from_fn(|k| self.at[k] - half[k]),
+            std::array::from_fn(|k| self.at[k] + half[k]),
+            radius,
+        )
+    }
+
     /// Outward copper envelope for an admitted pad. This is candidate-selection
     /// geometry only; exact clearance and electrical contact remain separate.
     pub fn copper_bounds(&self) -> (Point, Point) {
         let half = match self.shape {
             Shape::Circle { radius_nm } => [radius_nm; 2],
-            Shape::Rect { half_size_nm } => half_size_nm,
+            Shape::Rect { half_size_nm } | Shape::RoundRect { half_size_nm, .. } => half_size_nm,
         };
         (
             std::array::from_fn(|k| self.at[k] - half[k]),
@@ -109,8 +125,18 @@ impl Pad {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Shape {
-    Circle { radius_nm: i64 },
-    Rect { half_size_nm: Point },
+    Circle {
+        radius_nm: i64,
+    },
+    Rect {
+        half_size_nm: Point,
+    },
+    /// A closed axis-aligned box inset by radius_nm, swept by that radius.
+    /// Radius zero is a rectangle; radius=min(half_size) is a capsule.
+    RoundRect {
+        half_size_nm: Point,
+        radius_nm: i64,
+    },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -283,8 +309,21 @@ impl Input {
             }
             let sizes = match p.shape {
                 Shape::Circle { radius_nm } => [radius_nm; 2],
-                Shape::Rect { half_size_nm } => half_size_nm,
+                Shape::Rect { half_size_nm } | Shape::RoundRect { half_size_nm, .. } => {
+                    half_size_nm
+                }
             };
+            if let Shape::RoundRect {
+                half_size_nm,
+                radius_nm,
+            } = p.shape
+            {
+                if radius_nm < 0 || radius_nm > half_size_nm[0].min(half_size_nm[1]) {
+                    return Err(invalid(
+                        "rounded pad radius must be nonnegative and at most either half size",
+                    ));
+                }
+            }
             if !sizes.iter().all(|v| (1..=MAX_NM).contains(v)) {
                 return Err(invalid("pad sizes must be positive and <=100000000 nm"));
             }

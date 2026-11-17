@@ -414,13 +414,13 @@
       "kind": "review",
       "ref": "9b97e66b-f0d3-40eb-b05d-dde8a265e1b4/v1",
       "date": "2026-11-17",
-      "statement": "Independent acceptance of bounded experimental non-default M7 at7575313; no full requirement or representative parity acceptance."
+      "statement": "Independent acceptance of bounded experimental non-default M7 at 7575313; no full requirement or representative parity acceptance."
     },
     "carbon-milestone-7": {
       "kind": "review",
       "ref": "a97a6d6e-a01e-41fa-8aca-a858e50b32ac/v1",
       "date": "2026-11-17",
-      "statement": "Independent acceptance of bounded experimental non-default M7 at7575313; no full requirement or representative parity acceptance."
+      "statement": "Independent acceptance of bounded experimental non-default M7 at 7575313; no full requirement or representative parity acceptance."
     },
     "multiterminal-test-correction": {
       "kind": "implementation-result",
@@ -492,7 +492,7 @@
         "If weighted or non-admissible heuristics are introduced, the independent oracle verifies the claimed cost bound, not only reachability."
       ],
       "state": "open",
-      "current_evidence": "Both independent reviewers accept the M7 admissible consistent component-envelope estimate at7575313, including unchanged4096-world oracle and256multi-target worlds. Fable independently verifies600arbitrary-angle search worlds and over6.1million consistency edges. b91c391 adds shipped production diagonal-goal and exact per-target work tests, with compiled adverse controls; focused correction review pending. Heading/history-sensitive continuation and seed/phase completeness remain OPEN."
+      "current_evidence": "Both independent reviewers accepted the M7 admissible consistent component-envelope estimate at 7575313, including unchanged 4096-world oracle and 256 multi-target worlds. M1 integrates b91c391 work-charge/diagonal-goal tests, O1 incoming-heading dominance/BFS regressions, C-M7-03 empty-target guard, C-M3-05 unified two-pad edge attachment, and 21d4f7d copper_bounds with RoundRect/Oval envelope support; M6 post-landing fable/astra audit pending. History-dependent via rules and seed/phase completeness remain OPEN."
     },
     {
       "id": "RE-03",
@@ -526,7 +526,7 @@
         "Same-net and cross-net drill, pad-hole and mask-web controls when supported."
       ],
       "state": "open",
-      "current_evidence": "06ea2ca reproduced then corrected actual diagonal Rust false completion: 21/400 became 0, with 800 additional binary/native contact samples. Independent reviews accepted the bounded correction at 3a763b7. No universal rounding proof; conservative extra routing is possible. Operational native validation at0289d9f independently refuses native-disagreeing output before publication."
+      "current_evidence": "06ea2ca reproduced then corrected actual diagonal Rust false completion: 21/400 became 0, with 800 additional binary/native contact samples. M1 extends exact i128 copper_core and native KiCad admission to RoundRect/Oval pads (with chamfer, padstack, missing-size, and effective-shape guards) plus 5 Rust shapes tests and native shapes/odd-width controls; M6 post-landing fable/astra audit pending. No universal rounding proof; conservative extra routing is possible."
     },
     {
       "id": "RE-04",
@@ -771,7 +771,7 @@
         "Multi-net native fixtures and deterministic recovery; later admitted comparative boards under unchanged rules."
       ],
       "state": "open",
-      "current_evidence": "Both independent reviewers accept bounded greedy multi-terminal and multi-net routing at7575313: 3/4/6 terminals, incumbent components, exact preservation, native zero opens/no-new DRC and shared-budget rollback. Original R-M7-01 request now completes9751expansions/12tracks under unchanged100000budget. Current net order is deterministic ascending and joins are greedy; Steiner/global optimality, rip-up, multilayer scheduling and representative parity remain OPEN."
+      "current_evidence": "Both independent reviewers accepted bounded greedy multi-terminal and multi-net routing at 7575313: 3/4/6 terminals, incumbent components, exact preservation, native zero opens/no-new DRC and shared-budget rollback. Original R-M7-01 request completes in 9751 expansions / 12 tracks under unchanged 100000 budget. M1 adds C-M7-02 collinear overlap normalization (P2a T-corridor and straddling split) and C-M3-05 unified two-pad edge attachment; M6 post-landing fable/astra audit pending. Current net order is deterministic ascending and joins are greedy; Steiner/global optimality, rip-up, multilayer scheduling and representative parity remain OPEN."
     },
     {
       "id": "RE-10",
@@ -933,7 +933,7 @@
         "acceptance_scope": "M6 whole-request consistency and regression corrections; explicit continuing greenfield role acknowledgment. No full-engine, representative parity or production acceptance."
       }
     ],
-    "next_milestone": "M7 corrected multi-terminal candidate passes root96Rust+3compilefail+167native+95ownership/acceptance checks. Obtain fresh independent Fable/Carbon review of the frozen combined revision before integration. All10full requirements remain open; holds unchanged.",
+    "next_milestone": "M1 (Lane 1 M7 multi-terminal + 21d4f7d copper_bounds + C-M7-02/O1/C-M7-03/C-M3-04/C-M3-05, and Lane 3 native oval/roundrect shapes + odd-width baseline + KiCad coercion hardening) implemented and locally tested; M6 post-landing independent fable/astra audit pending after M1-M5 land on local main. All 10 full requirements remain open.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -1347,11 +1347,12 @@
       ],
       "reviewed_revision": "2a4b730c3aef8ca9102aa61794beb90af9c67481",
       "finding": "Independent test helper returns false for all rectangle/rectangle pairs because both have zero radius.",
-      "evidence_class": "Source-derived test-only domain limit; no rectangle/rectangle query occurs in the4096-world oracle, whose moving operand is a positive-width segment. Production pads_touch is separate.",
-      "status": "open-nonblocking-for-bounded-milestone",
+      "evidence_class": "Source-derived test-only domain limit; no rectangle/rectangle query occurs in the 4096-world oracle, whose moving operand is a positive-width segment. Production pads_touch is separate.",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Add an independent rectangle-overlap predicate before extending this helper to rectangle-pair connectivity fixtures."
+      "blocks_current_integration": false,
+      "next_action": "M1 adds the independent (Rect, Rect) overlap branch in rust-engine/tests/support/contact.rs with overlap/tangency tests in components.rs and shapes.rs; M6 post-landing audit pending."
     },
     {
       "id": "C-M3-05",
@@ -1365,11 +1366,12 @@
       ],
       "reviewed_revision": "2a4b730c3aef8ca9102aa61794beb90af9c67481",
       "finding": "Two isolated pads use center-to-center search and can refuse a shadowed center whose near edge is reachable.",
-      "evidence_class": "Carbon executed native two-pad control: edit-free Unroutable,0 expansions. Component version with incumbent reaches rectangle near edge and passes native publication.",
-      "status": "open-nonblocking-for-bounded-milestone",
+      "evidence_class": "Carbon executed native two-pad control: edit-free Unroutable, 0 expansions. Component version with incumbent reaches rectangle near edge and passes native publication.",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Track with F-M3-03 seed/search-domain work; unify dispatch before claiming general pad-edge completeness."
+      "blocks_current_integration": false,
+      "next_action": "M1 unifies two-pad route_net dispatch through join_components (with two_pad_shadowed_center_rect_routes_via_edge_attachment); source-pad center shadowing remains F-M3-03 and M6 post-landing audit pending."
     },
     {
       "id": "F-M4-N1",
@@ -1886,7 +1888,7 @@
       "observation_deadline": "before M7 integration",
       "blocks_current_integration": false,
       "candidate_rust_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
-      "current_evidence": "Root361checks pass; Fable and Carbon independently accept7575313 and reproduce unchanged original request complete at9751expansions/work788180/12tracks. Carbon independently verifies full pad+track native adjacency, zeroopens/no-newDRC and exact preservation. Earlier failure100000expansions/work12345690 is retained, not replaced.",
+      "current_evidence": "Root 361 checks pass; Fable and Carbon independently accept 7575313 and reproduce unchanged original request complete at 9751 expansions / work 788180 / 12 tracks. Carbon independently verifies full pad+track native adjacency, zero opens / no-new DRC and exact preservation. Earlier failure 100000 expansions / work 12345690 is retained, not replaced.",
       "review_source_ids": [
         "fable-milestone-7",
         "carbon-milestone-7"
@@ -1905,12 +1907,12 @@
       "finding": "Deleting per-target heuristic work charge survived original shipped tests.",
       "severity": "nonblocking-observation",
       "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
-      "status": "corrected-awaiting-independent-review",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "b91c391 production helper is used by actual search; direct per-target deltas/exact cutoffs detect compiled charge-deletion mutant. Root requires focused independent acceptance before integration.",
-      "blocks_current_integration": true,
-      "observation_deadline": "Before chosen M7 correction integration"
+      "next_action": "b91c391 production helper is used by actual search; direct per-target deltas/exact cutoffs detect compiled charge-deletion mutant. Integrated in M1; M6 post-landing fable/astra audit pending.",
+      "blocks_current_integration": false,
+      "observation_deadline": "M6 post-landing independent audit"
     },
     {
       "id": "F-M7-F2",
@@ -1925,12 +1927,12 @@
       "finding": "Original shipped heuristic-goal tests used only axis-aligned targets and test-helper contact.",
       "severity": "nonblocking-observation",
       "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
-      "status": "corrected-awaiting-independent-review",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "b91c391 tests actual production contact for12targets including8slants, reversed endpoints, odd widths and shortened edges; compiled diagonal-envelope mutant fails. Independent acceptance pending.",
-      "blocks_current_integration": true,
-      "observation_deadline": "Before chosen M7 correction integration"
+      "next_action": "b91c391 tests actual production contact for 12 targets including 8 slants, reversed endpoints, odd widths and shortened edges, extended in M1 with RoundRect/Oval targets; compiled diagonal-envelope mutant fails. M6 post-landing fable/astra audit pending.",
+      "blocks_current_integration": false,
+      "observation_deadline": "M6 post-landing independent audit"
     },
     {
       "id": "C-M7-01",
@@ -1945,12 +1947,12 @@
       "finding": "Native partition helper collapsed same-footprint pads and omitted track-only components.",
       "severity": "nonblocking-observation",
       "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
-      "status": "corrected-awaiting-independent-review",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "d7ca31f uses full native pad/track adjacency and stable pad(ref,number,UUID)/trackUUID keys. Multipin four-pad plus isolated incumbent fixture proves5to1components. Root9native cases pass; both footprint-collapse and pad-only-seed mutants fail outcome assertions. Independent acceptance pending.",
-      "blocks_current_integration": true,
-      "observation_deadline": "Before chosen M7 correction integration"
+      "next_action": "d7ca31f uses full native pad/track adjacency and stable pad(ref,number,UUID)/trackUUID keys. Multipin four-pad plus isolated incumbent fixture proves 5 to 1 components. Integrated in M1 (including native shapes suite); M6 post-landing fable/astra audit pending.",
+      "blocks_current_integration": false,
+      "observation_deadline": "M6 post-landing independent audit"
     },
     {
       "id": "C-M7-02",
@@ -1961,15 +1963,15 @@
       "source_ids": [
         "carbon-milestone-7"
       ],
-      "finding": "Forced T-corridor can re-walk3.375001mm of existing same-net copper; native accepts but redundant overlap affects future length and victim costs.",
+      "finding": "Forced T-corridor can re-walk 3.375001 mm of existing same-net copper; native accepts but redundant overlap affects future length and victim costs.",
       "severity": "nonblocking-observation",
       "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
-      "status": "open",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Normalize or split redundant collinear copper before length/delay matching or victim-cost acceptance; retain reviewer T-corridor witness. No current native legality defect.",
+      "next_action": "M1 implements subtract_collinear_overlaps in Engine::insert_path before legal_edge and copper.insert, verified by P2a T-corridor, straddling split, WorkExhausted rollback, and native T-corridor tests; M6 post-landing fable/astra audit pending.",
       "blocks_current_integration": false,
-      "observation_deadline": "Before the dependent future capability is accepted"
+      "observation_deadline": "M6 post-landing independent audit"
     },
     {
       "id": "C-M7-03",
@@ -1984,12 +1986,12 @@
       "finding": "Private component search assumes nonempty flattened targets; caller guarantees it, but an arbitrary empty direct call would overflow the heuristic.",
       "severity": "nonblocking-observation",
       "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
-      "status": "documented-private-precondition",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "b91c391 documents existing nonempty caller invariant; guard if future API exposes arbitrary targets. No unreachable-path behavior change required.",
+      "next_action": "M1 guards empty targets in join_components and converts component_estimate to Option<u64> returning Status::Unroutable instead of u64::MAX panic, with unit tests in search_tests.rs; M6 post-landing fable/astra audit pending.",
       "blocks_current_integration": false,
-      "observation_deadline": "Before the dependent future capability is accepted"
+      "observation_deadline": "M6 post-landing independent audit"
     },
     {
       "id": "F-M7-O1",
@@ -2003,12 +2005,12 @@
       "finding": "Heading-removal mutant survives current shipped tests; no current heading-dependent costs and key is unchanged.",
       "severity": "nonblocking-observation",
       "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
-      "status": "open",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Require a meaningful continuation/dominance regression before introducing bend/history-dependent routing constraints. Full RE02 remains open.",
+      "next_action": "M1 adds walk_preserves_distinct_incoming_headings_in_dominance_key and walk_matches_heading_aware_bfs_oracle_for_all_four_headings in search_tests.rs (State.direction deletion fails deterministically); M6 post-landing fable/astra audit pending. Full RE-02 remains open.",
       "blocks_current_integration": false,
-      "observation_deadline": "Before the dependent future capability is accepted"
+      "observation_deadline": "M6 post-landing independent audit"
     },
     {
       "id": "F-M7-O3",
@@ -2267,7 +2269,7 @@
     "inventory_status": "Initial matrix, not an exhaustive verified inventory; no representative-board parity row accepted."
   },
   "multiterminal_checkpoint": {
-    "state": "original-candidate-accepted-test-corrections-awaiting-review",
+    "state": "implemented-tested-awaiting-m6-audit",
     "baseline_revision": "fb3ac2d24223ad04e1ae30c6b8b43c11e271c634",
     "initial_rust_revision": "1a683afd74048521bf54e7552f333c61007464ce",
     "rust_owner": "agent-1484",
@@ -2277,10 +2279,10 @@
       "multiterminal-contract"
     ],
     "contract": "Input1/result3 unchanged; admit more than two pads within existing item/work/search/expansion/journal/depth limits. Greedy component joining with strict reduction and whole-operation rollback; no Steiner or global-completeness claim.",
-    "validation": "Original root361checks pass and both independent reviewers accept7575313. Correction author98Rust+3compilefail and byte-identical frozen request pass; root9native and95ownership/acceptance pass; two adverse native helper controls fail intended assertions. Combined gate passed Rust but hit3minute host timeout late in native suite with no assertion failure reported; preserved and rerun with6minute host allowance. Focused independent correction acceptance pending.",
+    "validation": "Original 361 checks passed and both independent reviewers accepted 7575313. M1 integrates b91c391, d7ca31f, 21d4f7d copper_bounds, C-M7-02 collinear overlap normalization, O1 heading-dominance regressions, C-M7-03 empty-target refusal, C-M3-04 rect/rect contact helper, C-M3-05 two-pad unification, and Lane 3 native oval/roundrect shapes with KiCad coercion hardening; M6 post-landing fable/astra audit pending.",
     "full_requirements": "All 10 remain open; no full-engine, representative parity, production/default or deployment acceptance.",
     "corrected_rust_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
-    "search_correction": "Admissible consistent minimum target-envelope step bound; original directional states, exact attachment/legality and shared resource budgets retained. Every target estimate is charged work; existing4096world and new256multi-target step-cost oracles pass.",
+    "search_correction": "Admissible consistent minimum target-envelope step bound; original directional states, exact attachment/legality and shared resource budgets retained. Every target estimate is charged work; existing 4096-world and new 256 multi-target step-cost oracles pass.",
     "reviewed_revision": "7575313d9a79695bce6067b41d7cac5e22e51d94",
     "review_source_ids": [
       "fable-milestone-7",

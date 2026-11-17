@@ -10,10 +10,13 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from contextlib import contextmanager
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -85,8 +88,129 @@ def source_snapshot(path: Path):
         yield snapshot
 
 
+def pad_shape(pad):
+    """Decode admitted native copper; leave original native pad metadata intact."""
+    copper = [layer for layer in pad.GetLayerSet().Seq() if pcbnew.IsCopperLayer(layer)]
+    if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD or copper != [pcbnew.F_Cu]:
+        raise UnsupportedBoard('only front-copper SMD pads are supported')
+    if any(point(getter()) != [0, 0] for getter in (
+            pad.GetDrillSize, pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize)):
+        raise UnsupportedBoard('drilled pads are not represented')
+    size = point(pad.GetSize())
+    if any(v <= 0 for v in size):
+        raise ValueError('pad dimensions must be positive')
+    kind = pad.GetShape()
+    if kind == pcbnew.PAD_SHAPE_CIRCLE:
+        if size[0] != size[1] or size[0] % 2 != 0:
+            raise UnsupportedBoard('circular pads require equal even dimensions')
+        return {'kind': 'circle', 'radius_nm': size[0] // 2}
+    if kind not in (pcbnew.PAD_SHAPE_RECT, pcbnew.PAD_SHAPE_OVAL, pcbnew.PAD_SHAPE_ROUNDRECT):
+        raise UnsupportedBoard('only circular, rectangular, oval and rounded-rectangle pads are supported')
+    angle = pad.GetOrientationDegrees() % 180
+    if angle not in (0, 90) or any(v % 2 for v in size):
+        raise UnsupportedBoard('noncircular pads require orthogonal rotation and even dimensions')
+    half = [v // 2 for v in size]
+    if kind == pcbnew.PAD_SHAPE_RECT:
+        radius = 0
+    elif kind == pcbnew.PAD_SHAPE_OVAL:
+        radius = min(half)
+    else:
+        if pad.GetChamferPositions() != 0:
+            raise UnsupportedBoard('chamfered pads are not represented')
+        ratio = pad.GetRoundRectRadiusRatio()
+        native_radius = pad.GetRoundRectCornerRadius()
+        if not math.isfinite(ratio) or not 0 <= ratio <= 0.5 or not math.isfinite(native_radius):
+            raise ValueError('rounded pad radius ratio must be finite and between zero and one half')
+        radius = int(native_radius)
+        if radius != native_radius or not 0 <= radius <= min(half):
+            raise ValueError('rounded pad radius must be an integer within either half size')
+        # KiCad can collapse near-circle roundrects to one effective circle.
+        # Read that actual native shape instead of assuming a version-specific
+        # collapse threshold. Nominal metadata stays on the untouched pad.
+        raw_effective = pad.GetEffectiveShape(pcbnew.F_Cu)
+        if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
+            raise UnsupportedBoard('native rounded-pad effective shape is unavailable')
+        if raw_effective.Type() == pcbnew.SH_CIRCLE:
+            circle = pcbnew.Cast_to_SHAPE_CIRCLE(raw_effective)
+            if circle is None or point(circle.GetCenter()) != point(pad.GetPosition()) or circle.GetRadius() != radius:
+                raise UnsupportedBoard('native rounded-pad effective circle is not represented')
+            return {'kind': 'circle', 'radius_nm': radius}
+        effective = pcbnew.Cast_to_SHAPE_COMPOUND(raw_effective)
+        if effective is None:
+            raise UnsupportedBoard('native rounded-pad effective shape is not represented')
+        if effective.Size() == 1 and effective.UniqueSubshape().Type() == pcbnew.SH_CIRCLE:
+            circle = pcbnew.Cast_to_SHAPE_CIRCLE(effective.UniqueSubshape())
+            if circle is None or point(circle.GetCenter()) != point(pad.GetPosition()) or circle.GetRadius() != radius:
+                raise UnsupportedBoard('native rounded-pad effective circle is not represented')
+            return {'kind': 'circle', 'radius_nm': radius}
+    if angle == 90:
+        half.reverse()
+    if kind == pcbnew.PAD_SHAPE_RECT:
+        return {'kind': 'rect', 'half_size_nm': half}
+    return {'kind': 'round_rect', 'half_size_nm': half, 'radius_nm': radius}
+
+
+def validate_native_pad_scalars(body: bytes):
+    """Reject native values pcbnew otherwise clamps before exposing its model.
+
+    This small S-expression token walk validates source scalars only. Native
+    decoding still owns the board, and Rust owns all copper geometry decisions.
+    Quoted text cannot manufacture a pad/size/radius expression.
+    """
+    stack = []
+    tokens = re.finditer(r'\(|\)|"(?:\\.|[^"\\])*"|[^\s()"]+|"', body.decode('utf-8'))
+    for match in tokens:
+        token = match.group()
+        if token == '"':
+            raise ValueError('unterminated string in native board expression')
+        if token == '(':
+            in_pad_descendant = bool(stack and (stack[-1][0] == 'pad' or stack[-1][2]))
+            in_pad_direct = bool(stack and stack[-1][0] == 'pad')
+            stack.append([None, [], in_pad_descendant, in_pad_direct, False])
+        elif token == ')':
+            if not stack:
+                raise ValueError('unbalanced native board expression')
+            head, values, in_pad_descendant, in_pad_direct, saw_size = stack.pop()
+            if in_pad_descendant and head == 'drill':
+                raise UnsupportedBoard('drilled pads are not represented')
+            if in_pad_descendant and head == 'padstack':
+                raise UnsupportedBoard('custom pad stacks are not represented')
+            if in_pad_descendant and head in ('chamfer', 'chamfer_ratio'):
+                raise UnsupportedBoard('chamfered pads are not represented')
+            if head == 'pad' and not saw_size:
+                raise ValueError('pad dimensions must be declared explicitly')
+            if not in_pad_direct or head not in ('size', 'roundrect_rratio'):
+                continue
+            if any('_' in value for value in values):
+                raise ValueError('pad dimensions/radius must be finite numeric scalars')
+            try:
+                numbers = [Decimal(value) for value in values]
+            except InvalidOperation as error:
+                raise ValueError('pad dimensions/radius must be finite numeric scalars') from error
+            if not all(v.is_finite() for v in numbers):
+                raise ValueError('pad dimensions/radius must be finite numeric scalars')
+            if head == 'size':
+                if len(numbers) != 2 or any(v <= 0 or v > 200 for v in numbers):
+                    raise ValueError('pad dimensions must be positive and at most 200 mm')
+                for value in numbers:
+                    _, digits, exponent = value.as_tuple()
+                    if exponent < -6 and any(digits[max(0, len(digits) + exponent + 6):]):
+                        raise ValueError('pad dimensions must be exact integer nanometres')
+                stack[-1][4] = True
+            if head == 'roundrect_rratio' and (len(numbers) != 1 or not 0 <= numbers[0] <= Decimal('.5')):
+                raise ValueError('rounded pad radius ratio must be between zero and one half')
+        elif stack:
+            if stack[-1][0] is None:
+                stack[-1][0] = token
+            elif stack[-1][3] and stack[-1][0] in ('size', 'roundrect_rratio'):
+                stack[-1][1].append(token)
+    if stack:
+        raise ValueError('unbalanced native board expression')
+
+
 def load_supported(path: Path):
     reject_external_rules(path)
+    validate_native_pad_scalars(read_bounded(path))
     board = pcbnew.LoadBoard(str(path))
     if board is None:
         raise ValueError(f'KiCad could not load {path}')
@@ -119,6 +243,7 @@ def load_supported(path: Path):
             if pcbnew.IsCopperLayer(drawing.GetLayer()) or drawing.GetLayer() == pcbnew.Edge_Cuts:
                 raise UnsupportedBoard('footprint copper graphics and board cuts are not represented')
         for pad in footprint.Pads():
+            pad_shape(pad)
             if pad.GetLocalClearance() is not None:
                 raise UnsupportedBoard('pad clearance overrides are not represented')
             if pad.GetLocalSolderMaskMargin() is not None:
@@ -178,21 +303,7 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
     pads = []
     for footprint in board.GetFootprints():
         for pad in footprint.Pads():
-            copper = [layer for layer in pad.GetLayerSet().Seq() if pcbnew.IsCopperLayer(layer)]
-            if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD or copper != [pcbnew.F_Cu]:
-                raise UnsupportedBoard('only front-copper SMD pads are supported')
-            size = point(pad.GetSize())
-            if pad.GetShape() == pcbnew.PAD_SHAPE_CIRCLE and size[0] == size[1] and size[0] % 2 == 0:
-                shape = {'kind': 'circle', 'radius_nm': size[0] // 2}
-            elif pad.GetShape() == pcbnew.PAD_SHAPE_RECT:
-                angle = pad.GetOrientationDegrees() % 180
-                if angle not in (0, 90) or any(v % 2 for v in size):
-                    raise UnsupportedBoard('rectangular pads require orthogonal rotation and even dimensions')
-                if angle == 90:
-                    size.reverse()
-                shape = {'kind': 'rect', 'half_size_nm': [v // 2 for v in size]}
-            else:
-                raise UnsupportedBoard('only circular and axis-aligned rectangular pads are supported')
+            shape = pad_shape(pad)
             pads.append({'id': item_id(pad), 'net': int(pad.GetNetCode()),
                          'at': point(pad.GetPosition()), 'shape': shape})
     tracks = []

@@ -317,6 +317,24 @@ fn contact_bound_contains_caps_and_is_consistent_on_shortened_edges() {
             half_size_nm: [2, 4],
         },
     );
+    let rounded = pad(
+        5,
+        1,
+        [11, 12],
+        Shape::RoundRect {
+            half_size_nm: [4, 3],
+            radius_nm: 2,
+        },
+    );
+    let capsule = pad(
+        6,
+        1,
+        [11, 12],
+        Shape::RoundRect {
+            half_size_nm: [3, 5],
+            radius_nm: 3,
+        },
+    );
     let vertical = track(3, 1, [13, 6], [13, 16], 3);
     let horizontal = track(4, 1, [6, 13], [16, 13], 5);
     let diagonals = [
@@ -332,6 +350,8 @@ fn contact_bound_contains_caps_and_is_consistent_on_shortened_edges() {
     let mut targets = vec![
         Copper::Pad(&circle),
         Copper::Pad(&rect),
+        Copper::Pad(&rounded),
+        Copper::Pad(&capsule),
         Copper::Track(&vertical),
         Copper::Track(&horizontal),
     ];
