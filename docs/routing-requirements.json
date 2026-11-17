@@ -159,6 +159,31 @@
       "ref": "3b8ea03c-7eb8-40a1-a8bf-f229743567a7/v1",
       "date": "2026-11-16",
       "statement": "Root actual binary and native witness confirm a legal shortened goal segment is rejected because its unused full-grid remainder is illegal. Native manual witness closes1->0 opens and passes mandatory publication. General correction assigned; fixture unchanged."
+    },
+    "fable-milestone-3": {
+      "kind": "review",
+      "ref": "5c696c9b-fc7b-475e-8f51-2d64d44beebf/v1",
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "date": "2026-11-16"
+    },
+    "carbon-milestone-3": {
+      "kind": "review",
+      "ref": "bc6c0c6e-25bf-4ac3-8485-24c6d19a3fe4/v1",
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "date": "2026-11-16",
+      "url": "https://artifact.harm.org/3pamvu/milestone-3.html"
+    },
+    "first-contact-correction-assignment": {
+      "kind": "supervisor-adjudication-and-assignment",
+      "ref": "bba61f28-5887-460b-bd28-a280b6cdd848/v1",
+      "date": "2026-11-16",
+      "statement": "Both reviewers permit bounded experimental landing; supervisor requires Fable F1 first-contact correction and F2 independent exhaustive component oracle before integration. Original witnesses and rules remain unchanged."
+    },
+    "native-first-contact-regression": {
+      "kind": "executed-regression",
+      "ref": "6efa1bc9-fda3-4ed5-832c-c78be25a9787/v1",
+      "date": "2026-11-16",
+      "statement": "Root uniformly scaled Fable F1 by five to satisfy native export clearance floor. Frozen d9adcb0 refuses after1235 expansions; provisional correction emits endpoint(25000000,29000001), closes native1->0 opens with no added DRC. Final frozen verification and independent acceptance pending."
     }
   },
   "requirements": [
@@ -543,12 +568,14 @@
           "RE-09",
           "RE-10"
         ],
-        "request_event": "8876291a-7fc7-430e-918b-7cd50ec62361",
-        "request_source": "59be5dfb-6995-4c7a-be34-9ebe48eb68ee/v1",
-        "result_source": "f2829c01-700b-4a90-bbaf-661ff59d7e5b/v1",
+        "request_event": "669c7c5e-5777-4a85-823c-30cfd253941a",
+        "request_source": "57da245e-9ba1-4626-9d7e-260068f18b8f/v1",
+        "result_source": "5c696c9b-fc7b-475e-8f51-2d64d44beebf/v1",
         "delivery_state": "handled",
         "explicit_acceptance": true,
-        "completed_at": "2026-11-16T16:55:36-08:00"
+        "completed_at": "2026-11-16T18:21:30-08:00",
+        "reviewed_revision": "d9adcb0",
+        "acceptance_scope": "Reviewer permits bounded experimental milestone; supervisor holds integration for F-M3-01/F-M3-02. Changed source requires fresh review."
       },
       {
         "agent": "agent-1502",
@@ -561,15 +588,17 @@
           "RE-09",
           "RE-10"
         ],
-        "request_event": "81d9888e-e4ac-411c-95db-21d65d390955",
-        "request_source": "9403fd5f-3a5c-413a-ad64-b70857e1dbca/v1",
-        "result_source": "ff7d4f8b-d17d-491f-86ce-38d523f79a23/v1",
+        "request_event": "f7503057-1588-4b5b-8ef0-6c2d480a43a4",
+        "request_source": "3afbf9c9-1f81-4e89-9223-f65fa2844dde/v1",
+        "result_source": "bc6c0c6e-25bf-4ac3-8485-24c6d19a3fe4/v1",
         "delivery_state": "handled",
         "explicit_acceptance": true,
-        "completed_at": "2026-11-16T16:59:11-08:00"
+        "completed_at": "2026-11-16T18:23:58-08:00",
+        "reviewed_revision": "d9adcb0",
+        "acceptance_scope": "Reviewer permits bounded experimental milestone; supervisor holds integration for F-M3-01/F-M3-02. Changed source requires fresh review."
       }
     ],
-    "next_milestone": "Integrate the reviewed foundation/prevention increment, then strengthen transaction/termination contracts and accepted native coverage before expanding geometry, layers or global routing strategy.",
+    "next_milestone": "Correct first-contact attachment and add independent exhaustive component oracle, retain native witnesses, obtain fresh complete Fable/Carbon correction reviews, then integrate the bounded transaction/component increment. Next foundation is operation-wide work budgeting before global routing strategy.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -629,16 +658,18 @@
         "carbon-remit",
         "transaction-implementation"
       ],
-      "evidence_class": "35 Rust integration tests including scoped nested rollback oracle,3 compile-fail API examples; implementer report read by root",
-      "status": "implemented-independent-review-pending",
+      "evidence_class": "Independent nested snapshot oracle,3 compile-fail API checks,32 recursive histories; both reviewers inspected scoped rollback at d9adcb0.",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1484",
-      "next_action": "Independently inspect scoped API, undo and failure semantics at the frozen next milestone; verify combined component-routing changes before acceptance.",
+      "next_action": "Retain regression coverage through first-contact correction and fresh independent review; full component acceptance remains gated on F-M3-01 and F-M3-02.",
       "review_source_ids": [
-        "fable-milestone-1",
-        "carbon-milestone-1"
+        "fable-milestone-3",
+        "carbon-milestone-3"
       ],
       "prior_disposition": "Nesting unreachable at3a763b7, independently verified; required before expanding orchestration.",
-      "implementation_revision": "87719fe"
+      "implementation_revision": "87719fe",
+      "prior_status": "implemented-independent-review-pending",
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890"
     },
     {
       "id": "C-M1-02",
@@ -729,15 +760,21 @@
         "component-correction-assignment",
         "component-implementation"
       ],
-      "status": "implemented-independent-review-pending",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
       "request_event": "be2bd299-5c7c-415a-b625-361b2d9077e1",
       "observation_deadline": "2026-11-16T18:10:00-08:00",
       "checkpoint": "2026-11-16T18:20:00-08:00",
-      "evidence_class": "actual Rust/native fixture failure; successful publication prevented",
-      "next_action": "Independently review component correction after clipped-goal follow-up; retain singleton/incumbent, joined-pads/stray and track-only native cases.",
-      "implementation_revision": "6babad0"
+      "evidence_class": "Both independent reviews and67 native fixtures at d9adcb0 include singleton/incumbent, joined-pads/stray and track-only connectivity; first-contact completeness issue tracked separately.",
+      "next_action": "Retain regression coverage through first-contact correction and fresh independent review; full component acceptance remains gated on F-M3-01 and F-M3-02.",
+      "implementation_revision": "6babad0",
+      "prior_status": "implemented-independent-review-pending",
+      "review_source_ids": [
+        "fable-milestone-3",
+        "carbon-milestone-3"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890"
     },
     {
       "id": "R-M3-clipped-goal",
@@ -749,14 +786,169 @@
       "source_ids": [
         "attachment-correction-assignment"
       ],
-      "status": "open-correction-active",
+      "status": "closed-for-bounded-milestone",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
       "request_event": "311ff5ad-efa3-41b4-8f17-9b7906ab719f",
       "observation_deadline": "2026-11-16T18:20:00-08:00",
       "checkpoint": "2026-11-16T18:25:00-08:00",
-      "evidence_class": "actual Rust binary refuses after1 expansion; independent manual native plan proves a legal connection,1->0 opens with DRC non-regression",
-      "next_action": "Check shortened final-edge legality before rejecting its unused remainder, while preserving settled-cost search and budget semantics. Retain clipped_goal native regression and independent review."
+      "evidence_class": "Actual corrected Rust output closes the unchanged native witness in2 expansions; both reviewers verified shortened-edge queue and budget semantics.",
+      "next_action": "Retain regression coverage through first-contact correction and fresh independent review; full component acceptance remains gated on F-M3-01 and F-M3-02.",
+      "prior_status": "open-correction-active",
+      "review_source_ids": [
+        "fable-milestone-3",
+        "carbon-milestone-3"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "implementation_revision": "d9adcb0"
+    },
+    {
+      "id": "F-M3-01",
+      "requirements": [
+        "RE-02",
+        "RE-03",
+        "RE-09"
+      ],
+      "source_ids": [
+        "fable-milestone-3",
+        "first-contact-correction-assignment",
+        "native-first-contact-regression"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "finding": "Attachment checks a deep target point but misses the legal first-contact interval between lattice vertices.",
+      "evidence_class": "Actual Fable binary failure1235 expansions; native manual shallow witness closes1->0 without new DRC. Root independently reproduces on uniform x5 native fixture.",
+      "status": "open-correction-active",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Find earliest integer contact along supported convex target interval; preserve exact clearance/budget/rollback and original unscaled witness. Require frozen native regression and both correction reviews.",
+      "request_event": "2943b3a8-bd26-4d8d-800b-ad41e76afbd5",
+      "observation_deadline": "2026-11-16T18:40:00-08:00",
+      "checkpoint": "2026-11-16T18:50:00-08:00",
+      "blocks_current_integration": true
+    },
+    {
+      "id": "F-M3-02",
+      "requirements": [
+        "RE-02",
+        "RE-09"
+      ],
+      "source_ids": [
+        "fable-milestone-3",
+        "first-contact-correction-assignment"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "finding": "Component reachability and unit-step optimality lack an exhaustive independent oracle.",
+      "evidence_class": "Source review:9 hand fixtures and strict centerline connectivity check;256-world oracle covers only two-pad search.",
+      "status": "open-correction-active",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Enumerate integer terminal points in small worlds independently of production attachment/search; cover narrow track, circle and rectangle targets with obstacles. State supported seed/lattice domain and exclusions.",
+      "request_event": "2943b3a8-bd26-4d8d-800b-ad41e76afbd5",
+      "observation_deadline": "2026-11-16T18:40:00-08:00",
+      "checkpoint": "2026-11-16T18:50:00-08:00",
+      "blocks_current_integration": true
+    },
+    {
+      "id": "F-M3-03",
+      "requirements": [
+        "RE-02",
+        "RE-05"
+      ],
+      "source_ids": [
+        "fable-milestone-3"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "finding": "Only first-component pad centers/track endpoints seed search; direct route/reroute failure text omits route_all completeness qualifier.",
+      "evidence_class": "Source-derived domain limit.",
+      "status": "open",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Keep seed/phase limits explicit; unify scoped failure reasons before broadening orchestration."
+    },
+    {
+      "id": "F-M3-04",
+      "requirements": [
+        "RE-05",
+        "RE-08"
+      ],
+      "source_ids": [
+        "fable-milestone-3"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "finding": "Per-operation expansion limit excludes geometry/component scans and outer transaction composition.",
+      "evidence_class": "Source-derived:quadratic partitions,linear obstacle scans,independent child budgets.",
+      "status": "open",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Define deterministic outer-operation work and memory bounds before rip-up or repeated retry loops; count geometry/component work."
+    },
+    {
+      "id": "F-M3-05",
+      "requirements": [
+        "RE-05",
+        "RE-07"
+      ],
+      "source_ids": [
+        "fable-milestone-3"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "finding": "Unexpected Rust CLI panic can leave an older output file unchanged.",
+      "evidence_class": "Source-derived main.rs boundary; structured failures have different publication behavior.",
+      "status": "open",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Define and test stale-output/crash contract before relying on CLI output after exceptional termination."
+    },
+    {
+      "id": "C-M3-01",
+      "requirements": [
+        "RE-03",
+        "RE-09"
+      ],
+      "source_ids": [
+        "carbon-milestone-3"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "finding": "First legal target in input order can produce an unnecessarily deep segment across nearer targets.",
+      "evidence_class": "Executed Carbon native probe:10->18mm crosses target13mm; legal,zero native opens/added DRC.",
+      "status": "open",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Choose nearest legal contact on each edge and assert target-order invariance, without claiming global length optimality."
+    },
+    {
+      "id": "C-M3-02",
+      "requirements": [
+        "RE-03",
+        "RE-09"
+      ],
+      "source_ids": [
+        "carbon-milestone-3"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "finding": "Wide rectangle near edge may admit attachment while center is clearance-shadowed.",
+      "evidence_class": "Source-derived; same general attachment mechanism as F-M3-01.",
+      "status": "open-correction-active",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Resolve through F-M3-01 with explicit rectangle witness and independent oracle."
+    },
+    {
+      "id": "C-M3-03",
+      "requirements": [
+        "RE-02",
+        "RE-03"
+      ],
+      "source_ids": [
+        "carbon-milestone-3"
+      ],
+      "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "finding": "Collinear coalescing omits direction-sign check.",
+      "evidence_class": "Informational source concern; reversal not reachable under current unit-cost search and postvalidation. No executed unsafe output.",
+      "status": "informational",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Revisit before adding directional costs or accepting externally supplied paths."
     }
   ],
   "reviewed_milestones": [
@@ -770,6 +962,18 @@
       "disposition": "accepted-for-experimental-non-default-integration",
       "scope": "First supported Rust subset, mandatory native publication checks, ownership/fitness/workflow prevention safeguards. No full-engine, production-use, performance or fabrication acceptance.",
       "validation": "130 architecture/acceptance/native cases; unchanged Rust source26tests. Both reviewers independently passed35native cases on final correction."
+    },
+    {
+      "candidate_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
+      "review_source_ids": [
+        "fable-milestone-3",
+        "carbon-milestone-3"
+      ],
+      "supervisor": "agent-1497",
+      "disposition": "integration-held-for-first-contact-and-oracle-corrections",
+      "scope": "Nested transactions,typed native adapter,component completion and clipped-goal search. Both reviewers permit experimental integration; supervisor sets additional F-M3-01/F-M3-02 gates. All10 full requirements stay open.",
+      "validation": "Root162 architecture cases,44 Rust integration tests,3 compile-fail examples. Fable independently ran162 architecture+44Rust+3doc;Carbon44Rust+3doc+67native. Native first-contact fixture reproduces a missed legal route.",
+      "review_coverage_gap": "Fable initial review omitted full native-test/catalog/acceptance-doc/README/implementer-report reads; correction review must include these required inputs before acceptance."
     }
   ]
 }

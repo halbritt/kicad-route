@@ -143,7 +143,8 @@ def test_native_adapter_applies_exact_edit_list(native_board):
 
 
 @pytest.mark.parametrize('variant', ['circle', 'rect_90', 'net_zero_pad', 'foreign_pad',
-    'two_signal_nets', 'joined_pads_stray_track', 'track_components', 'clipped_goal'])
+    'two_signal_nets', 'joined_pads_stray_track', 'track_components', 'clipped_goal',
+    'first_contact', 'edge_stroke_boundary'])
 def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_board, guarded_cli, variant):
     run, audit_log = guarded_cli
     rules = RULES
@@ -154,6 +155,46 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
                 pad.SetShape(pcbnew.PAD_SHAPE_RECT)
                 pad.SetSize(pcbnew.VECTOR2I(2000000, 1000000))
                 pad.SetOrientationDegrees(90)
+        elif variant == 'edge_stroke_boundary':
+            # Carbon's native probe: clearance is measured from the outline
+            # centerline, including when its visible stroke is 0.2 mm wide.
+            rules = {**RULES, 'grid_nm': 125000}
+            for edge in board.GetDrawings():
+                edge.SetWidth(200000)
+            for footprint in board.GetFootprints():
+                footprint.SetPosition(pcbnew.VECTOR2I(footprint.GetPosition().x, 625000))
+                for pad in footprint.Pads():
+                    pad.SetSize(pcbnew.VECTOR2I(250000, 250000))
+        elif variant == 'first_contact':
+            # Fable F1, scaled uniformly by five to meet the exporter's 1 mm
+            # native clearance floor. The original integer Rust witness stays
+            # unchanged. The target centerline is clearance-shadowed; its near
+            # copper edge admits a legal endpoint between lattice vertices.
+            rules = {'width_nm': 1500000, 'clearance_nm': 1000000,
+                     'grid_nm': 2500000, 'edge_clearance_nm': 1000000}
+            for edge in board.GetDrawings():
+                a, b = edge.GetStart(), edge.GetEnd()
+                edge.SetStart(pcbnew.VECTOR2I(a.x * 5 // 2, a.y * 5 // 2))
+                edge.SetEnd(pcbnew.VECTOR2I(b.x * 5 // 2, b.y * 5 // 2))
+            for footprint in list(board.GetFootprints()):
+                if footprint.GetReference() == 'J2':
+                    board.Remove(footprint)
+                else:
+                    footprint.SetPosition(pcbnew.VECTOR2I(25000000, 10000000))
+                    for pad in footprint.Pads():
+                        pad.SetSize(pcbnew.VECTOR2I(3000000, 3000000))
+            wall = next(iter(board.GetTracks()))
+            wall.SetStart(pcbnew.VECTOR2I(10000000, 31500000))
+            wall.SetEnd(pcbnew.VECTOR2I(40000000, 31500000))
+            wall.SetWidth(500000)
+            target = pcbnew.PCB_TRACK(board)
+            target.SetLayer(pcbnew.F_Cu)
+            target.SetNetCode(1)
+            target.SetStart(pcbnew.VECTOR2I(10000000, 30000000))
+            target.SetEnd(pcbnew.VECTOR2I(40000000, 30000000))
+            target.SetWidth(500000)
+            target.SetLocked(True)
+            board.Add(target)
         elif variant == 'clipped_goal':
             rules = {**RULES, 'grid_nm': 10000000, 'width_nm': 2000000}
             for footprint in list(board.GetFootprints()):
@@ -235,6 +276,13 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     assert plan['status'] == 'complete'
     assert plan['added_tracks']
     assert 0 < plan['expanded_states'] <= exported['max_expansions']
+    if variant == 'first_contact':
+        assert any(29000001 <= endpoint[1] <= 29500000
+                   for track in plan['added_tracks']
+                   for endpoint in (track['start'], track['end']))
+    elif variant == 'edge_stroke_boundary':
+        assert all(track['start'][1] == track['end'][1] == 625000
+                   for track in plan['added_tracks'])
     output = native_board.with_name('routed.kicad_pcb')
     run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
          str(native_board), str(plan_path), str(output)])
