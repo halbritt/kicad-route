@@ -1,6 +1,6 @@
 //! Exact swept-copper tests. Distances are compared as integer fractions;
 //! no raster sampling, floating point tolerances, or square roots.
-use crate::model::{Pad, Point, Shape};
+use crate::model::{Pad, Point, Shape, Track};
 fn sub(a: Point, b: Point) -> [i128; 2] {
     [
         i128::from(a[0]) - i128::from(b[0]),
@@ -26,6 +26,9 @@ fn compare(a: i128, b: i128, inclusive: bool) -> bool {
 }
 // gap2 is twice the physical distance, retaining odd-nm half widths exactly.
 pub fn point_near_segment(p: Point, a: Point, b: Point, gap2: i128, inclusive: bool) -> bool {
+    if gap2 < 0 {
+        return false;
+    }
     let v = sub(b, a);
     let w = sub(p, a);
     let len2 = dot(v, v);
@@ -65,6 +68,9 @@ pub fn intersects(a: Point, b: Point, c: Point, d: Point) -> bool {
         || (o1.signum() * o2.signum() < 0 && o3.signum() * o4.signum() < 0)
 }
 pub fn segments_near(a: Point, b: Point, c: Point, d: Point, gap2: i128, inclusive: bool) -> bool {
+    if gap2 < 0 {
+        return false;
+    }
     if intersects(a, b, c, d) {
         return gap2 > 0 || inclusive;
     }
@@ -81,6 +87,9 @@ pub fn segment_near_rect(
     gap2: i128,
     inclusive: bool,
 ) -> bool {
+    if gap2 < 0 {
+        return false;
+    }
     let inside = |p: Point| (0..2).all(|i| p[i] >= lo[i] && p[i] <= hi[i]);
     if inside(a) || inside(b) {
         return gap2 > 0 || inclusive;
@@ -111,13 +120,39 @@ pub fn track_near_pad(
         ),
     }
 }
-/// Electrical connectivity requires positive area overlap, not tangency.
+// Native integer-nm contact rounding can leave a sub-nm diagonal overlap open.
+// Require a full 1 nm of overlap after flooring each track half-width. This
+// changes connectivity only: clearance calls retain full widths and gap rules.
+const CONTACT_OVERLAP_NM: i64 = 1;
+
+pub fn track_connects_pad(t: &Track, p: &Pad) -> bool {
+    track_near_pad(
+        t.start,
+        t.end,
+        (t.width_nm / 2) * 2,
+        -CONTACT_OVERLAP_NM,
+        p,
+        true,
+    )
+}
+
+pub fn tracks_connect(a: &Track, b: &Track) -> bool {
+    let gap2 = 2
+        * (i128::from(a.width_nm / 2) + i128::from(b.width_nm / 2)
+            - i128::from(CONTACT_OVERLAP_NM));
+    segments_near(a.start, a.end, b.start, b.end, gap2, true)
+}
+
+/// Conservative contact: at least one whole nm of overlap, including corners.
 pub fn pads_touch(a: &Pad, b: &Pad) -> bool {
     match (&a.shape, &b.shape) {
-        (Shape::Circle { radius_nm: r }, _) => track_near_pad(a.at, a.at, 2 * r, 0, b, false),
+        (Shape::Circle { radius_nm: r }, _) => {
+            track_near_pad(a.at, a.at, 2 * r, -CONTACT_OVERLAP_NM, b, true)
+        }
         (_, Shape::Circle { .. }) => pads_touch(b, a),
         (Shape::Rect { half_size_nm: x }, Shape::Rect { half_size_nm: y }) => (0..2).all(|i| {
-            (i128::from(a.at[i]) - i128::from(b.at[i])).abs() < i128::from(x[i]) + i128::from(y[i])
+            (i128::from(a.at[i]) - i128::from(b.at[i])).abs()
+                <= i128::from(x[i]) + i128::from(y[i]) - i128::from(CONTACT_OVERLAP_NM)
         }),
     }
 }

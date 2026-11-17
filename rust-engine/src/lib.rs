@@ -6,13 +6,6 @@ use model::*;
 use state::CopperStore;
 use std::collections::BTreeSet;
 
-// KiCad 10.0.8 can leave a nominal half-nm overlap open. Trust only the
-// integer half-width interior for connectivity. Clearance still uses the full
-// supplied width; this conservative contact rule can require an extra route.
-fn connectivity_width(width_nm: i64) -> i64 {
-    (width_nm / 2) * 2
-}
-
 pub struct Engine {
     input: Input,
     copper: CopperStore,
@@ -83,30 +76,18 @@ impl Engine {
         let mut reached = BTreeSet::new();
         let mut todo = Vec::new();
         for (i, t) in tracks.iter().enumerate() {
-            if geometry::track_near_pad(t.start, t.end, connectivity_width(t.width_nm), 0, a, false)
-            {
+            if geometry::track_connects_pad(t, a) {
                 reached.insert(i);
                 todo.push(i);
             }
         }
         while let Some(i) = todo.pop() {
             let t = tracks[i];
-            if geometry::track_near_pad(t.start, t.end, connectivity_width(t.width_nm), 0, b, false)
-            {
+            if geometry::track_connects_pad(t, b) {
                 return true;
             }
             for (j, u) in tracks.iter().enumerate() {
-                if !reached.contains(&j)
-                    && geometry::segments_near(
-                        t.start,
-                        t.end,
-                        u.start,
-                        u.end,
-                        i128::from(connectivity_width(t.width_nm))
-                            + i128::from(connectivity_width(u.width_nm)),
-                        false,
-                    )
-                {
+                if !reached.contains(&j) && geometry::tracks_connect(t, u) {
                     reached.insert(j);
                     todo.push(j);
                 }

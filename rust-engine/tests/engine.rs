@@ -531,7 +531,9 @@ fn pad_connectivity_requires_positive_overlap_for_all_supported_shapes() {
     b.at = [30, 30];
     a.at = [22, 21]; // 3-4-5 circle/rectangle corner tangency
     assert!(!pads_touch(&a, &b));
-    a.at = [23, 21];
+    a.at = [23, 21]; // sqrt(20) distance: only .528 nm overlap
+    assert!(!pads_touch(&a, &b));
+    a.at = [23, 22]; // sqrt(13) distance: more than 1 nm overlap
     assert!(pads_touch(&a, &b));
     a.shape = Shape::Rect {
         half_size_nm: [5, 5],
@@ -636,4 +638,96 @@ fn clearance_equality_remains_legal_and_failure_reason_is_scoped() {
     let reason = o.reason.unwrap();
     assert!(reason.contains("fixed net order"));
     assert!(reason.contains("not proof of global infeasibility"));
+}
+
+#[test]
+fn diagonal_incumbent_sub_nm_overlap_is_not_false_complete() {
+    // Actual binary/native counterexample: native KiCad 10.0.8 has one open.
+    // Exact centre distance is 199999.814949... nm, so positive overlap alone
+    // was insufficient. A one-expansion budget distinguishes reuse from search.
+    for (shift, reused) in [(0, false), (-2, true), (2, false)] {
+        let mut i = base();
+        i.bounds = Bounds {
+            min: [-10000000, -10000000],
+            max: [10000000, 10000000],
+        };
+        i.rules.grid_nm = 1;
+        i.rules.width_nm = 200000;
+        i.rules.clearance_nm = 0;
+        i.max_expansions = 1;
+        i.pads = vec![
+            pad(1, 1, [1000000, 4000000]),
+            pad(2, 1, [2444123, 5368809 + shift]),
+        ];
+        for p in &mut i.pads {
+            p.shape = Shape::Circle { radius_nm: 100000 };
+        }
+        let mut a = wire(3, 1, [1000000, 4000000], [3142620, 3416878]);
+        let mut b = wire(4, 1, [2050220, 3921453 + shift], [2444123, 5368809 + shift]);
+        a.width_nm = 200000;
+        b.width_nm = 200000;
+        i.tracks = vec![a, b];
+        let out = run(i);
+        assert_eq!(
+            out.status,
+            if reused {
+                Status::Complete
+            } else {
+                Status::BudgetExhausted
+            },
+            "shift={shift}"
+        );
+        assert!(out.added_tracks.is_empty());
+    }
+}
+
+#[test]
+fn diagonal_circle_pad_track_contact_requires_one_nm_overlap() {
+    // Diagonal projection: distance from [50,52] to y=x is sqrt(2).
+    // Track radius 1 + circle radius 1 gives only .586 nm overlap.
+    for (y, reused) in [(52, false), (51, true), (53, false)] {
+        let mut i = base();
+        i.rules.grid_nm = 1;
+        i.max_expansions = 1;
+        i.pads[1].at = [50, y];
+        i.tracks = vec![wire(3, 1, [10, 10], [55, 55])];
+        let out = run(i);
+        assert_eq!(
+            out.status,
+            if reused {
+                Status::Complete
+            } else {
+                Status::BudgetExhausted
+            },
+            "y={y}"
+        );
+    }
+}
+
+#[test]
+fn full_nm_contact_threshold_handles_corners_and_tiny_widths() {
+    let a = pad(1, 1, [10, 10]);
+    let mut b = pad(2, 1, [11, 11]); // radii sum 2, distance sqrt(2), overlap < 1
+    assert!(!pads_touch(&a, &b));
+    b.at = [11, 10]; // exactly one nm overlap
+    assert!(pads_touch(&a, &b));
+    let mut rect = pad(5, 1, [30, 30]);
+    rect.shape = Shape::Rect {
+        half_size_nm: [5, 5],
+    };
+    let mut t = wire(3, 1, [0, 0], [23, 21]);
+    t.width_nm = 10;
+    assert!(!track_connects_pad(&t, &rect)); // corner distance sqrt(20) > 5-1
+    t.end = [23, 22];
+    assert!(track_connects_pad(&t, &rect)); // sqrt(13) < 5-1
+    t.end = [25, 21];
+    assert!(track_connects_pad(&t, &rect)); // distance 4, equality at 1 nm overlap
+    t.width_nm = 1;
+    t.end = [30, 30];
+    assert!(!track_connects_pad(&t, &rect)); // negative effective radius cannot be squared
+    let mut u = wire(4, 1, [0, 30], [30, 0]);
+    u.width_nm = 1;
+    assert!(!tracks_connect(&t, &u)); // even intersecting centre lines need enough radius
+    assert!(!point_near_segment([0, 0], [0, 0], [10, 10], -2, true));
+    assert!(!segments_near([0, 0], [10, 10], [0, 10], [10, 0], -2, true));
 }

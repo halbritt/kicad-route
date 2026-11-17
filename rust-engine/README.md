@@ -18,15 +18,25 @@ are supported. All incumbent tracks, locked or unlocked, are immutable. Connecte
 have at most two pads; zero-terminal/singleton nets remain untouched. Net ID 0
 means unconnected copper: any number of its pads/tracks are foreign obstacles,
 never autorouted or joined as one net. Already connected
-terminals require positive overlap through pads/tracks and track chains; exact
-tangency does not establish connectivity. Connectivity conservatively floors
-each track's half-width to integer nm before testing strict overlap. KiCad
-10.0.8 probes leave a 200001 nm track's nominal 0.5 nm overlap with a circular
-pad open; track-track behavior also varies with the odd-width pair. The
-conservative rule can add routing for a tiny overlap KiCad already accepts.
-Clearance uses full widths and still permits equality at the required gap.
-This is not a claim of complete KiCad contact equivalence for arbitrary
-orientations or sub-nanometre boundaries; native validation remains required.
+terminals require at least 1 nm of overlap through pads/tracks and track
+chains; tangency and sub-nanometre overlap do not establish connectivity.
+Connectivity floors each track's half-width to integer nm, subtracts 1 nm
+from the summed contact radii, then compares distances inclusively using exact
+integer fractions. Rectangle pairs require at least 1 nm overlap on both axes;
+rounded corners use Euclidean distance. A negative effective radius never
+connects, including for a 1 nm wide track against a rectangle. Arbitrary-angle
+incumbent tracks remain supported; this rule can add routing for contacts
+KiCad already accepts. Clearance uses full widths and still permits equality
+at the required gap.
+
+Native KiCad 10.0.8 probes found 21 false completions in 400 near-tangent
+diagonal track pairs with the old strict-positive-overlap rule. The 1 nm rule
+removed those sampled false completions, with 138 conservative non-reuse
+results where native connectivity already existed. Another 800 sampled
+track/circle, track/rectangle-corner, circle/circle and circle/rectangle-corner
+contacts had no false completion after this change. These are bounded contact
+experiments, not proof of KiCad equivalence at all orientations, sizes or
+sub-nanometre boundaries. Native validation remains required after routing.
 Vias, zones, rotated pads, custom rules, differential/length constraints and
 other unrepresented native objects must be rejected by the adapter, never
 silently omitted from the request.
