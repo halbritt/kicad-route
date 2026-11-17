@@ -1,5 +1,6 @@
 """Native I/O and executable vertical-slice checks for the Rust engine."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -144,6 +145,54 @@ def test_native_adapter_rejects_unimplemented_rule_import(native_board, suffix):
 def test_native_adapter_rejects_below_native_floor(native_board):
     with pytest.raises(ValueError, match='below native floor'):
         bridge.export_board(native_board, {**RULES, 'width_nm': 100000}, 100000)
+
+
+@pytest.mark.parametrize('feature', [
+    'pad_offset', 'pad_clearance', 'footprint_clearance', 'copper_field',
+    'footprint_edge', 'footprint_zone', 'net_tie',
+])
+def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_board, feature):
+    board = pcbnew.LoadBoard(str(native_board))
+    footprint = next(iter(board.GetFootprints()))
+    pad = next(iter(footprint.Pads()))
+    if feature == 'pad_offset':
+        pad.SetOffset(pcbnew.VECTOR2I(1000000, 0))
+    elif feature == 'pad_clearance':
+        pad.SetLocalClearance(2000000)
+    elif feature == 'footprint_clearance':
+        footprint.SetLocalClearance(2000000)
+    elif feature == 'copper_field':
+        footprint.Reference().SetLayer(pcbnew.F_Cu)
+        footprint.Reference().SetVisible(True)
+    elif feature == 'footprint_edge':
+        edge = pcbnew.PCB_SHAPE(footprint)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(5000000, 5000000))
+        edge.SetEnd(pcbnew.VECTOR2I(15000000, 5000000))
+        footprint.Add(edge)
+    elif feature == 'footprint_zone':
+        zone = pcbnew.ZONE(footprint)
+        zone.SetLayer(pcbnew.F_Cu)
+        zone.SetIsRuleArea(True)
+        zone.SetDoNotAllowTracks(True)
+        polygon = zone.Outline()
+        polygon.NewOutline()
+        for x, y in [(5000000, 5000000), (15000000, 5000000), (15000000, 15000000)]:
+            polygon.Append(x, y)
+        footprint.Add(zone)
+    elif feature == 'net_tie':
+        footprint.AddNetTiePadGroup('1,2')
+    assert pcbnew.SaveBoard(str(native_board), board)
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_board(native_board, RULES, 100000)
+    output = native_board.with_name('unsupported-output.kicad_pcb')
+    plan = {'version': 1, 'status': 'complete',
+            'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
+            'added_tracks': [], 'removed_track_ids': []}
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.apply_plan(native_board, plan, output)
+    assert not output.exists()
 
 
 @pytest.mark.parametrize('status,source', [('unroutable', None), ('complete', 'stale')])

@@ -41,7 +41,10 @@ Routing uses F.Cu only. Project/custom-rule files, zones, vias, unsupported pad
 shapes/rotations, copper artwork and other layers are rejected. Explicit uniform
 rules must meet native default floors. Project/rule import and other features
 are missing capabilities, not ignored inputs. Pad centres initially must align
-to the requested routing grid; Rust checks this.
+to the requested routing grid; Rust checks this. Pad offsets, pad/footprint
+clearance overrides, net ties, footprint zones/keepouts, copper fields and
+footprint board cuts are also rejected on import and output application until
+the interchange represents them.
 
 The version1 exchange uses integer nanometres, explicit net and item IDs, bounds,
 rules, fixed copper and a total search-work budget. Rust assigns the added item
@@ -86,10 +89,22 @@ reviews; their addenda and supervisor synthesis remain part of this work.
 Review claims are checked against source: timing counters that cover selected
 passes are not whole-engine profiles; rejected proposals do not prove failed
 rollback; a proposed last-via-only state is insufficient for an all-prior-via
-constraint. Carbon's stated midpoint conflict witness is under verification.
+constraint. Carbon's corrected retained command places the foreign segment between the three
+samples and demonstrates a 24 micrometre missed clearance intrusion. The first
+report's midpoint coordinate was wrong. Both reports and their corrections
+are linked from the [supervisor synthesis](https://artifact.harm.org/tubrxk/synthesis.html).
 
-At the first adapter checkpoint, seven tests pass through the host `mise test`
-task against KiCad 10.0.8. They cover native extraction, exact IDs/geometry on
-write/readback, unchanged input bytes, unsupported project/rule rejection,
-native rule floors and refusal to write failed/stale plans. The Rust route and
-end-to-end native DRC check are still pending. No production backend changed.
+The first executable slice passes 18 Rust tests, including an independent
+Dijkstra oracle over 256 small obstacle worlds, generated-net rollback and
+explicit failure outcomes. Fifteen native tests cover extraction, exact
+identity/geometry readback, unchanged input, unsupported geometry/rules and
+failed/stale-plan refusal. One test runs the actual Rust CLI on a native
+two-terminal board with protected foreign copper. KiCad 10.0.8 reports one
+unconnected pair before routing and zero after; the same pre-existing dangling
+track warning remains, with no new DRC violations. This is a supported-subset
+fixture, not a whole-board capability or performance claim. Independent code
+acceptance remains pending. No production backend changed.
+
+Run the combined focused gate with `mise run test:rust-engine`. It uses the
+existing host process boundary, locked offline Cargo dependencies and the native
+test fixture. It does not rebuild or invoke the installed legacy routing engine.

@@ -30,6 +30,14 @@ fi
 exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests/test_engine_regressions.py "$@"
 ' sh'''
 
+[tasks."test:rust-engine"]
+description = "New Rust engine oracle/transaction tests and native KiCad subset acceptance"
+run = '''mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-3m}" -- sh -eu -c '
+cargo fmt --manifest-path rust-engine/Cargo.toml --check
+cargo test --locked --offline --manifest-path rust-engine/Cargo.toml
+PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m pytest -q -p no:cacheprovider tests/test_rust_engine_native.py
+''''
+
 [tasks."test:kernel"]
 description = "The routing kernels' fast gate (make kernel; docs/kernel-testing.md)"
 run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-20m}" -- make kernel' sh'''

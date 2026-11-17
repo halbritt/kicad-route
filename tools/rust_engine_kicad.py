@@ -40,6 +40,24 @@ def load_supported(path: Path):
         raise UnsupportedBoard('zones are not supported by the first Rust slice')
     if board.GetCopperLayerCount() != 2:
         raise UnsupportedBoard('the first native slice requires a two-layer board')
+    for footprint in board.GetFootprints():
+        if footprint.GetLocalClearance() is not None:
+            raise UnsupportedBoard('footprint clearance overrides are not represented')
+        if footprint.Zones():
+            raise UnsupportedBoard('footprint zones and rule areas are not represented')
+        if footprint.IsNetTie():
+            raise UnsupportedBoard('net-tie connectivity is not represented')
+        for field in footprint.GetFields():
+            if pcbnew.IsCopperLayer(field.GetLayer()):
+                raise UnsupportedBoard('footprint copper fields are not represented')
+        for drawing in footprint.GraphicalItems():
+            if pcbnew.IsCopperLayer(drawing.GetLayer()) or drawing.GetLayer() == pcbnew.Edge_Cuts:
+                raise UnsupportedBoard('footprint copper graphics and board cuts are not represented')
+        for pad in footprint.Pads():
+            if pad.GetLocalClearance() is not None:
+                raise UnsupportedBoard('pad clearance overrides are not represented')
+            if point(pad.GetOffset()) != [0, 0]:
+                raise UnsupportedBoard('offset pad copper is not represented')
     return board
 
 
@@ -85,9 +103,6 @@ def export_board(path: Path, rules: dict, max_expansions: int):
         raise ValueError('max_expansions must be positive')
     pads = []
     for footprint in board.GetFootprints():
-        for drawing in footprint.GraphicalItems():
-            if pcbnew.IsCopperLayer(drawing.GetLayer()):
-                raise UnsupportedBoard('footprint copper graphics are not represented')
         for pad in footprint.Pads():
             copper = [layer for layer in pad.GetLayerSet().Seq() if pcbnew.IsCopperLayer(layer)]
             if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD or copper != [pcbnew.F_Cu]:
