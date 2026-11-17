@@ -143,6 +143,222 @@ def test_native_export_preserves_identity_rules_and_fixed_copper(native_board):
     assert native_board.read_bytes() == original
 
 
+def multiterminal_board(path, variant):
+    """Extend the native fixture with distinct terminals and fixed copper groups."""
+    board = pcbnew.LoadBoard(str(path))
+    signal_net = next(pad.GetNetCode() for pad in board.GetPads() if pad.GetNetname() == 'SIGNAL')
+    positions = [(signal_net, (3000000, 3000000))]
+    if variant in ('four', 'six', 'preconnected'):
+        positions.append((signal_net, (17000000, 17000000)))
+    if variant in ('six', 'preconnected'):
+        positions.extend([(signal_net, (3000000, 17000000)), (signal_net, (17000000, 3000000))])
+    if variant == 'multiple_nets':
+        for edge in board.GetDrawings():
+            for getter, setter in ((edge.GetStart, edge.SetStart), (edge.GetEnd, edge.SetEnd)):
+                point = getter()
+                if point.x == 20000000:
+                    setter(pcbnew.VECTOR2I(40000000, point.y))
+        board.Add(pcbnew.NETINFO_ITEM(board, 'SECOND_SIGNAL', 3))
+        positions.extend((3, point) for point in (
+            (23000000, 3000000), (37000000, 3000000),
+            (23000000, 17000000), (37000000, 17000000)))
+    for index, (net, position) in enumerate(positions, 3):
+        footprint = pcbnew.FOOTPRINT(board)
+        footprint.SetReference(f'J{index}')
+        footprint.SetPosition(pcbnew.VECTOR2I(*position))
+        board.Add(footprint)
+        pad = pcbnew.PAD(footprint)
+        pad.SetNumber('1')
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+        pad.SetSize(pcbnew.VECTOR2I(1000000, 1000000))
+        pad.SetPosition(pcbnew.VECTOR2I(*position))
+        layers = pcbnew.LSET()
+        layers.AddLayer(pcbnew.F_Cu)
+        pad.SetLayerSet(layers)
+        pad.SetNetCode(net)
+        footprint.Add(pad)
+    if variant == 'preconnected':
+        for start, end in (
+                ((3000000, 3000000), (3000000, 10000000)),
+                ((17000000, 10000000), (17000000, 17000000)),
+                ((6000000, 17000000), (8000000, 17000000))):
+            track = pcbnew.PCB_TRACK(board)
+            track.SetStart(pcbnew.VECTOR2I(*start))
+            track.SetEnd(pcbnew.VECTOR2I(*end))
+            track.SetLayer(pcbnew.F_Cu)
+            track.SetWidth(RULES['width_nm'])
+            track.SetNetCode(signal_net)
+            track.SetLocked(True)
+            board.Add(track)
+    assert pcbnew.SaveBoard(str(path), board)
+
+
+def native_pad_partitions(path):
+    """Traverse KiCad's actual adjacency, independently of Rust contact code.
+
+    GetConnectedPads/Tracks expose direct neighbors, so walk tracks as well as
+    pads. Net labels alone and aggregate airwire counts do not establish these
+    terminal partitions.
+    """
+    board = pcbnew.LoadBoard(str(path))
+    board.BuildConnectivity()
+    connectivity = board.GetConnectivity()
+    pads = {bridge.item_id(pad): pad for pad in board.GetPads()}
+    seen = set()
+    partitions = {}
+    for ident, pad in pads.items():
+        if ident in seen:
+            continue
+        pending, terminals = [pad], set()
+        while pending:
+            item = pending.pop()
+            item_ident = bridge.item_id(item)
+            if item_ident in seen:
+                continue
+            seen.add(item_ident)
+            assert item.GetNetCode() == pad.GetNetCode()
+            if item_ident in pads:
+                terminals.add(pads[item_ident].GetParentFootprint().GetReference())
+            pending.extend(connectivity.GetConnectedPads(item))
+            pending.extend(connectivity.GetConnectedTracks(item))
+        # KiCad can renumber integer net codes when saving a new net. Stable
+        # names let this independent expectation detect actual net reassignment.
+        partitions.setdefault(pad.GetNetname(), set()).add(frozenset(terminals))
+    return partitions
+
+
+@pytest.mark.parametrize('variant', ['three', 'four', 'six', 'preconnected', 'multiple_nets'])
+def test_multiterminal_native_connectivity_preservation_and_drc(native_board, guarded_cli, variant):
+    run, audit_log = guarded_cli
+    multiterminal_board(native_board, variant)
+    original = native_board.read_bytes()
+    data = bridge.export_board(native_board, RULES, 100000)
+    by_net = {'SIGNAL': {'J1', 'J2', 'J3'}}
+    if variant in ('four', 'six', 'preconnected'):
+        by_net['SIGNAL'].add('J4')
+    if variant in ('six', 'preconnected'):
+        by_net['SIGNAL'].update(('J5', 'J6'))
+    if variant == 'multiple_nets':
+        by_net['SECOND_SIGNAL'] = {'J4', 'J5', 'J6', 'J7'}
+    before_partitions = {net: {frozenset((ref,)) for ref in refs} for net, refs in by_net.items()}
+    if variant == 'preconnected':
+        before_partitions['SIGNAL'] = {frozenset(group) for group in (
+            ('J1', 'J3'), ('J2', 'J4'), ('J5',), ('J6',))}
+    assert native_pad_partitions(native_board) == before_partitions
+    request, plan_path = native_board.with_name('multi-request.json'), native_board.with_name('multi-plan.json')
+    bridge.write_request(data, request)
+    command = ['cargo', 'run', '--locked', '--offline', '--manifest-path',
+               str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)]
+    execution = run(command, check=False)
+    plan = json.loads(plan_path.read_bytes())
+    assert execution.returncode == 0, (execution.stderr, plan)
+    assert plan['version'] == 3 and plan['status'] == 'complete'
+    assert plan['request_sha256'] == hashlib.sha256(request.read_bytes()).hexdigest()
+    assert plan['added_tracks'] and plan['removed_track_ids'] == []
+    assert 0 < plan['expanded_states'] <= data['max_expansions']
+    assert 0 < plan['work_used'] <= 100000000
+    # A second real execution must produce exactly the same edits and counters.
+    repeated = native_board.with_name('multi-repeat.json')
+    run([*command[:-1], str(repeated)])
+    assert repeated.read_bytes() == plan_path.read_bytes()
+    output = native_board.with_name('multi-routed.kicad_pcb')
+    run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
+         str(native_board), str(plan_path), str(output), '--request', str(request)])
+    assert native_pad_partitions(output) == {net: {frozenset(refs)} for net, refs in by_net.items()}
+    actual = bridge.export_board(output, RULES, 100000)
+    assert actual['pads'] == data['pads'] and actual['nets'] == data['nets']
+    assert {track['id']: track for track in actual['tracks']} == {
+        track['id']: track for track in data['tracks'] + plan['added_tracks']}
+    before = bridge.native_violations(native_board, native_board.with_name('multi-before-drc.json'))
+    after = bridge.native_violations(output, native_board.with_name('multi-after-drc.json'))
+    assert before['unconnected_items'] and after['unconnected_items'] == []
+    key = lambda violation: json.dumps(violation, sort_keys=True)
+    assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
+    assert native_board.read_bytes() == original
+    observations = [json.loads(line) for line in audit_log.read_text().splitlines()]
+    assert any(row.get('allowed', False) for row in observations)
+    assert all(row.get('allowed', True) for row in observations)
+
+
+@pytest.mark.parametrize('budget,status,exit_code', [
+    ('max_expansions', 'budget_exhausted', 4), ('max_work', 'work_exhausted', 5),
+])
+def test_multiterminal_shared_budget_failure_cannot_publish_partial_board(
+        native_board, guarded_cli, budget, status, exit_code):
+    run, _ = guarded_cli
+    multiterminal_board(native_board, 'six')
+    original = native_board.read_bytes()
+    data = bridge.export_board(native_board, RULES, 100000)
+    request, plan_path = native_board.with_name('multi-control.json'), native_board.with_name('multi-control-plan.json')
+    bridge.write_request(data, request)
+    run(['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)])
+    control = json.loads(plan_path.read_bytes())
+    assert control['status'] == 'complete' and control['added_tracks']
+    counter = 'expanded_states' if budget == 'max_expansions' else 'work_used'
+    limit = control[counter] - 1
+    assert limit > 0
+    if budget == 'max_expansions':
+        data[budget] = limit
+    else:
+        data['limits'] = {budget: limit}
+    limited_request = native_board.with_name('multi-limited.json')
+    limited_plan = native_board.with_name('multi-limited-plan.json')
+    bridge.write_request(data, limited_request)
+    engine = ROOT / 'rust-engine/target/debug/kicad-route-engine'
+    failed = run([str(engine), str(limited_request), str(limited_plan)], check=False)
+    assert failed.returncode == exit_code, failed.stderr
+    result = json.loads(limited_plan.read_bytes())
+    assert result['status'] == status and result['reason']
+    assert result['added_tracks'] == [] and result['removed_track_ids'] == []
+    assert 0 < result[counter] <= limit
+    output = native_board.with_name('multi-partial.kicad_pcb')
+    applied = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
+                   str(native_board), str(limited_plan), str(output), '--request', str(limited_request)], check=False)
+    assert applied.returncode == 2
+    assert json.loads(applied.stderr.splitlines()[-1])['status'] == 'invalid'
+    assert not output.exists() and not list(native_board.parent.glob('.multi-partial-*'))
+    assert native_board.read_bytes() == original
+
+
+def test_multiterminal_native_apply_rejects_ignored_terminal(native_board, guarded_cli):
+    run, _ = guarded_cli
+    multiterminal_board(native_board, 'three')
+    board = pcbnew.LoadBoard(str(native_board))
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    for footprint in board.GetFootprints():
+        if footprint.GetReference() == 'J3':
+            footprint.SetPosition(pcbnew.VECTOR2I(10000000, 17000000))
+    assert pcbnew.SaveBoard(str(native_board), board)
+    original = native_board.read_bytes()
+    data = bridge.export_board(native_board, RULES, 100000)
+    request, partial_request = native_board.with_name('all-terminals.json'), native_board.with_name('ignored-terminal.json')
+    bridge.write_request(data, request)
+    ignored = next(pad['id'] for pad in data['pads'] if pad['at'] == [10000000, 17000000])
+    bridge.write_request({**data, 'pads': [pad for pad in data['pads'] if pad['id'] != ignored]}, partial_request)
+    partial_plan = native_board.with_name('ignored-terminal-plan.json')
+    run(['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(partial_request), str(partial_plan)])
+    plan = json.loads(partial_plan.read_bytes())
+    assert plan['status'] == 'complete'
+    # Deliberately forge consistency metadata to exercise native validation.
+    # A request digest is not authentication; it must not hide an omitted pad.
+    plan['request_sha256'] = hashlib.sha256(request.read_bytes()).hexdigest()
+    rejected = native_board.with_name('ignored-terminal-output.kicad_pcb')
+    with pytest.raises(bridge.NativeValidationError, match='open connections'):
+        bridge.apply_plan(native_board, plan, rejected, expected_request=request.read_bytes())
+    assert not rejected.exists() and not list(native_board.parent.glob('.ignored-terminal-output-*'))
+    complete_plan = native_board.with_name('all-terminals-plan.json')
+    run([str(ROOT / 'rust-engine/target/debug/kicad-route-engine'), str(request), str(complete_plan)])
+    accepted = native_board.with_name('all-terminals-output.kicad_pcb')
+    bridge.apply_plan(native_board, json.loads(complete_plan.read_bytes()), accepted,
+                      expected_request=request.read_bytes())
+    assert native_pad_partitions(accepted) == {'SIGNAL': {frozenset(('J1', 'J2', 'J3'))}}
+    assert native_board.read_bytes() == original
+
+
 def test_native_adapter_applies_exact_edit_list(native_board, expected_request):
     original = native_board.read_bytes()
     exported = bridge.export_board(native_board, RULES, 100000)

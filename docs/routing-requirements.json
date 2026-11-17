@@ -377,6 +377,31 @@
       "date": "2026-11-16",
       "reviewed_revision": "cb57c35c85e4b260383f23ca5e0253fabcb57065",
       "statement": "Accepts cb57c35 bounded corrections and explicitly acknowledges greenfield direction. Independent fifth-field Rust omission and4native boundary mutants detected; current executable unchanged."
+    },
+    "multiterminal-assignment": {
+      "kind": "coordination-assignment",
+      "ref": "d69e95f7-d101-4a15-890f-2f4537fff859/v1",
+      "date": "2026-11-16",
+      "statement": "M7 multi-terminal capability with shared budgets, complete component connectivity, native acceptance and independent review."
+    },
+    "multiterminal-contract": {
+      "kind": "implementation-contract",
+      "ref": "31bee7fc-a961-4b23-b55b-514a6cd67d5e/v1",
+      "date": "2026-11-16",
+      "statement": "Input1/result3 and existing limits unchanged; widen obsolete terminal admission only after independent regression evidence."
+    },
+    "multiterminal-implementation": {
+      "kind": "implementation-report",
+      "ref": "39065855-9e0b-40d4-bd1b-cbf31083afb4/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "1a683afd74048521bf54e7552f333c61007464ce",
+      "statement": "Author reports 93 Rust tests and 3 compile-fail examples passing; 620 finite multi-terminal worlds and two detected connectivity mutants. Native acceptance and independent review pending."
+    },
+    "multiterminal-search-correction": {
+      "kind": "executed-finding-and-assignment",
+      "ref": "2f4c7e89-ec87-4c40-9149-7d3e7ae77a83/v1",
+      "date": "2026-11-16",
+      "statement": "Root native two-net fixture exhausts unchanged 100000 expansion budget. Preserve board/rules/budget and improve component search generally before acceptance."
     }
   },
   "requirements": [
@@ -879,7 +904,7 @@
         "acceptance_scope": "M6 whole-request consistency and regression corrections; explicit continuing greenfield role acknowledgment. No full-engine, representative parity or production acceptance."
       }
     ],
-    "next_milestone": "M6 bounded consistency accepted. Continue greenfield capability work against docs/rust-parity.md, retaining native/adverse acceptance. Process invocation orchestration, representative inputs, inventory completeness and full10 requirements remain open; existing holds unchanged.",
+    "next_milestone": "M7 multi-terminal candidate: root native 7 passed, 1 search-budget failure; correct R-M7-01, run combined gate, then obtain fresh independent Fable/Carbon review. All 10 full requirements remain open; holds unchanged.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -1803,6 +1828,30 @@
       "acceptance_owner": "agent-1497",
       "next_action": "Explicit matrix text added; native implementation and representative acceptance remain open.",
       "blocks_current_integration": false
+    },
+    {
+      "id": "R-M7-01",
+      "requirements": [
+        "RE-05",
+        "RE-07",
+        "RE-08",
+        "RE-09"
+      ],
+      "source_ids": [
+        "multiterminal-implementation",
+        "multiterminal-search-correction"
+      ],
+      "reviewed_revision": "1a683afd74048521bf54e7552f333c61007464ce",
+      "finding": "The initial multi-terminal candidate exhausts 100000 shared expansions on the unchanged native two-net fixture; its structured budget failure is honest, but this capability acceptance case remains unmet.",
+      "evidence_class": "Root executed Rust CLI exit4, budget_exhausted, expanded_states100000, work_used12345690 and empty edits. A separate authored six-segment native witness connects all terminals without new native violations under identical rules; this witness is not Rust route success.",
+      "request_sha256": "dfce0b7268f51eb34cb2593e8d97e35e37978f9ff91a40f2fdef717f5fc61833",
+      "source_board_sha256": "6725b753f85cb3268a5f1d80661e948c3d6acf462c85b2d7b0f59620c69cf0e2",
+      "status": "open",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Improve the general component search and retain an independent correctness oracle plus the fixed native regression; do not relax rules, simplify the board or raise the budget.",
+      "observation_deadline": "before M7 integration",
+      "blocks_current_integration": true
     }
   ],
   "reviewed_milestones": [
@@ -2029,5 +2078,19 @@
       }
     ],
     "inventory_status": "Initial matrix, not an exhaustive verified inventory; no representative-board parity row accepted."
+  },
+  "multiterminal_checkpoint": {
+    "state": "candidate-awaiting-search-correction-and-review",
+    "baseline_revision": "fb3ac2d24223ad04e1ae30c6b8b43c11e271c634",
+    "initial_rust_revision": "1a683afd74048521bf54e7552f333c61007464ce",
+    "rust_owner": "agent-1484",
+    "native_owner": "agent-1497",
+    "contract_source_ids": [
+      "multiterminal-assignment",
+      "multiterminal-contract"
+    ],
+    "contract": "Input1/result3 unchanged; admit more than two pads within existing item/work/search/expansion/journal/depth limits. Greedy component joining with strict reduction and whole-operation rollback; no Steiner or global-completeness claim.",
+    "validation": "Author reports93Rust+3compilefail passing. Root8newnative nodes:7pass/1fail; three/four/six terminals and preconnected groups pass, shared budget failures publish no board, ignored-terminal plan is rejected. Multiple-net completion remains blocked by R-M7-01. Native witness establishes feasibility only.",
+    "full_requirements": "All 10 remain open; no full-engine, representative parity, production/default or deployment acceptance."
   }
 }
