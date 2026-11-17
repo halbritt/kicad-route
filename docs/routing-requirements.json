@@ -184,6 +184,12 @@
       "ref": "6efa1bc9-fda3-4ed5-832c-c78be25a9787/v1",
       "date": "2026-11-16",
       "statement": "Root uniformly scaled Fable F1 by five to satisfy native export clearance floor. Frozen d9adcb0 refuses after1235 expansions; provisional correction emits endpoint(25000000,29000001), closes native1->0 opens with no added DRC. Final frozen verification and independent acceptance pending."
+    },
+    "first-contact-implementation": {
+      "kind": "implementation-report",
+      "ref": "b545073f-d2c2-4d30-97c6-5c74d3f26fb2/v1",
+      "date": "2026-11-16",
+      "statement": "c94b3d5 first integer contact and nearest legal edge target;4096-world independent BFS oracle,48Rust+3compile-fail+69native reported passing. Original unscaled output manually materialized in native KiCad probe; root x5 fixture exercises mandatory export/apply boundary. Independent correction acceptance pending."
     }
   },
   "requirements": [
@@ -812,19 +818,21 @@
       "source_ids": [
         "fable-milestone-3",
         "first-contact-correction-assignment",
-        "native-first-contact-regression"
+        "native-first-contact-regression",
+        "first-contact-implementation"
       ],
       "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
       "finding": "Attachment checks a deep target point but misses the legal first-contact interval between lattice vertices.",
       "evidence_class": "Actual Fable binary failure1235 expansions; native manual shallow witness closes1->0 without new DRC. Root independently reproduces on uniform x5 native fixture.",
-      "status": "open-correction-active",
+      "status": "implemented-independent-review-pending",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
       "next_action": "Find earliest integer contact along supported convex target interval; preserve exact clearance/budget/rollback and original unscaled witness. Require frozen native regression and both correction reviews.",
       "request_event": "2943b3a8-bd26-4d8d-800b-ad41e76afbd5",
       "observation_deadline": "2026-11-16T18:40:00-08:00",
       "checkpoint": "2026-11-16T18:50:00-08:00",
-      "blocks_current_integration": true
+      "blocks_current_integration": true,
+      "implementation_revision": "c94b3d5c3acfc33b574e98a4f62916a2c3385964"
     },
     {
       "id": "F-M3-02",
@@ -834,19 +842,21 @@
       ],
       "source_ids": [
         "fable-milestone-3",
-        "first-contact-correction-assignment"
+        "first-contact-correction-assignment",
+        "first-contact-implementation"
       ],
       "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
       "finding": "Component reachability and unit-step optimality lack an exhaustive independent oracle.",
       "evidence_class": "Source review:9 hand fixtures and strict centerline connectivity check;256-world oracle covers only two-pad search.",
-      "status": "open-correction-active",
+      "status": "implemented-independent-review-pending",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
       "next_action": "Enumerate integer terminal points in small worlds independently of production attachment/search; cover narrow track, circle and rectangle targets with obstacles. State supported seed/lattice domain and exclusions.",
       "request_event": "2943b3a8-bd26-4d8d-800b-ad41e76afbd5",
       "observation_deadline": "2026-11-16T18:40:00-08:00",
       "checkpoint": "2026-11-16T18:50:00-08:00",
-      "blocks_current_integration": true
+      "blocks_current_integration": true,
+      "implementation_revision": "c94b3d5c3acfc33b574e98a4f62916a2c3385964"
     },
     {
       "id": "F-M3-03",
@@ -906,15 +916,17 @@
         "RE-09"
       ],
       "source_ids": [
-        "carbon-milestone-3"
+        "carbon-milestone-3",
+        "first-contact-implementation"
       ],
       "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
       "finding": "First legal target in input order can produce an unnecessarily deep segment across nearer targets.",
       "evidence_class": "Executed Carbon native probe:10->18mm crosses target13mm; legal,zero native opens/added DRC.",
-      "status": "open",
+      "status": "implemented-independent-review-pending",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Choose nearest legal contact on each edge and assert target-order invariance, without claiming global length optimality."
+      "next_action": "Choose nearest legal contact on each edge and assert target-order invariance, without claiming global length optimality.",
+      "implementation_revision": "c94b3d5c3acfc33b574e98a4f62916a2c3385964"
     },
     {
       "id": "C-M3-02",
@@ -923,15 +935,17 @@
         "RE-09"
       ],
       "source_ids": [
-        "carbon-milestone-3"
+        "carbon-milestone-3",
+        "first-contact-implementation"
       ],
       "reviewed_revision": "d9adcb082059a45b8c0985d4ecf420fc9bafe890",
       "finding": "Wide rectangle near edge may admit attachment while center is clearance-shadowed.",
       "evidence_class": "Source-derived; same general attachment mechanism as F-M3-01.",
-      "status": "open-correction-active",
+      "status": "implemented-independent-review-pending",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Resolve through F-M3-01 with explicit rectangle witness and independent oracle."
+      "next_action": "Resolve through F-M3-01 with explicit rectangle witness and independent oracle.",
+      "implementation_revision": "c94b3d5c3acfc33b574e98a4f62916a2c3385964"
     },
     {
       "id": "C-M3-03",
@@ -975,5 +989,11 @@
       "validation": "Root162 architecture cases,44 Rust integration tests,3 compile-fail examples. Fable independently ran162 architecture+44Rust+3doc;Carbon44Rust+3doc+67native. Native first-contact fixture reproduces a missed legal route.",
       "review_coverage_gap": "Fable initial review omitted full native-test/catalog/acceptance-doc/README/implementer-report reads; correction review must include these required inputs before acceptance."
     }
-  ]
+  ],
+  "correction_checkpoint": {
+    "implementation_revision": "c94b3d5c3acfc33b574e98a4f62916a2c3385964",
+    "root_validation": "48 Rust tests +3 compile-fail +69 native PASS;95 ownership/fitness PASS; no failures/skips. Full candidate clean before/after. Original first-contact witness and uniform x5 native fixture retained.",
+    "disposition": "pending-fresh-independent-reviews",
+    "full_requirements": "RE-01..RE-10 remain open"
+  }
 }
