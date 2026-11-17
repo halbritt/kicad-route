@@ -606,12 +606,14 @@ def _build_t4_03_board(directory: Path) -> FixtureBundle:
         "3V3",
         [pn.In2_Cu],
         [(1_000_000, 1_000_000), (24_000_000, 1_000_000), (24_000_000, 39_000_000), (1_000_000, 39_000_000)],
+        pad_connection=pn.ZONE_CONNECTION_FULL,
         zone_name="PWR_3V3",
     )
     b.add_zone(
         "5V",
         [pn.In2_Cu],
         [(26_000_000, 1_000_000), (49_000_000, 1_000_000), (49_000_000, 39_000_000), (26_000_000, 39_000_000)],
+        pad_connection=pn.ZONE_CONNECTION_FULL,
         zone_name="PWR_5V",
     )
     b.set_project_rules(rules={"allow_blind_buried_vias": True})
