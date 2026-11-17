@@ -42,11 +42,11 @@ pub fn search(
     }
     walk(
         engine,
-        net,
         &[start],
         limit,
         expanded,
         heuristic,
+        |a, b| engine.legal_edge(net, a, b).then_some(b),
         |at, _| at == goal,
     )
 }
@@ -86,33 +86,39 @@ pub(crate) fn join_components(
         ));
     }
     let attachment = |a, b| {
-        targets
-            .iter()
-            .flatten()
-            .find_map(|c| c.attachment(a, b, net, engine.input.rules.width_nm))
+        targets.iter().flatten().find_map(|c| {
+            c.attachment(a, b, net, engine.input.rules.width_nm)
+                .filter(|p| engine.legal_edge(net, a, *p))
+        })
     };
-    let mut path = walk(
+    walk(
         engine,
-        net,
         &starts.into_iter().collect::<Vec<_>>(),
         limit,
         expanded,
         |_| 0,
-        |at, previous| previous.is_some_and(|before| attachment(before, at).is_some()),
-    )?;
-    let last = path.points.len() - 1;
-    path.points[last] = attachment(path.points[last - 1], path.points[last])
-        .expect("settled goal edge has a verified attachment");
-    Ok(path)
+        |a, b| {
+            // Check the actual shortened goal edge before rejecting the full
+            // grid step: its unused suffix may hit an obstacle or board edge.
+            attachment(a, b).or_else(|| engine.legal_edge(net, a, b).then_some(b))
+        },
+        |at, previous| {
+            previous.is_some()
+                && targets
+                    .iter()
+                    .flatten()
+                    .any(|c| c.touches_route(&route(at, at)))
+        },
+    )
 }
 
 fn walk(
     engine: &Engine,
-    net: u32,
     starts: &[Point],
     limit: u64,
     expanded: &mut u64,
     heuristic: impl Fn(Point) -> u64,
+    advance: impl Fn(Point, Point) -> Option<Point>,
     finished: impl Fn(Point, Option<Point>) -> bool,
 ) -> Result<Path, Failure> {
     let grid = engine.input.rules.grid_nm;
@@ -161,13 +167,13 @@ fn walk(
             let Some(y) = state.at[1].checked_add(delta[1]) else {
                 continue;
             };
+            let Some(at) = advance(state.at, [x, y]) else {
+                continue;
+            };
             let next = State {
-                at: [x, y],
+                at,
                 direction: direction as u8,
             };
-            if !engine.legal_edge(net, state.at, next.at) {
-                continue;
-            }
             let g = cost.checked_add(1).expect("bounded search cost");
             if best.get(&next).is_some_and(|old| *old <= g) {
                 continue;

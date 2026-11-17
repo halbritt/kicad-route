@@ -225,3 +225,37 @@ fn conservative_tiny_width_contact_failure_is_not_complete() {
     assert!(o.added_tracks.is_empty());
     assert!(o.reason.unwrap().contains("seed"));
 }
+
+#[test]
+fn shortened_attachment_is_legal_even_when_full_grid_step_hits_wall() {
+    let mut i = base();
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [20, 20],
+    };
+    i.pads = vec![pad(1, [10, 10])];
+    i.tracks = vec![track(2, [15, 5], [15, 15])];
+    i.nets.push(Net {
+        id: 0,
+        name: String::new(),
+    });
+    let mut wall = track(3, [18, 1], [18, 19]);
+    wall.net = 0;
+    i.tracks.push(wall);
+    let e = Engine::new(i.clone()).unwrap();
+    assert!(e.legal_edge(1, [10, 10], [15, 10]));
+    assert!(!e.legal_edge(1, [10, 10], [20, 10]));
+    let o = run(i.clone());
+    assert_eq!(o.status, Status::Complete);
+    assert_eq!(o.added_tracks.len(), 1);
+    assert_eq!(o.added_tracks[0].start, [10, 10]);
+    assert_eq!(o.added_tracks[0].end, [15, 10]);
+    assert_eq!(o.expanded_states, 2); // seed, then one unit-cost shortened goal edge
+    assert_centerline_connected(&i, &o.added_tracks);
+    let mut limited = i;
+    limited.max_expansions = 1;
+    let failed = run(limited);
+    assert_eq!(failed.status, Status::BudgetExhausted);
+    assert_eq!(failed.expanded_states, 1);
+    assert!(failed.added_tracks.is_empty());
+}

@@ -64,7 +64,10 @@ Attachment targets the entire copper geometry, including arbitrary-angle
 interiors, not only target endpoints. The final edge is shortened to an integer
 point nearest the target center geometry and exact contact is verified after
 rounding; a full grid step past the target is not published as a dangling spur.
-A shortened final edge still costs one search step. There is no bend cost,
+A shortened goal edge is checked for clearance before the full grid step is
+rejected: an obstacle or board boundary beyond the attachment cannot invalidate
+the shorter route. It is queued at the same one-step cost and must be settled
+within the expansion budget before success. There is no bend cost,
 layer change, arbitrary-angle search, rip-up negotiation or global multi-net
 optimization. Nets route in increasing net-ID order. A later net can fail even
 when a different earlier route would permit a solution; this is reported as
