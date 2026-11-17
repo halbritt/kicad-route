@@ -409,6 +409,24 @@
       "date": "2026-11-17",
       "reviewed_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
       "statement": "General component A* envelope heuristic; frozen unchanged request now completes, existing and new independent oracles pass. Root native/full gate independently passed; review pending."
+    },
+    "fable-milestone-7": {
+      "kind": "review",
+      "ref": "9b97e66b-f0d3-40eb-b05d-dde8a265e1b4/v1",
+      "date": "2026-11-17",
+      "statement": "Independent acceptance of bounded experimental non-default M7 at7575313; no full requirement or representative parity acceptance."
+    },
+    "carbon-milestone-7": {
+      "kind": "review",
+      "ref": "a97a6d6e-a01e-41fa-8aca-a858e50b32ac/v1",
+      "date": "2026-11-17",
+      "statement": "Independent acceptance of bounded experimental non-default M7 at7575313; no full requirement or representative parity acceptance."
+    },
+    "multiterminal-test-correction": {
+      "kind": "implementation-result",
+      "ref": "c034180b-4bd5-4949-87a8-4d698aa16f1f/v1",
+      "date": "2026-11-17",
+      "statement": "b91c391 adds direct heuristic work accounting and production diagonal-goal regressions; byte-identical frozen request output; independent correction review pending."
     }
   },
   "requirements": [
@@ -454,7 +472,9 @@
         "carbon-first",
         "carbon-corrections",
         "fable-remit",
-        "carbon-remit"
+        "carbon-remit",
+        "fable-milestone-7",
+        "carbon-milestone-7"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -472,7 +492,7 @@
         "If weighted or non-admissible heuristics are introduced, the independent oracle verifies the claimed cost bound, not only reachability."
       ],
       "state": "open",
-      "current_evidence": "Original256-world two-pad oracle retained;4096-world independent component BFS enumerates integer terminal points and agrees on reachability/unit-step cost in a finite axis-aligned family. Old-attachment mutation fails the new oracle. First-contact and clipped-goal corrections independently accepted at2a4b730. Seed/phase,global ordering and broader geometry completeness remain open."
+      "current_evidence": "Both independent reviewers accept the M7 admissible consistent component-envelope estimate at7575313, including unchanged4096-world oracle and256multi-target worlds. Fable independently verifies600arbitrary-angle search worlds and over6.1million consistency edges. b91c391 adds shipped production diagonal-goal and exact per-target work tests, with compiled adverse controls; focused correction review pending. Heading/history-sensitive continuation and seed/phase completeness remain OPEN."
     },
     {
       "id": "RE-03",
@@ -733,7 +753,9 @@
         "owner-foundation",
         "owner-rust",
         "synthesis",
-        "owner-greenfield"
+        "owner-greenfield",
+        "fable-milestone-7",
+        "carbon-milestone-7"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -749,7 +771,7 @@
         "Multi-net native fixtures and deterministic recovery; later admitted comparative boards under unchanged rules."
       ],
       "state": "open",
-      "current_evidence": "Current ascending net order is a first subset; full orchestration/global strategy OPEN."
+      "current_evidence": "Both independent reviewers accept bounded greedy multi-terminal and multi-net routing at7575313: 3/4/6 terminals, incumbent components, exact preservation, native zero opens/no-new DRC and shared-budget rollback. Original R-M7-01 request now completes9751expansions/12tracks under unchanged100000budget. Current net order is deterministic ascending and joins are greedy; Steiner/global optimality, rip-up, multilayer scheduling and representative parity remain OPEN."
     },
     {
       "id": "RE-10",
@@ -1839,6 +1861,7 @@
     {
       "id": "R-M7-01",
       "requirements": [
+        "RE-02",
         "RE-05",
         "RE-07",
         "RE-08",
@@ -1847,21 +1870,165 @@
       "source_ids": [
         "multiterminal-implementation",
         "multiterminal-search-correction",
-        "multiterminal-search-correction-result"
+        "multiterminal-search-correction-result",
+        "fable-milestone-7",
+        "carbon-milestone-7"
       ],
-      "reviewed_revision": "1a683afd74048521bf54e7552f333c61007464ce",
+      "reviewed_revision": "7575313d9a79695bce6067b41d7cac5e22e51d94",
       "finding": "The initial multi-terminal candidate exhausts 100000 shared expansions on the unchanged native two-net fixture; its structured budget failure is honest, but this capability acceptance case remains unmet.",
       "evidence_class": "Root executed Rust CLI exit4, budget_exhausted, expanded_states100000, work_used12345690 and empty edits. A separate authored six-segment native witness connects all terminals without new native violations under identical rules; this witness is not Rust route success.",
       "request_sha256": "dfce0b7268f51eb34cb2593e8d97e35e37978f9ff91a40f2fdef717f5fc61833",
       "source_board_sha256": "6725b753f85cb3268a5f1d80661e948c3d6acf462c85b2d7b0f59620c69cf0e2",
+      "status": "closed-for-bounded-milestone",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Retain unchanged original failure and frozen regression; independent native reviews confirm bounded resolution. Full requirements and separate test-correction review remain open.",
+      "observation_deadline": "before M7 integration",
+      "blocks_current_integration": false,
+      "candidate_rust_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
+      "current_evidence": "Root361checks pass; Fable and Carbon independently accept7575313 and reproduce unchanged original request complete at9751expansions/work788180/12tracks. Carbon independently verifies full pad+track native adjacency, zeroopens/no-newDRC and exact preservation. Earlier failure100000expansions/work12345690 is retained, not replaced.",
+      "review_source_ids": [
+        "fable-milestone-7",
+        "carbon-milestone-7"
+      ]
+    },
+    {
+      "id": "F-M7-F1",
+      "requirements": [
+        "RE-05",
+        "RE-08",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-7"
+      ],
+      "finding": "Deleting per-target heuristic work charge survived original shipped tests.",
+      "severity": "nonblocking-observation",
+      "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
       "status": "corrected-awaiting-independent-review",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Fable and Carbon independently review corrected search soundness, frozen native outcome and rollback/resource controls; preserve original failure and unchanged rules/budget.",
-      "observation_deadline": "before M7 integration",
+      "next_action": "b91c391 production helper is used by actual search; direct per-target deltas/exact cutoffs detect compiled charge-deletion mutant. Root requires focused independent acceptance before integration.",
       "blocks_current_integration": true,
-      "candidate_rust_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
-      "current_evidence": "Root actual Rust execution on original exact request completes at9751expansions/work788180/12tracks, exit0. Mandatory native apply verifies zeroopens/no-newviolations and exact pads/nets/incumbents. Root full gate96Rust+3compilefail+167native77.33s+95ownership/acceptance0.55sPASS. Independent acceptance remains required."
+      "observation_deadline": "Before chosen M7 correction integration"
+    },
+    {
+      "id": "F-M7-F2",
+      "requirements": [
+        "RE-02",
+        "RE-03",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-7"
+      ],
+      "finding": "Original shipped heuristic-goal tests used only axis-aligned targets and test-helper contact.",
+      "severity": "nonblocking-observation",
+      "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
+      "status": "corrected-awaiting-independent-review",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "b91c391 tests actual production contact for12targets including8slants, reversed endpoints, odd widths and shortened edges; compiled diagonal-envelope mutant fails. Independent acceptance pending.",
+      "blocks_current_integration": true,
+      "observation_deadline": "Before chosen M7 correction integration"
+    },
+    {
+      "id": "C-M7-01",
+      "requirements": [
+        "RE-03",
+        "RE-07",
+        "RE-10"
+      ],
+      "source_ids": [
+        "carbon-milestone-7"
+      ],
+      "finding": "Native partition helper collapsed same-footprint pads and omitted track-only components.",
+      "severity": "nonblocking-observation",
+      "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
+      "status": "corrected-awaiting-independent-review",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "d7ca31f uses full native pad/track adjacency and stable pad(ref,number,UUID)/trackUUID keys. Multipin four-pad plus isolated incumbent fixture proves5to1components. Root9native cases pass; both footprint-collapse and pad-only-seed mutants fail outcome assertions. Independent acceptance pending.",
+      "blocks_current_integration": true,
+      "observation_deadline": "Before chosen M7 correction integration"
+    },
+    {
+      "id": "C-M7-02",
+      "requirements": [
+        "RE-07",
+        "RE-09"
+      ],
+      "source_ids": [
+        "carbon-milestone-7"
+      ],
+      "finding": "Forced T-corridor can re-walk3.375001mm of existing same-net copper; native accepts but redundant overlap affects future length and victim costs.",
+      "severity": "nonblocking-observation",
+      "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Normalize or split redundant collinear copper before length/delay matching or victim-cost acceptance; retain reviewer T-corridor witness. No current native legality defect.",
+      "blocks_current_integration": false,
+      "observation_deadline": "Before the dependent future capability is accepted"
+    },
+    {
+      "id": "C-M7-03",
+      "requirements": [
+        "RE-02",
+        "RE-05"
+      ],
+      "source_ids": [
+        "fable-milestone-7",
+        "carbon-milestone-7"
+      ],
+      "finding": "Private component search assumes nonempty flattened targets; caller guarantees it, but an arbitrary empty direct call would overflow the heuristic.",
+      "severity": "nonblocking-observation",
+      "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
+      "status": "documented-private-precondition",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "b91c391 documents existing nonempty caller invariant; guard if future API exposes arbitrary targets. No unreachable-path behavior change required.",
+      "blocks_current_integration": false,
+      "observation_deadline": "Before the dependent future capability is accepted"
+    },
+    {
+      "id": "F-M7-O1",
+      "requirements": [
+        "RE-02",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-7"
+      ],
+      "finding": "Heading-removal mutant survives current shipped tests; no current heading-dependent costs and key is unchanged.",
+      "severity": "nonblocking-observation",
+      "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Require a meaningful continuation/dominance regression before introducing bend/history-dependent routing constraints. Full RE02 remains open.",
+      "blocks_current_integration": false,
+      "observation_deadline": "Before the dependent future capability is accepted"
+    },
+    {
+      "id": "F-M7-O3",
+      "requirements": [
+        "RE-02",
+        "RE-08",
+        "RE-09"
+      ],
+      "source_ids": [
+        "fable-milestone-7"
+      ],
+      "finding": "README omitted heuristic charges and catalog RE02/RE09 evidence omitted M7.",
+      "severity": "nonblocking-observation",
+      "evidence_class": "Independent review, selected actual probes and root verification as stated in next_action.",
+      "status": "corrected-documentation",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "b91c391 adds accounting row; current catalog records both independent reviews, M7 evidence and R-M7-01 RE02 mapping. Keep full requirements open.",
+      "blocks_current_integration": false,
+      "observation_deadline": "Before the dependent future capability is accepted"
     }
   ],
   "reviewed_milestones": [
@@ -1946,6 +2113,16 @@
       "scope": "Request/result3 consistency, no-fresh-output exit8, strict mandatory native expected request and corrected regression tests; owner greenfield recording acknowledged.",
       "validation": "Root81Rust+3compilefail+159native+95ownership PASS. Independent focused sensitivity evidence recorded above.",
       "remaining": "All10fullrequirements OPEN. C-M6-02 invocation/binary identity, geometry/rules, whole-process resource/cancellation, representative parity and performance remain open."
+    },
+    {
+      "candidate_revision": "7575313d9a79695bce6067b41d7cac5e22e51d94",
+      "review_source_ids": [
+        "fable-milestone-7",
+        "carbon-milestone-7"
+      ],
+      "scope": "Bounded greedy multi-terminal routing and admissible component-envelope estimate; experimental non-default only.",
+      "validation": "Root361checks; Fable independent geometric/search oracle, frozen-request replay and mutants; Carbon361checks, full native copper adjacency and four compiled mutants. Both reports accepted independently.",
+      "remaining": "All10fullRE OPEN; selected nonblocking test improvements are being reviewed separately before landing."
     }
   ],
   "correction_checkpoint": {
@@ -2090,7 +2267,7 @@
     "inventory_status": "Initial matrix, not an exhaustive verified inventory; no representative-board parity row accepted."
   },
   "multiterminal_checkpoint": {
-    "state": "candidate-awaiting-independent-review",
+    "state": "original-candidate-accepted-test-corrections-awaiting-review",
     "baseline_revision": "fb3ac2d24223ad04e1ae30c6b8b43c11e271c634",
     "initial_rust_revision": "1a683afd74048521bf54e7552f333c61007464ce",
     "rust_owner": "agent-1484",
@@ -2100,9 +2277,16 @@
       "multiterminal-contract"
     ],
     "contract": "Input1/result3 unchanged; admit more than two pads within existing item/work/search/expansion/journal/depth limits. Greedy component joining with strict reduction and whole-operation rollback; no Steiner or global-completeness claim.",
-    "validation": "Initial root native7pass/1fail preserved. Corrected root96Rust+3compilefail+167native77.33s+95ownership/acceptance0.55sPASS. Exact original request succeeds at9751expansions/work788180/12tracks and passes native terminal partitions/preservation/DRC. Full capability and independent acceptance still open.",
+    "validation": "Original root361checks pass and both independent reviewers accept7575313. Correction author98Rust+3compilefail and byte-identical frozen request pass; root9native and95ownership/acceptance pass; two adverse native helper controls fail intended assertions. Combined gate passed Rust but hit3minute host timeout late in native suite with no assertion failure reported; preserved and rerun with6minute host allowance. Focused independent correction acceptance pending.",
     "full_requirements": "All 10 remain open; no full-engine, representative parity, production/default or deployment acceptance.",
     "corrected_rust_revision": "0ecd1f0d1841022d1a63fd5d6ba52c3062d33e89",
-    "search_correction": "Admissible consistent minimum target-envelope step bound; original directional states, exact attachment/legality and shared resource budgets retained. Every target estimate is charged work; existing4096world and new256multi-target step-cost oracles pass."
+    "search_correction": "Admissible consistent minimum target-envelope step bound; original directional states, exact attachment/legality and shared resource budgets retained. Every target estimate is charged work; existing4096world and new256multi-target step-cost oracles pass.",
+    "reviewed_revision": "7575313d9a79695bce6067b41d7cac5e22e51d94",
+    "review_source_ids": [
+      "fable-milestone-7",
+      "carbon-milestone-7"
+    ],
+    "correction_rust_revision": "b91c3919a87f1b86d39d3d84b4814ff28c373348",
+    "correction_native_revision": "d7ca31f"
   }
 }
