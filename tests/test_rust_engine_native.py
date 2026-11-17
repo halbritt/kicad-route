@@ -194,37 +194,44 @@ def multiterminal_board(path, variant):
     assert pcbnew.SaveBoard(str(path), board)
 
 
-def native_pad_partitions(path):
+def native_copper_key(item):
+    if isinstance(item, pcbnew.PAD):
+        return ('pad', item.GetParentFootprint().GetReference(), item.GetNumber(), bridge.item_id(item))
+    return ('track', bridge.item_id(item))
+
+
+def native_copper_partitions(path):
     """Traverse KiCad's actual adjacency, independently of Rust contact code.
 
     GetConnectedPads/Tracks expose direct neighbors, so walk tracks as well as
     pads. Net labels alone and aggregate airwire counts do not establish these
-    terminal partitions.
+    terminal partitions. Include every pad and track UUID: footprint labels can
+    repeat, and disconnected track-only islands are real copper components.
     """
     board = pcbnew.LoadBoard(str(path))
     board.BuildConnectivity()
     connectivity = board.GetConnectivity()
-    pads = {bridge.item_id(pad): pad for pad in board.GetPads()}
+    copper = list(board.GetPads()) + list(board.GetTracks())
     seen = set()
     partitions = {}
-    for ident, pad in pads.items():
+    for seed in copper:
+        ident = bridge.item_id(seed)
         if ident in seen:
             continue
-        pending, terminals = [pad], set()
+        pending, members = [seed], set()
         while pending:
             item = pending.pop()
             item_ident = bridge.item_id(item)
             if item_ident in seen:
                 continue
             seen.add(item_ident)
-            assert item.GetNetCode() == pad.GetNetCode()
-            if item_ident in pads:
-                terminals.add(pads[item_ident].GetParentFootprint().GetReference())
+            assert item.GetNetCode() == seed.GetNetCode()
+            members.add(native_copper_key(item))
             pending.extend(connectivity.GetConnectedPads(item))
             pending.extend(connectivity.GetConnectedTracks(item))
         # KiCad can renumber integer net codes when saving a new net. Stable
         # names let this independent expectation detect actual net reassignment.
-        partitions.setdefault(pad.GetNetname(), set()).add(frozenset(terminals))
+        partitions.setdefault(seed.GetNetname(), set()).add(frozenset(members))
     return partitions
 
 
@@ -241,11 +248,23 @@ def test_multiterminal_native_connectivity_preservation_and_drc(native_board, gu
         by_net['SIGNAL'].update(('J5', 'J6'))
     if variant == 'multiple_nets':
         by_net['SECOND_SIGNAL'] = {'J4', 'J5', 'J6', 'J7'}
-    before_partitions = {net: {frozenset((ref,)) for ref in refs} for net, refs in by_net.items()}
+    board = pcbnew.LoadBoard(str(native_board))
+    pads = {pad.GetParentFootprint().GetReference(): native_copper_key(pad) for pad in board.GetPads()}
+    before_partitions = {net: {frozenset((pads[ref],)) for ref in refs} for net, refs in by_net.items()}
     if variant == 'preconnected':
-        before_partitions['SIGNAL'] = {frozenset(group) for group in (
+        before_partitions['SIGNAL'] = {frozenset(pads[ref] for ref in group) for group in (
             ('J1', 'J3'), ('J2', 'J4'), ('J5',), ('J6',))}
-    assert native_pad_partitions(native_board) == before_partitions
+    for track in board.GetTracks():
+        groups = before_partitions.setdefault(track.GetNetname(), set())
+        # The fixture has exactly two attached vertical incumbents; its third
+        # SIGNAL incumbent is a separate island with no pad.
+        attached = {3000000: ('J1', 'J3'), 17000000: ('J2', 'J4')}
+        refs = attached.get(track.GetStart().x) if track.GetNetname() == 'SIGNAL' else None
+        members = frozenset(pads[ref] for ref in refs) if refs else frozenset()
+        if members:
+            groups.remove(members)
+        groups.add(members | {native_copper_key(track)})
+    assert native_copper_partitions(native_board) == before_partitions
     request, plan_path = native_board.with_name('multi-request.json'), native_board.with_name('multi-plan.json')
     bridge.write_request(data, request)
     command = ['cargo', 'run', '--locked', '--offline', '--manifest-path',
@@ -265,7 +284,14 @@ def test_multiterminal_native_connectivity_preservation_and_drc(native_board, gu
     output = native_board.with_name('multi-routed.kicad_pcb')
     run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
          str(native_board), str(plan_path), str(output), '--request', str(request)])
-    assert native_pad_partitions(output) == {net: {frozenset(refs)} for net, refs in by_net.items()}
+    expected = {net: {frozenset(members for group in groups for members in group)}
+                for net, groups in before_partitions.items()}
+    names = {net['id']: net['name'] for net in data['nets']}
+    for track in plan['added_tracks']:
+        net = names[track['net']]
+        members, = expected[net]
+        expected[net] = {members | {('track', track['id'])}}
+    assert native_copper_partitions(output) == expected
     actual = bridge.export_board(output, RULES, 100000)
     assert actual['pads'] == data['pads'] and actual['nets'] == data['nets']
     assert {track['id']: track for track in actual['tracks']} == {
@@ -279,6 +305,85 @@ def test_multiterminal_native_connectivity_preservation_and_drc(native_board, gu
     observations = [json.loads(line) for line in audit_log.read_text().splitlines()]
     assert any(row.get('allowed', False) for row in observations)
     assert all(row.get('allowed', True) for row in observations)
+
+
+def test_multiterminal_multipin_and_isolated_incumbent_components(native_board, guarded_cli):
+    """Same-footprint pads and a padless island must each remain observable."""
+    run, _ = guarded_cli
+    board = pcbnew.LoadBoard(str(native_board))
+    signal = next(pad.GetNetCode() for pad in board.GetPads() if pad.GetNetname() == 'SIGNAL')
+    guard = next(track.GetNetCode() for track in board.GetTracks())
+    for item in list(board.GetFootprints()) + list(board.GetTracks()):
+        board.Remove(item)
+    for edge in board.GetDrawings():
+        for getter, setter in ((edge.GetStart, edge.SetStart), (edge.GetEnd, edge.SetEnd)):
+            point = getter()
+            if point.x == 20000000:
+                setter(pcbnew.VECTOR2I(25000000, point.y))
+    footprint = pcbnew.FOOTPRINT(board)
+    footprint.SetReference('U1')
+    board.Add(footprint)
+    for number, position in enumerate(((4000000, 4000000), (4000000, 16000000),
+                                       (20000000, 4000000), (20000000, 16000000)), 1):
+        pad = pcbnew.PAD(footprint)
+        pad.SetNumber(str(number))
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_RECT if number <= 2 else pcbnew.PAD_SHAPE_CIRCLE)
+        pad.SetSize(pcbnew.VECTOR2I(1200000 if number <= 2 else 1000000, 1000000))
+        pad.SetPosition(pcbnew.VECTOR2I(*position))
+        layers = pcbnew.LSET()
+        layers.AddLayer(pcbnew.F_Cu)
+        pad.SetLayerSet(layers)
+        pad.SetNetCode(signal)
+        footprint.Add(pad)
+    for net, start, end, locked in (
+            (signal, (10000000, 8000000), (13000000, 11000000), False),
+            (guard, (12000000, 2000000), (12000000, 6000000), True)):
+        track = pcbnew.PCB_TRACK(board)
+        track.SetStart(pcbnew.VECTOR2I(*start))
+        track.SetEnd(pcbnew.VECTOR2I(*end))
+        track.SetWidth(RULES['width_nm'])
+        track.SetLayer(pcbnew.F_Cu)
+        track.SetNetCode(net)
+        track.SetLocked(locked)
+        board.Add(track)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    original = native_board.read_bytes()
+    pads = {native_copper_key(pad) for pad in board.GetPads()}
+    assert len(pads) == 4 and {key[1] for key in pads} == {'U1'}
+    incumbent = next(track for track in board.GetTracks() if track.GetNetCode() == signal)
+    obstacle = next(track for track in board.GetTracks() if track.GetNetCode() == guard)
+    signal_members = pads | {native_copper_key(incumbent)}
+    guard_members = frozenset((native_copper_key(obstacle),))
+    expected_before = {'SIGNAL': {frozenset((key,)) for key in signal_members},
+                       'OBSTACLE': {guard_members}}
+    assert len(expected_before['SIGNAL']) == 5
+    assert native_copper_partitions(native_board) == expected_before
+    data = bridge.export_board(native_board, RULES, 100000)
+    request, plan_path = native_board.with_name('multipin.json'), native_board.with_name('multipin-plan.json')
+    bridge.write_request(data, request)
+    run(['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)])
+    plan = json.loads(plan_path.read_bytes())
+    assert plan['status'] == 'complete' and plan['added_tracks']
+    assert plan['removed_track_ids'] == []
+    output = native_board.with_name('multipin-routed.kicad_pcb')
+    run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
+         str(native_board), str(plan_path), str(output), '--request', str(request)])
+    expected_after = {'SIGNAL': {frozenset(signal_members | {
+        ('track', track['id']) for track in plan['added_tracks']})}, 'OBSTACLE': {guard_members}}
+    assert native_copper_partitions(output) == expected_after
+    assert expected_after != expected_before
+    actual = bridge.export_board(output, RULES, 100000)
+    assert actual['pads'] == data['pads'] and actual['nets'] == data['nets']
+    assert {track['id']: track for track in actual['tracks']} == {
+        track['id']: track for track in data['tracks'] + plan['added_tracks']}
+    before = bridge.native_violations(native_board, native_board.with_name('multipin-before-drc.json'))
+    after = bridge.native_violations(output, native_board.with_name('multipin-after-drc.json'))
+    assert before['unconnected_items'] and after['unconnected_items'] == []
+    key = lambda violation: json.dumps(violation, sort_keys=True)
+    assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
+    assert native_board.read_bytes() == original
 
 
 @pytest.mark.parametrize('budget,status,exit_code', [
@@ -355,7 +460,10 @@ def test_multiterminal_native_apply_rejects_ignored_terminal(native_board, guard
     accepted = native_board.with_name('all-terminals-output.kicad_pcb')
     bridge.apply_plan(native_board, json.loads(complete_plan.read_bytes()), accepted,
                       expected_request=request.read_bytes())
-    assert native_pad_partitions(accepted) == {'SIGNAL': {frozenset(('J1', 'J2', 'J3'))}}
+    source = pcbnew.LoadBoard(str(native_board))
+    members = {native_copper_key(pad) for pad in source.GetPads()}
+    members.update(('track', track['id']) for track in json.loads(complete_plan.read_bytes())['added_tracks'])
+    assert native_copper_partitions(accepted) == {'SIGNAL': {frozenset(members)}}
     assert native_board.read_bytes() == original
 
 
