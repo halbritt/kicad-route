@@ -595,11 +595,18 @@ def _stage_board_bundle(
     for pretty in src_dir.glob("*.pretty"):
         if pretty.is_dir():
             shutil.copytree(pretty, stage_dir / pretty.name)
+    src_lib = src_dir / "lib"
+    if src_lib.is_dir():
+        shutil.copytree(src_lib, stage_dir / "lib")
     if sidecar_dir is not None:
         for pretty in sidecar_dir.glob("*.pretty"):
             dest = stage_dir / pretty.name
             if pretty.is_dir() and not dest.exists():
                 shutil.copytree(pretty, dest)
+        sidecar_lib = sidecar_dir / "lib"
+        dest_lib = stage_dir / "lib"
+        if sidecar_lib.is_dir() and not dest_lib.exists():
+            shutil.copytree(sidecar_lib, dest_lib)
     return staged_pcb
 
 
@@ -2033,3 +2040,59 @@ def verify_diff_pair_native(
         "gap_violations": len(pair_gap_errs),
         "uncoupled_violations": len(uncoupled_errs),
     }
+
+
+def copper_signature(pcb_path: Path) -> str:
+    """Canonical sorted SHA-256 across tracks, vias, and arcs on a KiCad board."""
+    pn = _pcbnew()
+    board = pn.LoadBoard(str(pcb_path))
+    if board is None:
+        raise AssertionError(f"pcbnew could not load {pcb_path}")
+    items: list[tuple[Any, ...]] = []
+    for t in board.GetTracks():
+        cls = t.GetClass()
+        if cls == "PCB_VIA":
+            items.append(
+                (
+                    "V",
+                    t.GetNetname(),
+                    [int(t.TopLayer()), int(t.BottomLayer())],
+                    [int(t.GetPosition().x), int(t.GetPosition().y)],
+                    int(t.GetWidth(t.TopLayer())),
+                    int(t.GetDrill()),
+                )
+            )
+        elif cls == "PCB_ARC":
+            items.append(
+                (
+                    "A",
+                    t.GetNetname(),
+                    int(t.GetLayer()),
+                    [
+                        int(t.GetStart().x),
+                        int(t.GetStart().y),
+                        int(t.GetMid().x),
+                        int(t.GetMid().y),
+                        int(t.GetEnd().x),
+                        int(t.GetEnd().y),
+                    ],
+                    int(t.GetWidth()),
+                )
+            )
+        else:
+            items.append(
+                (
+                    "T",
+                    t.GetNetname(),
+                    int(t.GetLayer()),
+                    [
+                        int(t.GetStart().x),
+                        int(t.GetStart().y),
+                        int(t.GetEnd().x),
+                        int(t.GetEnd().y),
+                    ],
+                    int(t.GetWidth()),
+                )
+            )
+    items.sort()
+    return hashlib.sha256(json.dumps(items, separators=(",", ":")).encode("utf-8")).hexdigest()

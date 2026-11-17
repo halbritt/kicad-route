@@ -65,6 +65,26 @@ def assert_source_dir_untouched(source_dir: Path, before_hashes: dict[str, str])
         )
 
 
+def snapshot_source_tree(root: Path) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    for p in sorted(root.rglob("*")):
+        if p.is_file():
+            hashes[p.relative_to(root).as_posix()] = sha256_file(p)
+    return hashes
+
+
+def assert_source_tree_untouched(root: Path, before: dict[str, str]) -> None:
+    after = snapshot_source_tree(root)
+    if after != before:
+        extra = set(after) - set(before)
+        missing = set(before) - set(after)
+        changed = [k for k in set(after) & set(before) if after[k] != before[k]]
+        raise AssertionError(
+            f"source tree mutated ({root}): extra={sorted(extra)}, "
+            f"missing={sorted(missing)}, changed={sorted(changed)}"
+        )
+
+
 def assert_no_crash(proc: MeasuredProcessResult, label: str) -> None:
     if proc.returncode == 7:
         raise AssertionError(f"{label} exited 7 (internal_error / panic): {proc.stderr}")
@@ -137,6 +157,7 @@ def run_wire_or_pending(
     max_expansions: int = 100_000,
     limits: dict[str, int] | None = None,
     allow_unsupported_engine: bool = True,
+    timeout_s: float = 60.0,
 ) -> tuple[RouteE2EResult, dict[str, str]]:
     source_dir = board_pcb.parent
     before_hashes = snapshot_source_dir(source_dir)
@@ -151,6 +172,7 @@ def run_wire_or_pending(
         work_dir=run_dir,
         max_expansions=max_expansions,
         limits_path=limits_path,
+        timeout_s=timeout_s,
     )
     assert_no_crash(res.export_res.proc, f"{tag}:export")
     if res.engine_res is not None:
@@ -233,6 +255,7 @@ def run_m3_board_or_pending(
     *,
     tag: str = "m3",
     max_expansions: int = 100_000,
+    timeout_s: float = 60.0,
 ) -> tuple[str, Any, dict[str, str]]:
     """Run native orchestration if M2+ supported, else JSON wire; raise PendingCapability on exit-2 unsupported."""
     source_dir = bundle.pcb_path.parent
@@ -245,6 +268,7 @@ def run_m3_board_or_pending(
             out_pcb,
             rules_path=rules_path,
             max_expansions=max_expansions,
+            timeout_s=timeout_s,
         )
         assert_no_crash(proc, f"{tag}:native")
         assert_source_dir_untouched(source_dir, before_hashes)
@@ -263,6 +287,7 @@ def run_m3_board_or_pending(
         rules or STD_RULES,
         tag=tag,
         max_expansions=max_expansions,
+        timeout_s=timeout_s,
     )
     return "wire", res, before_hashes
 
@@ -392,6 +417,7 @@ def run_m4_board_or_pending(
     tag: str = "m4",
     max_expansions: int = 200_000,
     limits: dict[str, int] | None = None,
+    timeout_s: float = 60.0,
 ) -> tuple[str, Any, dict[str, str]]:
     """Run M4 native orchestration (or JSON wire for plain routing); raise PendingCapability if unimplemented."""
     source_dir = bundle.pcb_path.parent
@@ -416,6 +442,7 @@ def run_m4_board_or_pending(
             rules_path=rules_path,
             max_expansions=max_expansions,
             limits_path=limits_path,
+            timeout_s=timeout_s,
             extra_args=extra_args,
         )
         assert_no_crash(proc, f"{tag}:native")
@@ -437,6 +464,7 @@ def run_m4_board_or_pending(
         tag=tag,
         max_expansions=max_expansions,
         limits=limits,
+        timeout_s=timeout_s,
     )
     return "wire", res, before_hashes
 
