@@ -267,7 +267,7 @@
         "When zones are supported, native --refill-zones checks cover islands, area loss, thermal spoke survival and lost_fill_contact; no blanket assumption of net-equivalent copper."
       ],
       "state": "open",
-      "current_evidence": "Ten native omission rejections pass at f931aad. Board-level Margin violation confirmed by native DRC and accepted by adapter; footprint Margin not yet executed. Both rejection cases assigned to agent-1497. Effective project rules, multilayer, vias and zones remain unsupported."
+      "current_evidence": "At f931aad ten native omission rejections passed. At b3b93b9 board and footprint Margin geometry are rejected on export/apply; four native DRC-backed positive/negative controls pass. Independent correction review remains pending. Effective project rules, multilayer, vias and zones remain unsupported."
     },
     {
       "id": "RE-07",
@@ -520,11 +520,13 @@
         "slice-addendum-2",
         "carbon-remit"
       ],
-      "evidence_class": "board-level native DRC witness; footprint case pending",
-      "status": "open",
+      "evidence_class": "native board and footprint DRC controls executed",
+      "status": "implemented-awaiting-review",
       "owner": "agent-1497",
-      "next_action": "Reject board and footprint Margin geometry with native round-trip tests and a supported drawing control.",
-      "observation_deadline": "2026-11-16T17:12:00-08:00"
+      "next_action": "Independent exact-revision review and combined gate after the concurrent Rust correction completes.",
+      "observation_deadline": "2026-11-16T17:12:00-08:00",
+      "implementation_revision": "b3b93b9",
+      "verification": "4 passed: board and footprint Margin cause copper_edge_clearance and are refused; matching Dwgs.User controls remain accepted."
     },
     {
       "id": "C-M1-01",
