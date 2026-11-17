@@ -70,22 +70,59 @@ convex rectangular outline. The coordinate/size limits bound arithmetic;
 critical squares/products, position steps and counters use checked arithmetic.
 
 The copper store owns immutable input tracks, generated tracks, a generated-net
-index and an undo journal. A checkpoint records the journal length and ID
-counter in O(1). Rollback restores changed objects and index entries; it does
-not clone whole-board state. Proposals are validated before insertion. A failed
-batch rolls back all earlier generated routes and publishes no edits. The Rust
-`Engine::reroute` API removes only generated copper for one net and restores its
-exact IDs/geometry/index/allocator on failure. The current CLI only routes a
-fresh batch; it does not expose reroute as a separate JSON command. Nested public
-transactions and concurrent mutation are not supported. `CopperStore` construction,
-checkpoint, commit, rollback and mutation methods are crate-private; the public
-`Engine::copper()` accessor exposes only a shared reference. The two transaction
-entry points, `route_all` and `reroute`, each open one checkpoint and call the
-private `route_net`, which does not open another checkpoint or call either entry
-point. Thus nested commits are not reachable through the current API or call
-graph. The journal's commit operation discards its undo entries and would not
-support an outer rollback if a future internal caller introduced nesting; that
-extension would require different commit semantics before it could be used.
+index and an undo journal. `Engine::transaction` exposes a borrowed transaction
+view inside a closure. Returning `Ok` commits that scope; returning `Err` rolls
+it back. A panic that unwinds through the closure rolls back and propagates its
+original payload. A caller may catch an inner panic outside the inner scope and
+continue the outer scope. A panic caught *inside* a scope does not exit it; its
+eventual `Ok` or `Err` controls the outcome. This is in-memory unwind behavior,
+not recovery from abort, process termination, allocation failure or a crash.
+
+```rust
+use kicad_route_engine::{Engine, model::Failure};
+
+fn grouped(engine: &mut Engine) -> Result<(), Failure> {
+    engine.transaction(|outer| {
+        outer.route(1, 1000)?;
+        outer.transaction(|inner| {
+            inner.reroute(2, 1000)?;
+            Ok::<_, Failure>(())
+        })?;
+        outer.route(3, 1000)?;
+        Ok(())
+    })
+}
+```
+
+`route`, `reroute` and `route_all` each use their own nested scope, including
+when called through a transaction view. A handled operation error leaves prior
+outer changes intact. `route` preserves already-connected copper; `reroute`
+removes only generated copper for that net before searching. Both require a
+known nonzero net and a budget of 1..=1,000,000 expansions for that operation.
+`route_all` retains its existing batch-wide expansion budget. The enclosing
+transaction does not impose an additional combined search budget.
+
+Inner commits retain their journal entries for an outer rollback; only the
+outermost commit releases them. Rollback restores generated object fields and
+IDs, the by-net index and the ID allocator; immutable input copper stays intact.
+Each frame holds only its journal offset and allocator position, and undo work
+is proportional to the changed generated objects, without whole-board copies.
+Journal memory grows with changes retained by active outer scopes. Repeated
+reroutes can therefore consume memory until the outer scope ends. The API has
+no configured nesting-depth limit; callers must bound nesting and work.
+
+Callers receive no checkpoint tokens, owning guards or mutable `Engine` access
+inside a scope. The private guard remains bound to its original engine; borrowed
+views cannot escape, be swapped across independent scopes, or access ancestors
+out of order. Compiler-checked examples cover these rejected uses. Safe callers
+cannot forget an owning guard to leave a scope open. Store frame/mutation methods
+remain crate-private and are used only by these engine operations. Concurrent
+mutation of an engine is excluded by its exclusive Rust borrow.
+
+Proposals are validated before insertion. A failed batch rolls back all earlier
+generated routes and publishes no edits. JSON version 1 and CLI behavior are
+unchanged: the CLI routes one fresh batch and does not expose transaction or
+reroute commands. This API adds transactional ownership, not a routing strategy.
 
 Generated IDs use a deterministic custom UUIDv8 layout: a prefix from source_id
 plus a counter, skipping all reserved pad/track IDs. These are board-local stable

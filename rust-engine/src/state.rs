@@ -6,8 +6,8 @@ enum Undo {
     Inserted(String),
     Removed(Track),
 }
-#[derive(Clone, Copy)]
-pub(crate) struct Checkpoint {
+#[derive(Debug)]
+struct Frame {
     journal: usize,
     next: u64,
 }
@@ -19,6 +19,7 @@ pub struct CopperStore {
     generated: BTreeMap<String, Track>,
     by_net: BTreeMap<u32, BTreeSet<String>>,
     journal: Vec<Undo>,
+    frames: Vec<Frame>,
     next: u64,
     reserved: BTreeSet<String>,
     prefix: String,
@@ -39,6 +40,7 @@ impl CopperStore {
             generated: BTreeMap::new(),
             by_net: BTreeMap::new(),
             journal: Vec::new(),
+            frames: Vec::new(),
             next: 1,
             reserved,
             prefix,
@@ -60,11 +62,13 @@ impl CopperStore {
         }
         expected == self.by_net
     }
-    pub(crate) fn checkpoint(&self) -> Checkpoint {
-        Checkpoint {
+    // Only the private Engine scope guard opens/closes frames. No checkpoint
+    // token can escape, be copied, or be applied to another store.
+    pub(crate) fn begin(&mut self) {
+        self.frames.push(Frame {
             journal: self.journal.len(),
             next: self.next,
-        }
+        });
     }
     fn add_raw(&mut self, t: Track) {
         self.by_net.entry(t.net).or_default().insert(t.id.clone());
@@ -111,7 +115,8 @@ impl CopperStore {
             self.journal.push(Undo::Removed(t));
         }
     }
-    pub(crate) fn rollback(&mut self, c: Checkpoint) {
+    pub(crate) fn rollback(&mut self) {
+        let c = self.frames.pop().expect("scope owns an open transaction");
         while self.journal.len() > c.journal {
             match self.journal.pop().unwrap() {
                 Undo::Inserted(id) => {
@@ -122,7 +127,12 @@ impl CopperStore {
         }
         self.next = c.next;
     }
-    pub(crate) fn commit(&mut self, c: Checkpoint) {
-        self.journal.truncate(c.journal);
+    pub(crate) fn commit(&mut self) {
+        self.frames.pop().expect("scope owns an open transaction");
+        // Inner commits remain undoable by the parent. Only an outermost
+        // commit can release the journal (including removed track objects).
+        if self.frames.is_empty() {
+            self.journal.clear();
+        }
     }
 }

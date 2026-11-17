@@ -10,6 +10,48 @@ pub struct Engine {
     input: Input,
     copper: CopperStore,
 }
+/// A borrowed view inside `Engine::transaction`. It cannot be constructed,
+/// committed, rolled back or retained outside its closure by the caller.
+/// Operations have their own nested scope, so a handled routing error does
+/// not discard earlier work in the enclosing transaction.
+pub struct Transaction<'a> {
+    engine: &'a mut Engine,
+}
+impl Transaction<'_> {
+    pub fn copper(&self) -> &CopperStore {
+        self.engine.copper()
+    }
+    pub fn route_all(&mut self) -> Result<u64, Failure> {
+        self.engine.route_all()
+    }
+    pub fn route(&mut self, net: u32, max_expansions: u64) -> Result<u64, Failure> {
+        self.engine.route(net, max_expansions)
+    }
+    pub fn reroute(&mut self, net: u32, max_expansions: u64) -> Result<u64, Failure> {
+        self.engine.reroute(net, max_expansions)
+    }
+    pub fn transaction<T, E>(
+        &mut self,
+        operation: impl FnOnce(&mut Transaction<'_>) -> Result<T, E>,
+    ) -> Result<T, E> {
+        self.engine.transaction(operation)
+    }
+}
+
+// This guard is never handed to user code. Even forgetting the borrowed
+// Transaction view cannot bypass rollback or move a frame to another engine.
+struct Scope<'a> {
+    engine: &'a mut Engine,
+    committed: bool,
+}
+impl Drop for Scope<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            self.engine.copper.rollback();
+        }
+    }
+}
+
 impl Engine {
     pub fn new(mut input: Input) -> Result<Self, Failure> {
         input.validate()?;
@@ -25,6 +67,68 @@ impl Engine {
             &input.source_id,
         );
         Ok(Self { input, copper })
+    }
+    /// Group routing operations atomically. `Ok` commits this scope; `Err`
+    /// or a panic unwinding through it rolls it back. Inner commits remain
+    /// part of the parent's undo history. Panics are not caught or converted.
+    /// Abort, process termination and allocation failure are not recovered.
+    ///
+    /// The borrowed view cannot escape (there are no reusable checkpoint tokens):
+    /// ```compile_fail
+    /// use kicad_route_engine::Engine;
+    /// fn escape(engine: &mut Engine) {
+    ///     let mut saved = None;
+    ///     let _: Result<(), ()> = engine.transaction(|tx| {
+    ///         saved = Some(tx);
+    ///         Ok(())
+    ///     });
+    ///     saved.unwrap().route_all().unwrap();
+    /// }
+    /// ```
+    ///
+    /// An ancestor cannot be used out of order while its child is borrowed:
+    /// ```compile_fail
+    /// use kicad_route_engine::{Engine, model::Failure};
+    /// fn out_of_order(engine: &mut Engine) {
+    ///     let _: Result<(), Failure> = engine.transaction(|parent| {
+    ///         parent.transaction(|child| {
+    ///             parent.route(1, 100)?;
+    ///             child.route(2, 100)?;
+    ///             Ok(())
+    ///         })
+    ///     });
+    /// }
+    /// ```
+    ///
+    /// Views from independent engines cannot be swapped across their scopes:
+    /// ```compile_fail
+    /// use kicad_route_engine::Engine;
+    /// fn swap_scopes(left: &mut Engine, right: &mut Engine) {
+    ///     let _: Result<(), ()> = left.transaction(|a| {
+    ///         right.transaction(|b| {
+    ///             std::mem::swap(a, b);
+    ///             Ok(())
+    ///         })
+    ///     });
+    /// }
+    /// ```
+    pub fn transaction<T, E>(
+        &mut self,
+        operation: impl FnOnce(&mut Transaction<'_>) -> Result<T, E>,
+    ) -> Result<T, E> {
+        self.copper.begin();
+        let mut scope = Scope {
+            engine: self,
+            committed: false,
+        };
+        let result = operation(&mut Transaction {
+            engine: scope.engine,
+        });
+        if result.is_ok() {
+            scope.engine.copper.commit();
+            scope.committed = true;
+        }
+        result
     }
     pub fn copper(&self) -> &CopperStore {
         &self.copper
@@ -139,32 +243,40 @@ impl Engine {
         Ok(())
     }
     pub fn route_all(&mut self) -> Result<u64, Failure> {
-        let checkpoint = self.copper.checkpoint();
-        let mut expanded = 0;
-        let mut nets: Vec<_> = self
-            .input
-            .nets
-            .iter()
-            .filter(|n| n.id != 0)
-            .map(|n| n.id)
-            .collect();
-        nets.sort();
-        for net in nets {
-            if let Err(mut e) = self.route_net(net, self.input.max_expansions, &mut expanded) {
-                self.copper.rollback(checkpoint);
-                e.expanded_states = expanded;
-                if e.status == Status::Unroutable {
-                    e.reason = format!("net {net}: {}; failure for fixed net order/current copper, not proof of global infeasibility", e.reason);
+        self.transaction(|tx| {
+            let engine = &mut *tx.engine;
+            let mut expanded = 0;
+            let mut nets: Vec<_> = engine.input.nets.iter()
+                .filter(|n| n.id != 0).map(|n| n.id).collect();
+            nets.sort();
+            for net in nets {
+                if let Err(mut e) = engine.route_net(net, engine.input.max_expansions, &mut expanded) {
+                    e.expanded_states = expanded;
+                    if e.status == Status::Unroutable {
+                        e.reason = format!("net {net}: {}; failure for fixed net order/current copper, not proof of global infeasibility", e.reason);
+                    }
+                    return Err(e);
                 }
-                return Err(e);
             }
-        }
-        self.copper.commit(checkpoint);
-        Ok(expanded)
+            Ok(expanded)
+        })
+    }
+    /// Route one known nonzero net, preserving already-connected copper.
+    /// The expansion limit applies to this operation, not its enclosing scope.
+    pub fn route(&mut self, net: u32, max_expansions: u64) -> Result<u64, Failure> {
+        self.route_selected(net, max_expansions, false)
     }
     /// Remove only generated copper for a net, then route again. Failure
-    /// restores the exact removed objects, index and ID allocator checkpoint.
+    /// restores removed objects, index and ID allocator, even inside a parent.
     pub fn reroute(&mut self, net: u32, max_expansions: u64) -> Result<u64, Failure> {
+        self.route_selected(net, max_expansions, true)
+    }
+    fn route_selected(
+        &mut self,
+        net: u32,
+        max_expansions: u64,
+        replace: bool,
+    ) -> Result<u64, Failure> {
         if net == 0
             || max_expansions == 0
             || max_expansions > MAX_EXPANSIONS
@@ -172,23 +284,22 @@ impl Engine {
         {
             return Err(Failure::new(
                 Status::Invalid,
-                "reroute needs a known nonzero net and budget 1..=1000000",
+                "routing needs a known nonzero net and budget 1..=1000000",
             ));
         }
-        let c = self.copper.checkpoint();
-        self.copper.remove_net(net);
-        let mut expanded = 0;
-        match self.route_net(net, max_expansions, &mut expanded) {
-            Ok(()) => {
-                self.copper.commit(c);
-                Ok(expanded)
+        self.transaction(|tx| {
+            if replace {
+                tx.engine.copper.remove_net(net);
             }
-            Err(mut e) => {
-                self.copper.rollback(c);
-                e.expanded_states = expanded;
-                Err(e)
-            }
-        }
+            let mut expanded = 0;
+            tx.engine
+                .route_net(net, max_expansions, &mut expanded)
+                .map_err(|mut e| {
+                    e.expanded_states = expanded;
+                    e
+                })?;
+            Ok(expanded)
+        })
     }
 }
 impl Output {
