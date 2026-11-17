@@ -1,6 +1,6 @@
 use crate::budget::WorkBudget;
 use crate::components::Copper;
-use crate::model::{Failure, Point, Rules, Shape, Status, Track};
+use crate::model::{Failure, Point, Rules, Status, Track};
 use crate::Engine;
 use std::cmp::Reverse;
 use std::collections::{BTreeSet, BinaryHeap, HashMap};
@@ -81,6 +81,15 @@ pub(crate) fn join_components(
     expanded: &mut u64,
 ) -> Result<Path, Failure> {
     let _scope = engine.work.scope();
+    if targets.iter().flatten().next().is_none() {
+        let mut failure = Failure::new(
+            Status::Unroutable,
+            "component join requires at least one target item",
+        );
+        failure.work_used = engine.work.used();
+        failure.expanded_states = *expanded;
+        return Err(failure);
+    }
     let route = |a, b| Track {
         id: String::new(),
         net,
@@ -165,12 +174,18 @@ fn component_estimate(
     rules: &Rules,
     work: &WorkBudget,
 ) -> Result<u64, Failure> {
-    let mut lower_bound = u64::MAX;
+    let mut lower_bound: Option<u64> = None;
     for target in targets.iter().flatten() {
         work.charge(1)?;
-        lower_bound = lower_bound.min(contact_steps(p, *target, rules.width_nm, rules.grid_nm));
+        let steps = contact_steps(p, *target, rules.width_nm, rules.grid_nm);
+        lower_bound = Some(lower_bound.map_or(steps, |best| best.min(steps)));
     }
-    Ok(lower_bound)
+    lower_bound.ok_or_else(|| {
+        Failure::new(
+            Status::Unroutable,
+            "component join requires at least one target item",
+        )
+    })
 }
 
 /// Lower bound to a superset of all endpoint-cap contacts with this target.
@@ -183,25 +198,12 @@ fn component_estimate(
 /// consistent and is zero at every accepted contact endpoint.
 fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
     let route_radius = (width + 1) / 2;
-    let (lo, hi): (Point, Point) = match target {
-        Copper::Pad(pad) => {
-            let half = match pad.shape {
-                Shape::Circle { radius_nm } => [radius_nm; 2],
-                Shape::Rect { half_size_nm } => half_size_nm,
-            };
-            (
-                std::array::from_fn(|k| pad.at[k] - half[k] - route_radius),
-                std::array::from_fn(|k| pad.at[k] + half[k] + route_radius),
-            )
-        }
-        Copper::Track(t) => {
-            let radius = (t.width_nm + 1) / 2 + route_radius;
-            (
-                std::array::from_fn(|k| t.start[k].min(t.end[k]) - radius),
-                std::array::from_fn(|k| t.start[k].max(t.end[k]) + radius),
-            )
-        }
+    let (lo, hi) = match target {
+        Copper::Pad(pad) => pad.copper_bounds(),
+        Copper::Track(track) => track.copper_bounds(),
     };
+    let lo: Point = std::array::from_fn(|k| lo[k] - route_radius);
+    let hi: Point = std::array::from_fn(|k| hi[k] + route_radius);
     (0..2)
         .map(|k| {
             let gap = (lo[k] - p[k]).max(p[k] - hi[k]).max(0);

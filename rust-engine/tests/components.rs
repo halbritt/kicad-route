@@ -307,3 +307,72 @@ fn clearance_shadowed_target_joins_at_first_contact() {
     assert_copper_connected(&i, &o.added_tracks);
     assert!(!contact::Body::track(t).violates(contact::Body::track(&i.tracks[1]), 200000));
 }
+
+#[test]
+fn rect_rect_contact_helper_distinguishes_overlap_from_tangency() {
+    let mut a = pad(1, [20, 20]);
+    a.shape = Shape::Rect {
+        half_size_nm: [5, 5],
+    };
+    let mut b = a.clone();
+    b.id = id(2);
+    for at in [[30, 20], [30, 30], [29, 30]] {
+        b.at = at;
+        assert!(!contact::Body::pad(&a).contacts(contact::Body::pad(&b)));
+        assert!(!kicad_route_engine::geometry::pads_touch(&a, &b));
+    }
+    for at in [[29, 20], [29, 29]] {
+        b.at = at;
+        assert!(contact::Body::pad(&a).contacts(contact::Body::pad(&b)));
+        assert!(kicad_route_engine::geometry::pads_touch(&a, &b));
+    }
+}
+
+#[test]
+fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
+    let mut i = base();
+    i.bounds.max = [10000000, 10000000];
+    i.rules = Rules {
+        width_nm: 300000,
+        clearance_nm: 200000,
+        grid_nm: 500000,
+        edge_clearance_nm: 200000,
+    };
+    i.max_expansions = 200000;
+    i.nets.push(Net {
+        id: 2,
+        name: "FOREIGN".into(),
+    });
+    i.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [5000000, 2000000],
+            shape: Shape::Circle { radius_nm: 300000 },
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [5000000, 6000000],
+            shape: Shape::Rect {
+                half_size_nm: [200000, 50000],
+            },
+        },
+    ];
+    i.tracks = vec![Track {
+        id: id(3),
+        net: 2,
+        start: [2000000, 6300000],
+        end: [8000000, 6300000],
+        width_nm: 100000,
+        locked: true,
+    }];
+    let o = run(i.clone());
+    assert_eq!(o.status, Status::Complete, "{:?}", o.reason);
+    assert_eq!(o.added_tracks.len(), 1);
+    let t = &o.added_tracks[0];
+    assert_eq!(t.start, [5000000, 2000000]);
+    assert_eq!(t.end, [5000000, 5800001]);
+    assert_copper_connected(&i, &o.added_tracks);
+    assert!(!contact::Body::track(t).violates(contact::Body::track(&i.tracks[0]), 200000));
+}

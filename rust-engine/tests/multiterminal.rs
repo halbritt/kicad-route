@@ -601,3 +601,181 @@ fn frozen_native_two_net_request_completes_with_original_budget() {
         output.added_tracks.len()
     );
 }
+
+fn assert_zero_collinear_overlap(i: &Input, added: &[Track], net: u32) {
+    let net_tracks: Vec<_> = i
+        .tracks
+        .iter()
+        .chain(added.iter())
+        .filter(|t| t.net == net)
+        .collect();
+    for (idx, a) in net_tracks.iter().enumerate() {
+        for b in &net_tracks[idx + 1..] {
+            for axis in 0..2 {
+                let ortho = 1 - axis;
+                if a.start[ortho] == a.end[ortho]
+                    && b.start[ortho] == b.end[ortho]
+                    && a.start[ortho] == b.start[ortho]
+                {
+                    let a_lo = a.start[axis].min(a.end[axis]);
+                    let a_hi = a.start[axis].max(a.end[axis]);
+                    let b_lo = b.start[axis].min(b.end[axis]);
+                    let b_hi = b.start[axis].max(b.end[axis]);
+                    let overlap = a_hi.min(b_hi) - a_lo.max(b_lo);
+                    assert!(
+                        overlap <= 0,
+                        "positive collinear overlap {overlap} nm between {a:?} and {b:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
+    let j1 = Pad {
+        id: id(1),
+        net: 1,
+        at: [4_000_000, 10_000_000],
+        shape: Shape::Circle { radius_nm: 500_000 },
+    };
+    let j2 = Pad {
+        id: id(2),
+        net: 1,
+        at: [12_000_000, 10_000_000],
+        shape: Shape::Circle { radius_nm: 500_000 },
+    };
+    let j3 = Pad {
+        id: id(3),
+        net: 1,
+        at: [8_000_000, 16_000_000],
+        shape: Shape::Circle { radius_nm: 500_000 },
+    };
+    let pads = if swap_j1_j2 {
+        vec![j2, j1, j3]
+    } else {
+        vec![j1, j2, j3]
+    };
+    let wall = |n, a, b| Track {
+        id: id(n),
+        net: 0,
+        start: a,
+        end: b,
+        width_nm: 250_000,
+        locked: true,
+    };
+    Input {
+        version: 1,
+        source_id: "a".repeat(64),
+        layer: "F.Cu".into(),
+        bounds: Bounds {
+            min: [0, 0],
+            max: [20_000_000, 20_000_000],
+        },
+        rules: Rules {
+            width_nm: 250_000,
+            clearance_nm: 1_000_000,
+            grid_nm: 500_000,
+            edge_clearance_nm: 500_000,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIGNAL".into(),
+            },
+        ],
+        pads,
+        tracks: vec![
+            wall(10, [2_300_000, 8_300_000], [6_750_000, 8_300_000]),
+            wall(11, [2_300_000, 11_700_000], [6_750_000, 11_700_000]),
+            wall(12, [2_300_000, 8_300_000], [2_300_000, 11_700_000]),
+            wall(13, [6_750_000, 11_250_000], [6_750_000, 15_000_000]),
+            wall(14, [9_250_000, 8_300_000], [13_700_000, 8_300_000]),
+            wall(15, [9_250_000, 11_700_000], [13_700_000, 11_700_000]),
+            wall(16, [13_700_000, 8_300_000], [13_700_000, 11_700_000]),
+            wall(17, [9_250_000, 11_250_000], [9_250_000, 15_000_000]),
+        ],
+        max_expansions: 100_000,
+        limits: Limits::default(),
+    }
+}
+
+#[test]
+fn forced_t_corridor_normalizes_collinear_overlaps_without_duplicate_copper() {
+    for swap in [false, true] {
+        let i = p2a_forced_t_corridor(swap);
+        let o = run(i.clone());
+        assert_eq!(o.status, Status::Complete, "swap={swap}: {:?}", o.reason);
+        valid_complete(&i, &o.added_tracks);
+        assert_zero_collinear_overlap(&i, &o.added_tracks, 1);
+        let total_len: i64 = o
+            .added_tracks
+            .iter()
+            .map(|t| (t.end[0] - t.start[0]).abs() + (t.end[1] - t.start[1]).abs())
+            .sum();
+        // swap=false: [4M..11.375001M] (7375001) + stem (5375001) = 12750002 (2 tracks, full overlap dropped).
+        // swap=true: [12M..4.624999M] (7375001) + [4M..4.624999M] (624999) + stem (5375001) = 13375001 (3 tracks, partial overlap trimmed).
+        assert_eq!(
+            total_len,
+            if swap { 13_375_001 } else { 12_750_002 },
+            "swap={swap}: {:?}",
+            o.added_tracks
+        );
+        assert_eq!(o.added_tracks.len(), if swap { 3 } else { 2 });
+    }
+}
+
+#[test]
+fn straddling_overlap_splits_and_work_exhaustion_rolls_back_cleanly() {
+    let mut i = fixture(&[[10, 30], [60, 50]]);
+    i.bounds.max = [80, 60];
+    i.nets.push(Net {
+        id: 0,
+        name: String::new(),
+    });
+    i.tracks = vec![
+        track(10, 1, [10, 30], [10, 10], true),
+        track(11, 1, [10, 10], [32, 10], true),
+        track(12, 1, [32, 10], [32, 30], true),
+        track(13, 1, [32, 30], [48, 30], true),
+        track(20, 0, [0, 40], [56, 40], true),
+        track(21, 0, [64, 40], [80, 40], true),
+        track(22, 0, [56, 40], [56, 60], true),
+        track(23, 0, [64, 40], [64, 60], true),
+    ];
+    let mut baseline = Engine::new(i.clone()).unwrap();
+    baseline.route(1, 10_000).unwrap();
+    let baseline_tracks = generated(&baseline);
+    valid_complete(&i, &baseline_tracks);
+    assert_zero_collinear_overlap(&i, &baseline_tracks, 1);
+    assert_eq!(
+        baseline_tracks
+            .iter()
+            .map(|t| (t.start, t.end))
+            .collect::<Vec<_>>(),
+        vec![
+            ([10, 30], [32, 30]),
+            ([48, 30], [60, 30]),
+            ([60, 30], [60, 49])
+        ]
+    );
+    // Exhaust work right before final insert after straddling split; must roll back cleanly.
+    let mut limited = i.clone();
+    limited.limits.max_work = baseline.work_used() - 1;
+    let mut e = Engine::new(limited.clone()).unwrap();
+    let before = snapshot(&e);
+    let err = e.route(1, 10_000).unwrap_err();
+    assert_eq!(err.status, Status::WorkExhausted);
+    assert_eq!(snapshot(&e), before);
+    let failed = run(limited);
+    assert_eq!(failed.status, Status::WorkExhausted);
+    assert!(failed.added_tracks.is_empty());
+    // Subsequent fresh operation with full budget reproduces exact IDs and tracks.
+    let mut fresh = Engine::new(i).unwrap();
+    fresh.route(1, 10_000).unwrap();
+    assert_eq!(generated(&fresh), baseline_tracks);
+}

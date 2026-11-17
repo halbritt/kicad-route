@@ -63,8 +63,7 @@ nonempty name, while net ID 0 requires the empty name. Item IDs are globally uni
 adapter checks it against the original board bytes. CLI input is at most 16 MiB.
 
 Search uses four orthogonal directions, uniform one-step cost and an incoming
-heading in the dominance key. Two isolated pads retain center-to-center A* with
-a Manhattan heuristic. General component joins use multi-source A* from every
+heading in the dominance key. All multi-component and two-pad nets use multi-source A* from every
 legal pad center and incumbent/generated track endpoint in the first component, targeting all other components. Its heuristic
 is the minimum, over target items, of the sum of the two rounded-up axis gaps
 in grid steps to that item's copper bounding box expanded by the route radius.
@@ -106,9 +105,11 @@ reachable target component and recomputes connectivity after every join.
 Already-connected pad groups and disconnected incumbent tracks participate
 equally; a net succeeds only when all required copper is connected. This can
 produce branches but does not optimize a Steiner tree or promise invariance
-under input permutation. Identical inputs remain deterministic. The original
-two-singleton-pad A* dispatch stays intact. Work and expansions are shared
+under input permutation. Identical inputs remain deterministic. Work and expansions are shared
 across all joins (and nets for route_all); failure rolls back the whole operation.
+Proposal segments coalesce collinearly and subtract any collinear overlap against
+existing or earlier same-net tracks of equal or greater width before clearance
+validation and insertion.
 
 Thin copper that the
 conservative contact model cannot join fails honestly rather than reporting
@@ -281,8 +282,8 @@ pads, axis tracks and arbitrary-angle tracks in both endpoint orders, including
 negative coordinates. The axis-aligned cost oracles retain independent geometry.
 Direct estimate tests protect one work unit per target item and every exact
 cutoff against the caller's shared outer budget, without pinning whole-route
-work totals. The internal estimate receives a nonempty target set from the
-component-join caller; empty targets are outside this private precondition.
+work totals. Empty target sets in `component_estimate` and `join_components`
+refuse cleanly with `Status::Unroutable` instead of panicking.
 The exact authored two-net native request that previously exhausted 100,000
 expansions is retained byte-for-byte as a Rust regression, including its original
 limits and request SHA-256. Its complete result must connect all components,
@@ -354,6 +355,7 @@ reserves N iterations before an array build, sort or reverse.
 | Edge outline check, pad/track scans, foreign geometry | 1 per edge check, item visit, and applicable geometry predicate |
 | Search seeds, successor attempts, admitted queue pushes and all pops (including stale) | 1 per action; push includes bounded map updates |
 | Path reconstruction, reversal, coalescing and proposal construction | 1 per visited/reserved point per stage |
+| Collinear overlap subtraction | 1 per scanned track, 1 per overlap before sort, 1 per merge, 1 per reversed/emitted span |
 | Copper insert/remove | 1 per mutation; 1 per ID candidate; removal additionally reserves 1 per copied ID |
 
 Admission checks bound combined queue/maps before insertion, total copper before
@@ -382,8 +384,8 @@ work before quadratic scans, every work cutoff of a component join with state
 and next-ID checks, repeated nested reroutes, shared counters across nets,
 pre-mutation journal/depth admission, panic payload preservation and CLI/library
 counter equality. The two existing search oracles and all their world inputs
-remain intact. The contact test helper still excludes rectangle/rectangle
-pairs; none of the budget tests extends that helper's domain.
+remain intact. The contact test helper checks rectangle/rectangle overlap as well;
+none of the budget tests extends that helper's domain.
 
 
 Multi-terminal controls cover 3, 4, 6 and 9 pads, branched joins, connected

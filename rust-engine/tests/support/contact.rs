@@ -45,6 +45,9 @@ impl Body {
         4 * d
     }
     pub fn contacts(self, other: Self) -> bool {
+        if self.radius2 == 0 && other.radius2 == 0 {
+            return (0..2).all(|k| self.hi[k].min(other.hi[k]) - self.lo[k].max(other.lo[k]) >= 1);
+        }
         let radius2 = 2 * (self.radius2 / 2 + other.radius2 / 2 - 1);
         radius2 >= 0 && self.distance4(other) <= radius2 * radius2
     }

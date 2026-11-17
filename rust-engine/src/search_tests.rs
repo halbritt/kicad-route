@@ -547,3 +547,193 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
     assert!(reachable > 0 && unreachable > 0);
     eprintln!("256 multi-target worlds: {reachable} reachable, {unreachable} unreachable");
 }
+
+#[test]
+fn walk_preserves_distinct_incoming_headings_in_dominance_key() {
+    let i = Input {
+        version: 1,
+        source_id: "a".repeat(64),
+        layer: "F.Cu".into(),
+        bounds: Bounds {
+            min: [0, 0],
+            max: [10, 10],
+        },
+        rules: Rules {
+            width_nm: 2,
+            clearance_nm: 0,
+            grid_nm: 1,
+            edge_clearance_nm: 0,
+        },
+        nets: vec![Net {
+            id: 1,
+            name: "N".into(),
+        }],
+        pads: vec![],
+        tracks: vec![],
+        max_expansions: 100,
+        limits: Limits::default(),
+    };
+    let engine = Engine::new(i).unwrap();
+    let mut expanded = 0;
+    // Both [0,0]->[1,0]->[1,1] and [0,0]->[0,1]->[1,1] settle [1,1] at g=2.
+    // Reaching [1,1] from [2,1] at g=4 requires State to retain incoming direction.
+    let path = walk(
+        &engine,
+        &[[0, 0]],
+        100,
+        &mut expanded,
+        |_| Ok(0),
+        |_, b| Ok(((0..=2).contains(&b[0]) && (0..=1).contains(&b[1])).then_some(b)),
+        |at, previous| Ok(at == [1, 1] && previous == Some([2, 1])),
+    )
+    .unwrap();
+    assert_eq!(path.steps, 4);
+    assert_eq!(path.points.last().copied(), Some([1, 1]));
+    assert_eq!(
+        path.points.get(path.points.len() - 2).copied(),
+        Some([2, 1])
+    );
+}
+
+#[test]
+fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
+    let i = Input {
+        version: 1,
+        source_id: "a".repeat(64),
+        layer: "F.Cu".into(),
+        bounds: Bounds {
+            min: [0, 0],
+            max: [10, 10],
+        },
+        rules: Rules {
+            width_nm: 2,
+            clearance_nm: 0,
+            grid_nm: 1,
+            edge_clearance_nm: 0,
+        },
+        nets: vec![Net {
+            id: 1,
+            name: "N".into(),
+        }],
+        pads: vec![],
+        tracks: vec![],
+        max_expansions: 1000,
+        limits: Limits::default(),
+    };
+    let engine = Engine::new(i).unwrap();
+    let blocks = [[1, 1], [3, 1], [1, 3], [3, 3], [1, 2], [2, 1]];
+    let required_prevs = [
+        [1, 2], // direction 0: +x
+        [2, 1], // direction 1: +y
+        [3, 2], // direction 2: -x
+        [2, 3], // direction 3: -y
+    ];
+    let mut reachable = 0;
+    let mut unreachable = 0;
+    for prev_req in required_prevs {
+        for mask in 0..(1u32 << blocks.len()) {
+            let blocked: BTreeSet<Point> = blocks
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, &pt)| ((mask & (1 << idx)) != 0).then_some(pt))
+                .collect();
+            let in_bounds = |p: Point| {
+                (0..=4).contains(&p[0]) && (0..=4).contains(&p[1]) && !blocked.contains(&p)
+            };
+            // Independent heading-aware (Point, Option<u8>) BFS oracle.
+            let oracle = {
+                let mut seen: BTreeSet<(Point, Option<u8>)> = BTreeSet::from([([0, 0], None)]);
+                let mut q: VecDeque<(Point, Option<Point>, u64)> =
+                    VecDeque::from([([0, 0], None, 0)]);
+                let mut found = None;
+                while let Some((at, prev, d)) = q.pop_front() {
+                    if at == [2, 2] && prev == Some(prev_req) {
+                        found = Some(d);
+                        break;
+                    }
+                    for (dir, delta) in [[1, 0], [0, 1], [-1, 0], [0, -1]].iter().enumerate() {
+                        let next = [at[0] + delta[0], at[1] + delta[1]];
+                        if in_bounds(next) && seen.insert((next, Some(dir as u8))) {
+                            q.push_back((next, Some(at), d + 1));
+                        }
+                    }
+                }
+                found
+            };
+            let mut expanded = 0;
+            let actual = walk(
+                &engine,
+                &[[0, 0]],
+                1000,
+                &mut expanded,
+                |_| Ok(0),
+                |_, b| Ok(in_bounds(b).then_some(b)),
+                |at, prev| Ok(at == [2, 2] && prev == Some(prev_req)),
+            );
+            match (oracle, actual) {
+                (Some(cost), Ok(path)) => {
+                    reachable += 1;
+                    assert_eq!(path.steps, cost, "prev_req={prev_req:?} mask={mask}");
+                    assert_eq!(path.points.last().copied(), Some([2, 2]));
+                    assert_eq!(
+                        path.points.get(path.points.len().wrapping_sub(2)).copied(),
+                        Some(prev_req)
+                    );
+                }
+                (None, Err(err)) => {
+                    unreachable += 1;
+                    assert_eq!(err.status, Status::Unroutable);
+                }
+                (expected, actual) => {
+                    panic!("prev_req={prev_req:?} mask={mask}: oracle={expected:?} walk={actual:?}")
+                }
+            }
+        }
+    }
+    assert!(reachable > 0 && unreachable > 0);
+}
+
+#[test]
+fn component_estimate_and_join_components_refuse_empty_targets_without_panicking() {
+    let rules = Rules {
+        width_nm: 2,
+        clearance_nm: 1,
+        grid_nm: 10,
+        edge_clearance_nm: 0,
+    };
+    let work = WorkBudget::new(Limits::default());
+    let empty: Vec<Vec<Copper<'_>>> = Vec::new();
+    let one_empty: Vec<Vec<Copper<'_>>> = vec![vec![]];
+    for targets in [&empty, &one_empty] {
+        let _scope = work.scope();
+        let err = component_estimate([10, 10], targets, &rules, &work).unwrap_err();
+        assert_eq!(err.status, Status::Unroutable);
+    }
+    let p = pad(1, 1, [10, 10], Shape::Circle { radius_nm: 1 });
+    let i = Input {
+        version: 1,
+        source_id: "a".repeat(64),
+        layer: "F.Cu".into(),
+        bounds: Bounds {
+            min: [0, 0],
+            max: [40, 40],
+        },
+        rules,
+        nets: vec![Net {
+            id: 1,
+            name: "N".into(),
+        }],
+        pads: vec![p.clone()],
+        tracks: vec![],
+        max_expansions: 100,
+        limits: Limits::default(),
+    };
+    let engine = Engine::new(i).unwrap();
+    for targets in [&empty, &one_empty] {
+        let mut expanded = 0;
+        let err = join_components(&engine, 1, &[Copper::Pad(&p)], targets, 100, &mut expanded)
+            .unwrap_err();
+        assert_eq!(err.status, Status::Unroutable);
+        assert_eq!(expanded, 0);
+    }
+}

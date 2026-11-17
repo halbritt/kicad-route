@@ -1594,3 +1594,71 @@ def test_native_request_api_admission(native_board, expected_request, entrypoint
         getattr(bridge, entrypoint)(native_board, plan, output, expected_request=argument)
     assert not output.exists() and not list(native_board.parent.glob('.api-refused-*'))
     assert native_board.read_bytes() == original
+
+
+def test_multiterminal_t_corridor_normalizes_collinear_overlaps(native_board, guarded_cli):
+    run, _ = guarded_cli
+    board = pcbnew.LoadBoard(str(native_board))
+    signal = next(pad.GetNetCode() for pad in board.GetPads() if pad.GetNetname() == 'SIGNAL')
+    for item in list(board.GetFootprints()) + list(board.GetTracks()):
+        board.Remove(item)
+    for idx, pos in enumerate(((12000000, 10000000), (4000000, 10000000), (8000000, 16000000)), 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(*pos))
+        board.Add(fp)
+        pad = pcbnew.PAD(fp)
+        pad.SetNumber('1')
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+        pad.SetSize(pcbnew.VECTOR2I(1000000, 1000000))
+        pad.SetPosition(pcbnew.VECTOR2I(*pos))
+        layers = pcbnew.LSET()
+        layers.AddLayer(pcbnew.F_Cu)
+        pad.SetLayerSet(layers)
+        pad.SetNetCode(signal)
+        fp.Add(pad)
+    for start, end in (
+            ((2300000, 8300000), (6750000, 8300000)),
+            ((2300000, 11700000), (6750000, 11700000)),
+            ((2300000, 8300000), (2300000, 11700000)),
+            ((6750000, 11250000), (6750000, 15000000)),
+            ((9250000, 8300000), (13700000, 8300000)),
+            ((9250000, 11700000), (13700000, 11700000)),
+            ((13700000, 8300000), (13700000, 11700000)),
+            ((9250000, 11250000), (9250000, 15000000))):
+        t = pcbnew.PCB_TRACK(board)
+        t.SetLayer(pcbnew.F_Cu)
+        t.SetNetCode(0)
+        t.SetStart(pcbnew.VECTOR2I(*start))
+        t.SetEnd(pcbnew.VECTOR2I(*end))
+        t.SetWidth(RULES['width_nm'])
+        t.SetLocked(True)
+        board.Add(t)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    data = bridge.export_board(native_board, {**RULES, 'grid_nm': 500000}, 100000)
+    request, plan_path = native_board.with_name('t-corridor.json'), native_board.with_name('t-plan.json')
+    bridge.write_request(data, request)
+    run(['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)])
+    plan = json.loads(plan_path.read_bytes())
+    assert plan['status'] == 'complete'
+    tracks = plan['added_tracks']
+    assert len(tracks) == 3
+    assert sum(abs(t['end'][0] - t['start'][0]) + abs(t['end'][1] - t['start'][1]) for t in tracks) == 13375001
+    for i, a in enumerate(tracks):
+        for b in tracks[i + 1:]:
+            for axis in (0, 1):
+                ortho = 1 - axis
+                if a['start'][ortho] == a['end'][ortho] == b['start'][ortho] == b['end'][ortho]:
+                    alo, ahi = sorted((a['start'][axis], a['end'][axis]))
+                    blo, bhi = sorted((b['start'][axis], b['end'][axis]))
+                    assert min(ahi, bhi) <= max(alo, blo), (a, b)
+    output = native_board.with_name('t-routed.kicad_pcb')
+    run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
+         str(native_board), str(plan_path), str(output), '--request', str(request)])
+    before = bridge.native_violations(native_board, native_board.with_name('t-before-drc.json'))
+    after = bridge.native_violations(output, native_board.with_name('t-after-drc.json'))
+    assert before['unconnected_items'] and after['unconnected_items'] == []
+    key = lambda violation: json.dumps(violation, sort_keys=True)
+    assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
