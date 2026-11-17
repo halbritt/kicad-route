@@ -1,0 +1,388 @@
+{
+  "schema": "kicad-route/architecture-requirements/1",
+  "project": "kicad-route",
+  "authority_note": "Owner-relayed requirements are labelled as such; a missing earlier original is visible and is not fabricated. Current explicit direction remains active.",
+  "sources": {
+    "owner-rust": {
+      "kind": "owner-relay",
+      "ref": "4652455e-989c-4258-b064-e90fb0b7fa05/v1",
+      "statement": "Complete Rust routing engine owns state, geometry/legality, search, board orchestration, rip/restore and output; minimal justified native seam.",
+      "original_user_record": null,
+      "provenance_gap": "Current relay is explicit authority; the asserted earlier original all-Rust instruction was not recovered."
+    },
+    "owner-foundation": {
+      "kind": "owner-relay",
+      "ref": "a2a1d99f-c9b3-4f57-abe0-66fbdff11187/v1",
+      "statement": "Robust, elegant, performant foundations before global routing strategy and quality iteration."
+    },
+    "owner-prevention": {
+      "kind": "owner-relay",
+      "ref": "9011aac7-f5e4-4332-b1f3-f1e686cb4642/v1",
+      "statement": "Implement and demonstrate project and workflow safeguards, preserve requirements and disagreements, verify actions and escalate stalled reviews."
+    },
+    "owner-oversight": {
+      "kind": "owner-relay",
+      "ref": "c28b1800-656c-417c-bbe9-c7d6458566db/v1",
+      "statement": "Validated reviewer findings become requirements; Fable1503 and Carbon1502 independently oversee rewrite. GPU potential remains open pending evidence."
+    },
+    "fable-first": {
+      "kind": "review",
+      "ref": "0db81fac-9714-4f81-802c-0e7597e18cdb/v1",
+      "url": "https://artifact.harm.org/qrmnwa/report.html"
+    },
+    "fable-corrections": {
+      "kind": "review-correction",
+      "ref": "dee80763-6d57-4351-9050-cb1867aca1fb/v1",
+      "url": "https://artifact.harm.org/egnc4e/addendum.html"
+    },
+    "carbon-first": {
+      "kind": "review",
+      "ref": "8c605648-cbd0-498a-92eb-08771c905bbf/v1",
+      "url": "https://artifact.harm.org/09ea77/report.html"
+    },
+    "carbon-corrections": {
+      "kind": "review-correction",
+      "ref": "85ad3095-de4d-40f5-a6b0-17739114ae8f/v1",
+      "url": "https://artifact.harm.org/52w71g/addendum.html"
+    },
+    "synthesis": {
+      "kind": "supervisor-adjudication",
+      "ref": "960b8cea-cf79-4ac3-9d1f-b5f4a178cb45/v1",
+      "url": "https://artifact.harm.org/tubrxk/synthesis.html"
+    },
+    "first-slice-review": {
+      "kind": "review",
+      "ref": "4e2f8dc7-a944-4889-995a-4af8daef62a0/v1",
+      "finding": "Native tangent copper is not connected; root reproduced actual Rust false complete."
+    }
+  },
+  "requirements": [
+    {
+      "id": "RE-01",
+      "title": "Rust owns the complete routing lifecycle",
+      "must": "Rust must own state, legality, search, board-wide scheduling, rip/restore and output semantics; the native adapter may only import/apply/validate.",
+      "source_ids": [
+        "owner-rust",
+        "owner-oversight"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "rust-engine/src/lib.rs",
+        "rust-engine/src/state.rs",
+        "rust-engine/src/main.rs"
+      ],
+      "verification": [
+        "Production-entry run with legacy Python engine unavailable; negative fallback injection must fail.",
+        "Full responsibility/feature inventory and explicit incomplete rows."
+      ],
+      "state": "open",
+      "current_evidence": "First subset exists in candidate f931aad; production backend remains Python-controlled. Full requirement OPEN."
+    },
+    {
+      "id": "RE-02",
+      "title": "Search state preserves future feasibility and cost",
+      "must": "Dominance may discard a path only when future continuations and cost are equivalent; include heading, run counters and complete relevant via exclusions when those features exist.",
+      "source_ids": [
+        "fable-first",
+        "fable-corrections",
+        "carbon-first",
+        "carbon-corrections"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "rust-engine/src/search.rs",
+        "rust-engine/src/model.rs"
+      ],
+      "verification": [
+        "Independent small-world oracle for each supported constraint, including history-dependent cases when implemented.",
+        "Forbidden recent-via-only reduction must fail a prior-via witness."
+      ],
+      "state": "open",
+      "current_evidence": "256-world independent single-net oracle passes for current four-direction subset; via/pose constraints OPEN."
+    },
+    {
+      "id": "RE-03",
+      "title": "Use continuous copper geometry and native contact semantics",
+      "must": "Validate entire swept segments against supported shapes and bounds. Clearance equality and electrical connectivity are separate predicates; tangency cannot falsely close a native open.",
+      "source_ids": [
+        "carbon-corrections",
+        "first-slice-review"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "rust-engine/src/geometry.rs",
+        "rust-engine/src/lib.rs",
+        "tools/rust_engine_kicad.py"
+      ],
+      "verification": [
+        "Mid-segment intrusion, crossings, rectangle corners, tangency/positive overlap and odd-width native controls.",
+        "Retained Carbon x=.0975 sampling case is the valid witness, not original prose x=.195."
+      ],
+      "state": "open",
+      "current_evidence": "Exact predicates and tangency correction pass subset tests; broader native shape/edge coverage OPEN."
+    },
+    {
+      "id": "RE-04",
+      "title": "One authoritative copper state and atomic publication",
+      "must": "Stable item identity and generated ownership; immutable protected input; failed proposals/batches restore objects, indexes and allocator; no partial or stale edits on failure.",
+      "source_ids": [
+        "owner-rust",
+        "synthesis"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "rust-engine/src/state.rs",
+        "rust-engine/src/lib.rs",
+        "rust-engine/src/main.rs",
+        "tools/rust_engine_kicad.py"
+      ],
+      "verification": [
+        "Failure injection across mutations/publication; exact ID/geometry/index restoration.",
+        "Failed result has empty edits; stale source cannot be applied; native protected content unchanged."
+      ],
+      "state": "open",
+      "current_evidence": "Current journal/batch/reroute tests pass; broader input mutation/native publication paths OPEN."
+    },
+    {
+      "id": "RE-05",
+      "title": "Report termination and bounded work honestly",
+      "must": "Distinguish invalid, unsupported, exhausted and budget-exhausted. State that fixed net-order failure is not global infeasibility. Bound/cancel complete operations and report work as well as wall time.",
+      "source_ids": [
+        "fable-first",
+        "synthesis"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "rust-engine/src/model.rs",
+        "rust-engine/src/search.rs",
+        "rust-engine/src/lib.rs"
+      ],
+      "verification": [
+        "Structured failure/exit controls, one total budget across nets, no partial edits.",
+        "Cancellation and per-phase bounded-work tests as orchestration expands."
+      ],
+      "state": "open",
+      "current_evidence": "Typed outcomes and total expansion budget pass; fixed-order reason corrected; full cancellation/work-cost bounds OPEN."
+    },
+    {
+      "id": "RE-06",
+      "title": "Represent native rules and geometry or refuse them",
+      "must": "Import effective board/net/layer/local rules and supported geometry. Reject unrepresented projects, offsets, overrides, keepouts, copper graphics and other features explicitly. Never silently narrow required widths.",
+      "source_ids": [
+        "owner-rust",
+        "carbon-corrections",
+        "first-slice-review"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "tools/rust_engine_kicad.py",
+        "rust-engine/src/model.rs"
+      ],
+      "verification": [
+        "Real native save/reload rejection cases plus supported geometry/control cases.",
+        "Native DRC beside original project/rule files when project import is supported."
+      ],
+      "state": "open",
+      "current_evidence": "Ten native omission rejections pass; project rules/multilayer/vias/zones and Margin concerns OPEN."
+    },
+    {
+      "id": "RE-07",
+      "title": "Acceptance requires the stated native outcome",
+      "must": "Preserve input, copper UUIDs/nets/locks/rules and native connectivity; separate supported-subset fixture success, full capability, comparison equivalence and desired outcome.",
+      "source_ids": [
+        "owner-prevention",
+        "synthesis"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "tests/test_rust_engine_native.py",
+        "scripts/compare_router.py"
+      ],
+      "verification": [
+        "Native connectivity/DRC and exact preservation; complete/incomplete positive and negative controls.",
+        "Equivalent incomplete baseline must not satisfy outcome-fitness claim."
+      ],
+      "state": "open",
+      "current_evidence": "First native subset and comparison controls pass; no whole-engine or fabrication acceptance."
+    },
+    {
+      "id": "RE-08",
+      "title": "Measure before asserting speed or choosing acceleration",
+      "must": "Attribute whole-operation CPU/wall/memory and phase costs on comparable fixed inputs. Preserve exact timing scope. Checkpoint may be O(1), undo scales with mutations. GPU potential stays open.",
+      "source_ids": [
+        "owner-foundation",
+        "owner-oversight",
+        "fable-corrections",
+        "carbon-corrections"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "rust-engine/src/lib.rs",
+        "rust-engine/src/state.rs",
+        "scripts/compare_router.py"
+      ],
+      "verification": [
+        "Matched measurements with explicit setup/search/orchestration/native boundaries; no inferred kernel throughput from mismatched counters.",
+        "CPU/GPU alternatives require bounded evidence before a performance conclusion."
+      ],
+      "state": "open",
+      "current_evidence": "No speedup, dense-board scaling or GPU conclusion demonstrated."
+    },
+    {
+      "id": "RE-09",
+      "title": "Improve global routing after correctness foundations",
+      "must": "Preserve constraints while adding multi-terminal/layer scheduling, victim recovery and later congestion strategies in Rust. No board-specific tuning or spent campaign replay.",
+      "source_ids": [
+        "owner-foundation",
+        "owner-rust",
+        "synthesis"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "rust-engine/src/lib.rs"
+      ],
+      "verification": [
+        "Multi-net native fixtures and deterministic recovery; later admitted comparative boards under unchanged rules."
+      ],
+      "state": "open",
+      "current_evidence": "Current ascending net order is a first subset; full orchestration/global strategy OPEN."
+    },
+    {
+      "id": "RE-10",
+      "title": "Independent oversight is tied to exact changes and outcomes",
+      "must": "Fable and Carbon independently review relevant architecture, patches and native behavior. Keep objections, dispositions, exact revisions, evidence and unresolved gaps; escalate stale/missing review rather than infer acceptance.",
+      "source_ids": [
+        "owner-oversight",
+        "owner-prevention"
+      ],
+      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
+      "acceptance_owner": "agent-1497",
+      "independent_reviewers": [
+        "agent-1503",
+        "agent-1502"
+      ],
+      "paths": [
+        "docs/routing-requirements.json"
+      ],
+      "verification": [
+        "Exact-revision review results and tested dispositions; materially changed inputs invalidate affected acceptance.",
+        "Blind skill behavior controls and stalled-review positive/negative cases."
+      ],
+      "state": "open",
+      "current_evidence": "Named continuing assignments being dispatched; no blanket acceptance."
+    }
+  ],
+  "allowed_compatibility_seam": {
+    "language": "Python",
+    "path": "tools/rust_engine_kicad.py",
+    "allowed": [
+      "native import",
+      "exact Rust edit application",
+      "native validation invocation"
+    ],
+    "forbidden": [
+      "path selection",
+      "victim selection",
+      "routing state ownership",
+      "routing costs",
+      "automatic legacy fallback"
+    ],
+    "source_ids": [
+      "owner-rust"
+    ]
+  },
+  "current_production": {
+    "entrypoint": "src/kicad_route/cli.py",
+    "routing_control_language": "Python",
+    "routing_paths": [
+      "src/kicad_route/router/py_router/route.py",
+      "src/kicad_route/router/py_router/phase3_routing.py",
+      "src/kicad_route/router/py_router/rip_up_reroute.py"
+    ],
+    "rust_role": "search kernels via PyO3; not complete routing ownership"
+  },
+  "withdrawn_or_unproved": [
+    {
+      "claim": "Current runtime is dominated by Python rather than A*; 7.1M/15.61 is Rust throughput",
+      "disposition": "withdrawn; mismatched counter scopes",
+      "sources": [
+        "fable-corrections"
+      ]
+    },
+    {
+      "claim": "Keeping only the last via repairs history dominance",
+      "disposition": "withdrawn; all earlier via exclusions affect feasibility",
+      "sources": [
+        "fable-corrections",
+        "carbon-corrections"
+      ]
+    },
+    {
+      "claim": "Rejected proposals demonstrate failed rollback or frequent published corruption",
+      "disposition": "not established; distinguish proposal rejection and transaction failure",
+      "sources": [
+        "carbon-corrections"
+      ]
+    },
+    {
+      "claim": "Below-class size counts prove hard native DRC violations",
+      "disposition": "not established; defaults differ from physical rules",
+      "sources": [
+        "carbon-corrections"
+      ]
+    },
+    {
+      "claim": "O(1) undo, microsecond rollback, guaranteed dense-board speed or GPU uselessness",
+      "disposition": "unmeasured; GPU potential remains open",
+      "sources": [
+        "carbon-corrections",
+        "owner-oversight"
+      ]
+    }
+  ]
+}
