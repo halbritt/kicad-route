@@ -39,6 +39,13 @@ added widths at least the native minimum. A missing or failed DRC command also
 refuses publication. Validation failures have a `native_validation_failed`
 CLI result on stderr and exit 2. Publication atomically creates a new destination;
 it does not overwrite a concurrent writer's output.
+Export and application each read the standalone source once into a private
+snapshot. Its bytes determine the source hash, parsed geometry and DRC baseline;
+later edits to the original are preserved and cannot change that operation's
+baseline. Native DRC runs only on private copies and includes `--all-track-errors`,
+so its preferences files do not appear beside the source. Process termination can
+leave private temporary files; publication is atomic in visibility, not fsynced
+for crash durability.
 
 The first adapter accepts standalone rectangular two-layer boards with front
 copper SMD circular/axis-aligned rectangular pads and straight existing tracks.

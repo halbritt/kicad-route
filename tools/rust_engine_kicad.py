@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -32,7 +33,7 @@ class NativeValidationError(ValueError):
 def native_violations(path: Path, report: Path):
     try:
         subprocess.run(
-            ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all',
+            ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors',
              '--output', str(report), str(path)],
             check=True, capture_output=True, text=True, timeout=30,
         )
@@ -52,10 +53,26 @@ def item_id(item):
     return item.m_Uuid.AsString()
 
 
-def load_supported(path: Path):
+def reject_external_rules(path: Path):
     for suffix in ('.kicad_pro', '.kicad_dru'):
         if path.with_suffix(suffix).exists():
             raise UnsupportedBoard(f'project/custom-rule import is not implemented: {suffix}')
+
+
+@contextmanager
+def source_snapshot(path: Path):
+    # Reject rules beside the real source before isolating its standalone bytes.
+    # One read defines the source identity, parsed geometry and DRC baseline.
+    reject_external_rules(path)
+    body = path.read_bytes()
+    with tempfile.TemporaryDirectory(prefix='kicad-route-source-') as directory:
+        snapshot = Path(directory) / 'source.kicad_pcb'
+        snapshot.write_bytes(body)
+        yield snapshot
+
+
+def load_supported(path: Path):
+    reject_external_rules(path)
     board = pcbnew.LoadBoard(str(path))
     if board is None:
         raise ValueError(f'KiCad could not load {path}')
@@ -123,6 +140,11 @@ def rectangular_bounds(board):
 
 
 def export_board(path: Path, rules: dict, max_expansions: int):
+    with source_snapshot(path) as snapshot:
+        return export_snapshot(snapshot, rules, max_expansions)
+
+
+def export_snapshot(path: Path, rules: dict, max_expansions: int):
     board = load_supported(path)
     settings = board.GetDesignSettings()
     minima = {'width_nm': settings.m_TrackMinWidth,
@@ -174,6 +196,11 @@ def export_board(path: Path, rules: dict, max_expansions: int):
 def apply_plan(source: Path, plan: dict, destination: Path):
     if source.resolve() == destination.resolve() or destination.exists():
         raise ValueError('output must be a new path distinct from the input')
+    with source_snapshot(source) as snapshot:
+        apply_snapshot(snapshot, plan, destination)
+
+
+def apply_snapshot(source: Path, plan: dict, destination: Path):
     if plan.get('version') != 1 or plan.get('status') != 'complete':
         raise ValueError('only a complete version1 Rust plan can be written')
     if plan.get('source_id') != hashlib.sha256(source.read_bytes()).hexdigest():

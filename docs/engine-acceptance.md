@@ -54,6 +54,9 @@ rejects added widths below the native minimum. Only then does it publish a new
 destination. False-complete, shorting, undersized and unavailable-native-tool
 controls must leave no published candidate. This does not turn the incomplete
 Rust engine into a production backend.
+The operation pins one private source snapshot and requests all native track
+errors. Source mutation, input-directory preservation, destination races and DRC
+timeout controls complement the ordinary positive and negative routing cases.
 
 Inspect an inventory directly with:
 

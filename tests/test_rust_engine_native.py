@@ -428,3 +428,78 @@ def test_native_adapter_does_not_write_failed_or_stale_plan(native_board, status
         bridge.apply_plan(native_board, plan, output)
     assert not output.exists()
     assert native_board.read_bytes() == original
+
+
+@pytest.mark.parametrize('operation', ['export', 'apply'])
+def test_native_operations_pin_one_snapshot_without_source_sidecars(native_board, monkeypatch, operation):
+    original = native_board.read_bytes()
+    expected = bridge.export_board(native_board, RULES, 100000)
+    changed = pcbnew.LoadBoard(str(native_board))
+    for footprint in changed.GetFootprints():
+        if footprint.GetReference() == 'J2':
+            footprint.SetPosition(pcbnew.VECTOR2I(17000000, 12000000))
+    staging = native_board.with_name('concurrent.kicad_pcb')
+    assert pcbnew.SaveBoard(str(staging), changed)
+    changed_bytes = staging.read_bytes()
+    staging.unlink()
+    before_names = set(native_board.parent.iterdir())
+    read_bytes = Path.read_bytes
+    reads = []
+
+    def concurrent_read(path):
+        value = read_bytes(path)
+        if path == native_board:
+            reads.append(path)
+            native_board.write_bytes(changed_bytes)
+        return value
+
+    monkeypatch.setattr(Path, 'read_bytes', concurrent_read)
+    output = native_board.with_name('snapshot-output.kicad_pcb')
+    if operation == 'export':
+        result = bridge.export_board(native_board, RULES, 100000)
+        assert result == expected
+        expected_names = before_names
+    else:
+        plan = {'version': 1, 'status': 'complete',
+                'source_id': hashlib.sha256(original).hexdigest(),
+                'added_tracks': connection_tracks(), 'removed_track_ids': []}
+        bridge.apply_plan(native_board, plan, output)
+        assert bridge.export_board(output, RULES, 100000)['pads'] == expected['pads']
+        expected_names = before_names | {output}
+    assert len(reads) == 1
+    assert read_bytes(native_board) == changed_bytes
+    assert set(native_board.parent.iterdir()) == expected_names
+
+
+def test_native_publication_preserves_a_destination_created_during_validation(native_board, monkeypatch):
+    plan = {'version': 1, 'status': 'complete',
+            'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
+            'added_tracks': connection_tracks(), 'removed_track_ids': []}
+    output = native_board.with_name('concurrent-output.kicad_pcb')
+    real_link = bridge.os.link
+
+    def race(source, destination):
+        destination.write_bytes(b'concurrent owner output')
+        return real_link(source, destination)
+
+    monkeypatch.setattr(bridge.os, 'link', race)
+    with pytest.raises(FileExistsError):
+        bridge.apply_plan(native_board, plan, output)
+    assert output.read_bytes() == b'concurrent owner output'
+    assert not list(native_board.parent.glob('.concurrent-output-*'))
+
+
+def test_native_drc_timeout_refuses_publication(native_board, monkeypatch):
+    plan = {'version': 1, 'status': 'complete',
+            'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
+            'added_tracks': connection_tracks(), 'removed_track_ids': []}
+    output = native_board.with_name('timeout-output.kicad_pcb')
+
+    def timeout(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs['timeout'])
+
+    monkeypatch.setattr(bridge.subprocess, 'run', timeout)
+    with pytest.raises(bridge.NativeValidationError, match='timed out'):
+        bridge.apply_plan(native_board, plan, output)
+    assert not output.exists()
+    assert not list(native_board.parent.glob('.timeout-output-*'))
