@@ -302,6 +302,38 @@
       "ref": "ad26e19a-fd0c-4f3f-8cb2-b1e498371f71/v1",
       "date": "2026-11-16",
       "statement": "Exact notice read and acknowledged21:02. Input1/result3; complete raw-byte SHA256 for CLI/run_json, explicit null on oversized/failed reads; typed input uses full serde serialization. Exit8 means no fresh publication. Consistency, not authentication or invocation nonce."
+    },
+    "request-freshness-implementation": {
+      "kind": "implementation-report",
+      "ref": "d1b4f52c-c97e-45e5-af10-681f9543f140/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "735eddf45c2efc17766f83c8242876d80a430ff5"
+    },
+    "fable-milestone-6": {
+      "kind": "review",
+      "ref": "67f9239f-5bf2-4323-b760-5c7556d656fe/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "4dbfa4393fa7f08414f13140300f4414cf42b08b",
+      "statement": "Accepts bounded implementation with test-sensitivity findings F1/F2 and explicitly incomplete required current-source/artifact reads. Supervisor requires test corrections and coverage addendum before landing."
+    },
+    "carbon-milestone-6": {
+      "kind": "review",
+      "ref": "97e2e5cd-3d24-4b1a-8a70-067d671f6ebb/v1",
+      "date": "2026-11-16",
+      "reviewed_revision": "4dbfa4393fa7f08414f13140300f4414cf42b08b",
+      "url": "https://artifact.harm.org/0tz57r/milestone-6-request-freshness.html"
+    },
+    "request-freshness-test-correction": {
+      "kind": "coordination-assignment",
+      "ref": "82e97c2f-af8d-435f-bb99-b95ce9a24214/v1",
+      "date": "2026-11-16",
+      "statement": "Close Fable typed-limits omission regression before integration; root adds exact digest casing and API type/size controls. No executable change requested."
+    },
+    "fable-milestone-6-coverage-request": {
+      "kind": "coordination-assignment",
+      "ref": "dee70a8a-157f-4d3e-8ab2-3577c618f2e5/v1",
+      "date": "2026-11-16",
+      "statement": "Complete explicit full catalog/docs and named M5 reports/native-focused log reads, preserve original review and report attribution corrections; independent acceptance not assumed from dispatch."
     }
   },
   "requirements": [
@@ -414,7 +446,9 @@
         "fable-milestone-5-correction",
         "carbon-milestone-5-correction",
         "request-freshness-assignment",
-        "request-freshness-contract"
+        "request-freshness-contract",
+        "fable-milestone-6",
+        "carbon-milestone-6"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -458,7 +492,9 @@
         "fable-milestone-5-correction",
         "carbon-milestone-5-correction",
         "request-freshness-assignment",
-        "request-freshness-contract"
+        "request-freshness-contract",
+        "fable-milestone-6",
+        "carbon-milestone-6"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -481,7 +517,7 @@
         "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
       "state": "open",
-      "current_evidence": "Shared outer-operation work and item/search/journal/depth admission accepted atb081bfb by both reviewers after Fable coverage/probe correction. Root65Rust+3compile-fail+95native+95ownership/fitness,38CLI policy probes and144collision-fixture work cutoffs pass. Child failure/panic does not refund work; all structured failures are edit-free. Full wall-clock cancellation, CLI panic/stale-output protocol and future orchestration remain open. M6 candidate adds whole-request identity, distinct exit8 and mandatory expected bytes at native apply; independent acceptance remains pending."
+      "current_evidence": "Shared outer-operation work and bounded item/search/journal/depth admission accepted at M4. Executor-only unwind protocol accepted at M5. Both M6 reviewers accept the bounded request/result consistency implementation at4dbfa43; regression-sensitivity corrections and explicit required read coverage await final review. Full wall-clock cancellation, non-executor unwind, abort/kill/OOM and future orchestration remain open. Identical requests repeat identity across invocations and engine builds, so callers must still inspect process exit or use fresh output paths."
     },
     {
       "id": "RE-06",
@@ -538,7 +574,9 @@
         "fable-milestone-5-correction",
         "carbon-milestone-5-correction",
         "request-freshness-assignment",
-        "request-freshness-contract"
+        "request-freshness-contract",
+        "fable-milestone-6",
+        "carbon-milestone-6"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -637,7 +675,9 @@
         "fable-milestone-5-addendum",
         "carbon-milestone-5",
         "fable-milestone-5-correction",
-        "carbon-milestone-5-correction"
+        "carbon-milestone-5-correction",
+        "fable-milestone-6",
+        "carbon-milestone-6"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -772,7 +812,7 @@
         "acceptance_scope": "Versioned CLI/native result and failure contract, byte admission, compact export and typed recursion; full engine and request/freshness orchestration remain open."
       }
     ],
-    "next_milestone": "M5 integrated29d2120. Independently review M6 request/result consistency and publication exits before orchestration; F-M5-N1 remains open pending that gate. Full geometry, seed/phase, memory and cancellation requirements remain open.",
+    "next_milestone": "Both M6 reviewers accept bounded implementation4dbfa43; supervisor requires regression corrections and explicit read-coverage closure before final acceptance/landing. Full10 requirements and orchestration/geometry/memory/cancellation gaps remain open.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -1337,7 +1377,9 @@
         "fable-milestone-5",
         "fable-milestone-5-addendum",
         "request-freshness-assignment",
-        "request-freshness-contract"
+        "request-freshness-contract",
+        "fable-milestone-6",
+        "carbon-milestone-6"
       ],
       "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "After failed publication, a caller ignoring nonzero exit can apply an old complete result for the same source with different requested rules. Source hash does not bind the request.",
@@ -1345,7 +1387,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Review M6 candidate on its exact combined revision: result3 raw request SHA256, mandatory expected native request, exit8 for no fresh publication; preserve A/B actual failed-publication witness and matching native controls. All callers must still inspect exits; identical request bytes share identity. Independent acceptance pending.",
+      "next_action": "Both reviewers accept bounded implementation at4dbfa43. Before final integration, close F-M6-F1/F2 test sensitivity and required Fable read coverage, then adjudicate exact correction revision. Identical-byte/engine-version freshness still requires process exit checking.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": true,
       "candidate_rust_revision": "735eddf"
@@ -1496,6 +1538,79 @@
       "next_action": "Validate canonical nonzero UUIDs before implementing track removal.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false
+    },
+    {
+      "id": "F-M6-F1",
+      "requirements": [
+        "RE-04",
+        "RE-05",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-6",
+        "request-freshness-test-correction"
+      ],
+      "finding": "A typed limits omission mutant passes shipped tests while a reviewer test fails. Implementation is correct; regression protection must change each typed limit directly.",
+      "evidence_class": "Executed scratch Rust mutation;82 shipped tests pass; reviewer probe fails. New shipped tests independently compare changed typed requests and explicit defaults.",
+      "status": "correction-awaiting-independent-review",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Review b70ff23 tests and successful-compile/assertion-failure negative control; no claim of five mutant failures because it stops at max_work.",
+      "blocks_current_integration": true
+    },
+    {
+      "id": "F-M6-F2",
+      "requirements": [
+        "RE-04",
+        "RE-07",
+        "RE-10"
+      ],
+      "source_ids": [
+        "fable-milestone-6"
+      ],
+      "finding": "Case-insensitive digest comparison, removed API byte cap and coercing API types survive the selected34 shipped native tests.",
+      "evidence_class": "Executed selected-test mutations; not the full143 suite. Root9f62355 adds correct-uppercase/trailing-space and direct API types/size;16 exact-node control passes and all3 mutants fail.",
+      "status": "correction-awaiting-independent-review",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Independent focused review of new controls and mutation evidence; adapter executable unchanged.",
+      "blocks_current_integration": true
+    },
+    {
+      "id": "C-M6-01",
+      "requirements": [
+        "RE-05",
+        "RE-10"
+      ],
+      "source_ids": [
+        "carbon-milestone-6"
+      ],
+      "finding": "RE05 current evidence retained obsolete blanket CLI panic/stale-output pending wording.",
+      "evidence_class": "Source inspection.",
+      "status": "corrected-catalog-wording",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Keep bounded accepted behavior separate from full cancellation and invocation identity boundaries.",
+      "blocks_current_integration": false
+    },
+    {
+      "id": "C-M6-02",
+      "requirements": [
+        "RE-04",
+        "RE-05",
+        "RE-07"
+      ],
+      "source_ids": [
+        "carbon-milestone-6",
+        "fable-milestone-6"
+      ],
+      "finding": "Request digest is not a nonce, process attestation or engine binary identity. Same bytes can match older output after failed execution.",
+      "evidence_class": "Documented/source-derived contract boundary; Fable also executes a forged digest case to confirm consistency is not authentication.",
+      "status": "open",
+      "owner": "agent-1497",
+      "acceptance_owner": "agent-1497",
+      "next_action": "Future orchestration must require successful process outcome or use fresh output paths; never infer current execution success from a matching request hash alone.",
+      "blocks_current_integration": false
     }
   ],
   "reviewed_milestones": [
@@ -1619,7 +1734,7 @@
     "candidate_revision": "179c106f3ffe1f4039cd43c258f2dce362309d4d"
   },
   "request_freshness_checkpoint": {
-    "state": "implemented-awaiting-independent-review",
+    "state": "test-corrections-awaiting-independent-review",
     "baseline_revision": "29d21200c7e88ad8e4c28867d0283ffdf6e508c0",
     "rust_revision": "735eddf",
     "rust_owner": "agent-1484",
@@ -1636,6 +1751,15 @@
       "No abort/kill/OOM, whole-process cancellation or RSS bound",
       "No production/default/deployment/release change"
     ],
-    "validation": "Root combined gate79 Rust +3 compile-fail +143 native66.82s PASS;95 ownership/fitness0.53s PASS;0 failures/skips. Focused native selection36PASS before final gate. Exact combined-revision independent Fable/Carbon review remains pending."
+    "validation": "Root combined gate79 Rust +3 compile-fail +143 native66.82s PASS;95 ownership/fitness0.53s PASS;0 failures/skips. Focused native selection36PASS before final gate. Exact combined-revision independent Fable/Carbon review remains pending.",
+    "reviewed_base": "4dbfa4393fa7f08414f13140300f4414cf42b08b",
+    "review_source_ids": [
+      "fable-milestone-6",
+      "carbon-milestone-6"
+    ],
+    "rust_test_correction": "b70ff2353126e692cb81763065549b893086ff02",
+    "native_test_correction": "9f6235516e1f7dd728b439f3767a1604d2186cef",
+    "correction_scope": "Tests and catalog only; production Rust/native bytes unchanged from4dbfa43. Required Fable read coverage addendum pending.",
+    "correction_validation": "81 Rust +3 compile-fail +159 native64.93s PASS;95 ownership/fitness PASS;0 failures/skips. Focused25native PASS. Exact-node native control16PASS; case-insensitive mutant1fail, APIcap mutant2fail, typecoercion mutant12fail,0errors/skips. Rust omit-limits mutant compiles successfully then both new shipped tests fail assertions. Executable unchanged; independent focused rereview and Fable required coverage still pending."
   }
 }
