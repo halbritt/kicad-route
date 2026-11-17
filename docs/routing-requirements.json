@@ -129,6 +129,24 @@
       "reviewed_revision": "dd9b564",
       "date": "2026-11-16",
       "url": "https://artifact.harm.org/1jgqzm/milestone-2-correction.html"
+    },
+    "transaction-implementation": {
+      "kind": "implementation-report",
+      "ref": "e4519fd6-1b5d-43b8-b8f2-bf01e795eff2/v1",
+      "date": "2026-11-16",
+      "statement": "Scoped nested Rust transactions implemented at87719fe;35 Rust integration tests and3 compile-fail doctests reported passing; independent acceptance pending."
+    },
+    "native-component-gap": {
+      "kind": "executed-regression",
+      "ref": "5531ec04-46ff-4bc2-a0b4-a2be17993987/v1",
+      "date": "2026-11-16",
+      "statement": "Root executed native foreign_pad fixture: Rust pad-only completion skips a one-pad net with detached incumbent track; mandatory native application refuses remaining open. Exact input retained, success expectation unchanged."
+    },
+    "component-correction-assignment": {
+      "kind": "coordination-assignment",
+      "ref": "03a1556e-c8b8-44a0-8cb3-4de6837ec316/v1",
+      "date": "2026-11-16",
+      "statement": "Agent1484 owns general supported copper-component connectivity correction, with conservative geometry, unchanged native fixture, budget/rollback and independent acceptance obligations."
     }
   },
   "requirements": [
@@ -232,7 +250,8 @@
         "owner-rust",
         "synthesis",
         "fable-milestone-2",
-        "carbon-milestone-2"
+        "carbon-milestone-2",
+        "transaction-implementation"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -251,7 +270,7 @@
         "Failed result has empty edits; stale source cannot be applied; native protected content unchanged."
       ],
       "state": "open",
-      "current_evidence": "Both independent reviews confirm nested checkpoints unreachable at3a763b7; journal nesting remains a required gate before future nested orchestration. Native output at0289d9f is privately staged and atomically created if absent. SIGKILL can leave private temporary files; visibility is atomic but publication is not fsynced for crash durability."
+      "current_evidence": "Scoped nested transaction API implemented at87719fe;35 Rust integration tests and3 compile-fail doctests reported passing, independent acceptance pending. Inner commits retain parent undo; errors and panic unwinds restore generated objects/index/allocator. Abort/crash and outer shared work/depth bounds are not supplied. Native/JSON output is privately staged and atomically created if absent; SIGKILL residue and fsync durability remain open."
     },
     {
       "id": "RE-05",
@@ -280,7 +299,7 @@
         "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
       "state": "open",
-      "current_evidence": "Typed outcomes and total expansion budget pass; fixed-order reason corrected; full cancellation/work-cost bounds OPEN."
+      "current_evidence": "Rust typed outcomes and total per-operation expansion budget retained. Adapter expected invalid/unsupported/native-validation/I/O/output-exists failures are typed at80ab11c;24 focused negative/fault checks pass including malformed native reports. Unexpected programming/argument-parser failures and full cancellation/work-cost bounds remain separate open work. Independent review pending."
     },
     {
       "id": "RE-06",
@@ -326,7 +345,8 @@
         "fable-remit",
         "carbon-remit",
         "fable-milestone-2",
-        "carbon-milestone-2"
+        "carbon-milestone-2",
+        "native-component-gap"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -343,7 +363,7 @@
         "Equivalent incomplete baseline must not satisfy outcome-fitness claim."
       ],
       "state": "open",
-      "current_evidence": "Both milestone-2 reviewers passed126 architecture/acceptance/native tests at0289d9f and closed the operational native-validation blocker. False complete, introduced DRC, undersized edits and missing validator cannot publish. Outcome-fitness controls reject equivalent incomplete candidates. Full engine, production migration and fabrication acceptance remain OPEN."
+      "current_evidence": "Prior native publication gate accepted atf70e35d; wider native coverage exposed pad-only completion ignoring disconnected incumbent copper. The gate correctly refused publication; general component correction and its native success regressions are active. Full engine, production migration and fabrication acceptance remain OPEN."
     },
     {
       "id": "RE-08",
@@ -593,16 +613,19 @@
         "RE-04"
       ],
       "source_ids": [
-        "carbon-remit"
+        "carbon-remit",
+        "transaction-implementation"
       ],
-      "evidence_class": "independently checked API and call graph at3a763b7",
-      "status": "not-reachable-now-future-gate",
+      "evidence_class": "35 Rust integration tests including scoped nested rollback oracle,3 compile-fail API examples; implementer report read by root",
+      "status": "implemented-independent-review-pending",
       "owner": "agent-1484",
-      "next_action": "Implement and test nested commit semantics before any caller nests transactional work.",
+      "next_action": "Independently inspect scoped API, undo and failure semantics at the frozen next milestone; verify combined component-routing changes before acceptance.",
       "review_source_ids": [
         "fable-milestone-1",
         "carbon-milestone-1"
-      ]
+      ],
+      "prior_disposition": "Nesting unreachable at3a763b7, independently verified; required before expanding orchestration.",
+      "implementation_revision": "87719fe"
     },
     {
       "id": "C-M1-02",
@@ -679,6 +702,27 @@
         "fable-milestone-2-correction",
         "carbon-milestone-2-correction"
       ]
+    },
+    {
+      "id": "R-M3-native-components",
+      "requirements": [
+        "RE-03",
+        "RE-04",
+        "RE-07",
+        "RE-09"
+      ],
+      "source_ids": [
+        "native-component-gap",
+        "component-correction-assignment"
+      ],
+      "status": "open-correction-active",
+      "owner": "agent-1484",
+      "acceptance_owner": "agent-1497",
+      "request_event": "be2bd299-5c7c-415a-b625-361b2d9077e1",
+      "observation_deadline": "2026-11-16T18:10:00-08:00",
+      "checkpoint": "2026-11-16T18:20:00-08:00",
+      "evidence_class": "actual Rust/native fixture failure; successful publication prevented",
+      "next_action": "Connect general supported pad/track components without tuning fixtures; retain one-pad+track, joined-pads+stray and pad-free track-component native cases; verify budget rollback and independent exact-revision review."
     }
   ],
   "reviewed_milestones": [

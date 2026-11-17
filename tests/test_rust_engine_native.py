@@ -142,7 +142,8 @@ def test_native_adapter_applies_exact_edit_list(native_board):
     assert native_board.read_bytes() == original
 
 
-@pytest.mark.parametrize('variant', ['circle', 'rect_90', 'net_zero_pad', 'foreign_pad', 'two_signal_nets'])
+@pytest.mark.parametrize('variant', ['circle', 'rect_90', 'net_zero_pad', 'foreign_pad',
+    'two_signal_nets', 'joined_pads_stray_track', 'track_components'])
 def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_board, guarded_cli, variant):
     run, audit_log = guarded_cli
     if variant != 'circle':
@@ -152,6 +153,23 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
                 pad.SetShape(pcbnew.PAD_SHAPE_RECT)
                 pad.SetSize(pcbnew.VECTOR2I(2000000, 1000000))
                 pad.SetOrientationDegrees(90)
+        elif variant in ('joined_pads_stray_track', 'track_components'):
+            additions = connection_tracks() if variant == 'joined_pads_stray_track' else []
+            additions.append({
+                'net': 1 if variant == 'joined_pads_stray_track' else 2,
+                'start': [12000000, 16500137] if variant == 'joined_pads_stray_track' else [14000000, 4000000],
+                'end': [14000000, 17500137] if variant == 'joined_pads_stray_track' else [14000000, 8000000],
+                'width_nm': 250000, 'locked': True,
+            })
+            for item in additions:
+                track = pcbnew.PCB_TRACK(board)
+                track.SetLayer(pcbnew.F_Cu)
+                track.SetNetCode(item['net'])
+                track.SetStart(pcbnew.VECTOR2I(*item['start']))
+                track.SetEnd(pcbnew.VECTOR2I(*item['end']))
+                track.SetWidth(item['width_nm'])
+                track.SetLocked(item['locked'])
+                board.Add(track)
         else:
             net = 0 if variant == 'net_zero_pad' else 2
             positions = [(10000000, 2000000)]
@@ -211,7 +229,7 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     assert native_board.read_bytes() == original
 
     reports = []
-    before_opens = 2 if variant in ('two_signal_nets', 'foreign_pad') else 1
+    before_opens = 2 if variant in ('two_signal_nets', 'foreign_pad', 'track_components') else 1
     for label, path, expected_opens in [('before', native_board, before_opens), ('after', output, 0)]:
         board = pcbnew.LoadBoard(str(path))
         board.BuildConnectivity()
@@ -650,3 +668,16 @@ def test_export_write_failure_does_not_publish_partial_json(tmp_path, monkeypatc
         bridge.write_request({'version': 1}, output)
     assert not output.exists()
     assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('report', [[], {'violations': [], 'unconnected_items': {}}, {}])
+def test_invalid_native_report_is_a_typed_validation_failure(tmp_path, monkeypatch, report):
+    output = tmp_path / 'drc.json'
+
+    def invalid_report(command, **kwargs):
+        output.write_text(json.dumps(report))
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(bridge.subprocess, 'run', invalid_report)
+    with pytest.raises(bridge.NativeValidationError, match='invalid violation/connectivity'):
+        bridge.native_violations(tmp_path / 'board.kicad_pcb', output)

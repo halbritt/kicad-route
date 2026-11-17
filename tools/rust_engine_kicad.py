@@ -38,7 +38,7 @@ def native_violations(path: Path, report: Path):
             check=True, capture_output=True, text=True, timeout=30,
         )
         data = json.loads(report.read_text())
-        if not isinstance(data['violations'], list) or not isinstance(data['unconnected_items'], list):
+        if not isinstance(data, dict) or not isinstance(data.get('violations'), list) or not isinstance(data.get('unconnected_items'), list):
             raise ValueError('native DRC report has invalid violation/connectivity fields')
         return data
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:

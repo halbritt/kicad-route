@@ -37,7 +37,15 @@ policy. Applying a plan independently validates the saved native board before
 publishing it: zero native open connections, no new native DRC violations and
 added widths at least the native minimum. A missing or failed DRC command also
 refuses publication. Validation failures have a `native_validation_failed`
-CLI result on stderr and exit 2. Publication atomically creates a new destination;
+CLI result on stderr and exit 2. Expected non-native failures also exit 2 with
+JSON on the final stderr line: `invalid` for malformed/stale requests,
+`unsupported` for unrepresented native features, `output_exists` for an existing
+destination, and `io_error` for input/output failures. Argument-parser usage
+errors and unexpected programming errors are not converted to routing outcomes.
+Duplicate JSON fields, malformed track fields and zero-length additions are
+rejected before publication. Exported JSON also uses staged create-if-absent
+publication, so a failed write cannot leave a partial request at its destination.
+Publication atomically creates a new destination;
 it does not overwrite a concurrent writer's output.
 Export and application each read the standalone source once into a private
 snapshot. Its bytes determine the source hash, parsed geometry and DRC baseline;
