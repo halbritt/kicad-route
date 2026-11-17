@@ -2234,4 +2234,83 @@ mod tests {
         cor.node_mut(l).net = 2;
         assert!(!cor.consistent(exp_cor));
     }
+
+    #[test]
+    fn query_four_direction_boundary_tangency_and_negative_controls() {
+        let target = CopperAabb::from_bounds(([10, 20], [30, 40]));
+        let cases = [
+            (
+                "left_x_min",
+                CopperAabb::from_bounds(([0, 25], [10, 35])),
+                CopperAabb::from_bounds(([0, 25], [9, 35])),
+            ),
+            (
+                "right_x_max",
+                CopperAabb::from_bounds(([30, 25], [40, 35])),
+                CopperAabb::from_bounds(([31, 25], [40, 35])),
+            ),
+            (
+                "bottom_y_min",
+                CopperAabb::from_bounds(([15, 10], [25, 20])),
+                CopperAabb::from_bounds(([15, 10], [25, 19])),
+            ),
+            (
+                "top_y_max",
+                CopperAabb::from_bounds(([15, 40], [25, 50])),
+                CopperAabb::from_bounds(([15, 41], [25, 50])),
+            ),
+        ];
+
+        // Single-item indexes.
+        let s1 = StaticSpatialIndex::new([(0u32, 1u32, target, 0u32)]);
+        let mut t1 = SpatialIndex::new();
+        t1.insert(1u64, 0u32, 1u32, target);
+
+        // Multi-item indexes (34 items; others lie inside y=[25, 35] and x>=1000 so
+        // internal/root envelopes preserve [20, 40] y-bounds and x_min=10).
+        let mut s_items = vec![(0u32, 1u32, target, 0u32)];
+        let mut t_multi = SpatialIndex::new();
+        t_multi.insert(1u64, 0u32, 1u32, target);
+        for i in 1..34u32 {
+            let x = 1000 + i64::from(i) * 10;
+            let b = CopperAabb::from_bounds(([x, 25], [x + 4, 35]));
+            s_items.push((i, (i % 3) + 1, b, i));
+            t_multi.insert(u64::from(i) + 1, i, (i % 3) + 1, b);
+        }
+        let s_multi = StaticSpatialIndex::new(s_items);
+
+        for (label, hit_box, miss_box) in cases {
+            let hit = SweptAabb::from_copper(hit_box);
+            let miss = SweptAabb::from_copper(miss_box);
+            let w = WorkBudget::new(Limits::default());
+            assert_eq!(s1.query(hit, &w).unwrap(), vec![0], "static1 {label}");
+            assert_eq!(
+                s1.query(miss, &w).unwrap(),
+                Vec::<u32>::new(),
+                "static1 miss {label}"
+            );
+            assert_eq!(t1.query(hit, &w).unwrap(), vec![&1u64], "treap1 {label}");
+            assert_eq!(
+                t1.query(miss, &w).unwrap(),
+                Vec::<&u64>::new(),
+                "treap1 miss {label}"
+            );
+            assert_eq!(s_multi.query(hit, &w).unwrap(), vec![0], "static34 {label}");
+            assert_eq!(
+                s_multi.query(miss, &w).unwrap(),
+                Vec::<u32>::new(),
+                "static34 miss {label}"
+            );
+            assert_eq!(
+                t_multi.query(hit, &w).unwrap(),
+                vec![&1u64],
+                "treap34 {label}"
+            );
+            assert_eq!(
+                t_multi.query(miss, &w).unwrap(),
+                Vec::<&u64>::new(),
+                "treap34 miss {label}"
+            );
+        }
+    }
 }

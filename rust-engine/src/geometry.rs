@@ -174,3 +174,40 @@ pub fn pads_touch(a: &Pad, b: &Pad) -> bool {
         .sum();
     distance2 <= gap * gap
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn point_near_segment_zero_gap_respects_inclusive_boundary() {
+        assert!(point_near_segment([5, 0], [0, 0], [10, 0], 0, true));
+        assert!(!point_near_segment([5, 0], [0, 0], [10, 0], 0, false));
+        assert!(point_near_segment([0, 0], [0, 0], [10, 0], 0, true));
+        assert!(!point_near_segment([0, 0], [0, 0], [10, 0], 0, false));
+        assert!(point_near_segment([10, 0], [0, 0], [10, 0], 0, true));
+        assert!(!point_near_segment([10, 0], [0, 0], [10, 0], 0, false));
+        assert!(!point_near_segment([5, 1], [0, 0], [10, 0], 0, true));
+        assert!(!point_near_segment([5, 0], [0, 0], [10, 0], -1, true));
+        assert!(track_near_core(
+            [0, 4],
+            [10, 4],
+            2,
+            1,
+            [2, 0],
+            [8, 2],
+            0,
+            true
+        ));
+        assert!(!track_near_core(
+            [0, 4],
+            [10, 4],
+            2,
+            1,
+            [2, 0],
+            [8, 2],
+            0,
+            false
+        ));
+    }
+}
