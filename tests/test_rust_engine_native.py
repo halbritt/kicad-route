@@ -627,6 +627,7 @@ def test_apply_cli_reports_input_failures_without_publication(native_board, guar
 
 @pytest.mark.parametrize('case,status', [('rules_list', 'invalid'),
     ('native_floor', 'invalid'), ('missing_source', 'io_error'),
+    ('malformed_board', 'invalid'),
     ('project_rules', 'unsupported'), ('existing_output', 'output_exists')])
 def test_export_cli_reports_input_failures_without_publication(native_board, guarded_cli, case, status):
     run, _ = guarded_cli
@@ -639,6 +640,9 @@ def test_export_cli_reports_input_failures_without_publication(native_board, gua
     rules_path = native_board.with_name('rules.json')
     rules_path.write_text(json.dumps(rules))
     source = native_board.with_name('missing.kicad_pcb') if case == 'missing_source' else native_board
+    if case == 'malformed_board':
+        source = native_board.with_name('malformed.kicad_pcb')
+        source.write_text('not a KiCad board\n')
     output = native_board.with_name('failed-request.json')
     if case == 'existing_output':
         output.write_bytes(b'existing owner output')
