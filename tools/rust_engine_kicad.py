@@ -23,7 +23,7 @@ import pcbnew
 
 
 INPUT_VERSION = 1
-RESULT_VERSION = 2
+RESULT_VERSION = 3
 # Per-document admission, not a bound on parsed/native allocations or runtime.
 MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
 
@@ -214,18 +214,27 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
     return result
 
 
-def apply_plan(source: Path, plan: dict, destination: Path):
+def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request: bytes):
     if source.resolve() == destination.resolve():
         raise ValueError('output must be a new path distinct from the input')
     if destination.exists():
         raise FileExistsError(f'output already exists: {destination}')
     with source_snapshot(source) as snapshot:
-        apply_snapshot(snapshot, plan, destination)
+        apply_snapshot(snapshot, plan, destination, expected_request=expected_request)
 
 
-def apply_snapshot(source: Path, plan: dict, destination: Path):
+def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes):
     if not isinstance(plan, dict) or type(plan.get('version')) is not int or plan.get('version') != RESULT_VERSION or plan.get('status') != 'complete':
-        raise ValueError('only a complete version2 Rust result can be written')
+        raise ValueError('only a complete version3 Rust result can be written')
+    if not isinstance(expected_request, bytes):
+        raise ValueError('expected request must be the exact request bytes')
+    if len(expected_request) > MAX_DOCUMENT_BYTES:
+        raise ValueError(f'expected request exceeds {MAX_DOCUMENT_BYTES} bytes')
+    # Bind to the complete retained request, including rules and limits, before
+    # loading or applying native edits. This checks consistency, not provenance.
+    # Do not parse/re-serialize: whitespace and explicit defaults affect identity.
+    if plan.get('request_sha256') != hashlib.sha256(expected_request).hexdigest():
+        raise ValueError('Rust plan request_sha256 does not match the expected request')
     for counter in ('expanded_states', 'work_used'):
         if type(plan.get(counter)) is not int or not 0 <= plan[counter] < 2**64:
             raise ValueError(f'Rust plan requires {counter} as an unsigned 64-bit integer')
@@ -341,6 +350,8 @@ def main():
     apply.add_argument('board', type=Path)
     apply.add_argument('plan', type=Path)
     apply.add_argument('output', type=Path)
+    apply.add_argument('--request', type=Path, required=True,
+                       help='exact retained request JSON passed to the Rust engine')
     args = parser.parse_args()
     try:
         if args.command == 'export':
@@ -348,7 +359,8 @@ def main():
             result = export_board(args.board, read_object(args.rules), args.max_expansions, limits)
             write_request(result, args.output)
         else:
-            apply_plan(args.board, read_object(args.plan), args.output)
+            apply_plan(args.board, read_object(args.plan), args.output,
+                       expected_request=read_bounded(args.request))
     except (UnsupportedBoard, NativeValidationError, FileExistsError, OSError, ValueError) as error:
         if isinstance(error, UnsupportedBoard):
             status = 'unsupported'

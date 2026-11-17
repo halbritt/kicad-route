@@ -60,17 +60,31 @@ timeout controls complement the ordinary positive and negative routing cases.
 
 The resource-limit fixture passes an optional `limits` JSON object through the
 native export CLI with `--limits`. Rust owns its field validation, defaults and
-ceilings. Existing version1 inputs without it retain defaults. Version2 engine
-results require both `expanded_states` and `work_used` as unsigned 64-bit integers;
-all version1 plans must be regenerated, with or without counters. These counters describe the
-engine result and do not replace native validation.
+ceilings. Existing version1 inputs without it retain defaults. Version3 engine
+results require `request_sha256` and both `expanded_states` and `work_used` as
+unsigned 64-bit integers; all version1/version2 plans must be regenerated.
+These counters describe the engine result and do not replace native validation.
+
+Apply requires the complete expected request bytes (`--request FILE` on the CLI,
+keyword-only `expected_request: bytes` in the API). It checks their exact SHA-256
+against the result before applying edits. The retained same-board A/B witness
+changes requested width, forces actual publication failure over A via a foreign
+temporary-file collision, observes exit 8 and byte-identical A, then requires
+native apply to reject A with request B. Matching A/A and B/B controls must still
+pass native connectivity and DRC. Separate controls cover changed limits,
+expansion budgets and whitespace; missing/null/wrong identities; missing and
+oversized expected documents; old versions; and pinning one expected-document
+read. This is request consistency, not process authentication or a nonce:
+identical request bytes may legitimately repeat, and callers must check exits.
 
 The production CLI boundary is tested with an injected executor that panics
 after staged routing over an actual older complete result. Successful publication
 must replace that file with an edit-free `internal_error` and return 7; its zero
 counters explicitly mean unavailable. State, index and subsequent generated IDs
 must be restored, and a separate library call must preserve the original panic
-payload. Publication refusal must return nonzero and preserve foreign files.
+payload. Publication/argument refusal must return 8 and preserve foreign files;
+freshly published invalid/unsupported results return 2. Fully read bounded
+malformed input retains its digest; partial/oversized input has null identity.
 Actual subprocess controls exercise invalid-input replacement and write errors.
 Process abort/kill/OOM and arbitrary native failure remain outside this contract.
 

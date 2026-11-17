@@ -290,6 +290,18 @@
       "reviewed_revision": "179c106f3ffe1f4039cd43c258f2dce362309d4d",
       "date": "2026-11-16",
       "url": "https://artifact.harm.org/v3aby1/milestone-5-cli-contract-correction.html"
+    },
+    "request-freshness-assignment": {
+      "kind": "coordination-assignment",
+      "ref": "c8532367-efc0-4267-8406-98d18af8572c/v1",
+      "date": "2026-11-16",
+      "statement": "Existing author1484 owns Rust request identity and exit8; root1497 owns mandatory expected-request native consumption/tests. Fresh independent Fable and Carbon acceptance required before integration."
+    },
+    "request-freshness-contract": {
+      "kind": "implementation-contract",
+      "ref": "ad26e19a-fd0c-4f3f-8cb2-b1e498371f71/v1",
+      "date": "2026-11-16",
+      "statement": "Exact notice read and acknowledged21:02. Input1/result3; complete raw-byte SHA256 for CLI/run_json, explicit null on oversized/failed reads; typed input uses full serde serialization. Exit8 means no fresh publication. Consistency, not authentication or invocation nonce."
     }
   },
   "requirements": [
@@ -400,7 +412,9 @@
         "fable-milestone-5-addendum",
         "carbon-milestone-5",
         "fable-milestone-5-correction",
-        "carbon-milestone-5-correction"
+        "carbon-milestone-5-correction",
+        "request-freshness-assignment",
+        "request-freshness-contract"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -413,15 +427,16 @@
         "rust-engine/src/lib.rs",
         "rust-engine/src/main.rs",
         "tools/rust_engine_kicad.py",
-        "rust-engine/src/cli.rs"
+        "rust-engine/src/cli.rs",
+        "rust-engine/src/identity.rs"
       ],
       "verification": [
         "Failure injection across mutations/publication; exact ID/geometry/index restoration.",
         "Failed result has empty edits; stale source cannot be applied; native protected content unchanged.",
-        "Before chaining engine and native apply, prove request/result freshness: a failed run must not cause an older same-board result with different requested rules to be consumed. F-M5-N1 remains open."
+        "Before chaining engine and native apply, prove request/result freshness: a failed run must not cause an older same-board result with different requested rules to be consumed. Retain mandatory expected request, mismatched A/B refusal and matching A/A and B/B native controls; F-M5-N1 awaits fresh independent review."
       ],
       "state": "open",
-      "current_evidence": "Scoped nested transactions preserve inner commits for outer rollback and restore generated copper/index/allocator on error or unwinding panic;32 recursive histories and3 compile-fail API controls independently reviewed. Operation and native publication failures are tested. Abort/kill/OOM and crash durability remain outside this guarantee; full requirement open."
+      "current_evidence": "Scoped nested transactions preserve inner commits for outer rollback and restore generated copper/index/allocator on error or unwinding panic;32 recursive histories and3 compile-fail API controls independently reviewed. Operation and native publication failures are tested. Abort/kill/OOM and crash durability remain outside this guarantee; full requirement open. M6 candidate adds whole-request identity, distinct exit8 and mandatory expected bytes at native apply; independent acceptance remains pending."
     },
     {
       "id": "RE-05",
@@ -441,7 +456,9 @@
         "fable-milestone-5-addendum",
         "carbon-milestone-5",
         "fable-milestone-5-correction",
-        "carbon-milestone-5-correction"
+        "carbon-milestone-5-correction",
+        "request-freshness-assignment",
+        "request-freshness-contract"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -454,7 +471,9 @@
         "rust-engine/src/search.rs",
         "rust-engine/src/lib.rs",
         "rust-engine/src/budget.rs",
-        "rust-engine/src/cli.rs"
+        "rust-engine/src/cli.rs",
+        "rust-engine/src/identity.rs",
+        "tools/rust_engine_kicad.py"
       ],
       "verification": [
         "Structured failure/exit controls, one total budget across nets, no partial edits.",
@@ -462,7 +481,7 @@
         "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
       "state": "open",
-      "current_evidence": "Shared outer-operation work and item/search/journal/depth admission accepted atb081bfb by both reviewers after Fable coverage/probe correction. Root65Rust+3compile-fail+95native+95ownership/fitness,38CLI policy probes and144collision-fixture work cutoffs pass. Child failure/panic does not refund work; all structured failures are edit-free. Full wall-clock cancellation, CLI panic/stale-output protocol and future orchestration remain open."
+      "current_evidence": "Shared outer-operation work and item/search/journal/depth admission accepted atb081bfb by both reviewers after Fable coverage/probe correction. Root65Rust+3compile-fail+95native+95ownership/fitness,38CLI policy probes and144collision-fixture work cutoffs pass. Child failure/panic does not refund work; all structured failures are edit-free. Full wall-clock cancellation, CLI panic/stale-output protocol and future orchestration remain open. M6 candidate adds whole-request identity, distinct exit8 and mandatory expected bytes at native apply; independent acceptance remains pending."
     },
     {
       "id": "RE-06",
@@ -517,7 +536,9 @@
         "fable-milestone-5-addendum",
         "carbon-milestone-5",
         "fable-milestone-5-correction",
-        "carbon-milestone-5-correction"
+        "carbon-milestone-5-correction",
+        "request-freshness-assignment",
+        "request-freshness-contract"
       ],
       "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
       "acceptance_owner": "agent-1497",
@@ -527,14 +548,16 @@
       ],
       "paths": [
         "tests/test_rust_engine_native.py",
-        "scripts/compare_router.py"
+        "scripts/compare_router.py",
+        "rust-engine/src/identity.rs",
+        "tools/rust_engine_kicad.py"
       ],
       "verification": [
         "Native connectivity/DRC and exact preservation; complete/incomplete positive and negative controls.",
         "Equivalent incomplete baseline must not satisfy outcome-fitness claim."
       ],
       "state": "open",
-      "current_evidence": "Both reviewers accept input1/result2, typed executor unwind, explicit publication-failure semantics and native serializer/admission corrections at179c106. Native validation remains mandatory. Source hash does not bind requested rules; F-M5-N1 stays open before orchestration."
+      "current_evidence": "Both reviewers accept input1/result2, typed executor unwind, explicit publication-failure semantics and native serializer/admission corrections at179c106. Native validation remains mandatory. Source hash does not bind requested rules; F-M5-N1 stays open before orchestration. M6 candidate adds whole-request identity, distinct exit8 and mandatory expected bytes at native apply; independent acceptance remains pending."
     },
     {
       "id": "RE-08",
@@ -749,7 +772,7 @@
         "acceptance_scope": "Versioned CLI/native result and failure contract, byte admission, compact export and typed recursion; full engine and request/freshness orchestration remain open."
       }
     ],
-    "next_milestone": "Integrate accepted M5, then resolve request/result freshness F-M5-N1 before chaining routing and native application. Full geometry, seed/phase, memory and cancellation requirements remain open.",
+    "next_milestone": "M5 integrated29d2120. Independently review M6 request/result consistency and publication exits before orchestration; F-M5-N1 remains open pending that gate. Full geometry, seed/phase, memory and cancellation requirements remain open.",
     "later_gates": [
       "Before history-dependent search: state feasibility/cost argument and a fully augmented independent oracle.",
       "Before nontrivial rip/restore: mutation/publication failure injection, allocator/index restoration and native multi-net preservation.",
@@ -1312,7 +1335,9 @@
       ],
       "source_ids": [
         "fable-milestone-5",
-        "fable-milestone-5-addendum"
+        "fable-milestone-5-addendum",
+        "request-freshness-assignment",
+        "request-freshness-contract"
       ],
       "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "After failed publication, a caller ignoring nonzero exit can apply an old complete result for the same source with different requested rules. Source hash does not bind the request.",
@@ -1320,9 +1345,10 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Before orchestration, bind results to requests and invocation success; consider distinct no-publication exit. Current callers must check exit. Retain stale-result refusal as a required future outcome.",
+      "next_action": "Review M6 candidate on its exact combined revision: result3 raw request SHA256, mandatory expected native request, exit8 for no fresh publication; preserve A/B actual failed-publication witness and matching native controls. All callers must still inspect exits; identical request bytes share identity. Independent acceptance pending.",
       "observation_deadline": "before acceptance of the next affected milestone",
-      "blocks_current_integration": false
+      "blocks_current_integration": true,
+      "candidate_rust_revision": "735eddf"
     },
     {
       "id": "F-M5-N2",
@@ -1591,5 +1617,25 @@
     "correction": "Compact serialization, typed encoder recursion, strict decoder/DRC and byte controls, and requirement-path corrections independently accepted by both reviewers.",
     "correction_validation": "74Rust+3compilefail+123native55.26sPASS;95ownership/fitness0.51sPASS;0failures/skips. Focused serializer checks7PASS before final full gate. Only native serializer/test/docs/catalog changed; Rust executable unchanged from accepted47e98ec.",
     "candidate_revision": "179c106f3ffe1f4039cd43c258f2dce362309d4d"
+  },
+  "request_freshness_checkpoint": {
+    "state": "implemented-awaiting-independent-review",
+    "baseline_revision": "29d21200c7e88ad8e4c28867d0283ffdf6e508c0",
+    "rust_revision": "735eddf",
+    "rust_owner": "agent-1484",
+    "native_owner": "agent-1497",
+    "contract_source_ids": [
+      "request-freshness-assignment",
+      "request-freshness-contract"
+    ],
+    "full_requirements": "All 10 remain open; no full-engine or production acceptance.",
+    "contract": "Input1/result3 with exact request SHA256; mandatory expected bytes in native apply; exit8 no fresh publication vs exit2 fresh invalid/unsupported.",
+    "exclusions": [
+      "No authenticated provenance or invocation nonce; identical request bytes repeat identity and callers must check exit",
+      "No geometry/search/orchestration expansion",
+      "No abort/kill/OOM, whole-process cancellation or RSS bound",
+      "No production/default/deployment/release change"
+    ],
+    "validation": "Root combined gate79 Rust +3 compile-fail +143 native66.82s PASS;95 ownership/fitness0.53s PASS;0 failures/skips. Focused native selection36PASS before final gate. Exact combined-revision independent Fable/Carbon review remains pending."
   }
 }

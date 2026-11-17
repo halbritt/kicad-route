@@ -114,6 +114,20 @@ def native_board(tmp_path):
     return path
 
 
+
+@pytest.fixture
+def expected_request(native_board):
+    """Retain request bytes for handcrafted native-validation plans.
+
+    These tests intentionally fabricate edits; the hash is a consistency check,
+    not proof that the Rust process produced them. Real CLI cases retain their
+    own actual request, including any modified rules or source geometry.
+    """
+    path = native_board.with_name('expected-request.json')
+    bridge.write_request(bridge.export_board(native_board, RULES, 100000), path)
+    return path
+
+
 def test_native_export_preserves_identity_rules_and_fixed_copper(native_board):
     original = native_board.read_bytes()
     data = bridge.export_board(native_board, RULES, 100000)
@@ -129,14 +143,14 @@ def test_native_export_preserves_identity_rules_and_fixed_copper(native_board):
     assert native_board.read_bytes() == original
 
 
-def test_native_adapter_applies_exact_edit_list(native_board):
+def test_native_adapter_applies_exact_edit_list(native_board, expected_request):
     original = native_board.read_bytes()
     exported = bridge.export_board(native_board, RULES, 100000)
     added = connection_tracks()
-    plan = {'version': 2, 'source_id': exported['source_id'], 'status': 'complete',
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'source_id': exported['source_id'], 'status': 'complete',
             'added_tracks': added, 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     output = native_board.with_name('output.kicad_pcb')
-    bridge.apply_plan(native_board, plan, output)
+    bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
     actual = bridge.export_board(output, RULES, 100000)
     assert {t['id']: t for t in actual['tracks']} == {
         t['id']: t for t in exported['tracks'] + added}
@@ -282,7 +296,8 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
          str(ROOT / 'rust-engine/Cargo.toml'), '--', str(request), str(plan_path)],
     )
     plan = json.loads(plan_path.read_text())
-    assert plan['version'] == 2
+    assert plan['version'] == 3
+    assert plan['request_sha256'] == hashlib.sha256(request.read_bytes()).hexdigest()
     assert plan['status'] == 'complete'
     assert plan['added_tracks']
     assert 0 < plan['expanded_states'] <= exported['max_expansions']
@@ -296,7 +311,7 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
                    for track in plan['added_tracks'])
     output = native_board.with_name('routed.kicad_pcb')
     run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
-         str(native_board), str(plan_path), str(output)])
+         str(native_board), str(plan_path), str(output), '--request', str(request)])
     observed = [json.loads(line) for line in audit_log.read_text().splitlines()]
     assert sum(row.get('guard_started', False) for row in observed) >= 2
     assert sum(row.get('allowed', False) for row in observed) >= 2
@@ -335,7 +350,7 @@ def test_rust_route_preserves_copper_and_passes_native_connectivity_drc(native_b
     ('empty', 'open connections'), ('crossing', 'DRC violations'),
     ('thin', 'native minimum'),
 ])
-def test_native_apply_rejects_false_complete_plans_before_publication(native_board, tamper, reason):
+def test_native_apply_rejects_false_complete_plans_before_publication(native_board, expected_request, tamper, reason):
     original = native_board.read_bytes()
     added = connection_tracks()
     if tamper == 'empty':
@@ -344,41 +359,41 @@ def test_native_apply_rejects_false_complete_plans_before_publication(native_boa
         added = [{**added[0], 'end': [17000000, 10000000]}]
     else:
         added[0]['width_nm'] = 1
-    plan = {'version': 2, 'status': 'complete',
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(original).hexdigest(),
             'added_tracks': added, 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     output = native_board.with_name('rejected.kicad_pcb')
     with pytest.raises(bridge.NativeValidationError, match=reason):
-        bridge.apply_plan(native_board, plan, output)
+        bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
     assert not output.exists()
     assert not list(native_board.parent.glob('.rejected-*'))
     assert native_board.read_bytes() == original
 
 
-def test_native_apply_cli_reports_typed_validation_failure(native_board, guarded_cli):
+def test_native_apply_cli_reports_typed_validation_failure(native_board, expected_request, guarded_cli):
     run, _ = guarded_cli
     plan = native_board.with_name('empty-plan.json')
-    plan.write_text(json.dumps({'version': 2, 'status': 'complete',
+    plan.write_text(json.dumps({'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
         'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
         'added_tracks': [], 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}))
     output = native_board.with_name('rejected.kicad_pcb')
     result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
-                  'apply', str(native_board), str(plan), str(output)], check=False)
+                  'apply', str(native_board), str(plan), str(output), '--request', str(expected_request)], check=False)
     assert result.returncode == 2
     assert json.loads(result.stderr.splitlines()[-1])['status'] == 'native_validation_failed'
     assert not output.exists()
 
 
-def test_missing_native_drc_tool_cannot_publish_a_candidate(native_board, monkeypatch, tmp_path):
+def test_missing_native_drc_tool_cannot_publish_a_candidate(native_board, expected_request, monkeypatch, tmp_path):
     empty_path = tmp_path / 'no-native-tool'
     empty_path.mkdir()
     monkeypatch.setenv('PATH', str(empty_path))
-    plan = {'version': 2, 'status': 'complete',
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
             'added_tracks': connection_tracks(), 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     output = native_board.with_name('no-drc-output.kicad_pcb')
     with pytest.raises(bridge.NativeValidationError, match='native DRC did not produce'):
-        bridge.apply_plan(native_board, plan, output)
+        bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
     assert not output.exists()
     assert not list(native_board.parent.glob('.no-drc-output-*'))
 
@@ -434,11 +449,11 @@ def test_rust_does_not_report_tangent_copper_as_connected(native_board, contact)
         cwd=ROOT, check=True, capture_output=True, text=True, timeout=60,
     )
     plan = json.loads(plan_path.read_text())
-    assert plan['version'] == 2
+    assert plan['version'] == 3
     assert plan['status'] == 'complete'
     assert plan['added_tracks'], 'KiCad still has an open: tangent contact cannot skip routing'
     output = native_board.with_name('routed.kicad_pcb')
-    bridge.apply_plan(native_board, plan, output)
+    bridge.apply_plan(native_board, plan, output, expected_request=request.read_bytes())
     board = pcbnew.LoadBoard(str(output))
     board.BuildConnectivity()
     assert board.GetConnectivity().GetUnconnectedCount(False) == 0
@@ -464,7 +479,7 @@ def test_native_adapter_rejects_below_native_floor(native_board):
     'pad_offset', 'pad_clearance', 'footprint_clearance', 'copper_field',
     'footprint_edge', 'footprint_zone', 'net_tie', 'pad_mask', 'footprint_mask', 'board_mask',
 ])
-def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_board, feature):
+def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_board, expected_request, feature):
     board = pcbnew.LoadBoard(str(native_board))
     footprint = next(iter(board.GetFootprints()))
     pad = next(iter(footprint.Pads()))
@@ -506,18 +521,18 @@ def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_b
     with pytest.raises(bridge.UnsupportedBoard):
         bridge.export_board(native_board, RULES, 100000)
     output = native_board.with_name('unsupported-output.kicad_pcb')
-    plan = {'version': 2, 'status': 'complete',
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
             'added_tracks': connection_tracks(), 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     with pytest.raises(bridge.UnsupportedBoard):
-        bridge.apply_plan(native_board, plan, output)
+        bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
     assert not output.exists()
 
 
 @pytest.mark.parametrize('location', ['board', 'footprint'])
 @pytest.mark.parametrize('layer', [pcbnew.Margin, pcbnew.Dwgs_User])
 def test_native_margin_geometry_is_rejected_but_documentation_graphics_are_allowed(
-        native_board, location, layer):
+        native_board, expected_request, location, layer):
     board = pcbnew.LoadBoard(str(native_board))
     parent = board if location == 'board' else next(iter(board.GetFootprints()))
     shape = pcbnew.PCB_SHAPE(parent)
@@ -539,7 +554,7 @@ def test_native_margin_geometry_is_rejected_but_documentation_graphics_are_allow
     report = json.loads(report_path.read_text())
     edge_errors = [v for v in report['violations'] if v['type'] == 'copper_edge_clearance']
     output = native_board.with_name('margin-output.kicad_pcb')
-    plan = {'version': 2, 'status': 'complete',
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
             'added_tracks': connection_tracks(), 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     if layer == pcbnew.Margin:
@@ -547,31 +562,31 @@ def test_native_margin_geometry_is_rejected_but_documentation_graphics_are_allow
         with pytest.raises(bridge.UnsupportedBoard, match='Margin'):
             bridge.export_board(native_board, RULES, 100000)
         with pytest.raises(bridge.UnsupportedBoard, match='Margin'):
-            bridge.apply_plan(native_board, plan, output)
+            bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
         assert not output.exists()
     else:
         assert not edge_errors
         bridge.export_board(native_board, RULES, 100000)
-        bridge.apply_plan(native_board, plan, output)
+        bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
         assert output.exists()
 
 
 @pytest.mark.parametrize('status,source', [('unroutable', None), ('internal_error', None),
                                         ('complete', 'stale')])
-def test_native_adapter_does_not_write_failed_or_stale_plan(native_board, status, source):
+def test_native_adapter_does_not_write_failed_or_stale_plan(native_board, expected_request, status, source):
     original = native_board.read_bytes()
     data = bridge.export_board(native_board, RULES, 100000)
-    plan = {'version': 2, 'status': status, 'source_id': source or data['source_id'],
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': status, 'source_id': source or data['source_id'],
             'added_tracks': [], 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     output = native_board.with_name('output.kicad_pcb')
     with pytest.raises(ValueError):
-        bridge.apply_plan(native_board, plan, output)
+        bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
     assert not output.exists()
     assert native_board.read_bytes() == original
 
 
 @pytest.mark.parametrize('operation', ['export', 'apply'])
-def test_native_operations_pin_one_snapshot_without_source_sidecars(native_board, monkeypatch, operation):
+def test_native_operations_pin_one_snapshot_without_source_sidecars(native_board, expected_request, monkeypatch, operation):
     original = native_board.read_bytes()
     expected = bridge.export_board(native_board, RULES, 100000)
     changed = pcbnew.LoadBoard(str(native_board))
@@ -601,10 +616,10 @@ def test_native_operations_pin_one_snapshot_without_source_sidecars(native_board
         assert result == expected
         expected_names = before_names
     else:
-        plan = {'version': 2, 'status': 'complete',
+        plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
                 'source_id': hashlib.sha256(original).hexdigest(),
                 'added_tracks': connection_tracks(), 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
-        bridge.apply_plan(native_board, plan, output)
+        bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
         assert bridge.export_board(output, RULES, 100000)['pads'] == expected['pads']
         expected_names = before_names | {output}
     assert len(reads) == 1
@@ -612,8 +627,8 @@ def test_native_operations_pin_one_snapshot_without_source_sidecars(native_board
     assert set(native_board.parent.iterdir()) == expected_names
 
 
-def test_native_publication_preserves_a_destination_created_during_validation(native_board, monkeypatch):
-    plan = {'version': 2, 'status': 'complete',
+def test_native_publication_preserves_a_destination_created_during_validation(native_board, expected_request, monkeypatch):
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
             'added_tracks': connection_tracks(), 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     output = native_board.with_name('concurrent-output.kicad_pcb')
@@ -625,13 +640,13 @@ def test_native_publication_preserves_a_destination_created_during_validation(na
 
     monkeypatch.setattr(bridge.os, 'link', race)
     with pytest.raises(FileExistsError):
-        bridge.apply_plan(native_board, plan, output)
+        bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
     assert output.read_bytes() == b'concurrent owner output'
     assert not list(native_board.parent.glob('.concurrent-output-*'))
 
 
-def test_native_drc_timeout_refuses_publication(native_board, monkeypatch):
-    plan = {'version': 2, 'status': 'complete',
+def test_native_drc_timeout_refuses_publication(native_board, expected_request, monkeypatch):
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
             'added_tracks': connection_tracks(), 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     output = native_board.with_name('timeout-output.kicad_pcb')
@@ -641,7 +656,7 @@ def test_native_drc_timeout_refuses_publication(native_board, monkeypatch):
 
     monkeypatch.setattr(bridge.subprocess, 'run', timeout)
     with pytest.raises(bridge.NativeValidationError, match='timed out'):
-        bridge.apply_plan(native_board, plan, output)
+        bridge.apply_plan(native_board, plan, output, expected_request=expected_request.read_bytes())
     assert not output.exists()
     assert not list(native_board.parent.glob('.timeout-output-*'))
 
@@ -654,11 +669,11 @@ def test_native_drc_timeout_refuses_publication(native_board, monkeypatch):
     ('missing_file', 'io_error'), ('existing_output', 'output_exists'),
     ('unsupported_rules', 'unsupported'),
 ])
-def test_apply_cli_reports_input_failures_without_publication(native_board, guarded_cli, case, status):
+def test_apply_cli_reports_input_failures_without_publication(native_board, expected_request, guarded_cli, case, status):
     run, _ = guarded_cli
     original = native_board.read_bytes()
     additions = connection_tracks()
-    plan = {'version': 2, 'status': 'complete',
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(original).hexdigest(),
             'added_tracks': additions, 'removed_track_ids': [], 'expanded_states': 0, 'work_used': 0}
     if case == 'stale':
@@ -684,7 +699,7 @@ def test_apply_cli_reports_input_failures_without_publication(native_board, guar
     plan_path = native_board.with_name('invalid-plan.json')
     text = json.dumps(plan)
     if case == 'duplicate_json':
-        text = text.replace('"version": 2', '"version": 2, "version": 2')
+        text = text.replace('"version": 3', '"version": 3, "version": 3')
     elif case == 'invalid_json':
         text = '{'
     elif case == 'root_list':
@@ -695,7 +710,7 @@ def test_apply_cli_reports_input_failures_without_publication(native_board, guar
     if case == 'existing_output':
         output.write_bytes(b'existing owner output')
     result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
-                  'apply', str(native_board), str(plan_path), str(output)], check=False)
+                  'apply', str(native_board), str(plan_path), str(output), '--request', str(expected_request)], check=False)
     assert result.returncode == 2
     outcome = json.loads(result.stderr.splitlines()[-1])
     assert outcome['status'] == status
@@ -773,10 +788,10 @@ def test_invalid_native_report_is_a_typed_validation_failure(tmp_path, monkeypat
 
 @pytest.mark.parametrize('counter', ['work_used', 'expanded_states'])
 @pytest.mark.parametrize('value', ['missing', None, True, -1, 1.5, '1', 2**64])
-def test_native_apply_rejects_invalid_work_counters(native_board, guarded_cli, counter, value):
+def test_native_apply_rejects_invalid_work_counters(native_board, expected_request, guarded_cli, counter, value):
     run, _ = guarded_cli
     original = native_board.read_bytes()
-    plan = {'version': 2, 'status': 'complete',
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(original).hexdigest(),
             'added_tracks': connection_tracks(), 'removed_track_ids': [],
             'expanded_states': 0, 'work_used': 0}
@@ -788,7 +803,7 @@ def test_native_apply_rejects_invalid_work_counters(native_board, guarded_cli, c
     plan_path.write_text(json.dumps(plan))
     output = native_board.with_name('counter-output.kicad_pcb')
     result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
-                  'apply', str(native_board), str(plan_path), str(output)], check=False)
+                  'apply', str(native_board), str(plan_path), str(output), '--request', str(expected_request)], check=False)
     assert result.returncode == 2
     failure = json.loads(result.stderr.splitlines()[-1])
     assert failure['status'] == 'invalid' and counter in failure['reason']
@@ -848,7 +863,7 @@ def test_rust_budget_exhaustion_cannot_publish_native_output(
                  check=False)
     assert result.returncode == exit_code, result.stderr
     plan = json.loads(plan_path.read_text())
-    assert plan['version'] == 2
+    assert plan['version'] == 3
     assert plan['status'] == status and plan['reason']
     assert plan['added_tracks'] == [] and plan['removed_track_ids'] == []
     assert type(plan['work_used']) is int and plan['work_used'] >= 0
@@ -856,7 +871,7 @@ def test_rust_budget_exhaustion_cannot_publish_native_output(
         assert plan['work_used'] <= limits['max_work']
     output = native_board.with_name('limited-output.kicad_pcb')
     applied = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
-                   'apply', str(native_board), str(plan_path), str(output)], check=False)
+                   'apply', str(native_board), str(plan_path), str(output), '--request', str(request)], check=False)
     assert applied.returncode == 2
     assert json.loads(applied.stderr.splitlines()[-1])['status'] == 'invalid'
     assert not output.exists() and not list(native_board.parent.glob('.limited-output-*'))
@@ -866,26 +881,26 @@ def test_rust_budget_exhaustion_cannot_publish_native_output(
     assert all(row.get('allowed', True) for row in observations)
 
 
-@pytest.mark.parametrize('case', ['missing_version', 'old_with_counters', 'old_without_counters',
+@pytest.mark.parametrize('case', ['missing_version', 'old_with_counters', 'old_without_counters', 'old_version2',
     'future_version', 'boolean_version', 'float_version', 'string_version',
     'missing_removals', 'null_removals', 'object_removals', 'string_removals',
     'nonstring_removal', 'supported_shape_removal'])
-def test_native_result_schema_refusals(native_board, guarded_cli, case):
+def test_native_result_schema_refusals(native_board, expected_request, guarded_cli, case):
     run, _ = guarded_cli
     original = native_board.read_bytes()
-    plan = {'version': 2, 'status': 'complete',
+    plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(original).hexdigest(),
             'added_tracks': connection_tracks(), 'removed_track_ids': [],
             'expanded_states': 0, 'work_used': 0}
     if case == 'missing_version':
         del plan['version']
     elif case.startswith('old_'):
-        plan['version'] = 1
+        plan['version'] = 2 if case == 'old_version2' else 1
         if case == 'old_without_counters':
             del plan['expanded_states'], plan['work_used']
     elif case.endswith('_version'):
-        plan['version'] = {'future_version': 3, 'boolean_version': True,
-                           'float_version': 2.0, 'string_version': '2'}[case]
+        plan['version'] = {'future_version': 4, 'boolean_version': True,
+                           'float_version': 3.0, 'string_version': '3'}[case]
     elif case == 'missing_removals':
         del plan['removed_track_ids']
     else:
@@ -896,7 +911,7 @@ def test_native_result_schema_refusals(native_board, guarded_cli, case):
     plan_path.write_text(json.dumps(plan))
     output = native_board.with_name('schema-output.kicad_pcb')
     result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
-                  'apply', str(native_board), str(plan_path), str(output)], check=False)
+                  'apply', str(native_board), str(plan_path), str(output), '--request', str(expected_request)], check=False)
     assert result.returncode == 2
     failure = json.loads(result.stderr.splitlines()[-1])
     expected = 'unsupported' if case == 'supported_shape_removal' else 'invalid'
@@ -905,13 +920,13 @@ def test_native_result_schema_refusals(native_board, guarded_cli, case):
     if field:
         assert field in failure['reason']
     elif expected == 'invalid':
-        assert 'version2' in failure['reason']
+        assert 'version3' in failure['reason']
     assert 'Traceback' not in result.stderr
     assert not output.exists() and native_board.read_bytes() == original
 
 
-@pytest.mark.parametrize('document', ['board', 'plan', 'rules', 'limits'])
-def test_native_cli_refuses_oversized_documents(native_board, guarded_cli, document):
+@pytest.mark.parametrize('document', ['board', 'plan', 'rules', 'limits', 'request'])
+def test_native_cli_refuses_oversized_documents(native_board, expected_request, guarded_cli, document):
     run, _ = guarded_cli
     original = native_board.read_bytes()
     source = native_board.with_name('oversized.kicad_pcb')
@@ -922,12 +937,13 @@ def test_native_cli_refuses_oversized_documents(native_board, guarded_cli, docum
     limits.write_text('{}')
     plan = native_board.with_name('plan.json')
     plan.write_text('{}')
-    oversized = {'board': source, 'plan': plan, 'rules': rules, 'limits': limits}[document]
+    oversized = {'board': source, 'plan': plan, 'rules': rules, 'limits': limits,
+                 'request': expected_request}[document]
     with oversized.open('ab') as stream:
         stream.write(b' ' * (bridge.MAX_DOCUMENT_BYTES + 1 - oversized.stat().st_size))
     output = native_board.with_name('oversized-output')
-    if document == 'plan':
-        command = ['apply', str(source), str(plan), str(output)]
+    if document in ('plan', 'request'):
+        command = ['apply', str(source), str(plan), str(output), '--request', str(expected_request)]
     else:
         command = ['export', str(source), str(output), '--rules', str(rules), '--limits', str(limits)]
     result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), *command], check=False)
@@ -957,13 +973,13 @@ def test_native_exact_document_boundary_accepts_board_and_json(native_board, gua
 
 
 @pytest.mark.parametrize('depth', [2000, 500000])
-def test_deep_invalid_json_has_typed_cli_failure(native_board, guarded_cli, depth):
+def test_deep_invalid_json_has_typed_cli_failure(native_board, expected_request, guarded_cli, depth):
     run, _ = guarded_cli
     plan = native_board.with_name('deep-plan.json')
     plan.write_text('{"nested":' + '[' * depth + '0' + ']' * depth + '}')
     output = native_board.with_name('deep-output.kicad_pcb')
     result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
-                  'apply', str(native_board), str(plan), str(output)], check=False)
+                  'apply', str(native_board), str(plan), str(output), '--request', str(expected_request)], check=False)
     assert result.returncode == 2
     failure = json.loads(result.stderr.splitlines()[-1])
     assert failure['status'] == 'invalid'
@@ -972,7 +988,7 @@ def test_deep_invalid_json_has_typed_cli_failure(native_board, guarded_cli, dept
     else:
         # Python 3.14's decoder accepts this depth; older decoders can refuse it.
         assert ('nesting capacity' in failure['reason'] or
-                failure['reason'] == 'only a complete version2 Rust result can be written')
+                failure['reason'] == 'only a complete version3 Rust result can be written')
     assert 'Traceback' not in result.stderr and not output.exists()
 
 
@@ -1048,3 +1064,174 @@ def test_deep_native_report_has_typed_decoder_failure(tmp_path, monkeypatch):
     with pytest.raises(bridge.NativeValidationError) as failure:
         bridge.native_violations(tmp_path / 'board.kicad_pcb', report)
     assert isinstance(failure.value.__cause__, RecursionError)
+
+
+@pytest.mark.parametrize('identity', ['missing', None, True, 1, [], {}, '', '0' * 64, 'A' * 64])
+def test_native_apply_requires_matching_request_identity(native_board, expected_request, guarded_cli, identity):
+    run, _ = guarded_cli
+    original = native_board.read_bytes()
+    plan = {'version': 3, 'status': 'complete',
+            'source_id': hashlib.sha256(original).hexdigest(),
+            'added_tracks': connection_tracks(), 'removed_track_ids': [],
+            'expanded_states': 0, 'work_used': 0}
+    if identity != 'missing':
+        plan['request_sha256'] = identity
+    plan_path = native_board.with_name('unbound-plan.json')
+    plan_path.write_text(json.dumps(plan))
+    output = native_board.with_name('unbound-output.kicad_pcb')
+    result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
+                  'apply', str(native_board), str(plan_path), str(output),
+                  '--request', str(expected_request)], check=False)
+    assert result.returncode == 2
+    assert json.loads(result.stderr.splitlines()[-1]) == {
+        'status': 'invalid',
+        'reason': 'Rust plan request_sha256 does not match the expected request'}
+    assert not output.exists() and not list(native_board.parent.glob('.unbound-output-*'))
+    assert native_board.read_bytes() == original
+
+
+@pytest.mark.parametrize('mode', ['omitted', 'missing_file'])
+def test_native_apply_requires_request_document(native_board, expected_request, guarded_cli, mode):
+    run, _ = guarded_cli
+    plan = native_board.with_name('plan.json')
+    plan.write_text('{}')
+    output = native_board.with_name('missing-request-output.kicad_pcb')
+    command = ['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
+               'apply', str(native_board), str(plan), str(output)]
+    if mode == 'missing_file':
+        command.extend(['--request', str(expected_request.with_name('absent.json'))])
+    result = run(command, check=False)
+    assert result.returncode == 2
+    if mode == 'omitted':
+        assert '--request' in result.stderr and 'required' in result.stderr
+    else:
+        assert json.loads(result.stderr.splitlines()[-1])['status'] == 'io_error'
+    assert not output.exists() and 'Traceback' not in result.stderr
+
+
+@pytest.mark.parametrize('change', ['width', 'limits', 'expansions', 'whitespace'])
+def test_native_apply_rejects_same_board_result_for_different_request(
+        native_board, expected_request, guarded_cli, change):
+    run, _ = guarded_cli
+    original = native_board.read_bytes()
+    request_a = expected_request.read_bytes()
+    plan_path = native_board.with_name('plan-a.json')
+    run(['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(expected_request), str(plan_path)])
+    plan = json.loads(plan_path.read_bytes())
+    assert plan['status'] == 'complete'
+    assert plan['request_sha256'] == hashlib.sha256(request_a).hexdigest()
+    data = json.loads(request_a)
+    if change == 'width':
+        data['rules']['width_nm'] = 500000
+    elif change == 'limits':
+        data['limits'] = {'max_work': 1}
+    elif change == 'expansions':
+        data['max_expansions'] = 1
+    request_b = native_board.with_name('request-b.json')
+    request_b.write_bytes(request_a + b' ' if change == 'whitespace' else json.dumps(data).encode())
+    assert json.loads(request_b.read_bytes())['source_id'] == plan['source_id']
+    output = native_board.with_name('stale-output.kicad_pcb')
+    result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
+                  'apply', str(native_board), str(plan_path), str(output),
+                  '--request', str(request_b)], check=False)
+    assert result.returncode == 2
+    assert 'request_sha256' in json.loads(result.stderr.splitlines()[-1])['reason']
+    assert not output.exists() and native_board.read_bytes() == original
+    assert expected_request.read_bytes() == request_a
+
+
+def test_failed_publication_cannot_apply_old_result_as_new_request(native_board, expected_request, guarded_cli):
+    run, _ = guarded_cli
+    original = native_board.read_bytes()
+    plan_path = native_board.with_name('retained-plan.json')
+    run(['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(expected_request), str(plan_path)])
+    old_bytes = plan_path.read_bytes()
+    plan_a = json.loads(old_bytes)
+    assert plan_a['status'] == 'complete'
+    request_b = native_board.with_name('request-b.json')
+    changed = json.loads(expected_request.read_bytes())
+    changed['rules']['width_nm'] = 500000
+    bridge.write_request(changed, request_b)
+    engine = ROOT / 'rust-engine/target/debug/kicad-route-engine'
+    fresh_path = native_board.with_name('fresh-b.json')
+    run([str(engine), str(request_b), str(fresh_path)])
+    plan_b = json.loads(fresh_path.read_bytes())
+    assert plan_b['status'] == 'complete'
+    assert plan_b['source_id'] == plan_a['source_id']
+    assert {t['width_nm'] for t in plan_b['added_tracks']} == {500000}
+    assert plan_b['request_sha256'] != plan_a['request_sha256']
+    # The exec preserves the child's PID, so a foreign adjacent temporary file
+    # provokes a real publication failure over the actual older result.
+    collision = '''import os, pathlib, sys
+target = pathlib.Path(sys.argv[3])
+target.with_name(f".{target.name}.{os.getpid()}.tmp").write_bytes(b"foreign temporary")
+os.execv(sys.argv[1], sys.argv[1:])
+'''
+    failed = run(['/usr/bin/python3', '-c', collision, str(engine), str(request_b), str(plan_path)], check=False)
+    assert failed.returncode == 8 and 'no fresh result established' in failed.stderr
+    assert plan_path.read_bytes() == old_bytes
+    foreign = list(native_board.parent.glob('.retained-plan.json.*.tmp'))
+    assert len(foreign) == 1 and foreign[0].read_bytes() == b'foreign temporary'
+    output = native_board.with_name('mismatched-output.kicad_pcb')
+    rejected = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
+                    'apply', str(native_board), str(plan_path), str(output),
+                    '--request', str(request_b)], check=False)
+    assert rejected.returncode == 2
+    assert 'request_sha256' in json.loads(rejected.stderr.splitlines()[-1])['reason']
+    assert not output.exists() and not list(native_board.parent.glob('.mismatched-output-*'))
+    # Each matching pair remains usable; native apply itself checks DRC/opens.
+    for label, result_path, request_path in [('a', plan_path, expected_request), ('b', fresh_path, request_b)]:
+        accepted = native_board.with_name(f'matching-{label}.kicad_pcb')
+        run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
+             'apply', str(native_board), str(result_path), str(accepted),
+             '--request', str(request_path)])
+        assert accepted.exists()
+    assert native_board.read_bytes() == original and plan_path.read_bytes() == old_bytes
+    assert foreign[0].read_bytes() == b'foreign temporary'
+
+
+def test_native_apply_pins_one_expected_request_read(native_board, expected_request, monkeypatch):
+    request_a = expected_request.read_bytes()
+    plan = {'version': 3, 'status': 'complete',
+            'request_sha256': hashlib.sha256(request_a).hexdigest(),
+            'source_id': hashlib.sha256(native_board.read_bytes()).hexdigest(),
+            'added_tracks': connection_tracks(), 'removed_track_ids': [],
+            'expanded_states': 0, 'work_used': 0}
+    plan_path = native_board.with_name('pinned-plan.json')
+    plan_path.write_text(json.dumps(plan))
+    output = native_board.with_name('pinned-request-output.kicad_pcb')
+    read_bounded = bridge.read_bounded
+    reads = []
+
+    def change_after_read(path):
+        value = read_bounded(path)
+        if path == expected_request:
+            reads.append(path)
+            expected_request.write_bytes(request_a + b' ')
+        return value
+
+    monkeypatch.setattr(bridge, 'read_bounded', change_after_read)
+    monkeypatch.setattr('sys.argv', ['rust_engine_kicad.py', 'apply', str(native_board),
+                                   str(plan_path), str(output), '--request', str(expected_request)])
+    assert bridge.main() == 0
+    assert reads == [expected_request] and output.exists()
+    assert expected_request.read_bytes() == request_a + b' '
+
+
+def test_exact_request_byte_limit_routes_and_applies(native_board, expected_request, guarded_cli):
+    run, _ = guarded_cli
+    original = native_board.read_bytes()
+    body = expected_request.read_bytes()
+    expected_request.write_bytes(body + b' ' * (bridge.MAX_DOCUMENT_BYTES - len(body)))
+    plan_path = native_board.with_name('boundary-plan.json')
+    run(['cargo', 'run', '--locked', '--offline', '--manifest-path',
+         str(ROOT / 'rust-engine/Cargo.toml'), '--', str(expected_request), str(plan_path)])
+    plan = json.loads(plan_path.read_bytes())
+    assert plan['status'] == 'complete'
+    assert plan['request_sha256'] == hashlib.sha256(expected_request.read_bytes()).hexdigest()
+    output = native_board.with_name('boundary-output.kicad_pcb')
+    run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
+         str(native_board), str(plan_path), str(output), '--request', str(expected_request)])
+    assert output.exists() and native_board.read_bytes() == original

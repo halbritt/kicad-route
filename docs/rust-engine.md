@@ -72,9 +72,9 @@ KiCad treats them as clearance boundaries, unlike ordinary documentation graphic
 The version1 input uses integer nanometres, explicit net and item IDs, bounds,
 rules, fixed copper, an expansion budget and optional resource `limits`. Rust
 owns the limits and their defaults; native export passes `--limits FILE` through
-without selecting routing policy. Results are separately versioned at **2** and
-require unsigned 64-bit `expanded_states` and `work_used` counters. Native apply
-rejects version1 results even when they have counters; regenerate those plans.
+without selecting routing policy. Results are separately versioned at **3** and
+require `request_sha256` plus unsigned 64-bit `expanded_states` and `work_used`
+counters. Native apply rejects version1 and version2 results; regenerate them.
 Work, admission, journal and nesting failures publish
 empty edits and cannot be applied as a native board. The Rust README records the
 charged operations, separately bounded initialization and exclusions; the work
@@ -84,18 +84,48 @@ UUIDs. The adapter checks source identity, requires a complete plan and applies
 the exact geometry and IDs to a new file. The first slice cannot delete input
 copper. This first supported subset is not complete board-tool compatibility.
 
-An unwinding routing-executor panic produces an edit-free version2
+Native apply requires `--request FILE`, retaining the exact document supplied to
+the engine. Its SHA-256 must equal the complete result's non-null lowercase hex
+`request_sha256`, in addition to the existing source-board match. The Python API
+requires keyword-only `expected_request: bytes`; there is no optional or legacy
+bypass. The CLI reads the expected request once, at most 16 MiB. It compares raw
+bytes without JSON normalization: whitespace, key order, explicit defaults,
+rules, limits and expansion budgets all affect identity. Thus a failed run B
+cannot cause a retained result A for different rules to be applied as B, even
+when both use the same board. Keep the request paired with its result:
+
+```sh
+rust-engine/target/debug/kicad-route-engine request.json result.json
+# Continue only after checking the engine exit status.
+/usr/bin/python3 tools/rust_engine_kicad.py apply source.kicad_pcb result.json output.kicad_pcb --request request.json
+```
+
+Run these commands from the repository root. Identity checks consistency,
+not authenticated provenance or a fresh invocation nonce.
+Identical request bytes have identical identity, so a caller still must inspect
+process exit status. A fabricated result is not authenticated by its own hash.
+Typed Rust `run(Input)` has no original wire bytes: it hashes the full compact
+serde serialization with explicit defaults. For original wire identity use
+`run_json` and retain those bytes. The Rust README describes typed serialization,
+oversized/partial input, and hashing costs outside charged routing work.
+
+An unwinding routing-executor panic produces an edit-free version3
 `internal_error` result and exit 7 when publication succeeds. Its counters are
 zero sentinels for unavailable measurements, as stated in its reason. Library
 transactions still restore state and propagate the original panic. Failed
-publication exits 2 and reports that no fresh result was established; an older
-file may remain. Callers must check exit status before consuming a result.
+publication or argument/path refusal exits **8** and reports that no fresh result
+was established; an older file may remain. Exit **2** means a fresh invalid or
+unsupported result was published. A failed input read can publish invalid with
+null request identity and exit 2; a publication failure instead returns 8.
+Malformed but fully read bounded input retains its raw-byte identity. Oversized
+and failed/partial reads have null identity rather than a misleading prefix hash.
+Callers must check exit status before consuming a result.
 Abort, SIGKILL, OOM, panic-abort builds and process death remain outside this
 unwind contract. Direct route, reroute and batch failures describe the fixed
 copper/grid/seed domain rather than asserting global infeasibility.
 
-The native export/apply entrypoints limit each source board, plan, rules/limits
-JSON and consumed DRC report to 16 MiB. Reads request at most the limit plus one
+The native export/apply entrypoints limit each source board, plan, expected request,
+rules/limits JSON and consumed DRC report to 16 MiB. Reads request at most the limit plus one
 byte; source boards are checked before KiCad decoding. The internal snapshot
 helpers expect an already admitted private snapshot. Export also refuses to publish
 JSON exceeding the Rust input limit. Oversized inputs are `invalid`; oversized
