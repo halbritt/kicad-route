@@ -18,6 +18,9 @@ from tests.e2e_rust_router.core_helpers import (
     build_input1_json,
     build_std_2pad_board,
     canonical_uuid,
+    parse_last_json_line_safe,
+    require_m3_capability,
+    run_m3_board_direct,
     run_m3_board_or_pending,
     run_wire_or_pending,
     snapshot_source_dir,
@@ -108,7 +111,7 @@ def t2_f1_02(ctx: DriverContext) -> dict[str, Any]:
         ((12_000_000, 3_000_000), (12_000_000, 8_000_000)),
     ]
     for s, e in walls:
-        b.add_track("OBSTACLE", s, e, 250_000, locked=True)
+        b.add_track("", s, e, 250_000, locked=True)
     bundle = b.save(ctx.work_dir / "src")
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
@@ -518,10 +521,16 @@ def t2_f2_03(ctx: DriverContext) -> dict[str, Any]:
     rules_path = write_json_file(ctx.work_dir / "rules.json", STD_RULES)
 
     # Probe baseline roundrect support first
-    probe_exp = ctx.json_driver.export_board(bundle.pcb_path, ctx.work_dir / "probe.req.json", rules_path)
+    probe_req = ctx.work_dir / "probe.req.json"
+    probe_exp = ctx.json_driver.export_board(bundle.pcb_path, probe_req, rules_path)
     assert_no_crash(probe_exp.proc, "probe_export")
     if probe_exp.proc.returncode == 2 and (probe_exp.stderr_json or {}).get("status") == "unsupported":
         raise PendingCapability(f"roundrect unsupported: {probe_exp.stderr_json}")
+    assert probe_exp.proc.returncode == 0
+    probe_plan = ctx.work_dir / "probe.plan.json"
+    probe_eng = ctx.json_driver.run_engine(probe_req, probe_plan)
+    assert_no_crash(probe_eng.proc, "probe_engine")
+    assert probe_eng.proc.returncode == 0 and probe_eng.output_json is not None
 
     for tag, inject in (("drill", " (drill 0.1)"), ("padstack", " (padstack default)")):
         patched_text, count = re.subn(
@@ -540,6 +549,16 @@ def t2_f2_03(ctx: DriverContext) -> dict[str, Any]:
         assert exp.stderr_json is not None and exp.stderr_json["status"] == "unsupported"
         assert tag in exp.stderr_json["reason"].lower()
         assert not req_out.exists()
+
+        plan_obj = dict(probe_eng.output_json)
+        plan_obj["source_id"] = sha256_file(bad_pcb)
+        plan_for_bad = write_json_file(ctx.work_dir / f"plan_{tag}.json", plan_obj)
+        bad_out = ctx.work_dir / f"bad_{tag}.out.kicad_pcb"
+        app = ctx.json_driver.apply_plan(bad_pcb, plan_for_bad, bad_out, probe_req)
+        assert_no_crash(app.proc, f"apply_{tag}")
+        assert app.proc.returncode == 2
+        assert app.stderr_json is not None and app.stderr_json["status"] == "unsupported"
+        assert not bad_out.exists()
     return {"checked": ["drill", "padstack"]}
 
 
@@ -668,11 +687,12 @@ def t2_f2_06(ctx: DriverContext) -> dict[str, Any]:
     pn = _pcbnew()
     b = BoardBuilder(seed=1260)
     b.set_rect_outline(0, 0, 20_000_000, 20_000_000)
-    b.ensure_net("OBSTACLE", code=2)
     for idx, x in enumerate((3_000_000, 17_000_000), 1):
         fp = b.add_footprint(f"J{idx}", (x, 10_000_000))
         b.add_pad(fp, "1", "SIGNAL", (x, 10_000_000), shape=pn.PAD_SHAPE_ROUNDRECT, size_nm=(2_000_000, 1_000_000), roundrect_ratio=0.25)
+    b.add_track("OBSTACLE", (1_000_000, 1_000_000), (2_000_000, 1_000_000), 250_000, locked=True)
     bundle = b.save(ctx.work_dir / "src")
+    assert read_native_connectivity(bundle.pcb_path).unconnected_count == 1
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
     res, before_hashes = run_wire_or_pending(ctx, bundle.pcb_path, out_pcb, STD_RULES)
@@ -688,18 +708,15 @@ def t2_f2_06(ctx: DriverContext) -> dict[str, Any]:
         request_bytes=res.export_res.output_bytes,
     )
 
-    # Tamper plan with OBSTACLE (net 2) track intruding 10 um into rounded corner clearance
-    obs_code = res.export_res.output_json["nets"][-1]["id"]
-    for n in res.export_res.output_json["nets"]:
-        if n["name"] == "OBSTACLE":
-            obs_code = n["id"]
+    # Tamper plan with OBSTACLE (net 2) track intruding into rounded corner clearance
+    obs_code = next(n["id"] for n in res.export_res.output_json["nets"] if n["name"] == "OBSTACLE")
     bad_plan = dict(res.engine_res.output_json)
     bad_plan["added_tracks"] = list(bad_plan["added_tracks"]) + [
         {
             "id": canonical_uuid(9999),
             "net": obs_code,
-            "start": [18_265_000, 10_950_000],
-            "end": [18_265_000, 11_450_000],
+            "start": [18_160_000, 10_640_000],
+            "end": [18_160_000, 11_450_000],
             "width_nm": 250_000,
             "locked": False,
         }
@@ -1426,18 +1443,23 @@ def t2_f4_07(ctx: DriverContext) -> dict[str, Any]:
     if not probe.supported:
         raise PendingCapability(probe.reason)
 
-    # Large 500-obstacle board so native execution has non-trivial duration
+    # Large 1200-obstacle board so native execution has non-trivial duration
     b = BoardBuilder(seed=1408)
-    b.set_rect_outline(0, 0, 60_000_000, 60_000_000)
-    rows = [6_000_000 + 2_000_000 * r for r in range(11)] + [28_500_000, 31_500_000] + [34_000_000 + 2_000_000 * r for r in range(9)]
-    for ix in range(25):
-        ox = 6_000_000 + ix * 2_000_000
+    b.set_rect_outline(0, 0, 100_000_000, 100_000_000)
+    rows = (
+        [8_000_000 + 2_000_000 * r for r in range(20)]
+        + [48_500_000, 51_500_000]
+        + [54_000_000 + 2_000_000 * r for r in range(8)]
+    )
+    assert len(rows) == 30
+    for ix in range(40):
+        ox = 10_000_000 + ix * 2_000_000
         for iy, oy in enumerate(rows):
             fp = b.add_footprint(f"D_{ix}_{iy}", (ox, oy))
             b.add_pad(fp, "1", "", (ox, oy), size_nm=(500_000, 500_000))
-    for idx, x in enumerate((2_000_000, 58_000_000), 1):
-        fp = b.add_footprint(f"J{idx}", (x, 30_000_000))
-        b.add_pad(fp, "1", "SIGNAL", (x, 30_000_000), size_nm=(1_000_000, 1_000_000))
+    for idx, x in enumerate((2_000_000, 98_000_000), 1):
+        fp = b.add_footprint(f"J{idx}", (x, 50_000_000))
+        b.add_pad(fp, "1", "SIGNAL", (x, 50_000_000), size_nm=(1_000_000, 1_000_000))
     bundle = b.save(ctx.work_dir / "src")
     bh = snapshot_source_dir(bundle.directory)
     rules_path = write_json_file(ctx.work_dir / "rules.json", STD_RULES)
@@ -1447,7 +1469,7 @@ def t2_f4_07(ctx: DriverContext) -> dict[str, Any]:
         out_p = ctx.work_dir / f"out_{sig_name}" / "routed.kicad_pcb"
         out_p.parent.mkdir(parents=True, exist_ok=True)
         r = ctx.native_driver.run_native(
-            bundle.pcb_path, out_p, rules_path=rules_path, cancel_after_s=0.05, cancel_signal=sig
+            bundle.pcb_path, out_p, rules_path=rules_path, cancel_after_s=0.03, cancel_signal=sig
         )
         assert r.returncode != 0
         assert not out_p.exists()
@@ -1597,8 +1619,8 @@ def t2_f5_02(ctx: DriverContext) -> dict[str, Any]:
         drill_shape=pn.PAD_DRILL_SHAPE_CIRCLE,
         drill_size_nm=(2_000_000, 2_000_000),
     )
-    bb.add_track("OBSTACLE", (10_000_000, 1_000_000), (10_000_000, 8_400_000), 250_000, locked=True)
-    bb.add_track("OBSTACLE", (10_000_000, 11_600_000), (10_000_000, 19_000_000), 250_000, locked=True)
+    bb.add_track("", (10_000_000, 1_000_000), (10_000_000, 7_775_000), 250_000, locked=True)
+    bb.add_track("", (10_000_000, 12_225_000), (10_000_000, 19_000_000), 250_000, locked=True)
     bb.set_project_rules(
         rules={"min_hole_clearance": 0.8},
         classes=[{"name": "Default", "priority": 0, "clearance": 0.25, "track_width": 0.25, "via_diameter": 0.6, "via_drill": 0.3}],
@@ -1623,6 +1645,7 @@ def t2_f5_02(ctx: DriverContext) -> dict[str, Any]:
     name="Solder-mask-web rule & exposed mask aperture clearance",
 )
 def t2_f5_03(ctx: DriverContext) -> dict[str, Any]:
+    m3_mode = require_m3_capability(ctx)
     pn = _pcbnew()
     b = BoardBuilder(seed=1504)
     b.set_rect_outline(0, 0, 20_000_000, 20_000_000)
@@ -1634,11 +1657,12 @@ def t2_f5_03(ctx: DriverContext) -> dict[str, Any]:
     bundle = b.save(ctx.work_dir / "src")
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
-    mode, res, bh = run_m3_board_or_pending(ctx, bundle, out_pcb)
+    mode, res, bh = run_m3_board_direct(ctx, bundle, out_pcb, mode=m3_mode, tag="f5_03")
     if mode == "wire":
         if res.stage_failed is None:
             return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
         assert res.export_res.proc.returncode == 2
+        assert not out_pcb.exists()
         return {"refused": res.export_res.stderr_json}
     if res.returncode == 0:
         return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
@@ -1655,6 +1679,7 @@ def t2_f5_03(ctx: DriverContext) -> dict[str, Any]:
     name="Internal footprint board cut (Edge.Cuts slot) intrusion guard",
 )
 def t2_f5_04(ctx: DriverContext) -> dict[str, Any]:
+    m3_mode = require_m3_capability(ctx)
     pn = _pcbnew()
     b = BoardBuilder(seed=1505)
     b.set_rect_outline(0, 0, 20_000_000, 20_000_000)
@@ -1668,11 +1693,12 @@ def t2_f5_04(ctx: DriverContext) -> dict[str, Any]:
     bundle = b.save(ctx.work_dir / "src")
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
-    mode, res, bh = run_m3_board_or_pending(ctx, bundle, out_pcb)
+    mode, res, bh = run_m3_board_direct(ctx, bundle, out_pcb, mode=m3_mode, tag="f5_04")
     if mode == "wire":
         if res.stage_failed is None:
             return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
         assert res.export_res.proc.returncode == 2
+        assert not out_pcb.exists()
         return {"refused": res.export_res.stderr_json}
     if res.returncode == 0:
         return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
@@ -1689,6 +1715,7 @@ def t2_f5_04(ctx: DriverContext) -> dict[str, Any]:
     name="Unsupported PAD_SHAPE_CUSTOM & Bezier copper artwork fail-closed",
 )
 def t2_f5_05(ctx: DriverContext) -> dict[str, Any]:
+    m3_mode = require_m3_capability(ctx)
     pn = _pcbnew()
     # Subcase (a): non-convex custom polygon pad
     ba = BoardBuilder(seed=1506)
@@ -1708,11 +1735,13 @@ def t2_f5_05(ctx: DriverContext) -> dict[str, Any]:
     bundle_a = ba.save(ctx.work_dir / "src_a")
     out_a = ctx.work_dir / "out_a" / "routed.kicad_pcb"
     out_a.parent.mkdir(parents=True, exist_ok=True)
-    mode_a, res_a, bh_a = run_m3_board_or_pending(ctx, bundle_a, out_a, tag="custom_poly")
+    mode_a, res_a, bh_a = run_m3_board_direct(ctx, bundle_a, out_a, mode=m3_mode, tag="custom_poly")
     if mode_a == "wire":
         assert res_a.stage_failed is None or res_a.export_res.proc.returncode == 2
         if res_a.stage_failed is None:
             assert_clean_e2e(bundle_a.pcb_path, out_a, before_hashes=bh_a, source_dir=bundle_a.directory)
+        else:
+            assert not out_a.exists()
     elif res_a.returncode == 0:
         assert_clean_e2e(bundle_a.pcb_path, out_a, before_hashes=bh_a, source_dir=bundle_a.directory)
     else:
@@ -1736,11 +1765,13 @@ def t2_f5_05(ctx: DriverContext) -> dict[str, Any]:
     bundle_b = bb.save(ctx.work_dir / "src_b")
     out_b = ctx.work_dir / "out_b" / "routed.kicad_pcb"
     out_b.parent.mkdir(parents=True, exist_ok=True)
-    mode_b, res_b, bh_b = run_m3_board_or_pending(ctx, bundle_b, out_b, tag="bezier")
+    mode_b, res_b, bh_b = run_m3_board_direct(ctx, bundle_b, out_b, mode=m3_mode, tag="bezier")
     if mode_b == "wire":
         assert res_b.stage_failed is None or res_b.export_res.proc.returncode == 2
         if res_b.stage_failed is None:
             assert_clean_e2e(bundle_b.pcb_path, out_b, before_hashes=bh_b, source_dir=bundle_b.directory)
+        else:
+            assert not out_b.exists()
     elif res_b.returncode == 0:
         assert_clean_e2e(bundle_b.pcb_path, out_b, before_hashes=bh_b, source_dir=bundle_b.directory)
     else:
@@ -1768,17 +1799,28 @@ def t2_f6_01(ctx: DriverContext) -> dict[str, Any]:
     b.add_pad(fp1, "1", "SIGNAL", (4_000_000, 10_000_000), size_nm=(1_000_000, 1_000_000), layers=[pn.F_Cu])
     fp2 = b.add_footprint("J2", (20_000_000, 10_000_000))
     b.add_pad(fp2, "1", "SIGNAL", (20_000_000, 10_000_000), size_nm=(1_000_000, 1_000_000), layers=[pn.B_Cu])
-    b.add_track("OBSTACLE", (7_000_000, 5_000_000), (7_000_000, 15_000_000), 500_000, layer=pn.F_Cu, locked=True)
-    b.add_track("OBSTACLE", (12_000_000, 1_000_000), (12_000_000, 19_000_000), 500_000, layer=pn.F_Cu, locked=True)
-    b.add_track("OBSTACLE", (10_500_000, 2_000_000), (10_500_000, 8_000_000), 500_000, layer=pn.In1_Cu, locked=True)
-    b.add_track("OBSTACLE", (10_500_000, 12_000_000), (10_500_000, 18_000_000), 500_000, layer=pn.In1_Cu, locked=True)
-    b.add_track("OBSTACLE", (9_500_000, 2_000_000), (9_500_000, 18_000_000), 500_000, layer=pn.B_Cu, locked=True)
+    # Adverse strictly-shorter-prefix-poisoned witness:
+    # F.Cu funnel (7M..9.5M, y in [8.5M..11.5M]) lets Path A reach (9.5M, 10M, In1.Cu) strictly shorter
+    # via Via 1 inside x>=8.4M (<3.0mm from sole Via 2 pocket at (10.5M, 10M)), whereas clean Path B
+    # drops Via 1 at x<=6.6M and detours around In1.Cu wall (7.5M, 6M..14M).
+    b.add_track("", (7_000_000, 750_000), (7_000_000, 8_500_000), 500_000, layer=pn.F_Cu, locked=True)
+    b.add_track("", (7_000_000, 11_500_000), (7_000_000, 19_250_000), 500_000, layer=pn.F_Cu, locked=True)
+    b.add_track("", (7_000_000, 8_500_000), (9_500_000, 8_500_000), 500_000, layer=pn.F_Cu, locked=True)
+    b.add_track("", (7_000_000, 11_500_000), (9_500_000, 11_500_000), 500_000, layer=pn.F_Cu, locked=True)
+    b.add_track("", (9_500_000, 750_000), (9_500_000, 19_250_000), 500_000, layer=pn.F_Cu, locked=True)
+    b.add_track("", (7_500_000, 6_000_000), (7_500_000, 14_000_000), 500_000, layer=pn.In1_Cu, locked=True)
+    b.add_track("", (10_500_000, 750_000), (10_500_000, 8_500_000), 500_000, layer=pn.In1_Cu, locked=True)
+    b.add_track("", (10_500_000, 11_500_000), (10_500_000, 19_250_000), 500_000, layer=pn.In1_Cu, locked=True)
+    b.add_track("", (11_500_000, 750_000), (11_500_000, 19_250_000), 500_000, layer=pn.In1_Cu, locked=True)
+    b.add_track("", (9_500_000, 750_000), (9_500_000, 19_250_000), 500_000, layer=pn.B_Cu, locked=True)
+    b.add_keepout([pn.In2_Cu], [(0, 0), (24_000_000, 0), (24_000_000, 20_000_000), (0, 20_000_000)], no_tracks=True, no_vias=False)
     b.set_project_rules(
-        rules={"min_hole_clearance": 3.0},
+        rules={"min_hole_to_hole": 3.0},
         classes=[{"name": "Default", "priority": 0, "clearance": 0.25, "track_width": 0.25, "via_diameter": 0.8, "via_drill": 0.4}],
+        rule_severities={"hole_to_hole": "error"},
     )
     b.set_dru_text(
-        '(version 1)\n(rule "via_spacing"\n  (condition "A.Type == \'Via\' && B.Type == \'Via\'")\n  (constraint hole_clearance (min 3.0mm)))\n'
+        '(version 1)\n(rule "via_spacing"\n  (condition "A.Type == \'Via\' && B.Type == \'Via\'")\n  (constraint hole_to_hole (min 3.0mm)))\n'
     )
     bundle = b.save(ctx.work_dir / "src")
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
@@ -1788,7 +1830,31 @@ def t2_f6_01(ctx: DriverContext) -> dict[str, Any]:
         assert res.stage_failed is None, f"dominance witness failed at {res.stage_failed}"
     else:
         assert res.returncode == 0
-    return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
+    metrics = assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
+
+    # Budget-bounded dominance check: must return complete (0) or budget_exhausted (4), never unroutable (3)
+    out_tight = ctx.work_dir / "out_tight" / "routed.kicad_pcb"
+    out_tight.parent.mkdir(parents=True, exist_ok=True)
+    mode_t, res_t, bh_t = run_m3_board_direct(
+        ctx, bundle, out_tight, mode=mode, tag="tight_dom", max_expansions=15
+    )
+    if mode_t == "wire":
+        assert res_t.engine_res is not None
+        rc_t = res_t.engine_res.proc.returncode
+        # exit code not pinned: tight budget may complete (0) or exhaust budget (4), never unroutable (3)
+        assert rc_t in (0, 4), f"unexpected tight-budget status rc={rc_t}: {res_t.engine_res.output_json}"
+        if rc_t == 0:
+            assert_clean_e2e(bundle.pcb_path, out_tight, before_hashes=bh_t, source_dir=bundle.directory)
+        else:
+            assert not out_tight.exists()
+    else:
+        # exit code not pinned: tight budget may complete (0) or exhaust budget (4), never unroutable (3)
+        assert res_t.returncode in (0, 4), f"unexpected tight-budget rc={res_t.returncode}: {res_t.stderr}"
+        if res_t.returncode == 0:
+            assert_clean_e2e(bundle.pcb_path, out_tight, before_hashes=bh_t, source_dir=bundle.directory)
+        else:
+            assert not out_tight.exists()
+    return metrics
 
 
 @register_test(
@@ -1824,7 +1890,7 @@ def t2_f6_02(ctx: DriverContext) -> dict[str, Any]:
     tracks = [t for t in routed.GetTracks() if t.GetClass() == "PCB_TRACK"]
     vias = [t for t in routed.GetTracks() if t.GetClass() == "PCB_VIA"]
     assert tracks and all(t.GetWidth() >= 300_000 for t in tracks)
-    assert vias and all(v.GetWidth() >= 1_500_000 for v in vias)
+    assert vias and all(v.GetWidth(v.TopLayer()) >= 1_500_000 for v in vias)
     return metrics
 
 
@@ -1866,7 +1932,7 @@ def t2_f6_03(ctx: DriverContext) -> dict[str, Any]:
     routed = pn.LoadBoard(str(out_pcb))
     assert all(t.GetWidth() >= 350_000 for t in routed.GetTracks() if t.GetNetname() == "in1")
     assert all(t.GetWidth() >= 600_000 for t in routed.GetTracks() if t.GetNetname() == "clk_out2")
-    assert all(t.GetWidth() >= 200_000 for t in routed.GetTracks() if t.GetNetname() == "plain_in")
+    assert all(200_000 <= t.GetWidth() < 350_000 for t in routed.GetTracks() if t.GetNetname() == "plain_in")
     return metrics
 
 
@@ -1878,6 +1944,7 @@ def t2_f6_03(ctx: DriverContext) -> dict[str, Any]:
     name="Malformed/mismatched .kicad_pro or unparseable .kicad_dru refused",
 )
 def t2_f6_04(ctx: DriverContext) -> dict[str, Any]:
+    m3_mode = require_m3_capability(ctx)
     cases = [
         ("bad_pro_json", '{"meta": {"version": 3', None),
         ("bad_pro_ver", '{"meta": {"version": 999}}', None),
@@ -1890,16 +1957,26 @@ def t2_f6_04(ctx: DriverContext) -> dict[str, Any]:
             bundle.pcb_path.with_suffix(".kicad_pro").write_text(pro_txt, encoding="utf-8")
         if dru_txt is not None:
             bundle.pcb_path.with_suffix(".kicad_dru").write_text(dru_txt, encoding="utf-8")
+        before_hashes = snapshot_source_dir(bundle.directory)
         out_pcb = sub / "out" / "routed.kicad_pcb"
         out_pcb.parent.mkdir(parents=True, exist_ok=True)
-        if ctx.native_driver.probe().supported:
+        if m3_mode == "native":
             rules_p = write_json_file(sub / "rules.json", STD_RULES)
             proc = ctx.native_driver.run_native(bundle.pcb_path, out_pcb, rules_path=rules_p)
             assert_no_crash(proc, label)
             assert proc.returncode == 2
+            sj = parse_last_json_line_safe(proc.stderr)
+            assert sj is not None and sj.get("status") in ("invalid", "unsupported")
         else:
-            res, _ = run_wire_or_pending(ctx, bundle.pcb_path, out_pcb, STD_RULES, tag=label)
-            assert res.export_res.proc.returncode == 2
+            rules_p = write_json_file(sub / "rules.json", STD_RULES)
+            res = ctx.json_driver.route_board_e2e(
+                bundle.pcb_path, out_pcb, rules_p, work_dir=sub / "wire"
+            )
+            assert_no_crash(res.export_res.proc, label)
+            assert res.stage_failed == "export" and res.export_res.proc.returncode == 2
+            assert res.export_res.stderr_json is not None
+            assert res.export_res.stderr_json.get("status") in ("invalid", "unsupported")
+        assert_source_dir_untouched(bundle.directory, before_hashes)
         assert not out_pcb.exists()
     return {"checked": [c[0] for c in cases]}
 
@@ -1912,6 +1989,7 @@ def t2_f6_04(ctx: DriverContext) -> dict[str, Any]:
     name="Local pad/footprint clearance override (2.0 mm) enforced or refused",
 )
 def t2_f6_05(ctx: DriverContext) -> dict[str, Any]:
+    m3_mode = require_m3_capability(ctx)
     for scope in ("pad", "footprint"):
         sub = ctx.work_dir / f"override_{scope}"
         b = BoardBuilder(seed=1605)
@@ -1938,16 +2016,17 @@ def t2_f6_05(ctx: DriverContext) -> dict[str, Any]:
         bundle = b.save(sub / "src")
         out_pcb = sub / "out" / "routed.kicad_pcb"
         out_pcb.parent.mkdir(parents=True, exist_ok=True)
-        mode, res, bh = run_m3_board_or_pending(ctx, bundle, out_pcb, tag=f"ovr_{scope}")
+        mode, res, bh = run_m3_board_direct(ctx, bundle, out_pcb, mode=m3_mode, tag=f"ovr_{scope}")
         if mode == "wire":
             if res.stage_failed is None:
                 assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
             else:
                 assert res.export_res.proc.returncode == 2
+                assert not out_pcb.exists()
         elif res.returncode == 0:
             assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
         else:
-            assert res.returncode == 2
+            assert res.returncode == 2 and not out_pcb.exists()
     return {"checked": ["pad_override", "footprint_override"]}
 
 
@@ -1959,6 +2038,7 @@ def t2_f6_05(ctx: DriverContext) -> dict[str, Any]:
     name="Unreachable layer or disabled via type (microvia/blind disallowed)",
 )
 def t2_f6_06(ctx: DriverContext) -> dict[str, Any]:
+    m3_mode = require_m3_capability(ctx)
     pn = _pcbnew()
     # (a) Blind/microvias disabled while F.Cu and B.Cu have no_vias keepouts
     ba = BoardBuilder(copper_layers=4, seed=1606)
@@ -1972,7 +2052,7 @@ def t2_f6_06(ctx: DriverContext) -> dict[str, Any]:
     bundle_a = ba.save(ctx.work_dir / "src_a")
     out_a = ctx.work_dir / "out_a" / "routed.kicad_pcb"
     out_a.parent.mkdir(parents=True, exist_ok=True)
-    mode_a, res_a, _ = run_m3_board_or_pending(ctx, bundle_a, out_a, tag="disallowed_via")
+    mode_a, res_a, _ = run_m3_board_direct(ctx, bundle_a, out_a, mode=m3_mode, tag="disallowed_via")
     if mode_a == "wire":
         assert res_a.stage_failed is not None
     else:
@@ -1989,7 +2069,7 @@ def t2_f6_06(ctx: DriverContext) -> dict[str, Any]:
     bundle_b = bb.save(ctx.work_dir / "src_b")
     out_b = ctx.work_dir / "out_b" / "routed.kicad_pcb"
     out_b.parent.mkdir(parents=True, exist_ok=True)
-    mode_b, res_b, _ = run_m3_board_or_pending(ctx, bundle_b, out_b, tag="unreachable_layer")
+    mode_b, res_b, _ = run_m3_board_direct(ctx, bundle_b, out_b, mode=m3_mode, tag="unreachable_layer")
     if mode_b == "wire":
         assert res_b.stage_failed is not None
     else:

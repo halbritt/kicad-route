@@ -473,23 +473,44 @@ class ConnectivityReport:
     arc_count: int
 
 
-def _stage_board_bundle(board_path: Path, stage_dir: Path) -> Path:
+def _stage_board_bundle(
+    board_path: Path,
+    stage_dir: Path,
+    *,
+    sidecar_source: Path | None = None,
+) -> Path:
     board_path = board_path.resolve()
     src_dir = board_path.parent
     staged_pcb = stage_dir / board_path.name
     shutil.copy2(board_path, staged_pcb)
     stem = board_path.stem
+    sidecar_dir = sidecar_source.resolve().parent if sidecar_source is not None else None
+    sidecar_stem = sidecar_source.resolve().stem if sidecar_source is not None else None
+
     for suffix in (".kicad_pro", ".kicad_dru", ".kicad_sch"):
         cand = src_dir / f"{stem}{suffix}"
         if cand.is_file():
             shutil.copy2(cand, stage_dir / cand.name)
+        elif sidecar_dir is not None and sidecar_stem is not None:
+            fallback = sidecar_dir / f"{sidecar_stem}{suffix}"
+            if fallback.is_file():
+                shutil.copy2(fallback, stage_dir / f"{stem}{suffix}")
+
     for table in ("fp-lib-table", "sym-lib-table"):
         cand = src_dir / table
         if cand.is_file():
             shutil.copy2(cand, stage_dir / table)
+        elif sidecar_dir is not None and (sidecar_dir / table).is_file():
+            shutil.copy2(sidecar_dir / table, stage_dir / table)
+
     for pretty in src_dir.glob("*.pretty"):
         if pretty.is_dir():
             shutil.copytree(pretty, stage_dir / pretty.name)
+    if sidecar_dir is not None:
+        for pretty in sidecar_dir.glob("*.pretty"):
+            dest = stage_dir / pretty.name
+            if pretty.is_dir() and not dest.exists():
+                shutil.copytree(pretty, dest)
     return staged_pcb
 
 
@@ -500,10 +521,15 @@ def run_native_drc(
     check_parity: bool = False,
     require_checks: tuple[str, ...] = (),
     timeout_s: float = 60.0,
+    sidecar_source: Path | None = None,
+    verify_dru: bool = True,
 ) -> DrcReport:
     with tempfile.TemporaryDirectory(prefix="e2e-drc-") as tmp:
         stage_dir = Path(tmp)
-        staged_pcb = _stage_board_bundle(board_path, stage_dir)
+        staged_pcb = _stage_board_bundle(
+            board_path, stage_dir, sidecar_source=sidecar_source
+        )
+        has_dru = staged_pcb.with_suffix(".kicad_dru").is_file()
         report_path = stage_dir / "drc-report.json"
         cmd = [
             "kicad-cli",
@@ -552,6 +578,8 @@ def run_native_drc(
         missing_req = [k for k in require_checks if k in ignored_keys]
         if missing_req:
             raise AssertionError(f"required DRC checks were ignored: {missing_req}")
+        if verify_dru and has_dru:
+            verify_dru_loaded(staged_pcb, timeout_s=timeout_s)
         return DrcReport(
             raw=data,
             violations=data["violations"],
@@ -562,12 +590,19 @@ def run_native_drc(
         )
 
 
-def verify_dru_loaded(board_path: Path, *, timeout_s: float = 60.0) -> None:
+def verify_dru_loaded(
+    board_path: Path,
+    *,
+    timeout_s: float = 60.0,
+    sidecar_source: Path | None = None,
+) -> None:
     pn = _pcbnew()
     witness_rule = "_e2e_dru_witness"
     with tempfile.TemporaryDirectory(prefix="e2e-dru-witness-") as tmp:
         stage_dir = Path(tmp)
-        staged_pcb = _stage_board_bundle(board_path, stage_dir)
+        staged_pcb = _stage_board_bundle(
+            board_path, stage_dir, sidecar_source=sidecar_source
+        )
         dru_path = staged_pcb.with_suffix(".kicad_dru")
         existing = dru_path.read_text(encoding="utf-8") if dru_path.is_file() else "(version 1)\n"
         dru_path.write_text(
@@ -593,7 +628,7 @@ def verify_dru_loaded(board_path: Path, *, timeout_s: float = 60.0) -> None:
             board.Add(tr)
             pn.SaveBoard(str(staged_pcb), board, True)
 
-        report = run_native_drc(staged_pcb, timeout_s=timeout_s)
+        report = run_native_drc(staged_pcb, timeout_s=timeout_s, verify_dru=False)
         hit = [
             v
             for v in report.violations
@@ -658,11 +693,22 @@ def read_native_connectivity(board_path: Path) -> ConnectivityReport:
 
     pad_net_by_uuid: dict[str, str] = {}
     electrical_pads: dict[str, Any] = {}
+    seen_pad_uuids: set[str] = set()
     for pad in board.GetPads():
+        pid = pad.m_Uuid.AsString()
+        if pid in seen_pad_uuids:
+            raise AssertionError(f"duplicate pad UUID in {board_path}: {pid}")
+        seen_pad_uuids.add(pid)
         if pad.GetNetCode() > 0:
-            pid = pad.m_Uuid.AsString()
             electrical_pads[pid] = pad
             pad_net_by_uuid[pid] = pad.GetNetname()
+
+    seen_copper_uuids: set[str] = set()
+    for t in board.GetTracks():
+        tid = t.m_Uuid.AsString()
+        if tid in seen_copper_uuids:
+            raise AssertionError(f"duplicate copper UUID ({t.GetClass()}) in {board_path}: {tid}")
+        seen_copper_uuids.add(tid)
 
     adj: dict[str, set[str]] = {}
     classes_by_pad: dict[str, set[str]] = {}
@@ -738,7 +784,7 @@ def _track_snapshot(item: Any) -> tuple[Any, ...]:
             item.m_Uuid.AsString(),
             item.GetNetname(),
             (int(item.GetPosition().x), int(item.GetPosition().y)),
-            int(item.GetWidth()),
+            int(item.GetWidth(item.TopLayer())),
             int(item.GetDrill()),
             int(item.GetViaType()),
             (int(item.TopLayer()), int(item.BottomLayer())),
@@ -768,15 +814,82 @@ def _track_snapshot(item: Any) -> tuple[Any, ...]:
     )
 
 
+def _poly_set_snapshot(poly_set: Any) -> tuple[Any, ...]:
+    outlines = []
+    for oi in range(poly_set.OutlineCount()):
+        outer = poly_set.Outline(oi)
+        outer_pts = tuple(
+            (int(outer.CPoint(i).x), int(outer.CPoint(i).y))
+            for i in range(outer.PointCount())
+        )
+        holes = []
+        for hi in range(poly_set.HoleCount(oi)):
+            hole = poly_set.Hole(oi, hi)
+            holes.append(
+                tuple(
+                    (int(hole.CPoint(i).x), int(hole.CPoint(i).y))
+                    for i in range(hole.PointCount())
+                )
+            )
+        outlines.append((outer_pts, tuple(holes)))
+    return tuple(outlines)
+
+
 def _drawing_snapshot(d: Any) -> tuple[Any, ...]:
+    poly_snap = (
+        _poly_set_snapshot(d.GetPolyShape())
+        if hasattr(d, "GetPolyShape")
+        else None
+    )
     return (
         d.GetClass(),
+        d.m_Uuid.AsString(),
         int(d.GetLayer()),
+        bool(d.IsLocked()) if hasattr(d, "IsLocked") else None,
         int(d.GetShape()) if hasattr(d, "GetShape") else None,
         (int(d.GetStart().x), int(d.GetStart().y)) if hasattr(d, "GetStart") else None,
+        (int(d.GetArcMid().x), int(d.GetArcMid().y)) if hasattr(d, "GetArcMid") else None,
         (int(d.GetEnd().x), int(d.GetEnd().y)) if hasattr(d, "GetEnd") else None,
+        (int(d.GetCenter().x), int(d.GetCenter().y)) if hasattr(d, "GetCenter") else None,
+        round(float(d.GetArcAngle().AsDegrees()), 6) if hasattr(d, "GetArcAngle") else None,
+        (int(d.GetBezierC1().x), int(d.GetBezierC1().y)) if hasattr(d, "GetBezierC1") else None,
+        (int(d.GetBezierC2().x), int(d.GetBezierC2().y)) if hasattr(d, "GetBezierC2") else None,
         int(d.GetWidth()) if hasattr(d, "GetWidth") else None,
+        d.GetText() if hasattr(d, "GetText") else None,
+        poly_snap,
     )
+
+
+def _zone_snapshot(z: Any) -> tuple[Any, ...]:
+    return (
+        z.m_Uuid.AsString(),
+        bool(z.GetIsRuleArea()),
+        bool(z.GetDoNotAllowTracks()),
+        bool(z.GetDoNotAllowVias()),
+        bool(z.GetDoNotAllowZoneFills()),
+        bool(z.GetDoNotAllowPads()),
+        bool(z.GetDoNotAllowFootprints()),
+        tuple(sorted(int(lid) for lid in z.GetLayerSet().Seq())),
+        _poly_set_snapshot(z.Outline()),
+        z.GetNetname(),
+        int(z.GetAssignedPriority()),
+        int(z.GetLocalClearance()),
+        int(z.GetMinThickness()),
+        int(z.GetPadConnection()),
+        bool(z.IsLocked()),
+    )
+
+
+def _collect_tracks_checked(board: Any, label: str) -> dict[str, tuple[Any, ...]]:
+    out: dict[str, tuple[Any, ...]] = {}
+    for t in board.GetTracks():
+        tid = t.m_Uuid.AsString()
+        if tid in out:
+            raise AssertionError(
+                f"duplicate {t.GetClass()} UUID in {label} board: {tid}"
+            )
+        out[tid] = _track_snapshot(t)
+    return out
 
 
 def verify_preservation(
@@ -794,18 +907,38 @@ def verify_preservation(
         raise AssertionError("failed to load before/after board in pcbnew")
 
     fps_before = sorted(
-        (fp.m_Uuid.AsString(), fp.GetReference(), int(fp.GetPosition().x), int(fp.GetPosition().y))
+        (
+            fp.m_Uuid.AsString(),
+            fp.GetReference(),
+            int(fp.GetPosition().x),
+            int(fp.GetPosition().y),
+            tuple(sorted(_drawing_snapshot(g) for g in fp.GraphicalItems())),
+            tuple(sorted(_zone_snapshot(z) for z in fp.Zones() if not z.IsTeardropArea())),
+        )
         for fp in b_before.GetFootprints()
     )
     fps_after = sorted(
-        (fp.m_Uuid.AsString(), fp.GetReference(), int(fp.GetPosition().x), int(fp.GetPosition().y))
+        (
+            fp.m_Uuid.AsString(),
+            fp.GetReference(),
+            int(fp.GetPosition().x),
+            int(fp.GetPosition().y),
+            tuple(sorted(_drawing_snapshot(g) for g in fp.GraphicalItems())),
+            tuple(sorted(_zone_snapshot(z) for z in fp.Zones() if not z.IsTeardropArea())),
+        )
         for fp in b_after.GetFootprints()
     )
     if fps_before != fps_after:
         raise AssertionError(f"footprints altered:\nbefore={fps_before}\nafter={fps_after}")
 
-    pads_before = sorted(_pad_snapshot(p) for p in b_before.GetPads())
-    pads_after = sorted(_pad_snapshot(p) for p in b_after.GetPads())
+    pads_before_list = [_pad_snapshot(p) for p in b_before.GetPads()]
+    pads_after_list = [_pad_snapshot(p) for p in b_after.GetPads()]
+    if len({p[0] for p in pads_before_list}) != len(pads_before_list):
+        raise AssertionError("duplicate pad UUID in before board")
+    if len({p[0] for p in pads_after_list}) != len(pads_after_list):
+        raise AssertionError("duplicate pad UUID in after board")
+    pads_before = sorted(pads_before_list)
+    pads_after = sorted(pads_after_list)
     if pads_before != pads_after:
         raise AssertionError(f"pads altered:\nbefore={pads_before}\nafter={pads_after}")
 
@@ -814,8 +947,17 @@ def verify_preservation(
     if drw_before != drw_after:
         raise AssertionError(f"board drawings/outline altered:\nbefore={drw_before}\nafter={drw_after}")
 
-    before_tracks = {t.m_Uuid.AsString(): _track_snapshot(t) for t in b_before.GetTracks()}
-    after_tracks = {t.m_Uuid.AsString(): _track_snapshot(t) for t in b_after.GetTracks()}
+    zones_before = sorted(
+        _zone_snapshot(z) for z in b_before.Zones() if not z.IsTeardropArea()
+    )
+    zones_after = sorted(
+        _zone_snapshot(z) for z in b_after.Zones() if not z.IsTeardropArea()
+    )
+    if zones_before != zones_after:
+        raise AssertionError(f"board zones/keepouts altered:\nbefore={zones_before}\nafter={zones_after}")
+
+    before_tracks = _collect_tracks_checked(b_before, "before")
+    after_tracks = _collect_tracks_checked(b_after, "after")
     allowed_rm = set(allow_removed_track_ids)
 
     for tid, snap in before_tracks.items():
@@ -838,6 +980,7 @@ def verify_routed_board(
     refill_zones: bool = False,
     allow_removed_track_ids: tuple[str, ...] | set[str] = (),
     require_checks: tuple[str, ...] = (),
+    verify_dru: bool = True,
 ) -> dict[str, Any]:
     _, added = verify_preservation(
         before_pcb, after_pcb, allow_removed_track_ids=allow_removed_track_ids
@@ -870,10 +1013,17 @@ def verify_routed_board(
                 )
 
     before_drc = run_native_drc(
-        before_pcb, refill_zones=refill_zones, require_checks=require_checks
+        before_pcb,
+        refill_zones=refill_zones,
+        require_checks=require_checks,
+        verify_dru=verify_dru,
     )
     after_drc = run_native_drc(
-        after_pcb, refill_zones=refill_zones, require_checks=require_checks
+        after_pcb,
+        refill_zones=refill_zones,
+        require_checks=require_checks,
+        sidecar_source=before_pcb,
+        verify_dru=verify_dru,
     )
     if len(after_drc.unconnected_items) != expected_opens:
         raise AssertionError(

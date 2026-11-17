@@ -1314,15 +1314,20 @@ def t1_f6_01(ctx: DriverContext) -> dict[str, Any]:
     name="Effective .kicad_dru class-to-class clearance rule enforcement",
 )
 def t1_f6_02(ctx: DriverContext) -> dict[str, Any]:
+    pn = _pcbnew()
     b = BoardBuilder(seed=602)
     b.set_rect_outline(0, 0, 24_000_000, 20_000_000)
-    for idx, x in enumerate((4_000_000, 20_000_000), 1):
-        fp_p = b.add_footprint(f"JP{idx}", (x, 10_000_000))
-        b.add_pad(fp_p, "1", "PWR_5V", (x, 10_000_000), size_nm=(1_000_000, 1_000_000))
-        fp_s = b.add_footprint(f"JS{idx}", (x, 8_000_000))
-        b.add_pad(fp_s, "1", "SIG", (x, 8_000_000), size_nm=(1_000_000, 1_000_000))
-    b.add_track("PWR_5V", (4_000_000, 10_000_000), (20_000_000, 10_000_000), 500_000, locked=True)
-    b.add_track("OBSTACLE", (12_000_000, 8_950_000), (12_000_000, 8_950_001), 200_000, locked=True)
+    for idx, x in enumerate((7_000_000, 17_000_000), 1):
+        fp_p = b.add_footprint(f"JP{idx}", (x, 10_050_000))
+        b.add_pad(fp_p, "1", "PWR_5V", (x, 10_050_000), shape=pn.PAD_SHAPE_RECT, size_nm=(1_000_000, 500_000))
+    for idx, x in enumerate((3_000_000, 21_000_000), 1):
+        fp_s = b.add_footprint(f"JS{idx}", (x, 9_400_000))
+        b.add_pad(fp_s, "1", "SIG", (x, 9_400_000), shape=pn.PAD_SHAPE_RECT, size_nm=(1_000_000, 400_000))
+    b.add_track("PWR_5V", (7_000_000, 10_050_000), (17_000_000, 10_050_000), 500_000, locked=True)
+    # Corridor y=9.4M has 0.30 mm clearance to PWR_5V (top edge 9.80M vs SIG bottom 9.50M)
+    # and 0.20 mm clearance to OBSTACLE (bottom edge 9.10M vs SIG top 9.30M):
+    # legal under Default 0.20 mm, illegal under .kicad_dru 0.40 mm power_to_default.
+    b.add_track("", (8_000_000, 9_000_000), (16_000_000, 9_000_000), 200_000, locked=True)
     b.set_project_rules(
         classes=[
             {"name": "Default", "priority": 0, "clearance": 0.2, "track_width": 0.2, "via_diameter": 0.6, "via_drill": 0.3},
@@ -1341,7 +1346,7 @@ def t1_f6_02(ctx: DriverContext) -> dict[str, Any]:
         assert res.stage_failed is None, f".kicad_dru route failed at {res.stage_failed}"
     else:
         assert res.returncode == 0
-    verify_dru_loaded(out_pcb)
+    verify_dru_loaded(out_pcb, sidecar_source=bundle.pcb_path)
     return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=before_hashes, source_dir=bundle.directory)
 
 
@@ -1374,7 +1379,7 @@ def t1_f6_03(ctx: DriverContext) -> dict[str, Any]:
     metrics = assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=before_hashes, source_dir=bundle.directory)
     routed = pn.LoadBoard(str(out_pcb))
     vias = [t for t in routed.GetTracks() if t.GetClass() == "PCB_VIA"]
-    assert vias and all(v.GetWidth() >= 800_000 and v.GetDrill() >= 400_000 for v in vias)
+    assert vias and all(v.GetWidth(v.TopLayer()) >= 800_000 and v.GetDrill() >= 400_000 for v in vias)
     return metrics
 
 
@@ -1393,7 +1398,7 @@ def t1_f6_04(ctx: DriverContext) -> dict[str, Any]:
     b.add_pad(fp1, "1", "SIGNAL", (4_000_000, 10_000_000), size_nm=(1_000_000, 1_000_000), layers=[pn.In1_Cu])
     fp2 = b.add_footprint("J2", (20_000_000, 10_000_000))
     b.add_pad(fp2, "1", "SIGNAL", (20_000_000, 10_000_000), size_nm=(1_000_000, 1_000_000), layers=[pn.In2_Cu])
-    b.add_keepout([pn.F_Cu, pn.B_Cu], [(2_000_000, 2_000_000), (22_000_000, 2_000_000), (22_000_000, 18_000_000), (2_000_000, 18_000_000)], no_tracks=True, no_vias=True)
+    b.add_keepout([pn.F_Cu, pn.B_Cu], [(0, 0), (24_000_000, 0), (24_000_000, 20_000_000), (0, 20_000_000)], no_tracks=True, no_vias=True)
     b.set_project_rules(
         rules={"allow_blind_buried_vias": True, "allow_microvias": True, "min_via_diameter": 0.6, "min_microvia_diameter": 0.3, "min_microvia_drill": 0.15}
     )
@@ -1427,17 +1432,22 @@ def t1_f6_05(ctx: DriverContext) -> dict[str, Any]:
     b.add_pad(fp1, "1", "SIGNAL", (4_000_000, 10_000_000), size_nm=(1_000_000, 1_000_000), layers=[pn.F_Cu])
     fp2 = b.add_footprint("J2", (20_000_000, 10_000_000))
     b.add_pad(fp2, "1", "SIGNAL", (20_000_000, 10_000_000), size_nm=(1_000_000, 1_000_000), layers=[pn.B_Cu])
-    b.add_track("OBSTACLE", (7_000_000, 7_000_000), (7_000_000, 13_000_000), 500_000, layer=pn.F_Cu, locked=True)
-    b.add_track("OBSTACLE", (12_000_000, 1_000_000), (12_000_000, 19_000_000), 500_000, layer=pn.F_Cu, locked=True)
-    b.add_track("OBSTACLE", (10_500_000, 2_000_000), (10_500_000, 8_000_000), 500_000, layer=pn.In1_Cu, locked=True)
-    b.add_track("OBSTACLE", (10_500_000, 12_000_000), (10_500_000, 18_000_000), 500_000, layer=pn.In1_Cu, locked=True)
-    b.add_track("OBSTACLE", (9_500_000, 2_000_000), (9_500_000, 18_000_000), 500_000, layer=pn.B_Cu, locked=True)
+    # F.Cu wall at x=9.5M forces Via 1 at x<9.5M; In1.Cu walls force Via 2 at (10.5M, 10M);
+    # B.Cu wall at x=9.5M prevents early B.Cu; In2.Cu sealed against track routing.
+    b.add_track("", (7_000_000, 7_000_000), (7_000_000, 13_000_000), 500_000, layer=pn.F_Cu, locked=True)
+    b.add_track("", (9_500_000, 750_000), (9_500_000, 19_250_000), 500_000, layer=pn.F_Cu, locked=True)
+    b.add_track("", (10_500_000, 750_000), (10_500_000, 8_500_000), 500_000, layer=pn.In1_Cu, locked=True)
+    b.add_track("", (10_500_000, 11_500_000), (10_500_000, 19_250_000), 500_000, layer=pn.In1_Cu, locked=True)
+    b.add_track("", (11_500_000, 750_000), (11_500_000, 19_250_000), 500_000, layer=pn.In1_Cu, locked=True)
+    b.add_track("", (9_500_000, 750_000), (9_500_000, 19_250_000), 500_000, layer=pn.B_Cu, locked=True)
+    b.add_keepout([pn.In2_Cu], [(0, 0), (24_000_000, 0), (24_000_000, 20_000_000), (0, 20_000_000)], no_tracks=True, no_vias=False)
     b.set_project_rules(
-        rules={"min_hole_clearance": 3.0},
+        rules={"min_hole_to_hole": 3.0},
         classes=[{"name": "Default", "priority": 0, "clearance": 0.25, "track_width": 0.25, "via_diameter": 0.8, "via_drill": 0.4}],
+        rule_severities={"hole_to_hole": "error"},
     )
     b.set_dru_text(
-        '(version 1)\n(rule "via_spacing"\n  (condition "A.Type == \'Via\' && B.Type == \'Via\'")\n  (constraint hole_clearance (min 3.0mm)))\n'
+        '(version 1)\n(rule "via_spacing"\n  (condition "A.Type == \'Via\' && B.Type == \'Via\'")\n  (constraint hole_to_hole (min 3.0mm)))\n'
     )
     bundle = b.save(ctx.work_dir / "src")
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"

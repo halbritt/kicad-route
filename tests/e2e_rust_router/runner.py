@@ -359,14 +359,14 @@ def run_suite(
 
 
 def _parse_tier_tokens(tokens: list[str] | None) -> list[int] | None:
-    if not tokens:
+    if tokens is None:
         return None
     selected: list[int] = []
     for raw in tokens:
         for part in raw.split(","):
             tok = part.strip().lower()
             if not tok:
-                continue
+                raise argparse.ArgumentTypeError(f"empty --tier token in {raw!r}")
             if tok == "all":
                 return list(TIERS)
             if tok not in {"1", "2", "3", "4"}:
@@ -374,23 +374,23 @@ def _parse_tier_tokens(tokens: list[str] | None) -> list[int] | None:
             val = int(tok)
             if val not in selected:
                 selected.append(val)
-    return selected or None
+    return selected
 
 
 def _parse_feature_tokens(tokens: list[str] | None) -> list[str] | None:
-    if not tokens:
+    if tokens is None:
         return None
     selected: list[str] = []
     for raw in tokens:
         for part in raw.split(","):
             tok = part.strip().upper()
             if not tok:
-                continue
+                raise argparse.ArgumentTypeError(f"empty --feature token in {raw!r}")
             if tok not in FEATURES:
                 raise argparse.ArgumentTypeError(f"invalid --feature value: {part!r}")
             if tok not in selected:
                 selected.append(tok)
-    return selected or None
+    return selected
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -480,7 +480,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.json_out is not None:
-        _write_json_atomic(args.json_out, report)
+        try:
+            _write_json_atomic(args.json_out, report)
+        except OSError as exc:
+            print(f"error: failed to write --json-out {args.json_out}: {exc}", file=sys.stderr)
+            return 2
 
     counts = report["summary"]["by_status"]
     print(

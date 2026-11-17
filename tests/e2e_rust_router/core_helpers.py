@@ -15,6 +15,7 @@ from tests.e2e_rust_router.drivers import (
 from tests.e2e_rust_router.kicad_verify import (
     BoardBuilder,
     FixtureBundle,
+    _pcbnew,
     is_canonical_non_nil_uuid,
     verify_routed_board,
 )
@@ -257,3 +258,96 @@ def parse_last_json_line_safe(text: str) -> dict[str, Any] | None:
     from tests.e2e_rust_router.drivers import parse_last_json_line
 
     return parse_last_json_line(text)
+
+
+def require_m3_capability(ctx: DriverContext) -> str:
+    """Probe a positive M3 control board (45-deg rotated pad + .kicad_pro) before fail-closed M3 tests."""
+    pn = _pcbnew()
+    probe_dir = ctx.work_dir / "_m3_probe"
+    b = BoardBuilder(copper_layers=2, seed=9903)
+    b.set_rect_outline(0, 0, 20_000_000, 20_000_000)
+    fp1 = b.add_footprint("J1", (4_000_000, 10_000_000))
+    b.add_pad(
+        fp1,
+        "1",
+        "SIGNAL",
+        (4_000_000, 10_000_000),
+        shape=pn.PAD_SHAPE_RECT,
+        size_nm=(2_000_000, 1_000_000),
+        angle_deg=45.0,
+    )
+    fp2 = b.add_footprint("J2", (16_000_000, 10_000_000))
+    b.add_pad(fp2, "1", "SIGNAL", (16_000_000, 10_000_000), size_nm=(1_000_000, 1_000_000))
+    b.set_project_rules()
+    bundle = b.save(probe_dir / "src")
+    out_pcb = probe_dir / "out" / "routed.kicad_pcb"
+    out_pcb.parent.mkdir(parents=True, exist_ok=True)
+    before_hashes = snapshot_source_dir(bundle.directory)
+
+    if ctx.native_driver.probe().supported:
+        rules_path = write_json_file(probe_dir / "rules.json", STD_RULES)
+        proc = ctx.native_driver.run_native(
+            bundle.pcb_path, out_pcb, rules_path=rules_path, max_expansions=100_000
+        )
+        assert_no_crash(proc, "m3_probe:native")
+        assert_source_dir_untouched(bundle.directory, before_hashes)
+        if proc.returncode == 2:
+            sj = parse_last_json_line_safe(proc.stderr)
+            if (sj and sj.get("status") == "unsupported") or ("unsupported" in proc.stderr.lower()):
+                raise PendingCapability(
+                    f"M3 native capability missing: {(sj or {}).get('reason', proc.stderr.strip())}",
+                    evidence=sj,
+                )
+        assert proc.returncode == 0, (
+            f"M3 positive control failed unexpectedly (rc={proc.returncode}): {proc.stderr}"
+        )
+        return "native"
+
+    res, _ = run_wire_or_pending(
+        ctx, bundle.pcb_path, out_pcb, STD_RULES, tag="_m3_probe_wire"
+    )
+    assert res.stage_failed is None, f"M3 positive wire control failed at {res.stage_failed}"
+    return "wire"
+
+
+def run_m3_board_direct(
+    ctx: DriverContext,
+    bundle: FixtureBundle,
+    out_pcb: Path,
+    rules: dict[str, int] | None = None,
+    *,
+    mode: str,
+    tag: str = "m3_direct",
+    max_expansions: int = 100_000,
+) -> tuple[str, Any, dict[str, str]]:
+    """Invoke native_driver or json_driver directly without converting exit-2 unsupported to PendingCapability."""
+    source_dir = bundle.pcb_path.parent
+    before_hashes = snapshot_source_dir(source_dir)
+    run_dir = ctx.work_dir / tag
+    if mode == "native":
+        rules_path = write_json_file(run_dir / "rules.json", rules) if rules else None
+        proc = ctx.native_driver.run_native(
+            bundle.pcb_path,
+            out_pcb,
+            rules_path=rules_path,
+            max_expansions=max_expansions,
+        )
+        assert_no_crash(proc, f"{tag}:native")
+        assert_source_dir_untouched(source_dir, before_hashes)
+        return "native", proc, before_hashes
+
+    rules_path = write_json_file(run_dir / "rules.json", rules or STD_RULES)
+    res = ctx.json_driver.route_board_e2e(
+        bundle.pcb_path,
+        out_pcb,
+        rules_path,
+        work_dir=run_dir,
+        max_expansions=max_expansions,
+    )
+    assert_no_crash(res.export_res.proc, f"{tag}:export")
+    if res.engine_res is not None:
+        assert_no_crash(res.engine_res.proc, f"{tag}:engine")
+    if res.apply_res is not None:
+        assert_no_crash(res.apply_res.proc, f"{tag}:apply")
+    assert_source_dir_untouched(source_dir, before_hashes)
+    return "wire", res, before_hashes

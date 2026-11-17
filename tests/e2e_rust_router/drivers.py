@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import signal
 import subprocess
 import time
@@ -59,16 +60,25 @@ def parse_gnu_time_v(metrics_path: Path) -> TimeMetrics | None:
     if not metrics_path.exists():
         return None
     text = metrics_path.read_text(encoding="utf-8", errors="replace")
-    user_s = 0.0
-    sys_s = 0.0
-    wall_s = 0.0
-    max_rss_kib = 0
+    if not text.strip():
+        return None
+    user_s: float | None = None
+    sys_s: float | None = None
+    wall_s: float | None = None
+    max_rss_kib: int | None = None
     exit_status: int | None = None
     signal_num: int | None = None
     for line in text.splitlines():
-        if ":" not in line:
+        stripped = line.strip()
+        if stripped.startswith("Command terminated by signal "):
+            try:
+                signal_num = int(stripped.rsplit(None, 1)[-1])
+            except ValueError:
+                pass
             continue
-        key, val = line.split(":", 1)
+        if ": " not in line:
+            continue
+        key, val = line.split(": ", 1)
         key = key.strip()
         val = val.strip()
         if key == "User time (seconds)":
@@ -83,6 +93,14 @@ def parse_gnu_time_v(metrics_path: Path) -> TimeMetrics | None:
             exit_status = int(val)
         elif key == "Command terminated by signal":
             signal_num = int(val)
+    if (
+        user_s is None
+        or sys_s is None
+        or wall_s is None
+        or max_rss_kib is None
+        or (exit_status is None and signal_num is None)
+    ):
+        return None
     return TimeMetrics(
         wall_s=wall_s,
         user_s=user_s,
@@ -107,22 +125,36 @@ class MeasuredProcessResult:
     audit_rows: list[dict[str, Any]] = field(default_factory=list)
 
 
-def _terminate_process_group(pid: int) -> None:
+def _terminate_process_group(
+    pgid: int, proc: subprocess.Popen[str] | None = None
+) -> None:
     try:
-        os.killpg(pid, signal.SIGTERM)
+        os.killpg(pgid, signal.SIGTERM)
     except ProcessLookupError:
         return
     deadline = time.monotonic() + 2.0
     while time.monotonic() < deadline:
+        if proc is not None:
+            proc.poll()
         try:
-            os.killpg(pid, 0)
+            os.killpg(pgid, 0)
         except ProcessLookupError:
             return
-        time.sleep(0.05)
+        time.sleep(0.02)
     try:
-        os.killpg(pid, signal.SIGKILL)
+        os.killpg(pgid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+
+
+_PGID_LAUNCHER = (
+    "import os, sys; "
+    "os.setpgrp(); "
+    "tmp = sys.argv[1] + '.tmp'; "
+    "open(tmp, 'w', encoding='utf-8').write(str(os.getpid())); "
+    "os.replace(tmp, sys.argv[1]); "
+    "os.execvp(sys.argv[2], sys.argv[2:])"
+)
 
 
 def run_measured(
@@ -140,10 +172,20 @@ def run_measured(
     work_dir.mkdir(parents=True, exist_ok=True)
     tag = metrics_name or f"metrics-{time.time_ns()}"
     metrics_path = work_dir / f"{tag}.time"
-    wrapped: list[str] = ["/usr/bin/time", "-v", "-o", str(metrics_path)]
+    pgid_path = work_dir / f"{tag}.pgid"
+    inner_cmd: list[str] = []
     if rlimit_as_bytes is not None:
-        wrapped.extend(["prlimit", f"--as={int(rlimit_as_bytes)}", "--"])
-    wrapped.extend(str(c) for c in cmd)
+        inner_cmd.extend(["prlimit", f"--as={int(rlimit_as_bytes)}", "--"])
+    inner_cmd.extend(str(c) for c in cmd)
+
+    wrapped: list[str] = ["/usr/bin/time", "-v", "-o", str(metrics_path)]
+    if cancel_after_s is not None:
+        pgid_path.unlink(missing_ok=True)
+        wrapped.extend(
+            ["/usr/bin/python3", "-S", "-c", _PGID_LAUNCHER, str(pgid_path), *inner_cmd]
+        )
+    else:
+        wrapped.extend(inner_cmd)
 
     t0 = time.monotonic()
     proc = subprocess.Popen(
@@ -158,31 +200,51 @@ def run_measured(
     timed_out = False
     stdout = ""
     stderr = ""
+    child_pgid: int | None = None
     try:
         if cancel_after_s is not None:
             try:
                 stdout, stderr = proc.communicate(timeout=cancel_after_s)
             except subprocess.TimeoutExpired:
+                wait_dl = time.monotonic() + 0.5
+                while (
+                    not pgid_path.is_file()
+                    and proc.poll() is None
+                    and time.monotonic() < wait_dl
+                ):
+                    time.sleep(0.005)
+                if pgid_path.is_file():
+                    try:
+                        child_pgid = int(pgid_path.read_text(encoding="utf-8").strip())
+                    except ValueError:
+                        child_pgid = None
+                target_pgid = child_pgid if child_pgid is not None else proc.pid
                 try:
-                    os.killpg(proc.pid, cancel_signal)
+                    os.killpg(target_pgid, cancel_signal)
                 except ProcessLookupError:
                     pass
                 try:
                     stdout, stderr = proc.communicate(timeout=timeout_s)
                 except subprocess.TimeoutExpired:
                     timed_out = True
-                    _terminate_process_group(proc.pid)
+                    if child_pgid is not None and child_pgid != proc.pid:
+                        _terminate_process_group(child_pgid)
+                    _terminate_process_group(proc.pid, proc=proc)
                     stdout, stderr = proc.communicate()
         else:
             stdout, stderr = proc.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired:
         timed_out = True
-        _terminate_process_group(proc.pid)
+        _terminate_process_group(proc.pid, proc=proc)
         stdout, stderr = proc.communicate()
     finally:
+        if child_pgid is not None and child_pgid != proc.pid:
+            _terminate_process_group(child_pgid)
         if proc.poll() is None:
-            _terminate_process_group(proc.pid)
+            _terminate_process_group(proc.pid, proc=proc)
             proc.wait()
+        pgid_path.unlink(missing_ok=True)
+        Path(f"{pgid_path}.tmp").unlink(missing_ok=True)
 
     wall_measured_s = time.monotonic() - t0
     return MeasuredProcessResult(
@@ -314,28 +376,36 @@ class GuardedEnv:
         self.guard_dir = guard_dir.resolve()
         self.guard_dir.mkdir(parents=True, exist_ok=True)
         self.log_path = self.guard_dir / "audit.jsonl"
+        self.nonce = secrets.token_hex(16)
         site_py = self.guard_dir / "sitecustomize.py"
         site_py.write_text(
             f"""import json, pathlib, sys
 root = pathlib.Path({str(self.repo_root)!r}).resolve()
 allowed = (root / 'tools' / 'rust_engine_kicad.py').resolve()
 log = pathlib.Path({str(self.log_path)!r})
+nonce = {self.nonce!r}
 def record(row):
     with log.open('a', encoding='utf-8') as out:
         out.write(json.dumps(row) + '\\n')
 def check(event, args):
     if event != 'exec':
         return
-    filename = args[0].co_filename
+    code_obj = args[0]
+    filename = code_obj.co_filename
     if filename.startswith('<'):
-        return
+        if filename == '<string>' or (
+            filename.startswith('<frozen ') and filename.endswith('>') and '\\n' not in filename
+        ):
+            return
+        record({{'path': filename, 'co_name': code_obj.co_name, 'allowed': False}})
+        raise RuntimeError('ARCHITECTURE_BOUNDARY: disallowed synthetic code object: ' + filename)
     path = pathlib.Path(filename).resolve()
     if path.is_relative_to(root) or '/src/kicad_route/' in path.as_posix():
         ok = (path == allowed)
         record({{'path': str(path), 'allowed': ok}})
         if not ok:
             raise RuntimeError('ARCHITECTURE_BOUNDARY: project Python policy is forbidden: ' + str(path))
-record({{'guard_started': True}})
+record({{'guard_started': True, 'nonce': nonce}})
 sys.addaudithook(check)
 """,
             encoding="utf-8",
@@ -359,12 +429,17 @@ sys.addaudithook(check)
             return 0
         return len(self.log_path.read_text(encoding="utf-8").splitlines())
 
-    @staticmethod
-    def assert_clean(rows: list[dict[str, Any]], *, require_started: bool = True) -> None:
+    def assert_clean(self, rows: list[dict[str, Any]], *, require_started: bool = True) -> None:
         if require_started:
-            started = sum(1 for r in rows if r.get("guard_started") is True)
+            started = sum(
+                1
+                for r in rows
+                if r.get("guard_started") is True and r.get("nonce") == self.nonce
+            )
             if started < 1:
-                raise AssertionError(f"boundary guard did not start in child Python process: {rows}")
+                raise AssertionError(
+                    f"boundary guard did not start with valid nonce in child Python process: {rows}"
+                )
         disallowed = [r for r in rows if r.get("allowed") is False]
         if disallowed:
             raise AssertionError(f"ARCHITECTURE_BOUNDARY violation detected: {disallowed}")
