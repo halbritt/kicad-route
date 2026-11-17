@@ -15,9 +15,11 @@ import traceback
 from typing import Any, Callable, Literal
 
 from tests.e2e_rust_router.drivers import (
+    AgentEeDriver,
     BuildProvenance,
     JsonWireDriver,
     NativeOrchestrationDriver,
+    ScriptsDriver,
     ensure_engine_binary,
 )
 
@@ -75,6 +77,14 @@ class DriverContext:
 
     def stage_at_least(self, stage: str) -> bool:
         return stage_index(self.target_stage) >= stage_index(stage)
+
+    @property
+    def scripts_driver(self) -> ScriptsDriver:
+        return ScriptsDriver(self.repo_root, self.work_dir / "scripts-driver")
+
+    @property
+    def agent_ee_driver(self) -> AgentEeDriver:
+        return AgentEeDriver(self.repo_root, self.work_dir / "agent-ee-driver")
 
 
 @dataclass(frozen=True)

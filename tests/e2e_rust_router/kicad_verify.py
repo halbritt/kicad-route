@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import shutil
@@ -90,6 +91,7 @@ class BoardBuilder:
         solder_mask_min_width: int | None = None,
         solder_mask_to_copper_clearance: int | None = None,
         solder_mask_expansion: int | None = None,
+        min_resolved_spokes: int | None = None,
     ) -> BoardBuilder:
         ds = self.board.GetDesignSettings()
         if min_track_width is not None:
@@ -110,6 +112,8 @@ class BoardBuilder:
             ds.m_SolderMaskToCopperClearance = solder_mask_to_copper_clearance
         if solder_mask_expansion is not None:
             ds.m_SolderMaskExpansion = solder_mask_expansion
+        if min_resolved_spokes is not None:
+            ds.m_MinResolvedSpokes = min_resolved_spokes
         return self
 
     def set_rect_outline(
@@ -376,6 +380,56 @@ class BoardBuilder:
         self.board.Add(zone)
         return zone
 
+    def add_zone(
+        self,
+        net_name: str,
+        layers: list[int],
+        outline_pts_nm: list[tuple[int, int]],
+        *,
+        priority: int = 0,
+        clearance_nm: int = 250_000,
+        min_thickness_nm: int = 250_000,
+        pad_connection: int | None = None,
+        thermal_gap_nm: int = 500_000,
+        thermal_spoke_nm: int = 500_000,
+        island_removal: int = 0,
+        fill_mode: int = 0,
+        zone_name: str = "",
+        locked: bool = False,
+        hole_pts_nm: list[list[tuple[int, int]]] | None = None,
+    ) -> Any:
+        pn = self.pn
+        zone = pn.ZONE(self.board)
+        lset = pn.LSET()
+        for lid in layers:
+            lset.AddLayer(lid)
+        zone.SetLayerSet(lset)
+        zone.SetIsRuleArea(False)
+        zone.SetNetCode(self.ensure_net(net_name))
+        zone.SetAssignedPriority(priority)
+        zone.SetLocalClearance(clearance_nm)
+        zone.SetMinThickness(min_thickness_nm)
+        zone.SetPadConnection(
+            pn.ZONE_CONNECTION_THERMAL if pad_connection is None else pad_connection
+        )
+        zone.SetThermalReliefGap(thermal_gap_nm)
+        zone.SetThermalReliefSpokeWidth(thermal_spoke_nm)
+        zone.SetIslandRemovalMode(island_removal)
+        zone.SetFillMode(fill_mode)
+        if zone_name:
+            zone.SetZoneName(zone_name)
+        zone.SetLocked(locked)
+        zone.Outline().NewOutline()
+        for x, y in outline_pts_nm:
+            zone.Outline().Append(x, y)
+        if hole_pts_nm:
+            for hole in hole_pts_nm:
+                hi = zone.Outline().NewHole(0)
+                for x, y in hole:
+                    zone.Outline().Append(x, y, 0, hi)
+        self.board.Add(zone)
+        return zone
+
     def set_project_rules(
         self,
         rules: dict[str, Any] | None = None,
@@ -383,8 +437,10 @@ class BoardBuilder:
         classes: list[dict[str, Any]] | None = None,
         netclass_patterns: list[dict[str, str]] | None = None,
         rule_severities: dict[str, str] | None = None,
+        tuning_profiles: dict[str, Any] | None = None,
+        use_height_for_length_calcs: bool | None = None,
     ) -> BoardBuilder:
-        default_rules = {
+        default_rules: dict[str, Any] = {
             "min_clearance": 0.2,
             "min_track_width": 0.2,
             "min_copper_edge_clearance": 0.5,
@@ -398,6 +454,8 @@ class BoardBuilder:
             "allow_blind_buried_vias": False,
             "allow_microvias": False,
         }
+        if use_height_for_length_calcs is not None:
+            default_rules["use_height_for_length_calcs"] = use_height_for_length_calcs
         if rules:
             default_rules.update(rules)
         default_classes = classes or [
@@ -426,6 +484,12 @@ class BoardBuilder:
                 "netclass_patterns": list(netclass_patterns or []),
             },
         }
+        if tuning_profiles is not None:
+            self._pro_data["tuning_profiles"] = tuning_profiles
+        return self
+
+    def set_stackup_sexpr(self, stackup_block: str) -> BoardBuilder:
+        self._stackup_sexpr = stackup_block
         return self
 
     def set_dru_text(self, text: str) -> BoardBuilder:
@@ -437,6 +501,17 @@ class BoardBuilder:
         pcb_path = directory / f"{name}.kicad_pcb"
         if not self.pn.SaveBoard(str(pcb_path), self.board, True):
             raise RuntimeError(f"pcbnew.SaveBoard failed for {pcb_path}")
+        if self._stackup_sexpr is not None:
+            text = pcb_path.read_text(encoding="utf-8")
+            marker = "\t(setup\n"
+            if marker not in text:
+                raise RuntimeError(f"could not locate (setup block in saved board {pcb_path}")
+            indented = "\n".join(
+                ("\t\t" + ln if ln.strip() else ln)
+                for ln in self._stackup_sexpr.strip("\n").splitlines()
+            )
+            text = text.replace(marker, f"{marker}{indented}\n", 1)
+            pcb_path.write_text(text, encoding="utf-8")
         pro_path = None
         dru_path = None
         if self._pro_data is not None:
@@ -537,6 +612,7 @@ def run_native_drc(
     timeout_s: float = 60.0,
     sidecar_source: Path | None = None,
     verify_dru: bool = True,
+    save_board_out: Path | None = None,
 ) -> DrcReport:
     with tempfile.TemporaryDirectory(prefix="e2e-drc-") as tmp:
         stage_dir = Path(tmp)
@@ -556,6 +632,8 @@ def run_native_drc(
         ]
         if refill_zones:
             cmd.append("--refill-zones")
+        if save_board_out is not None:
+            cmd.append("--save-board")
         if check_parity:
             cmd.append("--schematic-parity")
         cmd.extend(["--units", "mm", "-o", str(report_path), str(staged_pcb)])
@@ -594,6 +672,9 @@ def run_native_drc(
             raise AssertionError(f"required DRC checks were ignored: {missing_req}")
         if verify_dru and has_dru:
             verify_dru_loaded(staged_pcb, timeout_s=timeout_s)
+        if save_board_out is not None:
+            save_board_out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(staged_pcb, save_board_out)
         return DrcReport(
             raw=data,
             violations=data["violations"],
@@ -602,6 +683,28 @@ def run_native_drc(
             schematic_parity=data["schematic_parity"],
             console=console,
         )
+
+
+def run_native_drc_refilled(
+    board_path: Path,
+    *,
+    refilled_out: Path | None = None,
+    check_parity: bool = False,
+    require_checks: tuple[str, ...] = (),
+    timeout_s: float = 60.0,
+    sidecar_source: Path | None = None,
+    verify_dru: bool = True,
+) -> DrcReport:
+    return run_native_drc(
+        board_path,
+        refill_zones=True,
+        check_parity=check_parity,
+        require_checks=require_checks,
+        timeout_s=timeout_s,
+        sidecar_source=sidecar_source,
+        verify_dru=verify_dru,
+        save_board_out=refilled_out,
+    )
 
 
 def verify_dru_loaded(
@@ -995,6 +1098,11 @@ def verify_routed_board(
     allow_removed_track_ids: tuple[str, ...] | set[str] = (),
     require_checks: tuple[str, ...] = (),
     verify_dru: bool = True,
+    check_pour_integrity: bool = False,
+    pour_area_loss_pct: float | None = None,
+    pour_min_spokes: int | None = None,
+    check_partition_ratchet: bool = False,
+    check_parity: bool = False,
 ) -> dict[str, Any]:
     _, added = verify_preservation(
         before_pcb, after_pcb, allow_removed_track_ids=allow_removed_track_ids
@@ -1029,12 +1137,14 @@ def verify_routed_board(
     before_drc = run_native_drc(
         before_pcb,
         refill_zones=refill_zones,
+        check_parity=check_parity,
         require_checks=require_checks,
         verify_dru=verify_dru,
     )
     after_drc = run_native_drc(
         after_pcb,
         refill_zones=refill_zones,
+        check_parity=check_parity,
         require_checks=require_checks,
         sidecar_source=before_pcb,
         verify_dru=verify_dru,
@@ -1046,10 +1156,789 @@ def verify_routed_board(
     introduced, resolved = diff_drc_violations(before_drc, after_drc)
     if introduced:
         raise AssertionError(f"routed board introduced native DRC violations: {introduced}")
+    if check_partition_ratchet:
+        verify_partition_ratchet(before_pcb, after_pcb)
+    pour_info: dict[str, Any] | None = None
+    if check_pour_integrity:
+        pour_rep = verify_pour_integrity(
+            before_pcb,
+            after_pcb,
+            area_loss_pct=pour_area_loss_pct,
+            min_spokes=pour_min_spokes,
+            sidecar_source=before_pcb,
+            check_parity=check_parity,
+            verify_dru=verify_dru,
+        )
+        if not pour_rep.passed:
+            raise AssertionError(f"pour_integrity failed: {pour_rep.failures}")
+        pour_info = {"min_spokes": pour_rep.min_spokes, "layers": pour_rep.layers}
     return {
         "added_count": len(added),
         "unconnected_count": conn.unconnected_count,
         "before_violations": len(before_drc.violations),
         "after_violations": len(after_drc.violations),
         "resolved_violations": len(resolved),
+        **({"pour_integrity": pour_info} if pour_info is not None else {}),
+    }
+
+
+
+class _DisjointSet:
+    def __init__(self) -> None:
+        self.parent: dict[Any, Any] = {}
+
+    def find(self, a: Any) -> Any:
+        self.parent.setdefault(a, a)
+        while self.parent[a] != a:
+            self.parent[a] = self.parent[self.parent[a]]
+            a = self.parent[a]
+        return a
+
+    def union(self, a: Any, b: Any) -> None:
+        ra, rb = self.find(a), self.find(b)
+        if ra != rb:
+            if str(ra) > str(rb):
+                ra, rb = rb, ra
+            self.parent[rb] = ra
+
+
+def _seg_dist2_nm(p: tuple[int, int], a: tuple[int, int], b: tuple[int, int]) -> float:
+    ax, ay = a
+    bx, by = b
+    px, py = p
+    dx, dy = bx - ax, by - ay
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length2))
+    cx, cy = ax + t * dx, ay + t * dy
+    return (px - cx) ** 2 + (py - cy) ** 2
+
+
+def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
+    """Extract native pour/spoke/island facts from a refilled .kicad_pcb via pcbnew."""
+    pn = _pcbnew()
+    nm = 1_000_000
+    edge_band = 20_000
+    cell = 2 * nm
+    leaf_vertices = 256
+    leaf_size = nm // 2
+
+    board = pn.LoadBoard(str(refilled_pcb))
+    if board is None:
+        raise AssertionError(f"pcbnew could not load refilled board {refilled_pcb}")
+    bds = board.GetDesignSettings()
+    max_err = int(bds.m_MaxError)
+    lname = board.GetLayerName
+    conn_names = {
+        pn.ZONE_CONNECTION_NONE: "none",
+        pn.ZONE_CONNECTION_THERMAL: "thermal",
+        pn.ZONE_CONNECTION_FULL: "solid",
+        pn.ZONE_CONNECTION_THT_THERMAL: "tht_thermal",
+    }
+
+    def shape(item: Any, layer: int, clearance: int = 0, err: int | None = None) -> Any:
+        s = pn.SHAPE_POLY_SET()
+        item.TransformShapeToPolygon(
+            s, layer, int(clearance), max_err, pn.ERROR_INSIDE if err is None else err
+        )
+        return s
+
+    def overlap(a: Any, b: Any) -> float:
+        if not a.BBox().Intersects(b.BBox()):
+            return 0.0
+        x = pn.SHAPE_POLY_SET(a)
+        x.BooleanIntersection(b)
+        return float(x.Area())
+
+    def rect(x0: int, y0: int, x1: int, y1: int) -> Any:
+        r = pn.SHAPE_POLY_SET()
+        r.NewOutline()
+        for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+            r.Append(int(x), int(y))
+        return r
+
+    def bounds(bb: Any) -> tuple[int, int, int, int]:
+        return int(bb.GetLeft()), int(bb.GetTop()), int(bb.GetRight()), int(bb.GetBottom())
+
+    def hits(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+        return a[0] <= b[2] and b[0] <= a[2] and a[1] <= b[3] and b[1] <= a[3]
+
+    def tile(poly: Any, bb: tuple[int, int, int, int] | None = None) -> list[tuple[tuple[int, int, int, int], Any]]:
+        bb = bb or bounds(poly.BBox())
+        if poly.TotalVertices() <= leaf_vertices or max(bb[2] - bb[0], bb[3] - bb[1]) <= leaf_size:
+            return [(bounds(poly.BBox()), poly)]
+        mx, my = (bb[0] + bb[2]) // 2, (bb[1] + bb[3]) // 2
+        out: list[tuple[tuple[int, int, int, int], Any]] = []
+        for q in (
+            (bb[0], bb[1], mx, my),
+            (mx, bb[1], bb[2], my),
+            (bb[0], my, mx, bb[3]),
+            (mx, my, bb[2], bb[3]),
+        ):
+            part = pn.SHAPE_POLY_SET(poly)
+            part.BooleanIntersection(rect(*q))
+            if part.OutlineCount():
+                out.extend(tile(part, q))
+        return out
+
+    def area_on(s: Any, tiles: list[tuple[tuple[int, int, int, int], Any]]) -> float:
+        sb = bounds(s.BBox())
+        return sum(overlap(s, piece) for tb, piece in tiles if hits(sb, tb))
+
+    def mm(v: float) -> float:
+        return round(v / nm, 4)
+
+    def box(s: Any) -> list[float]:
+        bb = s.BBox()
+        return [mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom())]
+
+    zones = [z for z in board.Zones() if not z.GetIsRuleArea() and z.GetNetCode() > 0]
+    zone_nets = {z.GetNetname() for z in zones}
+
+    pads: dict[str, Any] = {}
+    for fp in board.GetFootprints():
+        seen_nums: set[str] = set()
+        for pad in fp.Pads():
+            key = pad.GetNumber() or f"<unnumbered@{pad.GetPosition().x},{pad.GetPosition().y}>"
+            while key in seen_nums:
+                key += "'"
+            seen_nums.add(key)
+            if pad.GetNetname() in zone_nets:
+                pads[f"{fp.GetReference()}.{key}"] = pad
+
+    tracks: list[Any] = []
+    vias: list[Any] = []
+    for t in board.GetTracks():
+        if t.GetNetname() not in zone_nets:
+            continue
+        if isinstance(t, pn.PCB_VIA):
+            vias.append(t)
+        else:
+            tracks.append(t)
+
+    def track_points(t: Any) -> list[tuple[int, int]]:
+        pts = [(int(t.GetStart().x), int(t.GetStart().y))]
+        if isinstance(t, pn.PCB_ARC):
+            pts.append((int(t.GetMid().x), int(t.GetMid().y)))
+        pts.append((int(t.GetEnd().x), int(t.GetEnd().y)))
+        return pts
+
+    uf = _DisjointSet()
+    polygons: dict[str, dict[str, Any]] = {}
+    filled_layers: set[tuple[str, int]] = set()
+    for zi, z in enumerate(
+        sorted(zones, key=lambda item: (item.GetNetname(), item.GetZoneName(), -item.GetAssignedPriority()))
+    ):
+        net = z.GetNetname()
+        for layer in z.GetLayerSet().CuStack():
+            if not z.HasFilledPolysForLayer(layer):
+                continue
+            fill = z.GetFilledPolysList(layer)
+            filled_layers.add((net, layer))
+            pieces = []
+            for i in range(fill.OutlineCount()):
+                s = pn.SHAPE_POLY_SET()
+                s.AddOutline(fill.COutline(i))
+                pieces.append(s)
+            pieces.sort(key=lambda s: -s.Area())
+            for i, s in enumerate(pieces):
+                pid = f"{net}@{lname(layer)}/{z.GetZoneName() or 'zone' + str(zi)}#{i}"
+                polygons[pid] = {
+                    "net": net,
+                    "layer": lname(layer),
+                    "zone": z.GetZoneName(),
+                    "area_mm2": round(s.Area() / nm / nm, 4),
+                    "bbox_mm": box(s),
+                    "pads": [],
+                    "vias": 0,
+                    "tracks": 0,
+                    "_tiles": tile(s),
+                    "_bounds": bounds(s.BBox()),
+                    "_layer": layer,
+                }
+                uf.find(("poly", pid))
+
+    def polys_on(net: str, layer: int) -> list[tuple[str, dict[str, Any]]]:
+        return [(pid, p) for pid, p in polygons.items() if p["net"] == net and p["_layer"] == layer]
+
+    def local_fill(net: str, layer: int, bb: tuple[int, int, int, int]) -> Any:
+        out = pn.SHAPE_POLY_SET()
+        for p in polygons.values():
+            if p["net"] != net or p["_layer"] != layer or not hits(bb, p["_bounds"]):
+                continue
+            for tb, piece in p["_tiles"]:
+                if hits(bb, tb):
+                    out.BooleanAdd(piece)
+        if out.OutlineCount():
+            out.BooleanIntersection(rect(*bb))
+        return out
+
+    def in_fill(net: str, layer: int, pt: Any) -> bool:
+        b = (int(pt.x), int(pt.y), int(pt.x), int(pt.y))
+        return any(
+            hits(b, tb) and piece.Contains(pt)
+            for p in polygons.values()
+            if p["net"] == net and p["_layer"] == layer and hits(b, p["_bounds"])
+            for tb, piece in p["_tiles"]
+        )
+
+    ids = sorted(polygons)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1 :]:
+            pa, pb = polygons[a], polygons[b]
+            if (
+                pa["net"] == pb["net"]
+                and pa["_layer"] == pb["_layer"]
+                and pa["zone"] != pb["zone"]
+                and hits(pa["_bounds"], pb["_bounds"])
+                and any(hits(ta, tb) and overlap(qa, qb) > 0 for ta, qa in pa["_tiles"] for tb, qb in pb["_tiles"])
+            ):
+                uf.union(("poly", a), ("poly", b))
+
+    pad_shapes: dict[tuple[str, int], Any] = {}
+    for key, pad in pads.items():
+        uf.find(("pad", key))
+        for layer in pad.GetLayerSet().CuStack():
+            s = shape(pad, layer)
+            pad_shapes[(key, layer)] = s
+            for pid, p in polys_on(pad.GetNetname(), layer):
+                if area_on(s, p["_tiles"]) > 0:
+                    p["pads"].append(key)
+                    uf.union(("pad", key), ("poly", pid))
+
+    via_shapes: list[dict[int, Any]] = []
+    via_fill: set[int] = set()
+    for vi, v in enumerate(vias):
+        uf.find(("via", vi))
+        per_layer: dict[int, Any] = {}
+        for layer in v.GetLayerSet().CuStack():
+            if not v.FlashLayer(layer):
+                continue
+            s = shape(v, layer)
+            per_layer[layer] = s
+            for pid, p in polys_on(v.GetNetname(), layer):
+                if area_on(s, p["_tiles"]) > 0:
+                    p["vias"] += 1
+                    via_fill.add(vi)
+                    uf.union(("via", vi), ("poly", pid))
+        via_shapes.append(per_layer)
+
+    grid: dict[tuple[str, int, tuple[int, int]], list[tuple[str, Any, Any]]] = {}
+
+    def cells(x0: int, y0: int, x1: int, y1: int):
+        for gx in range(int(x0 // cell), int(x1 // cell) + 1):
+            for gy in range(int(y0 // cell), int(y1 // cell) + 1):
+                yield gx, gy
+
+    def insert(net: str, layer: int, bb: tuple[int, int, int, int], item: tuple[str, Any, Any]) -> None:
+        for c in cells(*bb):
+            grid.setdefault((net, layer, c), []).append(item)
+
+    def near(net: str, layer: int, pt: tuple[int, int]) -> list[tuple[str, Any, Any]]:
+        return grid.get((net, layer, (int(pt[0] // cell), int(pt[1] // cell))), [])
+
+    for (key, layer), s in pad_shapes.items():
+        bb = s.BBox()
+        insert(pads[key].GetNetname(), layer, (bb.GetLeft(), bb.GetTop(), bb.GetRight(), bb.GetBottom()), ("pad", key, s))
+    for vi, per_layer in enumerate(via_shapes):
+        for layer, s in per_layer.items():
+            bb = s.BBox()
+            insert(vias[vi].GetNetname(), layer, (bb.GetLeft(), bb.GetTop(), bb.GetRight(), bb.GetBottom()), ("via", vi, s))
+    track_data: list[tuple[int, str, list[tuple[int, int]], int]] = []
+    for ti, t in enumerate(tracks):
+        pts, w = track_points(t), int(t.GetWidth())
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        track_data.append((int(t.GetLayer()), t.GetNetname(), pts, w))
+        insert(t.GetNetname(), int(t.GetLayer()), (min(xs) - w, min(ys) - w, max(xs) + w, max(ys) + w), ("track", ti, None))
+
+    track_pads: dict[str, list[tuple[int, int]]] = {}
+    for ti, (layer, net, pts, w) in enumerate(track_data):
+        uf.find(("track", ti))
+        s = shape(tracks[ti], layer)
+        for pid, p in polys_on(net, layer):
+            if area_on(s, p["_tiles"]) > 0:
+                p["tracks"] += 1
+                uf.union(("track", ti), ("poly", pid))
+        for end in (pts[0], pts[-1]):
+            seen_items: set[tuple[str, Any]] = set()
+            for kind, ident, other in near(net, layer, end):
+                if (kind, ident) in seen_items or (kind == "track" and ident == ti):
+                    continue
+                seen_items.add((kind, ident))
+                if kind == "track":
+                    _, _, opts, ow = track_data[ident]
+                    tol2 = (max(w, ow) / 2.0) ** 2
+                    hit = any(_seg_dist2_nm(end, q0, q1) <= tol2 for q0, q1 in zip(opts, opts[1:]))
+                else:
+                    hit = bool(other.Contains(pn.VECTOR2I(int(end[0]), int(end[1]))))
+                if hit:
+                    uf.union(("track", ti), (kind, ident))
+                    if kind == "pad" and (ti, layer) not in track_pads.get(ident, []):
+                        track_pads.setdefault(ident, []).append((ti, layer))
+
+    comp_area: dict[str, dict[Any, float]] = {}
+    for pid, p in polygons.items():
+        root = uf.find(("poly", pid))
+        comp_area.setdefault(p["net"], {}).setdefault(root, 0.0)
+        comp_area[p["net"]][root] += p["area_mm2"]
+    main = {net: max(c.items(), key=lambda kv: (kv[1], str(kv[0])))[0] for net, c in comp_area.items()}
+    for pid, p in polygons.items():
+        p["in_main"] = uf.find(("poly", pid)) == main.get(p["net"])
+
+    pad_records: dict[str, dict[str, Any]] = {}
+    for z in sorted(zones, key=lambda item: -item.GetAssignedPriority()):
+        net = z.GetNetname()
+        zone_conn = z.GetPadConnection()
+        for layer in z.GetLayerSet().CuStack():
+            for key, pad in pads.items():
+                rec_key = f"{key}@{lname(layer)}"
+                if pad.GetNetname() != net or (key, layer) not in pad_shapes or rec_key in pad_records:
+                    continue
+                fp = pad.GetParentFootprint()
+                conn = pad.GetLocalZoneConnection()
+                if conn == pn.ZONE_CONNECTION_INHERITED and fp is not None:
+                    conn = fp.GetLocalZoneConnection()
+                if conn == pn.ZONE_CONNECTION_INHERITED:
+                    conn = zone_conn
+                pth = pad.GetAttribute() == pn.PAD_ATTRIB_PTH
+                if conn == pn.ZONE_CONNECTION_THT_THERMAL:
+                    conn = pn.ZONE_CONNECTION_THERMAL if pth else pn.ZONE_CONNECTION_FULL
+                gap = pad.GetLocalThermalGapOverride()
+                gap_nm = int(gap) if gap is not None else int(z.GetThermalReliefGap())
+                reach = shape(pad, layer, gap_nm)
+                if overlap(reach, z.Outline()) <= 0:
+                    continue
+                ps = pad_shapes[(key, layer)]
+                rb = bounds(reach.BBox())
+                fill = local_fill(net, layer, rb) if (net, layer) in filled_layers else None
+                touches = fill is not None and overlap(ps, fill) > 0
+                spokes, coverage, solid, track_spokes = 0, 0.0, False, 0
+                if fill is not None:
+                    ring = shape(pad, layer, edge_band)
+                    ring.BooleanSubtract(shape(pad, layer, -edge_band, pn.ERROR_OUTSIDE))
+                    hit = pn.SHAPE_POLY_SET(ring)
+                    hit.BooleanIntersection(fill)
+                    spokes = int(hit.OutlineCount())
+                    ring_area = ring.Area()
+                    coverage = hit.Area() / ring_area if ring_area > 0 else 0.0
+                    solid = any(hit.HoleCount(i) > 0 for i in range(hit.OutlineCount()))
+                for ti in {ti for ti, lyr in track_pads.get(key, []) if lyr == layer}:
+                    ends = [pn.VECTOR2I(int(x), int(y)) for x, y in (track_data[ti][2][0], track_data[ti][2][-1])]
+                    inside = [bool(ps.Contains(e)) for e in ends]
+                    if inside.count(True) == 1 and in_fill(net, layer, ends[inside.index(False)]):
+                        track_spokes += 1
+                on_layer = [ti for ti, lyr in track_pads.get(key, []) if lyr == layer]
+                via_spokes = sum(
+                    1
+                    for vi in via_fill
+                    if vias[vi].GetNetname() == net
+                    and layer in via_shapes[vi]
+                    and overlap(via_shapes[vi][layer], ps) > 0
+                )
+                pos = pad.GetPosition()
+                pad_records[rec_key] = {
+                    "pad": key,
+                    "net": net,
+                    "layer": lname(layer),
+                    "zone": z.GetZoneName(),
+                    "position_mm": [mm(pos.x), mm(pos.y)],
+                    "pth": pth,
+                    "connection": conn_names.get(conn, str(conn)),
+                    "thermal_gap_mm": mm(gap_nm),
+                    "touches_fill": touches,
+                    "spokes": spokes,
+                    "ring_coverage": round(coverage, 3),
+                    "solid": solid,
+                    "polygons": sorted(pid for pid, p in polys_on(net, layer) if key in p["pads"]),
+                    "in_main": uf.find(("pad", key)) == main.get(net),
+                    "tracks_on_layer": len(on_layer),
+                    "tracks_attached": len(track_pads.get(key, [])),
+                    "track_spokes": track_spokes,
+                    "via_spokes": via_spokes,
+                }
+
+    layers: dict[str, dict[str, Any]] = {}
+    for p in polygons.values():
+        lk = f"{p['net']}@{p['layer']}"
+        rec = layers.setdefault(
+            lk,
+            {"net": p["net"], "layer": p["layer"], "area_mm2": 0.0, "polygons": 0, "islands_off_main": 0},
+        )
+        rec["area_mm2"] = round(rec["area_mm2"] + p["area_mm2"], 4)
+        rec["polygons"] += 1
+        rec["islands_off_main"] += 0 if p["in_main"] else 1
+    return {
+        "schema": 1,
+        "board": refilled_pcb.name,
+        "min_resolved_spokes": int(bds.m_MinResolvedSpokes),
+        "zones": sorted(
+            (
+                {
+                    "name": z.GetZoneName(),
+                    "net": z.GetNetname(),
+                    "layers": sorted(lname(l) for l in z.GetLayerSet().CuStack()),
+                    "connection": conn_names.get(z.GetPadConnection(), str(z.GetPadConnection())),
+                }
+                for z in zones
+            ),
+            key=lambda r: json.dumps(r, sort_keys=True),
+        ),
+        "layers": dict(sorted(layers.items())),
+        "polygons": {
+            pid: {k: v for k, v in p.items() if not k.startswith("_")} | {"pads": sorted(p["pads"])}
+            for pid, p in sorted(polygons.items())
+        },
+        "pads": dict(sorted(pad_records.items())),
+    }
+
+
+@dataclass(frozen=True)
+class PourIntegrityReport:
+    passed: bool
+    failures: list[dict[str, Any]]
+    informational: list[dict[str, Any]]
+    layers: list[dict[str, Any]]
+    pads: list[dict[str, Any]]
+    min_spokes: int
+
+
+def verify_pour_integrity(
+    before_pcb: Path,
+    after_pcb: Path,
+    *,
+    area_loss_pct: float | None = None,
+    min_spokes: int | None = None,
+    sidecar_source: Path | None = None,
+    check_parity: bool = False,
+    verify_dru: bool = True,
+) -> PourIntegrityReport:
+    with tempfile.TemporaryDirectory(prefix="e2e-pour-") as tmp:
+        td = Path(tmp)
+        ref_refilled = td / "before-refilled.kicad_pcb"
+        cand_refilled = td / "after-refilled.kicad_pcb"
+        run_native_drc_refilled(
+            before_pcb,
+            refilled_out=ref_refilled,
+            check_parity=check_parity,
+            verify_dru=verify_dru,
+        )
+        run_native_drc_refilled(
+            after_pcb,
+            refilled_out=cand_refilled,
+            check_parity=check_parity,
+            sidecar_source=sidecar_source or before_pcb,
+            verify_dru=verify_dru,
+        )
+        ref = extract_pour_facts(ref_refilled)
+        cand = extract_pour_facts(cand_refilled)
+
+    board_min = int(ref.get("min_resolved_spokes") or 0)
+    minimum = max(board_min, int(min_spokes or 0))
+    failures: list[dict[str, Any]] = []
+    info: list[dict[str, Any]] = []
+
+    def eff_spokes(p: dict[str, Any]) -> float:
+        return float("inf") if p["solid"] else float(p["spokes"] + p["track_spokes"])
+
+    layers: list[dict[str, Any]] = []
+    for lk in sorted(set(ref["layers"]) | set(cand["layers"])):
+        r, c = ref["layers"].get(lk), cand["layers"].get(lk)
+        ra, ca = (r or {}).get("area_mm2", 0.0), (c or {}).get("area_mm2", 0.0)
+        pct = round(100.0 * (ca - ra) / ra, 3) if ra else None
+        rec = {
+            "net_layer": lk,
+            "area_mm2": [ra, ca],
+            "area_delta_pct": pct,
+            "polygons": [(r or {}).get("polygons", 0), (c or {}).get("polygons", 0)],
+            "islands_off_main": [(r or {}).get("islands_off_main", 0), (c or {}).get("islands_off_main", 0)],
+        }
+        layers.append(rec)
+        if area_loss_pct is not None and pct is not None and -pct > area_loss_pct:
+            failures.append(
+                {
+                    "kind": "area_loss",
+                    "net_layer": lk,
+                    "area_mm2": [ra, ca],
+                    "delta_pct": pct,
+                    "limit_pct": area_loss_pct,
+                }
+            )
+
+    pads_out: list[dict[str, Any]] = []
+    for key in sorted(set(ref["pads"]) | set(cand["pads"])):
+        r, c = ref["pads"].get(key), cand["pads"].get(key)
+        if r is None or c is None:
+            if r is not None and r["connection"] != "none" and r["touches_fill"]:
+                failures.append({"kind": "lost_pad_reach", "pad": key, "connection": r["connection"]})
+            else:
+                info.append({"kind": "pad_reach_changed", "pad": key, "reference": r is not None, "candidate": c is not None})
+            continue
+        if r["connection"] == "none":
+            continue
+        rec = {
+            "pad": key,
+            "connection": r["connection"],
+            "touches_fill": [r["touches_fill"], c["touches_fill"]],
+            "spokes": [r["spokes"], c["spokes"]],
+            "solid": [r["solid"], c["solid"]],
+            "track_spokes": [r["track_spokes"], c["track_spokes"]],
+            "in_main": [r["in_main"], c["in_main"]],
+        }
+        pads_out.append(rec)
+        if r["touches_fill"] and not c["touches_fill"]:
+            failures.append({"kind": "lost_fill_contact", **rec})
+            continue
+        if r["in_main"] and not c["in_main"]:
+            failures.append({"kind": "isolated_island", **rec})
+            continue
+        es_r, es_c = eff_spokes(r), eff_spokes(c)
+        if r["connection"] == "thermal" and r["touches_fill"] and es_r >= minimum > es_c:
+            failures.append({"kind": "spokes_below_minimum", **rec, "minimum": minimum})
+        elif es_c < es_r or (r["solid"] and not c["solid"]):
+            info.append({"kind": "spokes_reduced", **rec})
+
+    return PourIntegrityReport(
+        passed=not failures,
+        failures=failures,
+        informational=info,
+        layers=layers,
+        pads=pads_out,
+        min_spokes=minimum,
+    )
+
+
+def find_split_partitions(before_pcb: Path, after_pcb: Path) -> list[dict[str, Any]]:
+    """Return any pre-existing >=2-pad connected component that was split in after_pcb."""
+    before_conn = read_native_connectivity(before_pcb)
+    after_conn = read_native_connectivity(after_pcb)
+    splits: list[dict[str, Any]] = []
+    for net_name, comps_before in sorted(before_conn.pad_partitions_by_net.items()):
+        comps_after = after_conn.pad_partitions_by_net.get(net_name, [])
+        for comp in comps_before:
+            if len(comp) < 2:
+                continue
+            if not any(comp <= after_comp for after_comp in comps_after):
+                splits.append({"net": net_name, "pads": sorted(comp)})
+    return splits
+
+
+def verify_partition_ratchet(before_pcb: Path, after_pcb: Path) -> None:
+    splits = find_split_partitions(before_pcb, after_pcb)
+    if splits:
+        raise AssertionError(f"pre-existing connected terminal partitions split: {splits}")
+
+
+@dataclass(frozen=True)
+class FromToGroupReport:
+    passed: bool
+    unit: str
+    measurements: list[dict[str, Any]]
+    skew_violations: list[dict[str, Any]]
+    unconnected_items: list[dict[str, Any]]
+    coverage_errors: list[str]
+
+
+_FROMTO_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.]+$")
+_ACTUAL_MEASURE_RE = re.compile(r"actual\s+(-?\d+(?:\.\d+)?)\s*(mm|ps)\b")
+
+
+def verify_fromto_length_groups(
+    board_path: Path,
+    groups: list[list[str]],
+    *,
+    tolerance_mm: float | None = None,
+    tolerance_ps: float | None = None,
+    sidecar_source: Path | None = None,
+    timeout_s: float = 60.0,
+) -> FromToGroupReport:
+    if (tolerance_mm is None) == (tolerance_ps is None):
+        raise ValueError("specify exactly one of tolerance_mm or tolerance_ps")
+    unit = "ps" if tolerance_ps is not None else "mm"
+    tol = float(tolerance_ps if tolerance_ps is not None else tolerance_mm)
+
+    pn = _pcbnew()
+    board = pn.LoadBoard(str(board_path))
+    if board is None:
+        raise AssertionError(f"pcbnew could not load {board_path}")
+    zone_nets = {z.GetNetname() for z in board.Zones() if not z.GetIsRuleArea() and z.GetNetCode() > 0}
+
+    pads_by_net: dict[str, list[str]] = defaultdict(list)
+    for fp in board.GetFootprints():
+        ref = fp.GetReference()
+        for pad in fp.Pads():
+            if pad.GetNetCode() > 0:
+                num = pad.GetNumber()
+                if _FROMTO_TOKEN_RE.match(ref) and _FROMTO_TOKEN_RE.match(num):
+                    pads_by_net[pad.GetNetname()].append(f"{ref}-{num}")
+
+    measurements: list[dict[str, Any]] = []
+    skew_violations: list[dict[str, Any]] = []
+    unconnected_all: list[dict[str, Any]] = []
+    coverage_errors: list[str] = []
+
+    for g_idx, group in enumerate(groups):
+        if len(group) < 2:
+            raise ValueError(f"fromTo group {g_idx} needs at least 2 nets")
+        clauses: list[str] = []
+        for net_name in group:
+            if net_name in zone_nets:
+                coverage_errors.append(f"net {net_name!r} has zone copper")
+                continue
+            terms = pads_by_net.get(net_name, [])
+            if len(terms) != 2:
+                coverage_errors.append(f"net {net_name!r} has {len(terms)} valid fromTo terminals (expected 2)")
+                continue
+            clauses.append(f"A.fromTo('{terms[0]}', '{terms[1]}')")
+        if len(clauses) != len(group):
+            continue
+
+        with tempfile.TemporaryDirectory(prefix=f"e2e-fromto-{g_idx}-") as tmp:
+            td = Path(tmp)
+            staged_pcb = _stage_board_bundle(board_path, td, sidecar_source=sidecar_source)
+            pro_path = staged_pcb.with_suffix(".kicad_pro")
+            pro_data = json.loads(pro_path.read_text(encoding="utf-8")) if pro_path.is_file() else {"meta": {"version": 3}}
+            pro_data.setdefault("board", {}).setdefault("design_settings", {}).setdefault("rule_severities", {})
+            pro_data["board"]["design_settings"]["rule_severities"]["length_out_of_range"] = "error"
+            pro_data["board"]["design_settings"]["rule_severities"]["skew_out_of_range"] = "error"
+            pro_path.write_text(json.dumps(pro_data, indent=2) + "\n", encoding="utf-8")
+
+            dru_path = staged_pcb.with_suffix(".kicad_dru")
+            existing_dru = dru_path.read_text(encoding="utf-8") if dru_path.is_file() else "(version 1)\n"
+            rule_name = f"_e2e_fromto_group_{g_idx}"
+            cond = " || ".join(clauses)
+            dru_rule = (
+                f'\n(rule "{rule_name}"\n'
+                f'  (condition "{cond}")\n'
+                f"  (constraint length (max 0{unit}))\n"
+                f"  (constraint skew (max {tol}{unit}))\n"
+                f")\n"
+            )
+            dru_path.write_text(existing_dru.rstrip() + dru_rule, encoding="utf-8")
+
+            drc = run_native_drc(
+                staged_pcb,
+                require_checks=("length_out_of_range", "skew_out_of_range"),
+                timeout_s=timeout_s,
+                verify_dru=False,
+            )
+            unconnected_all.extend(drc.unconnected_items)
+            len_hits = [
+                v
+                for v in drc.violations
+                if v.get("type") == "length_out_of_range" and rule_name in v.get("description", "")
+            ]
+            skew_hits = [
+                v
+                for v in drc.violations
+                if v.get("type") == "skew_out_of_range" and rule_name in v.get("description", "")
+            ]
+            skew_violations.extend(skew_hits)
+            if len(len_hits) != len(group):
+                coverage_errors.append(
+                    f"group {g_idx} expected {len(group)} fromTo length findings, got {len(len_hits)}"
+                )
+            for hit in len_hits:
+                desc = str(hit.get("description", ""))
+                m = _ACTUAL_MEASURE_RE.search(desc)
+                measurements.append(
+                    {
+                        "group": g_idx,
+                        "description": desc,
+                        "actual": float(m.group(1)) if m else None,
+                        "unit": m.group(2) if m else unit,
+                    }
+                )
+
+    passed = not skew_violations and not unconnected_all and not coverage_errors
+    return FromToGroupReport(
+        passed=passed,
+        unit=unit,
+        measurements=measurements,
+        skew_violations=skew_violations,
+        unconnected_items=unconnected_all,
+        coverage_errors=coverage_errors,
+    )
+
+
+def _net_planar_length_mm(board: Any, net_name: str) -> float:
+    total_nm = 0.0
+    for tr in board.GetTracks():
+        if tr.GetNetname() != net_name:
+            continue
+        cls = tr.GetClass()
+        if cls == "PCB_ARC":
+            total_nm += float(tr.GetLength())
+        elif cls == "PCB_TRACK":
+            dx = float(tr.GetEnd().x - tr.GetStart().x)
+            dy = float(tr.GetEnd().y - tr.GetStart().y)
+            total_nm += math.hypot(dx, dy)
+    return round(total_nm / 1_000_000.0, 6)
+
+
+def verify_diff_pair_native(
+    before_pcb: Path,
+    after_pcb: Path,
+    pairs: list[tuple[str, str]],
+    *,
+    check_drc_rules: bool = True,
+    sidecar_source: Path | None = None,
+) -> dict[str, Any]:
+    pn = _pcbnew()
+    board = pn.LoadBoard(str(after_pcb))
+    if board is None:
+        raise AssertionError(f"pcbnew could not load {after_pcb}")
+    conn = read_native_connectivity(after_pcb)
+    drc = (
+        run_native_drc(
+            after_pcb,
+            sidecar_source=(sidecar_source or before_pcb),
+            verify_dru=False,
+        )
+        if check_drc_rules
+        else None
+    )
+    pair_gap_errs = (
+        [v for v in drc.violations if v.get("type") == "diff_pair_gap_out_of_range"]
+        if drc is not None
+        else []
+    )
+    uncoupled_errs = (
+        [v for v in drc.violations if v.get("type") == "diff_pair_uncoupled_length_too_long"]
+        if drc is not None
+        else []
+    )
+    if pair_gap_errs:
+        raise AssertionError(f"diff_pair_gap_out_of_range violations: {pair_gap_errs}")
+    if uncoupled_errs:
+        raise AssertionError(f"diff_pair_uncoupled_length_too_long violations: {uncoupled_errs}")
+
+    pair_records: list[dict[str, Any]] = []
+    for p_net, n_net in pairs:
+        p_parts = conn.pad_partitions_by_net.get(p_net, [])
+        n_parts = conn.pad_partitions_by_net.get(n_net, [])
+        p_ok = len(p_parts) == 1
+        n_ok = len(n_parts) == 1
+        if p_ok != n_ok:
+            raise AssertionError(
+                f"single-ended partial fallback detected on diff pair ({p_net}, {n_net}): "
+                f"p_parts={len(p_parts)}, n_parts={len(n_parts)}"
+            )
+        if not (p_ok and n_ok):
+            raise AssertionError(
+                f"diff pair ({p_net}, {n_net}) incomplete: p_parts={len(p_parts)}, n_parts={len(n_parts)}"
+            )
+        len_p = _net_planar_length_mm(board, p_net)
+        len_n = _net_planar_length_mm(board, n_net)
+        pair_records.append(
+            {
+                "p": p_net,
+                "n": n_net,
+                "length_p_mm": len_p,
+                "length_n_mm": len_n,
+                "skew_mm": round(abs(len_p - len_n), 6),
+            }
+        )
+    return {
+        "pairs": pair_records,
+        "gap_violations": len(pair_gap_errs),
+        "uncoupled_violations": len(uncoupled_errs),
     }

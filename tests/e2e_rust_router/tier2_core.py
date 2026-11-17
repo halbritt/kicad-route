@@ -1991,7 +1991,30 @@ def t2_f6_04(ctx: DriverContext) -> dict[str, Any]:
             assert res.export_res.stderr_json.get("status") in ("invalid", "unsupported")
         assert_source_dir_untouched(bundle.directory, before_hashes)
         assert not out_pcb.exists()
-    return {"checked": [c[0] for c in cases]}
+    checked = [c[0] for c in cases]
+    if m3_mode == "native" and "--project" in ctx.native_driver.probe().help_stdout:
+        sub = ctx.work_dir / "wrong_pro_stem"
+        bundle = build_std_2pad_board(sub / "src", name="main", seed=1604)
+        other_pro = sub / "src" / "other.kicad_pro"
+        other_pro.write_text('{"meta": {"version": 3}}\n', encoding="utf-8")
+        before_hashes = snapshot_source_dir(bundle.directory)
+        out_pcb = sub / "out" / "routed.kicad_pcb"
+        out_pcb.parent.mkdir(parents=True, exist_ok=True)
+        rules_p = write_json_file(sub / "rules.json", STD_RULES)
+        proc = ctx.native_driver.run_native(
+            bundle.pcb_path,
+            out_pcb,
+            rules_path=rules_p,
+            extra_args=["--project", str(other_pro)],
+        )
+        assert_no_crash(proc, "wrong_pro_stem")
+        assert proc.returncode == 2
+        sj = parse_last_json_line_safe(proc.stderr)
+        assert sj is not None and sj.get("status") in ("invalid", "unsupported")
+        assert_source_dir_untouched(bundle.directory, before_hashes)
+        assert not out_pcb.exists()
+        checked.append("wrong_pro_stem")
+    return {"checked": checked}
 
 
 @register_test(

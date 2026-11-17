@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import signal
 import subprocess
 import time
@@ -444,6 +445,35 @@ sys.addaudithook(check)
         if disallowed:
             raise AssertionError(f"ARCHITECTURE_BOUNDARY violation detected: {disallowed}")
 
+    def run_python_probe(
+        self,
+        args: list[str],
+        *,
+        cwd: Path | None = None,
+        work_dir: Path | None = None,
+        extra_pythonpath: list[Path] | None = None,
+        timeout_s: float = 30.0,
+    ) -> tuple[MeasuredProcessResult, list[dict[str, Any]]]:
+        """Run a Python invocation under this GuardedEnv without asserting clean."""
+        base_env = dict(os.environ)
+        if extra_pythonpath:
+            existing = base_env.get("PYTHONPATH", "")
+            joined = os.pathsep.join(str(p) for p in extra_pythonpath)
+            base_env["PYTHONPATH"] = joined + (os.pathsep + existing if existing else "")
+        env = self.build_env(base_env)
+        start_idx = self.line_count()
+        res = run_measured(
+            ["/usr/bin/python3", *[str(a) for a in args]],
+            cwd=(cwd or self.repo_root),
+            work_dir=(work_dir or self.guard_dir / "probe-metrics"),
+            env=env,
+            timeout_s=timeout_s,
+        )
+        rows = self.read_rows_since(start_idx)
+        res.audit_log_path = self.log_path
+        res.audit_rows = rows
+        return res, rows
+
 
 @dataclass
 class WireCallResult:
@@ -779,3 +809,330 @@ class NativeOrchestrationDriver:
         res.audit_rows = rows
         self.guard.assert_clean(rows, require_started=False)
         return res
+
+
+
+class ScriptsDriver:
+    """Opaque-box subprocess driver for scripts/check_engine_ownership.py and scripts/compare_router.py."""
+
+    def __init__(self, repo_root: Path, work_dir: Path) -> None:
+        self.repo_root = repo_root.resolve()
+        self.work_dir = work_dir.resolve()
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+
+    def run_ownership_check(
+        self,
+        implementation: str = "rust-candidate",
+        *,
+        root_override: Path | None = None,
+        timeout_s: float = 30.0,
+    ) -> tuple[MeasuredProcessResult, dict[str, Any] | None]:
+        script = self.repo_root / "scripts" / "check_engine_ownership.py"
+        cmd = [
+            "/usr/bin/python3",
+            "-B",
+            str(script),
+            "--root",
+            str((root_override or self.repo_root).resolve()),
+            "--implementation",
+            implementation,
+        ]
+        env = dict(os.environ)
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        res = run_measured(
+            cmd,
+            cwd=self.repo_root,
+            work_dir=self.work_dir / "ownership-metrics",
+            env=env,
+            timeout_s=timeout_s,
+        )
+        parsed = None
+        if res.stdout.strip():
+            try:
+                parsed = json.loads(res.stdout)
+            except json.JSONDecodeError:
+                parsed = None
+        return res, parsed
+
+    def eval_compare_router(
+        self,
+        action: str,
+        payload: dict[str, Any],
+        *,
+        timeout_s: float = 30.0,
+    ) -> tuple[MeasuredProcessResult, dict[str, Any]]:
+        script = self.repo_root / "scripts" / "compare_router.py"
+        req_path = self.work_dir / f"compare-req-{time.time_ns()}.json"
+        req_path.write_text(json.dumps(payload), encoding="utf-8")
+        driver_code = (
+            "import importlib.util, json, sys; from pathlib import Path; "
+            "spec = importlib.util.spec_from_file_location('compare_router', sys.argv[1]); "
+            "mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); "
+            "req = json.loads(Path(sys.argv[3]).read_text(encoding='utf-8')); "
+            "action = sys.argv[2]; "
+            "out = mod.quality(req['result']) if action == 'quality' else "
+            "mod.compare(req['reference'], req['candidate'], req.get('warmup'), "
+            "req.get('mode', 'migration-equivalence'), req.get('claim', 'comparison')); "
+            "print(json.dumps(out))"
+        )
+        env = dict(os.environ)
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        res = run_measured(
+            ["/usr/bin/python3", "-B", "-c", driver_code, str(script), action, str(req_path)],
+            cwd=self.repo_root,
+            work_dir=self.work_dir / "compare-metrics",
+            env=env,
+            timeout_s=timeout_s,
+        )
+        parsed: dict[str, Any] = {}
+        if res.returncode == 0 and res.stdout.strip():
+            parsed = json.loads(res.stdout)
+        return res, parsed
+
+    def run_compare_router_cli(
+        self,
+        args: list[str],
+        *,
+        timeout_s: float = 120.0,
+    ) -> MeasuredProcessResult:
+        script = self.repo_root / "scripts" / "compare_router.py"
+        env = dict(os.environ)
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        return run_measured(
+            ["/usr/bin/python3", "-B", str(script), *[str(a) for a in args]],
+            cwd=self.repo_root,
+            work_dir=self.work_dir / "compare-cli-metrics",
+            env=env,
+            timeout_s=timeout_s,
+        )
+
+
+def resolve_agent_ee_root() -> Path:
+    return Path(os.environ.get("AGENT_EE_ROOT", "/home/halbritt/git/agent-ee")).resolve()
+
+
+class AgentEeDriver:
+    """Read-only opaque-box subprocess driver for agent-ee routing adapter & provenance checks."""
+
+    def __init__(self, repo_root: Path, work_dir: Path) -> None:
+        self.repo_root = repo_root.resolve()
+        self.work_dir = work_dir.resolve()
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        self.agent_ee_root = resolve_agent_ee_root()
+
+    def is_available(self) -> tuple[bool, str]:
+        adapter = self.agent_ee_root / "src" / "agent_ee" / "routing_adapter.py"
+        attempt = self.agent_ee_root / "src" / "agent_ee" / "kicad_route_attempt.py"
+        if not adapter.is_file() or not attempt.is_file():
+            return False, f"agent-ee routing adapter not found at {self.agent_ee_root}"
+        if shutil.which("bwrap") is None:
+            return False, "bwrap binary not available on PATH"
+        return True, "ok"
+
+    def run_python(
+        self,
+        script: str,
+        *args: str,
+        cwd: Path | None = None,
+        env_extra: dict[str, str] | None = None,
+        timeout_s: float = 60.0,
+    ) -> MeasuredProcessResult:
+        ok, reason = self.is_available()
+        if not ok:
+            from tests.e2e_rust_router.runner import PendingCapability
+
+            raise PendingCapability(reason, evidence={"agent_ee_root": str(self.agent_ee_root)})
+        pycache_dir = self.work_dir / "pycache"
+        pycache_dir.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ)
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        env["PYTHONPYCACHEPREFIX"] = str(pycache_dir)
+        py_paths = [str(self.agent_ee_root / "src"), str(self.agent_ee_root)]
+        if env.get("PYTHONPATH"):
+            py_paths.append(env["PYTHONPATH"])
+        env["PYTHONPATH"] = os.pathsep.join(py_paths)
+        if env_extra:
+            env.update(env_extra)
+        run_cwd = (cwd or self.work_dir).resolve()
+        return run_measured(
+            [
+                "/usr/bin/python3",
+                "-B",
+                "-X",
+                f"pycache_prefix={pycache_dir}",
+                "-c",
+                script,
+                *[str(a) for a in args],
+            ],
+            cwd=run_cwd,
+            work_dir=self.work_dir / "metrics",
+            env=env,
+            timeout_s=timeout_s,
+        )
+
+    def clone_clean_checkout(self, src_repo: Path, dst: Path) -> Path:
+        dst = dst.resolve()
+        dst.mkdir(parents=True, exist_ok=True)
+        git_base = [
+            "git",
+            "-c",
+            "safe.directory=*",
+            "-c",
+            "advice.detachedHead=false",
+            "-C",
+            str(dst),
+        ]
+        home_dir = dst.parent / f".git-home-{dst.name}"
+        home_dir.mkdir(parents=True, exist_ok=True)
+        env = {
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(home_dir),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+        }
+        for argv in (
+            ["init", "-q"],
+            ["fetch", "-q", "--update-shallow", str(src_repo.resolve()), "HEAD"],
+            ["checkout", "-q", "--detach", "FETCH_HEAD"],
+        ):
+            subprocess.run(git_base + argv, check=True, capture_output=True, text=True, env=env, timeout=60)
+        return dst
+
+    def make_synthetic_state(
+        self,
+        checkout: Path,
+        state: Path,
+        *,
+        state_dir: str = "/opt/kicad-route-state",
+    ) -> dict[str, Any]:
+        import sys
+
+        state = state.resolve()
+        venv = state / ".venv-krt"
+        (venv / "bin").mkdir(parents=True, exist_ok=True)
+        py_link = venv / "bin" / "python"
+        if not py_link.exists():
+            py_link.symlink_to("/usr/bin/python3")
+        ver_str = f"{sys.version_info.major}.{sys.version_info.minor}"
+        (venv / "pyvenv.cfg").write_text(
+            f"home = /usr/bin\nversion_info = {sys.version.split()[0]}\n",
+            encoding="utf-8",
+        )
+        site_pkgs = venv / "lib" / f"python{ver_str}" / "site-packages"
+        site_pkgs.mkdir(parents=True, exist_ok=True)
+        (site_pkgs / "grid_router.cpython-probe.so").write_bytes(b"ELF-SYNTHETIC-PROBE\n")
+
+        tmp_out = self.work_dir / f"state-manifest-out-{time.time_ns()}"
+        env = dict(os.environ)
+        env["KICAD_ROUTE_STATE"] = str(state)
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        res = subprocess.run(
+            [
+                "/usr/bin/python3",
+                "-B",
+                str(checkout / "bin" / "kicad-route"),
+                "state-manifest",
+                "--out",
+                str(tmp_out),
+            ],
+            cwd=str(checkout),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+        if res.returncode != 0:
+            raise RuntimeError(f"kicad-route state-manifest failed (exit {res.returncode}): {res.stderr}")
+        manifest_path = state / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["state_dir"] = state_dir
+        manifest["freerouting"] = None
+        manifest["java"] = None
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        return manifest
+
+    def preflight(
+        self,
+        checkout: Path,
+        state: Path | None = None,
+        backend: str = "builtin",
+    ) -> dict[str, Any]:
+        script = (
+            "import json, sys; from agent_ee import routing_adapter; "
+            "st = sys.argv[2] if sys.argv[2] != '' else None; "
+            "print(json.dumps(routing_adapter.preflight(sys.argv[1], state=st, backend=sys.argv[3])))"
+        )
+        res = self.run_python(
+            script,
+            str(checkout),
+            "" if state is None else str(state),
+            backend,
+        )
+        if res.returncode != 0:
+            raise RuntimeError(f"agent-ee preflight failed (exit {res.returncode}): {res.stderr}")
+        return json.loads(res.stdout)
+
+    def verify_state(
+        self,
+        checkout: Path,
+        state: Path,
+        backend: str = "builtin",
+        mounted_at: str = "/opt/kicad-route-state",
+    ) -> list[str]:
+        script = (
+            "import json, sys; from agent_ee import kicad_route_attempt; "
+            "print(json.dumps(kicad_route_attempt.verify_state("
+            "sys.argv[1], sys.argv[2], backend=sys.argv[3], mounted_at=sys.argv[4])))"
+        )
+        res = self.run_python(script, str(checkout), str(state), backend, mounted_at)
+        if res.returncode != 0:
+            raise RuntimeError(f"agent-ee verify_state failed (exit {res.returncode}): {res.stderr}")
+        return json.loads(res.stdout)
+
+    def board_route_argv(
+        self,
+        checkout: Path,
+        staged_dir: Path,
+        out_dir: Path,
+        *,
+        budget_s: int = 30,
+    ) -> list[str]:
+        script = (
+            "import json, sys; from agent_ee import routing_adapter; "
+            "print(json.dumps(routing_adapter.board_route_argv("
+            "sys.argv[1], sys.argv[2], sys.argv[3], budget_s=int(sys.argv[4]))))"
+        )
+        res = self.run_python(script, str(checkout), str(staged_dir), str(out_dir), str(budget_s))
+        if res.returncode != 0:
+            raise RuntimeError(f"board_route_argv failed (exit {res.returncode}): {res.stderr}")
+        return json.loads(res.stdout)
+
+    def probe_rust_integration(self, native_driver: NativeOrchestrationDriver) -> None:
+        from tests.e2e_rust_router.runner import PendingCapability
+
+        ok, reason = self.is_available()
+        if not ok:
+            raise PendingCapability(reason, evidence={"agent_ee_root": str(self.agent_ee_root)})
+        native_probe = native_driver.probe()
+        if not native_probe.supported:
+            raise PendingCapability(
+                f"Rust native orchestration not yet landed: {native_probe.reason}",
+                evidence={"native_probe": native_probe.reason},
+            )
+        argv = self.board_route_argv(
+            self.repo_root,
+            self.work_dir / "probe-staged",
+            self.work_dir / "probe-out",
+            budget_s=30,
+        )
+        script = next((a for a in argv if a.endswith("bin/kicad-route") or a.endswith(".py")), None)
+        if script is not None and "--backend" in argv:
+            idx = argv.index("--backend")
+            if idx + 1 < len(argv) and argv[idx + 1] in ("builtin", "krt"):
+                guard = GuardedEnv(self.repo_root, self.work_dir / "probe-guard")
+                probe_proc, _ = guard.run_python_probe([script, "--help"], work_dir=self.work_dir / "probe-m")
+                if probe_proc.returncode != 0 and "ARCHITECTURE_BOUNDARY" in probe_proc.stderr:
+                    raise PendingCapability(
+                        "agent-ee still targets legacy Python bin/kicad-route rather than Rust native entrypoint",
+                        evidence={"argv": argv},
+                    )
