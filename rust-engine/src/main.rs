@@ -41,14 +41,11 @@ fn main() -> ExitCode {
         eprintln!("usage: kicad-route-engine INPUT.json OUTPUT.json (distinct paths)");
         return ExitCode::from(2);
     }
-    let bytes = (|| {
+    let bytes: std::io::Result<Vec<u8>> = (|| {
         let mut bytes = Vec::new();
         fs::File::open(&args[1])?
             .take(16 * 1024 * 1024 + 1)
             .read_to_end(&mut bytes)?;
-        if bytes.len() > 16 * 1024 * 1024 {
-            return Err(std::io::Error::other("input exceeds 16 MiB"));
-        }
         Ok(bytes)
     })();
     let output = match bytes {
@@ -65,6 +62,10 @@ fn main() -> ExitCode {
     match output.status {
         Status::Complete => ExitCode::SUCCESS,
         Status::BudgetExhausted => ExitCode::from(4),
+        Status::WorkExhausted => ExitCode::from(5),
+        Status::AdmissionExceeded | Status::JournalExhausted | Status::NestingExhausted => {
+            ExitCode::from(6)
+        }
         Status::Unroutable => ExitCode::from(3),
         _ => ExitCode::from(2),
     }

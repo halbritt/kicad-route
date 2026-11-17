@@ -25,6 +25,21 @@ pub fn search(
     limit: u64,
     expanded: &mut u64,
 ) -> Result<Path, Failure> {
+    let _scope = engine.work.scope();
+    search_inner(engine, net, start, goal, limit, expanded).map_err(|mut e| {
+        e.work_used = engine.work.used();
+        e.expanded_states = *expanded;
+        e
+    })
+}
+fn search_inner(
+    engine: &Engine,
+    net: u32,
+    start: Point,
+    goal: Point,
+    limit: u64,
+    expanded: &mut u64,
+) -> Result<Path, Failure> {
     if net == 0 {
         return Err(Failure::new(
             Status::Invalid,
@@ -34,7 +49,7 @@ pub fn search(
     let grid = engine.input.rules.grid_nm;
     let heuristic =
         |p: Point| ((p[0] - goal[0]).abs() / grid + (p[1] - goal[1]).abs() / grid) as u64;
-    if !engine.legal_edge(net, start, start) || !engine.legal_edge(net, goal, goal) {
+    if !engine.legal_edge(net, start, start)? || !engine.legal_edge(net, goal, goal)? {
         return Err(Failure::new(
             Status::Unroutable,
             "terminal center violates routing clearance or board edge",
@@ -46,8 +61,8 @@ pub fn search(
         limit,
         expanded,
         heuristic,
-        |a, b| engine.legal_edge(net, a, b).then_some(b),
-        |at, _| at == goal,
+        |a, b| Ok(engine.legal_edge(net, a, b)?.then_some(b)),
+        |at, _| Ok(at == goal),
     )
 }
 
@@ -64,6 +79,7 @@ pub(crate) fn join_components(
     limit: u64,
     expanded: &mut u64,
 ) -> Result<Path, Failure> {
+    let _scope = engine.work.scope();
     let route = |a, b| Track {
         id: String::new(),
         net,
@@ -72,28 +88,45 @@ pub(crate) fn join_components(
         width_nm: engine.input.rules.width_nm,
         locked: false,
     };
-    let starts: BTreeSet<_> = source
-        .iter()
-        .flat_map(|c| c.anchors())
-        .filter(|p| {
-            engine.legal_edge(net, *p, *p) && source.iter().any(|c| c.touches_route(&route(*p, *p)))
-        })
-        .collect();
+    let mut starts = BTreeSet::new();
+    for c in source {
+        engine.work.charge(1)?;
+        for p in c.anchors() {
+            engine.work.charge(1)?;
+            if !engine.legal_edge(net, p, p)? {
+                continue;
+            }
+            for s in source {
+                if s.touches_route(&route(p, p), &engine.work)? {
+                    engine
+                        .work
+                        .search_storage(starts.len() + usize::from(!starts.contains(&p)))?;
+                    starts.insert(p);
+                    break;
+                }
+            }
+        }
+    }
     if starts.is_empty() {
         return Err(Failure::new(
             Status::Unroutable,
             "component has no legal pad-center or incumbent-endpoint search seed",
         ));
     }
-    let attachment = |a, b| {
-        targets
-            .iter()
-            .flatten()
-            .filter_map(|c| {
-                c.attachment(a, b, net, engine.input.rules.width_nm)
-                    .filter(|p| engine.legal_edge(net, a, *p))
-            })
-            .min_by_key(|p| ((p[0] - a[0]).abs() + (p[1] - a[1]).abs(), *p))
+    let attachment = |a, b| -> Result<Option<Point>, Failure> {
+        let mut nearest = None;
+        for c in targets.iter().flatten() {
+            engine.work.charge(1)?;
+            if let Some(p) = c.attachment(a, b, net, engine.input.rules.width_nm, &engine.work)? {
+                if engine.legal_edge(net, a, p)? {
+                    let key = |p: Point| ((p[0] - a[0]).abs() + (p[1] - a[1]).abs(), p);
+                    if nearest.is_none_or(|old| key(p) < key(old)) {
+                        nearest = Some(p);
+                    }
+                }
+            }
+        }
+        Ok(nearest)
     };
     walk(
         engine,
@@ -104,14 +137,21 @@ pub(crate) fn join_components(
         |a, b| {
             // Check the actual shortened goal edge before rejecting the full
             // grid step: its unused suffix may hit an obstacle or board edge.
-            attachment(a, b).or_else(|| engine.legal_edge(net, a, b).then_some(b))
+            if let Some(p) = attachment(a, b)? {
+                Ok(Some(p))
+            } else {
+                Ok(engine.legal_edge(net, a, b)?.then_some(b))
+            }
         },
         |at, previous| {
-            previous.is_some()
-                && targets
-                    .iter()
-                    .flatten()
-                    .any(|c| c.touches_route(&route(at, at)))
+            if previous.is_some() {
+                for c in targets.iter().flatten() {
+                    if c.touches_route(&route(at, at), &engine.work)? {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
         },
     )
 }
@@ -122,14 +162,18 @@ fn walk(
     limit: u64,
     expanded: &mut u64,
     heuristic: impl Fn(Point) -> u64,
-    advance: impl Fn(Point, Point) -> Option<Point>,
-    finished: impl Fn(Point, Option<Point>) -> bool,
+    advance: impl Fn(Point, Point) -> Result<Option<Point>, Failure>,
+    finished: impl Fn(Point, Option<Point>) -> Result<bool, Failure>,
 ) -> Result<Path, Failure> {
     let grid = engine.input.rules.grid_nm;
     let mut queue = BinaryHeap::new();
     let mut best = HashMap::new();
     let mut parent: HashMap<State, State> = HashMap::new();
     for at in starts {
+        engine
+            .work
+            .search_storage(queue.len() + best.len() + parent.len() + 2)?;
+        engine.work.charge(1)?;
         let initial = State {
             at: *at,
             direction: 4,
@@ -137,7 +181,9 @@ fn walk(
         queue.push(Reverse((heuristic(*at), 0, initial)));
         best.insert(initial, 0u64);
     }
-    while let Some(Reverse((_, cost, state))) = queue.pop() {
+    while !queue.is_empty() {
+        engine.work.charge(1)?;
+        let Reverse((_, cost, state)) = queue.pop().unwrap();
         if best.get(&state) != Some(&cost) {
             continue;
         }
@@ -148,13 +194,16 @@ fn walk(
             ));
         }
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
-        if finished(state.at, parent.get(&state).map(|p| p.at)) {
+        if finished(state.at, parent.get(&state).map(|p| p.at))? {
+            engine.work.charge(1)?;
             let mut path = vec![state.at];
             let mut s = state;
             while let Some(previous) = parent.get(&s) {
+                engine.work.charge(1)?;
                 s = *previous;
                 path.push(s.at);
             }
+            engine.work.charge(path.len() as u64)?;
             path.reverse();
             return Ok(Path {
                 points: path,
@@ -165,13 +214,14 @@ fn walk(
             .iter()
             .enumerate()
         {
+            engine.work.charge(1)?;
             let Some(x) = state.at[0].checked_add(delta[0]) else {
                 continue;
             };
             let Some(y) = state.at[1].checked_add(delta[1]) else {
                 continue;
             };
-            let Some(at) = advance(state.at, [x, y]) else {
+            let Some(at) = advance(state.at, [x, y])? else {
                 continue;
             };
             let next = State {
@@ -182,6 +232,13 @@ fn walk(
             if best.get(&next).is_some_and(|old| *old <= g) {
                 continue;
             }
+            let extra = 1
+                + usize::from(!best.contains_key(&next))
+                + usize::from(!parent.contains_key(&next));
+            engine
+                .work
+                .search_storage(queue.len() + best.len() + parent.len() + extra)?;
+            engine.work.charge(1)?;
             best.insert(next, g);
             parent.insert(next, state);
             queue.push(Reverse((

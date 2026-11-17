@@ -1,6 +1,43 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Limits {
+    pub max_work: u64,
+    pub max_items: usize,
+    pub max_search_entries: usize,
+    pub max_journal_entries: usize,
+    pub max_depth: usize,
+}
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            max_work: 100_000_000,
+            max_items: 100_000,
+            max_search_entries: 1_000_000,
+            max_journal_entries: 1_000_000,
+            max_depth: 64,
+        }
+    }
+}
+impl Limits {
+    pub fn validate(self) -> Result<(), Failure> {
+        if self.max_work > 1_000_000_000
+            || self.max_items > 1_000_000
+            || self.max_search_entries > 4_000_000
+            || self.max_journal_entries > 1_000_000
+            || self.max_depth > 256
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "limits exceed supported ceilings",
+            ));
+        }
+        Ok(())
+    }
+}
+
 pub type Point = [i64; 2];
 // +/-100 mm coordinates (up to a 200 mm span). These bounds also keep every
 // squared cross-product clearance comparison safely within signed i128.
@@ -19,6 +56,8 @@ pub struct Input {
     pub pads: Vec<Pad>,
     pub tracks: Vec<Track>,
     pub max_expansions: u64,
+    #[serde(default)]
+    pub limits: Limits,
 }
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,6 +111,10 @@ pub enum Status {
     Invalid,
     Unroutable,
     BudgetExhausted,
+    WorkExhausted,
+    AdmissionExceeded,
+    JournalExhausted,
+    NestingExhausted,
 }
 #[derive(Debug, Serialize)]
 pub struct Output {
@@ -81,14 +124,16 @@ pub struct Output {
     pub added_tracks: Vec<Track>,
     pub removed_track_ids: Vec<String>,
     pub expanded_states: u64,
+    pub work_used: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Failure {
     pub status: Status,
     pub reason: String,
     pub expanded_states: u64,
+    pub work_used: u64,
 }
 impl Failure {
     pub fn new(status: Status, reason: impl Into<String>) -> Self {
@@ -96,6 +141,7 @@ impl Failure {
             status,
             reason: reason.into(),
             expanded_states: 0,
+            work_used: 0,
         }
     }
 }
@@ -112,6 +158,19 @@ pub fn canonical_uuid(id: &str) -> bool {
 }
 impl Input {
     pub fn validate(&self) -> Result<(), Failure> {
+        self.limits.validate()?;
+        if self
+            .nets
+            .len()
+            .saturating_add(self.pads.len())
+            .saturating_add(self.tracks.len())
+            > self.limits.max_items
+        {
+            return Err(Failure::new(
+                Status::AdmissionExceeded,
+                "input item limit exceeded",
+            ));
+        }
         let invalid = |s: &str| Failure::new(Status::Invalid, s);
         let unsupported = |s: &str| Failure::new(Status::Unsupported, s);
         if self.version != 1 {
@@ -159,7 +218,8 @@ impl Input {
         let mut nets = BTreeSet::new();
         let mut names = BTreeSet::new();
         for n in &self.nets {
-            if (n.id != 0 && n.name.is_empty())
+            if n.name.len() > 1024
+                || (n.id != 0 && n.name.is_empty())
                 || (n.id == 0 && !n.name.is_empty())
                 || !nets.insert(n.id)
                 || !names.insert(&n.name)
@@ -209,8 +269,12 @@ impl Input {
                 ));
             }
         }
+        let mut pad_counts = std::collections::BTreeMap::new();
+        for p in &self.pads {
+            *pad_counts.entry(p.net).or_insert(0usize) += 1;
+        }
         for n in &self.nets {
-            if n.id != 0 && self.pads.iter().filter(|p| p.net == n.id).count() > 2 {
+            if n.id != 0 && pad_counts.get(&n.id).copied().unwrap_or(0) > 2 {
                 return Err(unsupported(
                     "only zero-, one- and two-terminal nets are supported",
                 ));

@@ -1,4 +1,4 @@
-use kicad_route_engine::{model::*, state::CopperStore, Engine, Transaction};
+use kicad_route_engine::{model::*, state::CopperStore, Engine, Transaction, TransactionError};
 use std::{
     collections::BTreeMap,
     panic::{catch_unwind, AssertUnwindSafe},
@@ -54,6 +54,7 @@ fn fixture() -> Input {
             locked: false,
         }],
         max_expansions: 1000,
+        limits: Limits::default(),
     }
 }
 fn bytes(copper: &CopperStore) -> Vec<u8> {
@@ -79,7 +80,7 @@ fn inner_commit_outer_error_restores_bytes_and_allocator() {
             Err::<(), _>("reject batch")
         })
         .unwrap_err();
-    assert_eq!(err, "reject batch");
+    assert_eq!(err, TransactionError::Operation("reject batch"));
     assert_eq!(bytes(e.copper()), before);
     e.route_all().unwrap();
     let mut control = Engine::new(fixture()).unwrap();
@@ -98,7 +99,7 @@ fn inner_rollback_outer_success_keeps_only_outer_changes() {
             inner.route(2, 1000).unwrap();
             Err::<(), _>("undo inner")
         });
-        assert_eq!(rejected, Err("undo inner"));
+        assert_eq!(rejected, Err(TransactionError::Operation("undo inner")));
         assert_eq!(bytes(outer.copper()), before);
         outer.route(3, 1000)?;
         Ok::<_, Failure>(())
@@ -129,7 +130,7 @@ fn three_levels_remove_reinsert_then_middle_rollback_preserves_outer() {
                     .unwrap();
                 Err::<(), _>("reject middle")
             }),
-            Err("reject middle")
+            Err(TransactionError::Operation("reject middle"))
         );
         assert_eq!(bytes(outer.copper()), before);
         Ok::<_, &str>(())
@@ -182,7 +183,7 @@ fn panic_unwinds_all_scopes_without_swallowing_payload() {
     e.route(1, 1000).unwrap();
     let before = bytes(e.copper());
     let panic = catch_unwind(AssertUnwindSafe(|| {
-        let _: Result<(), ()> = e.transaction(|outer| {
+        let _: Result<(), TransactionError<()>> = e.transaction(|outer| {
             outer.reroute(1, 1000).unwrap();
             outer
                 .transaction(|inner| {
@@ -210,7 +211,7 @@ fn caught_inner_panic_rolls_back_inner_and_outer_can_commit() {
         outer.route(1, 1000).unwrap();
         let before = bytes(outer.copper());
         assert!(catch_unwind(AssertUnwindSafe(|| {
-            let _: Result<(), ()> = outer.transaction(|inner| {
+            let _: Result<(), TransactionError<()>> = outer.transaction(|inner| {
                 inner.reroute(1, 1000).unwrap();
                 inner.route(2, 1000).unwrap();
                 panic!("inner panic");

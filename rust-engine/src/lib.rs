@@ -1,3 +1,4 @@
+mod budget;
 mod components;
 pub mod geometry;
 pub mod model;
@@ -10,6 +11,20 @@ use state::CopperStore;
 pub struct Engine {
     input: Input,
     copper: CopperStore,
+    work: budget::WorkBudget,
+}
+/// Engine scope admission errors are distinct from an arbitrary caller error.
+#[derive(Debug, PartialEq, Eq)]
+pub enum TransactionError<E> {
+    Limit(Failure),
+    Operation(E),
+}
+impl From<TransactionError<Failure>> for Failure {
+    fn from(e: TransactionError<Failure>) -> Self {
+        match e {
+            TransactionError::Limit(e) | TransactionError::Operation(e) => e,
+        }
+    }
 }
 /// A borrowed view inside `Engine::transaction`. It cannot be constructed,
 /// committed, rolled back or retained outside its closure by the caller.
@@ -19,6 +34,9 @@ pub struct Transaction<'a> {
     engine: &'a mut Engine,
 }
 impl Transaction<'_> {
+    pub fn work_used(&self) -> u64 {
+        self.engine.work_used()
+    }
     pub fn copper(&self) -> &CopperStore {
         self.engine.copper()
     }
@@ -34,7 +52,7 @@ impl Transaction<'_> {
     pub fn transaction<T, E>(
         &mut self,
         operation: impl FnOnce(&mut Transaction<'_>) -> Result<T, E>,
-    ) -> Result<T, E> {
+    ) -> Result<T, TransactionError<E>> {
         self.engine.transaction(operation)
     }
 }
@@ -44,18 +62,22 @@ impl Transaction<'_> {
 struct Scope<'a> {
     engine: &'a mut Engine,
     committed: bool,
+    outer: bool,
 }
 impl Drop for Scope<'_> {
     fn drop(&mut self) {
         if !self.committed {
             self.engine.copper.rollback();
         }
+        self.engine.work.end(self.outer);
     }
 }
 
 impl Engine {
     pub fn new(mut input: Input) -> Result<Self, Failure> {
         input.validate()?;
+        let base_items = input.pads.len() + input.tracks.len() + input.nets.len();
+        let work = budget::WorkBudget::new(input.limits);
         let reserved = input
             .pads
             .iter()
@@ -66,8 +88,13 @@ impl Engine {
             std::mem::take(&mut input.tracks),
             reserved,
             &input.source_id,
+            base_items,
         );
-        Ok(Self { input, copper })
+        Ok(Self {
+            input,
+            copper,
+            work,
+        })
     }
     /// Group routing operations atomically. `Ok` commits this scope; `Err`
     /// or a panic unwinding through it rolls it back. Inner commits remain
@@ -76,10 +103,10 @@ impl Engine {
     ///
     /// The borrowed view cannot escape (there are no reusable checkpoint tokens):
     /// ```compile_fail
-    /// use kicad_route_engine::Engine;
+    /// use kicad_route_engine::{Engine, TransactionError};
     /// fn escape(engine: &mut Engine) {
     ///     let mut saved = None;
-    ///     let _: Result<(), ()> = engine.transaction(|tx| {
+    ///     let _: Result<(), TransactionError<()>> = engine.transaction(|tx| {
     ///         saved = Some(tx);
     ///         Ok(())
     ///     });
@@ -91,11 +118,11 @@ impl Engine {
     /// ```compile_fail
     /// use kicad_route_engine::{Engine, model::Failure};
     /// fn out_of_order(engine: &mut Engine) {
-    ///     let _: Result<(), Failure> = engine.transaction(|parent| {
+    ///     let _ = engine.transaction(|parent| {
     ///         parent.transaction(|child| {
     ///             parent.route(1, 100)?;
     ///             child.route(2, 100)?;
-    ///             Ok(())
+    ///             Ok::<_, Failure>(())
     ///         })
     ///     });
     /// }
@@ -103,12 +130,12 @@ impl Engine {
     ///
     /// Views from independent engines cannot be swapped across their scopes:
     /// ```compile_fail
-    /// use kicad_route_engine::Engine;
+    /// use kicad_route_engine::{Engine, TransactionError};
     /// fn swap_scopes(left: &mut Engine, right: &mut Engine) {
-    ///     let _: Result<(), ()> = left.transaction(|a| {
+    ///     let _ = left.transaction(|a| {
     ///         right.transaction(|b| {
     ///             std::mem::swap(a, b);
-    ///             Ok(())
+    ///             Ok::<_, ()>(())
     ///         })
     ///     });
     /// }
@@ -116,11 +143,16 @@ impl Engine {
     pub fn transaction<T, E>(
         &mut self,
         operation: impl FnOnce(&mut Transaction<'_>) -> Result<T, E>,
-    ) -> Result<T, E> {
-        self.copper.begin();
+    ) -> Result<T, TransactionError<E>> {
+        let outer = self.work.start();
+        if let Err(e) = self.copper.begin(&self.work) {
+            self.work.end(outer);
+            return Err(TransactionError::Limit(e));
+        }
         let mut scope = Scope {
             engine: self,
             committed: false,
+            outer,
         };
         let result = operation(&mut Transaction {
             engine: scope.engine,
@@ -129,12 +161,22 @@ impl Engine {
             scope.engine.copper.commit();
             scope.committed = true;
         }
-        result
+        result.map_err(TransactionError::Operation)
+    }
+    pub fn work_used(&self) -> u64 {
+        self.work.used()
+    }
+    pub fn limits(&self) -> Limits {
+        self.work.limits
     }
     pub fn copper(&self) -> &CopperStore {
         &self.copper
     }
-    pub fn legal_edge(&self, net: u32, a: Point, b: Point) -> bool {
+    /// A standalone query gets its own finite work scope; inside a transaction
+    /// it consumes that transaction's remaining work. Geometry is not mutated.
+    pub fn legal_edge(&self, net: u32, a: Point, b: Point) -> Result<bool, Failure> {
+        let _scope = self.work.scope();
+        self.work.charge(1)?;
         let r = self.input.rules;
         let bounds = self.input.bounds;
         let margin = i128::from(r.width_nm) + 2 * i128::from(r.edge_clearance_nm);
@@ -143,19 +185,24 @@ impl Engine {
                 if 2 * i128::from(*value) < 2 * i128::from(bounds.min[i]) + margin
                     || 2 * i128::from(*value) > 2 * i128::from(bounds.max[i]) - margin
                 {
-                    return false;
+                    return Ok(false);
                 }
             }
         }
-        if self.input.pads.iter().any(|p| {
-            (p.net == 0 || p.net != net)
-                && geometry::track_near_pad(a, b, r.width_nm, r.clearance_nm, p, false)
-        }) {
-            return false;
+        for p in &self.input.pads {
+            self.work.charge(1)?;
+            if p.net == 0 || p.net != net {
+                self.work.charge(1)?;
+                if geometry::track_near_pad(a, b, r.width_nm, r.clearance_nm, p, false) {
+                    return Ok(false);
+                }
+            }
         }
-        !self.copper.tracks().any(|t| {
-            (t.net == 0 || t.net != net)
-                && geometry::segments_near(
+        for t in self.copper.tracks() {
+            self.work.charge(1)?;
+            if t.net == 0 || t.net != net {
+                self.work.charge(1)?;
+                if geometry::segments_near(
                     a,
                     b,
                     t.start,
@@ -164,28 +211,32 @@ impl Engine {
                         + i128::from(t.width_nm)
                         + 2 * i128::from(r.clearance_nm),
                     false,
-                )
-        })
+                ) {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
     }
-    fn components(&self, net: u32) -> Vec<Vec<Copper<'_>>> {
-        components::partition(
-            self.input
-                .pads
-                .iter()
-                .filter(|p| p.net == net)
-                .map(Copper::Pad)
-                .chain(
-                    self.copper
-                        .tracks()
-                        .filter(|t| t.net == net)
-                        .map(Copper::Track),
-                )
-                .collect(),
-        )
+    fn components(&self, net: u32) -> Result<Vec<Vec<Copper<'_>>>, Failure> {
+        let mut items = Vec::new();
+        for p in &self.input.pads {
+            self.work.charge(1)?;
+            if p.net == net {
+                items.push(Copper::Pad(p));
+            }
+        }
+        for t in self.copper.tracks() {
+            self.work.charge(1)?;
+            if t.net == net {
+                items.push(Copper::Track(t));
+            }
+        }
+        components::partition(items, &self.work)
     }
     fn route_net(&mut self, net: u32, limit: u64, expanded: &mut u64) -> Result<(), Failure> {
         loop {
-            let groups = self.components(net);
+            let groups = self.components(net)?;
             let before = groups.len();
             if before <= 1 {
                 return Ok(());
@@ -198,7 +249,7 @@ impl Engine {
                 _ => search::join_components(self, net, &groups[0], &groups[1..], limit, expanded)?,
             };
             self.insert_path(net, path)?;
-            if self.components(net).len() >= before {
+            if self.components(net)?.len() >= before {
                 return Err(Failure::new(
                     Status::Unroutable,
                     "proposed route did not reduce conservative copper components",
@@ -210,6 +261,7 @@ impl Engine {
         // Coalesce only collinear steps: the swept geometry is unchanged.
         let mut points: Vec<Point> = Vec::new();
         for p in path.points {
+            self.work.charge(1)?;
             if points.len() >= 2 {
                 let a = points[points.len() - 2];
                 let b = points[points.len() - 1];
@@ -219,6 +271,7 @@ impl Engine {
             }
             points.push(p);
         }
+        self.work.charge(points.len() as u64)?;
         let proposal: Vec<_> = points
             .windows(2)
             .map(|p| Track {
@@ -230,28 +283,38 @@ impl Engine {
                 locked: false,
             })
             .collect();
-        if proposal
-            .iter()
-            .any(|t| t.start == t.end || !self.legal_edge(net, t.start, t.end))
-        {
-            return Err(Failure::new(
-                Status::Unroutable,
-                "proposal failed continuous clearance validation",
-            ));
-        }
         for t in proposal {
-            self.copper.insert(t);
+            if t.start == t.end || !self.legal_edge(net, t.start, t.end)? {
+                return Err(Failure::new(
+                    Status::Unroutable,
+                    "proposal failed continuous clearance validation",
+                ));
+            }
+            self.copper.insert(t, &self.work)?;
         }
         Ok(())
     }
+    fn operation<T>(
+        &mut self,
+        operation: impl FnOnce(&mut Transaction<'_>) -> Result<T, Failure>,
+    ) -> Result<T, Failure> {
+        self.transaction(operation).map_err(|e| {
+            let mut e = Failure::from(e);
+            e.work_used = self.work.used();
+            e
+        })
+    }
     pub fn route_all(&mut self) -> Result<u64, Failure> {
-        self.transaction(|tx| {
+        self.operation(|tx| {
             let engine = &mut *tx.engine;
             let mut expanded = 0;
+            engine.work.charge(engine.input.nets.len() as u64)?;
             let mut nets: Vec<_> = engine.input.nets.iter()
                 .filter(|n| n.id != 0).map(|n| n.id).collect();
+            engine.work.charge(nets.len() as u64)?;
             nets.sort();
             for net in nets {
+                engine.work.charge(1).map_err(|mut e| { e.expanded_states = expanded; e })?;
                 if let Err(mut e) = engine.route_net(net, engine.input.max_expansions, &mut expanded) {
                     e.expanded_states = expanded;
                     if e.status == Status::Unroutable {
@@ -279,22 +342,24 @@ impl Engine {
         max_expansions: u64,
         replace: bool,
     ) -> Result<u64, Failure> {
-        if net == 0
-            || max_expansions == 0
-            || max_expansions > MAX_EXPANSIONS
-            || !self.input.nets.iter().any(|n| n.id == net)
-        {
-            return Err(Failure::new(
-                Status::Invalid,
-                "routing needs a known nonzero net and budget 1..=1000000",
-            ));
-        }
-        self.transaction(|tx| {
+        self.operation(|tx| {
+            let engine = &mut *tx.engine;
+            engine.work.charge(engine.input.nets.len() as u64)?;
+            if net == 0
+                || max_expansions == 0
+                || max_expansions > MAX_EXPANSIONS
+                || !engine.input.nets.iter().any(|n| n.id == net)
+            {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "routing needs a known nonzero net and budget 1..=1000000",
+                ));
+            }
             if replace {
-                tx.engine.copper.remove_net(net);
+                engine.copper.remove_net(net, &engine.work)?;
             }
             let mut expanded = 0;
-            tx.engine
+            engine
                 .route_net(net, max_expansions, &mut expanded)
                 .map_err(|mut e| {
                     e.expanded_states = expanded;
@@ -313,6 +378,7 @@ impl Output {
             added_tracks: Vec::new(),
             removed_track_ids: Vec::new(),
             expanded_states: e.expanded_states,
+            work_used: e.work_used,
             reason: Some(e.reason),
         }
     }
@@ -331,12 +397,19 @@ pub fn run(input: Input) -> Output {
             added_tracks: engine.copper.generated().cloned().collect(),
             removed_track_ids: Vec::new(),
             expanded_states: expanded,
+            work_used: engine.work_used(),
             reason: None,
         },
         Err(e) => Output::failure(source, e),
     }
 }
 pub fn run_json(bytes: &[u8]) -> Output {
+    if bytes.len() > 16 * 1024 * 1024 {
+        return Output::failure(
+            String::new(),
+            Failure::new(Status::AdmissionExceeded, "JSON input exceeds 16 MiB"),
+        );
+    }
     // Deserialize directly into the contract: going through Value first would
     // erase duplicate keys, including a second `tracks` field hiding copper.
     match serde_json::from_slice::<Input>(bytes) {

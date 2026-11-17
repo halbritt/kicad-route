@@ -37,6 +37,7 @@ fn base() -> Input {
         pads: vec![pad(1, 1, [10, 10]), pad(2, 1, [50, 10])],
         tracks: vec![],
         max_expansions: 10000,
+        limits: Limits::default(),
     }
 }
 fn wire(n: u64, net: u32, a: Point, b: Point) -> Track {
@@ -117,9 +118,9 @@ fn bounded_extreme_geometry_and_odd_width_edge_are_exact() {
     input.rules.width_nm = 3;
     input.rules.edge_clearance_nm = 1;
     let e = Engine::new(input).unwrap();
-    assert!(!e.legal_edge(1, [2, 10], [2, 20]));
-    assert!(e.legal_edge(1, [3, 10], [3, 20]));
-    assert!(!e.legal_edge(1, [58, 10], [58, 20]));
+    assert!(!e.legal_edge(1, [2, 10], [2, 20]).unwrap());
+    assert!(e.legal_edge(1, [3, 10], [3, 20]).unwrap());
+    assert!(!e.legal_edge(1, [58, 10], [58, 20]).unwrap());
 }
 #[test]
 fn same_net_contact_allowed_foreign_swept_copper_blocked() {
@@ -130,8 +131,8 @@ fn same_net_contact_allowed_foreign_swept_copper_blocked() {
     });
     i.tracks.push(wire(3, 2, [30, 0], [30, 60]));
     let e = Engine::new(i).unwrap();
-    assert!(!e.legal_edge(1, [10, 20], [50, 20]));
-    assert!(e.legal_edge(2, [10, 20], [50, 20]));
+    assert!(!e.legal_edge(1, [10, 20], [50, 20]).unwrap());
+    assert!(e.legal_edge(2, [10, 20], [50, 20]).unwrap());
 }
 #[test]
 fn existing_copper_connectivity_is_reused_without_duplication() {
@@ -158,7 +159,7 @@ fn repeated_output_is_deterministic_and_all_generated_edges_legal() {
     for t in output.added_tracks {
         assert!(canonical_uuid(&t.id));
         assert!(!t.locked);
-        assert!(e.legal_edge(t.net, t.start, t.end));
+        assert!(e.legal_edge(t.net, t.start, t.end).unwrap());
     }
 }
 #[test]
@@ -480,7 +481,7 @@ fn unconnected_net_is_declared_but_never_routed_or_joined() {
     assert_eq!(e.copper().input(), original);
     assert_eq!(e.copper().generated().count(), 0);
     assert_eq!(e.reroute(0, 100).unwrap_err().status, Status::Invalid);
-    assert!(!e.legal_edge(0, [10, 10], [50, 10]));
+    assert!(!e.legal_edge(0, [10, 10], [50, 10]).unwrap());
     assert_eq!(
         search::search(&e, 0, [10, 10], [50, 10], 100, &mut 0)
             .unwrap_err()
@@ -625,8 +626,8 @@ fn clearance_equality_remains_legal_and_failure_reason_is_scoped() {
     });
     i.tracks.push(wire(3, 2, [10, 20], [50, 20]));
     let e = Engine::new(i).unwrap();
-    assert!(e.legal_edge(1, [10, 17], [50, 17])); // 1+1 half-widths + 1 clearance
-    assert!(!e.legal_edge(1, [10, 18], [50, 18]));
+    assert!(e.legal_edge(1, [10, 17], [50, 17]).unwrap()); // 1+1 half-widths + 1 clearance
+    assert!(!e.legal_edge(1, [10, 18], [50, 18]).unwrap());
     let mut i = base();
     i.nets.push(Net {
         id: 2,

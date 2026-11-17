@@ -93,7 +93,7 @@ complete. Native connectivity can merge contacts that this model separates or
 apply other integer geometry rules; no universal native equivalence is claimed.
 The mandatory native publication check remains necessary. Components are
 recomputed after each join using borrowed nodes; graph contact scans can be
-quadratic and are not charged as search expansions. This increment does not
+quadratic and are charged to total work, separately from search expansions. This increment does not
 provide a wall-time or real-board quality guarantee.
 
 Every proposed edge checks its entire swept copper against foreign-net pads
@@ -125,7 +125,7 @@ fn grouped(engine: &mut Engine) -> Result<(), Failure> {
         })?;
         outer.route(3, 1000)?;
         Ok(())
-    })
+    }).map_err(Failure::from)
 }
 ```
 
@@ -135,16 +135,18 @@ outer changes intact. `route` preserves already-connected copper; `reroute`
 removes only generated copper for that net before searching. Both require a
 known nonzero net and a budget of 1..=1,000,000 expansions for that operation.
 `route_all` retains its existing batch-wide expansion budget. The enclosing
-transaction does not impose an additional combined search budget.
+transaction shares one total-work limit across all nested calls; expansion
+limits remain per operation.
 
 Inner commits retain their journal entries for an outer rollback; only the
 outermost commit releases them. Rollback restores generated object fields and
 IDs, the by-net index and the ID allocator; immutable input copper stays intact.
 Each frame holds only its journal offset and allocator position, and undo work
 is proportional to the changed generated objects, without whole-board copies.
-Journal memory grows with changes retained by active outer scopes. Repeated
-reroutes can therefore consume memory until the outer scope ends. The API has
-no configured nesting-depth limit; callers must bound nesting and work.
+Journal memory is admitted before mutation against a fixed entry limit,
+including changes retained by every active outer scope. Scope entry checks a
+nesting-depth limit before invoking the closure. Rollback and journal cleanup
+remain available after forward work is exhausted.
 
 Callers receive no checkpoint tokens, owning guards or mutable `Engine` access
 inside a scope. The private guard remains bound to its original engine; borrowed
@@ -154,9 +156,8 @@ cannot forget an owning guard to leave a scope open. Store frame/mutation method
 remain crate-private and are used only by these engine operations. Concurrent
 mutation of an engine is excluded by its exclusive Rust borrow.
 
-Proposals are validated before insertion. A failed batch rolls back all earlier
-generated routes and publishes no edits. JSON version 1 and CLI behavior are
-unchanged: the CLI routes one fresh batch and does not expose transaction or
+Each proposed segment is validated before insertion. A failed batch rolls back all earlier
+generated routes and publishes no edits. JSON remains version 1, with defaulted limits and an added work counter: the CLI routes one fresh batch and does not expose transaction or
 reroute commands. This API adds transactional ownership, not a routing strategy.
 
 Generated IDs use a deterministic custom UUIDv8 layout: a prefix from source_id
@@ -167,7 +168,9 @@ rerouting restores the original one. Collinear path steps coalesce without
 changing their swept geometry.
 
 Output is atomically replaced. `complete` exits 0; `invalid`/`unsupported` exit 2,
-`unroutable` exits 3 and `budget_exhausted` exits 4. Every structured failure has
+`unroutable` exits 3, expansion `budget_exhausted` exits 4, total
+`work_exhausted` exits 5, and `admission_exceeded`, `journal_exhausted` or
+`nesting_exhausted` exit 6. Every structured failure has
 empty edit lists and a reason. I/O publication failure exits nonzero and must
 not be interpreted as fresh output. No geometry/search acceptance policy is
 delegated to Python, and no default backend or shared runtime is changed.
@@ -189,3 +192,95 @@ clearance, circle/rectangle/track targets and all subsets of six obstacles.
 This bounded enumeration does not prove arbitrary-angle geometry, continuous
 completeness, component ordering or multi-net optimality. Separate diagonal
 contact controls and mandatory native checks cover different concerns.
+
+
+## Work and storage limits
+
+An optional version-1 input `limits` object supplies the following unsigned
+integers. An omitted object or field uses its default; unknown fields fail.
+Zero is allowed to refuse any work, storage or nesting of that kind. These are
+resource defaults, not board-specific routing settings.
+
+| Field | Default | Maximum accepted | What it bounds |
+| --- | ---: | ---: | --- |
+| `max_work` | 100,000,000 | 1,000,000,000 | Charged forward units per outer operation/transaction |
+| `max_items` | 100,000 | 1,000,000 | Input nets + pads + tracks + live generated tracks |
+| `max_search_entries` | 1,000,000 | 4,000,000 | Combined heap + best-map + parent-map entries; also seed-set size |
+| `max_journal_entries` | 1,000,000 | 1,000,000 | All retained undo entries, including inner commits |
+| `max_depth` | 64 | 256 | Active transaction frames, including routing method scopes |
+
+`Engine::new` admits input cardinality before indexing/validation. Net names
+are at most 1,024 bytes; IDs have their existing fixed sizes. Validation uses
+bounded linear/logarithmic collections, including pad counts by net rather
+than a net-by-pad quadratic scan. Both the JSON library entry and CLI accept
+at most 16 MiB. Native decoding/export remains the adapter's separate work.
+The defaults cap storage without using a board's coordinates, nets or outcome.
+They retain all existing witness coverage; they are not a wall-time promise.
+
+`model::Limits` configures an engine at construction and is immutable thereafter.
+`Engine::work_used()` and `Transaction::work_used()` expose charged work in the
+active or last outer scope. Output and `Failure` expose `work_used` separately
+from `expanded_states`. A failed charge does no associated work and consumes
+no units; a bulk reservation can therefore refuse with unused units remaining.
+Scope entry, child errors and child rollback never replenish the active
+counter. A later independent outer operation starts a fresh counter. A caller
+may handle a child failure and commit earlier valid work; the child is rolled
+back and its work stays spent. Increasing a child's expansion allowance cannot
+increase the parent's total-work allowance.
+
+`transaction<T,E>` now returns `Result<T, TransactionError<E>>`: `Operation(E)`
+preserves a closure's error, and `Limit(Failure)` reports refused scope entry
+without invoking the closure. `From<TransactionError<Failure>> for Failure`
+flattens the wrapper for callers using the engine error type. `route`, `reroute`
+and `route_all` still return `Failure`. `legal_edge` now returns
+`Result<bool, Failure>` rather than collapsing work exhaustion into blocked
+geometry. Public standalone search/edge queries get a finite work scope; inside
+an active transaction they use its counter. No unlimited legacy routing path
+is retained. Borrowed transaction and unwind guarantees are unchanged.
+
+### Accounting inventory
+
+One unit is a deterministic bounded engine action, not one CPU instruction.
+Charges occur before the corresponding work or allocation. A bulk charge of N
+reserves N iterations before an array build, sort or reverse.
+
+| Work | Charge |
+| --- | --- |
+| Scope admission | 1 per entry attempt |
+| Net enumeration, sorted list, dispatch, selected-net lookup | 1 per visited/reserved net per stage |
+| Component item enumeration, seen initialization, root visits, pending pops, pair visits | 1 per item/iteration; pair visits count even when already seen |
+| Component pair contact, source/goal cap contact, target prefix/cap contact | 1 per exact geometry predicate, including every bisection probe |
+| Source anchors and target enumeration | 1 per source item/anchor/target before processing |
+| Edge outline check, pad/track scans, foreign geometry | 1 per edge check, item visit, and applicable geometry predicate |
+| Search seeds, successor attempts, admitted queue pushes and all pops (including stale) | 1 per action; push includes bounded map updates |
+| Path reconstruction, reversal, coalescing and proposal construction | 1 per visited/reserved point per stage |
+| Copper insert/remove | 1 per mutation; 1 per ID candidate; removal additionally reserves 1 per copied ID |
+
+Admission checks bound combined queue/maps before insertion, total copper before
+insertion, undo history before mutation, and frame depth before push. Collection
+capacity growth and balanced-tree/heap comparisons are included in their
+bounded abstract action, not charged per allocator byte or comparison. Search
+maps/queue can hold stale entries only within the admitted sum. Seed and path
+scratch storage is additionally bounded by admitted item/search cardinalities;
+these limits are entry counts, not an exact process RSS cap.
+
+Deliberate exclusions are input reading/JSON parsing and `Engine::new`
+validation/index construction (bounded separately as above), scalar bookkeeping
+and fixed-size internals of exact predicates, allocator/runtime implementation
+costs, dropping temporary collections, rollback and commit cleanup (bounded by
+admitted search/items/journal/depth), output cloning/serialization/I/O (bounded
+by admitted copper), independent public `geometry` helpers, caller-directed
+copper inspection/diagnostics, and arbitrary caller code inside closures.
+Inspection and caller loops do not constitute a routing operation; nothing
+promises to interrupt arbitrary Rust code. Allocation failure, abort, kill,
+and process-wide wall-clock deadlines remain outside this in-memory contract.
+No work charge is attempted during rollback, so exhausting forward work cannot
+prevent restoring the journal, IDs and index or replace an unwinding panic.
+
+Budget tests include exact independently counted singleton boundaries, exhausted
+work before quadratic scans, every work cutoff of a component join with state
+and next-ID checks, repeated nested reroutes, shared counters across nets,
+pre-mutation journal/depth admission, panic payload preservation and CLI/library
+counter equality. The two existing search oracles and all their world inputs
+remain intact. The contact test helper still excludes rectangle/rectangle
+pairs; none of the budget tests extends that helper's domain.

@@ -43,6 +43,7 @@ fn base() -> Input {
         pads: vec![pad(1, [10, 30])],
         tracks: vec![track(2, [35, 11], [35, 49])],
         max_expansions: 10000,
+        limits: Limits::default(),
     }
 }
 mod model {
@@ -238,8 +239,8 @@ fn shortened_attachment_is_legal_even_when_full_grid_step_hits_wall() {
     wall.net = 0;
     i.tracks.push(wall);
     let e = Engine::new(i.clone()).unwrap();
-    assert!(e.legal_edge(1, [10, 10], [15, 10]));
-    assert!(!e.legal_edge(1, [10, 10], [20, 10]));
+    assert!(e.legal_edge(1, [10, 10], [15, 10]).unwrap());
+    assert!(!e.legal_edge(1, [10, 10], [20, 10]).unwrap());
     let o = run(i.clone());
     assert_eq!(o.status, Status::Complete);
     assert_eq!(o.added_tracks.len(), 1);

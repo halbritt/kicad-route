@@ -118,6 +118,7 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                             pads: vec![],
                             tracks: vec![],
                             max_expansions: 10000,
+                            limits: Limits::default(),
                         };
                         if offgrid {
                             i.tracks.push(track(1, 1, [3, 3], [7, 3], 2));
@@ -232,10 +233,27 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
 #[test]
 fn diagonal_interval_between_integer_endpoints_is_not_a_contact() {
     let t = track(1, 1, [5, 1], [8, 8], 3); // effective radius 0 with a width1 route
-    assert!(Copper::Track(&t).attachment([4, 4], [9, 4], 1, 1).is_none());
+    assert!(Copper::Track(&t)
+        .attachment(
+            [4, 4],
+            [9, 4],
+            1,
+            1,
+            &crate::budget::WorkBudget::new(Limits::default())
+        )
+        .unwrap()
+        .is_none());
     let t = track(1, 1, [5, 1], [8, 7], 3); // intersection at (6,3) is integral
     assert_eq!(
-        Copper::Track(&t).attachment([4, 3], [9, 3], 1, 1),
+        Copper::Track(&t)
+            .attachment(
+                [4, 3],
+                [9, 3],
+                1,
+                1,
+                &crate::budget::WorkBudget::new(Limits::default())
+            )
+            .unwrap(),
         Some([6, 3])
     );
 }
@@ -266,6 +284,7 @@ fn nearer_contact_wins_regardless_of_target_order() {
         pads: vec![],
         tracks: vec![source.clone(), near.clone(), far.clone()],
         max_expansions: 1000,
+        limits: Limits::default(),
     };
     let engine = Engine::new(i).unwrap();
     for targets in [

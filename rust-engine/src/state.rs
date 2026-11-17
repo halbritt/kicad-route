@@ -1,4 +1,7 @@
-use crate::model::Track;
+use crate::{
+    budget::WorkBudget,
+    model::{Failure, Status, Track},
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug)]
@@ -23,9 +26,15 @@ pub struct CopperStore {
     next: u64,
     reserved: BTreeSet<String>,
     prefix: String,
+    base_items: usize,
 }
 impl CopperStore {
-    pub(crate) fn new(input: Vec<Track>, reserved: BTreeSet<String>, source: &str) -> Self {
+    pub(crate) fn new(
+        input: Vec<Track>,
+        reserved: BTreeSet<String>,
+        source: &str,
+        base_items: usize,
+    ) -> Self {
         // Deterministic custom UUID (version 8), source prefix plus counter.
         // All input pad/track IDs are reserved; collisions advance the counter.
         let prefix = format!(
@@ -44,6 +53,7 @@ impl CopperStore {
             next: 1,
             reserved,
             prefix,
+            base_items,
         }
     }
     pub fn tracks(&self) -> impl Iterator<Item = &Track> {
@@ -64,11 +74,19 @@ impl CopperStore {
     }
     // Only the private Engine scope guard opens/closes frames. No checkpoint
     // token can escape, be copied, or be applied to another store.
-    pub(crate) fn begin(&mut self) {
+    pub(crate) fn begin(&mut self, work: &WorkBudget) -> Result<(), Failure> {
+        work.charge(1)?;
+        if self.frames.len() >= work.limits.max_depth {
+            return Err(work.failure(
+                Status::NestingExhausted,
+                "transaction nesting limit exceeded",
+            ));
+        }
         self.frames.push(Frame {
             journal: self.journal.len(),
             next: self.next,
         });
+        Ok(())
     }
     fn add_raw(&mut self, t: Track) {
         self.by_net.entry(t.net).or_default().insert(t.id.clone());
@@ -86,8 +104,28 @@ impl CopperStore {
         }
         t
     }
-    pub(crate) fn insert(&mut self, mut t: Track) {
+    fn admit_journal(&self, count: usize, work: &WorkBudget) -> Result<(), Failure> {
+        if count
+            > work
+                .limits
+                .max_journal_entries
+                .saturating_sub(self.journal.len())
+        {
+            return Err(work.failure(
+                Status::JournalExhausted,
+                "undo journal entry limit exceeded",
+            ));
+        }
+        Ok(())
+    }
+    pub(crate) fn insert(&mut self, mut t: Track, work: &WorkBudget) -> Result<(), Failure> {
+        self.admit_journal(1, work)?;
+        if self.base_items + self.generated.len() >= work.limits.max_items {
+            return Err(work.failure(Status::AdmissionExceeded, "copper item limit exceeded"));
+        }
+        work.charge(1)?;
         loop {
+            work.charge(1)?;
             assert!(
                 self.next < (1u64 << 48),
                 "bounded search cannot exhaust ID space"
@@ -101,8 +139,12 @@ impl CopperStore {
         }
         self.journal.push(Undo::Inserted(t.id.clone()));
         self.add_raw(t);
+        Ok(())
     }
-    pub(crate) fn remove_net(&mut self, net: u32) {
+    pub(crate) fn remove_net(&mut self, net: u32, work: &WorkBudget) -> Result<(), Failure> {
+        let count = self.by_net.get(&net).map_or(0, BTreeSet::len);
+        self.admit_journal(count, work)?;
+        work.charge(count as u64)?;
         let ids: Vec<_> = self
             .by_net
             .get(&net)
@@ -111,9 +153,11 @@ impl CopperStore {
             .cloned()
             .collect();
         for id in ids {
+            work.charge(1)?;
             let t = self.remove_raw(&id);
             self.journal.push(Undo::Removed(t));
         }
+        Ok(())
     }
     pub(crate) fn rollback(&mut self) {
         let c = self.frames.pop().expect("scope owns an open transaction");

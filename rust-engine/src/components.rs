@@ -2,8 +2,9 @@
 //! contact predicate for incumbent and generated items. These are borrowed
 //! graph nodes, not copies of board state.
 use crate::{
+    budget::WorkBudget,
     geometry,
-    model::{Pad, Point, Track},
+    model::{Failure, Pad, Point, Track},
 };
 
 #[derive(Clone, Copy)]
@@ -21,22 +22,30 @@ impl Copper<'_> {
             (Self::Track(a), Self::Track(b)) => geometry::tracks_connect(a, b),
         }
     }
-    pub(crate) fn touches_route(self, route: &Track) -> bool {
-        match self {
+    pub(crate) fn touches_route(self, route: &Track, work: &WorkBudget) -> Result<bool, Failure> {
+        work.charge(1)?;
+        Ok(match self {
             Self::Pad(p) => geometry::track_connects_pad(route, p),
             Self::Track(t) => geometry::tracks_connect(route, t),
-        }
+        })
     }
     /// First integer endpoint in the convex contact interval along an edge.
     /// A prefix capsule touches iff the edge has entered that interval, so the
     /// exact swept-contact predicate is monotone in prefix length. Bisection
     /// locates its first integer length; the final cap check rejects an interval
     /// lying entirely between integer endpoints. No square roots or tolerance.
-    pub(crate) fn attachment(self, a: Point, b: Point, net: u32, width: i64) -> Option<Point> {
+    pub(crate) fn attachment(
+        self,
+        a: Point,
+        b: Point,
+        net: u32,
+        width: i64,
+        work: &WorkBudget,
+    ) -> Result<Option<Point>, Failure> {
         let k = if a[0] != b[0] { 0 } else { 1 };
         let length = (b[k] - a[k]).abs();
         if length == 0 {
-            return None;
+            return Ok(None);
         }
         let point = |distance| {
             let mut p = a;
@@ -51,21 +60,21 @@ impl Copper<'_> {
             width_nm: width,
             locked: false,
         };
-        if !self.touches_route(&route(a, b)) {
-            return None;
+        if !self.touches_route(&route(a, b), work)? {
+            return Ok(None);
         }
         let mut lo = 1;
         let mut hi = length;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            if self.touches_route(&route(a, point(mid))) {
+            if self.touches_route(&route(a, point(mid)), work)? {
                 hi = mid;
             } else {
                 lo = mid + 1;
             }
         }
         let p = point(lo);
-        self.touches_route(&route(p, p)).then_some(p)
+        Ok(self.touches_route(&route(p, p), work)?.then_some(p))
     }
     pub(crate) fn anchors(self) -> Vec<Point> {
         match self {
@@ -75,10 +84,15 @@ impl Copper<'_> {
     }
 }
 
-pub(crate) fn partition(items: Vec<Copper<'_>>) -> Vec<Vec<Copper<'_>>> {
+pub(crate) fn partition<'a>(
+    items: Vec<Copper<'a>>,
+    work: &WorkBudget,
+) -> Result<Vec<Vec<Copper<'a>>>, Failure> {
+    work.charge(items.len() as u64)?;
     let mut seen = vec![false; items.len()];
     let mut groups = Vec::new();
     for root in 0..items.len() {
+        work.charge(1)?;
         if seen[root] {
             continue;
         }
@@ -86,9 +100,15 @@ pub(crate) fn partition(items: Vec<Copper<'_>>) -> Vec<Vec<Copper<'_>>> {
         let mut pending = vec![root];
         let mut group = Vec::new();
         while let Some(i) = pending.pop() {
+            work.charge(1)?;
             group.push(items[i]);
             for j in 0..items.len() {
-                if !seen[j] && items[i].touches(items[j]) {
+                work.charge(1)?;
+                if seen[j] {
+                    continue;
+                }
+                work.charge(1)?;
+                if items[i].touches(items[j]) {
                     seen[j] = true;
                     pending.push(j);
                 }
@@ -96,5 +116,5 @@ pub(crate) fn partition(items: Vec<Copper<'_>>) -> Vec<Vec<Copper<'_>>> {
         }
         groups.push(group);
     }
-    groups
+    Ok(groups)
 }
