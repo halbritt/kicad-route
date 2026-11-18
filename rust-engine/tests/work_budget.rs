@@ -541,6 +541,11 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     });
     gen1.nets.push(Net {
         id: 2,
@@ -581,6 +586,11 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         });
         gen3.pads.push(Pad {
             id: format!("10000000-0000-4000-8000-{:012x}", id * 2),
@@ -590,6 +600,11 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         });
     }
     gen3.nets.push(Net {
@@ -784,6 +799,11 @@ fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         });
     }
     for limit in 0..=6u64 {
@@ -873,6 +893,11 @@ fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         });
     }
     let e3b = Engine::new(s3b).unwrap();
@@ -949,6 +974,11 @@ fn generated_uniform_net_and_net0_work_accounting() {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     });
     multi.pads.push(Pad {
         id: "50000000-0000-4000-8000-000000000003".into(),
@@ -958,6 +988,11 @@ fn generated_uniform_net_and_net0_work_accounting() {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     });
     const MULTI_GEN_ROUTE_WORK: u64 = 2196;
     let mut probe = Engine::new(multi.clone()).unwrap();

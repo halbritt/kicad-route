@@ -53,6 +53,18 @@ fn is_zero_i64(v: &i64) -> bool {
     *v == 0
 }
 
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
 pub(crate) fn default_front_layer() -> String {
     "F.Cu".to_owned()
 }
@@ -109,6 +121,8 @@ pub struct Input {
     pub custom_rules: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effective_rules: Option<crate::rules::EffectiveRules>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub zones: Vec<Zone>,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -343,6 +357,16 @@ pub struct Pad {
     pub layers: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub local_clearance_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "PadZoneConnection::is_inherited")]
+    pub zone_connection: PadZoneConnection,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thermal_gap_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thermal_spoke_width_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thermal_spoke_angle_mdeg: Option<i64>,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub orientation_mdeg: i64,
 }
 impl Pad {
     pub fn copper_center(&self) -> Point {
@@ -495,16 +519,118 @@ pub struct Via {
     pub kind: ViaKind,
     pub locked: bool,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZoneConnection {
+    None,
+    #[default]
+    Thermal,
+    Solid,
+    ThtThermal,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PadZoneConnection {
+    #[default]
+    Inherited,
+    None,
+    Thermal,
+    Solid,
+    ThtThermal,
+}
+
+impl PadZoneConnection {
+    pub fn is_inherited(&self) -> bool {
+        matches!(self, Self::Inherited)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZoneIslandRemoval {
+    #[default]
+    Always,
+    Never,
+    AreaLimit,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZoneFillMode {
+    #[default]
+    Polygon,
+    Hatch,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct RuleArea {
+pub struct ZoneLayerFill {
+    pub layer: String,
+    pub polygons: Vec<OutlinePolygon>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Zone {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub net: u32,
     pub layers: Vec<String>,
     pub outer: Vec<Point>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub holes: Vec<Vec<Point>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_polygons: Vec<OutlinePolygon>,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub priority: i64,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub local_clearance_nm: i64,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub min_thickness_nm: i64,
+    #[serde(default)]
+    pub connection: ZoneConnection,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub thermal_gap_nm: i64,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub thermal_spoke_width_nm: i64,
+    #[serde(default)]
+    pub island_removal: ZoneIslandRemoval,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub island_area_min_nm2: i64,
+    #[serde(default)]
+    pub fill_mode: ZoneFillMode,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub filled: bool,
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub refillable: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub locked: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layer_fills: Vec<ZoneLayerFill>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuleArea {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub layers: Vec<String>,
+    pub outer: Vec<Point>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub holes: Vec<Vec<Point>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_polygons: Vec<OutlinePolygon>,
     pub no_tracks: bool,
     pub no_vias: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub no_pads: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub no_footprints: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub no_zone_fills: bool,
 }
 impl Track {
     /// Outward copper envelope for an admitted track, including odd-nm widths
@@ -592,6 +718,7 @@ impl Input {
             .saturating_add(self.tracks.len())
             .saturating_add(self.vias.len())
             .saturating_add(self.rule_areas.len())
+            .saturating_add(self.zones.len())
             .saturating_add(self.holes.len())
             .saturating_add(self.graphics.len())
             .saturating_add(self.mask_apertures.len())
@@ -750,6 +877,26 @@ impl Input {
                     return Err(invalid("pad local_clearance_nm must be 0..=100000000 nm"));
                 }
             }
+            if let Some(tg) = p.thermal_gap_nm {
+                if !(0..=MAX_NM).contains(&tg) {
+                    return Err(invalid("pad thermal_gap_nm must be 0..=100000000 nm"));
+                }
+            }
+            if let Some(ts) = p.thermal_spoke_width_nm {
+                if !(0..=MAX_NM).contains(&ts) {
+                    return Err(invalid(
+                        "pad thermal_spoke_width_nm must be 0..=100000000 nm",
+                    ));
+                }
+            }
+            if let Some(sa) = p.thermal_spoke_angle_mdeg {
+                if !(-3_600_000..=3_600_000).contains(&sa) {
+                    return Err(invalid("pad thermal_spoke_angle_mdeg is out of bounds"));
+                }
+            }
+            if !(-3_600_000..=3_600_000).contains(&p.orientation_mdeg) {
+                return Err(invalid("pad orientation_mdeg is out of bounds"));
+            }
             for pl in &p.layers {
                 if layer_idx_of(pl).is_none() {
                     return Err(unsupported("pad layer is not in active board stackup"));
@@ -904,50 +1051,172 @@ impl Input {
                 }
             }
         }
+        let validate_simple_poly = |outer: &[Point],
+                                    holes: &[Vec<Point>],
+                                    label: &str,
+                                    vert_budget: &mut usize|
+         -> Result<(), Failure> {
+            if outer.len() < 3
+                || !outer.iter().all(|p| bounded_pt(*p))
+                || !crate::geometry::is_valid_simple_ring(outer)
+            {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!("{label} outer polygon is invalid"),
+                ));
+            }
+            *vert_budget = vert_budget.saturating_add(outer.len());
+            let mut rings: Vec<&[Point]> = vec![outer];
+            for hole in holes {
+                if hole.len() < 3
+                    || !hole.iter().all(|p| bounded_pt(*p))
+                    || !crate::geometry::is_valid_simple_ring(hole)
+                {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!("{label} hole polygon is invalid"),
+                    ));
+                }
+                *vert_budget = vert_budget.saturating_add(hole.len());
+                rings.push(hole);
+            }
+            if *vert_budget > 65_536 {
+                return Err(Failure::new(
+                    Status::AdmissionExceeded,
+                    format!("{label} vertex limit exceeded"),
+                ));
+            }
+            for i in 0..rings.len() {
+                for j in (i + 1)..rings.len() {
+                    if crate::geometry::rings_cross(rings[i], rings[j]) {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            format!("{label} rings must not cross"),
+                        ));
+                    }
+                }
+            }
+            for hole in holes {
+                if !crate::geometry::point_in_simple_polygon(hole[0], outer) {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!("{label} hole must lie inside outer ring"),
+                    ));
+                }
+            }
+            Ok(())
+        };
         for ra in &self.rule_areas {
             if !canonical_uuid(&ra.id) || !ids.insert(&ra.id) || ra.layers.is_empty() {
                 return Err(invalid("rule_area identity or layers are invalid"));
             }
+            if let Some(name) = &ra.name {
+                if name.len() > 1024 {
+                    return Err(invalid("rule_area name exceeds 1024 UTF-8 bytes"));
+                }
+            }
+            let mut seen_ra_layers = BTreeSet::new();
             for l in &ra.layers {
+                if !seen_ra_layers.insert(l.as_str()) {
+                    return Err(invalid("duplicate layer in rule_area"));
+                }
                 if layer_idx_of(l).is_none() {
                     return Err(unsupported(
                         "rule_area layer is not in active board stackup",
                     ));
                 }
             }
-            if ra.outer.len() < 3
-                || !ra.outer.iter().all(|p| bounded_pt(*p))
-                || !crate::geometry::is_valid_simple_ring(&ra.outer)
+            let mut verts = 0usize;
+            validate_simple_poly(&ra.outer, &ra.holes, "rule_area", &mut verts)?;
+            for extra in &ra.extra_polygons {
+                validate_simple_poly(&extra.outer, &extra.holes, "rule_area", &mut verts)?;
+            }
+        }
+        for z in &self.zones {
+            if !canonical_uuid(&z.id)
+                || !ids.insert(&z.id)
+                || z.layers.is_empty()
+                || (z.net != 0 && !nets.contains(&z.net))
             {
-                return Err(invalid("rule_area outer polygon is invalid"));
-            }
-            let mut rings: Vec<&[Point]> = vec![&ra.outer];
-            for hole in &ra.holes {
-                if hole.len() < 3
-                    || !hole.iter().all(|p| bounded_pt(*p))
-                    || !crate::geometry::is_valid_simple_ring(hole)
-                {
-                    return Err(invalid("rule_area hole polygon is invalid"));
-                }
-                rings.push(hole);
-            }
-            let total_verts: usize = rings.iter().map(|r| r.len()).sum();
-            if total_verts > 65_536 {
-                return Err(Failure::new(
-                    Status::AdmissionExceeded,
-                    "rule_area vertex limit exceeded",
+                return Err(invalid(
+                    "zone identity, net membership or layers are invalid",
                 ));
             }
-            for i in 0..rings.len() {
-                for j in (i + 1)..rings.len() {
-                    if crate::geometry::rings_cross(rings[i], rings[j]) {
-                        return Err(invalid("rule_area rings must not cross"));
-                    }
+            if let Some(name) = &z.name {
+                if name.len() > 1024 {
+                    return Err(invalid("zone name exceeds 1024 UTF-8 bytes"));
                 }
             }
-            for hole in &ra.holes {
-                if !crate::geometry::point_in_simple_polygon(hole[0], &ra.outer) {
-                    return Err(invalid("rule_area hole must lie inside outer ring"));
+            if z.fill_mode == ZoneFillMode::Hatch {
+                return Err(unsupported("hatched copper zones are not supported"));
+            }
+            if ![
+                z.local_clearance_nm,
+                z.min_thickness_nm,
+                z.thermal_gap_nm,
+                z.thermal_spoke_width_nm,
+            ]
+            .iter()
+            .all(|v| (0..=MAX_NM).contains(v))
+                || z.island_area_min_nm2 < 0
+            {
+                return Err(invalid(
+                    "zone clearance, thermal, or island bounds are invalid",
+                ));
+            }
+            let mut seen_z_layers = BTreeSet::new();
+            for l in &z.layers {
+                if !seen_z_layers.insert(l.as_str()) {
+                    return Err(invalid("duplicate layer in zone"));
+                }
+                if layer_idx_of(l).is_none() {
+                    return Err(unsupported("zone layer is not in active board stackup"));
+                }
+            }
+            let mut verts = 0usize;
+            validate_simple_poly(&z.outer, &z.holes, "zone", &mut verts)?;
+            for extra in &z.extra_polygons {
+                validate_simple_poly(&extra.outer, &extra.holes, "zone", &mut verts)?;
+            }
+            if !z.filled && !z.layer_fills.is_empty() {
+                return Err(invalid("unfilled zone cannot carry layer_fills"));
+            }
+            let mut seen_fill_layers = BTreeSet::new();
+            let mut fill_verts = 0usize;
+            for lf in &z.layer_fills {
+                if !seen_fill_layers.insert(lf.layer.as_str()) {
+                    return Err(invalid("duplicate layer in zone layer_fills"));
+                }
+                if layer_idx_of(&lf.layer).is_none() {
+                    return Err(unsupported(
+                        "zone layer_fill layer is not in active board stackup",
+                    ));
+                }
+                if !seen_z_layers.contains(lf.layer.as_str()) {
+                    return Err(invalid("zone layer_fill layer is not in zone layers"));
+                }
+                for poly in &lf.polygons {
+                    if !poly.outer.iter().all(|p| bounded_pt(*p))
+                        || !crate::geometry::is_valid_closed_ring(&poly.outer)
+                    {
+                        return Err(invalid("zone layer_fill outer polygon is invalid"));
+                    }
+                    fill_verts = fill_verts.saturating_add(poly.outer.len());
+                    for hole in &poly.holes {
+                        if !hole.iter().all(|p| bounded_pt(*p))
+                            || !crate::geometry::is_valid_closed_ring(hole)
+                            || !crate::geometry::point_in_simple_polygon(hole[0], &poly.outer)
+                        {
+                            return Err(invalid("zone layer_fill hole polygon is invalid"));
+                        }
+                        fill_verts = fill_verts.saturating_add(hole.len());
+                    }
+                    if fill_verts > 1_000_000 {
+                        return Err(Failure::new(
+                            Status::AdmissionExceeded,
+                            "zone layer_fills vertex limit exceeded",
+                        ));
+                    }
                 }
             }
         }

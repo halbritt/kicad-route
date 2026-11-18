@@ -45,6 +45,11 @@ fn fixture(points: &[Point]) -> Input {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             })
             .collect(),
         tracks: vec![],
@@ -61,6 +66,7 @@ fn fixture(points: &[Point]) -> Input {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     }
 }
 fn track(n: usize, net: u32, start: Point, end: Point, locked: bool) -> Track {
@@ -261,6 +267,11 @@ fn two_nets() -> Input {
                 drill: None,
                 layers: Vec::new(),
                 local_clearance_nm: None,
+                zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             }),
     );
     i
@@ -336,6 +347,11 @@ fn work_exhaustion_at_second_insertion_rolls_back_without_refund() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         });
     }
     // One undo entry admits the entire first straight join; the next insert fails.
@@ -376,6 +392,11 @@ fn unreachable_last_terminal_cannot_publish_partial_success() {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     });
     i.nets.push(Net {
         id: 0,
@@ -670,6 +691,11 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     };
     let j2 = Pad {
         id: id(2),
@@ -679,6 +705,11 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     };
     let j3 = Pad {
         id: id(3),
@@ -688,6 +719,11 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     };
     let pads = if swap_j1_j2 {
         vec![j2, j1, j3]
@@ -756,6 +792,7 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     }
 }
 

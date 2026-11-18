@@ -4,7 +4,8 @@
 use crate::{
     budget::WorkBudget,
     geometry,
-    model::{CopperGraphic, Failure, GraphicShape, Pad, Point, Track, Via},
+    model::{CopperGraphic, Failure, GraphicShape, OutlinePolygon, Pad, Point, Track, Via, Zone},
+    zones::{resolve_pad_zone_connection, ResolvedPadZoneConnection},
 };
 
 pub(crate) fn layer_bit(stackup: &[String], layer: &str) -> u32 {
@@ -30,6 +31,11 @@ pub(crate) enum Copper<'a> {
     Track(&'a Track),
     Graphic(&'a CopperGraphic),
     Via(&'a Via),
+    ZoneFill {
+        layer_idx: usize,
+        zone: &'a Zone,
+        poly: &'a OutlinePolygon,
+    },
 }
 impl Copper<'_> {
     pub(crate) fn layer_mask(self, stackup: &[String]) -> u32 {
@@ -52,6 +58,13 @@ impl Copper<'_> {
                 };
                 if s <= e {
                     span_mask(s, e)
+                } else {
+                    0
+                }
+            }
+            Self::ZoneFill { layer_idx, .. } => {
+                if layer_idx < 32 {
+                    1u32 << layer_idx
                 } else {
                     0
                 }
@@ -86,6 +99,26 @@ impl Copper<'_> {
                 geometry::via_connects_graphic(v, g)
             }
             (Self::Via(a), Self::Via(b)) => geometry::vias_connect(a, b),
+            (Self::ZoneFill { zone, poly, .. }, Self::Pad(p))
+            | (Self::Pad(p), Self::ZoneFill { zone, poly, .. }) => {
+                resolve_pad_zone_connection(p, zone) != ResolvedPadZoneConnection::None
+                    && geometry::zone_fill_connects_pad(&poly.outer, &poly.holes, p)
+            }
+            (Self::ZoneFill { poly, .. }, Self::Track(t))
+            | (Self::Track(t), Self::ZoneFill { poly, .. }) => {
+                geometry::track_connects_filled_polygon(t, &poly.outer, &poly.holes)
+            }
+            (Self::ZoneFill { poly, .. }, Self::Via(v))
+            | (Self::Via(v), Self::ZoneFill { poly, .. }) => {
+                geometry::via_connects_filled_polygon(v, &poly.outer, &poly.holes)
+            }
+            (Self::ZoneFill { poly, .. }, Self::Graphic(g))
+            | (Self::Graphic(g), Self::ZoneFill { poly, .. }) => {
+                geometry::graphic_connects_filled_polygon(g, &poly.outer, &poly.holes)
+            }
+            (Self::ZoneFill { poly: pa, .. }, Self::ZoneFill { poly: pb, .. }) => {
+                geometry::filled_polygons_overlap(&pa.outer, &pa.holes, &pb.outer, &pb.holes)
+            }
         }
     }
 
@@ -104,6 +137,9 @@ impl Copper<'_> {
             Self::Track(t) => geometry::tracks_connect(route, t),
             Self::Graphic(g) => geometry::track_connects_graphic(route, g),
             Self::Via(v) => geometry::track_connects_via(route, v),
+            Self::ZoneFill { poly, .. } => {
+                geometry::track_connects_filled_polygon(route, &poly.outer, &poly.holes)
+            }
         })
     }
 
@@ -122,6 +158,9 @@ impl Copper<'_> {
             Self::Track(t) => geometry::track_connects_via(t, via),
             Self::Graphic(g) => geometry::via_connects_graphic(via, g),
             Self::Via(v) => geometry::vias_connect(via, v),
+            Self::ZoneFill { poly, .. } => {
+                geometry::via_connects_filled_polygon(via, &poly.outer, &poly.holes)
+            }
         })
     }
     /// First integer endpoint in the convex contact interval along an edge.
@@ -237,6 +276,20 @@ impl Copper<'_> {
                 }
                 GraphicShape::Polygon { outer, .. } => outer.first().copied().into_iter().collect(),
             },
+            Self::ZoneFill { poly, .. } => {
+                let mut pts = Vec::new();
+                let n = poly.outer.len();
+                if n > 0 {
+                    for idx in [0, n / 4, n / 2, (3 * n) / 4] {
+                        for pt in grid_box_around(poly.outer[idx], None) {
+                            if !pts.contains(&pt) {
+                                pts.push(pt);
+                            }
+                        }
+                    }
+                }
+                pts
+            }
         }
     }
 }

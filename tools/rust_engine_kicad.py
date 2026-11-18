@@ -53,11 +53,18 @@ class NativeValidationError(ValueError):
     pass
 
 
-def native_violations(path: Path, report: Path, *, timeout: float = 30.0):
+def native_violations(path: Path, report: Path, *, timeout: float = 30.0,
+                      refill_zones: bool = False, save_board: bool = False):
     if not math.isfinite(timeout) or timeout <= 0:
         raise NativeValidationError('native DRC timeout must be positive and finite')
-    command = ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors',
-               '--output', str(report), str(path)]
+    if save_board and not refill_zones:
+        raise ValueError('save_board requires refill_zones=True')
+    command = ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors']
+    if refill_zones:
+        command.append('--refill-zones')
+    if save_board:
+        command.append('--save-board')
+    command.extend(['--output', str(report), str(path)])
     try:
         if subprocess.run is not _ORIGINAL_SUBPROCESS_RUN:
             subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
@@ -797,20 +804,85 @@ def _extract_graphic_shapes(drawing, *, base_id):
     raise UnsupportedBoard('unsupported native graphic shape')
 
 
-def _extract_rule_area_polygon(zone):
+def _zone_connection_str(conn, *, allow_inherited: bool = False):
+    mapping = {
+        pcbnew.ZONE_CONNECTION_NONE: 'none',
+        pcbnew.ZONE_CONNECTION_THERMAL: 'thermal',
+        pcbnew.ZONE_CONNECTION_FULL: 'solid',
+        pcbnew.ZONE_CONNECTION_THT_THERMAL: 'tht_thermal',
+    }
+    if allow_inherited:
+        mapping[pcbnew.ZONE_CONNECTION_INHERITED] = 'inherited'
+    if conn not in mapping:
+        raise UnsupportedBoard(f'unsupported zone pad connection mode: {conn}')
+    return mapping[conn]
+
+
+def _island_removal_str(mode):
+    mapping = {
+        pcbnew.ISLAND_REMOVAL_MODE_ALWAYS: 'always',
+        pcbnew.ISLAND_REMOVAL_MODE_NEVER: 'never',
+        pcbnew.ISLAND_REMOVAL_MODE_AREA: 'area_limit',
+    }
+    if mode not in mapping:
+        raise UnsupportedBoard(f'unsupported zone island removal mode: {mode}')
+    return mapping[mode]
+
+
+def _extract_zone_polygons(zone, *, label: str):
     outline = zone.Outline()
-    if outline is None or outline.OutlineCount() != 1:
-        raise UnsupportedBoard('rule area must have a single outline polygon')
-    ring = outline.Outline(0)
-    outer = [[ring.CPoint(i).x, ring.CPoint(i).y] for i in range(ring.PointCount())]
-    holes = []
-    for h in range(outline.HoleCount(0)):
-        hr = outline.Hole(0, h)
-        holes.append([[hr.CPoint(i).x, hr.CPoint(i).y] for i in range(hr.PointCount())])
-    poly = {'outer': outer}
-    if holes:
-        poly['holes'] = holes
-    return poly
+    if outline is None or outline.OutlineCount() < 1:
+        raise UnsupportedBoard(f'{label} must have at least one outline polygon')
+    polygons = []
+    for idx in range(outline.OutlineCount()):
+        ring = outline.Outline(idx)
+        if ring.ArcCount() != 0:
+            raise UnsupportedBoard(f'{label} curved arc outlines are not represented')
+        if not ring.IsClosed():
+            raise UnsupportedBoard(f'{label} open outline is not represented')
+        outer = _extract_poly_ring(ring)
+        if len(outer) < 3:
+            raise UnsupportedBoard(f'{label} outline polygon is degenerate')
+        holes = []
+        for h in range(outline.HoleCount(idx)):
+            hr = outline.Hole(idx, h)
+            if hr.ArcCount() != 0:
+                raise UnsupportedBoard(f'{label} curved arc holes are not represented')
+            if not hr.IsClosed():
+                raise UnsupportedBoard(f'{label} open hole is not represented')
+            hole = _extract_poly_ring(hr)
+            if len(hole) < 3:
+                raise UnsupportedBoard(f'{label} hole polygon is degenerate')
+            holes.append(hole)
+        poly = {'outer': outer}
+        if holes:
+            poly['holes'] = holes
+        polygons.append(poly)
+    return polygons
+
+
+def _extract_rule_area_polygon(zone):
+    return _extract_zone_polygons(zone, label='rule area')[0]
+
+
+def _validate_zone(zone, cu_set):
+    raw_copper = [l for l in zone.GetLayerSet().Seq() if pcbnew.IsCopperLayer(l)]
+    if any(l not in cu_set for l in raw_copper):
+        raise UnsupportedBoard('zone or rule area references a disabled copper layer')
+    if zone.GetIsRuleArea():
+        if zone.GetPlacementAreaEnabled():
+            raise UnsupportedBoard('placement rule areas are not represented')
+        _extract_zone_polygons(zone, label='rule area')
+        return
+    if zone.IsTeardropArea():
+        raise UnsupportedBoard('teardrop zones are not represented')
+    if zone.GetFillMode() != pcbnew.ZONE_FILL_MODE_POLYGONS:
+        raise UnsupportedBoard('hatched copper zones are not represented')
+    if not raw_copper:
+        raise UnsupportedBoard('copper zone has no active copper layers')
+    _zone_connection_str(zone.GetPadConnection(), allow_inherited=False)
+    _island_removal_str(zone.GetIslandRemovalMode())
+    _extract_zone_polygons(zone, label='copper zone')
 
 
 def _via_kind_str(via_type):
@@ -862,9 +934,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
     cu_layers, _ = _cu_stack(board)
     cu_set = set(cu_layers)
     for zone in board.Zones():
-        if not zone.GetIsRuleArea():
-            raise UnsupportedBoard('zones are not supported by the first Rust slice')
-        _extract_rule_area_polygon(zone)
+        _validate_zone(zone, cu_set)
     if any(drawing.GetLayer() == pcbnew.Margin for drawing in board.GetDrawings()):
         raise UnsupportedBoard('board Margin geometry is not represented')
     settings = board.GetDesignSettings()
@@ -1029,10 +1099,12 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     if type(max_expansions) is not int or max_expansions <= 0:
         raise ValueError('max_expansions must be positive')
     bounds, board_outline = _board_bounds_and_outline(board)
+    has_copper_zones = any(not z.GetIsRuleArea() for z in board.Zones())
     pads = []
     holes = []
     for footprint in board.GetFootprints():
         fp_clr = footprint.GetLocalClearance()
+        fp_zc = footprint.GetLocalZoneConnection()
         for pad in footprint.Pads():
             if pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
                 drill = _extract_drill_shape(pad, cu_layers)
@@ -1051,6 +1123,22 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 entry['local_clearance_nm'] = eff_clr
             if pad.GetAttribute() == pcbnew.PAD_ATTRIB_PTH:
                 entry['drill'] = _extract_drill_shape(pad, cu_layers)
+            if has_copper_zones:
+                zc = pad.GetLocalZoneConnection()
+                if zc == pcbnew.ZONE_CONNECTION_INHERITED:
+                    zc = fp_zc
+                if zc != pcbnew.ZONE_CONNECTION_INHERITED:
+                    entry['zone_connection'] = _zone_connection_str(zc, allow_inherited=False)
+                tg = pad.GetLocalThermalGapOverride()
+                if tg is not None:
+                    entry['thermal_gap_nm'] = int(tg)
+                ts = pad.GetLocalThermalSpokeWidthOverride()
+                if ts is not None:
+                    entry['thermal_spoke_width_nm'] = int(ts)
+                entry['thermal_spoke_angle_mdeg'] = int(round(pad.GetThermalSpokeAngleDegrees() * 1000.0))
+                orient_mdeg = int(round(pad.GetOrientationDegrees() * 1000.0))
+                if orient_mdeg != 0:
+                    entry['orientation_mdeg'] = orient_mdeg
             pads.append(entry)
     pads.sort(key=lambda item: (item['net'], item['at'], item['id']))
     holes.sort(key=lambda item: (item['at'], item['id']))
@@ -1089,23 +1177,90 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                                   item['width_nm'], item['locked'], item['id']))
     vias.sort(key=lambda item: (item['net'], item['at'], item['id']))
 
+    if has_copper_zones:
+        pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+
     rule_areas = []
+    zones = []
     for zone in board.Zones():
+        zlayers = [board.GetLayerName(l) for l in cu_layers if zone.GetLayerSet().Contains(l)]
+        if not zlayers:
+            continue
+        polys = _extract_zone_polygons(zone, label='rule area' if zone.GetIsRuleArea() else 'copper zone')
         if zone.GetIsRuleArea():
-            zlayers = [board.GetLayerName(l) for l in cu_layers if zone.GetLayerSet().Contains(l)]
-            if zlayers and (zone.GetDoNotAllowTracks() or zone.GetDoNotAllowVias()):
-                poly = _extract_rule_area_polygon(zone)
-                ra = {
-                    'id': item_id(zone),
-                    'layers': zlayers,
-                    'outer': poly['outer'],
-                    'no_tracks': bool(zone.GetDoNotAllowTracks()),
-                    'no_vias': bool(zone.GetDoNotAllowVias()),
-                }
-                if 'holes' in poly:
-                    ra['holes'] = poly['holes']
-                rule_areas.append(ra)
+            ra = {
+                'id': item_id(zone),
+                'layers': zlayers,
+                'outer': polys[0]['outer'],
+                'no_tracks': bool(zone.GetDoNotAllowTracks()),
+                'no_vias': bool(zone.GetDoNotAllowVias()),
+            }
+            zname = zone.GetZoneName()
+            if zname:
+                ra['name'] = zname
+            if 'holes' in polys[0]:
+                ra['holes'] = polys[0]['holes']
+            if len(polys) > 1:
+                ra['extra_polygons'] = polys[1:]
+            if zone.GetDoNotAllowPads():
+                ra['no_pads'] = True
+            if zone.GetDoNotAllowFootprints():
+                ra['no_footprints'] = True
+            if zone.GetDoNotAllowZoneFills():
+                ra['no_zone_fills'] = True
+            rule_areas.append(ra)
+        else:
+            layer_fills = []
+            for lid in cu_layers:
+                if not zone.GetLayerSet().Contains(lid) or not zone.HasFilledPolysForLayer(lid):
+                    continue
+                fill = zone.GetFilledPolysList(lid)
+                fpolys = []
+                for idx in range(fill.OutlineCount()):
+                    outer = _extract_poly_ring(fill.Outline(idx))
+                    if len(outer) < 3:
+                        continue
+                    fholes = []
+                    for h in range(fill.HoleCount(idx)):
+                        hr = _extract_poly_ring(fill.Hole(idx, h))
+                        if len(hr) >= 3:
+                            fholes.append(hr)
+                    fpoly = {'outer': outer}
+                    if fholes:
+                        fpoly['holes'] = fholes
+                    fpolys.append(fpoly)
+                if fpolys:
+                    layer_fills.append({'layer': board.GetLayerName(lid), 'polygons': fpolys})
+            z_entry = {
+                'id': item_id(zone),
+                'net': int(zone.GetNetCode()),
+                'layers': zlayers,
+                'outer': polys[0]['outer'],
+                'priority': int(zone.GetAssignedPriority()),
+                'local_clearance_nm': max(0, int(zone.GetLocalClearance())),
+                'min_thickness_nm': max(0, int(zone.GetMinThickness())),
+                'connection': _zone_connection_str(zone.GetPadConnection(), allow_inherited=False),
+                'thermal_gap_nm': max(0, int(zone.GetThermalReliefGap())),
+                'thermal_spoke_width_nm': max(0, int(zone.GetThermalReliefSpokeWidth())),
+                'island_removal': _island_removal_str(zone.GetIslandRemovalMode()),
+                'island_area_min_nm2': max(0, int(zone.GetMinIslandArea())),
+                'fill_mode': 'polygon',
+                'filled': bool(zone.IsFilled()),
+                'refillable': True,
+                'locked': bool(zone.IsLocked()),
+            }
+            zname = zone.GetZoneName()
+            if zname:
+                z_entry['name'] = zname
+            if 'holes' in polys[0]:
+                z_entry['holes'] = polys[0]['holes']
+            if len(polys) > 1:
+                z_entry['extra_polygons'] = polys[1:]
+            if layer_fills:
+                z_entry['layer_fills'] = layer_fills
+            zones.append(z_entry)
     rule_areas.sort(key=lambda item: item['id'])
+    zones.sort(key=lambda item: (-item['priority'], item['net'], item['id']))
 
     mask_rules_from_json = rules is not None and (
         rules.get('solder_mask_to_copper_clearance_nm', 0) > 0
@@ -1195,10 +1350,23 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         bds['default_via_drill_nm'] = max(0, int(default_nc.GetViaDrill()))
         bds['default_microvia_diameter_nm'] = max(0, int(default_nc.GetuViaDiameter()))
         bds['default_microvia_drill_nm'] = max(0, int(default_nc.GetuViaDrill()))
-    result['board_design_settings'] = bds
     pro_sidecar = path.with_suffix('.kicad_pro')
-    if pro_sidecar.is_file():
-        result['project_rules'] = read_bounded(pro_sidecar).decode('utf-8')
+    pro_text = read_bounded(pro_sidecar).decode('utf-8') if pro_sidecar.is_file() else None
+    pro_min_spokes = None
+    if pro_text is not None:
+        try:
+            pro_doc = json.loads(pro_text)
+            val = pro_doc.get('board', {}).get('design_settings', {}).get('rules', {}).get('min_resolved_spokes')
+            if type(val) is int and val >= 0:
+                pro_min_spokes = val
+        except (ValueError, AttributeError):
+            pro_min_spokes = None
+    min_resolved_spokes = pro_min_spokes if pro_min_spokes is not None else int(getattr(settings, 'm_MinResolvedSpokes', 2))
+    bds['min_resolved_spokes'] = min_resolved_spokes
+    bds['max_error_nm'] = max(0, int(getattr(settings, 'm_MaxError', 5000)))
+    result['board_design_settings'] = bds
+    if pro_text is not None:
+        result['project_rules'] = pro_text
     dru_sidecar = path.with_suffix('.kicad_dru')
     if dru_sidecar.is_file():
         result['custom_rules'] = read_bounded(dru_sidecar).decode('utf-8')
@@ -1206,6 +1374,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         result['vias'] = vias
     if rule_areas:
         result['rule_areas'] = rule_areas
+    if zones:
+        result['zones'] = zones
     if holes:
         result['holes'] = holes
     if board_outline is not None:
@@ -1221,9 +1391,422 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     return result
 
 
+class _PourUnionFind:
+    def __init__(self):
+        self.parent = {}
+
+    def find(self, a):
+        self.parent.setdefault(a, a)
+        while self.parent[a] != a:
+            self.parent[a] = self.parent[self.parent[a]]
+            a = self.parent[a]
+        return a
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra != rb:
+            if ra < rb:
+                self.parent[rb] = ra
+            else:
+                self.parent[ra] = rb
+
+
+def _pour_seg_dist2(p, a, b):
+    ax, ay = a
+    bx, by = b
+    px, py = p
+    dx, dy = bx - ax, by - ay
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length2))
+    cx, cy = ax + t * dx, ay + t * dy
+    return (px - cx) ** 2 + (py - cy) ** 2
+
+
+def _read_pro_min_resolved_spokes(board_path: Path) -> int | None:
+    pro_path = board_path.with_suffix('.kicad_pro')
+    if not pro_path.is_file():
+        return None
+    try:
+        doc = json.loads(read_bounded(pro_path).decode('utf-8'))
+        val = doc.get('board', {}).get('design_settings', {}).get('rules', {}).get('min_resolved_spokes')
+        if type(val) is int and val >= 0:
+            return val
+    except (OSError, ValueError, AttributeError):
+        return None
+    return None
+
+
+def _extract_pour_facts(board_path: Path) -> dict:
+    board = pcbnew.LoadBoard(str(board_path))
+    if board is None:
+        raise NativeValidationError(f'KiCad could not reload board for pour facts: {board_path}')
+    bds = board.GetDesignSettings()
+    max_err = int(bds.m_MaxError)
+    pro_min = _read_pro_min_resolved_spokes(board_path)
+    min_resolved_spokes = pro_min if pro_min is not None else int(getattr(bds, 'm_MinResolvedSpokes', 2))
+    lname = board.GetLayerName
+    nm = 1_000_000
+    edge_band = 20_000
+    cell = 2 * nm
+    leaf_vertices = 256
+    leaf_size = nm // 2
+    conn_names = {
+        pcbnew.ZONE_CONNECTION_NONE: 'none',
+        pcbnew.ZONE_CONNECTION_THERMAL: 'thermal',
+        pcbnew.ZONE_CONNECTION_FULL: 'solid',
+        pcbnew.ZONE_CONNECTION_THT_THERMAL: 'tht_thermal',
+    }
+
+    def shape(item, layer, clearance=0, err=pcbnew.ERROR_INSIDE):
+        s = pcbnew.SHAPE_POLY_SET()
+        item.TransformShapeToPolygon(s, layer, int(clearance), max_err, err)
+        return s
+
+    def overlap(a, b):
+        if not a.BBox().Intersects(b.BBox()):
+            return 0.0
+        x = pcbnew.SHAPE_POLY_SET(a)
+        x.BooleanIntersection(b)
+        return x.Area()
+
+    def rect_poly(x0, y0, x1, y1):
+        r = pcbnew.SHAPE_POLY_SET()
+        r.NewOutline()
+        for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+            r.Append(int(x), int(y))
+        return r
+
+    def bounds(bb):
+        return bb.GetLeft(), bb.GetTop(), bb.GetRight(), bb.GetBottom()
+
+    def hits(a, b):
+        return a[0] <= b[2] and b[0] <= a[2] and a[1] <= b[3] and b[1] <= a[3]
+
+    def tile(poly, bb=None):
+        bb = bb or bounds(poly.BBox())
+        if poly.TotalVertices() <= leaf_vertices or max(bb[2] - bb[0], bb[3] - bb[1]) <= leaf_size:
+            return [(bounds(poly.BBox()), poly)]
+        mx, my = (bb[0] + bb[2]) // 2, (bb[1] + bb[3]) // 2
+        out = []
+        for q in ((bb[0], bb[1], mx, my), (mx, bb[1], bb[2], my), (bb[0], my, mx, bb[3]), (mx, my, bb[2], bb[3])):
+            part = pcbnew.SHAPE_POLY_SET(poly)
+            part.BooleanIntersection(rect_poly(*q))
+            if part.OutlineCount():
+                out += tile(part, q)
+        return out
+
+    def area_on(s, tiles):
+        sb, total = bounds(s.BBox()), 0.0
+        for tb, piece in tiles:
+            if hits(sb, tb):
+                total += overlap(s, piece)
+        return total
+
+    def mm(v):
+        return round(v / nm, 4)
+
+    def box(s):
+        bb = s.BBox()
+        return [mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom())]
+
+    zones = [z for z in board.Zones() if not z.GetIsRuleArea() and z.GetNetCode() > 0]
+    zone_nets = {z.GetNetname() for z in zones}
+
+    pads = {}
+    for fp in board.GetFootprints():
+        seen = set()
+        for pad in fp.Pads():
+            key = pad.GetNumber() or f'<unnumbered@{pad.GetPosition().x},{pad.GetPosition().y}>'
+            while key in seen:
+                key += "'"
+            seen.add(key)
+            if pad.GetNetname() in zone_nets:
+                pads[f'{fp.GetReference()}.{key}'] = pad
+
+    tracks, vias = [], []
+    for t in board.GetTracks():
+        if t.GetNetname() not in zone_nets:
+            continue
+        if isinstance(t, pcbnew.PCB_VIA):
+            vias.append(t)
+        else:
+            tracks.append(t)
+
+    def track_points(t):
+        pts = [(t.GetStart().x, t.GetStart().y)]
+        if isinstance(t, pcbnew.PCB_ARC):
+            pts.append((t.GetMid().x, t.GetMid().y))
+        pts.append((t.GetEnd().x, t.GetEnd().y))
+        return pts
+
+    uf = _PourUnionFind()
+    polygons = {}
+    filled_layers = set()
+    for zi, z in enumerate(sorted(zones, key=lambda z: (z.GetNetname(), z.GetZoneName(), -z.GetAssignedPriority()))):
+        net = z.GetNetname()
+        for layer in z.GetLayerSet().CuStack():
+            if not z.HasFilledPolysForLayer(layer):
+                continue
+            fill = z.GetFilledPolysList(layer)
+            filled_layers.add((net, layer))
+            pieces = []
+            for i in range(fill.OutlineCount()):
+                s = pcbnew.SHAPE_POLY_SET()
+                s.AddOutline(fill.COutline(i))
+                pieces.append(s)
+            pieces.sort(key=lambda s: -s.Area())
+            for i, s in enumerate(pieces):
+                pid = f"{net}@{lname(layer)}/{z.GetZoneName() or 'zone' + str(zi)}#{i}"
+                polygons[pid] = {
+                    'net': net, 'layer': lname(layer), 'zone': z.GetZoneName(),
+                    'area_mm2': round(s.Area() / nm / nm, 4), 'bbox_mm': box(s),
+                    'pads': [], 'vias': 0, 'tracks': 0, '_tiles': tile(s),
+                    '_bounds': bounds(s.BBox()), '_layer': layer,
+                }
+                uf.find(('poly', pid))
+
+    def local_fill(net, layer, bb):
+        out = pcbnew.SHAPE_POLY_SET()
+        for p in polygons.values():
+            if p['net'] != net or p['_layer'] != layer or not hits(bb, p['_bounds']):
+                continue
+            for tb, piece in p['_tiles']:
+                if hits(bb, tb):
+                    out.BooleanAdd(piece)
+        if out.OutlineCount():
+            out.BooleanIntersection(rect_poly(*bb))
+        return out
+
+    def in_fill(net, layer, pt):
+        b = (pt.x, pt.y, pt.x, pt.y)
+        return any(
+            hits(b, tb) and piece.Contains(pt)
+            for p in polygons.values()
+            if p['net'] == net and p['_layer'] == layer and hits(b, p['_bounds'])
+            for tb, piece in p['_tiles']
+        )
+
+    ids = sorted(polygons)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            pa, pb = polygons[a], polygons[b]
+            if (pa['net'] == pb['net'] and pa['_layer'] == pb['_layer'] and pa['zone'] != pb['zone']
+                    and hits(pa['_bounds'], pb['_bounds'])
+                    and any(hits(ta, tb) and overlap(qa, qb) > 0 for ta, qa in pa['_tiles'] for tb, qb in pb['_tiles'])):
+                uf.union(('poly', a), ('poly', b))
+
+    def polys_on(net, layer):
+        return [(pid, p) for pid, p in polygons.items() if p['net'] == net and p['_layer'] == layer]
+
+    pad_shapes = {}
+    for key, pad in pads.items():
+        uf.find(('pad', key))
+        for layer in pad.GetLayerSet().CuStack():
+            s = shape(pad, layer)
+            pad_shapes[(key, layer)] = s
+            for pid, p in polys_on(pad.GetNetname(), layer):
+                if area_on(s, p['_tiles']) > 0:
+                    p['pads'].append(key)
+                    uf.union(('pad', key), ('poly', pid))
+
+    via_shapes = []
+    via_fill = set()
+    for vi, v in enumerate(vias):
+        uf.find(('via', vi))
+        per_layer = {}
+        for layer in v.GetLayerSet().CuStack():
+            if not v.FlashLayer(layer):
+                continue
+            s = shape(v, layer)
+            per_layer[layer] = s
+            for pid, p in polys_on(v.GetNetname(), layer):
+                if area_on(s, p['_tiles']) > 0:
+                    p['vias'] += 1
+                    via_fill.add(vi)
+                    uf.union(('via', vi), ('poly', pid))
+        via_shapes.append(per_layer)
+
+    grid = {}
+
+    def cells(x0, y0, x1, y1):
+        for gx in range(int(x0 // cell), int(x1 // cell) + 1):
+            for gy in range(int(y0 // cell), int(y1 // cell) + 1):
+                yield gx, gy
+
+    def insert(net, layer, bb, item):
+        for c in cells(bb[0], bb[1], bb[2], bb[3]):
+            grid.setdefault((net, layer, c), []).append(item)
+
+    def near(net, layer, pt):
+        return grid.get((net, layer, (int(pt[0] // cell), int(pt[1] // cell))), [])
+
+    for (key, layer), s in pad_shapes.items():
+        bb = s.BBox()
+        insert(pads[key].GetNetname(), layer, (bb.GetLeft(), bb.GetTop(), bb.GetRight(), bb.GetBottom()),
+               ('pad', key, s))
+    for vi, per_layer in enumerate(via_shapes):
+        for layer, s in per_layer.items():
+            bb = s.BBox()
+            insert(vias[vi].GetNetname(), layer, (bb.GetLeft(), bb.GetTop(), bb.GetRight(), bb.GetBottom()),
+                   ('via', vi, s))
+    track_data = []
+    for ti, t in enumerate(tracks):
+        pts, w = track_points(t), t.GetWidth()
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        track_data.append((t.GetLayer(), t.GetNetname(), pts, w))
+        insert(t.GetNetname(), t.GetLayer(), (min(xs) - w, min(ys) - w, max(xs) + w, max(ys) + w), ('track', ti, None))
+
+    track_pads = {}
+    for ti, (layer, net, pts, w) in enumerate(track_data):
+        uf.find(('track', ti))
+        s = shape(tracks[ti], layer)
+        for pid, p in polys_on(net, layer):
+            if area_on(s, p['_tiles']) > 0:
+                p['tracks'] += 1
+                uf.union(('track', ti), ('poly', pid))
+        for end in (pts[0], pts[-1]):
+            seen = set()
+            for kind, ident, other in near(net, layer, end):
+                if (kind, ident) in seen or (kind == 'track' and ident == ti):
+                    continue
+                seen.add((kind, ident))
+                if kind == 'track':
+                    _, _, opts, ow = track_data[ident]
+                    tol2 = (max(w, ow) / 2) ** 2
+                    hit = any(_pour_seg_dist2(end, q0, q1) <= tol2 for q0, q1 in zip(opts, opts[1:]))
+                else:
+                    hit = other.Contains(pcbnew.VECTOR2I(int(end[0]), int(end[1])))
+                if hit:
+                    uf.union(('track', ti), (kind, ident))
+                    if kind == 'pad' and (ti, layer) not in track_pads.get(ident, []):
+                        track_pads.setdefault(ident, []).append((ti, layer))
+
+    comp_area = {}
+    for pid, p in polygons.items():
+        root = uf.find(('poly', pid))
+        comp_area.setdefault(p['net'], {}).setdefault(root, 0.0)
+        comp_area[p['net']][root] += p['area_mm2']
+    main_comp = {net: max(c.items(), key=lambda kv: (kv[1], str(kv[0])))[0] for net, c in comp_area.items()}
+    for pid, p in polygons.items():
+        p['in_main'] = uf.find(('poly', pid)) == main_comp.get(p['net'])
+
+    pad_records = {}
+    for z in sorted(zones, key=lambda z: -z.GetAssignedPriority()):
+        net = z.GetNetname()
+        zone_conn = z.GetPadConnection()
+        for layer in z.GetLayerSet().CuStack():
+            for key, pad in pads.items():
+                rec_key = f'{key}@{lname(layer)}'
+                if pad.GetNetname() != net or (key, layer) not in pad_shapes or rec_key in pad_records:
+                    continue
+                fp = pad.GetParentFootprint()
+                conn = pad.GetLocalZoneConnection()
+                if conn == pcbnew.ZONE_CONNECTION_INHERITED and fp is not None:
+                    conn = fp.GetLocalZoneConnection()
+                if conn == pcbnew.ZONE_CONNECTION_INHERITED:
+                    conn = zone_conn
+                pth = pad.GetAttribute() == pcbnew.PAD_ATTRIB_PTH
+                if conn == pcbnew.ZONE_CONNECTION_THT_THERMAL:
+                    conn = pcbnew.ZONE_CONNECTION_THERMAL if pth else pcbnew.ZONE_CONNECTION_FULL
+                gap = pad.GetLocalThermalGapOverride()
+                gap = int(gap) if gap is not None else int(z.GetThermalReliefGap())
+                reach = shape(pad, layer, gap)
+                if overlap(reach, z.Outline()) <= 0:
+                    continue
+                ps = pad_shapes[(key, layer)]
+                rb = bounds(reach.BBox())
+                fill = local_fill(net, layer, rb) if (net, layer) in filled_layers else None
+                touches = fill is not None and overlap(ps, fill) > 0
+                spokes, solid, track_spokes = 0, False, 0
+                if fill is not None:
+                    ring = shape(pad, layer, edge_band)
+                    ring.BooleanSubtract(shape(pad, layer, -edge_band, pcbnew.ERROR_OUTSIDE))
+                    hit = pcbnew.SHAPE_POLY_SET(ring)
+                    hit.BooleanIntersection(fill)
+                    spokes = hit.OutlineCount()
+                    solid = any(hit.HoleCount(i) > 0 for i in range(hit.OutlineCount()))
+                for ti in {ti for ti, lyr in track_pads.get(key, []) if lyr == layer}:
+                    ends = [pcbnew.VECTOR2I(int(x), int(y)) for x, y in (track_data[ti][2][0], track_data[ti][2][-1])]
+                    inside = [ps.Contains(e) for e in ends]
+                    if inside.count(True) == 1 and in_fill(net, layer, ends[inside.index(False)]):
+                        track_spokes += 1
+                on_layer = [ti for ti, lyr in track_pads.get(key, []) if lyr == layer]
+                via_spokes = sum(
+                    1 for vi in via_fill
+                    if vias[vi].GetNetname() == net and layer in via_shapes[vi]
+                    and overlap(via_shapes[vi][layer], ps) > 0
+                )
+                pos = pad.GetPosition()
+                pad_records[rec_key] = {
+                    'pad': key, 'net': net, 'layer': lname(layer), 'zone': z.GetZoneName(),
+                    'position_mm': [mm(pos.x), mm(pos.y)], 'pth': pth,
+                    'connection': conn_names.get(conn, str(conn)), 'thermal_gap_mm': mm(gap),
+                    'touches_fill': touches, 'spokes': spokes, 'solid': solid,
+                    'polygons': sorted(pid for pid, p in polys_on(net, layer) if key in p['pads']),
+                    'in_main': uf.find(('pad', key)) == main_comp.get(net),
+                    'tracks_on_layer': len(on_layer), 'tracks_attached': len(track_pads.get(key, [])),
+                    'track_spokes': track_spokes, 'via_spokes': via_spokes,
+                }
+
+    layers = {}
+    for p in polygons.values():
+        lk = f"{p['net']}@{p['layer']}"
+        rec = layers.setdefault(lk, {'net': p['net'], 'layer': p['layer'], 'area_mm2': 0.0,
+                                     'polygons': 0, 'islands_off_main': 0})
+        rec['area_mm2'] = round(rec['area_mm2'] + p['area_mm2'], 4)
+        rec['polygons'] += 1
+        rec['islands_off_main'] += 0 if p['in_main'] else 1
+    return {
+        'min_resolved_spokes': min_resolved_spokes,
+        'zones': zones,
+        'layers': dict(sorted(layers.items())),
+        'polygons': {pid: {k: v for k, v in p.items() if not k.startswith('_')} | {'pads': sorted(p['pads'])}
+                     for pid, p in sorted(polygons.items())},
+        'pads': dict(sorted(pad_records.items())),
+    }
+
+
+def _compare_pour_facts(ref: dict, cand: dict, *, area_loss_pct: float | None = None,
+                        min_spokes: int | None = None) -> tuple[bool, list[dict]]:
+    board_min = int(ref.get('min_resolved_spokes') or 0)
+    minimum = max(board_min, int(min_spokes or 0))
+    failures = []
+    for lk in sorted(set(ref['layers']) | set(cand['layers'])):
+        r, c = ref['layers'].get(lk), cand['layers'].get(lk)
+        ra, ca = (r or {}).get('area_mm2', 0.0), (c or {}).get('area_mm2', 0.0)
+        pct = round(100.0 * (ca - ra) / ra, 3) if ra else None
+        if area_loss_pct is not None and pct is not None and -pct > area_loss_pct:
+            failures.append({'kind': 'area_loss', 'net_layer': lk, 'area_mm2': [ra, ca],
+                             'delta_pct': pct, 'limit_pct': area_loss_pct})
+
+    def eff_spokes(rec):
+        return float('inf') if rec['solid'] else rec['spokes'] + rec['track_spokes']
+
+    for key in sorted(set(ref['pads']) | set(cand['pads'])):
+        r, c = ref['pads'].get(key), cand['pads'].get(key)
+        if r is None or c is None:
+            if r is not None and r['connection'] != 'none' and r['touches_fill']:
+                failures.append({'kind': 'lost_pad_reach', 'pad': key, 'connection': r['connection']})
+            continue
+        if r['connection'] == 'none':
+            continue
+        if r['touches_fill'] and not c['touches_fill']:
+            failures.append({'kind': 'lost_fill_contact', 'pad': key})
+            continue
+        if r['in_main'] and not c['in_main']:
+            failures.append({'kind': 'isolated_island', 'pad': key})
+            continue
+        es_r, es_c = eff_spokes(r), eff_spokes(c)
+        if r['connection'] == 'thermal' and r['touches_fill'] and es_r >= minimum > es_c:
+            failures.append({'kind': 'spokes_below_minimum', 'pad': key,
+                             'spokes': [r['spokes'], c['spokes']], 'minimum': minimum})
+    return not failures, failures
+
+
 def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
                original_source: Path | None = None, drc_timeout: float = 30.0,
-               validation_report: Path | None = None):
+               validation_report: Path | None = None, pour_area_loss: float | None = None,
+               pour_min_spokes: int | None = None):
     if source.resolve() == destination.resolve():
         raise ValueError('output must be a new path distinct from the input')
     if os.path.lexists(destination):
@@ -1234,13 +1817,19 @@ def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request:
         resolve_sidecars(original_source)
     with source_snapshot(source) as snapshot:
         apply_snapshot(snapshot, plan, destination, expected_request=expected_request,
-                       drc_timeout=drc_timeout, validation_report=validation_report)
+                       drc_timeout=drc_timeout, validation_report=validation_report,
+                       pour_area_loss=pour_area_loss, pour_min_spokes=pour_min_spokes)
 
 
 def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
-                   drc_timeout: float = 30.0, validation_report: Path | None = None):
+                   drc_timeout: float = 30.0, validation_report: Path | None = None,
+                   pour_area_loss: float | None = None, pour_min_spokes: int | None = None):
     if not math.isfinite(drc_timeout) or drc_timeout <= 0:
         raise ValueError('drc timeout must be positive and finite')
+    if pour_area_loss is not None and (not math.isfinite(pour_area_loss) or not 0.0 <= pour_area_loss <= 100.0):
+        raise ValueError('pour area loss percentage must be finite and in 0..=100')
+    if pour_min_spokes is not None and (type(pour_min_spokes) is not int or not 0 <= pour_min_spokes <= 16):
+        raise ValueError('pour min spokes must be an integer in 0..=16')
     if os.path.lexists(destination):
         raise FileExistsError(f'output already exists: {destination}')
     if validation_report is not None and os.path.lexists(validation_report):
@@ -1281,6 +1870,9 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     used_ids = {item_id(x) for x in board.GetTracks()} | {item_id(x) for x in board.GetPads()}
     used_ids |= {item_id(x) for x in board.GetFootprints()} | {item_id(x) for x in board.GetDrawings()}
     used_ids |= {item_id(x) for fp in board.GetFootprints() for x in fp.GraphicalItems()}
+    used_ids |= {item_id(x) for x in board.Zones()}
+    used_ids |= {item_id(x) for fp in board.GetFootprints() for x in fp.Zones()}
+    has_copper_zones = any(not z.GetIsRuleArea() for z in board.Zones())
     nets = set(board.GetNetsByNetcode())
     allowed_track_keys = {'id', 'net', 'layer', 'start', 'end', 'width_nm', 'locked'}
     required_track_keys = {'id', 'net', 'start', 'end', 'width_nm', 'locked'}
@@ -1364,21 +1956,62 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             src_sc = source.with_suffix(suffix)
             if src_sc.is_file():
                 temporary.with_suffix(suffix).write_bytes(src_sc.read_bytes())
-        saved = pcbnew.LoadBoard(str(temporary))
-        if saved is None:
-            raise NativeValidationError('KiCad could not reload the saved candidate')
-        saved.BuildConnectivity()
-        before_unconnected = saved.GetConnectivity().GetUnconnectedCount(False)
-        if before_unconnected != 0:
-            raise NativeValidationError('native connectivity still has open connections')
-        before = native_violations(source, directory / 'before-drc.json', timeout=drc_timeout)
-        after = native_violations(temporary, directory / 'after-drc.json', timeout=drc_timeout)
+        if has_copper_zones:
+            before_dir = directory / 'before_refill'
+            before_dir.mkdir()
+            before_board = before_dir / source.name
+            before_board.write_bytes(source.read_bytes())
+            for suffix in ('.kicad_pro', '.kicad_dru'):
+                src_sc = source.with_suffix(suffix)
+                if src_sc.is_file():
+                    before_board.with_suffix(suffix).write_bytes(src_sc.read_bytes())
+            before = native_violations(before_board, directory / 'before-drc.json',
+                                       timeout=drc_timeout, refill_zones=True, save_board=True)
+            after = native_violations(temporary, directory / 'after-drc.json',
+                                      timeout=drc_timeout, refill_zones=True, save_board=True)
+            saved = pcbnew.LoadBoard(str(temporary))
+            if saved is None:
+                raise NativeValidationError('KiCad could not reload the refilled candidate')
+            saved.BuildConnectivity()
+            before_unconnected = saved.GetConnectivity().GetUnconnectedCount(False)
+            if before_unconnected != 0:
+                raise NativeValidationError('native connectivity still has open connections')
+        else:
+            saved = pcbnew.LoadBoard(str(temporary))
+            if saved is None:
+                raise NativeValidationError('KiCad could not reload the saved candidate')
+            saved.BuildConnectivity()
+            before_unconnected = saved.GetConnectivity().GetUnconnectedCount(False)
+            if before_unconnected != 0:
+                raise NativeValidationError('native connectivity still has open connections')
+            before = native_violations(source, directory / 'before-drc.json', timeout=drc_timeout)
+            after = native_violations(temporary, directory / 'after-drc.json', timeout=drc_timeout)
         if after['unconnected_items']:
             raise NativeValidationError('native DRC still reports open connections')
         key = lambda violation: json.dumps(violation, sort_keys=True)
         introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
         if introduced:
             raise NativeValidationError('candidate introduces native DRC violations')
+        pour_integrity_checked = False
+        pour_integrity_passed = False
+        if has_copper_zones:
+            try:
+                ref_pour = _extract_pour_facts(before_board)
+                cand_pour = _extract_pour_facts(temporary)
+                pour_ok, pour_failures = _compare_pour_facts(
+                    ref_pour, cand_pour, area_loss_pct=pour_area_loss, min_spokes=pour_min_spokes
+                )
+            except NativeValidationError:
+                raise
+            except Exception as error:
+                raise NativeValidationError(f'pour_integrity check failed: {error}') from error
+            pour_integrity_checked = True
+            pour_integrity_passed = pour_ok
+            if not pour_ok:
+                summary = '; '.join(
+                    f"{f['kind']}:{f.get('pad') or f.get('net_layer')}" for f in pour_failures[:5]
+                )
+                raise NativeValidationError(f'pour_integrity failed: {summary}')
         if validation_report is not None:
             digest = hashlib.sha256()
             candidate_bytes = 0
@@ -1400,6 +2033,9 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
                 'introduced_violation_count': sum(introduced.values()),
                 'added_track_count': len(additions),
                 'added_via_count': len(added_vias),
+                'has_copper_zones': has_copper_zones,
+                'pour_integrity_checked': pour_integrity_checked,
+                'pour_integrity_passed': pour_integrity_passed,
                 'kicad_version': str(pcbnew.Version()) if hasattr(pcbnew, 'Version') else 'unknown',
             }
         # Atomic create-if-absent: a concurrent writer's destination is preserved.
@@ -1466,6 +2102,10 @@ def main():
                        help='timeout in seconds for each native KiCad DRC invocation')
     apply.add_argument('--validation-report', type=Path, default=None,
                        help='optional atomic output path for native apply validation metadata')
+    apply.add_argument('--pour-area-loss', type=float, default=None,
+                       help='fail pour_integrity if any net/layer loses more than PCT percent fill area')
+    apply.add_argument('--pour-min-spokes', type=int, default=None,
+                       help='tighten minimum thermal spoke requirement to max(board_min, N)')
     args = parser.parse_args()
     try:
         if args.command == 'export':
@@ -1480,7 +2120,9 @@ def main():
                        expected_request=read_bounded(args.request),
                        original_source=args.original_source,
                        drc_timeout=args.drc_timeout,
-                       validation_report=args.validation_report)
+                       validation_report=args.validation_report,
+                       pour_area_loss=args.pour_area_loss,
+                       pour_min_spokes=args.pour_min_spokes)
     except (UnsupportedBoard, NativeValidationError, FileExistsError, OSError, ValueError) as error:
         if isinstance(error, UnsupportedBoard):
             status = 'unsupported'

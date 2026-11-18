@@ -2236,3 +2236,201 @@ def test_route_native_budget_exhaustion_and_residue_immunity(
     assert clean_out.exists()
     observed = [json.loads(line) for line in audit_log.read_text().splitlines()]
     assert all(row.get('allowed', True) for row in observed)
+
+
+def _add_rect_outline(poly_set, x0, y0, x1, y1):
+    poly_set.NewOutline()
+    for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+        poly_set.Append(x, y)
+
+
+def test_m3_3_native_board_rule_areas_export_and_unsupported_controls(
+        native_board, guarded_cli, tmp_path):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.LoadBoard(str(native_board))
+    ra = pcbnew.ZONE(board)
+    ra.SetLayer(pcbnew.F_Cu)
+    ra.SetIsRuleArea(True)
+    ra.SetZoneName('keepout_1')
+    ra.SetDoNotAllowTracks(True)
+    ra.SetDoNotAllowVias(False)
+    ra.SetDoNotAllowPads(True)
+    ra.SetDoNotAllowFootprints(True)
+    ra.SetDoNotAllowZoneFills(True)
+    _add_rect_outline(ra.Outline(), 6000000, 8000000, 14000000, 12000000)
+    board.Add(ra)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    source_bytes = native_board.read_bytes()
+
+    exported = bridge.export_board(native_board, RULES, 100000)
+    assert len(exported['rule_areas']) == 1
+    era = exported['rule_areas'][0]
+    assert era['name'] == 'keepout_1'
+    assert era['no_tracks'] is True and era['no_vias'] is False
+    assert era['no_pads'] is True and era['no_footprints'] is True
+    assert era['no_zone_fills'] is True
+
+    rules_path = native_board.with_name('rules.json')
+    rules_path.write_text(json.dumps(RULES))
+    out_board = tmp_path / 'routed-ko.kicad_pcb'
+    res = run([str(engine), 'route-native', str(native_board), str(out_board),
+               '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, res.stderr
+    assert native_board.read_bytes() == source_bytes
+
+    # Negative control: curved arc in rule-area outline -> UnsupportedBoard
+    import re
+    arc_path = tmp_path / 'arc_ra.kicad_pcb'
+    arc_text = native_board.read_text()
+    arc_text2 = re.sub(
+        r'\(xy 6 8\)\s*\(xy 14 8\)',
+        '(arc (start 6 8) (mid 10 7) (end 14 8))',
+        arc_text,
+    )
+    assert arc_text2 != arc_text
+    arc_path.write_text(arc_text2)
+    assert next(iter(pcbnew.LoadBoard(str(arc_path)).Zones())).Outline().Outline(0).ArcCount() > 0
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_board(arc_path, RULES, 100000)
+
+
+def test_m3_3_native_copper_zone_export_and_unsupported_controls(tmp_path, monkeypatch):
+    board = pcbnew.BOARD()
+    board.Add(pcbnew.NETINFO_ITEM(board, 'GND', 1))
+    for a, b in zip([(0, 0), (20000000, 0), (20000000, 20000000), (0, 20000000)],
+                    [(20000000, 0), (20000000, 20000000), (0, 20000000), (0, 0)]):
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50000)
+        board.Add(edge)
+    z = pcbnew.ZONE(board)
+    z.SetLayer(pcbnew.F_Cu)
+    z.SetNetCode(1)
+    z.SetIsRuleArea(False)
+    _add_rect_outline(z.Outline(), 2000000, 2000000, 18000000, 18000000)
+    board.Add(z)
+    bpath = tmp_path / 'zone_board.kicad_pcb'
+    assert pcbnew.SaveBoard(str(bpath), board)
+    pro_path = tmp_path / 'zone_board.kicad_pro'
+    pro_path.write_text(json.dumps({
+        'meta': {'version': 3},
+        'board': {'design_settings': {'rules': {'min_resolved_spokes': 3}}},
+    }))
+    source_bytes = bpath.read_bytes()
+
+    exported = bridge.export_board(bpath, RULES, 100000)
+    assert bpath.read_bytes() == source_bytes
+    assert len(exported['zones']) == 1
+    assert exported['zones'][0]['filled'] is True
+    assert exported['zones'][0]['layer_fills']
+    assert json.loads(exported['project_rules'])['board']['design_settings']['rules']['min_resolved_spokes'] == 3
+
+    # Hatched copper zone fails closed
+    z.SetFillMode(pcbnew.ZONE_FILL_MODE_HATCH_PATTERN)
+    hatched_path = tmp_path / 'hatched.kicad_pcb'
+    assert pcbnew.SaveBoard(str(hatched_path), board)
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_board(hatched_path, RULES, 100000)
+
+    # Teardrop zone fails closed
+    z.SetFillMode(pcbnew.ZONE_FILL_MODE_POLYGONS)
+    td_path = tmp_path / 'teardrop.kicad_pcb'
+    assert pcbnew.SaveBoard(str(td_path), board)
+    monkeypatch.setattr(pcbnew.ZONE, 'IsTeardropArea', lambda self: True)
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_board(td_path, RULES, 100000)
+
+
+def test_m3_3_native_route_and_pour_integrity_checks(guarded_cli, tmp_path):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.BOARD()
+    for code, name in ((1, 'SIGNAL'), (2, 'GND')):
+        board.Add(pcbnew.NETINFO_ITEM(board, name, code))
+    for a, b in zip([(0, 0), (24000000, 0), (24000000, 20000000), (0, 20000000)],
+                    [(24000000, 0), (24000000, 20000000), (0, 20000000), (0, 0)]):
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50000)
+        board.Add(edge)
+    for idx, (x, y, net) in enumerate((
+        (3000000, 16000000, 1), (21000000, 16000000, 1),
+        (10000000, 6000000, 2), (14000000, 6000000, 2),
+    ), 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(x, y))
+        board.Add(fp)
+        p = pcbnew.PAD(fp)
+        p.SetNumber('1')
+        p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        p.SetShape(pcbnew.PAD_SHAPE_RECT)
+        p.SetSize(pcbnew.VECTOR2I(1500000, 1500000))
+        p.SetPosition(pcbnew.VECTOR2I(x, y))
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        p.SetLayerSet(ls)
+        p.SetNetCode(net)
+        fp.Add(p)
+    z = pcbnew.ZONE(board)
+    z.SetLayer(pcbnew.F_Cu)
+    z.SetNetCode(2)
+    z.SetIsRuleArea(False)
+    _add_rect_outline(z.Outline(), 7000000, 2000000, 17000000, 18000000)
+    board.Add(z)
+    src = tmp_path / 'pour_board.kicad_pcb'
+    assert pcbnew.SaveBoard(str(src), board)
+    src_bytes = src.read_bytes()
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(RULES))
+
+    out = tmp_path / 'pour_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(src), str(out),
+               '--rules', str(rules_path), '--pour-area-loss', '25.0'], check=False)
+    assert res.returncode == 0, res.stderr
+    assert src.read_bytes() == src_bytes
+    op = json.loads(res.stdout)
+    assert op['status'] == 'complete'
+    assert any(
+        p['phase'] == 'native_apply_validate' and p['status'] == 'ok'
+        for p in op['phases']
+    )
+    assert out.exists()
+
+    # Negative controls on _compare_pour_facts failure taxonomy using real extracted facts
+    import copy
+    fb = pcbnew.LoadBoard(str(out))
+    pcbnew.ZONE_FILLER(fb).Fill(fb.Zones())
+    filled_out = tmp_path / 'pour_filled.kicad_pcb'
+    assert pcbnew.SaveBoard(str(filled_out), fb)
+    real_facts = bridge._extract_pour_facts(filled_out)
+    assert real_facts['layers'] and real_facts['pads']
+    ref = {
+        'min_resolved_spokes': real_facts['min_resolved_spokes'],
+        'layers': copy.deepcopy(real_facts['layers']),
+        'pads': copy.deepcopy(real_facts['pads']),
+    }
+    ok0, fails0 = bridge._compare_pour_facts(ref, ref, area_loss_pct=10.0, min_spokes=2)
+    assert ok0 is True and fails0 == []
+    pad_key = next(iter(ref['pads']))
+    layer_key = next(iter(ref['layers']))
+    for kind, mutate in [
+        ('isolated_island', lambda c: c['pads'][pad_key].update({'in_main': False})),
+        ('spokes_below_minimum', lambda c: c['pads'][pad_key].update({'spokes': 1, 'track_spokes': 0})),
+        ('lost_fill_contact', lambda c: c['pads'][pad_key].update({'touches_fill': False})),
+        ('lost_pad_reach', lambda c: c['pads'].pop(pad_key)),
+        ('area_loss', lambda c: c['layers'][layer_key].update({'area_mm2': 1.0})),
+    ]:
+        cand = copy.deepcopy(ref)
+        mutate(cand)
+        ok, failures = bridge._compare_pour_facts(
+            ref, cand, area_loss_pct=10.0, min_spokes=2,
+        )
+        assert ok is False and any(f['kind'] == kind for f in failures), (kind, failures)

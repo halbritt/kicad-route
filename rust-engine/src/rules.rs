@@ -85,6 +85,10 @@ pub struct BoardDesignSettings {
     pub default_via_drill_nm: i64,
     pub default_microvia_diameter_nm: i64,
     pub default_microvia_drill_nm: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_resolved_spokes: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_error_nm: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -107,6 +111,10 @@ pub struct BoardMinimums {
     pub allow_microvias: bool,
     pub hole_to_hole_active: bool,
     pub hole_clearance_active: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_resolved_spokes: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_error_nm: Option<i64>,
 }
 
 impl Default for BoardMinimums {
@@ -129,6 +137,8 @@ impl Default for BoardMinimums {
             allow_microvias: false,
             hole_to_hole_active: true,
             hole_clearance_active: true,
+            min_resolved_spokes: None,
+            max_error_nm: None,
         }
     }
 }
@@ -831,6 +841,23 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                 minimums.allow_blind_buried_vias =
                     json_bool_field(r, "allow_blind_buried_vias", false)?;
                 minimums.allow_microvias = json_bool_field(r, "allow_microvias", false)?;
+                if let Some(v) = r.get("min_resolved_spokes") {
+                    if !v.is_null() {
+                        let n = v.as_u64().ok_or_else(|| {
+                            Failure::new(
+                                Status::Invalid,
+                                ".kicad_pro min_resolved_spokes must be a nonnegative integer",
+                            )
+                        })?;
+                        if n > 16 {
+                            return Err(Failure::new(
+                                Status::Invalid,
+                                ".kicad_pro min_resolved_spokes exceeds supported range",
+                            ));
+                        }
+                        minimums.min_resolved_spokes = Some(n as u32);
+                    }
+                }
             }
             if let Some(sev_val) = ds.get("rule_severities") {
                 let sev = sev_val.as_object().ok_or_else(|| {
@@ -1923,6 +1950,7 @@ pub enum DruItemKind {
     Pad,
     Hole,
     Graphic,
+    Zone,
 }
 
 impl DruItemKind {
@@ -1933,6 +1961,7 @@ impl DruItemKind {
             Self::Pad => "Pad",
             Self::Hole => "Hole",
             Self::Graphic => "Graphic",
+            Self::Zone => "Zone",
         }
     }
 }
@@ -2752,6 +2781,8 @@ fn merge_minimums(bds: Option<&BoardDesignSettings>, pro: Option<&ProjectRules>)
         m.solder_mask_to_copper_clearance_nm = m
             .solder_mask_to_copper_clearance_nm
             .max(b.solder_mask_to_copper_clearance_nm);
+        m.min_resolved_spokes = m.min_resolved_spokes.or(b.min_resolved_spokes);
+        m.max_error_nm = b.max_error_nm;
     }
     m
 }
@@ -2872,6 +2903,18 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
             return Err(Failure::new(
                 Status::Invalid,
                 "board_design_settings values must be nonnegative",
+            ));
+        }
+        if bds.min_resolved_spokes.is_some_and(|n| n > 16) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings min_resolved_spokes exceeds supported range",
+            ));
+        }
+        if bds.max_error_nm.is_some_and(|e| !(0..=MAX_NM).contains(&e)) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings max_error_nm must be 0..=100000000 nm",
             ));
         }
     }

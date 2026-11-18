@@ -14,6 +14,11 @@ fn pad(shape: Shape, at: Point) -> Pad {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     }
 }
 fn shapes() -> Vec<Shape> {

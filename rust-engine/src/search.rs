@@ -278,7 +278,9 @@ pub(crate) fn join_components(
     }
     let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
+    let via_cost = engine.effective_rules.via_cost.max(1);
     let mut starts: BTreeSet<(Point, u8)> = BTreeSet::new();
+    let mut via_seed_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     for c in source {
         engine.work.charge(1)?;
         let c_mask = c.layer_mask(stackup);
@@ -288,34 +290,84 @@ pub(crate) fn join_components(
                 continue;
             }
             let l_name = engine.layer_name(l_idx);
-            let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
-                Ok(w) => w,
-                Err(e) if e.status == Status::Unroutable => continue,
+            let width_opt = match engine.effective_rules.track_width_for(net, l_name) {
+                Ok(w) => Some(w),
+                Err(e) if e.status == Status::Unroutable => None,
                 Err(e) => return Err(e),
             };
             for &p in &anchors {
                 engine.work.charge(1)?;
-                if !engine.legal_edge_on(net, l_idx, p, p)? {
-                    continue;
-                }
-                let probe = Track {
-                    id: String::new(),
-                    net,
-                    start: p,
-                    end: p,
-                    width_nm,
-                    locked: false,
-                    layer: l_name.to_owned(),
-                };
-                for s in source {
-                    if s.touches_route(&probe, stackup, &engine.work)? {
-                        let key = (p, l_idx as u8);
-                        engine
-                            .work
-                            .search_storage(starts.len() + usize::from(!starts.contains(&key)))?;
-                        starts.insert(key);
-                        break;
+                let key = (p, l_idx as u8);
+                let mut seed_ok = false;
+                if let Some(width_nm) = width_opt {
+                    if engine.legal_edge_on(net, l_idx, p, p)? {
+                        let probe = Track {
+                            id: String::new(),
+                            net,
+                            start: p,
+                            end: p,
+                            width_nm,
+                            locked: false,
+                            layer: l_name.to_owned(),
+                        };
+                        for s in source {
+                            if s.touches_route(&probe, stackup, &engine.work)? {
+                                seed_ok = true;
+                                break;
+                            }
+                        }
                     }
+                }
+                if !seed_ok && l_count > 1 && !starts.contains(&key) {
+                    via_seed_buf.clear();
+                    push_legal_via_transitions(
+                        engine,
+                        net,
+                        p,
+                        l_idx,
+                        via_cost,
+                        &[],
+                        &mut via_seed_buf,
+                    )?;
+                    'via_seed: for &(_, pv, _) in &via_seed_buf {
+                        let kind = match pv.kind {
+                            0 => ViaKind::Through,
+                            1 => ViaKind::BlindBuried,
+                            _ => ViaKind::Micro,
+                        };
+                        let span_layers = &stackup[pv.start_layer as usize..=pv.end_layer as usize];
+                        if let Ok((diam, drill)) = engine.effective_rules.via_dims_for(
+                            net,
+                            kind == ViaKind::Micro,
+                            span_layers,
+                        ) {
+                            let probe_via = Via {
+                                id: String::new(),
+                                net,
+                                at: p,
+                                diameter_nm: diam,
+                                drill_nm: drill,
+                                start_layer: stackup[pv.start_layer as usize].clone(),
+                                end_layer: stackup[pv.end_layer as usize].clone(),
+                                kind,
+                                locked: false,
+                            };
+                            for s in source {
+                                if (s.layer_mask(stackup) & (1u32 << l_idx)) != 0
+                                    && s.touches_via(&probe_via, stackup, &engine.work)?
+                                {
+                                    seed_ok = true;
+                                    break 'via_seed;
+                                }
+                            }
+                        }
+                    }
+                }
+                if seed_ok {
+                    engine
+                        .work
+                        .search_storage(starts.len() + usize::from(!starts.contains(&key)))?;
+                    starts.insert(key);
                 }
             }
         }
@@ -408,8 +460,11 @@ pub(crate) fn join_components(
     );
     let conflict_radius_sq_upper = conflict_radius_upper * conflict_radius_upper;
 
-    let via_cost = engine.effective_rules.via_cost.max(1);
     let start_vec: Vec<(Point, u8)> = starts.into_iter().collect();
+    let has_zone_target = targets
+        .iter()
+        .flatten()
+        .any(|c| matches!(c, Copper::ZoneFill { .. }));
     let track_direction_matters = l_count == 1 || engine.input.rules.same_net_hole_clearance_nm > 0;
     let track_via_count = l_count > 1 && engine.effective_rules.net(net).max_via_count.is_some();
 
@@ -651,7 +706,7 @@ pub(crate) fn join_components(
                     center: v_b.at,
                     radius_sq_upper: conflict_radius_sq_upper.max(pair_sq),
                 });
-                if engine.input.rules.same_net_hole_clearance_nm == 0 {
+                if !has_zone_target && engine.input.rules.same_net_hole_clearance_nm == 0 {
                     let needed_cutoff = result.steps.saturating_add(via_cost);
                     if backward_h.as_ref().is_none_or(|(m, _)| needed_cutoff > *m) {
                         let bwd = compute_backward_heuristic(
@@ -938,6 +993,7 @@ fn compute_backward_heuristic(
                     [via.at[0] + r, via.at[1] + r],
                 )
             }
+            Copper::ZoneFill { .. } => continue,
         };
         let min_x = lo[0].saturating_sub(route_radius + grid).max(bounds.min[0]);
         let max_x = hi[0].saturating_add(route_radius + grid).min(bounds.max[0]);
@@ -1172,6 +1228,17 @@ fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
                 [via.at[0] + r, via.at[1] + r],
                 Some((via.at, r)),
             )
+        }
+        Copper::ZoneFill { poly, .. } => {
+            let mut lo = [i64::MAX, i64::MAX];
+            let mut hi = [i64::MIN, i64::MIN];
+            for pt in &poly.outer {
+                for k in 0..2 {
+                    lo[k] = lo[k].min(pt[k]);
+                    hi[k] = hi[k].max(pt[k]);
+                }
+            }
+            (lo, hi, None)
         }
     };
     let lo: Point = std::array::from_fn(|k| lo[k] - route_radius);

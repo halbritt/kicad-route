@@ -12,6 +12,11 @@ fn pad(n: u64, at: Point) -> Pad {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     }
 }
 fn track(n: u64, a: Point, b: Point) -> Track {
@@ -64,6 +69,7 @@ fn base() -> Input {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     }
 }
 mod model {
@@ -307,6 +313,11 @@ fn clearance_shadowed_target_joins_at_first_contact() {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     }];
     i.tracks = vec![
         Track {
@@ -387,6 +398,11 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -398,6 +414,11 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     i.tracks = vec![Track {

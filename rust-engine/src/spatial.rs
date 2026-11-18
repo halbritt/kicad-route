@@ -228,8 +228,22 @@ pub(crate) struct ViaGeom {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct KeepoutGeom {
     pub rule_area_idx: u32,
+    pub poly_idx: u32,
     pub no_tracks: bool,
     pub no_vias: bool,
+    pub no_zone_fills: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ZoneFillGeom {
+    pub zone_idx: u32,
+    pub poly_idx: u32,
+    pub refillable: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SpokeCorridorGeom {
+    pub corridor_idx: u32,
 }
 
 const _: () = assert!(std::mem::size_of::<PadCore>() <= 40);
@@ -240,6 +254,8 @@ const _: () = assert!(std::mem::size_of::<MaskGeom>() <= 40);
 const _: () = assert!(std::mem::size_of::<TrackGeom>() <= 40);
 const _: () = assert!(std::mem::size_of::<ViaGeom>() <= 40);
 const _: () = assert!(std::mem::size_of::<KeepoutGeom>() <= 40);
+const _: () = assert!(std::mem::size_of::<ZoneFillGeom>() <= 40);
+const _: () = assert!(std::mem::size_of::<SpokeCorridorGeom>() <= 40);
 
 #[derive(Debug)]
 pub(crate) struct StaticSpatialIndex<P> {
@@ -1589,6 +1605,11 @@ mod tests {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             });
             input.tracks.push(Track {
                 id: format!("20000000-0000-4000-8000-{n:012x}"),
@@ -1737,6 +1758,7 @@ mod tests {
             project_rules: None,
             custom_rules: None,
             effective_rules: None,
+            zones: Vec::new(),
         };
         for i in 0..20 {
             let x = ((next_u64() % 31) as i64 - 15) * 10;
@@ -1749,6 +1771,11 @@ mod tests {
                 local_clearance_nm: None,
                 shape: shapes[i % shapes.len()].clone(),
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             });
         }
         let mut engine = Engine::new(input).unwrap();

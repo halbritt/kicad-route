@@ -187,6 +187,22 @@ pub(crate) fn is_ccw_convex_polygon(verts: &[Point]) -> bool {
     }
     true
 }
+pub(crate) fn is_valid_closed_ring(ring: &[Point]) -> bool {
+    let n = ring.len();
+    if n < 3 {
+        return false;
+    }
+    let mut area2: i128 = 0;
+    for i in 0..n {
+        let a = ring[i];
+        let b = ring[(i + 1) % n];
+        if a == b {
+            return false;
+        }
+        area2 += i128::from(a[0]) * i128::from(b[1]) - i128::from(b[0]) * i128::from(a[1]);
+    }
+    area2 != 0
+}
 pub(crate) fn is_valid_simple_ring(ring: &[Point]) -> bool {
     let n = ring.len();
     if n < 3 {
@@ -1025,18 +1041,73 @@ pub fn holes_near(
     }
 }
 
-pub fn track_near_rule_area(a: Point, b: Point, width_nm: i64, ra: &RuleArea) -> bool {
-    if point_in_polygon_with_holes(a, &ra.outer, &ra.holes)
-        || point_in_polygon_with_holes(b, &ra.outer, &ra.holes)
+pub fn track_near_polygon_rings(
+    a: Point,
+    b: Point,
+    width_nm: i64,
+    clearance_nm: i64,
+    outer: &[Point],
+    holes: &[Vec<Point>],
+    inclusive: bool,
+) -> bool {
+    let gap2 = i128::from(width_nm) + 2 * i128::from(clearance_nm);
+    if gap2 < 0 {
+        return false;
+    }
+    let check_ring = |ring: &[Point]| {
+        let n = ring.len();
+        (0..n).any(|i| segments_near(a, b, ring[i], ring[(i + 1) % n], gap2, inclusive))
+    };
+    check_ring(outer) || holes.iter().any(|h| check_ring(h))
+}
+
+pub fn track_near_filled_polygon(
+    a: Point,
+    b: Point,
+    width_nm: i64,
+    clearance_nm: i64,
+    outer: &[Point],
+    holes: &[Vec<Point>],
+    inclusive: bool,
+) -> bool {
+    if point_in_polygon_with_holes(a, outer, holes) || point_in_polygon_with_holes(b, outer, holes)
+    {
+        let gap2 = i128::from(width_nm) + 2 * i128::from(clearance_nm);
+        return gap2 > 0 || inclusive;
+    }
+    track_near_polygon_rings(a, b, width_nm, clearance_nm, outer, holes, inclusive)
+}
+
+pub fn track_near_rule_area_poly(
+    a: Point,
+    b: Point,
+    width_nm: i64,
+    outer: &[Point],
+    holes: &[Vec<Point>],
+) -> bool {
+    if point_in_polygon_with_holes(a, outer, holes) || point_in_polygon_with_holes(b, outer, holes)
     {
         return true;
     }
-    let gap2 = i128::from(width_nm);
-    let check_ring = |ring: &[Point]| {
-        let n = ring.len();
-        (0..n).any(|i| segments_near(a, b, ring[i], ring[(i + 1) % n], gap2, false))
-    };
-    check_ring(&ra.outer) || ra.holes.iter().any(|h| check_ring(h))
+    track_near_polygon_rings(a, b, width_nm, 0, outer, holes, false)
+}
+
+pub fn via_near_rule_area_poly(
+    at: Point,
+    diameter_nm: i64,
+    outer: &[Point],
+    holes: &[Vec<Point>],
+) -> bool {
+    track_near_rule_area_poly(at, at, diameter_nm, outer, holes)
+}
+
+pub fn track_near_rule_area(a: Point, b: Point, width_nm: i64, ra: &RuleArea) -> bool {
+    if track_near_rule_area_poly(a, b, width_nm, &ra.outer, &ra.holes) {
+        return true;
+    }
+    ra.extra_polygons
+        .iter()
+        .any(|p| track_near_rule_area_poly(a, b, width_nm, &p.outer, &p.holes))
 }
 
 pub fn via_near_rule_area(at: Point, diameter_nm: i64, ra: &RuleArea) -> bool {
@@ -1191,7 +1262,7 @@ fn intervals_overlap_rational(
     false
 }
 
-fn filled_polygons_overlap(
+pub fn filled_polygons_overlap(
     outer_a: &[Point],
     holes_a: &[Vec<Point>],
     outer_b: &[Point],
@@ -1270,6 +1341,11 @@ fn unfilled_circle_connects_pad(center: Point, radius_nm: i64, width_nm: i64, p:
             at: center,
             layers: p.layers.clone(),
             local_clearance_nm: p.local_clearance_nm,
+            zone_connection: crate::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
             shape: Shape::Circle { radius_nm: r_out },
             drill: None,
         };
@@ -1345,6 +1421,294 @@ fn unfilled_circle_connects_pad(center: Point, radius_nm: i64, width_nm: i64, p:
     }
 }
 
+fn ring_bounds(ring: &[Point]) -> (Point, Point) {
+    let mut lo = [i64::MAX, i64::MAX];
+    let mut hi = [i64::MIN, i64::MIN];
+    for p in ring {
+        lo[0] = lo[0].min(p[0]);
+        lo[1] = lo[1].min(p[1]);
+        hi[0] = hi[0].max(p[0]);
+        hi[1] = hi[1].max(p[1]);
+    }
+    (lo, hi)
+}
+
+fn bounds_overlap((alo, ahi): (Point, Point), (blo, bhi): (Point, Point)) -> bool {
+    alo[0] <= bhi[0] && blo[0] <= ahi[0] && alo[1] <= bhi[1] && blo[1] <= ahi[1]
+}
+
+fn point_in_simple_polygon_2x(p2: Point, verts: &[Point]) -> bool {
+    let n = verts.len();
+    if n < 3 {
+        return false;
+    }
+    for i in 0..n {
+        let a = [verts[i][0] * 2, verts[i][1] * 2];
+        let b = [verts[(i + 1) % n][0] * 2, verts[(i + 1) % n][1] * 2];
+        if orientation(a, b, p2) == 0 && on(a, b, p2) {
+            return true;
+        }
+    }
+    let mut inside = false;
+    let px = i128::from(p2[0]);
+    let py = i128::from(p2[1]);
+    for i in 0..n {
+        let ax = i128::from(verts[i][0]) * 2;
+        let ay = i128::from(verts[i][1]) * 2;
+        let bx = i128::from(verts[(i + 1) % n][0]) * 2;
+        let by = i128::from(verts[(i + 1) % n][1]) * 2;
+        if (ay > py) != (by > py) {
+            let lhs = (px - ax) * (by - ay);
+            let rhs = (py - ay) * (bx - ax);
+            if (by > ay && lhs < rhs) || (by < ay && lhs > rhs) {
+                inside = !inside;
+            }
+        }
+    }
+    inside
+}
+
+fn point_in_polygon_with_holes_2x(p2: Point, outer: &[Point], holes: &[Vec<Point>]) -> bool {
+    point_in_simple_polygon_2x(p2, outer)
+        && !holes.iter().any(|h| point_in_simple_polygon_2x(p2, h))
+}
+
+pub fn zone_fill_connects_pad(outer: &[Point], holes: &[Vec<Point>], p: &Pad) -> bool {
+    if outer.len() < 3 || !bounds_overlap(p.copper_bounds(), ring_bounds(outer)) {
+        return false;
+    }
+    if point_in_polygon_with_holes(p.copper_center(), outer, holes) {
+        return true;
+    }
+    let as_zero_track = |a: Point, b: Point| Track {
+        id: String::new(),
+        net: p.net,
+        layer: String::new(),
+        start: a,
+        end: b,
+        width_nm: 0,
+        locked: false,
+    };
+    let check_edges_zero = |ring: &[Point]| {
+        let n = ring.len();
+        (0..n).any(|i| track_connects_pad(&as_zero_track(ring[i], ring[(i + 1) % n]), p))
+    };
+    match &p.shape {
+        Shape::Circle { .. } | Shape::Capsule { .. } => {
+            check_edges_zero(outer) || holes.iter().any(|h| check_edges_zero(h))
+        }
+        Shape::RoundRect { radius_nm, .. } if *radius_nm >= CONTACT_OVERLAP_NM => {
+            check_edges_zero(outer) || holes.iter().any(|h| check_edges_zero(h))
+        }
+        Shape::BoxExact { radius_2x, .. } if (*radius_2x / 2) * 2 >= 2 * CONTACT_OVERLAP_NM => {
+            check_edges_zero(outer) || holes.iter().any(|h| check_edges_zero(h))
+        }
+        Shape::Rect { half_size_nm: h }
+        | Shape::RoundRect {
+            half_size_nm: h, ..
+        } => {
+            let lo2 = [
+                (p.at[0] - h[0]) * 2 + 2 * CONTACT_OVERLAP_NM,
+                (p.at[1] - h[1]) * 2 + 2 * CONTACT_OVERLAP_NM,
+            ];
+            let hi2 = [
+                (p.at[0] + h[0]) * 2 - 2 * CONTACT_OVERLAP_NM,
+                (p.at[1] + h[1]) * 2 - 2 * CONTACT_OVERLAP_NM,
+            ];
+            if lo2[0] > hi2[0] || lo2[1] > hi2[1] {
+                return false;
+            }
+            if point_in_polygon_with_holes_2x(lo2, outer, holes) {
+                return true;
+            }
+            let check_shrunk_rect = |ring: &[Point]| {
+                let n = ring.len();
+                (0..n).any(|i| {
+                    let a2 = [ring[i][0] * 2, ring[i][1] * 2];
+                    let b2 = [ring[(i + 1) % n][0] * 2, ring[(i + 1) % n][1] * 2];
+                    segment_near_rect(a2, b2, lo2, hi2, 0, true)
+                })
+            };
+            check_shrunk_rect(outer) || holes.iter().any(|h| check_shrunk_rect(h))
+        }
+        Shape::BoxExact {
+            center_2x,
+            half_size_2x,
+            ..
+        } => {
+            let lo2 = [
+                center_2x[0] - half_size_2x[0] + 2 * CONTACT_OVERLAP_NM,
+                center_2x[1] - half_size_2x[1] + 2 * CONTACT_OVERLAP_NM,
+            ];
+            let hi2 = [
+                center_2x[0] + half_size_2x[0] - 2 * CONTACT_OVERLAP_NM,
+                center_2x[1] + half_size_2x[1] - 2 * CONTACT_OVERLAP_NM,
+            ];
+            if lo2[0] > hi2[0] || lo2[1] > hi2[1] {
+                return false;
+            }
+            if point_in_polygon_with_holes_2x(lo2, outer, holes) {
+                return true;
+            }
+            let check_shrunk_rect = |ring: &[Point]| {
+                let n = ring.len();
+                (0..n).any(|i| {
+                    let a2 = [ring[i][0] * 2, ring[i][1] * 2];
+                    let b2 = [ring[(i + 1) % n][0] * 2, ring[(i + 1) % n][1] * 2];
+                    segment_near_rect(a2, b2, lo2, hi2, 0, true)
+                })
+            };
+            check_shrunk_rect(outer) || holes.iter().any(|h| check_shrunk_rect(h))
+        }
+        Shape::ConvexPolygon {
+            vertices,
+            radius_nm,
+        } => {
+            if *radius_nm >= CONTACT_OVERLAP_NM {
+                check_edges_zero(outer) || holes.iter().any(|h| check_edges_zero(h))
+            } else {
+                filled_polygons_overlap(vertices, &[], outer, holes)
+            }
+        }
+    }
+}
+
+pub fn track_connects_filled_polygon(t: &Track, outer: &[Point], holes: &[Vec<Point>]) -> bool {
+    if outer.len() < 3 || !bounds_overlap(t.copper_bounds(), ring_bounds(outer)) {
+        return false;
+    }
+    let wt = (t.width_nm / 2) * 2;
+    if wt < 2 * CONTACT_OVERLAP_NM {
+        return false;
+    }
+    if point_in_polygon_with_holes(t.start, outer, holes)
+        || point_in_polygon_with_holes(t.end, outer, holes)
+    {
+        return true;
+    }
+    track_near_polygon_rings(t.start, t.end, wt, -CONTACT_OVERLAP_NM, outer, holes, true)
+}
+
+pub fn via_connects_filled_polygon(v: &Via, outer: &[Point], holes: &[Vec<Point>]) -> bool {
+    let synth = Track {
+        id: String::new(),
+        net: v.net,
+        start: v.at,
+        end: v.at,
+        width_nm: v.diameter_nm,
+        locked: false,
+        layer: v.start_layer.clone(),
+    };
+    track_connects_filled_polygon(&synth, outer, holes)
+}
+
+pub fn graphic_connects_filled_polygon(
+    g: &CopperGraphic,
+    outer: &[Point],
+    holes: &[Vec<Point>],
+) -> bool {
+    if outer.len() < 3 || !bounds_overlap(g.copper_bounds(), ring_bounds(outer)) {
+        return false;
+    }
+    let as_track = |a: Point, b: Point, w: i64| Track {
+        id: String::new(),
+        net: g.net,
+        layer: g.layer.clone(),
+        start: a,
+        end: b,
+        width_nm: w,
+        locked: false,
+    };
+    match &g.shape {
+        GraphicShape::Segment {
+            start,
+            end,
+            width_nm,
+        } => track_connects_filled_polygon(&as_track(*start, *end, *width_nm), outer, holes),
+        GraphicShape::Arc {
+            start,
+            mid,
+            end,
+            width_nm,
+        } => {
+            if [*start, *mid, *end].iter().any(|&pt| {
+                track_connects_filled_polygon(&as_track(pt, pt, *width_nm), outer, holes)
+            }) {
+                return true;
+            }
+            let (chords, sag) = arc_to_conservative_chords(*start, *mid, *end);
+            let w_shrunk = (*width_nm - 2 * sag).max(0);
+            w_shrunk >= 2 * CONTACT_OVERLAP_NM
+                && chords.windows(2).any(|w| {
+                    track_connects_filled_polygon(&as_track(w[0], w[1], w_shrunk), outer, holes)
+                })
+        }
+        GraphicShape::Circle {
+            center,
+            radius_nm,
+            width_nm,
+            filled,
+        } => {
+            if *filled {
+                let r_eff = *radius_nm + *width_nm / 2;
+                track_connects_filled_polygon(&as_track(*center, *center, 2 * r_eff), outer, holes)
+            } else {
+                let cw = (*width_nm / 2) * 2;
+                if cw < 2 * CONTACT_OVERLAP_NM {
+                    return false;
+                }
+                let check_ring = |ring: &[Point]| {
+                    let n = ring.len();
+                    (0..n).any(|i| {
+                        track_near_circle(
+                            ring[i],
+                            ring[(i + 1) % n],
+                            0,
+                            -CONTACT_OVERLAP_NM,
+                            *center,
+                            *radius_nm,
+                            cw,
+                            false,
+                            true,
+                        )
+                    })
+                };
+                check_ring(outer)
+                    || holes.iter().any(|h| check_ring(h))
+                    || [
+                        [center[0] + *radius_nm, center[1]],
+                        [center[0] - *radius_nm, center[1]],
+                        [center[0], center[1] + *radius_nm],
+                        [center[0], center[1] - *radius_nm],
+                    ]
+                    .into_iter()
+                    .any(|pt| point_in_polygon_with_holes(pt, outer, holes))
+            }
+        }
+        GraphicShape::Polygon {
+            outer: go,
+            holes: gh,
+            width_nm,
+            filled,
+        } => {
+            let wg = (*width_nm / 2) * 2;
+            let check_g_ring = |ring: &[Point]| {
+                let n = ring.len();
+                (0..n).any(|i| {
+                    track_connects_filled_polygon(
+                        &as_track(ring[i], ring[(i + 1) % n], wg),
+                        outer,
+                        holes,
+                    )
+                })
+            };
+            check_g_ring(go)
+                || gh.iter().any(|h| check_g_ring(h))
+                || (*filled && filled_polygons_overlap(go, gh, outer, holes))
+        }
+    }
+}
+
 pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
     let as_track = |a: Point, b: Point, w: i64| Track {
         id: String::new(),
@@ -1393,6 +1757,11 @@ pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
                     at: *center,
                     layers: vec![g.layer.clone()],
                     local_clearance_nm: None,
+                    zone_connection: crate::model::PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
                     shape: Shape::Circle {
                         radius_nm: *radius_nm + *width_nm / 2,
                     },
@@ -1409,11 +1778,8 @@ pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
             width_nm,
             filled,
         } => {
-            if *filled {
-                let c = p.copper_center();
-                if point_in_polygon_with_holes(c, outer, holes) {
-                    return true;
-                }
+            if *filled && zone_fill_connects_pad(outer, holes, p) {
+                return true;
             }
             let check_ring = |ring: &[Point]| {
                 let n = ring.len();

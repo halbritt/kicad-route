@@ -16,6 +16,11 @@ fn pad(n: u64, net: u32, at: Point) -> Pad {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     }
 }
 fn base() -> Input {
@@ -57,6 +62,7 @@ fn base() -> Input {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     }
 }
 fn wire(n: u64, net: u32, a: Point, b: Point) -> Track {
@@ -389,7 +395,19 @@ fn malformed_and_unsupported_never_become_empty_success() {
         Status::Unsupported
     );
     let mut v = document();
-    v["zones"] = json!([]);
+    v["unsupported_future"] = json!([]);
+    assert_eq!(
+        run_json(&serde_json::to_vec(&v).unwrap()).status,
+        Status::Unsupported
+    );
+    let mut v = document();
+    v["zones"] = json!([{
+        "id": id(99),
+        "net": 1,
+        "layers": ["F.Cu"],
+        "outer": [[0, 0], [20, 0], [20, 20], [0, 20]],
+        "fill_mode": "hatch"
+    }]);
     assert_eq!(
         run_json(&serde_json::to_vec(&v).unwrap()).status,
         Status::Unsupported
@@ -1152,6 +1170,11 @@ fn m3_1_off_grid_offset_and_rotated_pads_route_legally() {
         drill: None,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     });
     let out = run(i.clone());
     assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
@@ -1202,6 +1225,11 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             drill: Some(DrillShape::Circle { diameter_nm: 2 }),
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -1211,6 +1239,11 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             drill: Some(DrillShape::Circle { diameter_nm: 2 }),
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(3),
@@ -1220,6 +1253,11 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     let ej = Engine::new(j.clone()).unwrap();
@@ -1634,6 +1672,11 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             }),
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -1647,6 +1690,11 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             }),
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     let e = Engine::new(i.clone()).unwrap();
@@ -1695,6 +1743,11 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             }),
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -1708,6 +1761,11 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             }),
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(3),
@@ -1719,6 +1777,11 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     let ej = Engine::new(j.clone()).unwrap();
@@ -1836,6 +1899,11 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
                 }),
                 layers: Vec::new(),
                 local_clearance_nm: None,
+                zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
             Pad {
                 id: id(2),
@@ -1847,6 +1915,11 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
                 }),
                 layers: Vec::new(),
                 local_clearance_nm: None,
+                zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
         ];
         i.tracks = vec![Track {
@@ -1900,6 +1973,11 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
             }),
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -1911,6 +1989,11 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
             }),
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     j.tracks = vec![
@@ -1974,6 +2057,11 @@ fn m3_2_multilayer_via_spans_hole_to_hole_and_keepouts() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -1983,6 +2071,11 @@ fn m3_2_multilayer_via_spans_hole_to_hole_and_keepouts() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     i.rule_areas = vec![RuleArea {
@@ -1992,6 +2085,11 @@ fn m3_2_multilayer_via_spans_hole_to_hole_and_keepouts() {
         no_vias: false,
         outer: vec![[35, 0], [65, 0], [65, 60], [35, 60]],
         holes: Vec::new(),
+        name: None,
+        extra_polygons: Vec::new(),
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
     }];
     i.project_rules = Some(
         json!({
@@ -2049,6 +2147,11 @@ fn m3_2_copper_store_multilayer_via_rollback_zero_work_diff_and_index_consistent
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -2058,6 +2161,11 @@ fn m3_2_copper_store_multilayer_via_rollback_zero_work_diff_and_index_consistent
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     i.project_rules = Some(
@@ -2198,6 +2306,11 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -2207,6 +2320,11 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(3),
@@ -2216,6 +2334,11 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: Some(DrillShape::Circle { diameter_nm: 2 }),
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     i.project_rules = Some(
@@ -2249,6 +2372,11 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             no_vias: true,
             outer: vec![[0, 0], [25, 0], [25, 60], [0, 60]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(11),
@@ -2257,6 +2385,11 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             no_vias: true,
             outer: vec![[35, 0], [100, 0], [100, 60], [35, 60]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(12),
@@ -2265,6 +2398,11 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             no_vias: true,
             outer: vec![[25, 0], [35, 0], [35, 25], [25, 25]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(13),
@@ -2273,6 +2411,11 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             no_vias: true,
             outer: vec![[25, 35], [35, 35], [35, 60], [25, 60]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
     ];
     let out = run(i);
@@ -2320,6 +2463,11 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -2329,6 +2477,11 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 2 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(3),
@@ -2338,6 +2491,11 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 4 },
             drill: Some(DrillShape::Circle { diameter_nm: 2 }),
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     i.project_rules = Some(
@@ -2370,6 +2528,11 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             no_vias: true,
             outer: vec![[0, 0], [25, 0], [25, 60], [0, 60]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(11),
@@ -2378,6 +2541,11 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             no_vias: true,
             outer: vec![[35, 0], [100, 0], [100, 60], [35, 60]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(12),
@@ -2386,6 +2554,11 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             no_vias: true,
             outer: vec![[25, 0], [35, 0], [35, 25], [25, 25]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(13),
@@ -2394,6 +2567,11 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             no_vias: true,
             outer: vec![[25, 35], [35, 35], [35, 60], [25, 60]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
     ];
     let out = run(i);
@@ -2435,6 +2613,11 @@ fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -2444,6 +2627,11 @@ fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     // Block via at [10,10], [20,10], [30,10] on F.Cu so it must step to [0,10], place Via@[0,10],
@@ -2455,6 +2643,11 @@ fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
         no_vias: true,
         outer: vec![[5, 0], [55, 0], [55, 55], [5, 55]],
         holes: Vec::new(),
+        name: None,
+        extra_polygons: Vec::new(),
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
     }];
     i.project_rules = Some(
         json!({
@@ -2509,6 +2702,11 @@ fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
         local_clearance_nm: None,
         shape: Shape::Circle { radius_nm: 1 },
         drill: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     });
     let extra_out = run(extra);
     assert_eq!(extra_out.status, Status::Complete, "{:?}", extra_out.reason);
@@ -2586,6 +2784,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 2 },
                 drill: None,
+                zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
             Pad {
                 id: id(2),
@@ -2595,6 +2798,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 2 },
                 drill: None,
+                zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
         ];
         i.project_rules = Some(
@@ -2627,6 +2835,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
                 no_vias: true,
                 outer: vec![[0, 0], [25, 0], [25, 60], [0, 60]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(11),
@@ -2635,6 +2848,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
                 no_vias: true,
                 outer: vec![[35, 0], [100, 0], [100, 60], [35, 60]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(12),
@@ -2643,6 +2861,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
                 no_vias: true,
                 outer: vec![[25, 0], [35, 0], [35, 25], [25, 25]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(13),
@@ -2651,6 +2874,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
                 no_vias: true,
                 outer: vec![[25, 35], [35, 35], [35, 60], [25, 60]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
         ];
         i
@@ -2725,6 +2953,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
         local_clearance_nm: None,
         shape: Shape::Circle { radius_nm: 4 },
         drill: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     });
     assert_eq!(run(pad_rej).status, Status::Unroutable);
 
@@ -2738,6 +2971,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
         local_clearance_nm: None,
         shape: Shape::Circle { radius_nm: 4 },
         drill: None,
+        zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
     });
     let out_pad_conn = run(pad_conn);
     assert_eq!(
@@ -2787,6 +3025,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
             no_vias: true,
             outer: vec![[0, 0], [100, 0], [100, 25], [0, 25]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(31),
@@ -2795,6 +3038,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
             no_vias: true,
             outer: vec![[0, 35], [100, 35], [100, 60], [0, 60]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(32),
@@ -2803,6 +3051,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
             no_vias: true,
             outer: vec![[25, 25], [100, 25], [100, 35], [25, 35]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(33),
@@ -2811,6 +3064,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
             no_vias: true,
             outer: vec![[0, 25], [15, 25], [15, 35], [0, 35]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(34),
@@ -2819,6 +3077,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
             no_vias: true,
             outer: vec![[0, 25], [25, 25], [25, 35], [0, 35]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
         RuleArea {
             id: id(35),
@@ -2827,6 +3090,11 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
             no_vias: true,
             outer: vec![[35, 25], [100, 25], [100, 35], [35, 35]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         },
     ];
     assert_eq!(run(same_path).status, Status::Unroutable);
@@ -2879,6 +3147,7 @@ fn m3_2_dru_max_bounds_only_disallow_violating_layers_and_via_spans() {
             project_rules: None,
             custom_rules: None,
             effective_rules: None,
+            zones: Vec::new(),
         }
     };
 
@@ -3005,6 +3274,11 @@ fn m3_2_effective_rules_invalid_via_and_microvia_dims_rejected() {
             drill: None,
             layers: vec!["F.Cu".into()],
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -3014,6 +3288,11 @@ fn m3_2_effective_rules_invalid_via_and_microvia_dims_rejected() {
             drill: None,
             layers: vec!["B.Cu".into()],
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     let eff = kicad_route_engine::rules::EffectiveRules::from_uniform_rules(
@@ -3041,4 +3320,552 @@ fn m3_2_effective_rules_invalid_via_and_microvia_dims_rejected() {
     eff3.net_rules.get_mut(&1).unwrap().microvia_drill_nm = 0;
     zero_micro.effective_rules = Some(eff3);
     assert_eq!(run(zero_micro).status, Status::Invalid);
+}
+
+fn m3_3_zone(
+    n: u64,
+    net: u32,
+    layer: &str,
+    outer: Vec<Point>,
+    filled: bool,
+    refillable: bool,
+) -> Zone {
+    let layer_fills = if filled {
+        vec![ZoneLayerFill {
+            layer: layer.into(),
+            polygons: vec![OutlinePolygon {
+                outer: outer.clone(),
+                holes: Vec::new(),
+            }],
+        }]
+    } else {
+        Vec::new()
+    };
+    Zone {
+        id: id(n),
+        name: None,
+        net,
+        layers: vec![layer.into()],
+        outer,
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        priority: 0,
+        local_clearance_nm: 0,
+        min_thickness_nm: 200_000,
+        connection: ZoneConnection::Thermal,
+        thermal_gap_nm: 200_000,
+        thermal_spoke_width_nm: 200_000,
+        island_removal: ZoneIslandRemoval::Always,
+        island_area_min_nm2: 0,
+        fill_mode: ZoneFillMode::Polygon,
+        filled,
+        refillable,
+        locked: false,
+        layer_fills,
+    }
+}
+
+#[test]
+fn m3_3_rule_area_five_flags_extra_polygons_and_duplicate_layer_refusal() {
+    let mut inp = base();
+    inp.bounds = Bounds {
+        min: [0, 0],
+        max: [80, 60],
+    };
+    inp.pads = vec![pad(1, 1, [10, 10]), pad(2, 1, [70, 10])];
+    // Extra polygon blocks direct horizontal line y=10 between x=30..50 while outer sits away at y=40..50
+    inp.rule_areas = vec![
+        RuleArea {
+            id: id(50),
+            name: Some("track_ko".into()),
+            layers: vec!["F.Cu".into()],
+            outer: vec![[30, 40], [50, 40], [50, 50], [30, 50]],
+            holes: Vec::new(),
+            extra_polygons: vec![OutlinePolygon {
+                outer: vec![[30, 5], [50, 5], [50, 20], [30, 20]],
+                holes: Vec::new(),
+            }],
+            no_tracks: true,
+            no_vias: false,
+            no_pads: true,
+            no_footprints: true,
+            no_zone_fills: true,
+        },
+        RuleArea {
+            id: id(51),
+            name: Some("pour_only_ko".into()),
+            layers: vec!["F.Cu".into()],
+            outer: vec![[0, 45], [10, 45], [10, 55], [0, 55]],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: false,
+            no_vias: false,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: true,
+        },
+    ];
+    let out = run(inp.clone());
+    assert_eq!(out.status, Status::Complete);
+    assert!(out
+        .added_tracks
+        .iter()
+        .any(|t| t.start[1] > 20 || t.end[1] > 20));
+
+    let mut dup_layer = inp;
+    dup_layer.rule_areas[0].layers = vec!["F.Cu".into(), "F.Cu".into()];
+    assert_eq!(run(dup_layer).status, Status::Invalid);
+}
+
+#[test]
+fn m3_3_via_only_start_seed_inside_no_tracks_keepout() {
+    let mut inp = base();
+    inp.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    inp.bounds = Bounds {
+        min: [0, 0],
+        max: [10_000_000, 8_000_000],
+    };
+    inp.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 150_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    let mut p1 = pad(1, 1, [2_000_000, 4_000_000]);
+    p1.shape = Shape::Circle { radius_nm: 400_000 };
+    p1.layers = vec!["F.Cu".into()];
+    let mut p2 = pad(2, 1, [8_000_000, 4_000_000]);
+    p2.shape = Shape::Circle { radius_nm: 200_000 };
+    p2.layers = vec!["B.Cu".into()];
+    inp.pads = vec![p1, p2];
+    inp.rule_areas = vec![RuleArea {
+        id: id(60),
+        name: None,
+        layers: vec!["F.Cu".into()],
+        outer: vec![
+            [1_000_000, 3_000_000],
+            [3_000_000, 3_000_000],
+            [3_000_000, 5_000_000],
+            [1_000_000, 5_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: false,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    }];
+    let out = run(inp.clone());
+    assert_eq!(
+        out.status,
+        Status::Complete,
+        "via-only start seed failed: {out:?}"
+    );
+    assert_eq!(
+        out.added_vias.len(),
+        1,
+        "unexpected vias={:?} tracks={:?}",
+        out.added_vias,
+        out.added_tracks
+    );
+    assert_eq!(out.added_vias[0].at, [2_000_000, 4_000_000]);
+    assert!(out.added_tracks.iter().all(|t| t.layer == "B.Cu"));
+
+    let mut both_ko = inp;
+    both_ko.rule_areas[0].no_vias = true;
+    assert_eq!(run(both_ko).status, Status::Unroutable);
+}
+
+#[test]
+fn m3_3_zone_fill_connects_pad_zero_width_polygon_rect_and_box_exact() {
+    let fill = vec![
+        [0, 0],
+        [1_000_000, 0],
+        [1_000_000, 1_000_000],
+        [0, 1_000_000],
+    ];
+    let hole = vec![vec![
+        [400_000, 400_000],
+        [600_000, 400_000],
+        [600_000, 600_000],
+        [400_000, 600_000],
+    ]];
+
+    let mut rect_pad = pad(1, 1, [100_000, 100_000]);
+    rect_pad.shape = Shape::Rect {
+        half_size_nm: [50_000, 50_000],
+    };
+    assert!(zone_fill_connects_pad(&fill, &[], &rect_pad));
+    // Inside hole (gap >= 0 from fill) -> false
+    rect_pad.at = [500_000, 500_000];
+    assert!(!zone_fill_connects_pad(&fill, &hole, &rect_pad));
+    // Separated outside -> false
+    rect_pad.at = [1_200_000, 500_000];
+    assert!(!zone_fill_connects_pad(&fill, &[], &rect_pad));
+
+    let mut box_pad = pad(2, 1, [200_000, 200_000]);
+    box_pad.shape = Shape::BoxExact {
+        center_2x: [400_000, 400_000],
+        half_size_2x: [100_001, 100_001],
+        radius_2x: 100_001,
+    };
+    assert!(zone_fill_connects_pad(&fill, &[], &box_pad));
+    box_pad.shape = Shape::BoxExact {
+        center_2x: [2_400_000, 1_000_000],
+        half_size_2x: [100_001, 100_001],
+        radius_2x: 100_001,
+    };
+    assert!(!zone_fill_connects_pad(&fill, &[], &box_pad));
+
+    let mut poly_pad = pad(3, 1, [200_000, 200_000]);
+    poly_pad.shape = Shape::ConvexPolygon {
+        vertices: vec![
+            [-50_000, -50_000],
+            [50_000, -50_000],
+            [50_000, 50_000],
+            [-50_000, 50_000],
+        ],
+        radius_nm: 0,
+    };
+    assert!(zone_fill_connects_pad(&fill, &[], &poly_pad));
+}
+
+#[test]
+fn m3_3_zone_fill_connections_and_unfilled_refusal() {
+    let make_board = |z_conn: ZoneConnection,
+                      p_conn: PadZoneConnection,
+                      filled: bool,
+                      drill: Option<DrillShape>| {
+        let mut inp = base();
+        inp.bounds = Bounds {
+            min: [0, 0],
+            max: [10_000_000, 10_000_000],
+        };
+        inp.rules = Rules {
+            width_nm: 200_000,
+            clearance_nm: 200_000,
+            grid_nm: 500_000,
+            edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        };
+        let mut p1 = pad(1, 1, [2_000_000, 5_000_000]);
+        p1.shape = Shape::Rect {
+            half_size_nm: [500_000, 500_000],
+        };
+        p1.drill = drill;
+        p1.zone_connection = p_conn;
+        let mut p2 = pad(2, 1, [8_000_000, 5_000_000]);
+        p2.shape = Shape::Rect {
+            half_size_nm: [500_000, 500_000],
+        };
+        p2.drill = drill;
+        p2.zone_connection = p_conn;
+        inp.pads = vec![p1, p2];
+        let mut z = m3_3_zone(
+            70,
+            1,
+            "F.Cu",
+            vec![
+                [1_000_000, 1_000_000],
+                [9_000_000, 1_000_000],
+                [9_000_000, 9_000_000],
+                [1_000_000, 9_000_000],
+            ],
+            filled,
+            true,
+        );
+        z.connection = z_conn;
+        inp.zones = vec![z];
+        inp
+    };
+
+    let thermal_ok = run(make_board(
+        ZoneConnection::Thermal,
+        PadZoneConnection::Inherited,
+        true,
+        None,
+    ));
+    assert_eq!(thermal_ok.status, Status::Complete);
+    assert!(thermal_ok.added_tracks.is_empty());
+
+    let solid_ok = run(make_board(
+        ZoneConnection::Solid,
+        PadZoneConnection::Inherited,
+        true,
+        None,
+    ));
+    assert_eq!(solid_ok.status, Status::Complete);
+    assert!(solid_ok.added_tracks.is_empty());
+
+    let zone_none = run(make_board(
+        ZoneConnection::None,
+        PadZoneConnection::Inherited,
+        true,
+        None,
+    ));
+    assert_eq!(zone_none.status, Status::Complete);
+    assert!(!zone_none.added_tracks.is_empty());
+
+    let pad_none = run(make_board(
+        ZoneConnection::Thermal,
+        PadZoneConnection::None,
+        true,
+        None,
+    ));
+    assert_eq!(pad_none.status, Status::Complete);
+    assert!(!pad_none.added_tracks.is_empty());
+
+    // ThtThermal on SMD resolves to Solid per KiCad semantics; on THT resolves to Thermal
+    let tht_smd = run(make_board(
+        ZoneConnection::None,
+        PadZoneConnection::ThtThermal,
+        true,
+        None,
+    ));
+    assert_eq!(tht_smd.status, Status::Complete);
+    assert!(tht_smd.added_tracks.is_empty());
+
+    let tht_pin = run(make_board(
+        ZoneConnection::None,
+        PadZoneConnection::ThtThermal,
+        true,
+        Some(DrillShape::Circle {
+            diameter_nm: 300_000,
+        }),
+    ));
+    assert_eq!(tht_pin.status, Status::Complete);
+    assert!(tht_pin.added_tracks.is_empty());
+
+    let unfilled = run(make_board(
+        ZoneConnection::Thermal,
+        PadZoneConnection::Inherited,
+        false,
+        None,
+    ));
+    assert_eq!(unfilled.status, Status::Complete);
+    assert!(!unfilled.added_tracks.is_empty());
+}
+
+#[test]
+fn m3_3_refillable_vs_non_refillable_zone_clearance_and_spoke_corridors() {
+    let make_foreign_board = |refillable: bool| {
+        let mut inp = base();
+        inp.bounds = Bounds {
+            min: [0, 0],
+            max: [12_000_000, 10_000_000],
+        };
+        inp.rules = Rules {
+            width_nm: 200_000,
+            clearance_nm: 200_000,
+            grid_nm: 500_000,
+            edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        };
+        inp.nets = vec![
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+            Net {
+                id: 2,
+                name: "GND".into(),
+            },
+        ];
+        let mut p1 = pad(1, 1, [1_000_000, 5_000_000]);
+        p1.shape = Shape::Circle { radius_nm: 300_000 };
+        let mut p2 = pad(2, 1, [11_000_000, 5_000_000]);
+        p2.shape = Shape::Circle { radius_nm: 300_000 };
+        inp.pads = vec![p1, p2];
+        // Zone spans the full y range [0..10mm] across x=[3mm..9mm]
+        inp.zones = vec![m3_3_zone(
+            80,
+            2,
+            "F.Cu",
+            vec![
+                [3_000_000, 0],
+                [9_000_000, 0],
+                [9_000_000, 10_000_000],
+                [3_000_000, 10_000_000],
+            ],
+            true,
+            refillable,
+        )];
+        inp
+    };
+
+    assert_eq!(run(make_foreign_board(false)).status, Status::Unroutable);
+    assert_eq!(run(make_foreign_board(true)).status, Status::Complete);
+
+    // Refillable zone with a net-2 thermal pad at [6mm, 5mm] creates spoke corridors that block a foreign track at y=5mm
+    let mut spoke_board = make_foreign_board(true);
+    let mut gnd_pad = pad(3, 2, [6_000_000, 5_000_000]);
+    gnd_pad.shape = Shape::Rect {
+        half_size_nm: [600_000, 600_000],
+    };
+    spoke_board.pads.push(gnd_pad);
+    // Constrain y strictly to 4.5mm..5.5mm using track keepouts above & below so foreign track must cross east/west spoke corridors
+    spoke_board.rule_areas = vec![
+        RuleArea {
+            id: id(81),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [3_000_000, 0],
+                [9_000_000, 0],
+                [9_000_000, 4_200_000],
+                [3_000_000, 4_200_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+        RuleArea {
+            id: id(82),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [3_000_000, 5_800_000],
+                [9_000_000, 5_800_000],
+                [9_000_000, 10_000_000],
+                [3_000_000, 10_000_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+    ];
+    let spoke_out = run(spoke_board);
+    assert_ne!(spoke_out.status, Status::Complete);
+}
+
+#[test]
+fn m3_3_dru_zone_clearance_hatched_unsupported_and_input1_sha256_compat() {
+    let mut inp = base();
+    inp.bounds = Bounds {
+        min: [0, 0],
+        max: [10_000_000, 10_000_000],
+    };
+    inp.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 150_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    inp.nets = vec![
+        Net {
+            id: 1,
+            name: "SIG".into(),
+        },
+        Net {
+            id: 2,
+            name: "GND".into(),
+        },
+    ];
+    let mut p1 = pad(1, 1, [2_000_000, 5_000_000]);
+    p1.shape = Shape::Circle { radius_nm: 300_000 };
+    let mut p2 = pad(2, 1, [8_000_000, 5_000_000]);
+    p2.shape = Shape::Circle { radius_nm: 300_000 };
+    inp.pads = vec![p1, p2];
+    // Non-refillable zone at y=[0..4.5mm]: track at y=5mm (width 200um => edge at 4.9mm, gap=400um) clears 150um default but fails 500um Zone DRU!
+    inp.zones = vec![m3_3_zone(
+        90,
+        2,
+        "F.Cu",
+        vec![
+            [3_500_000, 0],
+            [6_500_000, 0],
+            [6_500_000, 4_500_000],
+            [3_500_000, 4_500_000],
+        ],
+        true,
+        false,
+    )];
+    let ok_default = run(inp.clone());
+    assert_eq!(ok_default.status, Status::Complete);
+    assert!(ok_default
+        .added_tracks
+        .iter()
+        .all(|t| t.start[1] == 5_000_000));
+
+    let mut with_dru = inp.clone();
+    with_dru.custom_rules = Some(
+        "(version 1)\n(rule \"zone_clr\" (condition \"A.Type == 'Zone' && B.Type == 'Track'\") (constraint clearance (min 0.5mm)))\n"
+            .into(),
+    );
+    let routed_around = run(with_dru);
+    assert_eq!(routed_around.status, Status::Complete);
+    assert!(routed_around
+        .added_tracks
+        .iter()
+        .any(|t| t.start[1] > 5_000_000));
+
+    // Hatched fill fails closed as Unsupported
+    let mut hatched = inp.clone();
+    hatched.zones[0].fill_mode = ZoneFillMode::Hatch;
+    assert_eq!(run(hatched).status, Status::Unsupported);
+
+    // input/1 backward compatibility: omitting all M3.3 fields gives identical input_request_sha256
+    let legacy_json = json!({
+        "version": 1,
+        "source_id": "a".repeat(64),
+        "layer": "F.Cu",
+        "bounds": {"min": [0, 0], "max": [60, 60]},
+        "rules": {"width_nm": 2, "clearance_nm": 1, "grid_nm": 10, "edge_clearance_nm": 0},
+        "nets": [{"id": 1, "name": "A"}],
+        "pads": [
+            {"id": id(1), "net": 1, "at": [10, 10], "shape": {"kind": "circle", "radius_nm": 1}},
+            {"id": id(2), "net": 1, "at": [50, 10], "shape": {"kind": "circle", "radius_nm": 1}}
+        ],
+        "tracks": [],
+        "max_expansions": 10000
+    });
+    let parsed_legacy: Input = serde_json::from_str(&legacy_json.to_string()).unwrap();
+    let v_legacy = run(parsed_legacy);
+    let v_explicit = run(base());
+    assert_eq!(v_legacy.request_sha256, v_explicit.request_sha256);
+    let explicit_val = serde_json::to_value(base()).unwrap();
+    assert!(explicit_val.get("zones").is_none());
+
+    // Work determinism and rollback on zone + multi-net board
+    let mut det = inp;
+    det.zones[0].refillable = true;
+    let mut p3 = pad(3, 2, [4_000_000, 2_000_000]);
+    p3.shape = Shape::Circle { radius_nm: 300_000 };
+    let mut p4 = pad(4, 2, [6_000_000, 2_000_000]);
+    p4.shape = Shape::Circle { radius_nm: 300_000 };
+    det.pads.push(p3);
+    det.pads.push(p4);
+    let mut e1 = Engine::new(det.clone()).unwrap();
+    let r1 = e1.route_all().unwrap();
+    let mut e2 = Engine::new(det).unwrap();
+    let r2 = e2.route_all().unwrap();
+    assert_eq!(r1, r2);
+    assert_eq!(e1.work_used(), e2.work_used());
 }

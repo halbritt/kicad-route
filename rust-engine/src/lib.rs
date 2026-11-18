@@ -9,12 +9,13 @@ pub mod rules;
 pub mod search;
 mod spatial;
 pub mod state;
+mod zones;
 use components::{span_mask, Copper};
 use model::*;
 use rules::{DruItemKind, EffectiveRules};
 use spatial::{
     ArtworkGeom, CopperAabb, DrillGeom, EdgeGeom, KeepoutGeom, MaskGeom, PadCore,
-    StaticSpatialIndex, SweptAabb,
+    SpokeCorridorGeom, StaticSpatialIndex, SweptAabb, ZoneFillGeom,
 };
 use state::CopperStore;
 use std::ops::ControlFlow;
@@ -24,6 +25,7 @@ pub struct Engine {
     layer_names: Vec<String>,
     effective_rules: EffectiveRules,
     max_pad_local_clearance_nm: i64,
+    max_zone_local_clearance_nm: i64,
     copper: CopperStore,
     pad_spatial: Vec<StaticSpatialIndex<PadCore>>,
     hole_spatial: StaticSpatialIndex<DrillGeom>,
@@ -31,6 +33,9 @@ pub struct Engine {
     artwork_spatial: Vec<StaticSpatialIndex<ArtworkGeom>>,
     artwork_graphic_idx: Vec<Vec<usize>>,
     keepout_spatial: Vec<StaticSpatialIndex<KeepoutGeom>>,
+    zone_fill_spatial: Vec<StaticSpatialIndex<ZoneFillGeom>>,
+    spoke_corridor_spatial: Vec<StaticSpatialIndex<SpokeCorridorGeom>>,
+    spoke_corridors: Vec<zones::SpokeCorridor>,
     mask_spatial: [StaticSpatialIndex<MaskGeom>; 2],
     max_mask_expansion: i64,
     work: budget::WorkBudget,
@@ -151,6 +156,7 @@ impl Engine {
             + input.tracks.len()
             + input.vias.len()
             + input.rule_areas.len()
+            + input.zones.len()
             + input.nets.len()
             + input.holes.len()
             + input.graphics.len()
@@ -163,6 +169,7 @@ impl Engine {
             .chain(input.tracks.iter().map(|t| t.id.clone()))
             .chain(input.vias.iter().map(|v| v.id.clone()))
             .chain(input.rule_areas.iter().map(|ra| ra.id.clone()))
+            .chain(input.zones.iter().map(|z| z.id.clone()))
             .chain(input.holes.iter().map(|h| h.id.clone()))
             .chain(input.graphics.iter().map(|g| g.id.clone()))
             .chain(input.mask_apertures.iter().map(|m| m.id.clone()))
@@ -171,6 +178,12 @@ impl Engine {
             .pads
             .iter()
             .filter_map(|p| p.local_clearance_nm)
+            .max()
+            .unwrap_or(0);
+        let max_zone_local_clearance_nm = input
+            .zones
+            .iter()
+            .map(|z| z.local_clearance_nm)
             .max()
             .unwrap_or(0);
         let mut per_layer_pads: Vec<Vec<(u32, u32, CopperAabb, PadCore)>> =
@@ -430,24 +443,85 @@ impl Engine {
         let mut per_layer_keepouts: Vec<Vec<(u32, u32, CopperAabb, KeepoutGeom)>> =
             vec![Vec::new(); layer_count];
         for (ra_idx, ra) in input.rule_areas.iter().enumerate() {
-            if !ra.no_tracks && !ra.no_vias {
+            if !ra.no_tracks && !ra.no_vias && !ra.no_zone_fills {
                 continue;
             }
-            let aabb = ring_aabb(&ra.outer);
-            let geom = KeepoutGeom {
-                rule_area_idx: u32::try_from(ra_idx).expect("bounded rule area count"),
-                no_tracks: ra.no_tracks,
-                no_vias: ra.no_vias,
-            };
-            for lname in &ra.layers {
-                if let Some(l_idx) = layer_names.iter().position(|l| l == lname) {
-                    let ord = u32::try_from(per_layer_keepouts[l_idx].len())
-                        .expect("bounded keepout count");
-                    per_layer_keepouts[l_idx].push((ord, 0u32, aabb, geom));
+            let polys = std::iter::once((0u32, &ra.outer)).chain(
+                ra.extra_polygons
+                    .iter()
+                    .enumerate()
+                    .map(|(ei, ep)| (u32::try_from(ei + 1).expect("bounded poly idx"), &ep.outer)),
+            );
+            for (poly_idx, outer) in polys {
+                let aabb = ring_aabb(outer);
+                let geom = KeepoutGeom {
+                    rule_area_idx: u32::try_from(ra_idx).expect("bounded rule area count"),
+                    poly_idx,
+                    no_tracks: ra.no_tracks,
+                    no_vias: ra.no_vias,
+                    no_zone_fills: ra.no_zone_fills,
+                };
+                for lname in &ra.layers {
+                    if let Some(l_idx) = layer_names.iter().position(|l| l == lname) {
+                        let ord = u32::try_from(per_layer_keepouts[l_idx].len())
+                            .expect("bounded keepout count");
+                        per_layer_keepouts[l_idx].push((ord, 0u32, aabb, geom));
+                    }
                 }
             }
         }
         let keepout_spatial = per_layer_keepouts
+            .into_iter()
+            .map(StaticSpatialIndex::new)
+            .collect();
+
+        let mut per_layer_zone_fills: Vec<Vec<(u32, u32, CopperAabb, ZoneFillGeom)>> =
+            vec![Vec::new(); layer_count];
+        for (z_idx, z) in input.zones.iter().enumerate() {
+            if z.refillable || !z.filled {
+                continue;
+            }
+            for lf in &z.layer_fills {
+                let Some(l_idx) = layer_names.iter().position(|l| l == &lf.layer) else {
+                    continue;
+                };
+                for (p_idx, poly) in lf.polygons.iter().enumerate() {
+                    let ord = u32::try_from(per_layer_zone_fills[l_idx].len())
+                        .expect("bounded zone fill count");
+                    per_layer_zone_fills[l_idx].push((
+                        ord,
+                        z.net,
+                        ring_aabb(&poly.outer),
+                        ZoneFillGeom {
+                            zone_idx: u32::try_from(z_idx).expect("bounded zone count"),
+                            poly_idx: u32::try_from(p_idx).expect("bounded zone fill poly count"),
+                            refillable: false,
+                        },
+                    ));
+                }
+            }
+        }
+        let zone_fill_spatial = per_layer_zone_fills
+            .into_iter()
+            .map(StaticSpatialIndex::new)
+            .collect();
+
+        let spoke_corridors = zones::plan_spoke_corridors(&input, &layer_names, &effective_rules);
+        let mut per_layer_corridors: Vec<Vec<(u32, u32, CopperAabb, SpokeCorridorGeom)>> =
+            vec![Vec::new(); layer_count];
+        for (c_idx, sc) in spoke_corridors.iter().enumerate() {
+            let ord = u32::try_from(per_layer_corridors[sc.layer_idx].len())
+                .expect("bounded spoke corridor count");
+            per_layer_corridors[sc.layer_idx].push((
+                ord,
+                sc.net,
+                ring_aabb(&sc.verts),
+                SpokeCorridorGeom {
+                    corridor_idx: u32::try_from(c_idx).expect("bounded spoke corridor index"),
+                },
+            ));
+        }
+        let spoke_corridor_spatial = per_layer_corridors
             .into_iter()
             .map(StaticSpatialIndex::new)
             .collect();
@@ -594,6 +668,7 @@ impl Engine {
             layer_names,
             effective_rules,
             max_pad_local_clearance_nm,
+            max_zone_local_clearance_nm,
             copper,
             pad_spatial,
             hole_spatial,
@@ -601,6 +676,9 @@ impl Engine {
             artwork_spatial,
             artwork_graphic_idx,
             keepout_spatial,
+            zone_fill_spatial,
+            spoke_corridor_spatial,
+            spoke_corridors,
             mask_spatial,
             max_mask_expansion,
             work,
@@ -785,20 +863,92 @@ impl Engine {
             &self.work,
             |_, kg| {
                 self.work.charge(1)?;
-                if kg.no_tracks
-                    && geometry::track_near_rule_area(
-                        a,
-                        b,
-                        width_nm,
-                        &self.input.rule_areas[kg.rule_area_idx as usize],
-                    )
-                {
-                    return Ok(ControlFlow::Break(()));
+                if kg.no_tracks {
+                    let ra = &self.input.rule_areas[kg.rule_area_idx as usize];
+                    let (outer, holes) = if kg.poly_idx == 0 {
+                        (&ra.outer, &ra.holes)
+                    } else {
+                        let ep = &ra.extra_polygons[kg.poly_idx as usize - 1];
+                        (&ep.outer, &ep.holes)
+                    };
+                    if geometry::track_near_rule_area_poly(a, b, width_nm, outer, holes) {
+                        return Ok(ControlFlow::Break(()));
+                    }
                 }
                 Ok(ControlFlow::Continue(()))
             },
         )?;
         if ko_flow.is_break() {
+            return Ok(false);
+        }
+
+        let max_zone_query_clr = self
+            .effective_rules
+            .max_pair_clearance_nm
+            .max(self.max_zone_local_clearance_nm);
+        let zone_swept = SweptAabb::swept(a, b, width_nm, max_zone_query_clr);
+        let zone_flow = self.zone_fill_spatial[layer_idx].visit_matching(
+            zone_swept,
+            Some(net),
+            &self.work,
+            |_, zg| {
+                self.work.charge(1)?;
+                if zg.refillable {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                let z = &self.input.zones[zg.zone_idx as usize];
+                let Some(lf) = z.layer_fills.iter().find(|lf| lf.layer == *layer_name) else {
+                    return Ok(ControlFlow::Continue(()));
+                };
+                let poly = &lf.polygons[zg.poly_idx as usize];
+                let clr = self.effective_rules.pair_clearance(
+                    net,
+                    DruItemKind::Track,
+                    z.net,
+                    DruItemKind::Zone,
+                    layer_name,
+                    (z.local_clearance_nm > 0).then_some(z.local_clearance_nm),
+                );
+                if geometry::track_near_filled_polygon(
+                    a,
+                    b,
+                    width_nm,
+                    clr,
+                    &poly.outer,
+                    &poly.holes,
+                    false,
+                ) {
+                    return Ok(ControlFlow::Break(()));
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        if zone_flow.is_break() {
+            return Ok(false);
+        }
+
+        let spoke_flow = self.spoke_corridor_spatial[layer_idx].visit_matching(
+            zone_swept,
+            Some(net),
+            &self.work,
+            |_, sg| {
+                self.work.charge(1)?;
+                let sc = &self.spoke_corridors[sg.corridor_idx as usize];
+                let clr = self.effective_rules.pair_clearance(
+                    net,
+                    DruItemKind::Track,
+                    sc.net,
+                    DruItemKind::Zone,
+                    layer_name,
+                    (sc.local_clearance_nm > 0).then_some(sc.local_clearance_nm),
+                );
+                if geometry::track_near_convex_poly(a, b, width_nm, clr, &sc.verts, 0, false) {
+                    return Ok(ControlFlow::Break(()));
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        if spoke_flow.is_break() {
             return Ok(false);
         }
 
@@ -1507,6 +1657,7 @@ impl Engine {
             .effective_rules
             .max_pair_clearance_nm
             .max(self.max_pad_local_clearance_nm)
+            .max(self.max_zone_local_clearance_nm)
             .max(self.effective_rules.max_hole_clearance_nm)
             .max(mask_pad_clr);
 
@@ -1520,19 +1671,93 @@ impl Engine {
                 &self.work,
                 |_, kg| {
                     self.work.charge(1)?;
-                    if kg.no_vias
-                        && geometry::via_near_rule_area(
-                            at,
-                            diam,
-                            &self.input.rule_areas[kg.rule_area_idx as usize],
-                        )
-                    {
-                        return Ok(ControlFlow::Break(()));
+                    if kg.no_vias {
+                        let ra = &self.input.rule_areas[kg.rule_area_idx as usize];
+                        let (outer, holes) = if kg.poly_idx == 0 {
+                            (&ra.outer, &ra.holes)
+                        } else {
+                            let ep = &ra.extra_polygons[kg.poly_idx as usize - 1];
+                            (&ep.outer, &ep.holes)
+                        };
+                        if geometry::via_near_rule_area_poly(at, diam, outer, holes) {
+                            return Ok(ControlFlow::Break(()));
+                        }
                     }
                     Ok(ControlFlow::Continue(()))
                 },
             )?;
             if ko_flow.is_break() {
+                return Ok(None);
+            }
+            let zone_swept = SweptAabb::swept(
+                at,
+                at,
+                diam,
+                self.effective_rules
+                    .max_pair_clearance_nm
+                    .max(self.max_zone_local_clearance_nm),
+            );
+            let zone_flow = self.zone_fill_spatial[l_idx].visit_matching(
+                zone_swept,
+                Some(net),
+                &self.work,
+                |_, zg| {
+                    self.work.charge(1)?;
+                    if zg.refillable {
+                        return Ok(ControlFlow::Continue(()));
+                    }
+                    let z = &self.input.zones[zg.zone_idx as usize];
+                    let Some(lf) = z.layer_fills.iter().find(|lf| lf.layer == *layer_name) else {
+                        return Ok(ControlFlow::Continue(()));
+                    };
+                    let poly = &lf.polygons[zg.poly_idx as usize];
+                    let clr = self.effective_rules.pair_clearance(
+                        net,
+                        DruItemKind::Via,
+                        z.net,
+                        DruItemKind::Zone,
+                        layer_name,
+                        (z.local_clearance_nm > 0).then_some(z.local_clearance_nm),
+                    );
+                    if geometry::track_near_filled_polygon(
+                        at,
+                        at,
+                        diam,
+                        clr,
+                        &poly.outer,
+                        &poly.holes,
+                        false,
+                    ) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            if zone_flow.is_break() {
+                return Ok(None);
+            }
+            let spoke_flow = self.spoke_corridor_spatial[l_idx].visit_matching(
+                zone_swept,
+                Some(net),
+                &self.work,
+                |_, sg| {
+                    self.work.charge(1)?;
+                    let sc = &self.spoke_corridors[sg.corridor_idx as usize];
+                    let clr = self.effective_rules.pair_clearance(
+                        net,
+                        DruItemKind::Via,
+                        sc.net,
+                        DruItemKind::Zone,
+                        layer_name,
+                        (sc.local_clearance_nm > 0).then_some(sc.local_clearance_nm),
+                    );
+                    if geometry::track_near_convex_poly(at, at, diam, clr, &sc.verts, 0, false) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            if spoke_flow.is_break() {
                 return Ok(None);
             }
             let pad_net_filter = if r.same_net_hole_clearance_nm > 0 && net != 0 {
@@ -2124,6 +2349,25 @@ impl Engine {
             self.work.charge(1)?;
             if g.net == net && self.layer_index(&g.layer).is_some() {
                 items.push(Copper::Graphic(g));
+            }
+        }
+        for z in &self.input.zones {
+            self.work.charge(1)?;
+            if z.net != net || !z.filled {
+                continue;
+            }
+            for lf in &z.layer_fills {
+                let Some(l_idx) = self.layer_index(&lf.layer) else {
+                    continue;
+                };
+                for poly in &lf.polygons {
+                    self.work.charge(1)?;
+                    items.push(Copper::ZoneFill {
+                        layer_idx: l_idx,
+                        zone: z,
+                        poly,
+                    });
+                }
             }
         }
         components::partition(items, &self.layer_names, &self.work)

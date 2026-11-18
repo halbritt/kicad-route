@@ -51,6 +51,7 @@ fn fixture() -> Input {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     }
 }
 
@@ -167,6 +168,11 @@ fn indexed_legality_matches_linear_scan_in_deterministic_mixed_worlds() {
                 drill: None,
                 layers: Vec::new(),
                 local_clearance_nm: None,
+                zone_connection: PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             });
         }
         for n in 0..128 {
@@ -218,6 +224,11 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(2),
@@ -227,6 +238,11 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(5),
@@ -239,6 +255,11 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(6),
@@ -251,6 +272,11 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     input.tracks = vec![
@@ -364,6 +390,11 @@ fn routing_fixture() -> Input {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(2),
@@ -373,6 +404,11 @@ fn routing_fixture() -> Input {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     input
@@ -468,6 +504,11 @@ fn linear_oracle_covers_multiple_generated_nets_after_edits_and_rollback() {
                 drill: None,
                 layers: Vec::new(),
                 local_clearance_nm: None,
+                zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             });
         }
     }
@@ -527,6 +568,11 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(2),
@@ -539,6 +585,11 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(3),
@@ -551,6 +602,11 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(4),
@@ -563,6 +619,11 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(5),
@@ -575,6 +636,11 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     let mut fresh = Engine::new(input.clone()).unwrap();
@@ -657,6 +723,7 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
             project_rules: None,
             custom_rules: None,
             effective_rules: None,
+            zones: Vec::new(),
         };
         let mut used = BTreeSet::new();
         let mut n = 0;
@@ -686,6 +753,11 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
                     drill: None,
                     layers: Vec::new(),
                     local_clearance_nm: None,
+                    zone_connection: PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
                 });
             }
         }
@@ -779,6 +851,11 @@ fn generated_samenet_rollback_determinism() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(2),
@@ -788,6 +865,11 @@ fn generated_samenet_rollback_determinism() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(3),
@@ -797,6 +879,11 @@ fn generated_samenet_rollback_determinism() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: uuid(4),
@@ -806,6 +893,11 @@ fn generated_samenet_rollback_determinism() {
             drill: None,
             layers: Vec::new(),
             local_clearance_nm: None,
+            zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     let mut fresh = Engine::new(input.clone()).unwrap();

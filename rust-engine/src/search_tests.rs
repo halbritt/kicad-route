@@ -14,6 +14,11 @@ fn pad(n: u64, net: u32, at: Point, shape: Shape) -> Pad {
         at,
         layers: Vec::new(),
         local_clearance_nm: None,
+        zone_connection: crate::model::PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
         shape,
         drill: None,
     }
@@ -139,6 +144,7 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                             project_rules: None,
                             custom_rules: None,
                             effective_rules: None,
+                            zones: Vec::new(),
                         };
                         if offgrid {
                             i.tracks.push(track(1, 1, [3, 3], [7, 3], 2));
@@ -326,6 +332,7 @@ fn nearer_contact_wins_regardless_of_target_order() {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     for targets in [
@@ -582,6 +589,7 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                         project_rules: None,
                         custom_rules: None,
                         effective_rules: None,
+                        zones: Vec::new(),
                     };
                     for (bit, a, b) in [
                         (1, [10, 0], [10, 10]),
@@ -678,6 +686,7 @@ fn walk_preserves_distinct_incoming_headings_in_dominance_key() {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     let mut expanded = 0;
@@ -741,6 +750,7 @@ fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     let blocks = [[1, 1], [3, 1], [1, 3], [3, 3], [1, 2], [2, 1]];
@@ -864,6 +874,7 @@ fn component_estimate_and_join_components_refuse_empty_targets_without_panicking
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     for targets in [&empty, &one_empty] {
@@ -925,6 +936,7 @@ fn join_components_empty_starts_records_work_used_and_expanded_states() {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     let mut expanded = 0;
@@ -992,6 +1004,11 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                         local_clearance_nm: None,
                         shape: Shape::Circle { radius_nm: 1 },
                         drill: None,
+                        zone_connection: crate::model::PadZoneConnection::Inherited,
+                        thermal_gap_nm: None,
+                        thermal_spoke_width_nm: None,
+                        thermal_spoke_angle_mdeg: None,
+                        orientation_mdeg: 0,
                     },
                     Pad {
                         id: id(2),
@@ -1001,6 +1018,11 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                         local_clearance_nm: None,
                         shape: Shape::Circle { radius_nm: 1 },
                         drill: None,
+                        zone_connection: crate::model::PadZoneConnection::Inherited,
+                        thermal_gap_nm: None,
+                        thermal_spoke_width_nm: None,
+                        thermal_spoke_angle_mdeg: None,
+                        orientation_mdeg: 0,
                     },
                 ],
                 tracks: Vec::new(),
@@ -1016,6 +1038,7 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                 project_rules: None,
                 custom_rules: None,
                 effective_rules: None,
+                zones: Vec::new(),
             };
             input.project_rules = Some(
                 serde_json::json!({
@@ -1060,6 +1083,11 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                         local_clearance_nm: None,
                         shape: Shape::Circle { radius_nm: 2 },
                         drill: None,
+                        zone_connection: crate::model::PadZoneConnection::Inherited,
+                        thermal_gap_nm: None,
+                        thermal_spoke_width_nm: None,
+                        thermal_spoke_angle_mdeg: None,
+                        orientation_mdeg: 0,
                     });
                 }
             }
@@ -1207,6 +1235,11 @@ fn two_via_position_only_witness_and_max_expansions_budget() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
             Pad {
                 id: id(2),
@@ -1216,6 +1249,11 @@ fn two_via_position_only_witness_and_max_expansions_budget() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
         ],
         tracks: vec![
@@ -1304,6 +1342,7 @@ fn two_via_position_only_witness_and_max_expansions_budget() {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     input.project_rules = Some(
         serde_json::json!({
@@ -1397,6 +1436,11 @@ fn three_via_last_via_only_counterexample_witness_re02() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            zone_connection: crate::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -1406,6 +1450,11 @@ fn three_via_last_via_only_counterexample_witness_re02() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            zone_connection: crate::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     let mut tracks = Vec::new();
@@ -1419,6 +1468,11 @@ fn three_via_last_via_only_counterexample_witness_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 2 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             });
         } else {
             tracks.push(Track {
@@ -1512,6 +1566,7 @@ fn three_via_last_via_only_counterexample_witness_re02() {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     input.project_rules = Some(
         serde_json::json!({
@@ -1650,6 +1705,11 @@ fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            zone_connection: crate::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
         Pad {
             id: id(2),
@@ -1659,6 +1719,11 @@ fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
             local_clearance_nm: None,
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            zone_connection: crate::model::PadZoneConnection::Inherited,
+            thermal_gap_nm: None,
+            thermal_spoke_width_nm: None,
+            thermal_spoke_angle_mdeg: None,
+            orientation_mdeg: 0,
         },
     ];
     let tracks = vec![
@@ -1748,6 +1813,7 @@ fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
             "(version 1)\n(rule \"vc\" (constraint via_count (max {max_vc})))"
         )),
         effective_rules: None,
+        zones: Vec::new(),
     };
 
     // max_via_count = 1 must refuse Unroutable (cannot cross F.Cu/B.Cu walls with <= 1 via).
@@ -1871,6 +1937,11 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                     drill: Some(DrillShape::Circle {
                         diameter_nm: 50_000,
                     }),
+                    zone_connection: crate::model::PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
                 },
                 Pad {
                     id: id(2),
@@ -1880,6 +1951,11 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                     local_clearance_nm: None,
                     shape: Shape::Circle { radius_nm: 100_000 },
                     drill: None,
+                    zone_connection: crate::model::PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
                 },
             ],
             tracks: Vec::new(),
@@ -1897,6 +1973,11 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                         [-1_900_000, 1_900_000],
                     ],
                     holes: Vec::new(),
+                    name: None,
+                    extra_polygons: Vec::new(),
+                    no_pads: false,
+                    no_footprints: false,
+                    no_zone_fills: false,
                 },
                 RuleArea {
                     id: id(11),
@@ -1910,6 +1991,11 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                         [-1_900_000, -50_000],
                     ],
                     holes: Vec::new(),
+                    name: None,
+                    extra_polygons: Vec::new(),
+                    no_pads: false,
+                    no_footprints: false,
+                    no_zone_fills: false,
                 },
                 RuleArea {
                     id: id(12),
@@ -1923,6 +2009,11 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                         [250_000, 100_000],
                     ],
                     holes: Vec::new(),
+                    name: None,
+                    extra_polygons: Vec::new(),
+                    no_pads: false,
+                    no_footprints: false,
+                    no_zone_fills: false,
                 },
             ],
             max_expansions: 50_000,
@@ -1954,6 +2045,7 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
             custom_rules: max_vc
                 .map(|m| format!("(version 1)\n(rule \"vc\" (constraint via_count (max {m})))")),
             effective_rules: None,
+            zones: Vec::new(),
         };
         inp
     };
@@ -2015,6 +2107,11 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: Some(DrillShape::Circle { diameter_nm: 1 }),
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
             Pad {
                 id: id(2),
@@ -2024,6 +2121,11 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
         ],
         tracks: Vec::new(),
@@ -2057,6 +2159,7 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
         ),
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     let eng_off = Engine::new(offgrid_in.clone()).unwrap();
     let path_off = join_components(
@@ -2131,6 +2234,11 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 drill: Some(DrillShape::Circle {
                     diameter_nm: 100_000,
                 }),
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
             Pad {
                 id: id(2),
@@ -2140,6 +2248,11 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 100_000 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
             Pad {
                 id: id(3),
@@ -2149,6 +2262,11 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 100_000 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
         ],
         tracks: vec![Track {
@@ -2173,6 +2291,11 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 [900_000, 9_100_000],
             ],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         }],
         max_expansions: 50_000,
         limits: Limits::default(),
@@ -2205,6 +2328,7 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 .into(),
         ),
         effective_rules: None,
+        zones: Vec::new(),
     };
     let eng_b5 = Engine::new(b5.clone()).unwrap();
     let b5_t0 = eng_b5.copper().tracks().next().unwrap();
@@ -2271,7 +2395,12 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
-            },
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
+},
             Pad {
                 id: id(2),
                 net: 1,
@@ -2280,7 +2409,12 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
-            },
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
+},
             Pad {
                 id: id(3),
                 net: 1,
@@ -2289,7 +2423,12 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
-            },
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
+},
         ],
         tracks: vec![
             Track {
@@ -2366,7 +2505,8 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 .into(),
         ),
         effective_rules: None,
-    };
+        zones: Vec::new(),
+};
     let eng_p4 = Engine::new(p4).unwrap();
     let p4_tracks: Vec<_> = eng_p4.copper().tracks().map(Copper::Track).collect();
     let p4_v0 = eng_p4.copper().vias().next().unwrap();
@@ -2435,6 +2575,11 @@ fn probe5_same_net_hole_clearance_same_path_vias_satisfy_legal_edge_on_reload() 
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
             Pad {
                 id: id(2),
@@ -2444,6 +2589,11 @@ fn probe5_same_net_hole_clearance_same_path_vias_satisfy_legal_edge_on_reload() 
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
         ],
         tracks: Vec::new(),
@@ -2455,6 +2605,11 @@ fn probe5_same_net_hole_clearance_same_path_vias_satisfy_legal_edge_on_reload() 
             no_vias: true,
             outer: vec![[5, 0], [55, 0], [55, 55], [5, 55]],
             holes: Vec::new(),
+            name: None,
+            extra_polygons: Vec::new(),
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
         }],
         max_expansions: 50_000,
         limits: Limits::default(),
@@ -2484,6 +2639,7 @@ fn probe5_same_net_hole_clearance_same_path_vias_satisfy_legal_edge_on_reload() 
         ),
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     let mut eng = Engine::new(i.clone()).unwrap();
     eng.route(1, 50_000).unwrap();
@@ -2526,6 +2682,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [-1_000_000, 1_000_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(11),
@@ -2539,6 +2700,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [460_000, 1_000_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(12),
@@ -2552,6 +2718,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [340_000, 40_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(13),
@@ -2565,6 +2736,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [340_000, 1_000_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             // Force F.Cu tracks: block y <= -40k, y >= 140k, x >= 440k, [0,0]->[0,100k], and direct y=100k east of [100k,100k] except y=100k corridor
             RuleArea {
@@ -2579,6 +2755,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [-1_000_000, -40_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(15),
@@ -2592,6 +2773,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [-1_000_000, 1_000_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(16),
@@ -2605,6 +2791,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [440_000, 140_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(17),
@@ -2618,6 +2809,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [-20_000, 60_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(18),
@@ -2631,6 +2827,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [140_000, 60_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
         ];
         if block_short_east {
@@ -2646,6 +2847,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     [40_000, 20_000],
                 ],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             });
         }
         Input {
@@ -2687,6 +2893,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     local_clearance_nm: None,
                     shape: Shape::Circle { radius_nm: 10_000 },
                     drill: None,
+                    zone_connection: crate::model::PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
                 },
                 Pad {
                     id: id(2),
@@ -2696,6 +2907,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     local_clearance_nm: None,
                     shape: Shape::Circle { radius_nm: 10_000 },
                     drill: None,
+                    zone_connection: crate::model::PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
                 },
             ],
             tracks: Vec::new(),
@@ -2729,6 +2945,7 @@ fn probe_d_350_open_vs_ctrl_re02() {
             ),
             custom_rules: None,
             effective_rules: None,
+            zones: Vec::new(),
         }
     };
 
@@ -2784,6 +3001,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
             Pad {
                 id: id(2),
@@ -2793,6 +3015,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                zone_connection: crate::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             },
         ],
         tracks: Vec::new(),
@@ -2805,6 +3032,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 no_vias: false,
                 outer: vec![[5, 5], [25, 5], [25, 25], [5, 25]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(11),
@@ -2813,6 +3045,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 no_vias: true,
                 outer: vec![[-100, -100], [15, -100], [15, 100], [-100, 100]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(12),
@@ -2821,6 +3058,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 no_vias: true,
                 outer: vec![[25, -100], [100, -100], [100, 100], [25, 100]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(13),
@@ -2829,6 +3071,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 no_vias: true,
                 outer: vec![[15, -100], [25, -100], [25, -5], [15, -5]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
             RuleArea {
                 id: id(14),
@@ -2837,6 +3084,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 no_vias: true,
                 outer: vec![[15, 5], [25, 5], [25, 100], [15, 100]],
                 holes: Vec::new(),
+                name: None,
+                extra_polygons: Vec::new(),
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
             },
         ],
         max_expansions: 50_000,
@@ -2867,6 +3119,7 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
         ),
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     let eng_w = Engine::new(witness_in.clone()).unwrap();
     let path_w = join_components(
@@ -2946,6 +3199,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                     local_clearance_nm: None,
                     shape: Shape::Circle { radius_nm: 1 },
                     drill: None,
+                    zone_connection: crate::model::PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
                 },
                 Pad {
                     id: id(2),
@@ -2955,6 +3213,11 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                     local_clearance_nm: None,
                     shape: Shape::Circle { radius_nm: 1 },
                     drill: None,
+                    zone_connection: crate::model::PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
                 },
             ],
             tracks,
@@ -2988,6 +3251,7 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
             ),
             custom_rules: None,
             effective_rules: None,
+            zones: Vec::new(),
         }
     };
 
@@ -3053,6 +3317,11 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                         local_clearance_nm: None,
                         shape: Shape::Circle { radius_nm: 1 },
                         drill: None,
+                        zone_connection: crate::model::PadZoneConnection::Inherited,
+                        thermal_gap_nm: None,
+                        thermal_spoke_width_nm: None,
+                        thermal_spoke_angle_mdeg: None,
+                        orientation_mdeg: 0,
                     },
                     Pad {
                         id: id(2),
@@ -3062,6 +3331,11 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                         local_clearance_nm: None,
                         shape: Shape::Circle { radius_nm: 1 },
                         drill: None,
+                        zone_connection: crate::model::PadZoneConnection::Inherited,
+                        thermal_gap_nm: None,
+                        thermal_spoke_width_nm: None,
+                        thermal_spoke_angle_mdeg: None,
+                        orientation_mdeg: 0,
                     },
                 ],
                 tracks: Vec::new(),
@@ -3095,6 +3369,7 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                 ),
                 custom_rules: None,
                 effective_rules: None,
+                zones: Vec::new(),
             };
 
             // Obstacles exercising track-before-via, via-before-track, and unreachable worlds.
@@ -3115,6 +3390,11 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                     no_vias: true,
                     outer: vec![[-5, -5], [15, -5], [15, 25], [-5, 25]],
                     holes: Vec::new(),
+                    name: None,
+                    extra_polygons: Vec::new(),
+                    no_pads: false,
+                    no_footprints: false,
+                    no_zone_fills: false,
                 });
             }
             if (mask & 8) != 0 {
@@ -3130,6 +3410,11 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                     no_vias: true,
                     outer: vec![[25, -5], [35, -5], [35, 25], [25, 25]],
                     holes: Vec::new(),
+                    name: None,
+                    extra_polygons: Vec::new(),
+                    no_pads: false,
+                    no_footprints: false,
+                    no_zone_fills: false,
                 });
             }
 
@@ -3344,6 +3629,7 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
             project_rules: None,
             custom_rules: None,
             effective_rules: None,
+            zones: Vec::new(),
         };
         let res = run_and_reload(inp);
         assert_eq!(res.added_tracks.len(), 1);
@@ -3383,6 +3669,7 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
             project_rules: None,
             custom_rules: None,
             effective_rules: None,
+            zones: Vec::new(),
         };
         let res = run_and_reload(via_to_pad);
         assert_eq!(res.added_tracks.len(), 1);
@@ -3418,6 +3705,7 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
             project_rules: None,
             custom_rules: None,
             effective_rules: None,
+            zones: Vec::new(),
         };
         let res2 = run_and_reload(via_to_via);
         assert_eq!(res2.added_tracks.len(), 1);
@@ -3489,6 +3777,7 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
         project_rules: Some(allow_blind_pro.clone()),
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     run_and_reload(repro_b);
 
@@ -3524,6 +3813,7 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
         project_rules: Some(allow_blind_pro.clone()),
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     run_and_reload(buried_to_buried);
 
@@ -3563,6 +3853,7 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
         project_rules: Some(allow_blind_pro),
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     };
     run_and_reload(buried_to_fcu_pad);
 }

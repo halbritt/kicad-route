@@ -19,6 +19,11 @@ fn fixture() -> Input {
                 drill: None,
                 layers: Vec::new(),
                 local_clearance_nm: None,
+                zone_connection: kicad_route_engine::model::PadZoneConnection::Inherited,
+                thermal_gap_nm: None,
+                thermal_spoke_width_nm: None,
+                thermal_spoke_angle_mdeg: None,
+                orientation_mdeg: 0,
             });
         }
     }
@@ -75,6 +80,7 @@ fn fixture() -> Input {
         project_rules: None,
         custom_rules: None,
         effective_rules: None,
+        zones: Vec::new(),
     }
 }
 fn bytes(copper: &CopperStore) -> Vec<u8> {

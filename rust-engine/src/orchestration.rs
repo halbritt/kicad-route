@@ -251,6 +251,8 @@ pub struct OperationConfig {
     pub python: PathBuf,
     pub timeout_ms: u64,
     pub max_child_output_bytes: usize,
+    pub pour_area_loss: Option<f64>,
+    pub pour_min_spokes: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -400,6 +402,12 @@ struct ApplyValidationReport {
     added_track_count: usize,
     #[serde(default)]
     added_via_count: usize,
+    #[serde(default)]
+    has_copper_zones: bool,
+    #[serde(default)]
+    pour_integrity_checked: bool,
+    #[serde(default)]
+    pour_integrity_passed: bool,
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -2225,6 +2233,7 @@ fn execute_staged_phases(
     result.request.request_bytes = Some(request_bytes.len() as u64);
     result.request.request_json = String::from_utf8(request_bytes.clone()).ok();
 
+    let mut input_has_zones = false;
     if let Ok(parsed_input) = serde_json::from_slice::<Input>(&request_bytes) {
         if parsed_input.source_id != admitted.source_sha256 {
             let msg = "exported request source_id does not match staged source snapshot".to_owned();
@@ -2237,6 +2246,7 @@ fn execute_staged_phases(
             });
             return Err((OperationStatus::ChildProcessError, msg));
         }
+        input_has_zones = !parsed_input.zones.is_empty();
     }
     result.phases.push(PhaseRecord {
         phase: "native_export".to_owned(),
@@ -2285,7 +2295,7 @@ fn execute_staged_phases(
     let drc_timeout_secs = ((remaining_ms as f64) / 1000.0).max(0.05);
     let staged_candidate = staging_dir.join("candidate.kicad_pcb");
     let staged_report = staging_dir.join("apply-report.json");
-    let apply_args: Vec<OsString> = vec![
+    let mut apply_args: Vec<OsString> = vec![
         "-B".into(),
         admitted.bridge_path.as_os_str().to_os_string(),
         "apply".into(),
@@ -2301,6 +2311,14 @@ fn execute_staged_phases(
         "--validation-report".into(),
         staged_report.as_os_str().to_os_string(),
     ];
+    if let Some(pct) = config.pour_area_loss {
+        apply_args.push("--pour-area-loss".into());
+        apply_args.push(format!("{pct}").into());
+    }
+    if let Some(min_spokes) = config.pour_min_spokes {
+        apply_args.push("--pour-min-spokes".into());
+        apply_args.push(min_spokes.to_string().into());
+    }
     let t_apply = Instant::now();
     let apply_outcome = run_bounded_child(
         &config.python,
@@ -2404,6 +2422,8 @@ fn execute_staged_phases(
         || report.introduced_violation_count != 0
         || report.added_track_count != route_output.added_tracks.len()
         || report.added_via_count != route_output.added_vias.len()
+        || ((input_has_zones || report.has_copper_zones)
+            && (!report.pour_integrity_checked || !report.pour_integrity_passed))
     {
         let msg = "apply-report.json failed consistency or native validation checks".to_owned();
         result.phases.push(PhaseRecord {
@@ -2581,7 +2601,7 @@ fn execute_staged_phases(
     Ok(())
 }
 
-const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>]";
+const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>]";
 
 fn take_flag_value(
     args: &[OsString],
@@ -2630,6 +2650,8 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
     let mut python: Option<PathBuf> = None;
     let mut timeout_ms: Option<u64> = None;
     let mut max_child_output_bytes: Option<usize> = None;
+    let mut pour_area_loss: Option<f64> = None;
+    let mut pour_min_spokes: Option<u32> = None;
     let mut after_double_dash = false;
 
     let mut i = 0;
@@ -2726,6 +2748,33 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             )?;
                             max_child_output_bytes = Some(parsed as usize);
                         }
+                        "--pour-area-loss" => {
+                            if pour_area_loss.is_some() {
+                                return Err("duplicate --pour-area-loss flag".to_owned());
+                            }
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let s = val.to_str().ok_or_else(|| {
+                                "--pour-area-loss must be a valid UTF-8 number".to_owned()
+                            })?;
+                            let parsed: f64 = s.parse().map_err(|_| {
+                                "--pour-area-loss must be a finite percentage in 0..=100".to_owned()
+                            })?;
+                            if !parsed.is_finite() || !(0.0..=100.0).contains(&parsed) {
+                                return Err(
+                                    "--pour-area-loss must be a finite percentage in 0..=100"
+                                        .to_owned(),
+                                );
+                            }
+                            pour_area_loss = Some(parsed);
+                        }
+                        "--pour-min-spokes" => {
+                            if pour_min_spokes.is_some() {
+                                return Err("duplicate --pour-min-spokes flag".to_owned());
+                            }
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let parsed = parse_u64_flag(&val, flag, 0, 16)?;
+                            pour_min_spokes = Some(parsed as u32);
+                        }
                         _ => return Err(format!("unknown flag: {flag}")),
                     }
                     i += 1;
@@ -2762,6 +2811,8 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
         python: python.unwrap_or_else(|| PathBuf::from("/usr/bin/python3")),
         timeout_ms: timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS),
         max_child_output_bytes: max_child_output_bytes.unwrap_or(DEFAULT_MAX_CHILD_OUTPUT_BYTES),
+        pour_area_loss,
+        pour_min_spokes,
     })
 }
 
@@ -3031,6 +3082,8 @@ elif cmd == "apply":
             python: PathBuf::from("/usr/bin/python3"),
             timeout_ms: 15_000,
             max_child_output_bytes: DEFAULT_MAX_CHILD_OUTPUT_BYTES,
+            pour_area_loss: None,
+            pour_min_spokes: None,
         }
     }
 
