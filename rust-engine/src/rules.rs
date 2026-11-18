@@ -2160,6 +2160,27 @@ impl EffectiveRules {
                 "effective_rules minimums and maximums must be nonnegative",
             ));
         }
+        let mut req_pair_clearance_nm = m.min_clearance_nm;
+        let mut req_hole_clearance_nm = if m.hole_clearance_active {
+            m.min_hole_clearance_nm
+        } else {
+            0
+        };
+        let mut req_hole_to_hole_nm = if m.hole_to_hole_active {
+            m.min_hole_to_hole_nm
+        } else {
+            0
+        };
+        let mut req_edge_clearance_nm = m.min_edge_clearance_nm;
+        let mut req_track_width_nm = m.min_track_width_nm;
+        let mut req_via_diameter_nm = m.min_via_diameter_nm;
+        let mut max_via_drill_nm = m.min_through_hole_diameter_nm;
+        let mut max_via_annular_nm = m.min_via_annular_width_nm;
+        if self.allow_microvias {
+            req_via_diameter_nm = req_via_diameter_nm.max(m.min_microvia_diameter_nm);
+            max_via_drill_nm = max_via_drill_nm.max(m.min_microvia_drill_nm);
+        }
+
         for (&id, nr) in &self.net_rules {
             if nr.net_id != id || nr.width_nm <= 0 || nr.via_diameter_nm <= 0 {
                 return Err(Failure::new(
@@ -2185,6 +2206,115 @@ impl EffectiveRules {
                     "effective_rules net entry values must be nonnegative",
                 ));
             }
+            req_pair_clearance_nm = req_pair_clearance_nm.max(nr.clearance_nm);
+            req_hole_clearance_nm = req_hole_clearance_nm.max(nr.hole_clearance_nm);
+            req_hole_to_hole_nm = req_hole_to_hole_nm.max(nr.hole_to_hole_nm);
+            req_edge_clearance_nm = req_edge_clearance_nm.max(nr.edge_clearance_nm);
+            req_track_width_nm = req_track_width_nm.max(nr.width_nm);
+            req_via_diameter_nm = req_via_diameter_nm.max(nr.via_diameter_nm);
+            max_via_drill_nm = max_via_drill_nm.max(nr.via_drill_nm);
+            max_via_annular_nm = max_via_annular_nm.max(nr.annular_width_nm);
+            if self.allow_microvias {
+                req_via_diameter_nm = req_via_diameter_nm.max(nr.microvia_diameter_nm);
+                max_via_drill_nm = max_via_drill_nm.max(nr.microvia_drill_nm);
+            }
+        }
+        for rule in &self.dru_rules {
+            let valid_dim = |v: i64| (0..=2 * MAX_NM).contains(&v);
+            match rule.constraint {
+                DruConstraint::Clearance { min_nm }
+                | DruConstraint::HoleClearance { min_nm }
+                | DruConstraint::HoleToHole { min_nm }
+                | DruConstraint::EdgeClearance { min_nm }
+                | DruConstraint::AnnularWidth { min_nm } => {
+                    if !valid_dim(min_nm) {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            "effective_rules dru_rules constraint dimension out of bounds",
+                        ));
+                    }
+                }
+                DruConstraint::TrackWidth { min_nm, max_nm }
+                | DruConstraint::ViaDiameter { min_nm, max_nm }
+                | DruConstraint::ViaDrill { min_nm, max_nm } => {
+                    if !valid_dim(min_nm) || max_nm.is_some_and(|mx| !valid_dim(mx) || min_nm > mx)
+                    {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            "effective_rules dru_rules min/max constraint bounds are invalid",
+                        ));
+                    }
+                }
+                DruConstraint::ViaCount { .. } | DruConstraint::Disallow { .. } => {}
+            }
+            if rule.severity == DruSeverity::Ignore {
+                continue;
+            }
+            match rule.constraint {
+                DruConstraint::Clearance { min_nm } => {
+                    req_pair_clearance_nm = req_pair_clearance_nm.max(min_nm);
+                }
+                DruConstraint::HoleClearance { min_nm } => {
+                    req_hole_clearance_nm = req_hole_clearance_nm.max(min_nm);
+                }
+                DruConstraint::HoleToHole { min_nm } => {
+                    req_hole_to_hole_nm = req_hole_to_hole_nm.max(min_nm);
+                }
+                DruConstraint::EdgeClearance { min_nm } => {
+                    req_edge_clearance_nm = req_edge_clearance_nm.max(min_nm);
+                }
+                DruConstraint::TrackWidth { min_nm, .. } => {
+                    req_track_width_nm = req_track_width_nm.max(min_nm);
+                }
+                DruConstraint::ViaDiameter { min_nm, .. } => {
+                    req_via_diameter_nm = req_via_diameter_nm.max(min_nm);
+                }
+                DruConstraint::ViaDrill { min_nm, .. } => {
+                    max_via_drill_nm = max_via_drill_nm.max(min_nm);
+                }
+                DruConstraint::AnnularWidth { min_nm } => {
+                    max_via_annular_nm = max_via_annular_nm.max(min_nm);
+                }
+                DruConstraint::ViaCount { .. } | DruConstraint::Disallow { .. } => {}
+            }
+        }
+        let req_via_diameter_i128 = i128::from(req_via_diameter_nm)
+            .max(i128::from(max_via_drill_nm) + 2 * i128::from(max_via_annular_nm));
+        if self.max_pair_clearance_nm < req_pair_clearance_nm {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules max_pair_clearance_nm understates minimums/net_rules/dru_rules",
+            ));
+        }
+        if self.max_hole_clearance_nm < req_hole_clearance_nm {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules max_hole_clearance_nm understates minimums/net_rules/dru_rules",
+            ));
+        }
+        if self.max_hole_to_hole_nm < req_hole_to_hole_nm {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules max_hole_to_hole_nm understates minimums/net_rules/dru_rules",
+            ));
+        }
+        if self.max_edge_clearance_nm < req_edge_clearance_nm {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules max_edge_clearance_nm understates minimums/net_rules/dru_rules",
+            ));
+        }
+        if self.max_track_width_nm < req_track_width_nm {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules max_track_width_nm understates minimums/net_rules/dru_rules",
+            ));
+        }
+        if i128::from(self.max_via_diameter_nm) < req_via_diameter_i128 {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules max_via_diameter_nm understates minimums/net_rules/dru_rules",
+            ));
         }
         Ok(())
     }
@@ -3330,5 +3460,134 @@ mod tests {
             "got {}",
             eff2.max_via_diameter_nm
         );
+    }
+
+    #[test]
+    fn effective_rules_validate_rejects_understated_max_bounds_and_invalid_dru_rules() {
+        let base_inp = || -> Input {
+            serde_json::from_value(serde_json::json!({
+                "version": 1,
+                "source_id": "c".repeat(64),
+                "layer": "F.Cu",
+                "layers": ["F.Cu", "B.Cu"],
+                "bounds": {"min": [0, 0], "max": [10_000_000, 10_000_000]},
+                "nets": [{"id": 0, "name": ""}, {"id": 1, "name": "SIG"}],
+                "pads": [],
+                "tracks": [],
+                "max_expansions": 100
+            }))
+            .unwrap()
+        };
+        let base_rules = Rules {
+            width_nm: 200_000,
+            clearance_nm: 200_000,
+            grid_nm: 100_000,
+            edge_clearance_nm: 200_000,
+            hole_clearance_nm: 100_000,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        };
+        let valid_eff = EffectiveRules::from_uniform_rules(base_rules, &base_inp().nets);
+        valid_eff.validate().unwrap();
+
+        // Challenger 2 probes: understated max_pair_clearance_nm, max_hole_to_hole_nm, max_hole_clearance_nm
+        let mut e1 = valid_eff.clone();
+        e1.net_rules.get_mut(&1).unwrap().clearance_nm = 400_000;
+        e1.max_pair_clearance_nm = 0;
+        assert_eq!(e1.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e2 = valid_eff.clone();
+        e2.minimums.min_hole_to_hole_nm = 1_500_000;
+        e2.net_rules.get_mut(&1).unwrap().hole_to_hole_nm = 1_500_000;
+        e2.max_hole_to_hole_nm = 0;
+        assert_eq!(e2.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e3 = valid_eff.clone();
+        e3.minimums.min_hole_clearance_nm = 500_000;
+        e3.net_rules.get_mut(&1).unwrap().hole_clearance_nm = 500_000;
+        e3.max_hole_clearance_nm = 0;
+        assert_eq!(e3.validate().unwrap_err().status, Status::Invalid);
+
+        // max_edge_clearance_nm, max_track_width_nm, max_via_diameter_nm
+        let mut e4 = valid_eff.clone();
+        e4.net_rules.get_mut(&1).unwrap().edge_clearance_nm = 300_000;
+        assert_eq!(e4.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e5 = valid_eff.clone();
+        e5.net_rules.get_mut(&1).unwrap().width_nm = 350_000;
+        assert_eq!(e5.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e6 = valid_eff.clone();
+        e6.net_rules.get_mut(&1).unwrap().via_diameter_nm = 900_000;
+        assert_eq!(e6.validate().unwrap_err().status, Status::Invalid);
+
+        // Layer-scoped DRU annular_width inflating required via diameter
+        let mut e6_dru = valid_eff.clone();
+        e6_dru.dru_rules.push(DruRule {
+            name: "ann".into(),
+            layer: Some("F.Cu".into()),
+            condition: None,
+            constraint: DruConstraint::AnnularWidth { min_nm: 500_000 },
+            severity: DruSeverity::Error,
+        });
+        assert_eq!(e6_dru.validate().unwrap_err().status, Status::Invalid);
+
+        // Invalid dru_rules values (negative or min > max)
+        let mut e_neg_dru = valid_eff.clone();
+        e_neg_dru.dru_rules.push(DruRule {
+            name: "neg".into(),
+            layer: None,
+            condition: None,
+            constraint: DruConstraint::Clearance { min_nm: -1 },
+            severity: DruSeverity::Ignore,
+        });
+        assert_eq!(e_neg_dru.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e_bad_range = valid_eff.clone();
+        e_bad_range.dru_rules.push(DruRule {
+            name: "range".into(),
+            layer: None,
+            condition: None,
+            constraint: DruConstraint::TrackWidth {
+                min_nm: 400_000,
+                max_nm: Some(200_000),
+            },
+            severity: DruSeverity::Error,
+        });
+        e_bad_range.max_track_width_nm = 400_000;
+        assert_eq!(e_bad_range.validate().unwrap_err().status, Status::Invalid);
+
+        // Positive controls:
+        // 1) DruSeverity::Ignore does not require max_pair_clearance_nm bump
+        let mut e_ign = valid_eff.clone();
+        e_ign.dru_rules.push(DruRule {
+            name: "ign".into(),
+            layer: None,
+            condition: None,
+            constraint: DruConstraint::Clearance { min_nm: 5_000_000 },
+            severity: DruSeverity::Ignore,
+        });
+        e_ign.validate().unwrap();
+
+        // 2) allow_microvias=false with larger microvia_diameter_nm still passes validate()
+        let mut e_no_micro = valid_eff.clone();
+        e_no_micro.allow_microvias = false;
+        e_no_micro.max_via_diameter_nm = 200_000;
+        for nr in e_no_micro.net_rules.values_mut() {
+            nr.via_diameter_nm = 200_000;
+            nr.via_drill_nm = 100_000;
+            nr.microvia_diameter_nm = 1_000_000;
+            nr.microvia_drill_nm = 500_000;
+        }
+        e_no_micro.validate().unwrap();
+
+        // 3) hole_to_hole_active=false does not require min_hole_to_hole_nm bump
+        let mut e_h2h_off = valid_eff;
+        e_h2h_off.minimums.hole_to_hole_active = false;
+        e_h2h_off.minimums.min_hole_to_hole_nm = 2_000_000;
+        e_h2h_off.max_hole_to_hole_nm = 0;
+        e_h2h_off.validate().unwrap();
     }
 }

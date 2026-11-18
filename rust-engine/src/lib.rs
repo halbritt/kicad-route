@@ -1397,6 +1397,7 @@ impl Engine {
         }
         let my_mask = span_mask(start_idx, end_idx);
         let my_drill = DrillShape::Circle { diameter_nm: drill };
+        let r = self.input.rules;
         for pv in prior_vias {
             self.work.charge(1)?;
             let pv_mask = span_mask(pv.start_layer as usize, pv.end_layer as usize);
@@ -1404,10 +1405,9 @@ impl Engine {
                 continue;
             }
             let pv_layers = &self.layer_names[pv.start_layer as usize..=pv.end_layer as usize];
-            let pv_drill_nm = self
-                .effective_rules
-                .via_dims_for(net, pv.kind == 2, pv_layers)?
-                .1;
+            let (pv_diam_nm, pv_drill_nm) =
+                self.effective_rules
+                    .via_dims_for(net, pv.kind == 2, pv_layers)?;
             let h2h = self.effective_rules.pair_hole_to_hole(
                 net,
                 DruItemKind::Via,
@@ -1428,9 +1428,62 @@ impl Engine {
             ) {
                 return Ok(None);
             }
+            if r.same_net_hole_clearance_nm > 0 && net != 0 {
+                let pv_kind = match pv.kind {
+                    0 => ViaKind::Through,
+                    1 => ViaKind::BlindBuried,
+                    _ => ViaKind::Micro,
+                };
+                let synth = Via {
+                    id: String::new(),
+                    net,
+                    at,
+                    diameter_nm: diam,
+                    drill_nm: drill,
+                    start_layer: self.layer_names[start_idx].clone(),
+                    end_layer: self.layer_names[end_idx].clone(),
+                    kind,
+                    locked: false,
+                };
+                let pv_via = Via {
+                    id: String::new(),
+                    net,
+                    at: pv.at,
+                    diameter_nm: pv_diam_nm,
+                    drill_nm: pv_drill_nm,
+                    start_layer: self.layer_names[pv.start_layer as usize].clone(),
+                    end_layer: self.layer_names[pv.end_layer as usize].clone(),
+                    kind: pv_kind,
+                    locked: false,
+                };
+                if !geometry::vias_connect(&synth, &pv_via) {
+                    let via_copper = DrillShape::Circle { diameter_nm: diam };
+                    let pv_copper = DrillShape::Circle {
+                        diameter_nm: pv_diam_nm,
+                    };
+                    let pv_drill = DrillShape::Circle {
+                        diameter_nm: pv_drill_nm,
+                    };
+                    if geometry::holes_near(
+                        at,
+                        &via_copper,
+                        pv.at,
+                        &pv_drill,
+                        r.same_net_hole_clearance_nm,
+                        false,
+                    ) || geometry::holes_near(
+                        at,
+                        &my_drill,
+                        pv.at,
+                        &pv_copper,
+                        r.same_net_hole_clearance_nm,
+                        false,
+                    ) {
+                        return Ok(None);
+                    }
+                }
+            }
         }
-
-        let r = self.input.rules;
         let mask_pad_clr = if r.solder_mask_to_copper_clearance_nm > 0 {
             r.solder_mask_expansion_nm + r.solder_mask_to_copper_clearance_nm
         } else {
@@ -1468,34 +1521,24 @@ impl Engine {
             if ko_flow.is_break() {
                 return Ok(None);
             }
-            let pad_swept = SweptAabb::swept(at, at, diam, max_copper_query_clr);
+            let pad_net_filter = if r.same_net_hole_clearance_nm > 0 && net != 0 {
+                None
+            } else {
+                Some(net)
+            };
+            let pad_swept = SweptAabb::swept(
+                at,
+                at,
+                diam.max(drill),
+                max_copper_query_clr.max(r.same_net_hole_clearance_nm),
+            );
             let pad_flow = self.pad_spatial[l_idx].visit_matching(
                 pad_swept,
-                Some(net),
+                pad_net_filter,
                 &self.work,
                 |ordinal, core| {
                     self.work.charge(1)?;
                     let pad = &self.input.pads[ordinal as usize];
-                    let pad_clr = self
-                        .effective_rules
-                        .pair_clearance(
-                            net,
-                            DruItemKind::Via,
-                            pad.net,
-                            DruItemKind::Pad,
-                            layer_name,
-                            pad.local_clearance_nm,
-                        )
-                        .max(mask_pad_clr);
-                    let p_layers = self.pad_layers_owned(pad);
-                    let hole_clr = self.effective_rules.pair_hole_clearance(
-                        net,
-                        DruItemKind::Via,
-                        span_layers,
-                        pad.net,
-                        DruItemKind::Pad,
-                        &p_layers,
-                    );
                     let check_core = |w: i64, clr: i64| -> bool {
                         match *core {
                             PadCore::Box { lo, hi, radius } => geometry::track_near_core(
@@ -1535,6 +1578,48 @@ impl Engine {
                             }
                         }
                     };
+                    if pad.net == net && net != 0 {
+                        if r.same_net_hole_clearance_nm == 0 {
+                            return Ok(ControlFlow::Continue(()));
+                        }
+                        let synth = Via {
+                            id: String::new(),
+                            net,
+                            at,
+                            diameter_nm: diam,
+                            drill_nm: drill,
+                            start_layer: self.layer_names[start_idx].clone(),
+                            end_layer: self.layer_names[end_idx].clone(),
+                            kind,
+                            locked: false,
+                        };
+                        if !Copper::Pad(pad).touches_via(&synth, &self.layer_names, &self.work)?
+                            && check_core(drill, r.same_net_hole_clearance_nm)
+                        {
+                            return Ok(ControlFlow::Break(()));
+                        }
+                        return Ok(ControlFlow::Continue(()));
+                    }
+                    let pad_clr = self
+                        .effective_rules
+                        .pair_clearance(
+                            net,
+                            DruItemKind::Via,
+                            pad.net,
+                            DruItemKind::Pad,
+                            layer_name,
+                            pad.local_clearance_nm,
+                        )
+                        .max(mask_pad_clr);
+                    let p_layers = self.pad_layers_owned(pad);
+                    let hole_clr = self.effective_rules.pair_hole_clearance(
+                        net,
+                        DruItemKind::Via,
+                        span_layers,
+                        pad.net,
+                        DruItemKind::Pad,
+                        &p_layers,
+                    );
                     if check_core(diam, pad_clr) || (hole_clr > 0 && check_core(drill, hole_clr)) {
                         return Ok(ControlFlow::Break(()));
                     }
@@ -1956,6 +2041,39 @@ impl Engine {
                         i128::from(drill) + i128::from(ev.diameter_nm) + 2 * i128::from(hole_clr),
                         false,
                     ) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                } else if r.same_net_hole_clearance_nm > 0 {
+                    let synth = Via {
+                        id: String::new(),
+                        net,
+                        at,
+                        diameter_nm: diam,
+                        drill_nm: drill,
+                        start_layer: self.layer_names[start_idx].clone(),
+                        end_layer: self.layer_names[end_idx].clone(),
+                        kind,
+                        locked: false,
+                    };
+                    if !Copper::Via(ev).touches_via(&synth, &self.layer_names, &self.work)?
+                        && (geometry::point_near_segment(
+                            at,
+                            ev.at,
+                            ev.at,
+                            i128::from(diam)
+                                + i128::from(ev.drill_nm)
+                                + 2 * i128::from(r.same_net_hole_clearance_nm),
+                            false,
+                        ) || geometry::point_near_segment(
+                            at,
+                            ev.at,
+                            ev.at,
+                            i128::from(drill)
+                                + i128::from(ev.diameter_nm)
+                                + 2 * i128::from(r.same_net_hole_clearance_nm),
+                            false,
+                        ))
+                    {
                         return Ok(ControlFlow::Break(()));
                     }
                 }

@@ -2554,3 +2554,280 @@ fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
         }
     }
 }
+
+#[test]
+fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
+    // 1. Non-connecting same-net via-to-via (locked input via) must be rejected when
+    //    same_net_hole_clearance_nm > 0, while connecting same-net via-to-via is allowed.
+    let make_2l = |snh: i64| {
+        let mut i = base();
+        i.layers = vec!["F.Cu".into(), "B.Cu".into()];
+        i.bounds = Bounds {
+            min: [0, 0],
+            max: [100, 60],
+        };
+        i.rules = Rules {
+            width_nm: 2,
+            clearance_nm: 1,
+            grid_nm: 10,
+            edge_clearance_nm: 1,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: snh,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        };
+        i.pads = vec![
+            Pad {
+                id: id(1),
+                net: 1,
+                at: [10, 30],
+                layers: vec!["F.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 2 },
+                drill: None,
+            },
+            Pad {
+                id: id(2),
+                net: 1,
+                at: [50, 30],
+                layers: vec!["B.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 2 },
+                drill: None,
+            },
+        ];
+        i.project_rules = Some(
+            json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {
+                    "min_via_diameter": 0.000006,
+                    "min_through_hole_diameter": 0.000002,
+                    "allow_blind_buried_vias": false,
+                    "allow_microvias": false
+                }}},
+                "net_settings": {
+                    "classes": [{
+                        "name": "Default",
+                        "track_width": 0.000002,
+                        "clearance": 0.000001,
+                        "via_diameter": 0.000006,
+                        "via_drill": 0.000002
+                    }]
+                }
+            })
+            .to_string(),
+        );
+        // Force via ONLY at [30, 30].
+        i.rule_areas = vec![
+            RuleArea {
+                id: id(10),
+                layers: vec!["F.Cu".into()],
+                no_tracks: false,
+                no_vias: true,
+                outer: vec![[0, 0], [25, 0], [25, 60], [0, 60]],
+                holes: Vec::new(),
+            },
+            RuleArea {
+                id: id(11),
+                layers: vec!["F.Cu".into()],
+                no_tracks: false,
+                no_vias: true,
+                outer: vec![[35, 0], [100, 0], [100, 60], [35, 60]],
+                holes: Vec::new(),
+            },
+            RuleArea {
+                id: id(12),
+                layers: vec!["F.Cu".into()],
+                no_tracks: false,
+                no_vias: true,
+                outer: vec![[25, 0], [35, 0], [35, 25], [25, 25]],
+                holes: Vec::new(),
+            },
+            RuleArea {
+                id: id(13),
+                layers: vec!["F.Cu".into()],
+                no_tracks: false,
+                no_vias: true,
+                outer: vec![[25, 35], [35, 35], [35, 60], [25, 60]],
+                holes: Vec::new(),
+            },
+        ];
+        i
+    };
+
+    // 1. Non-connecting same-net via-to-via (locked input via on In1.Cu..In2.Cu) must be rejected when
+    //    same_net_hole_clearance_nm > 0, while connecting same-net via-to-via is allowed.
+    let make_4l_buried_obs = |via3_at: Point| {
+        let mut i = make_2l(8);
+        i.layers = vec![
+            "F.Cu".into(),
+            "In1.Cu".into(),
+            "In2.Cu".into(),
+            "B.Cu".into(),
+        ];
+        i.project_rules = Some(
+            json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {
+                    "min_via_diameter": 0.000006,
+                    "min_through_hole_diameter": 0.000002,
+                    "allow_blind_buried_vias": true,
+                    "allow_microvias": false
+                }}},
+                "net_settings": {
+                    "classes": [{
+                        "name": "Default",
+                        "track_width": 0.000002,
+                        "clearance": 0.000001,
+                        "via_diameter": 0.000006,
+                        "via_drill": 0.000002
+                    }]
+                }
+            })
+            .to_string(),
+        );
+        i.vias = vec![Via {
+            id: id(20),
+            net: 1,
+            at: via3_at,
+            diameter_nm: 6,
+            drill_nm: 2,
+            start_layer: "In1.Cu".into(),
+            end_layer: "In2.Cu".into(),
+            kind: ViaKind::BlindBuried,
+            locked: true,
+        }];
+        i
+    };
+
+    // Locked same-net via at [30, 20]: dist 10 > connect(5), < snh moat(12) -> Unroutable.
+    assert_eq!(run(make_4l_buried_obs([30, 20])).status, Status::Unroutable);
+
+    // Connecting positive control: locked same-net via at [30, 25] (dist 5 <= connect(5))
+    // allows Via@[30, 30] even though dist 5 < moat(12), while F.Cu/B.Cu tracks stay clear of In1..In2.
+    let out_via_conn = run(make_4l_buried_obs([30, 25]));
+    assert_eq!(
+        out_via_conn.status,
+        Status::Complete,
+        "{:?}",
+        out_via_conn.reason
+    );
+
+    // 2. Non-connecting same-net SMD pad copper to via drill (pad_spatial):
+    // SMD pad on B.Cu at [30, 20] with radius 4: dist 10 > connect(3+4-1=6), < drill/2 + 4 + 15 = 20 -> Unroutable.
+    let mut pad_rej = make_2l(15);
+    pad_rej.pads.push(Pad {
+        id: id(22),
+        net: 1,
+        at: [30, 20],
+        layers: vec!["B.Cu".into()],
+        local_clearance_nm: None,
+        shape: Shape::Circle { radius_nm: 4 },
+        drill: None,
+    });
+    assert_eq!(run(pad_rej).status, Status::Unroutable);
+
+    // Connecting positive control: SMD pad on B.Cu at [30, 24] (dist 6 <= connect(6)) -> Complete.
+    let mut pad_conn = make_2l(15);
+    pad_conn.pads.push(Pad {
+        id: id(23),
+        net: 1,
+        at: [30, 24],
+        layers: vec!["B.Cu".into()],
+        local_clearance_nm: None,
+        shape: Shape::Circle { radius_nm: 4 },
+        drill: None,
+    });
+    let out_pad_conn = run(pad_conn);
+    assert_eq!(
+        out_pad_conn.status,
+        Status::Complete,
+        "{:?}",
+        out_pad_conn.reason
+    );
+
+    // 3. Same-path 2-via via-to-via non-connecting same_net_hole_clearance_nm (prior_vias):
+    // 4L board where V1 must be at [20, 30] and V2 must be at [30, 30] (dist 10 > connect(5), < moat(19)).
+    let mut same_path = make_2l(15);
+    same_path.layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    same_path.project_rules = Some(
+        json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {
+                "min_via_diameter": 0.000006,
+                "min_through_hole_diameter": 0.000002,
+                "allow_blind_buried_vias": true,
+                "allow_microvias": false
+            }}},
+            "net_settings": {
+                "classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000006,
+                    "via_drill": 0.000002
+                }]
+            }
+        })
+        .to_string(),
+    );
+    // Block F.Cu..In1.Cu..In2.Cu..B.Cu direct paths except V1@[20,30](F..In1) and V2@[30,30](In1..B),
+    // blocking all other vias on In1.Cu.
+    same_path.rule_areas = vec![
+        RuleArea {
+            id: id(30),
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[0, 0], [100, 0], [100, 25], [0, 25]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(31),
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[0, 35], [100, 35], [100, 60], [0, 60]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(32),
+            layers: vec!["F.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[25, 25], [100, 25], [100, 35], [25, 35]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(33),
+            layers: vec!["F.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[0, 25], [15, 25], [15, 35], [0, 35]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(34),
+            layers: vec!["B.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[0, 25], [25, 25], [25, 35], [0, 35]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(35),
+            layers: vec!["B.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[35, 25], [100, 25], [100, 35], [35, 35]],
+            holes: Vec::new(),
+        },
+    ];
+    assert_eq!(run(same_path).status, Status::Unroutable);
+}

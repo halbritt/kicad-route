@@ -29,6 +29,7 @@ struct State {
     is_via_goal: bool,
     via_history: u32,
     via_count: u16,
+    track_via_blocked: u32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -111,6 +112,69 @@ impl ViaHistoryArena {
         self.intern.insert(vec.clone(), new_id);
         self.entries.push(vec);
         Some(new_id)
+    }
+
+    fn is_subset(&self, sub_id: u32, sup_id: u32) -> bool {
+        if sub_id == 0 || sub_id == sup_id {
+            return true;
+        }
+        let a = &self.entries[sub_id as usize];
+        let b = &self.entries[sup_id as usize];
+        if a.len() > b.len() {
+            return false;
+        }
+        let (mut ia, mut ib) = (0usize, 0usize);
+        while ia < a.len() && ib < b.len() {
+            match a[ia].cmp(&b[ib]) {
+                std::cmp::Ordering::Less => return false,
+                std::cmp::Ordering::Equal => {
+                    ia += 1;
+                    ib += 1;
+                }
+                std::cmp::Ordering::Greater => ib += 1,
+            }
+        }
+        ia == a.len()
+    }
+}
+
+struct TrackViaBlockedArena {
+    entries: Vec<Vec<u16>>,
+    intern: HashMap<Vec<u16>, u32>,
+    total_len: usize,
+}
+
+impl TrackViaBlockedArena {
+    fn new() -> Self {
+        let mut intern = HashMap::new();
+        intern.insert(Vec::new(), 0);
+        Self {
+            entries: vec![Vec::new()],
+            intern,
+            total_len: 0,
+        }
+    }
+
+    fn contains(&self, id: u32, idx: u16) -> bool {
+        id != 0 && self.entries[id as usize].binary_search(&idx).is_ok()
+    }
+
+    fn insert_all(&mut self, id: u32, add: &[u16]) -> u32 {
+        if add.is_empty() {
+            return id;
+        }
+        let mut vec = self.entries[id as usize].clone();
+        vec.extend_from_slice(add);
+        vec.sort_unstable();
+        vec.dedup();
+        if let Some(&existing_id) = self.intern.get(&vec) {
+            return existing_id;
+        }
+        let new_id = u32::try_from(self.entries.len()).expect("bounded track-via conflict arena");
+        self.total_len += vec.len();
+        self.intern.insert(vec.clone(), new_id);
+        self.entries.push(vec);
+        new_id
     }
 
     fn is_subset(&self, sub_id: u32, sup_id: u32) -> bool {
@@ -327,7 +391,10 @@ pub(crate) fn join_components(
     let max_eff_width = max_net_track_width.max(max_via_diam);
 
     let max_h2h = engine.effective_rules.max_hole_to_hole_nm;
-    let conflict_radius_upper = i128::from(max_net_drill) + i128::from(max_h2h);
+    let conflict_radius_upper = (i128::from(max_net_drill) + i128::from(max_h2h)).max(
+        (i128::from(max_via_diam) + i128::from(max_net_drill)) / 2
+            + i128::from(max_h2h.max(engine.input.rules.same_net_hole_clearance_nm)),
+    );
     let conflict_radius_sq_upper = conflict_radius_upper * conflict_radius_upper;
 
     let via_cost = engine.effective_rules.via_cost.max(1);
@@ -336,6 +403,7 @@ pub(crate) fn join_components(
     let track_via_count = l_count > 1 && engine.effective_rules.net(net).max_via_count.is_some();
 
     let mut conflict_filter = ConflictFilter::default();
+    let mut track_via_conflicts: Vec<PlacedViaKey> = Vec::new();
     let mut backward_h: Option<(u64, BackwardHeuristic)> = None;
 
     loop {
@@ -348,6 +416,7 @@ pub(crate) fn join_components(
             track_direction_matters,
             track_via_count,
             &conflict_filter,
+            &track_via_conflicts,
             |p, layer_idx| {
                 let h_comp = component_estimate_multilayer(
                     p,
@@ -566,17 +635,29 @@ pub(crate) fn join_components(
             }
         }
         if engine.input.rules.same_net_hole_clearance_nm > 0 {
-            if let Some(conflict_pv) = first_same_net_via_track_conflict(engine, net, &result)? {
-                if conflict_filter.contains(conflict_pv.at) {
-                    return Err(Failure::new(
-                        Status::Unroutable,
-                        "proposed path violates same-net via hole clearance",
-                    ));
+            if let Some((conflict_pv, track_before_via)) =
+                first_same_net_via_track_conflict(engine, net, &result)?
+            {
+                if track_before_via {
+                    if track_via_conflicts.contains(&conflict_pv) {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "proposed path violates same-net via hole clearance",
+                        ));
+                    }
+                    track_via_conflicts.push(conflict_pv);
+                } else {
+                    if conflict_filter.contains(conflict_pv.at) {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "proposed path violates same-net via hole clearance",
+                        ));
+                    }
+                    conflict_filter.zones.push(ConflictZone {
+                        center: conflict_pv.at,
+                        radius_sq_upper: 0,
+                    });
                 }
-                conflict_filter.zones.push(ConflictZone {
-                    center: conflict_pv.at,
-                    radius_sq_upper: 0,
-                });
                 continue;
             }
         }
@@ -736,43 +817,46 @@ fn first_same_net_via_track_conflict(
     engine: &Engine,
     net: u32,
     path: &Path,
-) -> Result<Option<PlacedViaKey>, Failure> {
+) -> Result<Option<(PlacedViaKey, bool)>, Failure> {
     if engine.input.rules.same_net_hole_clearance_nm <= 0 || net == 0 {
         return Ok(None);
     }
-    let mut coalesced_tracks: Vec<(usize, Point, Point)> = Vec::new();
-    let mut path_vias: Vec<PlacedViaKey> = Vec::new();
+    let mut coalesced_tracks: Vec<(usize, Point, Point, usize)> = Vec::new();
+    let mut path_vias: Vec<(PlacedViaKey, usize)> = Vec::new();
     let mut can_coalesce_last = false;
-    for edge in &path.edges {
+    for (edge_idx, edge) in path.edges.iter().enumerate() {
         engine.work.charge(1)?;
         match *edge {
             PathEdge::Track { start, end, layer } => {
                 let l = layer as usize;
                 if can_coalesce_last {
-                    if let Some((last_l, last_start, last_end)) = coalesced_tracks.last_mut() {
+                    if let Some((last_l, last_start, last_end, last_idx)) =
+                        coalesced_tracks.last_mut()
+                    {
                         if *last_l == l
                             && *last_end == start
                             && ((last_start[0] == last_end[0] && last_end[0] == end[0])
                                 || (last_start[1] == last_end[1] && last_end[1] == end[1]))
                         {
                             *last_end = end;
+                            *last_idx = edge_idx;
                             continue;
                         }
                     }
                 }
-                coalesced_tracks.push((l, start, end));
+                coalesced_tracks.push((l, start, end, edge_idx));
                 can_coalesce_last = true;
             }
             PathEdge::Via(pv) => {
                 can_coalesce_last = false;
-                path_vias.push(pv);
+                path_vias.push((pv, edge_idx));
             }
         }
     }
-    for pv in path_vias {
-        for &(l_idx, start, end) in &coalesced_tracks {
+    for &(pv, via_idx) in &path_vias {
+        for &(l_idx, start, end, trk_idx) in &coalesced_tracks {
             if !engine.edge_clears_same_net_vias(net, l_idx, start, end, &[pv])? {
-                return Ok(Some(pv));
+                return Ok(Some((pv, trk_idx < via_idx)));
             }
         }
     }
@@ -1088,6 +1172,7 @@ fn walk(
         true,
         false,
         &empty_filter,
+        &[],
         |p, _| heuristic(p),
         |_, rs, a, b, _| advance(rs, a, b),
         |_, _, _, _, _| Ok(()),
@@ -1112,6 +1197,7 @@ fn walk_multilayer(
     track_direction_matters: bool,
     track_via_count: bool,
     conflict_filter: &ConflictFilter,
+    track_via_conflicts: &[PlacedViaKey],
     heuristic: impl Fn(Point, usize) -> Result<u64, Failure>,
     advance: impl Fn(
         usize,
@@ -1132,15 +1218,16 @@ fn walk_multilayer(
     let grid = engine.input.rules.grid_nm;
     let l_count = engine.layer_count();
     let mut via_arena = ViaHistoryArena::new();
+    let mut tv_arena = TrackViaBlockedArena::new();
     let mut queue = BinaryHeap::new();
     let mut best: HashMap<State, u64> = HashMap::new();
-    let mut settled_by_pos: HashMap<(Point, u8, u8, bool, bool), Vec<(u32, u16, u64)>> =
+    let mut settled_by_pos: HashMap<(Point, u8, u8, bool, bool), Vec<(u32, u32, u16, u64)>> =
         HashMap::new();
     let mut parent: HashMap<State, (State, PathEdge)> = HashMap::new();
     for &(at, layer) in starts {
-        engine
-            .work
-            .search_storage(queue.len() + best.len() + parent.len() + via_arena.total_len + 2)?;
+        engine.work.search_storage(
+            queue.len() + best.len() + parent.len() + via_arena.total_len + tv_arena.total_len + 2,
+        )?;
         engine.work.charge(1)?;
         let initial = State {
             at,
@@ -1150,37 +1237,41 @@ fn walk_multilayer(
             is_via_goal: false,
             via_history: 0,
             via_count: 0,
+            track_via_blocked: 0,
         };
         let h = heuristic(at, layer as usize)?;
         queue.push(Reverse((h, 0u64, initial)));
         best.insert(initial, 0u64);
     }
 
-    let is_dominated_by_settled = |settled: &HashMap<
-        (Point, u8, u8, bool, bool),
-        Vec<(u32, u16, u64)>,
-    >,
-                                   arena: &ViaHistoryArena,
-                                   cand: State,
-                                   cand_g: u64,
-                                   work: &WorkBudget|
-     -> Result<bool, Failure> {
-        if let Some(list) = settled.get(&(
-            cand.at,
-            cand.layer,
-            cand.direction,
-            cand.arrived_by_via,
-            cand.is_via_goal,
-        )) {
-            for &(v1, vc1, g1) in list {
-                work.charge(1)?;
-                if g1 <= cand_g && vc1 <= cand.via_count && arena.is_subset(v1, cand.via_history) {
-                    return Ok(true);
+    let is_dominated_by_settled =
+        |settled: &HashMap<(Point, u8, u8, bool, bool), Vec<(u32, u32, u16, u64)>>,
+         arena: &ViaHistoryArena,
+         tv_arena: &TrackViaBlockedArena,
+         cand: State,
+         cand_g: u64,
+         work: &WorkBudget|
+         -> Result<bool, Failure> {
+            if let Some(list) = settled.get(&(
+                cand.at,
+                cand.layer,
+                cand.direction,
+                cand.arrived_by_via,
+                cand.is_via_goal,
+            )) {
+                for &(v1, tvb1, vc1, g1) in list {
+                    work.charge(1)?;
+                    if g1 <= cand_g
+                        && vc1 <= cand.via_count
+                        && arena.is_subset(v1, cand.via_history)
+                        && tv_arena.is_subset(tvb1, cand.track_via_blocked)
+                    {
+                        return Ok(true);
+                    }
                 }
             }
-        }
-        Ok(false)
-    };
+            Ok(false)
+        };
 
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     while !queue.is_empty() {
@@ -1189,7 +1280,14 @@ fn walk_multilayer(
         if best.get(&state) != Some(&cost) {
             continue;
         }
-        if is_dominated_by_settled(&settled_by_pos, &via_arena, state, cost, &engine.work)? {
+        if is_dominated_by_settled(
+            &settled_by_pos,
+            &via_arena,
+            &tv_arena,
+            state,
+            cost,
+            &engine.work,
+        )? {
             continue;
         }
         if *expanded >= limit {
@@ -1208,7 +1306,12 @@ fn walk_multilayer(
                 state.is_via_goal,
             ))
             .or_default()
-            .push((state.via_history, state.via_count, cost));
+            .push((
+                state.via_history,
+                state.track_via_blocked,
+                state.via_count,
+                cost,
+            ));
 
         if state.is_via_goal
             || finished(
@@ -1237,20 +1340,8 @@ fn walk_multilayer(
             });
         }
 
-        for (direction, delta) in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]]
-            .iter()
-            .enumerate()
-        {
-            engine.work.charge(1)?;
-            let Some(x) = state.at[0].checked_add(delta[0]) else {
-                continue;
-            };
-            let Some(y) = state.at[1].checked_add(delta[1]) else {
-                continue;
-            };
-            let run_start = if engine.input.rules.same_net_hole_clearance_nm > 0
-                && direction as u8 == state.direction
-            {
+        let state_run_start =
+            if engine.input.rules.same_net_hole_clearance_nm > 0 && state.direction < 4 {
                 let mut s = state;
                 while let Some((prev, _)) = parent.get(&s) {
                     engine.work.charge(1)?;
@@ -1269,6 +1360,48 @@ fn walk_multilayer(
             } else {
                 None
             };
+        let base_turned_blocked = if !track_via_conflicts.is_empty() && net != 0 {
+            if let Some(rs) = state_run_start {
+                let mut add: Vec<u16> = Vec::new();
+                for (idx, &cv) in track_via_conflicts.iter().enumerate() {
+                    let idx_u16 = idx as u16;
+                    if tv_arena.contains(state.track_via_blocked, idx_u16) {
+                        continue;
+                    }
+                    if state.layer < cv.start_layer || state.layer > cv.end_layer {
+                        continue;
+                    }
+                    if !engine.edge_clears_same_net_vias(
+                        net,
+                        state.layer as usize,
+                        rs,
+                        state.at,
+                        &[cv],
+                    )? {
+                        add.push(idx_u16);
+                    }
+                }
+                tv_arena.insert_all(state.track_via_blocked, &add)
+            } else {
+                state.track_via_blocked
+            }
+        } else {
+            0
+        };
+
+        for (direction, delta) in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]]
+            .iter()
+            .enumerate()
+        {
+            engine.work.charge(1)?;
+            let Some(x) = state.at[0].checked_add(delta[0]) else {
+                continue;
+            };
+            let Some(y) = state.at[1].checked_add(delta[1]) else {
+                continue;
+            };
+            let is_continuing = direction as u8 == state.direction;
+            let run_start = if is_continuing { state_run_start } else { None };
             let Some(at) = advance(
                 state.layer as usize,
                 run_start,
@@ -1278,6 +1411,39 @@ fn walk_multilayer(
             )?
             else {
                 continue;
+            };
+            let next_tvb = if !track_via_conflicts.is_empty() && net != 0 {
+                let (base_tvb, seg_start) = if is_continuing {
+                    (state.track_via_blocked, state_run_start.unwrap_or(state.at))
+                } else {
+                    (base_turned_blocked, state.at)
+                };
+                let mut add: Vec<u16> = Vec::new();
+                for (idx, &cv) in track_via_conflicts.iter().enumerate() {
+                    let idx_u16 = idx as u16;
+                    if tv_arena.contains(base_tvb, idx_u16) {
+                        continue;
+                    }
+                    if state.layer < cv.start_layer || state.layer > cv.end_layer {
+                        continue;
+                    }
+                    let dot = i128::from(cv.at[0] - at[0]) * i128::from(delta[0])
+                        + i128::from(cv.at[1] - at[1]) * i128::from(delta[1]);
+                    if dot <= 0
+                        && !engine.edge_clears_same_net_vias(
+                            net,
+                            state.layer as usize,
+                            seg_start,
+                            at,
+                            &[cv],
+                        )?
+                    {
+                        add.push(idx_u16);
+                    }
+                }
+                tv_arena.insert_all(base_tvb, &add)
+            } else {
+                0
             };
             let next_dir = if track_direction_matters {
                 direction as u8
@@ -1292,19 +1458,32 @@ fn walk_multilayer(
                 is_via_goal: false,
                 via_history: state.via_history,
                 via_count: state.via_count,
+                track_via_blocked: next_tvb,
             };
             let g = cost.checked_add(1).expect("bounded search cost");
             if best.get(&next).is_some_and(|old| *old <= g) {
                 continue;
             }
-            if is_dominated_by_settled(&settled_by_pos, &via_arena, next, g, &engine.work)? {
+            if is_dominated_by_settled(
+                &settled_by_pos,
+                &via_arena,
+                &tv_arena,
+                next,
+                g,
+                &engine.work,
+            )? {
                 continue;
             }
             let extra = 1
                 + usize::from(!best.contains_key(&next))
                 + usize::from(!parent.contains_key(&next));
             engine.work.search_storage(
-                queue.len() + best.len() + parent.len() + via_arena.total_len + extra,
+                queue.len()
+                    + best.len()
+                    + parent.len()
+                    + via_arena.total_len
+                    + tv_arena.total_len
+                    + extra,
             )?;
             engine.work.charge(1)?;
             best.insert(next, g);
@@ -1335,52 +1514,10 @@ fn walk_multilayer(
             state.via_count,
             &mut via_buf,
         )?;
-        let prior_tracks: Vec<(usize, Point, Point)> =
-            if engine.input.rules.same_net_hole_clearance_nm > 0 && !via_buf.is_empty() && net != 0
-            {
-                let mut tracks: Vec<(usize, Point, Point)> = Vec::new();
-                let mut cur = state;
-                let mut can_coalesce = false;
-                while let Some((prev, edge)) = parent.get(&cur) {
-                    engine.work.charge(1)?;
-                    if let PathEdge::Track { start, end, layer } = *edge {
-                        let l = layer as usize;
-                        if can_coalesce {
-                            if let Some((last_l, last_start, last_end)) = tracks.last_mut() {
-                                if *last_l == l
-                                    && *last_start == end
-                                    && ((last_start[0] == last_end[0] && last_start[0] == start[0])
-                                        || (last_start[1] == last_end[1]
-                                            && last_start[1] == start[1]))
-                                {
-                                    *last_start = start;
-                                    cur = *prev;
-                                    continue;
-                                }
-                            }
-                        }
-                        tracks.push((l, start, end));
-                        can_coalesce = true;
-                    } else {
-                        can_coalesce = false;
-                    }
-                    cur = *prev;
-                }
-                tracks
-            } else {
-                Vec::new()
-            };
         for &(target_layer, pv, v_cost) in &via_buf {
             engine.work.charge(1)?;
-            if !prior_tracks.is_empty() {
-                let mut clears_all = true;
-                for &(l_idx, t_start, t_end) in &prior_tracks {
-                    if !engine.edge_clears_same_net_vias(net, l_idx, t_start, t_end, &[pv])? {
-                        clears_all = false;
-                        break;
-                    }
-                }
-                if !clears_all {
+            if let Some(idx) = track_via_conflicts.iter().position(|&cv| cv == pv) {
+                if tv_arena.contains(base_turned_blocked, idx as u16) {
                     continue;
                 }
             }
@@ -1406,19 +1543,32 @@ fn walk_multilayer(
                 is_via_goal: is_goal,
                 via_history: next_vh,
                 via_count: next_vc,
+                track_via_blocked: base_turned_blocked,
             };
             let g = cost.checked_add(v_cost).expect("bounded search cost");
             if best.get(&next).is_some_and(|old| *old <= g) {
                 continue;
             }
-            if is_dominated_by_settled(&settled_by_pos, &via_arena, next, g, &engine.work)? {
+            if is_dominated_by_settled(
+                &settled_by_pos,
+                &via_arena,
+                &tv_arena,
+                next,
+                g,
+                &engine.work,
+            )? {
                 continue;
             }
             let extra = 1
                 + usize::from(!best.contains_key(&next))
                 + usize::from(!parent.contains_key(&next));
             engine.work.search_storage(
-                queue.len() + best.len() + parent.len() + via_arena.total_len + extra,
+                queue.len()
+                    + best.len()
+                    + parent.len()
+                    + via_arena.total_len
+                    + tv_arena.total_len
+                    + extra,
             )?;
             engine.work.charge(1)?;
             best.insert(next, g);
