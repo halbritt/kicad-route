@@ -2228,8 +2228,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
     );
     assert!(path_b5.edges.iter().any(|e| matches!(e, PathEdge::Via(_))));
 
-    // 2. Challenger 1 Probe 4: 3L board with (layer "B.Cu") (constraint via_drill (min 0.000046mm))
-    // gives effective via diam = 46 nm, making [0,10]->[10,10] + Via@[10,10] (cost 41)
+    // 2. Challenger 1 Probe 4: 3L board with min_via_annular_width = 1nm and
+    // (layer "B.Cu") (constraint via_drill (min 0.000044mm)) gives drill = 44nm,
+    // effective via diam = 46 nm, making [0,10]->[10,10] + Via@[10,10] (cost 41)
     // beat the 42-step F.Cu route [0,10]->[-418,10].
     let p4 = Input {
         version: 1,
@@ -2343,6 +2344,7 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 "meta": {"version": 3},
                 "board": {"design_settings": {"rules": {
                     "min_via_diameter": 0.000004,
+                    "min_via_annular_width": 0.000001,
                     "min_through_hole_diameter": 0.000002,
                     "allow_blind_buried_vias": false,
                     "allow_microvias": false
@@ -2360,7 +2362,7 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
             .to_string(),
         ),
         custom_rules: Some(
-            "(version 1)\n(rule \"big_bcu_drill\" (layer \"B.Cu\") (constraint via_drill (min 0.000046mm)))"
+            "(version 1)\n(rule \"big_bcu_drill\" (layer \"B.Cu\") (constraint via_drill (min 0.000044mm)))"
                 .into(),
         ),
         effective_rules: None,
@@ -3270,4 +3272,297 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
         }
     }
     assert!(reachable > 0 && unreachable > 0);
+}
+
+#[test]
+fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
+    let run_and_reload = |input: Input| -> crate::model::Output {
+        let res = crate::run(input.clone());
+        assert_eq!(res.status, Status::Complete, "expected Complete: {res:?}");
+        let mut reloaded = input;
+        reloaded.tracks.extend(res.added_tracks.iter().cloned());
+        reloaded.vias.extend(res.added_vias.iter().cloned());
+        let res2 = crate::run(reloaded);
+        assert_eq!(res2.status, Status::Complete);
+        assert!(res2.added_tracks.is_empty());
+        assert!(res2.added_vias.is_empty());
+        res
+    };
+
+    let base_rules = |snh: i64| Rules {
+        width_nm: 2,
+        clearance_nm: 1,
+        grid_nm: 10,
+        edge_clearance_nm: 1,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: snh,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    let make_via = |n: u64, at: Point, s: &str, e: &str, kind: ViaKind| Via {
+        id: id(n),
+        net: 1,
+        at,
+        diameter_nm: 4,
+        drill_nm: 2,
+        start_layer: s.into(),
+        end_layer: e.into(),
+        kind,
+        locked: true,
+    };
+
+    // 1. Challenger 1 Reproduction A: 2L Pad@[0,0] -> locked Through Via@[30,0] with snh=15 and snh=25
+    for snh in [15, 25] {
+        let mut p = pad(1, 1, [0, 0], Shape::Circle { radius_nm: 2 });
+        p.layers = vec!["F.Cu".into()];
+        let inp = Input {
+            version: INPUT_VERSION,
+            source_id: "e".repeat(64),
+            layer: "F.Cu".into(),
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            bounds: Bounds {
+                min: [-50, -50],
+                max: [100, 50],
+            },
+            rules: base_rules(snh),
+            nets: vec![Net {
+                id: 1,
+                name: "SIG".into(),
+            }],
+            pads: vec![p],
+            tracks: vec![],
+            vias: vec![make_via(2, [30, 0], "F.Cu", "B.Cu", ViaKind::Through)],
+            rule_areas: vec![],
+            max_expansions: 50_000,
+            limits: Limits::default(),
+            holes: vec![],
+            board_outline: None,
+            graphics: vec![],
+            mask_apertures: vec![],
+            board_design_settings: None,
+            project_rules: None,
+            custom_rules: None,
+            effective_rules: None,
+        };
+        let res = run_and_reload(inp);
+        assert_eq!(res.added_tracks.len(), 1);
+        assert_eq!(res.added_tracks[0].start, [0, 0]);
+        assert_eq!(res.added_tracks[0].end, [28, 0]);
+    }
+
+    // 2. Symmetry: locked Through Via@[0,0] -> Pad@[30,0], and locked Through Via@[0,0] -> locked Through Via@[30,0]
+    {
+        let mut p = pad(2, 1, [30, 0], Shape::Circle { radius_nm: 2 });
+        p.layers = vec!["F.Cu".into()];
+        let via_to_pad = Input {
+            version: INPUT_VERSION,
+            source_id: "e".repeat(64),
+            layer: "F.Cu".into(),
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            bounds: Bounds {
+                min: [-50, -50],
+                max: [100, 50],
+            },
+            rules: base_rules(15),
+            nets: vec![Net {
+                id: 1,
+                name: "SIG".into(),
+            }],
+            pads: vec![p],
+            tracks: vec![],
+            vias: vec![make_via(1, [0, 0], "F.Cu", "B.Cu", ViaKind::Through)],
+            rule_areas: vec![],
+            max_expansions: 50_000,
+            limits: Limits::default(),
+            holes: vec![],
+            board_outline: None,
+            graphics: vec![],
+            mask_apertures: vec![],
+            board_design_settings: None,
+            project_rules: None,
+            custom_rules: None,
+            effective_rules: None,
+        };
+        let res = run_and_reload(via_to_pad);
+        assert_eq!(res.added_tracks.len(), 1);
+
+        let via_to_via = Input {
+            version: INPUT_VERSION,
+            source_id: "e".repeat(64),
+            layer: "F.Cu".into(),
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            bounds: Bounds {
+                min: [-50, -50],
+                max: [100, 50],
+            },
+            rules: base_rules(15),
+            nets: vec![Net {
+                id: 1,
+                name: "SIG".into(),
+            }],
+            pads: vec![],
+            tracks: vec![],
+            vias: vec![
+                make_via(1, [0, 0], "F.Cu", "B.Cu", ViaKind::Through),
+                make_via(2, [30, 0], "F.Cu", "B.Cu", ViaKind::Through),
+            ],
+            rule_areas: vec![],
+            max_expansions: 50_000,
+            limits: Limits::default(),
+            holes: vec![],
+            board_outline: None,
+            graphics: vec![],
+            mask_apertures: vec![],
+            board_design_settings: None,
+            project_rules: None,
+            custom_rules: None,
+            effective_rules: None,
+        };
+        let res2 = run_and_reload(via_to_via);
+        assert_eq!(res2.added_tracks.len(), 1);
+        assert_eq!(res2.added_tracks[0].start, [0, 0]);
+        assert_eq!(res2.added_tracks[0].end, [28, 0]);
+    }
+
+    // 3. Challenger 1 Reproduction B (4L Pad/Via -> locked Buried Via In1..In2) + 4L Buried Via start/target symmetry
+    let layers_4l = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    let allow_blind_pro = serde_json::json!({
+        "meta": {"version": 3},
+        "board": {"design_settings": {"rules": {
+            "min_track_width": 0.000002,
+            "min_clearance": 0.000001,
+            "min_via_diameter": 0.000004,
+            "min_through_hole_diameter": 0.000002,
+            "allow_blind_buried_vias": true,
+            "allow_microvias": false
+        }}},
+        "net_settings": {"classes": [{
+            "name": "Default",
+            "track_width": 0.000002,
+            "clearance": 0.000001,
+            "via_diameter": 0.000004,
+            "via_drill": 0.000002
+        }]}
+    })
+    .to_string();
+
+    let mut p1 = pad(1, 1, [0, 0], Shape::Circle { radius_nm: 2 });
+    p1.layers = vec!["F.Cu".into()];
+    let mut p2 = pad(2, 1, [30, 0], Shape::Circle { radius_nm: 2 });
+    p2.layers = vec!["B.Cu".into()];
+    let mut t_b = track(3, 1, [0, 0], [29, 0], 2);
+    t_b.layer = "B.Cu".into();
+    let repro_b = Input {
+        version: INPUT_VERSION,
+        source_id: "e".repeat(64),
+        layer: "F.Cu".into(),
+        layers: layers_4l.clone(),
+        bounds: Bounds {
+            min: [-50, -50],
+            max: [100, 50],
+        },
+        rules: base_rules(15),
+        nets: vec![Net {
+            id: 1,
+            name: "SIG".into(),
+        }],
+        pads: vec![p1, p2],
+        tracks: vec![t_b],
+        vias: vec![
+            make_via(4, [0, 0], "F.Cu", "B.Cu", ViaKind::Through),
+            make_via(5, [10, 30], "In1.Cu", "In2.Cu", ViaKind::BlindBuried),
+        ],
+        rule_areas: vec![],
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: vec![],
+        board_outline: None,
+        graphics: vec![],
+        mask_apertures: vec![],
+        board_design_settings: None,
+        project_rules: Some(allow_blind_pro.clone()),
+        custom_rules: None,
+        effective_rules: None,
+    };
+    run_and_reload(repro_b);
+
+    // 4L locked Buried Via (In1..In2) -> locked Buried Via (In1..In2) and -> F.Cu Pad
+    let buried_to_buried = Input {
+        version: INPUT_VERSION,
+        source_id: "e".repeat(64),
+        layer: "F.Cu".into(),
+        layers: layers_4l.clone(),
+        bounds: Bounds {
+            min: [-50, -50],
+            max: [100, 50],
+        },
+        rules: base_rules(15),
+        nets: vec![Net {
+            id: 1,
+            name: "SIG".into(),
+        }],
+        pads: vec![],
+        tracks: vec![],
+        vias: vec![
+            make_via(1, [0, 0], "In1.Cu", "In2.Cu", ViaKind::BlindBuried),
+            make_via(2, [30, 0], "In1.Cu", "In2.Cu", ViaKind::BlindBuried),
+        ],
+        rule_areas: vec![],
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: vec![],
+        board_outline: None,
+        graphics: vec![],
+        mask_apertures: vec![],
+        board_design_settings: None,
+        project_rules: Some(allow_blind_pro.clone()),
+        custom_rules: None,
+        effective_rules: None,
+    };
+    run_and_reload(buried_to_buried);
+
+    let mut p_f = pad(2, 1, [30, 0], Shape::Circle { radius_nm: 2 });
+    p_f.layers = vec!["F.Cu".into()];
+    let buried_to_fcu_pad = Input {
+        version: INPUT_VERSION,
+        source_id: "e".repeat(64),
+        layer: "F.Cu".into(),
+        layers: layers_4l,
+        bounds: Bounds {
+            min: [-50, -50],
+            max: [100, 50],
+        },
+        rules: base_rules(15),
+        nets: vec![Net {
+            id: 1,
+            name: "SIG".into(),
+        }],
+        pads: vec![p_f],
+        tracks: vec![],
+        vias: vec![make_via(
+            1,
+            [0, 0],
+            "In1.Cu",
+            "In2.Cu",
+            ViaKind::BlindBuried,
+        )],
+        rule_areas: vec![],
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: vec![],
+        board_outline: None,
+        graphics: vec![],
+        mask_apertures: vec![],
+        board_design_settings: None,
+        project_rules: Some(allow_blind_pro),
+        custom_rules: None,
+        effective_rules: None,
+    };
+    run_and_reload(buried_to_fcu_pad);
 }

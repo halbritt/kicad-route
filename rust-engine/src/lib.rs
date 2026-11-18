@@ -729,7 +729,11 @@ impl Engine {
         let width_nm = if net == 0 {
             r.width_nm
         } else {
-            self.effective_rules.track_width_for(net, layer_name)?
+            match self.effective_rules.track_width_for(net, layer_name) {
+                Ok(w) => w,
+                Err(e) if e.status == Status::Unroutable => return Ok(false),
+                Err(e) => return Err(e),
+            }
         };
         let layer_slice = std::slice::from_ref(layer_name);
         let edge_clr =
@@ -1255,7 +1259,11 @@ impl Engine {
             return Ok(true);
         }
         let layer_name = &self.layer_names[layer_idx];
-        let width_nm = self.effective_rules.track_width_for(net, layer_name)?;
+        let width_nm = match self.effective_rules.track_width_for(net, layer_name) {
+            Ok(w) => w,
+            Err(e) if e.status == Status::Unroutable => return Ok(false),
+            Err(e) => return Err(e),
+        };
         let seg = Track {
             id: String::new(),
             net,
@@ -1351,12 +1359,18 @@ impl Engine {
             }
         }
         let span_layers = &self.layer_names[start_idx..=end_idx];
-        let (diam, drill) =
-            self.effective_rules
-                .via_dims_for(net, kind == ViaKind::Micro, span_layers)?;
         if self.effective_rules.disallow_via_on(net, span_layers) {
             return Ok(None);
         }
+        let (diam, drill) =
+            match self
+                .effective_rules
+                .via_dims_for(net, kind == ViaKind::Micro, span_layers)
+            {
+                Ok(dims) => dims,
+                Err(e) if e.status == Status::Unroutable => return Ok(None),
+                Err(e) => return Err(e),
+            };
         let edge_clr = self
             .effective_rules
             .edge_clearance_for(net, DruItemKind::Via, span_layers);

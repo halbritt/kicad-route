@@ -2831,3 +2831,214 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
     ];
     assert_eq!(run(same_path).status, Status::Unroutable);
 }
+
+#[test]
+fn m3_2_dru_max_bounds_only_disallow_violating_layers_and_via_spans() {
+    let make_mm_board = |layers: Vec<&str>, pad_a_layer: &str, pad_b_layer: &str| -> Input {
+        let mut p1 = pad(1, 1, [2_000_000, 5_000_000]);
+        p1.shape = Shape::Circle { radius_nm: 400_000 };
+        p1.layers = vec![pad_a_layer.into()];
+        let mut p2 = pad(2, 1, [8_000_000, 5_000_000]);
+        p2.shape = Shape::Circle { radius_nm: 400_000 };
+        p2.layers = vec![pad_b_layer.into()];
+        Input {
+            version: 1,
+            source_id: "f".repeat(64),
+            layer: "F.Cu".into(),
+            layers: layers.into_iter().map(String::from).collect(),
+            bounds: Bounds {
+                min: [0, 0],
+                max: [10_000_000, 10_000_000],
+            },
+            rules: Rules {
+                width_nm: 200_000,
+                clearance_nm: 150_000,
+                grid_nm: 500_000,
+                edge_clearance_nm: 200_000,
+                hole_clearance_nm: 0,
+                same_net_hole_clearance_nm: 0,
+                solder_mask_expansion_nm: 0,
+                solder_mask_min_width_nm: 0,
+                solder_mask_to_copper_clearance_nm: 0,
+            },
+            nets: vec![Net {
+                id: 1,
+                name: "SIG".into(),
+            }],
+            pads: vec![p1, p2],
+            tracks: Vec::new(),
+            vias: Vec::new(),
+            rule_areas: Vec::new(),
+            max_expansions: 100_000,
+            limits: Limits::default(),
+            holes: Vec::new(),
+            board_outline: None,
+            graphics: Vec::new(),
+            mask_apertures: Vec::new(),
+            board_design_settings: None,
+            project_rules: None,
+            custom_rules: None,
+            effective_rules: None,
+        }
+    };
+
+    let pro_2l = json!({
+        "meta": {"version": 3},
+        "board": {"design_settings": {"rules": {
+            "min_track_width": 0.1,
+            "min_clearance": 0.1,
+            "min_via_diameter": 0.4,
+            "min_through_hole_diameter": 0.2,
+            "allow_blind_buried_vias": false,
+            "allow_microvias": false
+        }}},
+        "net_settings": {"classes": [{
+            "name": "Default",
+            "track_width": 0.2,
+            "clearance": 0.15,
+            "via_diameter": 0.6,
+            "via_drill": 0.3
+        }]}
+    })
+    .to_string();
+
+    // 1. 2L F.Cu-only pads with Default via_diameter=0.6mm and (constraint via_diameter (max 0.5mm)) -> Complete on F.Cu
+    let mut s1 = make_mm_board(vec!["F.Cu", "B.Cu"], "F.Cu", "F.Cu");
+    s1.project_rules = Some(pro_2l.clone());
+    s1.custom_rules =
+        Some("(version 1)\n(rule \"max_via\" (constraint via_diameter (max 0.5mm)))\n".into());
+    let r1 = run(s1);
+    assert_eq!(r1.status, Status::Complete, "s1 failed: {r1:?}");
+    assert!(r1.added_vias.is_empty());
+    assert!(r1.added_tracks.iter().all(|t| t.layer == "F.Cu"));
+
+    // 2. 4L F.Cu -> In1.Cu with allow_microvias=true, microvia_diameter=0.4mm <= 0.5mm, via_diameter=0.6mm > 0.5mm,
+    // and (constraint via_diameter (max 0.5mm)) -> Complete using Micro via
+    let mut s2 = make_mm_board(vec!["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"], "F.Cu", "In1.Cu");
+    s2.project_rules = Some(
+        json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {
+                "min_track_width": 0.1,
+                "min_clearance": 0.1,
+                "min_via_diameter": 0.4,
+                "min_through_hole_diameter": 0.2,
+                "min_microvia_diameter": 0.3,
+                "min_microvia_drill": 0.15,
+                "allow_blind_buried_vias": false,
+                "allow_microvias": true
+            }}},
+            "net_settings": {"classes": [{
+                "name": "Default",
+                "track_width": 0.2,
+                "clearance": 0.15,
+                "via_diameter": 0.6,
+                "via_drill": 0.3,
+                "microvia_diameter": 0.4,
+                "microvia_drill": 0.2
+            }]}
+        })
+        .to_string(),
+    );
+    s2.custom_rules =
+        Some("(version 1)\n(rule \"cap_via\" (constraint via_diameter (max 0.5mm)))\n".into());
+    let r2 = run(s2.clone());
+    assert_eq!(r2.status, Status::Complete, "s2 failed: {r2:?}");
+    assert_eq!(r2.added_vias.len(), 1);
+    assert_eq!(r2.added_vias[0].kind, ViaKind::Micro);
+    assert_eq!(r2.added_vias[0].diameter_nm, 400_000);
+    // Verify emitted via reloads cleanly through Input::validate()
+    let mut s2_reload = s2;
+    s2_reload.tracks.extend(r2.added_tracks);
+    s2_reload.vias.extend(r2.added_vias);
+    assert_eq!(run(s2_reload).status, Status::Complete);
+
+    // 3. 2L F.Cu-only pads with Default track_width=0.20mm and (layer "B.Cu") (constraint track_width (max 0.15mm)) -> Complete on F.Cu
+    let mut s3 = make_mm_board(vec!["F.Cu", "B.Cu"], "F.Cu", "F.Cu");
+    s3.project_rules = Some(pro_2l.clone());
+    s3.custom_rules = Some(
+        "(version 1)\n(rule \"thin_bcu\" (layer \"B.Cu\") (constraint track_width (max 0.15mm)))\n"
+            .into(),
+    );
+    let r3 = run(s3);
+    assert_eq!(r3.status, Status::Complete, "s3 failed: {r3:?}");
+    assert!(r3.added_tracks.iter().all(|t| t.layer == "F.Cu"));
+
+    // 4. Control: genuinely unroutable when cross-layer route needs a via and ALL via types violate max
+    let mut s4 = make_mm_board(vec!["F.Cu", "B.Cu"], "F.Cu", "B.Cu");
+    s4.project_rules = Some(pro_2l);
+    s4.custom_rules =
+        Some("(version 1)\n(rule \"cap_via\" (constraint via_diameter (max 0.5mm)))\n".into());
+    assert_eq!(run(s4).status, Status::Unroutable);
+}
+
+#[test]
+fn m3_2_effective_rules_invalid_via_and_microvia_dims_rejected() {
+    let mut base_inp = base();
+    base_inp.layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    base_inp.bounds = Bounds {
+        min: [0, 0],
+        max: [10_000_000, 10_000_000],
+    };
+    base_inp.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 150_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 200_000,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    base_inp.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [2_000_000, 5_000_000],
+            shape: Shape::Circle { radius_nm: 400_000 },
+            drill: None,
+            layers: vec!["F.Cu".into()],
+            local_clearance_nm: None,
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [8_000_000, 5_000_000],
+            shape: Shape::Circle { radius_nm: 400_000 },
+            drill: None,
+            layers: vec!["B.Cu".into()],
+            local_clearance_nm: None,
+        },
+    ];
+    let eff = kicad_route_engine::rules::EffectiveRules::from_uniform_rules(
+        base_inp.rules,
+        &base_inp.nets,
+    );
+
+    let mut zero_drill = base_inp.clone();
+    let mut eff1 = eff.clone();
+    eff1.net_rules.get_mut(&1).unwrap().via_drill_nm = 0;
+    zero_drill.effective_rules = Some(eff1);
+    assert_eq!(run(zero_drill).status, Status::Invalid);
+
+    let mut drill_eq_diam = base_inp.clone();
+    let mut eff2 = eff.clone();
+    eff2.net_rules.get_mut(&1).unwrap().via_drill_nm = 600_000;
+    eff2.net_rules.get_mut(&1).unwrap().via_diameter_nm = 600_000;
+    drill_eq_diam.effective_rules = Some(eff2);
+    assert_eq!(run(drill_eq_diam).status, Status::Invalid);
+
+    let mut zero_micro = base_inp;
+    let mut eff3 = eff;
+    eff3.allow_microvias = true;
+    eff3.net_rules.get_mut(&1).unwrap().microvia_diameter_nm = 0;
+    eff3.net_rules.get_mut(&1).unwrap().microvia_drill_nm = 0;
+    zero_micro.effective_rules = Some(eff3);
+    assert_eq!(run(zero_micro).status, Status::Invalid);
+}

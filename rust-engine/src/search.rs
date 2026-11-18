@@ -288,7 +288,11 @@ pub(crate) fn join_components(
                 continue;
             }
             let l_name = engine.layer_name(l_idx);
-            let width_nm = engine.effective_rules.track_width_for(net, l_name)?;
+            let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
+                Ok(w) => w,
+                Err(e) if e.status == Status::Unroutable => continue,
+                Err(e) => return Err(e),
+            };
             for &p in &anchors {
                 engine.work.charge(1)?;
                 if !engine.legal_edge_on(net, l_idx, p, p)? {
@@ -332,7 +336,11 @@ pub(crate) fn join_components(
                            prior_vias: &[PlacedViaKey]|
      -> Result<Option<Point>, Failure> {
         let l_name = engine.layer_name(layer_idx);
-        let width_nm = engine.effective_rules.track_width_for(net, l_name)?;
+        let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
+            Ok(w) => w,
+            Err(e) if e.status == Status::Unroutable => return Ok(None),
+            Err(e) => return Err(e),
+        };
         let mut nearest = None;
         for c in targets.iter().flatten() {
             engine.work.charge(1)?;
@@ -385,8 +393,11 @@ pub(crate) fn join_components(
     };
     let mut max_net_track_width = 0i64;
     for l_name in stackup {
-        max_net_track_width =
-            max_net_track_width.max(engine.effective_rules.track_width_for(net, l_name)?);
+        match engine.effective_rules.track_width_for(net, l_name) {
+            Ok(w) => max_net_track_width = max_net_track_width.max(w),
+            Err(e) if e.status == Status::Unroutable => {}
+            Err(e) => return Err(e),
+        }
     }
     let max_eff_width = max_net_track_width.max(max_via_diam);
 
@@ -446,7 +457,11 @@ pub(crate) fn join_components(
             },
             |layer_idx, run_start, a, b, prior_vias| {
                 let l_name = engine.layer_name(layer_idx);
-                let width_nm = engine.effective_rules.track_width_for(net, l_name)?;
+                let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
+                    Ok(w) => w,
+                    Err(e) if e.status == Status::Unroutable => return Ok(None),
+                    Err(e) => return Err(e),
+                };
                 if let Some(p) = attachment(layer_idx, a, b, prior_vias)? {
                     return Ok(Some(p));
                 }
@@ -473,14 +488,27 @@ pub(crate) fn join_components(
                     let route_radius = (width_nm + 1) / 2;
                     let mut best_entry: Option<Point> = None;
                     for c in targets.iter().flatten() {
-                        let Copper::Pad(pad) = *c else {
-                            continue;
+                        let (lo, hi) = match *c {
+                            Copper::Pad(pad) => {
+                                if pad.drill.is_none()
+                                    || (c.layer_mask(stackup) & (1u32 << layer_idx)) == 0
+                                {
+                                    continue;
+                                }
+                                pad.copper_bounds()
+                            }
+                            Copper::Via(via) => {
+                                if (c.layer_mask(stackup) & (1u32 << layer_idx)) == 0 {
+                                    continue;
+                                }
+                                let r = (via.diameter_nm + 1) / 2;
+                                (
+                                    [via.at[0] - r, via.at[1] - r],
+                                    [via.at[0] + r, via.at[1] + r],
+                                )
+                            }
+                            _ => continue,
                         };
-                        if pad.drill.is_none() || (c.layer_mask(stackup) & (1u32 << layer_idx)) == 0
-                        {
-                            continue;
-                        }
-                        let (lo, hi) = pad.copper_bounds();
                         if a[1 - axis] < lo[1 - axis] - route_radius
                             || a[1 - axis] > hi[1 - axis] + route_radius
                         {
@@ -540,7 +568,11 @@ pub(crate) fn join_components(
                 match prev_edge {
                     PathEdge::Track { .. } => {
                         let l_name = engine.layer_name(layer_idx);
-                        let width_nm = engine.effective_rules.track_width_for(net, l_name)?;
+                        let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
+                            Ok(w) => w,
+                            Err(e) if e.status == Status::Unroutable => return Ok(false),
+                            Err(e) => return Err(e),
+                        };
                         let probe = Track {
                             id: String::new(),
                             net,
@@ -564,11 +596,15 @@ pub(crate) fn join_components(
                             _ => ViaKind::Micro,
                         };
                         let span_layers = &stackup[pv.start_layer as usize..=pv.end_layer as usize];
-                        let (diam, drill) = engine.effective_rules.via_dims_for(
+                        let (diam, drill) = match engine.effective_rules.via_dims_for(
                             net,
                             kind == ViaKind::Micro,
                             span_layers,
-                        )?;
+                        ) {
+                            Ok(dims) => dims,
+                            Err(e) if e.status == Status::Unroutable => return Ok(false),
+                            Err(e) => return Err(e),
+                        };
                         let probe_via = Via {
                             id: String::new(),
                             net,
@@ -1056,16 +1092,24 @@ fn component_estimate_multilayer(
     work: &WorkBudget,
 ) -> Result<u64, Failure> {
     let l_name = &stackup[layer_idx];
-    let width = rules.track_width_for(net, l_name)?;
-    let eff_width = width.max(max_eff_width);
+    let track_width = match rules.track_width_for(net, l_name) {
+        Ok(w) => Some(w),
+        Err(e) if e.status == Status::Unroutable => None,
+        Err(e) => return Err(e),
+    };
+    let eff_width = track_width.map_or(max_eff_width, |w| w.max(max_eff_width));
     let my_bit = 1u32 << layer_idx;
     let mut lower_bound: Option<u64> = None;
     for target in targets.iter().flatten() {
         work.charge(1)?;
         let d_via = contact_steps(p, *target, eff_width, grid);
-        let steps = if (target.layer_mask(stackup) & my_bit) != 0 {
-            let d_track = contact_steps(p, *target, width, grid);
-            d_track.min(d_via.saturating_add(via_cost))
+        let steps = if let Some(width) = track_width {
+            if (target.layer_mask(stackup) & my_bit) != 0 {
+                let d_track = contact_steps(p, *target, width, grid);
+                d_track.min(d_via.saturating_add(via_cost))
+            } else {
+                d_via.saturating_add(via_cost)
+            }
         } else {
             d_via.saturating_add(via_cost)
         };
@@ -1364,7 +1408,12 @@ fn walk_multilayer(
             if let Some(rs) = state_run_start {
                 let mut add: Vec<u16> = Vec::new();
                 for (idx, &cv) in track_via_conflicts.iter().enumerate() {
-                    let idx_u16 = idx as u16;
+                    let idx_u16 = u16::try_from(idx).map_err(|_| {
+                        Failure::new(
+                            Status::BudgetExhausted,
+                            "track-via conflict set exceeds u16 capacity",
+                        )
+                    })?;
                     if tv_arena.contains(state.track_via_blocked, idx_u16) {
                         continue;
                     }
@@ -1420,7 +1469,12 @@ fn walk_multilayer(
                 };
                 let mut add: Vec<u16> = Vec::new();
                 for (idx, &cv) in track_via_conflicts.iter().enumerate() {
-                    let idx_u16 = idx as u16;
+                    let idx_u16 = u16::try_from(idx).map_err(|_| {
+                        Failure::new(
+                            Status::BudgetExhausted,
+                            "track-via conflict set exceeds u16 capacity",
+                        )
+                    })?;
                     if tv_arena.contains(base_tvb, idx_u16) {
                         continue;
                     }
@@ -1517,7 +1571,13 @@ fn walk_multilayer(
         for &(target_layer, pv, v_cost) in &via_buf {
             engine.work.charge(1)?;
             if let Some(idx) = track_via_conflicts.iter().position(|&cv| cv == pv) {
-                if tv_arena.contains(base_turned_blocked, idx as u16) {
+                let idx_u16 = u16::try_from(idx).map_err(|_| {
+                    Failure::new(
+                        Status::BudgetExhausted,
+                        "track-via conflict set exceeds u16 capacity",
+                    )
+                })?;
+                if tv_arena.contains(base_turned_blocked, idx_u16) {
                     continue;
                 }
             }

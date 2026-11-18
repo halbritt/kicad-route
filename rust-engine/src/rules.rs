@@ -2153,11 +2153,11 @@ impl EffectiveRules {
             self.max_via_diameter_nm,
         ]
         .iter()
-        .any(|&v| v < 0)
+        .any(|&v| !(0..=2 * MAX_NM).contains(&v))
         {
             return Err(Failure::new(
                 Status::Invalid,
-                "effective_rules minimums and maximums must be nonnegative",
+                "effective_rules minimums and maximums must be in 0..=200000000 nm",
             ));
         }
         let mut req_pair_clearance_nm = m.min_clearance_nm;
@@ -2182,15 +2182,27 @@ impl EffectiveRules {
         }
 
         for (&id, nr) in &self.net_rules {
-            if nr.net_id != id || nr.width_nm <= 0 || nr.via_diameter_nm <= 0 {
+            if nr.net_id != id
+                || !(1..=MAX_NM).contains(&nr.width_nm)
+                || !(1..=2 * MAX_NM).contains(&nr.via_drill_nm)
+                || !(nr.via_drill_nm + 1..=2 * MAX_NM).contains(&nr.via_diameter_nm)
+            {
                 return Err(Failure::new(
                     Status::Invalid,
-                    "effective_rules net entry has invalid id or nonpositive width/via diameter",
+                    "effective_rules net entry has invalid id, track width, or via dimensions",
+                ));
+            }
+            if self.allow_microvias
+                && (!(1..=2 * MAX_NM).contains(&nr.microvia_drill_nm)
+                    || !(nr.microvia_drill_nm + 1..=2 * MAX_NM).contains(&nr.microvia_diameter_nm))
+            {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "effective_rules net entry has invalid microvia dimensions",
                 ));
             }
             if [
                 nr.clearance_nm,
-                nr.via_drill_nm,
                 nr.microvia_diameter_nm,
                 nr.microvia_drill_nm,
                 nr.edge_clearance_nm,
@@ -2199,11 +2211,11 @@ impl EffectiveRules {
                 nr.annular_width_nm,
             ]
             .iter()
-            .any(|&v| v < 0)
+            .any(|&v| !(0..=2 * MAX_NM).contains(&v))
             {
                 return Err(Failure::new(
                     Status::Invalid,
-                    "effective_rules net entry values must be nonnegative",
+                    "effective_rules net entry values must be in 0..=200000000 nm",
                 ));
             }
             req_pair_clearance_nm = req_pair_clearance_nm.max(nr.clearance_nm);
@@ -2370,6 +2382,15 @@ impl EffectiveRules {
                     ),
                 ));
             }
+        }
+        if !(1..=MAX_NM).contains(&width) {
+            return Err(Failure::new(
+                Status::Unroutable,
+                format!(
+                    "net {} track_width {width} nm is outside supported track width bounds",
+                    nr.net_name
+                ),
+            ));
         }
         Ok(width)
     }
@@ -2614,7 +2635,20 @@ impl EffectiveRules {
                 }
             }
         }
-        diam = diam.max(drill + 2 * annular);
+        let diam_i128 = i128::from(diam).max(i128::from(drill) + 2 * i128::from(annular));
+        if !(1..=2 * MAX_NM).contains(&drill)
+            || diam_i128 <= i128::from(drill)
+            || diam_i128 > i128::from(2 * MAX_NM)
+        {
+            return Err(Failure::new(
+                Status::Unroutable,
+                format!(
+                    "net {} via dimensions ({diam_i128} nm / {drill} nm) violate valid via invariants",
+                    nr.net_name
+                ),
+            ));
+        }
+        let diam = diam_i128 as i64;
         if let Some(mx) = max_drill {
             if drill > mx {
                 return Err(Failure::new(
@@ -3584,10 +3618,80 @@ mod tests {
         e_no_micro.validate().unwrap();
 
         // 3) hole_to_hole_active=false does not require min_hole_to_hole_nm bump
-        let mut e_h2h_off = valid_eff;
+        let mut e_h2h_off = valid_eff.clone();
         e_h2h_off.minimums.hole_to_hole_active = false;
         e_h2h_off.minimums.min_hole_to_hole_nm = 2_000_000;
         e_h2h_off.max_hole_to_hole_nm = 0;
         e_h2h_off.validate().unwrap();
+
+        // Task 3: via_drill_nm == 0, via_drill_nm >= via_diameter_nm, allow_microvias=true invalid microvia dims,
+        // width_nm > MAX_NM, and > 2*MAX_NM upper bounds.
+        let mut e_zero_drill = valid_eff.clone();
+        e_zero_drill.net_rules.get_mut(&1).unwrap().via_drill_nm = 0;
+        assert_eq!(e_zero_drill.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e_drill_eq_diam = valid_eff.clone();
+        e_drill_eq_diam.net_rules.get_mut(&1).unwrap().via_drill_nm = 600_000;
+        e_drill_eq_diam
+            .net_rules
+            .get_mut(&1)
+            .unwrap()
+            .via_diameter_nm = 600_000;
+        assert_eq!(
+            e_drill_eq_diam.validate().unwrap_err().status,
+            Status::Invalid
+        );
+
+        let mut e_zero_micro = valid_eff.clone();
+        e_zero_micro.allow_microvias = true;
+        e_zero_micro
+            .net_rules
+            .get_mut(&1)
+            .unwrap()
+            .microvia_diameter_nm = 0;
+        e_zero_micro
+            .net_rules
+            .get_mut(&1)
+            .unwrap()
+            .microvia_drill_nm = 0;
+        assert_eq!(e_zero_micro.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e_micro_eq = valid_eff.clone();
+        e_micro_eq.allow_microvias = true;
+        e_micro_eq
+            .net_rules
+            .get_mut(&1)
+            .unwrap()
+            .microvia_diameter_nm = 300_000;
+        e_micro_eq.net_rules.get_mut(&1).unwrap().microvia_drill_nm = 300_000;
+        assert_eq!(e_micro_eq.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e_wide_track = valid_eff.clone();
+        e_wide_track.net_rules.get_mut(&1).unwrap().width_nm = MAX_NM + 1;
+        e_wide_track.max_track_width_nm = MAX_NM + 1;
+        assert_eq!(e_wide_track.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e_huge_max = valid_eff.clone();
+        e_huge_max.max_pair_clearance_nm = 2 * MAX_NM + 1;
+        assert_eq!(e_huge_max.validate().unwrap_err().status, Status::Invalid);
+
+        let mut e_via_drill_dru = valid_eff;
+        e_via_drill_dru.dru_rules.push(DruRule {
+            name: "big_drill".into(),
+            layer: None,
+            condition: None,
+            constraint: DruConstraint::ViaDrill {
+                min_nm: 600_000,
+                max_nm: None,
+            },
+            severity: DruSeverity::Error,
+        });
+        assert_eq!(
+            e_via_drill_dru
+                .via_dims_for(1, false, &["F.Cu".into(), "B.Cu".into()])
+                .unwrap_err()
+                .status,
+            Status::Unroutable
+        );
     }
 }
