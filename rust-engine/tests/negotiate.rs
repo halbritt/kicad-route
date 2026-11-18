@@ -84,8 +84,10 @@ fn verify_disjoint_and_legal(input: &Input, tracks: &[Track], vias: &[Via]) {
     for t in tracks {
         assert!(t.start != t.end, "degenerate zero-length track: {t:?}");
         assert!(
-            e.legal_edge(t.net, t.start, t.end).is_ok() || input.layers.len() > 1,
-            "unexpected error checking edge"
+            e.legal_edge_on_layer(t.net, &t.layer, t.start, t.end)
+                .expect("legal_edge_on_layer query succeeded"),
+            "generated track violates legality on {}: {t:?}",
+            t.layer
         );
     }
     for i in 0..tracks.len() {
@@ -639,6 +641,613 @@ fn eight_crossing_nets_converge_within_compact_work_budget() {
     let mut engine = Engine::new(i).unwrap();
     let exp = engine.route_all().unwrap();
     assert_eq!(exp, out_a.expanded_states);
+    assert!(
+        out_a.work_used <= 5_000_000,
+        "expected eight_crossing_nets work_used <= 5_000_000, got {}",
+        out_a.work_used
+    );
     let stats = engine.last_negotiation_stats().unwrap();
-    assert!(stats.rounds_committed >= 1 || stats.global_passes >= 1);
+    assert_eq!(stats.initial_routed + stats.initial_failed, 8);
+}
+
+#[test]
+fn tier1_single_net_never_rips_same_tier_non_rippable_unit() {
+    let i = bottleneck_inversion_input();
+    let mut e = Engine::new(i.clone()).unwrap();
+    let specs = vec![
+        UnitSpec {
+            id: RouteUnitId::SingleNet(1),
+            nets: vec![1],
+            priority_tier: 1,
+            rippable_by_single: false,
+        },
+        UnitSpec {
+            id: RouteUnitId::SingleNet(2),
+            nets: vec![2],
+            priority_tier: 1,
+            rippable_by_single: true,
+        },
+    ];
+    let net_map = [
+        (1, RouteUnitId::SingleNet(1)),
+        (2, RouteUnitId::SingleNet(2)),
+    ]
+    .into_iter()
+    .collect();
+    let mut adapter = TieredMockAdapter {
+        specs,
+        net_map,
+        ripped: Vec::new(),
+    };
+    let mut expanded = 0;
+    let err = e
+        .transaction(|tx| negotiate::solve_with_adapter(tx, &mut adapter, &mut expanded))
+        .unwrap_err();
+    assert!(
+        adapter.ripped.is_empty(),
+        "same-tier non-rippable SingleNet(1) must never be ripped: {:?}",
+        adapter.ripped
+    );
+    let failure: Failure = err.into();
+    assert_eq!(failure.status, Status::Unroutable);
+    let stats = e.last_negotiation_stats().expect("stats recorded");
+    assert!(
+        stats.global_passes <= 1,
+        "expected early exit <= 1 global pass, got {}",
+        stats.global_passes
+    );
+
+    // Companion: at priority_tier 0, DiffPair(1) CAN rip DiffPair(0) if DiffPair(0) is blocking it
+    // (though global_passes keeps !rippable_by_single pinned). Let's verify local rip succeeds.
+    let mut e2 = Engine::new(i).unwrap();
+    let dp_specs = vec![
+        UnitSpec {
+            id: RouteUnitId::DiffPair(0),
+            nets: vec![1],
+            priority_tier: 0,
+            rippable_by_single: false,
+        },
+        UnitSpec {
+            id: RouteUnitId::DiffPair(1),
+            nets: vec![2],
+            priority_tier: 0,
+            rippable_by_single: true,
+        },
+    ];
+    let dp_map = [(1, RouteUnitId::DiffPair(0)), (2, RouteUnitId::DiffPair(1))]
+        .into_iter()
+        .collect();
+    let mut dp_adapter = TieredMockAdapter {
+        specs: dp_specs,
+        net_map: dp_map,
+        ripped: Vec::new(),
+    };
+    let mut expanded2 = 0;
+    let _ = e2.transaction(|tx| negotiate::solve_with_adapter(tx, &mut dp_adapter, &mut expanded2));
+    assert!(
+        dp_adapter.ripped.contains(&RouteUnitId::DiffPair(0)),
+        "tier-0 DiffPair(1) should be allowed to rip tier-0 DiffPair(0)"
+    );
+}
+
+#[test]
+fn unblocked_net_exceeding_trial_expansion_cap_completes_without_thrash() {
+    // Net 1 routes cleanly; Net 2 sits above a wide static wall requiring > 40_000 expansions
+    // whose frontier grazes Net 1's generated track before finding the open detour.
+    // With max_expansions = 200_000, trial_cap = 40_000 triggers and must fall back cleanly.
+    let mut i = base_input([2600, 2000], Vec::new());
+    i.max_expansions = 200_000;
+    i.limits.max_work = 50_000_000;
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+        Net {
+            id: 2,
+            name: "N2".into(),
+        },
+    ];
+    i.pads = vec![
+        pad(1, 1, [1250, 1130]),
+        pad(2, 1, [1350, 1130]),
+        pad(3, 2, [1300, 900]),
+        pad(4, 2, [1300, 1400]),
+    ];
+    // Wide static wall y = 1150 from x = 200 to x = 2400: forces > 40k expansions before detouring
+    // around x < 200 or x > 2400.
+    i.tracks = vec![wire(10, 0, [200, 1150], [2400, 1150])];
+
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    assert!(
+        out.expanded_states > 40_000,
+        "expected Net 2 to exceed trial_cap (40_000), got {}",
+        out.expanded_states
+    );
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+}
+
+#[test]
+fn static_unrecoverable_exits_early_without_wasting_global_passes() {
+    // Net 1 routes cleanly (routed_rippable_count == 1); Net 2 is sealed inside a closed static box.
+    let mut i = base_input([100, 100], Vec::new());
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+        Net {
+            id: 2,
+            name: "SEALED".into(),
+        },
+    ];
+    i.pads = vec![
+        pad(1, 1, [10, 20]),
+        pad(2, 1, [90, 20]),
+        pad(3, 2, [50, 50]),
+        pad(4, 2, [50, 90]),
+    ];
+    i.tracks = vec![
+        wire(10, 0, [40, 40], [60, 40]),
+        wire(11, 0, [60, 40], [60, 60]),
+        wire(12, 0, [60, 60], [40, 60]),
+        wire(13, 0, [40, 60], [40, 40]),
+    ];
+    let mut e = Engine::new(i).unwrap();
+    let err = e.route_all().unwrap_err();
+    assert_eq!(err.status, Status::Unroutable);
+    let stats = e.last_negotiation_stats().expect("stats recorded");
+    assert_eq!(stats.initial_routed, 1);
+    assert_eq!(stats.global_passes, 0);
+}
+
+#[test]
+fn blocked_frontier_finds_generated_victim_past_4096_static_keepout_edges() {
+    // Net 2 starts inside a comb of static keepout bars generating > 4,100 distinct blocked edges
+    // before reaching the single narrow exit at [10, 30] sealed by Net 1.
+    let mut i = base_input([1000, 700], Vec::new());
+    i.max_expansions = 100_000;
+    i.limits.max_work = 50_000_000;
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "VICTIM".into(),
+        },
+        Net {
+            id: 2,
+            name: "ESCAPER".into(),
+        },
+    ];
+    // Net 1 connects [10, 10] -> [10, 50] along x=10, sealing ESCAPER's exit at [10, 30],
+    // while Net 1 can detour around [20..900] or y > 580? Wait: give Net 1 pads at [10, 10] and [40, 10]
+    // with a wall forcing? Even simpler: Net 1 pads at [10, 10] and [10, 60] inside [0..1000, 0..700]:
+    // Wait - Net 1 shortest path is straight down x=10 (from y=10 to y=60), sealing [10, 30]!
+    // When ripped, Net 1 can detour via x=950? No, detouring via x=0..20 is blocked by keepout?
+    // Wait: make the comb chamber x in [20..940], y in [50..600], closed at bottom y=610, right x=950,
+    // left x=20 EXCEPT an opening at y=30? Wait: comb bars are at y=80, 100, ..., 560 from x=30..930.
+    // Put a static wall around the chamber: top y=40 (x=20..950), right x=950 (y=40..610),
+    // bottom y=610 (x=20..950), left x=20 (y=60..610) — leaving ONLY [20, 50] as the exit!
+    // Wait: Net 1 connects [10, 20] -> [10, 80] along x=10? If Net 1 goes along x=10, it doesn't seal [20, 50] unless clearance reaches x=20,
+    // OR put Net 1 pads at [10, 50] and [30, 50]? No, if Net 1 is [20, 20] -> [20, 80] (pads at [20, 20] and [20, 80] - no, keepout is at y=40),
+    // put Net 1 pads at [10, 20] and [10, 100] with x=10 as the exit shaft (wall at x=0, wall at x=20 y=60..610, wall at x=20 y=0..40)!
+    // Wait: if Net 1 routes along x=10 from y=20 to y=100, and ESCAPER exits at [10, 50] -> [500, 20],
+    // then Net 1 can detour via x=30? No, x=20 has a wall y=0..40 and y=60..610! So Net 1 can detour via [20, 50] if ESCAPER isn't there, wait:
+    // ESCAPER needs to go from [500, 580] -> [500, 20] through [20, 50]!
+    // If Net 1 goes [10, 10] -> [50, 10]? No, Net 1 pads [10, 20] and [50, 20]?
+    // Let's keep it super simple:
+    // Left wall x=0? No, board min x=0, track width=2, grid=10, so x=10 is legal!
+    // Chamber: top wall y=40 (x=20..960), right wall x=960 (y=40..640), bottom wall y=640 (x=10..960),
+    // left wall x=10 (y=60..640) and x=20 (y=0..40? No, x=20 y=40..640 has gap at y=50? Wait: x=20 y=60..640).
+    // Exit is the gap at y=50, x=20! Net 2 (ESCAPER) pad A is at [500, 580] inside the chamber, pad B is at [500, 20] outside!
+    // Net 1 (VICTIM) has pad A at [20, 30] and pad B at [20, 90]? Wait: [20, 90] is inside the chamber if left wall is x=10!
+    // Put Net 1 pads at [20, 30] and [10, 90]? No, then Net 1 ALSO uses the exit!
+    // Make the exit corridor horizontal at y=50 from x=20 to x=10, and outside x=10 is open!
+    // Put Net 1 pads at [10, 10] and [10, 90], with wall on x=20 (y=0..40 and y=60..640) -> no, Net 1 can detour via x=5? No, grid=10.
+    // Even simpler: put Net 1 pads at [10, 50] and [980, 50]? No, that goes through x=20..960.
+    // Put Net 1 pads at [10, 30] and [10, 70] -> straight path is x=10, y=30..70, which crosses [10, 50] (ESCAPER's ONLY exit!).
+    // Wait: how can Net 1 detour around [10, 50]? On the LEFT at x=0? Board min is [-20, 0]..[1000, 700]!
+    // YES! Board min [-30, 0]..[1000, 700]!
+    // Put a static wall along x=20 from y=60..640 and y=0..40 (gap ONLY at y=50).
+    // Net 1 pads at [10, 30] and [10, 70]: straight path crosses [10, 50] (sealing ESCAPER's exit at [10, 50]!),
+    // while Net 1 can easily detour via x = -10 (around y=30..70) once ripped!
+    // Wait: if x=10 is open at y=50, ESCAPER goes [500, 580] -> comb -> [20, 50] -> [10, 50] -> [10, 10] -> [500, 20]!
+    // And inside the chamber x in [30..950], y in [60..620], place 25 horizontal `no_tracks` RuleArea bars
+    // at y = 70, 90, ..., 550 (each spanning x = 40..940, height 6 nm -> leaves y=60, 80, 100... open,
+    // while blocking vertical edges between every even-10 row!).
+    // Every cell (x, y) in x=40..940 (91 cols) x 25 rows = 2,275 cells * 2 vertical blocked edges = 4,550 distinct static blocked edges!
+    i.bounds = Bounds {
+        min: [-50, 0],
+        max: [1000, 700],
+    };
+    i.pads = vec![
+        pad(1, 1, [10, 30]),
+        pad(2, 1, [10, 70]),
+        pad(3, 2, [500, 580]),
+        pad(4, 2, [-20, 50]),
+    ];
+    i.tracks = vec![
+        // Chamber walls around x=20..960, y=40..640 with single exit at [20, 50] -> [10, 50]
+        wire(10, 0, [20, 0], [20, 40]),
+        wire(11, 0, [20, 60], [20, 640]),
+        wire(12, 0, [20, 40], [960, 40]),
+        wire(13, 0, [960, 40], [960, 640]),
+        wire(14, 0, [20, 640], [960, 640]),
+    ];
+    for row in 0..25i64 {
+        let y_mid = 70 + row * 20;
+        i.rule_areas.push(RuleArea {
+            id: id(100 + row as u64),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [40, y_mid - 3],
+                [940, y_mid - 3],
+                [940, y_mid + 3],
+                [40, y_mid + 3],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: false,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        });
+    }
+
+    let mut e = Engine::new(i.clone()).unwrap();
+    e.route_all().unwrap();
+    let stats = e.last_negotiation_stats().expect("stats recorded");
+    assert!(
+        stats.rounds_committed >= 1 || stats.global_passes >= 1,
+        "expected rip-up attribution past 4096 static keepout edges, got {stats:?}"
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+}
+
+#[test]
+fn multi_zone_thermal_spoke_corridors_preserved_under_multinet_ripup() {
+    // 2-layer board with two distinct refillable thermal zones (GND on F.Cu, PWR on B.Cu)
+    // and no full-layer keepout masking B.Cu, plus 3 crossing signal nets forcing rip-up.
+    let mut i = base_input([160, 160], vec!["F.Cu".into(), "B.Cu".into()]);
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "SIG1".into(),
+        },
+        Net {
+            id: 2,
+            name: "SIG2".into(),
+        },
+        Net {
+            id: 3,
+            name: "GND".into(),
+        },
+        Net {
+            id: 4,
+            name: "PWR".into(),
+        },
+        Net {
+            id: 5,
+            name: "SIG3".into(),
+        },
+    ];
+    let mut gnd_pad = pad(6, 3, [30, 30]);
+    gnd_pad.layers = vec!["F.Cu".into()];
+    let mut gnd_pad2 = pad(7, 3, [130, 30]);
+    gnd_pad2.layers = vec!["F.Cu".into()];
+    let mut pwr_pad = pad(8, 4, [130, 130]);
+    pwr_pad.layers = vec!["B.Cu".into()];
+    let mut pwr_pad2 = pad(9, 4, [30, 130]);
+    pwr_pad2.layers = vec!["B.Cu".into()];
+    i.pads = vec![
+        pad(1, 1, [10, 80]),
+        pad(2, 1, [150, 80]),
+        pad(3, 2, [80, 60]),
+        pad(4, 2, [80, 140]),
+        pad(5, 5, [10, 40]),
+        pad(10, 5, [150, 120]),
+        gnd_pad,
+        gnd_pad2,
+        pwr_pad,
+        pwr_pad2,
+    ];
+    // U-wall on F.Cu around SIG2 [80, 60]; no B.Cu full-layer keepout so B.Cu is routable too.
+    i.tracks = vec![
+        wire(20, 0, [70, 50], [90, 50]),
+        wire(21, 0, [70, 50], [70, 75]),
+        wire(22, 0, [90, 50], [90, 75]),
+    ];
+    i.project_rules = Some(
+        serde_json::json!({
+            "meta": {"version": 1},
+            "net_settings": {
+                "classes": [
+                    {"name": "Default", "priority": 0, "clearance": 0.000001, "track_width": 0.000002, "via_diameter": 0.000004, "via_drill": 0.000002}
+                ]
+            }
+        })
+        .to_string(),
+    );
+    i.zones = vec![
+        Zone {
+            id: id(901),
+            name: Some("GND_F".into()),
+            net: 3,
+            layers: vec!["F.Cu".into()],
+            priority: 0,
+            connection: ZoneConnection::Thermal,
+            thermal_gap_nm: 2,
+            thermal_spoke_width_nm: 2,
+            min_thickness_nm: 1,
+            local_clearance_nm: 1,
+            island_removal: ZoneIslandRemoval::Always,
+            island_area_min_nm2: 0,
+            fill_mode: ZoneFillMode::Polygon,
+            refillable: true,
+            filled: true,
+            locked: false,
+            outer: vec![[15, 15], [145, 15], [145, 45], [15, 45]],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            layer_fills: Vec::new(),
+        },
+        Zone {
+            id: id(902),
+            name: Some("PWR_B".into()),
+            net: 4,
+            layers: vec!["B.Cu".into()],
+            priority: 0,
+            connection: ZoneConnection::Thermal,
+            thermal_gap_nm: 2,
+            thermal_spoke_width_nm: 2,
+            min_thickness_nm: 1,
+            local_clearance_nm: 1,
+            island_removal: ZoneIslandRemoval::Always,
+            island_area_min_nm2: 0,
+            fill_mode: ZoneFillMode::Polygon,
+            refillable: true,
+            filled: true,
+            locked: false,
+            outer: vec![[15, 115], [145, 115], [145, 145], [15, 145]],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            layer_fills: Vec::new(),
+        },
+    ];
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+    // Verify no foreign track crosses the GND thermal pad spoke corridor on F.Cu or PWR on B.Cu.
+    for t in &out.added_tracks {
+        if t.net != 3 && t.layer == "F.Cu" {
+            assert!(
+                !segments_near(t.start, t.end, [30, 30], [30, 30], 6, false),
+                "foreign F.Cu track intruded GND thermal spoke corridor: {t:?}"
+            );
+        }
+        if t.net != 4 && t.layer == "B.Cu" {
+            assert!(
+                !segments_near(t.start, t.end, [130, 130], [130, 130], 6, false),
+                "foreign B.Cu track intruded PWR thermal spoke corridor: {t:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn seed_via_blocker_under_no_tracks_keepout_attributes_other_layer_victim() {
+    // 2-layer board: Net 1 routes on B.Cu across [50, 50];
+    // Net 2 has an F.Cu SMD pad at [50, 50] covered by an F.Cu no_tracks=true, no_vias=false keepout.
+    // Net 2 can ONLY escape via a through-via at [50, 50], which Net 1's B.Cu track blocks.
+    let mut i = base_input([100, 100], vec!["F.Cu".into(), "B.Cu".into()]);
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "VICTIM_B".into(),
+        },
+        Net {
+            id: 2,
+            name: "ESCAPER_VIA".into(),
+        },
+    ];
+    let mut p1 = pad(1, 1, [10, 50]);
+    p1.layers = vec!["B.Cu".into()];
+    let mut p2 = pad(2, 1, [90, 50]);
+    p2.layers = vec!["B.Cu".into()];
+    let mut p3 = pad(3, 2, [50, 50]);
+    p3.layers = vec!["F.Cu".into()];
+    let mut p4 = pad(4, 2, [50, 90]);
+    p4.layers = vec!["B.Cu".into()];
+    i.pads = vec![p1, p2, p3, p4];
+    i.project_rules = Some(
+        serde_json::json!({
+            "meta": {"version": 1},
+            "net_settings": {
+                "classes": [
+                    {"name": "Default", "priority": 0, "clearance": 0.000001, "track_width": 0.000002, "via_diameter": 0.000004, "via_drill": 0.000002}
+                ]
+            }
+        })
+        .to_string(),
+    );
+    i.rule_areas.push(RuleArea {
+        id: id(905),
+        name: None,
+        layers: vec!["F.Cu".into()],
+        outer: vec![[45, 45], [55, 45], [55, 55], [45, 55]],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: false,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    });
+
+    let mut e = Engine::new(i.clone()).unwrap();
+    e.route_all().unwrap();
+    let stats = e.last_negotiation_stats().expect("stats recorded");
+    assert!(
+        stats.rounds_committed >= 1,
+        "seed !track_ok && !via_ok must attribute B.Cu victim via ViaSite probe: {stats:?}"
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+}
+
+#[test]
+fn multilayer_microvia_enabled_still_attributes_blocked_through_via_victim() {
+    // 4-layer board with allow_microvias=true: Net 2 is boxed on F.Cu and In1.Cu (microvia 0..=1
+    // is legal so via_buf is non-empty), In2.Cu has a full-layer no_tracks keepout, and Net 1
+    // routes on B.Cu across [5M, 5M] blocking the 0..=3 through-via Net 2 needs to reach B.Cu.
+    let mut i = base_input(
+        [10_000_000, 10_000_000],
+        vec![
+            "F.Cu".into(),
+            "In1.Cu".into(),
+            "In2.Cu".into(),
+            "B.Cu".into(),
+        ],
+    );
+    i.rules.width_nm = 200_000;
+    i.rules.clearance_nm = 200_000;
+    i.rules.grid_nm = 1_000_000;
+    i.rules.edge_clearance_nm = 500_000;
+    i.rules.hole_clearance_nm = 250_000;
+    i.board_design_settings = Some(kicad_route_engine::rules::BoardDesignSettings {
+        min_track_width_nm: 200_000,
+        min_clearance_nm: 200_000,
+        min_edge_clearance_nm: 500_000,
+        min_via_diameter_nm: 500_000,
+        min_via_annular_width_nm: 100_000,
+        min_through_hole_diameter_nm: 300_000,
+        min_hole_clearance_nm: 250_000,
+        min_hole_to_hole_nm: 250_000,
+        min_microvia_diameter_nm: 200_000,
+        min_microvia_drill_nm: 100_000,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+        default_clearance_nm: 200_000,
+        default_track_width_nm: 200_000,
+        default_via_diameter_nm: 600_000,
+        default_via_drill_nm: 300_000,
+        default_microvia_diameter_nm: 300_000,
+        default_microvia_drill_nm: 150_000,
+        min_resolved_spokes: None,
+        max_error_nm: None,
+    });
+    i.project_rules = Some(
+        serde_json::json!({
+            "meta": {"version": 1},
+            "board": {
+                "design_settings": {
+                    "rules": {
+                        "allow_microvias": true,
+                        "allow_blind_buried_vias": false,
+                        "min_microvia_diameter": 0.2,
+                        "min_microvia_drill": 0.1
+                    }
+                }
+            }
+        })
+        .to_string(),
+    );
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "VICTIM_B".into(),
+        },
+        Net {
+            id: 2,
+            name: "NEED_THROUGH".into(),
+        },
+    ];
+    let mk_pad = |pid: u64, net: u32, at: Point, layer: &str| {
+        let mut p = pad(pid, net, at);
+        p.shape = Shape::Circle { radius_nm: 500_000 };
+        p.layers = vec![layer.into()];
+        p
+    };
+    i.pads = vec![
+        mk_pad(1, 1, [1_000_000, 5_000_000], "B.Cu"),
+        mk_pad(2, 1, [9_000_000, 5_000_000], "B.Cu"),
+        mk_pad(3, 2, [5_000_000, 5_000_000], "F.Cu"),
+        mk_pad(4, 2, [5_000_000, 9_000_000], "B.Cu"),
+    ];
+    // Box Net 2 inside [4M, 4M]..[6M, 6M] on BOTH F.Cu and In1.Cu, and block tracks on In2.Cu.
+    let wall = |wid: u64, layer: &str, a: Point, b: Point| {
+        let mut t = wire(wid, 0, a, b);
+        t.width_nm = 200_000;
+        t.layer = layer.into();
+        t
+    };
+    i.tracks = vec![
+        wall(10, "F.Cu", [4_000_000, 4_000_000], [6_000_000, 4_000_000]),
+        wall(11, "F.Cu", [6_000_000, 4_000_000], [6_000_000, 6_000_000]),
+        wall(12, "F.Cu", [6_000_000, 6_000_000], [4_000_000, 6_000_000]),
+        wall(13, "F.Cu", [4_000_000, 6_000_000], [4_000_000, 4_000_000]),
+        wall(14, "In1.Cu", [4_000_000, 4_000_000], [6_000_000, 4_000_000]),
+        wall(15, "In1.Cu", [6_000_000, 4_000_000], [6_000_000, 6_000_000]),
+        wall(16, "In1.Cu", [6_000_000, 6_000_000], [4_000_000, 6_000_000]),
+        wall(17, "In1.Cu", [4_000_000, 6_000_000], [4_000_000, 4_000_000]),
+    ];
+    i.rule_areas.push(RuleArea {
+        id: id(910),
+        name: None,
+        layers: vec!["In2.Cu".into()],
+        outer: vec![
+            [0, 0],
+            [10_000_000, 0],
+            [10_000_000, 10_000_000],
+            [0, 10_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: false,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    });
+
+    let mut e = Engine::new(i.clone()).unwrap();
+    e.route_all().unwrap();
+    let stats = e.last_negotiation_stats().expect("stats recorded");
+    assert!(
+        stats.rounds_committed >= 1,
+        "4-layer allow_microvias=true must still attribute blocked 0..=3 through-via victim: {stats:?}"
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
 }

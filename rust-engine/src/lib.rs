@@ -41,6 +41,8 @@ pub struct Engine {
     max_mask_expansion: i64,
     work: budget::WorkBudget,
     last_negotiation_stats: Option<negotiate::NegotiationStats>,
+    last_block_generated: std::cell::Cell<bool>,
+    prefer_higher_g: bool,
 }
 /// Engine scope admission errors are distinct from an arbitrary caller error.
 #[derive(Debug, PartialEq, Eq)]
@@ -92,9 +94,11 @@ struct Scope<'a> {
     engine: &'a mut Engine,
     committed: bool,
     outer: bool,
+    prev_prefer_higher_g: bool,
 }
 impl Drop for Scope<'_> {
     fn drop(&mut self) {
+        self.engine.prefer_higher_g = self.prev_prefer_higher_g;
         if !self.committed {
             self.engine.copper.rollback();
         }
@@ -685,6 +689,8 @@ impl Engine {
             max_mask_expansion,
             work,
             last_negotiation_stats: None,
+            last_block_generated: std::cell::Cell::new(false),
+            prefer_higher_g: false,
         })
     }
     /// Group routing operations atomically. `Ok` commits this scope; `Err`
@@ -740,10 +746,12 @@ impl Engine {
             self.work.end(outer);
             return Err(TransactionError::Limit(e));
         }
+        let prev_prefer_higher_g = self.prefer_higher_g;
         let mut scope = Scope {
             engine: self,
             committed: false,
             outer,
+            prev_prefer_higher_g,
         };
         let result = operation(&mut Transaction {
             engine: scope.engine,
@@ -787,10 +795,38 @@ impl Engine {
     pub(crate) fn remove_generated_net(&mut self, net: u32) -> Result<(), Failure> {
         self.copper.remove_net(net, &self.work)
     }
+    pub(crate) fn clear_last_block_generated(&self) {
+        self.last_block_generated.set(false);
+    }
+    pub(crate) fn set_last_block_generated(&self, v: bool) {
+        self.last_block_generated.set(v);
+    }
+    pub(crate) fn last_block_generated(&self) -> bool {
+        self.last_block_generated.get()
+    }
+    pub(crate) fn prefer_higher_g(&self) -> bool {
+        self.prefer_higher_g
+    }
+    pub(crate) fn set_prefer_higher_g(&mut self, v: bool) -> bool {
+        std::mem::replace(&mut self.prefer_higher_g, v)
+    }
     /// A standalone query gets its own finite work scope; inside a transaction
     /// it consumes that transaction's remaining work. Geometry is not mutated.
     pub fn legal_edge(&self, net: u32, a: Point, b: Point) -> Result<bool, Failure> {
         self.legal_edge_on(net, 0, a, b)
+    }
+
+    pub fn legal_edge_on_layer(
+        &self,
+        net: u32,
+        layer: &str,
+        a: Point,
+        b: Point,
+    ) -> Result<bool, Failure> {
+        let Some(idx) = self.layer_index(layer) else {
+            return Ok(false);
+        };
+        self.legal_edge_on(net, idx, a, b)
     }
 
     pub(crate) fn layer_count(&self) -> usize {
@@ -824,6 +860,7 @@ impl Engine {
         a: Point,
         b: Point,
     ) -> Result<bool, Failure> {
+        self.last_block_generated.set(false);
         let _scope = self.work.scope();
         self.work.charge(1)?;
         let layer_name = &self.layer_names[layer_idx];
@@ -1083,6 +1120,8 @@ impl Engine {
             },
         )?;
         if track_flow.is_break() {
+            self.last_block_generated
+                .set(self.copper.last_hit_generated());
             return Ok(false);
         }
 
@@ -1175,6 +1214,8 @@ impl Engine {
             },
         )?;
         if via_flow.is_break() {
+            self.last_block_generated
+                .set(self.copper.last_hit_generated());
             return Ok(false);
         }
 
@@ -1502,6 +1543,7 @@ impl Engine {
         kind: ViaKind,
         prior_vias: &[search::PlacedViaKey],
     ) -> Result<Option<(i64, i64)>, Failure> {
+        self.last_block_generated.set(false);
         let _scope = self.work.scope();
         self.work.charge(1)?;
         let l_count = self.layer_names.len();
@@ -1992,6 +2034,8 @@ impl Engine {
                 },
             )?;
             if trk_flow.is_break() {
+                self.last_block_generated
+                    .set(self.copper.last_hit_generated());
                 return Ok(None);
             }
             let art_flow = self.artwork_spatial[l_idx].visit_matching(
@@ -2347,6 +2391,8 @@ impl Engine {
             },
         )?;
         if via_flow.is_break() {
+            self.last_block_generated
+                .set(self.copper.last_hit_generated());
             return Ok(None);
         }
         Ok(Some((diam, drill)))

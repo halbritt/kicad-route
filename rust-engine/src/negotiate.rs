@@ -18,6 +18,7 @@ const FRONTIER_INC: u64 = 1;
 const HISTORY_CAP: u64 = 24;
 const MAX_HISTORY_CELLS: usize = 65_536;
 const MAX_FRONTIER_PROBES: usize = 4096;
+const MAX_STATIC_FRONTIER_PROBES: usize = 1024;
 const MAX_STAMP_STEPS_PER_ITEM: i64 = 512;
 const MAX_RIPS_PER_UNIT: u32 = 8;
 const MAX_CO_VICTIMS: usize = 4;
@@ -79,7 +80,10 @@ pub enum BlockedProbe {
 pub struct BlockedFrontier {
     probes: Vec<BlockedProbe>,
     seen: BTreeSet<BlockedProbe>,
+    static_probes: Vec<BlockedProbe>,
+    static_seen: BTreeSet<BlockedProbe>,
     total_seen: u64,
+    truncated: bool,
 }
 
 impl BlockedFrontier {
@@ -88,45 +92,88 @@ impl BlockedFrontier {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.probes.is_empty()
+        self.probes.is_empty() && self.static_probes.is_empty()
     }
 
     pub fn len(&self) -> usize {
-        self.probes.len()
+        self.probes.len() + self.static_probes.len()
     }
 
     pub fn total_seen(&self) -> u64 {
         self.total_seen
     }
 
+    pub fn is_truncated(&self) -> bool {
+        self.truncated
+    }
+
     pub fn probes(&self) -> &[BlockedProbe] {
         &self.probes
     }
 
-    pub fn push_edge(&mut self, layer: u8, a: Point, b: Point) {
+    pub fn static_probes(&self) -> &[BlockedProbe] {
+        &self.static_probes
+    }
+
+    fn push_probe(&mut self, probe: BlockedProbe, from_generated: bool) {
         self.total_seen = self.total_seen.saturating_add(1);
-        if self.probes.len() >= MAX_FRONTIER_PROBES {
-            return;
-        }
-        let probe = BlockedProbe::Edge { layer, a, b };
-        if self.seen.insert(probe) {
-            self.probes.push(probe);
+        if from_generated {
+            if self.probes.len() >= MAX_FRONTIER_PROBES {
+                if !self.seen.contains(&probe) {
+                    self.truncated = true;
+                }
+                return;
+            }
+            if self.seen.insert(probe) {
+                self.probes.push(probe);
+            }
+        } else {
+            if self.static_probes.len() >= MAX_STATIC_FRONTIER_PROBES {
+                if !self.static_seen.contains(&probe) {
+                    self.truncated = true;
+                }
+                return;
+            }
+            if self.static_seen.insert(probe) {
+                self.static_probes.push(probe);
+            }
         }
     }
 
+    pub fn push_edge(&mut self, layer: u8, a: Point, b: Point) {
+        self.push_probe(BlockedProbe::Edge { layer, a, b }, true);
+    }
+
     pub fn push_via_site(&mut self, start_layer: u8, end_layer: u8, at: Point) {
-        self.total_seen = self.total_seen.saturating_add(1);
-        if self.probes.len() >= MAX_FRONTIER_PROBES {
-            return;
-        }
-        let probe = BlockedProbe::ViaSite {
-            start_layer,
-            end_layer,
-            at,
-        };
-        if self.seen.insert(probe) {
-            self.probes.push(probe);
-        }
+        self.push_probe(
+            BlockedProbe::ViaSite {
+                start_layer,
+                end_layer,
+                at,
+            },
+            true,
+        );
+    }
+
+    pub fn push_edge_classified(&mut self, layer: u8, a: Point, b: Point, from_generated: bool) {
+        self.push_probe(BlockedProbe::Edge { layer, a, b }, from_generated);
+    }
+
+    pub fn push_via_site_classified(
+        &mut self,
+        start_layer: u8,
+        end_layer: u8,
+        at: Point,
+        from_generated: bool,
+    ) {
+        self.push_probe(
+            BlockedProbe::ViaSite {
+                start_layer,
+                end_layer,
+                at,
+            },
+            from_generated,
+        );
     }
 }
 
@@ -138,9 +185,18 @@ fn cell_coord(pt: Point, bounds_min: Point, grid_nm: i64) -> (i64, i64) {
     )
 }
 
+#[derive(Clone, Debug)]
+struct HistoryCheckpoint {
+    undo: Vec<((u8, i64, i64), Option<u64>)>,
+    seen: BTreeSet<(u8, i64, i64)>,
+    peak_cells: usize,
+    evictions: u64,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct CongestionHistory {
     cells: BTreeMap<(u8, i64, i64), u64>,
+    eviction_index: BTreeSet<(u64, u8, i64, i64)>,
     peak_cells: usize,
     evictions: u64,
 }
@@ -164,6 +220,39 @@ impl CongestionHistory {
 
     pub fn evictions(&self) -> u64 {
         self.evictions
+    }
+
+    #[cfg(test)]
+    fn index_consistent(&self) -> bool {
+        self.cells.len() == self.eviction_index.len()
+            && self
+                .cells
+                .iter()
+                .all(|(&(l, cx, cy), &w)| self.eviction_index.contains(&(w, l, cx, cy)))
+    }
+
+    fn checkpoint(&self) -> HistoryCheckpoint {
+        HistoryCheckpoint {
+            undo: Vec::new(),
+            seen: BTreeSet::new(),
+            peak_cells: self.peak_cells,
+            evictions: self.evictions,
+        }
+    }
+
+    fn rollback(&mut self, ckpt: HistoryCheckpoint) {
+        for (key, prev_opt) in ckpt.undo.into_iter().rev() {
+            if let Some(cur_w) = self.cells.remove(&key) {
+                let removed = self.eviction_index.remove(&(cur_w, key.0, key.1, key.2));
+                debug_assert!(removed);
+            }
+            if let Some(prev_w) = prev_opt {
+                self.cells.insert(key, prev_w);
+                self.eviction_index.insert((prev_w, key.0, key.1, key.2));
+            }
+        }
+        self.peak_cells = ckpt.peak_cells;
+        self.evictions = ckpt.evictions;
     }
 
     pub fn step_penalty(&self, layer: u8, pt: Point, bounds_min: Point, grid_nm: i64) -> u64 {
@@ -195,51 +284,100 @@ impl CongestionHistory {
         total
     }
 
+    #[cfg(test)]
     fn add_weight(
         &mut self,
         key: (u8, i64, i64),
         delta: u64,
         engine: &Engine,
     ) -> Result<(), Failure> {
+        self.add_weight_logged(key, delta, engine, None)
+    }
+
+    fn add_weight_logged(
+        &mut self,
+        key: (u8, i64, i64),
+        delta: u64,
+        engine: &Engine,
+        mut ckpt: Option<&mut HistoryCheckpoint>,
+    ) -> Result<(), Failure> {
         engine.charge_work(1)?;
-        if let Some(cur) = self.cells.get_mut(&key) {
-            *cur = cur.saturating_add(delta).min(HISTORY_CAP);
+        if let Some(&old_w) = self.cells.get(&key) {
+            let new_w = old_w.saturating_add(delta).min(HISTORY_CAP);
+            if new_w != old_w {
+                if let Some(c) = ckpt.as_deref_mut() {
+                    if c.seen.insert(key) {
+                        c.undo.push((key, Some(old_w)));
+                    }
+                }
+                self.cells.insert(key, new_w);
+                let removed = self.eviction_index.remove(&(old_w, key.0, key.1, key.2));
+                debug_assert!(removed);
+                self.eviction_index.insert((new_w, key.0, key.1, key.2));
+            }
             return Ok(());
         }
         if self.cells.len() >= MAX_HISTORY_CELLS {
             engine.charge_work(1)?;
-            if let Some((&evict_key, _)) =
-                self.cells.iter().min_by_key(|(&k, &w)| (w, k.0, k.1, k.2))
-            {
-                self.cells.remove(&evict_key);
+            if let Some((evict_w, l, cx, cy)) = self.eviction_index.pop_first() {
+                let evict_key = (l, cx, cy);
+                if let Some(c) = ckpt.as_deref_mut() {
+                    if c.seen.insert(evict_key) {
+                        c.undo.push((evict_key, Some(evict_w)));
+                    }
+                }
+                let removed = self.cells.remove(&evict_key);
+                debug_assert_eq!(removed, Some(evict_w));
                 self.evictions = self.evictions.saturating_add(1);
             }
         }
-        self.cells.insert(key, delta.min(HISTORY_CAP));
+        let init_w = delta.min(HISTORY_CAP);
+        if let Some(c) = ckpt.as_deref_mut() {
+            if c.seen.insert(key) {
+                c.undo.push((key, None));
+            }
+        }
+        self.cells.insert(key, init_w);
+        self.eviction_index.insert((init_w, key.0, key.1, key.2));
         self.peak_cells = self.peak_cells.max(self.cells.len());
         Ok(())
     }
 }
 
 impl CongestionHistory {
-    fn stamp_frontier(
+    fn stamp_frontier_logged(
         &mut self,
         frontier: &BlockedFrontier,
         engine: &Engine,
+        mut ckpt: Option<&mut HistoryCheckpoint>,
     ) -> Result<(), Failure> {
         let bounds_min = engine.input().bounds.min;
         let grid_nm = engine.input().rules.grid_nm;
         let mut stamped: BTreeSet<(u8, i64, i64)> = BTreeSet::new();
-        for &probe in frontier.probes() {
+        for &probe in frontier
+            .probes()
+            .iter()
+            .chain(frontier.static_probes().iter())
+        {
             match probe {
                 BlockedProbe::Edge { layer, a, b } => {
                     let c_a = cell_coord(a, bounds_min, grid_nm);
                     let c_b = cell_coord(b, bounds_min, grid_nm);
                     if stamped.insert((layer, c_b.0, c_b.1)) {
-                        self.add_weight((layer, c_b.0, c_b.1), FRONTIER_INC, engine)?;
+                        self.add_weight_logged(
+                            (layer, c_b.0, c_b.1),
+                            FRONTIER_INC,
+                            engine,
+                            ckpt.as_deref_mut(),
+                        )?;
                     }
                     if c_a != c_b && stamped.insert((layer, c_a.0, c_a.1)) {
-                        self.add_weight((layer, c_a.0, c_a.1), FRONTIER_INC, engine)?;
+                        self.add_weight_logged(
+                            (layer, c_a.0, c_a.1),
+                            FRONTIER_INC,
+                            engine,
+                            ckpt.as_deref_mut(),
+                        )?;
                     }
                 }
                 BlockedProbe::ViaSite {
@@ -250,7 +388,12 @@ impl CongestionHistory {
                     let (cx, cy) = cell_coord(at, bounds_min, grid_nm);
                     for layer in start_layer.min(end_layer)..=start_layer.max(end_layer) {
                         if stamped.insert((layer, cx, cy)) {
-                            self.add_weight((layer, cx, cy), FRONTIER_INC, engine)?;
+                            self.add_weight_logged(
+                                (layer, cx, cy),
+                                FRONTIER_INC,
+                                engine,
+                                ckpt.as_deref_mut(),
+                            )?;
                         }
                     }
                 }
@@ -259,19 +402,25 @@ impl CongestionHistory {
         Ok(())
     }
 
-    fn stamp_cells(
+    fn stamp_cells_logged(
         &mut self,
         cells: &BTreeSet<(u8, i64, i64)>,
         delta: u64,
         engine: &Engine,
+        mut ckpt: Option<&mut HistoryCheckpoint>,
     ) -> Result<(), Failure> {
         for &cell in cells {
-            self.add_weight(cell, delta, engine)?;
+            self.add_weight_logged(cell, delta, engine, ckpt.as_deref_mut())?;
         }
         Ok(())
     }
 
-    fn stamp_unit_footprint(&mut self, unit: &UnitSpec, engine: &Engine) -> Result<(), Failure> {
+    fn stamp_unit_footprint_logged(
+        &mut self,
+        unit: &UnitSpec,
+        engine: &Engine,
+        ckpt: Option<&mut HistoryCheckpoint>,
+    ) -> Result<(), Failure> {
         let bounds_min = engine.input().bounds.min;
         let grid_nm = engine.input().rules.grid_nm.max(1);
         let mut cells: BTreeSet<(u8, i64, i64)> = BTreeSet::new();
@@ -310,7 +459,7 @@ impl CongestionHistory {
                 }
             }
         }
-        self.stamp_cells(&cells, RIP_FOOTPRINT_INC, engine)
+        self.stamp_cells_logged(&cells, RIP_FOOTPRINT_INC, engine, ckpt)
     }
 }
 
@@ -444,7 +593,10 @@ fn unit_is_rippable_by(victim: &UnitSpec, blocked: &UnitSpec) -> bool {
     if victim.id == blocked.id {
         return false;
     }
-    if blocked.priority_tier > victim.priority_tier && !victim.rippable_by_single {
+    if !victim.rippable_by_single
+        && (blocked.priority_tier > victim.priority_tier
+            || matches!(blocked.id, RouteUnitId::SingleNet(_)))
+    {
         return false;
     }
     true
@@ -468,7 +620,7 @@ fn analyze_blockers(
     spec_by_id: &BTreeMap<RouteUnitId, UnitSpec>,
     rip_counts: &BTreeMap<RouteUnitId, u32>,
 ) -> Result<Vec<BlockerScore>, Failure> {
-    if frontier.is_empty() {
+    if frontier.probes().is_empty() {
         return Ok(Vec::new());
     }
     let primary_net = blocked_unit.nets.first().copied().unwrap_or(0);
@@ -857,10 +1009,18 @@ fn analyze_blockers(
     Ok(ranked)
 }
 
+fn trial_cap_for(batch_limit: u64, max_ok_unit_exp: u64) -> u64 {
+    (batch_limit / 5)
+        .max(max_ok_unit_exp.saturating_mul(4))
+        .min(batch_limit / 2)
+        .max(TRIAL_EXPANSION_CAP)
+}
+
 enum TryUnitErr {
     Blocked {
         frontier: BlockedFrontier,
         blockers: Option<Vec<BlockerScore>>,
+        hit_trial_cap: bool,
     },
     Fatal(Failure),
 }
@@ -874,7 +1034,7 @@ fn try_unit_with_cap(
     history: &CongestionHistory,
     batch_limit: u64,
     expanded: &mut u64,
-    allow_trial_cap: bool,
+    trial_cap: Option<u64>,
     rip_counts: &BTreeMap<RouteUnitId, u32>,
 ) -> Result<(), TryUnitErr> {
     let remaining = batch_limit.saturating_sub(*expanded);
@@ -884,8 +1044,8 @@ fn try_unit_with_cap(
             "total expansion budget exhausted",
         )));
     }
-    if allow_trial_cap && remaining > TRIAL_EXPANSION_CAP {
-        let trial_limit = (*expanded).saturating_add(TRIAL_EXPANSION_CAP);
+    if let Some(cap) = trial_cap.filter(|&c| remaining > c) {
+        let trial_limit = (*expanded).saturating_add(cap);
         match adapter.route_unit(engine, unit.id, history, trial_limit, expanded) {
             Ok(()) => return Ok(()),
             Err(UnitRouteError::Blocked(frontier)) => {
@@ -893,6 +1053,7 @@ fn try_unit_with_cap(
                     return Err(TryUnitErr::Blocked {
                         frontier,
                         blockers: None,
+                        hit_trial_cap: false,
                     });
                 }
                 let blockers =
@@ -902,6 +1063,7 @@ fn try_unit_with_cap(
                     return Err(TryUnitErr::Blocked {
                         frontier,
                         blockers: Some(blockers),
+                        hit_trial_cap: true,
                     });
                 }
                 if let Err(e) = adapter.rip_unit(engine, unit.id) {
@@ -913,6 +1075,7 @@ fn try_unit_with_cap(
                         UnitRouteError::Blocked(f) => TryUnitErr::Blocked {
                             frontier: f,
                             blockers: None,
+                            hit_trial_cap: false,
                         },
                         UnitRouteError::Fatal(f) => TryUnitErr::Fatal(f),
                     });
@@ -928,6 +1091,7 @@ fn try_unit_with_cap(
                             UnitRouteError::Blocked(f) => TryUnitErr::Blocked {
                                 frontier: f,
                                 blockers: None,
+                                hit_trial_cap: false,
                             },
                             UnitRouteError::Fatal(f) => TryUnitErr::Fatal(f),
                         });
@@ -942,6 +1106,7 @@ fn try_unit_with_cap(
             UnitRouteError::Blocked(f) => TryUnitErr::Blocked {
                 frontier: f,
                 blockers: None,
+                hit_trial_cap: false,
             },
             UnitRouteError::Fatal(f) => TryUnitErr::Fatal(f),
         })
@@ -954,6 +1119,7 @@ enum RoundOutcome {
 
 enum PassOutcome {
     Unroutable(RouteUnitId),
+    Unrecoverable(RouteUnitId),
     Fatal(Failure),
 }
 
@@ -990,6 +1156,10 @@ fn try_local_ripup_round(
     stats: &mut NegotiationStats,
     batch_limit: u64,
     expanded: &mut u64,
+    trial_cap: u64,
+    is_trial_attempt: bool,
+    no_trial_cap: &mut BTreeSet<RouteUnitId>,
+    max_ok_unit_exp: &mut u64,
 ) -> Result<(bool, Option<BlockerScore>), Failure> {
     let blockers = match precomputed_blockers {
         Some(b) => b,
@@ -1007,226 +1177,352 @@ fn try_local_ripup_round(
     }
     let top_blocker = blockers[0].clone();
     stats.rounds_attempted = stats.rounds_attempted.saturating_add(1);
-    history.stamp_frontier(initial_frontier, tx.engine)?;
-    history.stamp_cells(&blockers[0].contested_cells, BASE_CONTEST_INC, tx.engine)?;
+    let mut hist_ckpt = is_trial_attempt.then(|| history.checkpoint());
+    history.stamp_frontier_logged(initial_frontier, tx.engine, hist_ckpt.as_mut())?;
+    history.stamp_cells_logged(
+        &blockers[0].contested_cells,
+        BASE_CONTEST_INC,
+        tx.engine,
+        hist_ckpt.as_mut(),
+    )?;
 
     let mut local_rip_deltas: BTreeMap<RouteUnitId, u32> = BTreeMap::new();
     let mut local_units_ripped = 0u64;
     let mut local_victim_recoveries = 0u64;
 
-    let res = tx.transaction(|round_tx| -> Result<(), RoundOutcome> {
-        let mut reroute_queue: VecDeque<RouteUnitId> = VecDeque::new();
-        let mut ripped_in_round: BTreeSet<RouteUnitId> = BTreeSet::new();
-        ripped_in_round.insert(unit.id);
-        let mut rips_this_round = 0usize;
+    let res = tx.transaction(
+        |round_tx| -> Result<(Vec<RouteUnitId>, u64), RoundOutcome> {
+            let mut reroute_queue: VecDeque<RouteUnitId> = VecDeque::new();
+            let mut ripped_in_round: BTreeSet<RouteUnitId> = BTreeSet::new();
+            ripped_in_round.insert(unit.id);
+            let mut rips_this_round = 0usize;
+            let mut local_no_trial_cap: Vec<RouteUnitId> = Vec::new();
+            let mut local_max_exp: u64 = 0;
 
-        let pick_victim = |candidates: &[BlockerScore],
-                           ripped_in_round: &BTreeSet<RouteUnitId>,
-                           rip_counts: &BTreeMap<RouteUnitId, u32>,
-                           local_rip_deltas: &BTreeMap<RouteUnitId, u32>|
-         -> Option<usize> {
-            candidates.iter().position(|b| {
-                !ripped_in_round.contains(&b.unit)
-                    && rip_counts.get(&b.unit).copied().unwrap_or(0)
-                        + local_rip_deltas.get(&b.unit).copied().unwrap_or(0)
-                        < MAX_RIPS_PER_UNIT
-            })
-        };
+            let pick_victim = |candidates: &[BlockerScore],
+                               ripped_in_round: &BTreeSet<RouteUnitId>,
+                               rip_counts: &BTreeMap<RouteUnitId, u32>,
+                               local_rip_deltas: &BTreeMap<RouteUnitId, u32>|
+             -> Option<usize> {
+                candidates.iter().position(|b| {
+                    !ripped_in_round.contains(&b.unit)
+                        && rip_counts.get(&b.unit).copied().unwrap_or(0)
+                            + local_rip_deltas.get(&b.unit).copied().unwrap_or(0)
+                            < MAX_RIPS_PER_UNIT
+                })
+            };
 
-        let Some(first_idx) =
-            pick_victim(&blockers, &ripped_in_round, rip_counts, &local_rip_deltas)
-        else {
-            return Err(RoundOutcome::Unroutable);
-        };
-        let first_victim = blockers[first_idx].unit;
-        if let Some(v_spec) = spec_by_id.get(&first_victim) {
-            history
-                .stamp_unit_footprint(v_spec, round_tx.engine)
+            let Some(first_idx) =
+                pick_victim(&blockers, &ripped_in_round, rip_counts, &local_rip_deltas)
+            else {
+                return Err(RoundOutcome::Unroutable);
+            };
+            let first_victim = blockers[first_idx].unit;
+            if let Some(v_spec) = spec_by_id.get(&first_victim) {
+                history
+                    .stamp_unit_footprint_logged(v_spec, round_tx.engine, hist_ckpt.as_mut())
+                    .map_err(RoundOutcome::Fatal)?;
+            }
+            adapter
+                .rip_unit(round_tx.engine, first_victim)
                 .map_err(RoundOutcome::Fatal)?;
-        }
-        adapter
-            .rip_unit(round_tx.engine, first_victim)
-            .map_err(RoundOutcome::Fatal)?;
-        *local_rip_deltas.entry(first_victim).or_insert(0) += 1;
-        rips_this_round += 1;
-        local_units_ripped += 1;
-        ripped_in_round.insert(first_victim);
-        reroute_queue.push_back(first_victim);
+            *local_rip_deltas.entry(first_victim).or_insert(0) += 1;
+            rips_this_round += 1;
+            local_units_ripped += 1;
+            ripped_in_round.insert(first_victim);
+            reroute_queue.push_back(first_victim);
 
-        let mut co_victims = 1usize;
-        loop {
-            match try_unit_with_cap(
-                round_tx.engine,
-                adapter,
-                spec_by_id,
-                unit,
-                history,
-                batch_limit,
-                expanded,
-                true,
-                rip_counts,
-            ) {
-                Ok(()) => break,
-                Err(TryUnitErr::Fatal(e)) => return Err(RoundOutcome::Fatal(e)),
-                Err(TryUnitErr::Blocked {
-                    frontier: next_frontier,
-                    blockers: pre_b,
-                }) => {
-                    stats.frontier_probes = stats
-                        .frontier_probes
-                        .saturating_add(next_frontier.len() as u64);
-                    if co_victims >= MAX_CO_VICTIMS || rips_this_round >= MAX_RIPS_PER_ROUND {
-                        return Err(RoundOutcome::Unroutable);
+            let mut co_victims = 1usize;
+            loop {
+                let unit_exp_before = *expanded;
+                let u_cap = (!no_trial_cap.contains(&unit.id)
+                    && !local_no_trial_cap.contains(&unit.id))
+                .then_some(trial_cap);
+                match try_unit_with_cap(
+                    round_tx.engine,
+                    adapter,
+                    spec_by_id,
+                    unit,
+                    history,
+                    batch_limit,
+                    expanded,
+                    u_cap,
+                    rip_counts,
+                ) {
+                    Ok(()) => {
+                        local_max_exp = local_max_exp.max(expanded.saturating_sub(unit_exp_before));
+                        break;
                     }
-                    let next_blockers = match pre_b {
-                        Some(b) => b,
-                        None => analyze_blockers(
-                            round_tx.engine,
-                            unit,
-                            &next_frontier,
-                            adapter,
-                            spec_by_id,
-                            rip_counts,
-                        )
-                        .map_err(RoundOutcome::Fatal)?,
-                    };
-                    let Some(idx) = pick_victim(
-                        &next_blockers,
-                        &ripped_in_round,
-                        rip_counts,
-                        &local_rip_deltas,
-                    ) else {
-                        return Err(RoundOutcome::Unroutable);
-                    };
-                    let co_v = next_blockers[idx].unit;
-                    history
-                        .stamp_frontier(&next_frontier, round_tx.engine)
-                        .map_err(RoundOutcome::Fatal)?;
-                    history
-                        .stamp_cells(
-                            &next_blockers[idx].contested_cells,
-                            BASE_CONTEST_INC,
-                            round_tx.engine,
-                        )
-                        .map_err(RoundOutcome::Fatal)?;
-                    if let Some(v_spec) = spec_by_id.get(&co_v) {
-                        history
-                            .stamp_unit_footprint(v_spec, round_tx.engine)
-                            .map_err(RoundOutcome::Fatal)?;
+                    Err(TryUnitErr::Fatal(e)) => return Err(RoundOutcome::Fatal(e)),
+                    Err(TryUnitErr::Blocked {
+                        frontier: next_frontier,
+                        blockers: pre_b,
+                        hit_trial_cap: u_hit_cap,
+                    }) => {
+                        stats.frontier_probes = stats
+                            .frontier_probes
+                            .saturating_add(next_frontier.len() as u64);
+                        let can_rip_more =
+                            co_victims < MAX_CO_VICTIMS && rips_this_round < MAX_RIPS_PER_ROUND;
+                        let next_blockers = if can_rip_more {
+                            match pre_b {
+                                Some(b) => b,
+                                None => analyze_blockers(
+                                    round_tx.engine,
+                                    unit,
+                                    &next_frontier,
+                                    adapter,
+                                    spec_by_id,
+                                    rip_counts,
+                                )
+                                .map_err(RoundOutcome::Fatal)?,
+                            }
+                        } else {
+                            Vec::new()
+                        };
+                        let picked = if can_rip_more {
+                            pick_victim(
+                                &next_blockers,
+                                &ripped_in_round,
+                                rip_counts,
+                                &local_rip_deltas,
+                            )
+                        } else {
+                            None
+                        };
+                        if let Some(idx) = picked {
+                            let co_v = next_blockers[idx].unit;
+                            history
+                                .stamp_frontier_logged(
+                                    &next_frontier,
+                                    round_tx.engine,
+                                    hist_ckpt.as_mut(),
+                                )
+                                .map_err(RoundOutcome::Fatal)?;
+                            history
+                                .stamp_cells_logged(
+                                    &next_blockers[idx].contested_cells,
+                                    BASE_CONTEST_INC,
+                                    round_tx.engine,
+                                    hist_ckpt.as_mut(),
+                                )
+                                .map_err(RoundOutcome::Fatal)?;
+                            if let Some(v_spec) = spec_by_id.get(&co_v) {
+                                history
+                                    .stamp_unit_footprint_logged(
+                                        v_spec,
+                                        round_tx.engine,
+                                        hist_ckpt.as_mut(),
+                                    )
+                                    .map_err(RoundOutcome::Fatal)?;
+                            }
+                            adapter
+                                .rip_unit(round_tx.engine, co_v)
+                                .map_err(RoundOutcome::Fatal)?;
+                            *local_rip_deltas.entry(co_v).or_insert(0) += 1;
+                            rips_this_round += 1;
+                            co_victims += 1;
+                            local_units_ripped += 1;
+                            ripped_in_round.insert(co_v);
+                            reroute_queue.push_back(co_v);
+                        } else if u_hit_cap {
+                            adapter
+                                .rip_unit(round_tx.engine, unit.id)
+                                .map_err(RoundOutcome::Fatal)?;
+                            let retry_before = *expanded;
+                            match try_unit_with_cap(
+                                round_tx.engine,
+                                adapter,
+                                spec_by_id,
+                                unit,
+                                history,
+                                batch_limit,
+                                expanded,
+                                None,
+                                rip_counts,
+                            ) {
+                                Ok(()) => {
+                                    local_no_trial_cap.push(unit.id);
+                                    local_max_exp =
+                                        local_max_exp.max(expanded.saturating_sub(retry_before));
+                                    break;
+                                }
+                                Err(TryUnitErr::Fatal(e)) => return Err(RoundOutcome::Fatal(e)),
+                                Err(TryUnitErr::Blocked { .. }) => {
+                                    return Err(RoundOutcome::Unroutable);
+                                }
+                            }
+                        } else {
+                            return Err(RoundOutcome::Unroutable);
+                        }
                     }
-                    adapter
-                        .rip_unit(round_tx.engine, co_v)
-                        .map_err(RoundOutcome::Fatal)?;
-                    *local_rip_deltas.entry(co_v).or_insert(0) += 1;
-                    rips_this_round += 1;
-                    co_victims += 1;
-                    local_units_ripped += 1;
-                    ripped_in_round.insert(co_v);
-                    reroute_queue.push_back(co_v);
                 }
             }
-        }
 
-        if !adapter
-            .is_unit_complete(round_tx.engine, unit.id)
-            .map_err(RoundOutcome::Fatal)?
-        {
-            return Err(RoundOutcome::Unroutable);
-        }
+            if !adapter
+                .is_unit_complete(round_tx.engine, unit.id)
+                .map_err(RoundOutcome::Fatal)?
+            {
+                return Err(RoundOutcome::Unroutable);
+            }
 
-        while let Some(victim_id) = reroute_queue.pop_front() {
-            round_tx
-                .engine
-                .charge_work(1)
-                .map_err(RoundOutcome::Fatal)?;
-            let v_spec = spec_by_id
-                .get(&victim_id)
-                .expect("victim unit exists in unit spec map");
-            match try_unit_with_cap(
-                round_tx.engine,
-                adapter,
-                spec_by_id,
-                v_spec,
-                history,
-                batch_limit,
-                expanded,
-                true,
-                rip_counts,
-            ) {
-                Ok(()) => {
-                    if !adapter
-                        .is_unit_complete(round_tx.engine, victim_id)
-                        .map_err(RoundOutcome::Fatal)?
-                    {
-                        return Err(RoundOutcome::Unroutable);
+            while let Some(victim_id) = reroute_queue.pop_front() {
+                round_tx
+                    .engine
+                    .charge_work(1)
+                    .map_err(RoundOutcome::Fatal)?;
+                let v_spec = spec_by_id
+                    .get(&victim_id)
+                    .expect("victim unit exists in unit spec map");
+                let v_exp_before = *expanded;
+                let v_cap = (!no_trial_cap.contains(&victim_id)
+                    && !local_no_trial_cap.contains(&victim_id))
+                .then_some(trial_cap);
+                match try_unit_with_cap(
+                    round_tx.engine,
+                    adapter,
+                    spec_by_id,
+                    v_spec,
+                    history,
+                    batch_limit,
+                    expanded,
+                    v_cap,
+                    rip_counts,
+                ) {
+                    Ok(()) => {
+                        local_max_exp = local_max_exp.max(expanded.saturating_sub(v_exp_before));
+                        if !adapter
+                            .is_unit_complete(round_tx.engine, victim_id)
+                            .map_err(RoundOutcome::Fatal)?
+                        {
+                            return Err(RoundOutcome::Unroutable);
+                        }
+                        local_victim_recoveries += 1;
                     }
-                    local_victim_recoveries += 1;
-                }
-                Err(TryUnitErr::Fatal(e)) => return Err(RoundOutcome::Fatal(e)),
-                Err(TryUnitErr::Blocked {
-                    frontier: v_frontier,
-                    blockers: pre_vb,
-                }) => {
-                    stats.frontier_probes = stats
-                        .frontier_probes
-                        .saturating_add(v_frontier.len() as u64);
-                    if rips_this_round >= MAX_RIPS_PER_ROUND {
-                        return Err(RoundOutcome::Unroutable);
+                    Err(TryUnitErr::Fatal(e)) => return Err(RoundOutcome::Fatal(e)),
+                    Err(TryUnitErr::Blocked {
+                        frontier: v_frontier,
+                        blockers: pre_vb,
+                        hit_trial_cap: v_hit_cap,
+                    }) => {
+                        stats.frontier_probes = stats
+                            .frontier_probes
+                            .saturating_add(v_frontier.len() as u64);
+                        let can_rip_more = rips_this_round < MAX_RIPS_PER_ROUND;
+                        let v_blockers = if can_rip_more {
+                            match pre_vb {
+                                Some(b) => b,
+                                None => analyze_blockers(
+                                    round_tx.engine,
+                                    v_spec,
+                                    &v_frontier,
+                                    adapter,
+                                    spec_by_id,
+                                    rip_counts,
+                                )
+                                .map_err(RoundOutcome::Fatal)?,
+                            }
+                        } else {
+                            Vec::new()
+                        };
+                        let picked = if can_rip_more {
+                            pick_victim(
+                                &v_blockers,
+                                &ripped_in_round,
+                                rip_counts,
+                                &local_rip_deltas,
+                            )
+                        } else {
+                            None
+                        };
+                        if let Some(w_idx) = picked {
+                            let w_id = v_blockers[w_idx].unit;
+                            history
+                                .stamp_frontier_logged(
+                                    &v_frontier,
+                                    round_tx.engine,
+                                    hist_ckpt.as_mut(),
+                                )
+                                .map_err(RoundOutcome::Fatal)?;
+                            history
+                                .stamp_cells_logged(
+                                    &v_blockers[w_idx].contested_cells,
+                                    BASE_CONTEST_INC,
+                                    round_tx.engine,
+                                    hist_ckpt.as_mut(),
+                                )
+                                .map_err(RoundOutcome::Fatal)?;
+                            if let Some(w_spec) = spec_by_id.get(&w_id) {
+                                history
+                                    .stamp_unit_footprint_logged(
+                                        w_spec,
+                                        round_tx.engine,
+                                        hist_ckpt.as_mut(),
+                                    )
+                                    .map_err(RoundOutcome::Fatal)?;
+                            }
+                            adapter
+                                .rip_unit(round_tx.engine, w_id)
+                                .map_err(RoundOutcome::Fatal)?;
+                            *local_rip_deltas.entry(w_id).or_insert(0) += 1;
+                            rips_this_round += 1;
+                            local_units_ripped += 1;
+                            ripped_in_round.insert(w_id);
+                            reroute_queue.push_back(w_id);
+                            reroute_queue.push_front(victim_id);
+                        } else if v_hit_cap {
+                            adapter
+                                .rip_unit(round_tx.engine, victim_id)
+                                .map_err(RoundOutcome::Fatal)?;
+                            let retry_before = *expanded;
+                            match try_unit_with_cap(
+                                round_tx.engine,
+                                adapter,
+                                spec_by_id,
+                                v_spec,
+                                history,
+                                batch_limit,
+                                expanded,
+                                None,
+                                rip_counts,
+                            ) {
+                                Ok(()) => {
+                                    local_no_trial_cap.push(victim_id);
+                                    local_max_exp =
+                                        local_max_exp.max(expanded.saturating_sub(retry_before));
+                                    if !adapter
+                                        .is_unit_complete(round_tx.engine, victim_id)
+                                        .map_err(RoundOutcome::Fatal)?
+                                    {
+                                        return Err(RoundOutcome::Unroutable);
+                                    }
+                                    local_victim_recoveries += 1;
+                                }
+                                Err(TryUnitErr::Fatal(e)) => return Err(RoundOutcome::Fatal(e)),
+                                Err(TryUnitErr::Blocked { .. }) => {
+                                    return Err(RoundOutcome::Unroutable);
+                                }
+                            }
+                        } else {
+                            return Err(RoundOutcome::Unroutable);
+                        }
                     }
-                    let v_blockers = match pre_vb {
-                        Some(b) => b,
-                        None => analyze_blockers(
-                            round_tx.engine,
-                            v_spec,
-                            &v_frontier,
-                            adapter,
-                            spec_by_id,
-                            rip_counts,
-                        )
-                        .map_err(RoundOutcome::Fatal)?,
-                    };
-                    let Some(w_idx) =
-                        pick_victim(&v_blockers, &ripped_in_round, rip_counts, &local_rip_deltas)
-                    else {
-                        return Err(RoundOutcome::Unroutable);
-                    };
-                    let w_id = v_blockers[w_idx].unit;
-                    history
-                        .stamp_frontier(&v_frontier, round_tx.engine)
-                        .map_err(RoundOutcome::Fatal)?;
-                    history
-                        .stamp_cells(
-                            &v_blockers[w_idx].contested_cells,
-                            BASE_CONTEST_INC,
-                            round_tx.engine,
-                        )
-                        .map_err(RoundOutcome::Fatal)?;
-                    if let Some(w_spec) = spec_by_id.get(&w_id) {
-                        history
-                            .stamp_unit_footprint(w_spec, round_tx.engine)
-                            .map_err(RoundOutcome::Fatal)?;
-                    }
-                    adapter
-                        .rip_unit(round_tx.engine, w_id)
-                        .map_err(RoundOutcome::Fatal)?;
-                    *local_rip_deltas.entry(w_id).or_insert(0) += 1;
-                    rips_this_round += 1;
-                    local_units_ripped += 1;
-                    ripped_in_round.insert(w_id);
-                    reroute_queue.push_back(w_id);
-                    reroute_queue.push_front(victim_id);
                 }
             }
-        }
-        Ok(())
-    });
+            Ok((local_no_trial_cap, local_max_exp))
+        },
+    );
 
     stats.units_ripped = stats.units_ripped.saturating_add(local_units_ripped);
     match res {
-        Ok(()) => {
+        Ok((local_no_cap, local_max_exp)) => {
             for (k, v) in local_rip_deltas {
                 *rip_counts.entry(k).or_insert(0) += v;
             }
+            for id in local_no_cap {
+                no_trial_cap.insert(id);
+            }
+            *max_ok_unit_exp = (*max_ok_unit_exp).max(local_max_exp);
             stats.rounds_committed = stats.rounds_committed.saturating_add(1);
             stats.victim_recoveries = stats
                 .victim_recoveries
@@ -1234,6 +1530,9 @@ fn try_local_ripup_round(
             Ok((true, Some(top_blocker)))
         }
         Err(TransactionError::Operation(RoundOutcome::Unroutable)) => {
+            if let Some(ckpt) = hist_ckpt {
+                history.rollback(ckpt);
+            }
             stats.rounds_rolled_back = stats.rounds_rolled_back.saturating_add(1);
             Ok((false, Some(top_blocker)))
         }
@@ -1254,6 +1553,19 @@ pub fn solve_with_adapter(
         ));
     }
     let units = adapter.units(tx.engine)?;
+    let prev_prefer_higher_g = tx.engine.set_prefer_higher_g(units.len() > 1);
+    let res = solve_with_adapter_units(tx, adapter, expanded, batch_limit, units);
+    tx.engine.set_prefer_higher_g(prev_prefer_higher_g);
+    res
+}
+
+fn solve_with_adapter_units(
+    tx: &mut Transaction<'_>,
+    adapter: &mut dyn RouteUnitAdapter,
+    expanded: &mut u64,
+    batch_limit: u64,
+    units: Vec<UnitSpec>,
+) -> Result<NegotiationStats, Failure> {
     let mut spec_by_id: BTreeMap<RouteUnitId, UnitSpec> = BTreeMap::new();
     let mut original_order: BTreeMap<RouteUnitId, usize> = BTreeMap::new();
     for (idx, u) in units.iter().enumerate() {
@@ -1267,13 +1579,19 @@ pub fn solve_with_adapter(
     let mut failed_units: Vec<RouteUnitId> = Vec::new();
     let mut stats = NegotiationStats::default();
     let mut routed_rippable_count = 0usize;
+    let mut max_ok_unit_exp: u64 = 0;
+    let mut no_trial_cap: BTreeSet<RouteUnitId> = BTreeSet::new();
     let mut saw_any_blockers = false;
+    let mut saw_truncated_frontier = false;
 
     for u in &units {
         tx.engine.charge_work(1).map_err(|mut e| {
             e.expanded_states = *expanded;
             e
         })?;
+        let unit_exp_before = *expanded;
+        let t_cap = (routed_rippable_count > 0 && !no_trial_cap.contains(&u.id))
+            .then(|| trial_cap_for(batch_limit, max_ok_unit_exp));
         match try_unit_with_cap(
             tx.engine,
             adapter,
@@ -1282,10 +1600,11 @@ pub fn solve_with_adapter(
             &history,
             batch_limit,
             expanded,
-            routed_rippable_count > 0,
+            t_cap,
             &rip_counts,
         ) {
             Ok(()) => {
+                max_ok_unit_exp = max_ok_unit_exp.max(expanded.saturating_sub(unit_exp_before));
                 stats.initial_routed += 1;
                 if u.rippable_by_single {
                     routed_rippable_count += 1;
@@ -1303,9 +1622,15 @@ pub fn solve_with_adapter(
                     e
                 });
             }
-            Err(TryUnitErr::Blocked { frontier, blockers }) => {
+            Err(TryUnitErr::Blocked {
+                frontier,
+                blockers,
+                hit_trial_cap,
+            }) => {
+                saw_truncated_frontier |= frontier.is_truncated();
                 stats.initial_failed += 1;
                 stats.frontier_probes = stats.frontier_probes.saturating_add(frontier.len() as u64);
+                let round_cap = trial_cap_for(batch_limit, max_ok_unit_exp);
                 let (resolved, top_b) = try_local_ripup_round(
                     tx,
                     adapter,
@@ -1318,6 +1643,10 @@ pub fn solve_with_adapter(
                     &mut stats,
                     batch_limit,
                     expanded,
+                    round_cap,
+                    hit_trial_cap,
+                    &mut no_trial_cap,
+                    &mut max_ok_unit_exp,
                 )
                 .map_err(|mut e| {
                     e.expanded_states = *expanded;
@@ -1330,6 +1659,77 @@ pub fn solve_with_adapter(
                 if resolved {
                     if u.rippable_by_single {
                         routed_rippable_count += 1;
+                    }
+                } else if hit_trial_cap {
+                    adapter.rip_unit(tx.engine, u.id).map_err(|mut e| {
+                        e.expanded_states = *expanded;
+                        stats.history_cells_peak = history.peak_len();
+                        stats.history_evictions = history.evictions();
+                        stats.expanded_states = *expanded;
+                        tx.engine.set_last_negotiation_stats(Some(stats));
+                        e
+                    })?;
+                    let retry_before = *expanded;
+                    match try_unit_with_cap(
+                        tx.engine,
+                        adapter,
+                        &spec_by_id,
+                        u,
+                        &history,
+                        batch_limit,
+                        expanded,
+                        None,
+                        &rip_counts,
+                    ) {
+                        Ok(()) => {
+                            no_trial_cap.insert(u.id);
+                            max_ok_unit_exp =
+                                max_ok_unit_exp.max(expanded.saturating_sub(retry_before));
+                            if u.rippable_by_single {
+                                routed_rippable_count += 1;
+                            }
+                        }
+                        Err(TryUnitErr::Fatal(mut e)) => {
+                            e.expanded_states = *expanded;
+                            stats.history_cells_peak = history.peak_len();
+                            stats.history_evictions = history.evictions();
+                            stats.expanded_states = *expanded;
+                            tx.engine.set_last_negotiation_stats(Some(stats));
+                            return Err(if e.status == Status::Unroutable {
+                                crate::scoped_routing_failure(e, first_net_of(u.id, &spec_by_id))
+                            } else {
+                                e
+                            });
+                        }
+                        Err(TryUnitErr::Blocked {
+                            frontier: full_f,
+                            blockers: full_b,
+                            ..
+                        }) => {
+                            saw_truncated_frontier |= full_f.is_truncated();
+                            let fb = match full_b {
+                                Some(b) => b,
+                                None => analyze_blockers(
+                                    tx.engine,
+                                    u,
+                                    &full_f,
+                                    adapter,
+                                    &spec_by_id,
+                                    &rip_counts,
+                                )
+                                .map_err(|mut e| {
+                                    e.expanded_states = *expanded;
+                                    stats.history_cells_peak = history.peak_len();
+                                    stats.history_evictions = history.evictions();
+                                    stats.expanded_states = *expanded;
+                                    tx.engine.set_last_negotiation_stats(Some(stats));
+                                    e
+                                })?,
+                            };
+                            saw_any_blockers |= !fb.is_empty();
+                            *failed_history_count.entry(u.id).or_insert(0) += 1;
+                            failed_units.push(u.id);
+                        }
                     }
                 } else {
                     saw_any_blockers |= top_b.is_some();
@@ -1349,7 +1749,7 @@ pub fn solve_with_adapter(
     }
 
     let mut first_failed = failed_units[0];
-    if !saw_any_blockers && routed_rippable_count == 0 {
+    if !saw_any_blockers && (routed_rippable_count == 0 || !saw_truncated_frontier) {
         stats.history_cells_peak = history.peak_len();
         stats.history_evictions = history.evictions();
         stats.expanded_states = *expanded;
@@ -1384,9 +1784,12 @@ pub fn solve_with_adapter(
                         .map_err(PassOutcome::Fatal)?;
                 }
             }
-            let mut routed_in_pass = 0usize;
+            let mut rippable_routed_in_pass = 0usize;
             for u in &reordered {
                 pass_tx.engine.charge_work(1).map_err(PassOutcome::Fatal)?;
+                let unit_exp_before = *expanded;
+                let t_cap = (rippable_routed_in_pass > 0 && !no_trial_cap.contains(&u.id))
+                    .then(|| trial_cap_for(batch_limit, max_ok_unit_exp));
                 match try_unit_with_cap(
                     pass_tx.engine,
                     adapter,
@@ -1395,16 +1798,25 @@ pub fn solve_with_adapter(
                     &history,
                     batch_limit,
                     expanded,
-                    routed_in_pass > 0,
+                    t_cap,
                     &pass_rip_counts,
                 ) {
                     Ok(()) => {
-                        routed_in_pass += 1;
+                        max_ok_unit_exp =
+                            max_ok_unit_exp.max(expanded.saturating_sub(unit_exp_before));
+                        if u.rippable_by_single {
+                            rippable_routed_in_pass += 1;
+                        }
                     }
                     Err(TryUnitErr::Fatal(e)) => return Err(PassOutcome::Fatal(e)),
-                    Err(TryUnitErr::Blocked { frontier, blockers }) => {
+                    Err(TryUnitErr::Blocked {
+                        frontier,
+                        blockers,
+                        hit_trial_cap,
+                    }) => {
                         stats.frontier_probes =
                             stats.frontier_probes.saturating_add(frontier.len() as u64);
+                        let round_cap = trial_cap_for(batch_limit, max_ok_unit_exp);
                         match try_local_ripup_round(
                             pass_tx,
                             adapter,
@@ -1417,21 +1829,88 @@ pub fn solve_with_adapter(
                             &mut stats,
                             batch_limit,
                             expanded,
+                            round_cap,
+                            hit_trial_cap,
+                            &mut no_trial_cap,
+                            &mut max_ok_unit_exp,
                         ) {
                             Ok((true, _)) => {
-                                routed_in_pass += 1;
+                                if u.rippable_by_single {
+                                    rippable_routed_in_pass += 1;
+                                }
                             }
-                            Ok((false, top_b)) => {
+                            Ok((false, mut top_b)) => {
+                                let mut stamp_f = &frontier;
+                                let full_f_holder: BlockedFrontier;
+                                if hit_trial_cap {
+                                    pass_tx.engine.charge_work(1).map_err(PassOutcome::Fatal)?;
+                                    adapter
+                                        .rip_unit(pass_tx.engine, u.id)
+                                        .map_err(PassOutcome::Fatal)?;
+                                    let retry_before = *expanded;
+                                    match try_unit_with_cap(
+                                        pass_tx.engine,
+                                        adapter,
+                                        &spec_by_id,
+                                        u,
+                                        &history,
+                                        batch_limit,
+                                        expanded,
+                                        None,
+                                        &pass_rip_counts,
+                                    ) {
+                                        Ok(()) => {
+                                            no_trial_cap.insert(u.id);
+                                            max_ok_unit_exp = max_ok_unit_exp
+                                                .max(expanded.saturating_sub(retry_before));
+                                            if u.rippable_by_single {
+                                                rippable_routed_in_pass += 1;
+                                            }
+                                            continue;
+                                        }
+                                        Err(TryUnitErr::Fatal(e)) => {
+                                            return Err(PassOutcome::Fatal(e));
+                                        }
+                                        Err(TryUnitErr::Blocked {
+                                            frontier: full_f,
+                                            blockers: full_b,
+                                            ..
+                                        }) => {
+                                            full_f_holder = full_f;
+                                            let fb = match full_b {
+                                                Some(b) => b,
+                                                None => analyze_blockers(
+                                                    pass_tx.engine,
+                                                    u,
+                                                    &full_f_holder,
+                                                    adapter,
+                                                    &spec_by_id,
+                                                    &pass_rip_counts,
+                                                )
+                                                .map_err(PassOutcome::Fatal)?,
+                                            };
+                                            top_b = fb.into_iter().next();
+                                            stamp_f = &full_f_holder;
+                                        }
+                                    }
+                                }
                                 *failed_history_count.entry(u.id).or_insert(0) += 1;
+                                if rippable_routed_in_pass == 0 && top_b.is_none() {
+                                    return Err(PassOutcome::Unrecoverable(u.id));
+                                }
                                 if let Some(top) = top_b {
                                     if let Some(top_spec) = spec_by_id.get(&top.unit) {
                                         history
-                                            .stamp_unit_footprint(top_spec, pass_tx.engine)
+                                            .stamp_unit_footprint_logged(
+                                                top_spec,
+                                                pass_tx.engine,
+                                                None,
+                                            )
                                             .map_err(PassOutcome::Fatal)?;
                                     }
                                 } else {
                                     history
-                                        .stamp_frontier(&frontier, pass_tx.engine)
+                                        .stamp_frontier_logged(stamp_f, pass_tx.engine, None)
                                         .map_err(PassOutcome::Fatal)?;
                                 }
                                 return Err(PassOutcome::Unroutable(u.id));
@@ -1459,6 +1938,10 @@ pub fn solve_with_adapter(
                 stats.expanded_states = *expanded;
                 tx.engine.set_last_negotiation_stats(Some(stats));
                 return Err(e);
+            }
+            Err(TransactionError::Operation(PassOutcome::Unrecoverable(u_id))) => {
+                first_failed = u_id;
+                break;
             }
             Err(TransactionError::Operation(PassOutcome::Unroutable(u_id))) => {
                 first_failed = u_id;
@@ -1648,24 +2131,221 @@ mod tests {
         assert_eq!(h.len(), MAX_HISTORY_CELLS);
         assert_eq!(h.evictions(), 1);
         assert_eq!(h.peak_len(), MAX_HISTORY_CELLS);
+        assert!(h.index_consistent());
         // Lowest-weight entry (0, 42, 0) with weight 1 was evicted first.
         assert_eq!(h.step_penalty(0, [420, 0], [0, 0], 10), 0);
         assert_eq!(h.step_penalty(0, [0, 0], [0, 0], 10), 5);
     }
 
     #[test]
+    fn congestion_history_eviction_scales_logarithmically_under_heavy_churn() {
+        let mut inp = test_input();
+        inp.limits.max_work = 500_000;
+        let engine = Engine::new(inp).unwrap();
+        let mut h = CongestionHistory::new();
+        let t0 = std::time::Instant::now();
+        for i in 0..(MAX_HISTORY_CELLS as i64) {
+            h.add_weight((0, i, 0), ((i % 7) + 1) as u64, &engine)
+                .unwrap();
+        }
+        assert_eq!(h.len(), MAX_HISTORY_CELLS);
+        assert!(h.index_consistent());
+
+        let extra = 25_000i64;
+        for i in 0..extra {
+            h.add_weight((0, MAX_HISTORY_CELLS as i64 + i, 1), 10, &engine)
+                .unwrap();
+        }
+        let elapsed = t0.elapsed();
+        assert_eq!(h.len(), MAX_HISTORY_CELLS);
+        assert_eq!(h.evictions(), extra as u64);
+        assert!(h.index_consistent());
+        assert!(engine.work_used() <= 200_000);
+        assert!(
+            elapsed < std::time::Duration::from_secs(2),
+            "eviction churn took {elapsed:?}"
+        );
+
+        // Verify HistoryCheckpoint rollback restores cells, eviction_index, peak_cells, and evictions.
+        let before_evictions = h.evictions();
+        let before_peak = h.peak_len();
+        let before_sample =
+            h.step_penalty(0, [(MAX_HISTORY_CELLS as i64 + 1) * 10, 10], [0, 0], 10);
+        let mut ckpt = h.checkpoint();
+        for j in 0..100i64 {
+            h.add_weight_logged((0, 1_000_000 + j, 2), 12, &engine, Some(&mut ckpt))
+                .unwrap();
+        }
+        assert_eq!(h.evictions(), before_evictions + 100);
+        assert!(h.index_consistent());
+        h.rollback(ckpt);
+        assert!(h.index_consistent());
+        assert_eq!(h.len(), MAX_HISTORY_CELLS);
+        assert_eq!(h.evictions(), before_evictions);
+        assert_eq!(h.peak_len(), before_peak);
+        assert_eq!(
+            h.step_penalty(0, [(MAX_HISTORY_CELLS as i64 + 1) * 10, 10], [0, 0], 10),
+            before_sample
+        );
+        assert_eq!(h.step_penalty(0, [10_000_000, 20], [0, 0], 10), 0);
+    }
+
+    #[test]
+    fn c_m3_03_vertical_uturn_and_diagonal_do_not_coalesce_to_zero_length() {
+        // Vertical exact U-turn: [50,10] -> [50,30] -> [50,10] coalesces to 1 nonzero track.
+        let mut engine1 = Engine::new(test_input()).unwrap();
+        let v_uturn = crate::search::Path {
+            points: vec![[50, 10], [50, 30], [50, 10]],
+            edges: vec![
+                crate::search::PathEdge::Track {
+                    start: [50, 10],
+                    end: [50, 30],
+                    layer: 0,
+                },
+                crate::search::PathEdge::Track {
+                    start: [50, 30],
+                    end: [50, 10],
+                    layer: 0,
+                },
+            ],
+            steps: 2,
+        };
+        engine1
+            .transaction(|tx| {
+                tx.engine.insert_path(1, v_uturn).unwrap();
+                let tracks: Vec<_> = tx.copper().generated().collect();
+                assert_eq!(tracks.len(), 1);
+                assert!(tracks.iter().all(|t| t.start != t.end));
+                assert_eq!(tracks[0].start, [50, 10]);
+                assert_eq!(tracks[0].end, [50, 30]);
+                Ok::<_, Failure>(())
+            })
+            .unwrap();
+
+        // Vertical overshoot U-turn: [50,20] -> [50,40] -> [50,10] -> 2 nonzero tracks.
+        let mut engine2 = Engine::new(test_input()).unwrap();
+        let v_overshoot = crate::search::Path {
+            points: vec![[50, 20], [50, 40], [50, 10]],
+            edges: vec![
+                crate::search::PathEdge::Track {
+                    start: [50, 20],
+                    end: [50, 40],
+                    layer: 0,
+                },
+                crate::search::PathEdge::Track {
+                    start: [50, 40],
+                    end: [50, 10],
+                    layer: 0,
+                },
+            ],
+            steps: 2,
+        };
+        engine2
+            .transaction(|tx| {
+                tx.engine.insert_path(1, v_overshoot).unwrap();
+                let tracks: Vec<_> = tx.copper().generated().collect();
+                assert_eq!(tracks.len(), 2);
+                assert!(tracks.iter().all(|t| t.start != t.end));
+                assert!(tracks
+                    .iter()
+                    .any(|t| t.start == [50, 20] && t.end == [50, 40]));
+                assert!(tracks
+                    .iter()
+                    .any(|t| t.start == [50, 20] && t.end == [50, 10]));
+                Ok::<_, Failure>(())
+            })
+            .unwrap();
+
+        // Vertical same-direction: [50,10] -> [50,20] -> [50,40] -> 1 coalesced track [50,10] -> [50,40].
+        let mut engine3 = Engine::new(test_input()).unwrap();
+        let v_same_dir = crate::search::Path {
+            points: vec![[50, 10], [50, 20], [50, 40]],
+            edges: vec![
+                crate::search::PathEdge::Track {
+                    start: [50, 10],
+                    end: [50, 20],
+                    layer: 0,
+                },
+                crate::search::PathEdge::Track {
+                    start: [50, 20],
+                    end: [50, 40],
+                    layer: 0,
+                },
+            ],
+            steps: 2,
+        };
+        engine3
+            .transaction(|tx| {
+                tx.engine.insert_path(1, v_same_dir).unwrap();
+                let tracks: Vec<_> = tx.copper().generated().collect();
+                assert_eq!(tracks.len(), 1);
+                assert_eq!(tracks[0].start, [50, 10]);
+                assert_eq!(tracks[0].end, [50, 40]);
+                Ok::<_, Failure>(())
+            })
+            .unwrap();
+
+        // Diagonal U-turn: [10,10] -> [20,20] -> [10,10] -> 0 zero-length tracks.
+        let mut engine4 = Engine::new(test_input()).unwrap();
+        let diag = crate::search::Path {
+            points: vec![[10, 10], [20, 20], [10, 10]],
+            edges: vec![
+                crate::search::PathEdge::Track {
+                    start: [10, 10],
+                    end: [20, 20],
+                    layer: 0,
+                },
+                crate::search::PathEdge::Track {
+                    start: [20, 20],
+                    end: [10, 10],
+                    layer: 0,
+                },
+            ],
+            steps: 2,
+        };
+        engine4
+            .transaction(|tx| {
+                tx.engine.insert_path(1, diag).unwrap();
+                let tracks: Vec<_> = tx.copper().generated().collect();
+                assert!(tracks.iter().all(|t| t.start != t.end));
+                Ok::<_, Failure>(())
+            })
+            .unwrap();
+    }
+
+    #[test]
     fn blocked_frontier_deduplicates_and_caps_at_limit() {
         let mut f = BlockedFrontier::new();
         assert!(f.is_empty());
+        assert!(!f.is_truncated());
         f.push_edge(0, [0, 0], [10, 0]);
         f.push_edge(0, [0, 0], [10, 0]);
         assert_eq!(f.len(), 1);
         assert_eq!(f.total_seen(), 2);
+        assert!(!f.is_truncated());
         for i in 1..(MAX_FRONTIER_PROBES as i64 + 50) {
             f.push_edge(0, [i * 10, 0], [i * 10 + 10, 0]);
         }
         assert_eq!(f.len(), MAX_FRONTIER_PROBES);
         assert_eq!(f.total_seen(), (MAX_FRONTIER_PROBES + 51) as u64);
+        assert!(f.is_truncated());
+    }
+
+    #[test]
+    fn blocked_frontier_retains_generated_probes_after_static_saturation() {
+        let mut f = BlockedFrontier::new();
+        for i in 0..5000i64 {
+            f.push_edge_classified(0, [i * 10, 0], [i * 10 + 10, 0], false);
+        }
+        assert!(f.is_truncated());
+        assert_eq!(f.static_probes().len(), MAX_STATIC_FRONTIER_PROBES);
+        assert!(f.probes().is_empty());
+        for j in 0..12i64 {
+            f.push_edge_classified(0, [j * 10, 100], [j * 10 + 10, 100], true);
+        }
+        f.push_via_site_classified(0, 1, [50, 100], true);
+        assert_eq!(f.probes().len(), 13);
+        assert_eq!(f.total_seen(), 5013);
     }
 
     #[test]

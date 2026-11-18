@@ -5,6 +5,7 @@ use crate::{
     spatial::{CopperAabb, SpatialIndex, StaticSpatialIndex, SweptAabb, TrackGeom, ViaGeom},
 };
 use std::{
+    cell::Cell,
     collections::{BTreeMap, BTreeSet},
     ops::ControlFlow,
 };
@@ -53,6 +54,7 @@ pub struct CopperStore {
     reserved: BTreeSet<String>,
     prefix: String,
     base_items: usize,
+    last_hit_generated: Cell<bool>,
 }
 
 impl CopperStore {
@@ -158,6 +160,7 @@ impl CopperStore {
             reserved,
             prefix,
             base_items,
+            last_hit_generated: Cell::new(false),
         }
     }
 
@@ -363,6 +366,11 @@ impl CopperStore {
     }
 
     #[inline(always)]
+    pub(crate) fn last_hit_generated(&self) -> bool {
+        self.last_hit_generated.get()
+    }
+
+    #[inline(always)]
     pub(crate) fn visit_layer_candidates_with_net_filtered(
         &self,
         layer_idx: usize,
@@ -371,6 +379,7 @@ impl CopperStore {
         work: &WorkBudget,
         mut visitor: impl FnMut(u32, TrackGeom) -> Result<ControlFlow<()>, Failure>,
     ) -> Result<ControlFlow<()>, Failure> {
+        self.last_hit_generated.set(false);
         let flow = self.input_spatial[layer_idx].visit_matching(
             bounds,
             net_filter,
@@ -383,20 +392,29 @@ impl CopperStore {
         if flow.is_break() {
             return Ok(ControlFlow::Break(()));
         }
-        self.generated_spatial[layer_idx].visit_matching(bounds, net_filter, work, |_seq, &slot| {
-            work.charge(1)?;
-            let track = self.slots[slot as usize]
-                .as_ref()
-                .expect("spatial slot references owned copper");
-            visitor(
-                track.net,
-                TrackGeom {
-                    start: track.start,
-                    end: track.end,
-                    width_nm: track.width_nm,
-                },
-            )
-        })
+        let gen_flow = self.generated_spatial[layer_idx].visit_matching(
+            bounds,
+            net_filter,
+            work,
+            |_seq, &slot| {
+                work.charge(1)?;
+                let track = self.slots[slot as usize]
+                    .as_ref()
+                    .expect("spatial slot references owned copper");
+                visitor(
+                    track.net,
+                    TrackGeom {
+                        start: track.start,
+                        end: track.end,
+                        width_nm: track.width_nm,
+                    },
+                )
+            },
+        )?;
+        if gen_flow.is_break() {
+            self.last_hit_generated.set(true);
+        }
+        Ok(gen_flow)
     }
 
     #[inline(always)]
@@ -407,6 +425,7 @@ impl CopperStore {
         work: &WorkBudget,
         mut visitor: impl FnMut(&Via, u32) -> Result<ControlFlow<()>, Failure>,
     ) -> Result<ControlFlow<()>, Failure> {
+        self.last_hit_generated.set(false);
         let flow =
             self.input_via_spatial
                 .visit_matching(bounds, net_filter, work, |ordinal, geom| {
@@ -416,14 +435,22 @@ impl CopperStore {
         if flow.is_break() {
             return Ok(ControlFlow::Break(()));
         }
-        self.generated_via_spatial
-            .visit_matching(bounds, net_filter, work, |_seq, &slot| {
+        let gen_flow = self.generated_via_spatial.visit_matching(
+            bounds,
+            net_filter,
+            work,
+            |_seq, &slot| {
                 work.charge(1)?;
                 let via = self.via_slots[slot as usize]
                     .as_ref()
                     .expect("via spatial slot references owned via");
                 visitor(via, self.via_mask(via))
-            })
+            },
+        )?;
+        if gen_flow.is_break() {
+            self.last_hit_generated.set(true);
+        }
+        Ok(gen_flow)
     }
 
     #[inline(always)]

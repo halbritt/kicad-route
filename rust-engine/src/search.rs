@@ -267,7 +267,9 @@ pub(crate) fn join_components(
     limit: u64,
     expanded: &mut u64,
 ) -> Result<Path, Failure> {
-    join_components_inner(engine, net, source, targets, limit, expanded, None, None)
+    join_components_inner(
+        engine, net, source, targets, limit, expanded, None, None, false,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -291,6 +293,7 @@ pub(crate) fn join_components_negotiated(
         expanded,
         hist_opt,
         Some(frontier),
+        engine.prefer_higher_g(),
     )
 }
 
@@ -304,6 +307,7 @@ fn join_components_inner(
     expanded: &mut u64,
     history: Option<&crate::negotiate::CongestionHistory>,
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+    prefer_higher_g: bool,
 ) -> Result<Path, Failure> {
     let _scope = engine.work.scope();
     if targets.iter().flatten().next().is_none() {
@@ -321,6 +325,7 @@ fn join_components_inner(
     let mut track_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
     let mut via_only_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
     let mut via_seed_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
+    let mut seed_blocked_vias: Vec<(u8, u8, bool)> = Vec::new();
     for c in source {
         engine.work.charge(1)?;
         let c_mask = c.layer_mask(stackup);
@@ -339,6 +344,7 @@ fn join_components_inner(
                 engine.work.charge(1)?;
                 let key = (p, l_idx as u8);
                 let mut track_ok = false;
+                engine.clear_last_block_generated();
                 if let Some(width_nm) = width_opt {
                     if engine.legal_edge_on(net, l_idx, p, p)? {
                         let probe = Track {
@@ -358,7 +364,9 @@ fn join_components_inner(
                         }
                     }
                 }
+                let track_block_generated = !track_ok && engine.last_block_generated();
                 let mut via_ok = false;
+                seed_blocked_vias.clear();
                 if track_ok {
                     via_only_starts.remove(&key);
                     engine.work.search_storage(
@@ -372,7 +380,7 @@ fn join_components_inner(
                     && !via_only_starts.contains(&key)
                 {
                     via_seed_buf.clear();
-                    push_legal_via_transitions(
+                    push_legal_via_transitions_with_blocked(
                         engine,
                         net,
                         p,
@@ -380,6 +388,7 @@ fn join_components_inner(
                         via_cost,
                         &[],
                         &mut via_seed_buf,
+                        frontier.as_deref().map(|_| &mut seed_blocked_vias),
                     )?;
                     'via_seed: for &(_, pv, _) in &via_seed_buf {
                         let kind = match pv.kind {
@@ -421,9 +430,16 @@ fn join_components_inner(
                         via_only_starts.insert(key);
                     }
                 }
-                if !track_ok && !via_ok {
+                if !track_ok
+                    && !via_ok
+                    && !track_starts.contains(&key)
+                    && !via_only_starts.contains(&key)
+                {
                     if let Some(f) = frontier.as_deref_mut() {
-                        f.push_edge(l_idx as u8, p, p);
+                        f.push_edge_classified(l_idx as u8, p, p, track_block_generated);
+                        for &(s_lo, s_hi, via_gen) in &seed_blocked_vias {
+                            f.push_via_site_classified(s_lo, s_hi, p, via_gen);
+                        }
                     }
                 }
             }
@@ -548,6 +564,7 @@ fn join_components_inner(
             &track_via_conflicts,
             history,
             frontier.as_deref_mut(),
+            prefer_higher_g,
             |p, layer_idx| {
                 let h_comp = component_estimate_multilayer(
                     p,
@@ -576,6 +593,7 @@ fn join_components_inner(
                 Ok(h_comp)
             },
             |layer_idx, run_start, a, b, prior_vias| {
+                engine.clear_last_block_generated();
                 let l_name = engine.layer_name(layer_idx);
                 let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
                     Ok(w) => w,
@@ -590,6 +608,7 @@ fn join_components_inner(
                 {
                     return Ok(Some(b));
                 }
+                let primary_gen = engine.last_block_generated();
                 if engine.input.rules.same_net_hole_clearance_nm > 0 {
                     if let Some(rs) = run_start {
                         if let Some(p) = attachment_from(layer_idx, rs, a, b, prior_vias)? {
@@ -666,9 +685,12 @@ fn join_components_inner(
                         return Ok(best_entry);
                     }
                 }
+                if primary_gen {
+                    engine.set_last_block_generated(true);
+                }
                 Ok(None)
             },
-            |at, layer_idx, prior_vias, prior_via_count, via_only, out| {
+            |at, layer_idx, prior_vias, prior_via_count, via_only, out, blocked_out| {
                 if l_count < 2 {
                     return Ok(());
                 }
@@ -679,7 +701,16 @@ fn join_components_inner(
                         return Ok(());
                     }
                 }
-                push_legal_via_transitions(engine, net, at, layer_idx, via_cost, prior_vias, out)?;
+                push_legal_via_transitions_with_blocked(
+                    engine,
+                    net,
+                    at,
+                    layer_idx,
+                    via_cost,
+                    prior_vias,
+                    out,
+                    blocked_out,
+                )?;
                 if via_only {
                     let mut write = 0usize;
                     for read in 0..out.len() {
@@ -875,12 +906,36 @@ fn push_legal_via_transitions(
     prior_vias: &[PlacedViaKey],
     out: &mut Vec<(u8, PlacedViaKey, u64)>,
 ) -> Result<(), Failure> {
+    push_legal_via_transitions_with_blocked(
+        engine, net, at, layer_idx, via_cost, prior_vias, out, None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_legal_via_transitions_with_blocked(
+    engine: &Engine,
+    net: u32,
+    at: Point,
+    layer_idx: usize,
+    via_cost: u64,
+    prior_vias: &[PlacedViaKey],
+    out: &mut Vec<(u8, PlacedViaKey, u64)>,
+    mut blocked_spans: Option<&mut Vec<(u8, u8, bool)>>,
+) -> Result<(), Failure> {
     let l_count = engine.layer_count();
     if l_count < 2 {
         return Ok(());
     }
     let can_blind = engine.effective_rules.allow_blind_buried_vias;
     let can_micro = engine.effective_rules.allow_microvias;
+    let stackup = engine.all_layers_slice();
+    let at_via_limit = engine
+        .effective_rules
+        .net(net)
+        .max_via_count
+        .is_some_and(|max_vc| {
+            engine.copper.via_count_for_net(net) + prior_vias.len() + 1 > max_vc as usize
+        });
     let has_overlap = |s_idx: usize, e_idx: usize| -> bool {
         let m = span_mask(s_idx, e_idx);
         prior_vias.iter().any(|existing| {
@@ -889,20 +944,25 @@ fn push_legal_via_transitions(
         })
     };
 
-    if !has_overlap(0, l_count - 1)
-        && engine
+    if !has_overlap(0, l_count - 1) {
+        if engine
             .legal_via(net, at, 0, l_count - 1, ViaKind::Through, prior_vias)?
             .is_some()
-    {
-        let pv = PlacedViaKey {
-            at,
-            start_layer: 0,
-            end_layer: (l_count - 1) as u8,
-            kind: 0,
-        };
-        for target_layer in 0..l_count {
-            if target_layer != layer_idx {
-                out.push((target_layer as u8, pv, via_cost));
+        {
+            let pv = PlacedViaKey {
+                at,
+                start_layer: 0,
+                end_layer: (l_count - 1) as u8,
+                kind: 0,
+            };
+            for target_layer in 0..l_count {
+                if target_layer != layer_idx {
+                    out.push((target_layer as u8, pv, via_cost));
+                }
+            }
+        } else if let Some(b) = blocked_spans.as_deref_mut() {
+            if !at_via_limit && !engine.effective_rules.disallow_via_on(net, stackup) {
+                b.push((0, (l_count - 1) as u8, engine.last_block_generated()));
             }
         }
     }
@@ -914,6 +974,7 @@ fn push_legal_via_transitions(
             }
             let s_min = layer_idx.min(target_layer);
             let s_max = layer_idx.max(target_layer);
+            let span_layers = &stackup[s_min..=s_max];
             if can_blind && (s_min > 0 || s_max + 1 < l_count) && !has_overlap(s_min, s_max) {
                 if engine
                     .legal_via(net, at, s_min, s_max, ViaKind::BlindBuried, prior_vias)?
@@ -929,6 +990,10 @@ fn push_legal_via_transitions(
                         },
                         via_cost,
                     ));
+                } else if let Some(b) = blocked_spans.as_deref_mut() {
+                    if !at_via_limit && !engine.effective_rules.disallow_via_on(net, span_layers) {
+                        b.push((s_min as u8, s_max as u8, engine.last_block_generated()));
+                    }
                 }
             }
             if can_micro
@@ -950,6 +1015,10 @@ fn push_legal_via_transitions(
                         },
                         via_cost,
                     ));
+                } else if let Some(b) = blocked_spans.as_deref_mut() {
+                    if !at_via_limit && !engine.effective_rules.disallow_via_on(net, span_layers) {
+                        b.push((s_min as u8, s_max as u8, engine.last_block_generated()));
+                    }
                 }
             }
         }
@@ -1381,6 +1450,28 @@ fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
     aabb_steps
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct TieG {
+    g: u64,
+    prefer_higher: bool,
+}
+
+impl Ord for TieG {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if self.prefer_higher {
+            other.g.cmp(&self.g)
+        } else {
+            self.g.cmp(&other.g)
+        }
+    }
+}
+
+impl PartialOrd for TieG {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 fn walk(
     engine: &Engine,
     starts: &[Point],
@@ -1404,9 +1495,10 @@ fn walk(
         &[],
         None,
         None,
+        false,
         |p, _| heuristic(p),
         |_, rs, a, b, _| advance(rs, a, b),
-        |_, _, _, _, _, _| Ok(()),
+        |_, _, _, _, _, _, _| Ok(()),
         |at, _, edge| {
             let prev = match edge {
                 Some(PathEdge::Track { start, .. }) => Some(start),
@@ -1431,6 +1523,7 @@ fn walk_multilayer(
     track_via_conflicts: &[PlacedViaKey],
     history: Option<&crate::negotiate::CongestionHistory>,
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+    prefer_higher_g: bool,
     heuristic: impl Fn(Point, usize) -> Result<u64, Failure>,
     advance: impl Fn(
         usize,
@@ -1446,6 +1539,7 @@ fn walk_multilayer(
         u16,
         bool,
         &mut Vec<(u8, PlacedViaKey, u64)>,
+        Option<&mut Vec<(u8, u8, bool)>>,
     ) -> Result<(), Failure>,
     finished: impl Fn(Point, usize, Option<PathEdge>) -> Result<bool, Failure>,
 ) -> Result<Path, Failure> {
@@ -1475,7 +1569,14 @@ fn walk_multilayer(
             track_via_blocked: 0,
         };
         let h = heuristic(at, layer as usize)?;
-        queue.push(Reverse((h, 0u64, initial)));
+        queue.push(Reverse((
+            h,
+            TieG {
+                g: 0u64,
+                prefer_higher: prefer_higher_g,
+            },
+            initial,
+        )));
         best.insert(initial, 0u64);
     }
 
@@ -1510,9 +1611,11 @@ fn walk_multilayer(
         };
 
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
+    let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     while !queue.is_empty() {
         engine.work.charge(1)?;
-        let Reverse((_f, cost, state)) = queue.pop().unwrap();
+        let Reverse((_f, tie_g, state)) = queue.pop().unwrap();
+        let cost = tie_g.g;
         if best.get(&state) != Some(&cost) {
             continue;
         }
@@ -1657,7 +1760,12 @@ fn walk_multilayer(
                 else {
                     any_track_blocked = true;
                     if let Some(f) = frontier.as_deref_mut() {
-                        f.push_edge(state.layer, state.at, [x, y]);
+                        f.push_edge_classified(
+                            state.layer,
+                            state.at,
+                            [x, y],
+                            engine.last_block_generated(),
+                        );
                     }
                     continue;
                 };
@@ -1764,13 +1872,19 @@ fn walk_multilayer(
                 let h = heuristic(next.at, next.layer as usize)?;
                 queue.push(Reverse((
                     g.checked_add(h).expect("bounded heuristic"),
-                    g,
+                    TieG {
+                        g,
+                        prefer_higher: prefer_higher_g,
+                    },
                     next,
                 )));
             }
         }
 
         via_buf.clear();
+        blocked_via_spans.clear();
+        let want_via_frontier =
+            l_count >= 2 && frontier.is_some() && (state.via_only || any_track_blocked);
         via_transitions(
             state.at,
             state.layer as usize,
@@ -1778,10 +1892,13 @@ fn walk_multilayer(
             state.via_count,
             state.via_only,
             &mut via_buf,
+            want_via_frontier.then_some(&mut blocked_via_spans),
         )?;
-        if l_count >= 2 && via_buf.is_empty() && (state.via_only || any_track_blocked) {
+        if want_via_frontier {
             if let Some(f) = frontier.as_deref_mut() {
-                f.push_via_site(0, (l_count - 1) as u8, state.at);
+                for &(s_lo, s_hi, via_gen) in &blocked_via_spans {
+                    f.push_via_site_classified(s_lo, s_hi, state.at, via_gen);
+                }
             }
         }
         for &(target_layer, pv, v_cost) in &via_buf {
@@ -1871,7 +1988,10 @@ fn walk_multilayer(
             };
             queue.push(Reverse((
                 g.checked_add(h).expect("bounded heuristic"),
-                g,
+                TieG {
+                    g,
+                    prefer_higher: prefer_higher_g,
+                },
                 next,
             )));
         }
