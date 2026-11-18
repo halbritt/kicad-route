@@ -253,6 +253,7 @@ pub struct OperationConfig {
     pub max_child_output_bytes: usize,
     pub pour_area_loss: Option<f64>,
     pub pour_min_spokes: Option<u32>,
+    pub routing_options: crate::model::RoutingOptions,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -2213,7 +2214,8 @@ fn execute_staged_phases(
         });
         return Err((OperationStatus::ChildProcessError, m));
     }
-    let request_bytes =
+    let mut staged_request = staged_request;
+    let mut request_bytes =
         match read_bounded_regular(&staged_request, MAX_REQUEST_BYTES, "exported request.json") {
             Ok(b) => b,
             Err(err) => {
@@ -2228,15 +2230,56 @@ fn execute_staged_phases(
                 return Err((st, msg));
             }
         };
-    let req_sha = sha256_hex(&request_bytes);
-    result.request.request_sha256 = Some(req_sha.clone());
-    result.request.request_bytes = Some(request_bytes.len() as u64);
-    result.request.request_json = String::from_utf8(request_bytes.clone()).ok();
 
     let mut input_has_zones = false;
-    if let Ok(parsed_input) = serde_json::from_slice::<Input>(&request_bytes) {
-        if parsed_input.source_id != admitted.source_sha256 {
-            let msg = "exported request source_id does not match staged source snapshot".to_owned();
+    let has_custom_routing_options =
+        config.routing_options != crate::model::RoutingOptions::default();
+    match serde_json::from_slice::<Input>(&request_bytes) {
+        Ok(mut parsed_input) => {
+            if parsed_input.source_id != admitted.source_sha256 {
+                let msg =
+                    "exported request source_id does not match staged source snapshot".to_owned();
+                result.phases.push(PhaseRecord {
+                    phase: "native_export".to_owned(),
+                    status: "failed".to_owned(),
+                    elapsed_ms: t_exp.elapsed().as_millis() as u64,
+                    detail: Some(msg.clone()),
+                    child: Some(exp_outcome.record),
+                });
+                return Err((OperationStatus::ChildProcessError, msg));
+            }
+            input_has_zones = !parsed_input.zones.is_empty();
+            if has_custom_routing_options {
+                parsed_input.routing_options = Some(config.routing_options.clone());
+                let updated_bytes = serde_json::to_vec_pretty(&parsed_input).map_err(|e| {
+                    let msg = format!("failed to serialize request with routing_options: {e}");
+                    result.phases.push(PhaseRecord {
+                        phase: "native_export".to_owned(),
+                        status: "failed".to_owned(),
+                        elapsed_ms: t_exp.elapsed().as_millis() as u64,
+                        detail: Some(msg.clone()),
+                        child: Some(exp_outcome.record.clone()),
+                    });
+                    (OperationStatus::ChildProcessError, msg)
+                })?;
+                let opts_request = staging_dir.join("request-opts.json");
+                fs::write(&opts_request, &updated_bytes).map_err(|e| {
+                    let msg = format!("failed to write staged request-opts.json: {e}");
+                    result.phases.push(PhaseRecord {
+                        phase: "native_export".to_owned(),
+                        status: "failed".to_owned(),
+                        elapsed_ms: t_exp.elapsed().as_millis() as u64,
+                        detail: Some(msg.clone()),
+                        child: Some(exp_outcome.record.clone()),
+                    });
+                    (OperationStatus::ChildProcessError, msg)
+                })?;
+                staged_request = opts_request;
+                request_bytes = updated_bytes;
+            }
+        }
+        Err(e) if has_custom_routing_options => {
+            let msg = format!("failed to parse exported request.json for routing_options: {e}");
             result.phases.push(PhaseRecord {
                 phase: "native_export".to_owned(),
                 status: "failed".to_owned(),
@@ -2246,8 +2289,12 @@ fn execute_staged_phases(
             });
             return Err((OperationStatus::ChildProcessError, msg));
         }
-        input_has_zones = !parsed_input.zones.is_empty();
+        Err(_) => {}
     }
+    let req_sha = sha256_hex(&request_bytes);
+    result.request.request_sha256 = Some(req_sha.clone());
+    result.request.request_bytes = Some(request_bytes.len() as u64);
+    result.request.request_json = String::from_utf8(request_bytes.clone()).ok();
     result.phases.push(PhaseRecord {
         phase: "native_export".to_owned(),
         status: "ok".to_owned(),
@@ -2601,7 +2648,7 @@ fn execute_staged_phases(
     Ok(())
 }
 
-const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>]";
+const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
 
 fn take_flag_value(
     args: &[OsString],
@@ -2638,6 +2685,84 @@ fn parse_u64_flag(val: &OsString, flag: &str, min: u64, max: u64) -> Result<u64,
     Ok(parsed)
 }
 
+fn parse_f64_flag(val: &OsString, flag: &str, strictly_positive: bool) -> Result<f64, String> {
+    let s = val
+        .to_str()
+        .ok_or_else(|| format!("{flag} must be a valid UTF-8 number"))?;
+    let parsed: f64 = s
+        .parse()
+        .map_err(|_| format!("{flag} must be a finite number"))?;
+    let valid = if strictly_positive {
+        parsed.is_finite() && parsed > 0.0
+    } else {
+        parsed.is_finite() && parsed >= 0.0
+    };
+    if !valid {
+        let cmp = if strictly_positive { "> 0" } else { ">= 0" };
+        return Err(format!("{flag} must be finite and {cmp}"));
+    }
+    Ok(parsed)
+}
+
+fn f64_scaled_to_i64(val: f64, scale: f64, flag: &str) -> Result<i64, String> {
+    let scaled = (val * scale).round();
+    if !scaled.is_finite() || scaled > (i64::MAX as f64) || scaled < (i64::MIN as f64) {
+        return Err(format!("{flag} value out of representable range"));
+    }
+    Ok(scaled as i64)
+}
+
+fn take_flag_str(
+    args: &[OsString],
+    idx: &mut usize,
+    inline: Option<&str>,
+    flag: &str,
+) -> Result<String, String> {
+    let raw = take_flag_value(args, idx, inline, flag)?;
+    raw.into_string()
+        .map_err(|_| format!("{flag} value must be valid UTF-8"))
+}
+
+fn take_variadic_strs(
+    args: &[OsString],
+    idx: &mut usize,
+    inline: Option<&str>,
+    flag: &str,
+) -> Result<Vec<String>, String> {
+    if let Some(val) = inline {
+        if val.is_empty() {
+            return Err(format!("{flag} requires at least one non-empty value"));
+        }
+        let items: Vec<String> = val
+            .split(',')
+            .filter(|part| !part.is_empty())
+            .map(|part| part.to_owned())
+            .collect();
+        if items.is_empty() {
+            return Err(format!("{flag} requires at least one non-empty value"));
+        }
+        return Ok(items);
+    }
+    let mut items = Vec::new();
+    while let Some(next) = args.get(*idx + 1) {
+        let Some(s) = next.to_str() else {
+            return Err(format!("{flag} values must be valid UTF-8"));
+        };
+        if s == "--" || s.starts_with('-') {
+            break;
+        }
+        if s.is_empty() {
+            return Err(format!("{flag} requires non-empty values"));
+        }
+        items.push(s.to_owned());
+        *idx += 1;
+    }
+    if items.is_empty() {
+        return Err(format!("{flag} requires at least one value"));
+    }
+    Ok(items)
+}
+
 pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
     let mut positional: Vec<PathBuf> = Vec::new();
     let mut rules: Option<PathBuf> = None;
@@ -2652,6 +2777,20 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
     let mut max_child_output_bytes: Option<usize> = None;
     let mut pour_area_loss: Option<f64> = None;
     let mut pour_min_spokes: Option<u32> = None;
+    let mut routing_options = crate::model::RoutingOptions::default();
+    let mut saw_pair_layers = false;
+    let mut saw_length_match_tolerance = false;
+    let mut saw_meander_amplitude = false;
+    let mut saw_group_match_tolerance = false;
+    let mut saw_group_delay_tolerance = false;
+    let mut saw_group_meander_amplitude = false;
+    let mut saw_group_meander_spacing = false;
+    let mut saw_pair_impedance = false;
+    let mut saw_impedance_tolerance = false;
+    let mut saw_impedance_reference = false;
+    let mut saw_impedance_uncoupled = false;
+    let mut saw_protect = false;
+    let mut last_variadic_target: Option<&'static str> = None;
     let mut after_double_dash = false;
 
     let mut i = 0;
@@ -2774,6 +2913,255 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let parsed = parse_u64_flag(&val, flag, 0, 16)?;
                             pour_min_spokes = Some(parsed as u32);
+                            last_variadic_target = None;
+                        }
+                        "--diff-pairs" => {
+                            let val = take_flag_str(args, &mut i, inline, flag)?;
+                            if val == "auto" {
+                                if routing_options.diff_pairs_mode.is_some() {
+                                    return Err("duplicate --diff-pairs auto flag".to_owned());
+                                }
+                                if !routing_options.explicit_pairs.is_empty() {
+                                    return Err(
+                                        "cannot combine --diff-pairs auto with explicit --diff-pairs P,N"
+                                            .to_owned(),
+                                    );
+                                }
+                                routing_options.diff_pairs_mode =
+                                    Some(crate::model::DiffPairsMode::Auto);
+                            } else {
+                                if routing_options.diff_pairs_mode.is_some() {
+                                    return Err(
+                                        "cannot combine --diff-pairs auto with explicit --diff-pairs P,N"
+                                            .to_owned(),
+                                    );
+                                }
+                                let parts: Vec<&str> = val.split(',').collect();
+                                if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+                                    return Err(
+                                        "--diff-pairs requires 'auto' or '<POS_NET>,<NEG_NET>'"
+                                            .to_owned(),
+                                    );
+                                }
+                                routing_options
+                                    .explicit_pairs
+                                    .push([parts[0].to_owned(), parts[1].to_owned()]);
+                            }
+                            last_variadic_target = None;
+                        }
+                        "--pair-layers" => {
+                            if saw_pair_layers {
+                                return Err("duplicate --pair-layers flag".to_owned());
+                            }
+                            saw_pair_layers = true;
+                            routing_options.pair_layers =
+                                take_variadic_strs(args, &mut i, inline, flag)?;
+                            last_variadic_target = if inline.is_none() {
+                                Some("pair_layers")
+                            } else {
+                                None
+                            };
+                        }
+                        "--no-short-pair-deferral" => {
+                            if inline.is_some() {
+                                return Err("--no-short-pair-deferral takes no value".to_owned());
+                            }
+                            routing_options.no_short_pair_deferral = true;
+                            last_variadic_target = None;
+                        }
+                        "--diff-pair-intra-match" => {
+                            if inline.is_some() {
+                                return Err("--diff-pair-intra-match takes no value".to_owned());
+                            }
+                            routing_options.intra_match = true;
+                            last_variadic_target = None;
+                        }
+                        "--length-match-tolerance" => {
+                            if saw_length_match_tolerance {
+                                return Err("duplicate --length-match-tolerance flag".to_owned());
+                            }
+                            saw_length_match_tolerance = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let mm = parse_f64_flag(&val, flag, false)?;
+                            routing_options.length_match_tolerance_nm =
+                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--meander-amplitude" => {
+                            if saw_meander_amplitude {
+                                return Err("duplicate --meander-amplitude flag".to_owned());
+                            }
+                            saw_meander_amplitude = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let mm = parse_f64_flag(&val, flag, true)?;
+                            routing_options.meander_amplitude_nm =
+                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--length-match-group" => {
+                            let members = take_variadic_strs(args, &mut i, inline, flag)?;
+                            routing_options.length_match_groups.push(
+                                crate::model::LengthMatchGroupSpec {
+                                    members,
+                                    ..Default::default()
+                                },
+                            );
+                            last_variadic_target = if inline.is_none() {
+                                Some("group")
+                            } else {
+                                None
+                            };
+                        }
+                        "--length-match-group-json" => {
+                            let val = take_flag_str(args, &mut i, inline, flag)?;
+                            let trimmed = val.trim();
+                            if trimmed.starts_with('[') {
+                                let members: Vec<String> =
+                                    serde_json::from_str(trimmed).map_err(|e| {
+                                        format!("invalid --length-match-group-json array: {e}")
+                                    })?;
+                                if members.is_empty() {
+                                    return Err(
+                                        "--length-match-group-json array must not be empty"
+                                            .to_owned(),
+                                    );
+                                }
+                                routing_options.length_match_groups.push(
+                                    crate::model::LengthMatchGroupSpec {
+                                        members,
+                                        ..Default::default()
+                                    },
+                                );
+                            } else if trimmed.starts_with('{') {
+                                let spec: crate::model::LengthMatchGroupSpec =
+                                    serde_json::from_str(trimmed).map_err(|e| {
+                                        format!("invalid --length-match-group-json object: {e}")
+                                    })?;
+                                if spec.members.is_empty() && spec.from_to.is_empty() {
+                                    return Err("--length-match-group-json spec must not be empty"
+                                        .to_owned());
+                                }
+                                routing_options.length_match_groups.push(spec);
+                            } else {
+                                return Err(
+                                    "--length-match-group-json must be a JSON array or object"
+                                        .to_owned(),
+                                );
+                            }
+                            last_variadic_target = None;
+                        }
+                        "--group-match-tolerance" => {
+                            if saw_group_match_tolerance {
+                                return Err("duplicate --group-match-tolerance flag".to_owned());
+                            }
+                            saw_group_match_tolerance = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let mm = parse_f64_flag(&val, flag, false)?;
+                            routing_options.group_match_tolerance_nm =
+                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--group-delay-tolerance" => {
+                            if saw_group_delay_tolerance {
+                                return Err("duplicate --group-delay-tolerance flag".to_owned());
+                            }
+                            saw_group_delay_tolerance = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let ps = parse_f64_flag(&val, flag, false)?;
+                            routing_options.group_delay_tolerance_as =
+                                Some(f64_scaled_to_i64(ps, 1_000_000.0, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--group-meander-amplitude" => {
+                            if saw_group_meander_amplitude {
+                                return Err("duplicate --group-meander-amplitude flag".to_owned());
+                            }
+                            saw_group_meander_amplitude = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let mm = parse_f64_flag(&val, flag, true)?;
+                            routing_options.group_meander_amplitude_nm =
+                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--group-meander-spacing" => {
+                            if saw_group_meander_spacing {
+                                return Err("duplicate --group-meander-spacing flag".to_owned());
+                            }
+                            saw_group_meander_spacing = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let widths = parse_f64_flag(&val, flag, true)?;
+                            if widths < 1.0 {
+                                return Err("--group-meander-spacing must be >= 1.0".to_owned());
+                            }
+                            routing_options.group_meander_spacing_widths = Some(widths);
+                            last_variadic_target = None;
+                        }
+                        "--pair-impedance" => {
+                            if saw_pair_impedance {
+                                return Err("duplicate --pair-impedance flag".to_owned());
+                            }
+                            saw_pair_impedance = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            routing_options.pair_impedance_ohm =
+                                Some(parse_f64_flag(&val, flag, true)?);
+                            last_variadic_target = None;
+                        }
+                        "--impedance-tolerance" => {
+                            if saw_impedance_tolerance {
+                                return Err("duplicate --impedance-tolerance flag".to_owned());
+                            }
+                            saw_impedance_tolerance = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            routing_options.impedance_tolerance_pct =
+                                Some(parse_f64_flag(&val, flag, true)?);
+                            last_variadic_target = None;
+                        }
+                        "--impedance-reference" => {
+                            if saw_impedance_reference {
+                                return Err("duplicate --impedance-reference flag".to_owned());
+                            }
+                            saw_impedance_reference = true;
+                            routing_options.impedance_reference =
+                                Some(take_flag_str(args, &mut i, inline, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--impedance-uncoupled" => {
+                            if saw_impedance_uncoupled {
+                                return Err("duplicate --impedance-uncoupled flag".to_owned());
+                            }
+                            saw_impedance_uncoupled = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let mm = parse_f64_flag(&val, flag, false)?;
+                            routing_options.impedance_uncoupled_nm =
+                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--protect" => {
+                            if saw_protect {
+                                return Err("duplicate --protect flag".to_owned());
+                            }
+                            saw_protect = true;
+                            let val = take_flag_str(args, &mut i, inline, flag)?;
+                            let mode = match val.as_str() {
+                                "none" => crate::model::ProtectMode::None,
+                                "existing" => crate::model::ProtectMode::Existing,
+                                "human" => crate::model::ProtectMode::Human,
+                                "locked" => crate::model::ProtectMode::Locked,
+                                _ => {
+                                    return Err(
+                                        "--protect must be one of: none, existing, human, locked"
+                                            .to_owned(),
+                                    );
+                                }
+                            };
+                            routing_options.protect_mode = Some(mode);
+                            last_variadic_target = None;
+                        }
+                        "--nets" => {
+                            let items = take_variadic_strs(args, &mut i, inline, flag)?;
+                            routing_options.net_filters.extend(items);
+                            last_variadic_target =
+                                if inline.is_none() { Some("nets") } else { None };
                         }
                         _ => return Err(format!("unknown flag: {flag}")),
                     }
@@ -2787,6 +3175,32 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
         }
         positional.push(PathBuf::from(arg));
         i += 1;
+    }
+
+    if positional.len() < 2 {
+        let needed = 2 - positional.len();
+        let target_vec: Option<&mut Vec<String>> = match last_variadic_target {
+            Some("pair_layers") => Some(&mut routing_options.pair_layers),
+            Some("nets") => Some(&mut routing_options.net_filters),
+            Some("group") => routing_options
+                .length_match_groups
+                .last_mut()
+                .map(|g| &mut g.members),
+            _ => None,
+        };
+        if let Some(items) = target_vec {
+            if items.len() > needed
+                && items[items.len() - needed..]
+                    .iter()
+                    .all(|s| s.to_ascii_lowercase().ends_with(".kicad_pcb"))
+            {
+                let start = items.len() - needed;
+                let stolen: Vec<String> = items.drain(start..).collect();
+                for s in stolen {
+                    positional.push(PathBuf::from(s));
+                }
+            }
+        }
     }
 
     if positional.len() != 2 {
@@ -2813,6 +3227,7 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
         max_child_output_bytes: max_child_output_bytes.unwrap_or(DEFAULT_MAX_CHILD_OUTPUT_BYTES),
         pour_area_loss,
         pour_min_spokes,
+        routing_options,
     })
 }
 
@@ -3084,6 +3499,7 @@ elif cmd == "apply":
             max_child_output_bytes: DEFAULT_MAX_CHILD_OUTPUT_BYTES,
             pour_area_loss: None,
             pour_min_spokes: None,
+            routing_options: crate::model::RoutingOptions::default(),
         }
     }
 
@@ -3387,5 +3803,115 @@ elif cmd == "apply":
             err.1
         );
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn cli_parses_all_m4_diff_pair_and_length_group_flags() {
+        let args: Vec<OsString> = vec![
+            "src.kicad_pcb",
+            "out.kicad_pcb",
+            "--diff-pairs",
+            "auto",
+            "--pair-layers",
+            "F.Cu",
+            "In2.Cu",
+            "B.Cu",
+            "--no-short-pair-deferral",
+            "--diff-pair-intra-match",
+            "--length-match-tolerance",
+            "0.05",
+            "--meander-amplitude",
+            "1.5",
+            "--length-match-group",
+            "DQ0",
+            "DQ1",
+            "--length-match-group-json",
+            "[\"-DQ2\",\"DQ3\"]",
+            "--group-match-tolerance",
+            "0.1",
+            "--group-delay-tolerance",
+            "1.25",
+            "--group-meander-amplitude",
+            "3.0",
+            "--group-meander-spacing",
+            "2.5",
+            "--pair-impedance",
+            "100",
+            "--impedance-tolerance",
+            "10",
+            "--impedance-reference",
+            "GND",
+            "--impedance-uncoupled",
+            "3.0",
+            "--protect",
+            "existing",
+            "--nets",
+            "A_P",
+            "A_N",
+            "!CLK*",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let cfg = parse_cli_args(&args).expect("all 18 M4 flags should parse");
+        let ro = &cfg.routing_options;
+        assert_eq!(ro.diff_pairs_mode, Some(crate::model::DiffPairsMode::Auto));
+        assert_eq!(ro.pair_layers, vec!["F.Cu", "In2.Cu", "B.Cu"]);
+        assert!(ro.no_short_pair_deferral);
+        assert!(ro.intra_match);
+        assert_eq!(ro.length_match_tolerance_nm, Some(50_000));
+        assert_eq!(ro.meander_amplitude_nm, Some(1_500_000));
+        assert_eq!(ro.length_match_groups.len(), 2);
+        assert_eq!(ro.length_match_groups[0].members, vec!["DQ0", "DQ1"]);
+        assert_eq!(ro.length_match_groups[1].members, vec!["-DQ2", "DQ3"]);
+        assert_eq!(ro.group_match_tolerance_nm, Some(100_000));
+        assert_eq!(ro.group_delay_tolerance_as, Some(1_250_000));
+        assert_eq!(ro.group_meander_amplitude_nm, Some(3_000_000));
+        assert_eq!(ro.group_meander_spacing_widths, Some(2.5));
+        assert_eq!(ro.pair_impedance_ohm, Some(100.0));
+        assert_eq!(ro.impedance_tolerance_pct, Some(10.0));
+        assert_eq!(ro.impedance_reference.as_deref(), Some("GND"));
+        assert_eq!(ro.impedance_uncoupled_nm, Some(3_000_000));
+        assert_eq!(ro.protect_mode, Some(crate::model::ProtectMode::Existing));
+        assert_eq!(ro.net_filters, vec!["A_P", "A_N", "!CLK*"]);
+    }
+
+    #[test]
+    fn cli_usage_exposes_only_m4_flags_and_rejects_unimplemented_m5_flags() {
+        for flag in [
+            "--diff-pairs",
+            "--pair-layers",
+            "--no-short-pair-deferral",
+            "--diff-pair-intra-match",
+            "--length-match-tolerance",
+            "--meander-amplitude",
+            "--length-match-group",
+            "--length-match-group-json",
+            "--group-match-tolerance",
+            "--group-delay-tolerance",
+            "--group-meander-amplitude",
+            "--group-meander-spacing",
+            "--pair-impedance",
+            "--impedance-tolerance",
+            "--impedance-reference",
+            "--impedance-uncoupled",
+            "--protect",
+            "--nets",
+        ] {
+            assert!(USAGE_MSG.contains(flag), "missing M4 flag {flag}");
+        }
+        for forbidden in ["--bus", "--ac-"] {
+            assert!(
+                !USAGE_MSG.contains(forbidden),
+                "M5 flag {forbidden} leaked into USAGE_MSG"
+            );
+        }
+        let m5_err = parse_cli_args(&[
+            OsString::from("src.kicad_pcb"),
+            OsString::from("out.kicad_pcb"),
+            OsString::from("--bus"),
+        ])
+        .unwrap_err();
+        assert!(m5_err.contains("unknown flag"));
     }
 }

@@ -1069,6 +1069,88 @@ def export_board(path: Path, rules: dict | None = None, max_expansions: int = 10
         return export_snapshot(snapshot, rules, max_expansions, limits)
 
 
+def _parse_pcb_stackup(body: bytes) -> list[dict]:
+    """Extract (setup (stackup (layer ...))) entries from a .kicad_pcb S-expression."""
+    text = body.decode('utf-8')
+    tokens = re.finditer(r'\(|\)|"(?:\\.|[^"\\])*"|[^\s()"]+', text)
+    stack: list[list] = []
+    root = None
+    for m in tokens:
+        tok = m.group()
+        if tok == '(':
+            stack.append([])
+        elif tok == ')':
+            if not stack:
+                break
+            node = stack.pop()
+            if stack:
+                stack[-1].append(node)
+            else:
+                root = node
+                break
+        else:
+            if tok.startswith('"') and tok.endswith('"') and len(tok) >= 2:
+                tok = bytes(tok[1:-1], 'utf-8').decode('unicode_escape')
+            if stack:
+                stack[-1].append(tok)
+    if not isinstance(root, list):
+        return []
+    setup = next((c for c in root if isinstance(c, list) and c and c[0] == 'setup'), None)
+    if setup is None:
+        return []
+    stackup_node = next((c for c in setup if isinstance(c, list) and c and c[0] == 'stackup'), None)
+    if stackup_node is None:
+        return []
+    out = []
+    for child in stackup_node[1:]:
+        if not isinstance(child, list) or len(child) < 2 or child[0] != 'layer':
+            continue
+        name = str(child[1])
+        kind = 'other'
+        thickness_nm = 0
+        epsilon_r = None
+        material = None
+        for sub in child[2:]:
+            if not isinstance(sub, list) or len(sub) < 2:
+                continue
+            key, val = sub[0], sub[1]
+            if key == 'type':
+                t_low = str(val).lower()
+                if t_low == 'copper':
+                    kind = 'copper'
+                elif t_low == 'core':
+                    kind = 'core'
+                elif t_low == 'prepreg':
+                    kind = 'prepreg'
+                elif 'mask' in t_low:
+                    kind = 'solder_mask'
+                else:
+                    kind = 'other'
+            elif key == 'thickness':
+                try:
+                    t_mm = float(val)
+                    if math.isfinite(t_mm) and t_mm >= 0:
+                        thickness_nm = int(round(t_mm * 1_000_000.0))
+                except (TypeError, ValueError):
+                    pass
+            elif key == 'epsilon_r':
+                try:
+                    er = float(val)
+                    if math.isfinite(er) and er > 0:
+                        epsilon_r = er
+                except (TypeError, ValueError):
+                    pass
+            elif key == 'material':
+                material = str(val)
+        entry = {'name': name, 'kind': kind, 'thickness_nm': thickness_nm}
+        if epsilon_r is not None:
+            entry['epsilon_r'] = epsilon_r
+        if material is not None:
+            entry['material'] = material
+        out.append(entry)
+    return out
+
+
 def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int = 100000,
                     limits: dict | None = None):
     if limits is not None and not isinstance(limits, dict):
@@ -1102,9 +1184,13 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     has_copper_zones = any(not z.GetIsRuleArea() for z in board.Zones())
     pads = []
     holes = []
+    components = []
     for footprint in board.GetFootprints():
         fp_clr = footprint.GetLocalClearance()
         fp_zc = footprint.GetLocalZoneConnection()
+        fp_ref = footprint.GetReference() or ''
+        fp_pad_nums = []
+        fp_net_ids = set()
         for pad in footprint.Pads():
             if pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
                 drill = _extract_drill_shape(pad, cu_layers)
@@ -1113,7 +1199,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 continue
             shape = pad_shape(pad, cu_layers)
             pad_layers = [board.GetLayerName(l) for l in pad.GetLayerSet().Seq() if l in cu_set]
-            entry = {'id': item_id(pad), 'net': int(pad.GetNetCode()),
+            pad_net = int(pad.GetNetCode())
+            entry = {'id': item_id(pad), 'net': pad_net,
                      'at': point(pad.GetPosition()), 'shape': shape}
             if pad_layers != ['F.Cu'] or len(layer_names) > 2:
                 entry['layers'] = pad_layers
@@ -1139,9 +1226,29 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 orient_mdeg = int(round(pad.GetOrientationDegrees() * 1000.0))
                 if orient_mdeg != 0:
                     entry['orientation_mdeg'] = orient_mdeg
+            pad_num = pad.GetNumber() or ''
+            if fp_ref:
+                entry['footprint_ref'] = fp_ref
+            if pad_num:
+                entry['pad_number'] = pad_num
+                fp_pad_nums.append(pad_num)
+            if fp_ref and pad_num:
+                entry['fromto_id'] = f'{fp_ref}-{pad_num}'
+            if pad_net != 0:
+                fp_net_ids.add(pad_net)
             pads.append(entry)
+        if fp_ref:
+            components.append({
+                'ref_des': fp_ref,
+                'dnp': bool(footprint.IsDNP()) if hasattr(footprint, 'IsDNP') else False,
+                'exclude_from_bom': bool(footprint.IsExcludedFromBOM()) if hasattr(footprint, 'IsExcludedFromBOM') else False,
+                'exclude_from_pos': bool(footprint.IsExcludedFromPosFiles()) if hasattr(footprint, 'IsExcludedFromPosFiles') else False,
+                'pad_numbers': fp_pad_nums,
+                'net_ids': sorted(fp_net_ids),
+            })
     pads.sort(key=lambda item: (item['net'], item['at'], item['id']))
     holes.sort(key=lambda item: (item['at'], item['id']))
+    components.sort(key=lambda item: (item['ref_des'], item['pad_numbers']))
 
     tracks = []
     vias = []
@@ -1310,7 +1417,9 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     nets = [{'id': int(code), 'name': net.GetNetname()}
             for code, net in board.GetNetsByNetcode().items()]
     nets.sort(key=lambda item: (item['id'], item['name']))
-    result = {'version': INPUT_VERSION, 'source_id': hashlib.sha256(read_bounded(path)).hexdigest(),
+    source_bytes = read_bounded(path)
+    stackup = _parse_pcb_stackup(source_bytes)
+    result = {'version': INPUT_VERSION, 'source_id': hashlib.sha256(source_bytes).hexdigest(),
               'layer': 'F.Cu', 'layers': layer_names, 'bounds': bounds,
               'nets': nets, 'pads': pads, 'tracks': tracks, 'max_expansions': max_expansions}
     if rules is not None:
@@ -1350,6 +1459,46 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         bds['default_via_drill_nm'] = max(0, int(default_nc.GetViaDrill()))
         bds['default_microvia_diameter_nm'] = max(0, int(default_nc.GetuViaDiameter()))
         bds['default_microvia_drill_nm'] = max(0, int(default_nc.GetuViaDrill()))
+    if net_settings is not None:
+        nc_items = []
+        seen_nc = set()
+        candidates = ([default_nc] if default_nc is not None else []) + [
+            nc for _, nc in sorted(net_settings.GetNetclasses().items())
+        ]
+        for nc in candidates:
+            nc_name = nc.GetName()
+            if not nc_name or nc_name in seen_nc:
+                continue
+            seen_nc.add(nc_name)
+            tp = nc.GetTuningProfile() if hasattr(nc, 'GetTuningProfile') else ''
+            nc_obj = {
+                'name': nc_name,
+                'priority': int(nc.GetPriority()) if hasattr(nc, 'GetPriority') else (2147483647 if nc_name == 'Default' else 0),
+                'clearance_nm': max(0, int(nc.GetClearance())),
+                'track_width_nm': max(0, int(nc.GetTrackWidth())),
+                'via_diameter_nm': max(0, int(nc.GetViaDiameter())),
+                'via_drill_nm': max(0, int(nc.GetViaDrill())),
+                'microvia_diameter_nm': max(0, int(nc.GetuViaDiameter())),
+                'microvia_drill_nm': max(0, int(nc.GetuViaDrill())),
+                'diff_pair_width_nm': max(0, int(nc.GetDiffPairWidth())),
+                'diff_pair_gap_nm': max(0, int(nc.GetDiffPairGap())),
+                'diff_pair_via_gap_nm': max(0, int(nc.GetDiffPairViaGap())),
+            }
+            if tp:
+                nc_obj['tuning_profile'] = tp
+            nc_items.append(nc_obj)
+        if nc_items:
+            bds['netclasses'] = nc_items
+        nc_assign = {}
+        for code, net in board.GetNetsByNetcode().items():
+            if code > 0:
+                nc_name = net.GetNetClassName()
+                if nc_name and nc_name != 'Default':
+                    nc_assign[net.GetNetname()] = [nc_name]
+        if nc_assign:
+            bds['netclass_assignments'] = nc_assign
+    if hasattr(settings, 'm_UseHeightForLengthCalcs'):
+        bds['use_height_for_length_calcs'] = bool(settings.m_UseHeightForLengthCalcs)
     pro_sidecar = path.with_suffix('.kicad_pro')
     pro_text = read_bounded(pro_sidecar).decode('utf-8') if pro_sidecar.is_file() else None
     pro_min_spokes = None
@@ -1384,6 +1533,10 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         result['graphics'] = graphics
     if mask_apertures:
         result['mask_apertures'] = mask_apertures
+    if components:
+        result['components'] = components
+    if stackup:
+        result['stackup'] = stackup
     # Resource policy and defaults belong to Rust. Preserve supplied limits
     # exactly; omitting them retains the existing input contract.
     if limits is not None:

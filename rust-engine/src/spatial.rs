@@ -1610,6 +1610,9 @@ mod tests {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             });
             input.tracks.push(Track {
                 id: format!("20000000-0000-4000-8000-{n:012x}"),
@@ -1759,6 +1762,9 @@ mod tests {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         };
         for i in 0..20 {
             let x = ((next_u64() % 31) as i64 - 15) * 10;
@@ -1776,6 +1782,9 @@ mod tests {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             });
         }
         let mut engine = Engine::new(input).unwrap();

@@ -24,6 +24,9 @@ fn fixture() -> Input {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             });
         }
     }
@@ -81,6 +84,9 @@ fn fixture() -> Input {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     }
 }
 fn bytes(copper: &CopperStore) -> Vec<u8> {

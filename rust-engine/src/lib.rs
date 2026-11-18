@@ -2,6 +2,7 @@ pub mod identity;
 pub use identity::{input_request_sha256, request_sha256};
 mod budget;
 mod components;
+pub mod diff_pair;
 pub mod geometry;
 pub mod model;
 pub mod orchestration;
