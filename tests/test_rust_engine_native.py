@@ -2434,3 +2434,52 @@ def test_m3_3_native_route_and_pour_integrity_checks(guarded_cli, tmp_path):
             ref, cand, area_loss_pct=10.0, min_spokes=2,
         )
         assert ok is False and any(f['kind'] == kind for f in failures), (kind, failures)
+
+
+def test_m3_3_extract_pour_facts_unions_overlapping_unnamed_zones(tmp_path):
+    board = pcbnew.BOARD()
+    board.Add(pcbnew.NETINFO_ITEM(board, 'GND', 1))
+    for a, b in zip([(0, 0), (24000000, 0), (24000000, 20000000), (0, 20000000)],
+                    [(24000000, 0), (24000000, 20000000), (0, 20000000), (0, 0)]):
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50000)
+        board.Add(edge)
+    for idx, x in enumerate((4000000, 20000000), 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(x, 10000000))
+        board.Add(fp)
+        p = pcbnew.PAD(fp)
+        p.SetNumber('1')
+        p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        p.SetShape(pcbnew.PAD_SHAPE_RECT)
+        p.SetSize(pcbnew.VECTOR2I(1500000, 1500000))
+        p.SetPosition(pcbnew.VECTOR2I(x, 10000000))
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        p.SetLayerSet(ls)
+        p.SetNetCode(1)
+        fp.Add(p)
+    # Two overlapping unnamed copper zones on GND@F.Cu, each covering only one pad
+    for x0, x1 in ((2000000, 14000000), (10000000, 22000000)):
+        z = pcbnew.ZONE(board)
+        z.SetLayer(pcbnew.F_Cu)
+        z.SetNetCode(1)
+        z.SetIsRuleArea(False)
+        z.SetZoneName('')
+        _add_rect_outline(z.Outline(), x0, 4000000, x1, 16000000)
+        board.Add(z)
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+    bpath = tmp_path / 'unnamed_overlap.kicad_pcb'
+    assert pcbnew.SaveBoard(str(bpath), board)
+
+    facts = bridge._extract_pour_facts(bpath)
+    layer = facts['layers']['GND@F.Cu']
+    assert layer['polygons'] == 2
+    assert layer['islands_off_main'] == 0, layer
+    assert facts['pads']['J1.1@F.Cu']['in_main'] is True
+    assert facts['pads']['J2.1@F.Cu']['in_main'] is True

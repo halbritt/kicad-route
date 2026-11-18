@@ -3869,3 +3869,349 @@ fn m3_3_dru_zone_clearance_hatched_unsupported_and_input1_sha256_compat() {
     assert_eq!(r1, r2);
     assert_eq!(e1.work_used(), e2.work_used());
 }
+
+#[test]
+fn m3_3_off_grid_pad_2layer_does_not_emit_unconnected_track_from_via_only_seed() {
+    let mut inp = base();
+    inp.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    inp.bounds = Bounds {
+        min: [-1_000_000, -1_000_000],
+        max: [4_000_000, 1_000_000],
+    };
+    inp.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 150_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    let mut p1 = pad(1, 1, [200_000, 0]);
+    p1.shape = Shape::Circle { radius_nm: 100_000 };
+    let mut p2 = pad(2, 1, [2_000_000, 0]);
+    p2.shape = Shape::Circle { radius_nm: 100_000 };
+    inp.pads = vec![p1, p2];
+    let out = run(inp.clone());
+    assert_eq!(
+        out.status,
+        Status::Complete,
+        "2L off-grid pad routing regressed: {out:?}"
+    );
+    assert!(!out.added_tracks.is_empty());
+    assert!(out
+        .added_tracks
+        .iter()
+        .any(|t| track_connects_pad(t, &inp.pads[0])));
+    assert!(
+        out.added_tracks
+            .iter()
+            .any(|t| track_connects_pad(t, &inp.pads[1]))
+            || out
+                .added_vias
+                .iter()
+                .any(|v| via_connects_pad(v, &inp.pads[1])),
+        "route did not reach pad 2: tracks={:?} vias={:?}",
+        out.added_tracks,
+        out.added_vias
+    );
+
+    let mut reload = inp.clone();
+    reload.tracks.extend(out.added_tracks);
+    reload.vias.extend(out.added_vias);
+    let out2 = run(reload);
+    assert_eq!(out2.status, Status::Complete);
+    assert!(out2.added_tracks.is_empty());
+    assert!(out2.added_vias.is_empty());
+
+    // Also verify [200_000, 0] -> [2_000_000, 0] with via_cost=4 connects both pads via added_tracks with 0 vias
+    let mut vc_inp = inp.clone();
+    let mut eff =
+        kicad_route_engine::rules::EffectiveRules::from_uniform_rules(vc_inp.rules, &vc_inp.nets);
+    eff.via_cost = 4;
+    vc_inp.effective_rules = Some(eff);
+    let vc_out = run(vc_inp.clone());
+    assert_eq!(vc_out.status, Status::Complete);
+    assert!(vc_out.added_vias.is_empty());
+    assert!(vc_out
+        .added_tracks
+        .iter()
+        .any(|t| track_connects_pad(t, &vc_inp.pads[0])));
+    assert!(vc_out
+        .added_tracks
+        .iter()
+        .any(|t| track_connects_pad(t, &vc_inp.pads[1])));
+
+    // Also verify [200_000, 0] -> [2_200_000, 0] connects both pads directly on F.Cu
+    let mut direct_inp = inp;
+    direct_inp.pads[1].at = [2_200_000, 0];
+    let direct_out = run(direct_inp.clone());
+    assert_eq!(direct_out.status, Status::Complete);
+    assert!(direct_out
+        .added_tracks
+        .iter()
+        .any(|t| track_connects_pad(t, &direct_inp.pads[0])));
+    assert!(direct_out
+        .added_tracks
+        .iter()
+        .any(|t| track_connects_pad(t, &direct_inp.pads[1])));
+}
+
+#[test]
+fn m3_3_via_only_anchor_outside_keepout_places_via_before_track() {
+    let mut inp = base();
+    inp.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    inp.bounds = Bounds {
+        min: [-1_000_000, -1_000_000],
+        max: [4_000_000, 1_000_000],
+    };
+    inp.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 150_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    let mut p1 = pad(1, 1, [200_000, 0]);
+    p1.layers = vec!["F.Cu".into()];
+    p1.shape = Shape::Circle { radius_nm: 100_000 };
+    let mut p2 = pad(2, 1, [2_000_000, 0]);
+    p2.layers = vec!["B.Cu".into()];
+    p2.shape = Shape::Circle { radius_nm: 100_000 };
+    inp.pads = vec![p1, p2];
+    inp.rule_areas = vec![RuleArea {
+        id: id(95),
+        name: None,
+        layers: vec!["F.Cu".into()],
+        outer: vec![
+            [-500_000, -500_000],
+            [350_000, -500_000],
+            [350_000, 500_000],
+            [-500_000, 500_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: false,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    }];
+    // Also add microvia smaller than through-via so microvia at [500_000, 0] does NOT touch p1
+    inp.project_rules = Some(
+        serde_json::json!({
+            "meta": {"version": 3},
+            "board": {
+                "design_settings": {
+                    "rules": {
+                        "allow_microvias": true,
+                        "microvia_diameter_nm": 300_000,
+                        "microvia_drill_nm": 100_000,
+                        "via_diameter_nm": 600_000,
+                        "via_drill_nm": 300_000
+                    }
+                }
+            }
+        })
+        .to_string(),
+    );
+    let out = run(inp.clone());
+    assert_eq!(
+        out.status,
+        Status::Complete,
+        "keepout anchor failed: {out:?}"
+    );
+    assert_eq!(out.added_vias.len(), 1, "expected 1 via: {out:?}");
+    assert_eq!(out.added_vias[0].at, [500_000, 0]);
+    assert_eq!(out.added_vias[0].kind, ViaKind::Through);
+    assert!(
+        out.added_tracks.iter().all(|t| t.layer == "B.Cu"),
+        "unexpected non-B.Cu track: {:?}",
+        out.added_tracks
+    );
+    assert!(out
+        .added_tracks
+        .iter()
+        .any(|t| track_connects_via(t, &out.added_vias[0])));
+    assert!(out
+        .added_tracks
+        .iter()
+        .any(|t| track_connects_pad(t, &inp.pads[1])));
+}
+
+#[test]
+fn m3_3_zone_fill_connects_pad_odd_box_exact_and_thin_capsule_boundaries() {
+    let fill_x_le_0 = vec![[-100, -100], [0, -100], [0, 100], [-100, 100]];
+    let fill_x_le_1 = vec![[-100, -100], [1, -100], [1, 100], [-100, 100]];
+    let fill_all = vec![[-100, -100], [100, -100], [100, 100], [-100, 100]];
+
+    let mut box_1x1 = pad(1, 1, [0, 0]);
+    box_1x1.shape = Shape::BoxExact {
+        center_2x: [1, 1],
+        half_size_2x: [1, 1],
+        radius_2x: 0,
+    };
+    assert!(!zone_fill_connects_pad(&fill_x_le_0, &[], &box_1x1));
+    assert!(!zone_fill_connects_pad(&fill_all, &[], &box_1x1));
+
+    let mut box_2x2 = pad(2, 1, [0, 0]);
+    box_2x2.shape = Shape::BoxExact {
+        center_2x: [1, 1],
+        half_size_2x: [2, 2],
+        radius_2x: 0,
+    };
+    assert!(!zone_fill_connects_pad(&fill_x_le_0, &[], &box_2x2));
+    assert!(zone_fill_connects_pad(&fill_x_le_1, &[], &box_2x2));
+
+    let mut box_2x2_round = pad(3, 1, [0, 0]);
+    box_2x2_round.shape = Shape::BoxExact {
+        center_2x: [1, 1],
+        half_size_2x: [2, 2],
+        radius_2x: 2,
+    };
+    assert!(!zone_fill_connects_pad(&fill_x_le_0, &[], &box_2x2_round));
+    assert!(zone_fill_connects_pad(&fill_all, &[], &box_2x2_round));
+
+    let mut thin_cap = pad(4, 1, [0, 0]);
+    thin_cap.shape = Shape::Capsule {
+        start_nm: [0, 0],
+        end_nm: [10, 0],
+        width_nm: 1,
+    };
+    assert!(!zone_fill_connects_pad(&fill_all, &[], &thin_cap));
+
+    let mut thin_cap_2 = pad(5, 1, [0, 0]);
+    thin_cap_2.shape = Shape::Capsule {
+        start_nm: [0, 0],
+        end_nm: [10, 0],
+        width_nm: 2,
+    };
+    assert!(zone_fill_connects_pad(&fill_all, &[], &thin_cap_2));
+
+    let mut zero_circle = pad(6, 1, [0, 0]);
+    zero_circle.shape = Shape::Circle { radius_nm: 0 };
+    assert!(!zone_fill_connects_pad(&fill_all, &[], &zero_circle));
+}
+
+#[test]
+fn m3_3_spoke_corridor_avoids_foreign_hole_and_graphic() {
+    let mut inp = base();
+    inp.bounds = Bounds {
+        min: [0, 0],
+        max: [12_000_000, 10_000_000],
+    };
+    inp.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 200_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 0,
+        hole_clearance_nm: 200_000,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    inp.nets = vec![
+        Net {
+            id: 1,
+            name: "SIG".into(),
+        },
+        Net {
+            id: 2,
+            name: "GND".into(),
+        },
+    ];
+    let mut p1 = pad(1, 1, [1_000_000, 6_000_000]);
+    p1.shape = Shape::Circle { radius_nm: 300_000 };
+    let mut p2 = pad(2, 1, [11_000_000, 6_000_000]);
+    p2.shape = Shape::Circle { radius_nm: 300_000 };
+    let mut gnd_pad = pad(3, 2, [6_000_000, 5_000_000]);
+    gnd_pad.shape = Shape::Rect {
+        half_size_nm: [600_000, 600_000],
+    };
+    inp.pads = vec![p1, p2, gnd_pad];
+    inp.zones = vec![m3_3_zone(
+        80,
+        2,
+        "F.Cu",
+        vec![
+            [3_000_000, 0],
+            [9_000_000, 0],
+            [9_000_000, 10_000_000],
+            [3_000_000, 10_000_000],
+        ],
+        true,
+        true,
+    )];
+    // Block k=0 (-y = [6_000_000, 4_200_000]) with an NPTH hole and k=1 (-x = [5_200_000, 5_000_000])
+    // with a foreign graphic, forcing min_resolved_spokes=2 to protect k=2 (+y = south, up to y=6_005_000)
+    // and k=3 (+x = east). Force SIG through y=6_000_000 (the k=2 spoke corridor) via keepouts.
+    inp.holes = vec![Hole {
+        id: id(83),
+        net: 0,
+        at: [6_000_000, 4_000_000],
+        shape: DrillShape::Circle {
+            diameter_nm: 300_000,
+        },
+    }];
+    inp.graphics = vec![CopperGraphic {
+        id: id(84),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Segment {
+            start: [5_000_000, 4_700_000],
+            end: [5_000_000, 5_300_000],
+            width_nm: 200_000,
+        },
+    }];
+    inp.rule_areas = vec![
+        RuleArea {
+            id: id(85),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [3_000_000, 0],
+                [9_000_000, 0],
+                [9_000_000, 5_800_000],
+                [3_000_000, 5_800_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+        RuleArea {
+            id: id(86),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [3_000_000, 6_200_000],
+                [9_000_000, 6_200_000],
+                [9_000_000, 10_000_000],
+                [3_000_000, 10_000_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+    ];
+    // With k=0 & k=1 skipped due to hole/graphic conflict, k=2 (+y spoke) IS protected and blocks SIG at y=6_000_000.
+    assert_eq!(run(inp.clone()).status, Status::Unroutable);
+    // Without the hole & graphic, k=0 and k=1 take the 2 slots so k=2 is unprotected and SIG routes at y=6_000_000.
+    inp.holes.clear();
+    inp.graphics.clear();
+    assert_eq!(run(inp).status, Status::Complete);
+}

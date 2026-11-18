@@ -27,6 +27,7 @@ struct State {
     direction: u8,
     arrived_by_via: bool,
     is_via_goal: bool,
+    via_only: bool,
     via_history: u32,
     via_count: u16,
     track_via_blocked: u32,
@@ -279,7 +280,8 @@ pub(crate) fn join_components(
     let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
     let via_cost = engine.effective_rules.via_cost.max(1);
-    let mut starts: BTreeSet<(Point, u8)> = BTreeSet::new();
+    let mut track_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
+    let mut via_only_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
     let mut via_seed_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     for c in source {
         engine.work.charge(1)?;
@@ -298,7 +300,7 @@ pub(crate) fn join_components(
             for &p in &anchors {
                 engine.work.charge(1)?;
                 let key = (p, l_idx as u8);
-                let mut seed_ok = false;
+                let mut track_ok = false;
                 if let Some(width_nm) = width_opt {
                     if engine.legal_edge_on(net, l_idx, p, p)? {
                         let probe = Track {
@@ -312,13 +314,25 @@ pub(crate) fn join_components(
                         };
                         for s in source {
                             if s.touches_route(&probe, stackup, &engine.work)? {
-                                seed_ok = true;
+                                track_ok = true;
                                 break;
                             }
                         }
                     }
                 }
-                if !seed_ok && l_count > 1 && !starts.contains(&key) {
+                if track_ok {
+                    via_only_starts.remove(&key);
+                    engine.work.search_storage(
+                        track_starts.len()
+                            + via_only_starts.len()
+                            + usize::from(!track_starts.contains(&key)),
+                    )?;
+                    track_starts.insert(key);
+                } else if l_count > 1
+                    && !track_starts.contains(&key)
+                    && !via_only_starts.contains(&key)
+                {
+                    let mut via_ok = false;
                     via_seed_buf.clear();
                     push_legal_via_transitions(
                         engine,
@@ -356,23 +370,23 @@ pub(crate) fn join_components(
                                 if (s.layer_mask(stackup) & (1u32 << l_idx)) != 0
                                     && s.touches_via(&probe_via, stackup, &engine.work)?
                                 {
-                                    seed_ok = true;
+                                    via_ok = true;
                                     break 'via_seed;
                                 }
                             }
                         }
                     }
-                }
-                if seed_ok {
-                    engine
-                        .work
-                        .search_storage(starts.len() + usize::from(!starts.contains(&key)))?;
-                    starts.insert(key);
+                    if via_ok {
+                        engine
+                            .work
+                            .search_storage(track_starts.len() + via_only_starts.len() + 1)?;
+                        via_only_starts.insert(key);
+                    }
                 }
             }
         }
     }
-    if starts.is_empty() {
+    if track_starts.is_empty() && via_only_starts.is_empty() {
         let mut failure = Failure::new(
             Status::Unroutable,
             "component has no legal pad-center or incumbent-endpoint search seed",
@@ -460,7 +474,13 @@ pub(crate) fn join_components(
     );
     let conflict_radius_sq_upper = conflict_radius_upper * conflict_radius_upper;
 
-    let start_vec: Vec<(Point, u8)> = starts.into_iter().collect();
+    let mut start_vec: Vec<(Point, u8, bool)> = track_starts
+        .iter()
+        .map(|&(p, l)| (p, l, false))
+        .chain(via_only_starts.iter().map(|&(p, l)| (p, l, true)))
+        .collect();
+    start_vec.sort_unstable();
+    let bwd_starts: Vec<(Point, u8)> = start_vec.iter().map(|&(p, l, _)| (p, l)).collect();
     let has_zone_target = targets
         .iter()
         .flatten()
@@ -603,7 +623,7 @@ pub(crate) fn join_components(
                 }
                 Ok(None)
             },
-            |at, layer_idx, prior_vias, prior_via_count, out| {
+            |at, layer_idx, prior_vias, prior_via_count, via_only, out| {
                 if l_count < 2 {
                     return Ok(());
                 }
@@ -614,7 +634,52 @@ pub(crate) fn join_components(
                         return Ok(());
                     }
                 }
-                push_legal_via_transitions(engine, net, at, layer_idx, via_cost, prior_vias, out)
+                push_legal_via_transitions(engine, net, at, layer_idx, via_cost, prior_vias, out)?;
+                if via_only {
+                    let mut write = 0usize;
+                    for read in 0..out.len() {
+                        let entry = out[read];
+                        let (_, pv, _) = entry;
+                        let kind = match pv.kind {
+                            0 => ViaKind::Through,
+                            1 => ViaKind::BlindBuried,
+                            _ => ViaKind::Micro,
+                        };
+                        let span_layers = &stackup[pv.start_layer as usize..=pv.end_layer as usize];
+                        let mut touches = false;
+                        if let Ok((diam, drill)) = engine.effective_rules.via_dims_for(
+                            net,
+                            kind == ViaKind::Micro,
+                            span_layers,
+                        ) {
+                            let probe_via = Via {
+                                id: String::new(),
+                                net,
+                                at,
+                                diameter_nm: diam,
+                                drill_nm: drill,
+                                start_layer: stackup[pv.start_layer as usize].clone(),
+                                end_layer: stackup[pv.end_layer as usize].clone(),
+                                kind,
+                                locked: false,
+                            };
+                            for s in source {
+                                if (s.layer_mask(stackup) & (1u32 << layer_idx)) != 0
+                                    && s.touches_via(&probe_via, stackup, &engine.work)?
+                                {
+                                    touches = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if touches {
+                            out[write] = entry;
+                            write += 1;
+                        }
+                    }
+                    out.truncate(write);
+                }
+                Ok(())
             },
             |at, layer_idx, edge| {
                 let Some(prev_edge) = edge else {
@@ -712,7 +777,7 @@ pub(crate) fn join_components(
                         let bwd = compute_backward_heuristic(
                             engine,
                             net,
-                            &start_vec,
+                            &bwd_starts,
                             targets,
                             max_eff_width,
                             via_cost,
@@ -1272,7 +1337,7 @@ fn walk(
     advance: impl Fn(Option<Point>, Point, Point) -> Result<Option<Point>, Failure>,
     finished: impl Fn(Point, Option<Point>) -> Result<bool, Failure>,
 ) -> Result<Path, Failure> {
-    let start_vec: Vec<(Point, u8)> = starts.iter().map(|&p| (p, 0)).collect();
+    let start_vec: Vec<(Point, u8, bool)> = starts.iter().map(|&p| (p, 0, false)).collect();
     let empty_filter = ConflictFilter::default();
     walk_multilayer(
         engine,
@@ -1286,7 +1351,7 @@ fn walk(
         &[],
         |p, _| heuristic(p),
         |_, rs, a, b, _| advance(rs, a, b),
-        |_, _, _, _, _| Ok(()),
+        |_, _, _, _, _, _| Ok(()),
         |at, _, edge| {
             let prev = match edge {
                 Some(PathEdge::Track { start, .. }) => Some(start),
@@ -1302,7 +1367,7 @@ fn walk(
 fn walk_multilayer(
     engine: &Engine,
     net: u32,
-    starts: &[(Point, u8)],
+    starts: &[(Point, u8, bool)],
     limit: u64,
     expanded: &mut u64,
     track_direction_matters: bool,
@@ -1322,6 +1387,7 @@ fn walk_multilayer(
         usize,
         &[PlacedViaKey],
         u16,
+        bool,
         &mut Vec<(u8, PlacedViaKey, u64)>,
     ) -> Result<(), Failure>,
     finished: impl Fn(Point, usize, Option<PathEdge>) -> Result<bool, Failure>,
@@ -1332,10 +1398,10 @@ fn walk_multilayer(
     let mut tv_arena = TrackViaBlockedArena::new();
     let mut queue = BinaryHeap::new();
     let mut best: HashMap<State, u64> = HashMap::new();
-    let mut settled_by_pos: HashMap<(Point, u8, u8, bool, bool), Vec<(u32, u32, u16, u64)>> =
+    let mut settled_by_pos: HashMap<(Point, u8, u8, bool, bool, bool), Vec<(u32, u32, u16, u64)>> =
         HashMap::new();
     let mut parent: HashMap<State, (State, PathEdge)> = HashMap::new();
-    for &(at, layer) in starts {
+    for &(at, layer, via_only) in starts {
         engine.work.search_storage(
             queue.len() + best.len() + parent.len() + via_arena.total_len + tv_arena.total_len + 2,
         )?;
@@ -1346,6 +1412,7 @@ fn walk_multilayer(
             direction: 4,
             arrived_by_via: false,
             is_via_goal: false,
+            via_only,
             via_history: 0,
             via_count: 0,
             track_via_blocked: 0,
@@ -1356,7 +1423,7 @@ fn walk_multilayer(
     }
 
     let is_dominated_by_settled =
-        |settled: &HashMap<(Point, u8, u8, bool, bool), Vec<(u32, u32, u16, u64)>>,
+        |settled: &HashMap<(Point, u8, u8, bool, bool, bool), Vec<(u32, u32, u16, u64)>>,
          arena: &ViaHistoryArena,
          tv_arena: &TrackViaBlockedArena,
          cand: State,
@@ -1369,6 +1436,7 @@ fn walk_multilayer(
                 cand.direction,
                 cand.arrived_by_via,
                 cand.is_via_goal,
+                cand.via_only,
             )) {
                 for &(v1, tvb1, vc1, g1) in list {
                     work.charge(1)?;
@@ -1415,6 +1483,7 @@ fn walk_multilayer(
                 state.direction,
                 state.arrived_by_via,
                 state.is_via_goal,
+                state.via_only,
             ))
             .or_default()
             .push((
@@ -1425,11 +1494,12 @@ fn walk_multilayer(
             ));
 
         if state.is_via_goal
-            || finished(
-                state.at,
-                state.layer as usize,
-                parent.get(&state).map(|(_, e)| *e),
-            )?
+            || (!state.via_only
+                && finished(
+                    state.at,
+                    state.layer as usize,
+                    parent.get(&state).map(|(_, e)| *e),
+                )?)
         {
             engine.work.charge(1)?;
             let mut edges = Vec::new();
@@ -1505,126 +1575,129 @@ fn walk_multilayer(
             0
         };
 
-        for (direction, delta) in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]]
-            .iter()
-            .enumerate()
-        {
-            engine.work.charge(1)?;
-            let Some(x) = state.at[0].checked_add(delta[0]) else {
-                continue;
-            };
-            let Some(y) = state.at[1].checked_add(delta[1]) else {
-                continue;
-            };
-            let is_continuing = direction as u8 == state.direction;
-            let run_start = if is_continuing { state_run_start } else { None };
-            let Some(at) = advance(
-                state.layer as usize,
-                run_start,
-                state.at,
-                [x, y],
-                via_arena.get(state.via_history),
-            )?
-            else {
-                continue;
-            };
-            let next_tvb = if !track_via_conflicts.is_empty() && net != 0 {
-                let (base_tvb, seg_start) = if is_continuing {
-                    (state.track_via_blocked, state_run_start.unwrap_or(state.at))
-                } else {
-                    (base_turned_blocked, state.at)
+        if !state.via_only {
+            for (direction, delta) in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]]
+                .iter()
+                .enumerate()
+            {
+                engine.work.charge(1)?;
+                let Some(x) = state.at[0].checked_add(delta[0]) else {
+                    continue;
                 };
-                let mut add: Vec<u16> = Vec::new();
-                for (idx, &cv) in track_via_conflicts.iter().enumerate() {
-                    let idx_u16 = u16::try_from(idx).map_err(|_| {
-                        Failure::new(
-                            Status::BudgetExhausted,
-                            "track-via conflict set exceeds u16 capacity",
-                        )
-                    })?;
-                    if tv_arena.contains(base_tvb, idx_u16) {
-                        continue;
+                let Some(y) = state.at[1].checked_add(delta[1]) else {
+                    continue;
+                };
+                let is_continuing = direction as u8 == state.direction;
+                let run_start = if is_continuing { state_run_start } else { None };
+                let Some(at) = advance(
+                    state.layer as usize,
+                    run_start,
+                    state.at,
+                    [x, y],
+                    via_arena.get(state.via_history),
+                )?
+                else {
+                    continue;
+                };
+                let next_tvb = if !track_via_conflicts.is_empty() && net != 0 {
+                    let (base_tvb, seg_start) = if is_continuing {
+                        (state.track_via_blocked, state_run_start.unwrap_or(state.at))
+                    } else {
+                        (base_turned_blocked, state.at)
+                    };
+                    let mut add: Vec<u16> = Vec::new();
+                    for (idx, &cv) in track_via_conflicts.iter().enumerate() {
+                        let idx_u16 = u16::try_from(idx).map_err(|_| {
+                            Failure::new(
+                                Status::BudgetExhausted,
+                                "track-via conflict set exceeds u16 capacity",
+                            )
+                        })?;
+                        if tv_arena.contains(base_tvb, idx_u16) {
+                            continue;
+                        }
+                        if state.layer < cv.start_layer || state.layer > cv.end_layer {
+                            continue;
+                        }
+                        let dot = i128::from(cv.at[0] - at[0]) * i128::from(delta[0])
+                            + i128::from(cv.at[1] - at[1]) * i128::from(delta[1]);
+                        if dot <= 0
+                            && !engine.edge_clears_same_net_vias(
+                                net,
+                                state.layer as usize,
+                                seg_start,
+                                at,
+                                &[cv],
+                            )?
+                        {
+                            add.push(idx_u16);
+                        }
                     }
-                    if state.layer < cv.start_layer || state.layer > cv.end_layer {
-                        continue;
-                    }
-                    let dot = i128::from(cv.at[0] - at[0]) * i128::from(delta[0])
-                        + i128::from(cv.at[1] - at[1]) * i128::from(delta[1]);
-                    if dot <= 0
-                        && !engine.edge_clears_same_net_vias(
-                            net,
-                            state.layer as usize,
-                            seg_start,
-                            at,
-                            &[cv],
-                        )?
-                    {
-                        add.push(idx_u16);
-                    }
+                    tv_arena.insert_all(base_tvb, &add)
+                } else {
+                    0
+                };
+                let next_dir = if track_direction_matters {
+                    direction as u8
+                } else {
+                    4
+                };
+                let next = State {
+                    at,
+                    layer: state.layer,
+                    direction: next_dir,
+                    arrived_by_via: false,
+                    is_via_goal: false,
+                    via_only: false,
+                    via_history: state.via_history,
+                    via_count: state.via_count,
+                    track_via_blocked: next_tvb,
+                };
+                let g = cost.checked_add(1).expect("bounded search cost");
+                if best.get(&next).is_some_and(|old| *old <= g) {
+                    continue;
                 }
-                tv_arena.insert_all(base_tvb, &add)
-            } else {
-                0
-            };
-            let next_dir = if track_direction_matters {
-                direction as u8
-            } else {
-                4
-            };
-            let next = State {
-                at,
-                layer: state.layer,
-                direction: next_dir,
-                arrived_by_via: false,
-                is_via_goal: false,
-                via_history: state.via_history,
-                via_count: state.via_count,
-                track_via_blocked: next_tvb,
-            };
-            let g = cost.checked_add(1).expect("bounded search cost");
-            if best.get(&next).is_some_and(|old| *old <= g) {
-                continue;
+                if is_dominated_by_settled(
+                    &settled_by_pos,
+                    &via_arena,
+                    &tv_arena,
+                    next,
+                    g,
+                    &engine.work,
+                )? {
+                    continue;
+                }
+                let extra = 1
+                    + usize::from(!best.contains_key(&next))
+                    + usize::from(!parent.contains_key(&next));
+                engine.work.search_storage(
+                    queue.len()
+                        + best.len()
+                        + parent.len()
+                        + via_arena.total_len
+                        + tv_arena.total_len
+                        + extra,
+                )?;
+                engine.work.charge(1)?;
+                best.insert(next, g);
+                parent.insert(
+                    next,
+                    (
+                        state,
+                        PathEdge::Track {
+                            start: state.at,
+                            end: at,
+                            layer: state.layer,
+                        },
+                    ),
+                );
+                let h = heuristic(next.at, next.layer as usize)?;
+                queue.push(Reverse((
+                    g.checked_add(h).expect("bounded heuristic"),
+                    g,
+                    next,
+                )));
             }
-            if is_dominated_by_settled(
-                &settled_by_pos,
-                &via_arena,
-                &tv_arena,
-                next,
-                g,
-                &engine.work,
-            )? {
-                continue;
-            }
-            let extra = 1
-                + usize::from(!best.contains_key(&next))
-                + usize::from(!parent.contains_key(&next));
-            engine.work.search_storage(
-                queue.len()
-                    + best.len()
-                    + parent.len()
-                    + via_arena.total_len
-                    + tv_arena.total_len
-                    + extra,
-            )?;
-            engine.work.charge(1)?;
-            best.insert(next, g);
-            parent.insert(
-                next,
-                (
-                    state,
-                    PathEdge::Track {
-                        start: state.at,
-                        end: at,
-                        layer: state.layer,
-                    },
-                ),
-            );
-            let h = heuristic(next.at, next.layer as usize)?;
-            queue.push(Reverse((
-                g.checked_add(h).expect("bounded heuristic"),
-                g,
-                next,
-            )));
         }
 
         via_buf.clear();
@@ -1633,6 +1706,7 @@ fn walk_multilayer(
             state.layer as usize,
             via_arena.get(state.via_history),
             state.via_count,
+            state.via_only,
             &mut via_buf,
         )?;
         for &(target_layer, pv, v_cost) in &via_buf {
@@ -1668,6 +1742,7 @@ fn walk_multilayer(
                 direction: 4,
                 arrived_by_via: l_count > 1,
                 is_via_goal: is_goal,
+                via_only: false,
                 via_history: next_vh,
                 via_count: next_vc,
                 track_via_blocked: base_turned_blocked,

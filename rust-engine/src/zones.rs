@@ -2,7 +2,8 @@
 use crate::{
     geometry,
     model::{
-        Input, OutlinePolygon, Pad, PadZoneConnection, Point, Shape, Zone, ZoneConnection, MAX_NM,
+        DrillShape, GraphicShape, Input, OutlinePolygon, Pad, PadZoneConnection, Point, Shape,
+        Zone, ZoneConnection, MAX_NM,
     },
     rules::{DruItemKind, EffectiveRules},
 };
@@ -79,9 +80,35 @@ fn pad_min_side_nm(pad: &Pad) -> i64 {
             vertices,
             radius_nm,
         } => {
-            let (lo, hi) = pad.copper_bounds();
-            let _ = (vertices, radius_nm);
-            (hi[0] - lo[0]).min(hi[1] - lo[1])
+            if vertices.len() < 3 {
+                let (lo, hi) = pad.copper_bounds();
+                return (hi[0] - lo[0]).min(hi[1] - lo[1]);
+            }
+            let n = vertices.len();
+            let mut min_w = f64::INFINITY;
+            for i in 0..n {
+                let dx = (vertices[(i + 1) % n][0] - vertices[i][0]) as f64;
+                let dy = (vertices[(i + 1) % n][1] - vertices[i][1]) as f64;
+                let len = (dx * dx + dy * dy).sqrt();
+                if len < 1e-9 {
+                    continue;
+                }
+                let (nx, ny) = (-dy / len, dx / len);
+                let mut lo = f64::INFINITY;
+                let mut hi = f64::NEG_INFINITY;
+                for v in vertices {
+                    let p = v[0] as f64 * nx + v[1] as f64 * ny;
+                    lo = lo.min(p);
+                    hi = hi.max(p);
+                }
+                min_w = min_w.min(hi - lo + 2.0 * (*radius_nm as f64));
+            }
+            if min_w.is_finite() {
+                min_w.floor().max(0.0) as i64
+            } else {
+                let (lo, hi) = pad.copper_bounds();
+                (hi[0] - lo[0]).min(hi[1] - lo[1])
+            }
         }
     }
 }
@@ -331,6 +358,146 @@ fn corridor_conflicts_with_existing_copper(
             z_clr,
         );
         if geometry::track_near_convex_poly(via.at, via.at, via.diameter_nm, clr, verts, 0, false) {
+            return true;
+        }
+    }
+    for hole in &input.holes {
+        if hole.net == zone.net && zone.net != 0 {
+            continue;
+        }
+        let clr = rules.pair_hole_clearance(
+            zone.net,
+            DruItemKind::Zone,
+            std::slice::from_ref(&layer_name.to_owned()),
+            hole.net,
+            DruItemKind::Hole,
+            layers,
+        );
+        let hit = match hole.shape {
+            DrillShape::Circle { diameter_nm } => geometry::track_near_convex_poly(
+                hole.at,
+                hole.at,
+                diameter_nm,
+                clr,
+                verts,
+                0,
+                false,
+            ),
+            DrillShape::Capsule {
+                start_nm,
+                end_nm,
+                width_nm,
+            } => geometry::track_near_convex_poly(start_nm, end_nm, width_nm, clr, verts, 0, false),
+        };
+        if hit {
+            return true;
+        }
+    }
+    for g in &input.graphics {
+        if g.net == zone.net || g.layer != layer_name {
+            continue;
+        }
+        let clr = rules.pair_clearance(
+            g.net,
+            DruItemKind::Graphic,
+            zone.net,
+            DruItemKind::Zone,
+            layer_name,
+            z_clr,
+        );
+        let hit = match &g.shape {
+            GraphicShape::Segment {
+                start,
+                end,
+                width_nm,
+            } => geometry::track_near_convex_poly(*start, *end, *width_nm, clr, verts, 0, false),
+            GraphicShape::Arc {
+                start,
+                mid,
+                end,
+                width_nm,
+            } => {
+                let (chords, sag) = geometry::arc_to_conservative_chords(*start, *mid, *end);
+                chords.windows(2).any(|w| {
+                    geometry::track_near_convex_poly(
+                        w[0],
+                        w[1],
+                        *width_nm,
+                        clr + sag,
+                        verts,
+                        0,
+                        false,
+                    )
+                })
+            }
+            GraphicShape::Circle {
+                center,
+                radius_nm,
+                width_nm,
+                filled,
+            } => {
+                if *filled {
+                    geometry::track_near_convex_poly(
+                        *center,
+                        *center,
+                        2 * radius_nm + width_nm,
+                        clr,
+                        verts,
+                        0,
+                        false,
+                    )
+                } else {
+                    let n = verts.len();
+                    (0..n).any(|i| {
+                        geometry::track_near_circle(
+                            verts[i],
+                            verts[(i + 1) % n],
+                            0,
+                            clr,
+                            *center,
+                            *radius_nm,
+                            *width_nm,
+                            false,
+                            false,
+                        )
+                    })
+                }
+            }
+            GraphicShape::Polygon {
+                outer,
+                holes,
+                width_nm,
+                filled,
+            } => {
+                let n = verts.len();
+                let gap2 = i128::from(*width_nm) + 2 * i128::from(clr);
+                let ring_hit = |ring: &[Point]| {
+                    let m = ring.len();
+                    (0..n).any(|i| {
+                        (0..m).any(|j| {
+                            geometry::segments_near(
+                                verts[i],
+                                verts[(i + 1) % n],
+                                ring[j],
+                                ring[(j + 1) % m],
+                                gap2,
+                                false,
+                            )
+                        })
+                    })
+                };
+                ring_hit(outer)
+                    || holes.iter().any(|h| ring_hit(h))
+                    || (*filled
+                        && (verts
+                            .iter()
+                            .any(|&p| geometry::point_in_polygon_with_holes(p, outer, holes))
+                            || outer
+                                .iter()
+                                .any(|&p| geometry::point_in_convex_poly(p, verts))))
+            }
+        };
+        if hit {
             return true;
         }
     }

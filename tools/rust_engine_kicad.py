@@ -1542,7 +1542,7 @@ def _extract_pour_facts(board_path: Path) -> dict:
     uf = _PourUnionFind()
     polygons = {}
     filled_layers = set()
-    for zi, z in enumerate(sorted(zones, key=lambda z: (z.GetNetname(), z.GetZoneName(), -z.GetAssignedPriority()))):
+    for zi, z in enumerate(sorted(zones, key=lambda z: (z.GetNetname(), z.GetZoneName(), -z.GetAssignedPriority(), item_id(z)))):
         net = z.GetNetname()
         for layer in z.GetLayerSet().CuStack():
             if not z.HasFilledPolysForLayer(layer):
@@ -1556,12 +1556,13 @@ def _extract_pour_facts(board_path: Path) -> dict:
                 pieces.append(s)
             pieces.sort(key=lambda s: -s.Area())
             for i, s in enumerate(pieces):
-                pid = f"{net}@{lname(layer)}/{z.GetZoneName() or 'zone' + str(zi)}#{i}"
+                base_pid = f"{net}@{lname(layer)}/{z.GetZoneName() or 'zone' + str(zi)}#{i}"
+                pid = base_pid if base_pid not in polygons else f"{net}@{lname(layer)}/{z.GetZoneName() or 'zone'}#{zi}:{i}"
                 polygons[pid] = {
                     'net': net, 'layer': lname(layer), 'zone': z.GetZoneName(),
                     'area_mm2': round(s.Area() / nm / nm, 4), 'bbox_mm': box(s),
                     'pads': [], 'vias': 0, 'tracks': 0, '_tiles': tile(s),
-                    '_bounds': bounds(s.BBox()), '_layer': layer,
+                    '_bounds': bounds(s.BBox()), '_layer': layer, '_zone_idx': zi,
                 }
                 uf.find(('poly', pid))
 
@@ -1590,7 +1591,7 @@ def _extract_pour_facts(board_path: Path) -> dict:
     for i, a in enumerate(ids):
         for b in ids[i + 1:]:
             pa, pb = polygons[a], polygons[b]
-            if (pa['net'] == pb['net'] and pa['_layer'] == pb['_layer'] and pa['zone'] != pb['zone']
+            if (pa['net'] == pb['net'] and pa['_layer'] == pb['_layer'] and pa['_zone_idx'] != pb['_zone_idx']
                     and hits(pa['_bounds'], pb['_bounds'])
                     and any(hits(ta, tb) and overlap(qa, qb) > 0 for ta, qa in pa['_tiles'] for tb, qb in pb['_tiles'])):
                 uf.union(('poly', a), ('poly', b))

@@ -1477,9 +1477,6 @@ pub fn zone_fill_connects_pad(outer: &[Point], holes: &[Vec<Point>], p: &Pad) ->
     if outer.len() < 3 || !bounds_overlap(p.copper_bounds(), ring_bounds(outer)) {
         return false;
     }
-    if point_in_polygon_with_holes(p.copper_center(), outer, holes) {
-        return true;
-    }
     let as_zero_track = |a: Point, b: Point| Track {
         id: String::new(),
         net: p.net,
@@ -1494,14 +1491,46 @@ pub fn zone_fill_connects_pad(outer: &[Point], holes: &[Vec<Point>], p: &Pad) ->
         (0..n).any(|i| track_connects_pad(&as_zero_track(ring[i], ring[(i + 1) % n]), p))
     };
     match &p.shape {
-        Shape::Circle { .. } | Shape::Capsule { .. } => {
-            check_edges_zero(outer) || holes.iter().any(|h| check_edges_zero(h))
+        Shape::Circle { radius_nm } => {
+            if *radius_nm < CONTACT_OVERLAP_NM {
+                return false;
+            }
+            point_in_polygon_with_holes(p.at, outer, holes)
+                || check_edges_zero(outer)
+                || holes.iter().any(|h| check_edges_zero(h))
         }
-        Shape::RoundRect { radius_nm, .. } if *radius_nm >= CONTACT_OVERLAP_NM => {
-            check_edges_zero(outer) || holes.iter().any(|h| check_edges_zero(h))
+        Shape::Capsule {
+            start_nm, width_nm, ..
+        } => {
+            if (*width_nm / 2) * 2 < 2 * CONTACT_OVERLAP_NM {
+                return false;
+            }
+            point_in_polygon_with_holes(*start_nm, outer, holes)
+                || check_edges_zero(outer)
+                || holes.iter().any(|h| check_edges_zero(h))
         }
-        Shape::BoxExact { radius_2x, .. } if (*radius_2x / 2) * 2 >= 2 * CONTACT_OVERLAP_NM => {
-            check_edges_zero(outer) || holes.iter().any(|h| check_edges_zero(h))
+        Shape::RoundRect {
+            half_size_nm,
+            radius_nm,
+        } if *radius_nm >= CONTACT_OVERLAP_NM
+            && half_size_nm[0] >= *radius_nm
+            && half_size_nm[1] >= *radius_nm =>
+        {
+            point_in_polygon_with_holes(p.at, outer, holes)
+                || check_edges_zero(outer)
+                || holes.iter().any(|h| check_edges_zero(h))
+        }
+        Shape::BoxExact {
+            center_2x,
+            half_size_2x,
+            radius_2x,
+        } if (*radius_2x / 2) * 2 >= 2 * CONTACT_OVERLAP_NM
+            && (half_size_2x[0] / 2) * 2 >= (*radius_2x / 2) * 2
+            && (half_size_2x[1] / 2) * 2 >= (*radius_2x / 2) * 2 =>
+        {
+            point_in_polygon_with_holes_2x(*center_2x, outer, holes)
+                || check_edges_zero(outer)
+                || holes.iter().any(|h| check_edges_zero(h))
         }
         Shape::Rect { half_size_nm: h }
         | Shape::RoundRect {
@@ -1536,13 +1565,14 @@ pub fn zone_fill_connects_pad(outer: &[Point], holes: &[Vec<Point>], p: &Pad) ->
             half_size_2x,
             ..
         } => {
+            let half2 = [(half_size_2x[0] / 2) * 2, (half_size_2x[1] / 2) * 2];
             let lo2 = [
-                center_2x[0] - half_size_2x[0] + 2 * CONTACT_OVERLAP_NM,
-                center_2x[1] - half_size_2x[1] + 2 * CONTACT_OVERLAP_NM,
+                center_2x[0] - half2[0] + 2 * CONTACT_OVERLAP_NM,
+                center_2x[1] - half2[1] + 2 * CONTACT_OVERLAP_NM,
             ];
             let hi2 = [
-                center_2x[0] + half_size_2x[0] - 2 * CONTACT_OVERLAP_NM,
-                center_2x[1] + half_size_2x[1] - 2 * CONTACT_OVERLAP_NM,
+                center_2x[0] + half2[0] - 2 * CONTACT_OVERLAP_NM,
+                center_2x[1] + half2[1] - 2 * CONTACT_OVERLAP_NM,
             ];
             if lo2[0] > hi2[0] || lo2[1] > hi2[1] {
                 return false;
@@ -1565,7 +1595,9 @@ pub fn zone_fill_connects_pad(outer: &[Point], holes: &[Vec<Point>], p: &Pad) ->
             radius_nm,
         } => {
             if *radius_nm >= CONTACT_OVERLAP_NM {
-                check_edges_zero(outer) || holes.iter().any(|h| check_edges_zero(h))
+                (!vertices.is_empty() && point_in_polygon_with_holes(vertices[0], outer, holes))
+                    || check_edges_zero(outer)
+                    || holes.iter().any(|h| check_edges_zero(h))
             } else {
                 filled_polygons_overlap(vertices, &[], outer, holes)
             }
