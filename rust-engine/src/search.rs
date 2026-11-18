@@ -321,11 +321,7 @@ fn join_components_inner(
     }
     let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
-    let via_cost = if prefer_higher_g {
-        engine.effective_rules.via_cost.clamp(1, 6)
-    } else {
-        engine.effective_rules.via_cost.max(1)
-    };
+    let via_cost = engine.effective_rules.via_cost.max(1);
     let mut track_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
     let mut via_only_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
     let mut via_seed_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
@@ -1851,13 +1847,6 @@ fn walk_multilayer(
         !engine.effective_rules.allow_blind_buried_vias && !engine.effective_rules.allow_microvias;
     let mut via_cache: HashMap<(Point, u8), (Vec<(u8, PlacedViaKey, u64)>, Vec<(u8, u8, bool)>)> =
         HashMap::new();
-    let weighted_h = |h: u64| -> u64 {
-        if prefer_higher_g {
-            h.saturating_mul(2)
-        } else {
-            h
-        }
-    };
     for &(at, layer, via_only) in starts {
         engine.work.search_storage(
             queue.len() + best.len() + parent.len() + via_arena.total_len + tv_arena.total_len + 2,
@@ -1874,7 +1863,7 @@ fn walk_multilayer(
             via_count: 0,
             track_via_blocked: 0,
         };
-        let h = weighted_h(heuristic(at, layer as usize)?);
+        let h = heuristic(at, layer as usize)?;
         queue.push(Reverse((
             h,
             TieG {
@@ -2187,7 +2176,7 @@ fn walk_multilayer(
                         },
                     ),
                 );
-                let h = weighted_h(heuristic(next.at, next.layer as usize)?);
+                let h = heuristic(next.at, next.layer as usize)?;
                 queue.push(Reverse((
                     g.checked_add(h).expect("bounded heuristic"),
                     TieG {
@@ -2340,7 +2329,7 @@ fn walk_multilayer(
             let h = if is_goal {
                 0
             } else {
-                weighted_h(heuristic(next.at, next.layer as usize)?)
+                heuristic(next.at, next.layer as usize)?
             };
             queue.push(Reverse((
                 g.checked_add(h).expect("bounded heuristic"),
