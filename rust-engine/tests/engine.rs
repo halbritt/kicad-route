@@ -1261,6 +1261,11 @@ fn m3_1_concave_outline_cutout_arc_graphic_and_mask_web_enforce_legality() {
     // Point inside L-notch [70, 70] and inside cutout slot [15, 50] are illegal.
     assert!(!e.legal_edge(1, [70, 70], [80, 70]).unwrap());
     assert!(!e.legal_edge(1, [15, 50], [20, 50]).unwrap());
+    // Mid-arc bulge at [12, 65] and subdivided arc interior at x=7 (~[7, 64]) must block
+    // tracks within radius 1 + track_radius 1 + clearance 1 = 3 (kills straight-chord & unsubdivided mutants).
+    assert!(!e.legal_edge(1, [8, 67], [16, 67]).unwrap());
+    assert!(e.legal_edge(1, [8, 71], [16, 71]).unwrap());
+    assert!(!e.legal_edge(1, [7, 66], [7, 68]).unwrap());
     // Crossing F.Mask aperture at [28, 65] is illegal; routing around x=40 is legal.
     assert!(!e.legal_edge(1, [20, 65], [35, 65]).unwrap());
     assert!(e.legal_edge(1, [40, 60], [40, 70]).unwrap());
@@ -1308,4 +1313,391 @@ fn m3_1_same_net_copper_graphic_bridges_components_and_rollback_has_zero_work_di
         .copper()
         .generated()
         .all(|t| t.start[0] >= 49 && t.end[0] >= 49));
+}
+
+#[test]
+fn m3_1_major_arc_exceeding_bounds_refuses_cleanly_without_panic() {
+    for end in [[10_000_000, 100], [100_000_000, 100]] {
+        let mut i = base();
+        i.bounds = Bounds {
+            min: [-100_000_000, -100_000_000],
+            max: [100_000_000, 100_000_000],
+        };
+        i.graphics.push(CopperGraphic {
+            id: id(40),
+            net: 0,
+            layer: "F.Cu".into(),
+            shape: GraphicShape::Arc {
+                start: [0, 0],
+                mid: [-1, 0],
+                end,
+                width_nm: 1000,
+            },
+        });
+        let out = run(i);
+        assert_eq!(out.status, Status::Unsupported, "{:?}", out.reason);
+    }
+
+    let mut m = base();
+    m.bounds = Bounds {
+        min: [-100_000_000, -100_000_000],
+        max: [100_000_000, 100_000_000],
+    };
+    m.mask_apertures.push(MaskAperture {
+        id: id(41),
+        net: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Arc {
+            start: [0, 0],
+            mid: [-1, 0],
+            end: [10_000_000, 100],
+            width_nm: 1000,
+        },
+        expansion_nm: 0,
+    });
+    let out_m = run(m);
+    assert_eq!(out_m.status, Status::Unsupported, "{:?}", out_m.reason);
+}
+
+#[test]
+fn m3_1_graphics_connect_hollow_circle_filled_poly_symmetry_and_hole_bounds() {
+    // Primary Reviewer Probe 1: unfilled Circle must NEVER falsely merge an isolated interior Segment.
+    let mut i = base();
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [20_000, 20_000],
+    };
+    i.rules.width_nm = 200;
+    i.rules.clearance_nm = 100;
+    i.rules.grid_nm = 500;
+    i.rules.edge_clearance_nm = 100;
+    i.pads[0].at = [15_000, 10_000];
+    i.pads[0].shape = Shape::Circle { radius_nm: 500 };
+    i.pads[1].at = [10_000, 10_000];
+    i.pads[1].shape = Shape::Circle { radius_nm: 500 };
+    i.graphics.push(CopperGraphic {
+        id: id(50),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Circle {
+            center: [10_000, 10_000],
+            radius_nm: 5_000,
+            width_nm: 200,
+            filled: false,
+        },
+    });
+    i.graphics.push(CopperGraphic {
+        id: id(51),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Segment {
+            start: [10_000, 10_000],
+            end: [10_500, 10_000],
+            width_nm: 200,
+        },
+    });
+    let out = run(i);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(
+        !out.added_tracks.is_empty(),
+        "hollow circle must not falsely close disconnected interior net"
+    );
+
+    // Secondary Reviewer Probe 3: unfilled Circle listed before isolated interior Segment.
+    let mut s = base();
+    s.bounds = Bounds {
+        min: [0, 0],
+        max: [1_000, 1_000],
+    };
+    s.rules.width_nm = 10;
+    s.rules.clearance_nm = 5;
+    s.rules.grid_nm = 50;
+    s.rules.edge_clearance_nm = 5;
+    s.pads[0].at = [450, 500];
+    s.pads[0].shape = Shape::Circle { radius_nm: 20 };
+    s.pads[1].at = [700, 500];
+    s.pads[1].shape = Shape::Circle { radius_nm: 20 };
+    s.graphics.push(CopperGraphic {
+        id: id(52),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Circle {
+            center: [500, 500],
+            radius_nm: 200,
+            width_nm: 10,
+            filled: false,
+        },
+    });
+    s.graphics.push(CopperGraphic {
+        id: id(53),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Segment {
+            start: [500, 500],
+            end: [520, 500],
+            width_nm: 10,
+        },
+    });
+    let out_s = run(s);
+    assert_eq!(out_s.status, Status::Complete, "{:?}", out_s.reason);
+    assert!(!out_s.added_tracks.is_empty());
+
+    // Primary Reviewer Probe 2: outer-before-inner width=0 FilledPolygon stays 1 component.
+    let mut p = base();
+    p.bounds = Bounds {
+        min: [0, 0],
+        max: [12_000, 12_000],
+    };
+    p.rules.width_nm = 100;
+    p.rules.clearance_nm = 50;
+    p.rules.grid_nm = 200;
+    p.rules.edge_clearance_nm = 50;
+    p.pads[0].at = [2_000, 2_000];
+    p.pads[0].shape = Shape::Circle { radius_nm: 200 };
+    p.pads[1].at = [5_000, 5_000];
+    p.pads[1].shape = Shape::Circle { radius_nm: 200 };
+    p.graphics.push(CopperGraphic {
+        id: id(54),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [1_000, 1_000],
+                [10_000, 1_000],
+                [10_000, 10_000],
+                [1_000, 10_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+    });
+    p.graphics.push(CopperGraphic {
+        id: id(55),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [4_000, 4_000],
+                [6_000, 4_000],
+                [6_000, 6_000],
+                [4_000, 6_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+    });
+    let out_p = run(p);
+    assert_eq!(out_p.status, Status::Complete, "{:?}", out_p.reason);
+    assert!(
+        out_p.added_tracks.is_empty(),
+        "nested filled polygons must form 1 component without redundant routing"
+    );
+
+    // Disjoint hole outside outer ring is rejected as Invalid; width=0 unfilled polygon obstacle blocks track.
+    let mut bad_hole = base();
+    bad_hole.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 100],
+    };
+    bad_hole.graphics.push(CopperGraphic {
+        id: id(56),
+        net: 0,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![[10, 10], [30, 10], [30, 30], [10, 30]],
+            holes: vec![vec![[50, 50], [60, 50], [60, 60], [50, 60]]],
+            width_nm: 2,
+            filled: true,
+        },
+    });
+    assert_eq!(run(bad_hole).status, Status::Invalid);
+
+    let mut hairline = base();
+    hairline.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 100],
+    };
+    hairline.nets.push(Net {
+        id: 2,
+        name: "OBS".into(),
+    });
+    hairline.graphics.push(CopperGraphic {
+        id: id(57),
+        net: 2,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![[40, 20], [60, 20], [60, 80], [40, 80]],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: false,
+        },
+    });
+    let eh = Engine::new(hairline).unwrap();
+    assert!(!eh.legal_edge(1, [30, 50], [50, 50]).unwrap());
+}
+
+#[test]
+fn m3_1_solder_mask_min_width_without_copper_clearance_allows_fcu_tracks() {
+    let mut i = base();
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [20_000_000, 20_000_000],
+    };
+    i.rules = Rules {
+        width_nm: 250_000,
+        clearance_nm: 200_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 250_000,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 200_000,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.pads[0].at = [4_000_000, 10_000_000];
+    i.pads[1].at = [16_000_000, 10_000_000];
+    i.mask_apertures.push(MaskAperture {
+        id: id(60),
+        net: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [3_000_000, 9_000_000],
+                [5_000_000, 9_000_000],
+                [5_000_000, 11_000_000],
+                [3_000_000, 11_000_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    });
+    let e = Engine::new(i.clone()).unwrap();
+    assert!(e
+        .legal_edge(1, [4_000_000, 10_000_000], [4_500_000, 10_000_000])
+        .unwrap());
+    let out = run(i);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+}
+
+#[test]
+fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connecting_pass_by() {
+    // Challenger 2's reproduction: empty 20x20mm board with two same-net PTH pads where
+    // same_net_hole_clearance_nm > annular_ring + grid_nm.
+    let mut i = base();
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [20_000_000, 20_000_000],
+    };
+    i.rules = Rules {
+        width_nm: 250_000,
+        clearance_nm: 1_000_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 500_000,
+        hole_clearance_nm: 1_500_000,
+        same_net_hole_clearance_nm: 1_200_000,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [4_000_000, 10_000_000],
+            shape: Shape::Circle {
+                radius_nm: 1_000_000,
+            },
+            drill: Some(DrillShape::Circle {
+                diameter_nm: 1_000_000,
+            }),
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [16_000_000, 10_000_000],
+            shape: Shape::Circle {
+                radius_nm: 1_000_000,
+            },
+            drill: Some(DrillShape::Circle {
+                diameter_nm: 1_000_000,
+            }),
+        },
+    ];
+    let e = Engine::new(i.clone()).unwrap();
+    // Non-connecting same-net track passing Pad 2 at dy=1_500_000 (< 500k + 125k + 1.2M = 1.825M) is blocked.
+    assert!(!e
+        .legal_edge(1, [10_000_000, 11_500_000], [18_000_000, 11_500_000])
+        .unwrap());
+    let out = run(i);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(!out.added_tracks.is_empty());
+    for t in &out.added_tracks {
+        assert!(e.legal_edge(t.net, t.start, t.end).unwrap(), "{t:?}");
+    }
+
+    // Non-collinear PTH pair with obstacle between pads must also escape and enter cleanly.
+    let mut j = base();
+    j.bounds = Bounds {
+        min: [0, 0],
+        max: [20_000_000, 20_000_000],
+    };
+    j.rules = Rules {
+        width_nm: 250_000,
+        clearance_nm: 500_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 500_000,
+        hole_clearance_nm: 1_500_000,
+        same_net_hole_clearance_nm: 1_200_000,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    j.nets.push(Net {
+        id: 2,
+        name: "OBS".into(),
+    });
+    j.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [4_000_000, 6_000_000],
+            shape: Shape::Circle {
+                radius_nm: 1_000_000,
+            },
+            drill: Some(DrillShape::Circle {
+                diameter_nm: 1_000_000,
+            }),
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [16_000_000, 14_000_000],
+            shape: Shape::Circle {
+                radius_nm: 1_000_000,
+            },
+            drill: Some(DrillShape::Circle {
+                diameter_nm: 1_000_000,
+            }),
+        },
+        Pad {
+            id: id(3),
+            net: 2,
+            at: [10_000_000, 6_000_000],
+            shape: Shape::Rect {
+                half_size_nm: [500_000, 500_000],
+            },
+            drill: None,
+        },
+    ];
+    let ej = Engine::new(j.clone()).unwrap();
+    let out_j = run(j);
+    assert_eq!(out_j.status, Status::Complete, "{:?}", out_j.reason);
+    assert!(!out_j.added_tracks.is_empty());
+    for t in &out_j.added_tracks {
+        assert!(ej.legal_edge(t.net, t.start, t.end).unwrap(), "{t:?}");
+    }
 }

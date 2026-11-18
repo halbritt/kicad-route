@@ -650,7 +650,7 @@ fn walk_preserves_distinct_incoming_headings_in_dominance_key() {
         100,
         &mut expanded,
         |_| Ok(0),
-        |_, b| Ok(((0..=2).contains(&b[0]) && (0..=1).contains(&b[1])).then_some(b)),
+        |_, _, b| Ok(((0..=2).contains(&b[0]) && (0..=1).contains(&b[1])).then_some(b)),
         |at, previous| Ok(at == [1, 1] && previous == Some([2, 1])),
     )
     .unwrap();
@@ -743,7 +743,7 @@ fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
                 1000,
                 &mut expanded,
                 |_| Ok(0),
-                |_, b| Ok(in_bounds(b).then_some(b)),
+                |_, _, b| Ok(in_bounds(b).then_some(b)),
                 |at, prev| Ok(at == [2, 2] && prev == Some(prev_req)),
             );
             match (oracle, actual) {

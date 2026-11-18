@@ -87,6 +87,19 @@ impl Drop for Scope<'_> {
     }
 }
 
+fn try_i32(v: i64) -> Result<i32, Failure> {
+    i32::try_from(v).map_err(|_| {
+        Failure::new(
+            Status::Unsupported,
+            "coordinate or width exceeds i32 bounds",
+        )
+    })
+}
+
+fn try_i32_pt(p: Point) -> Result<[i32; 2], Failure> {
+    Ok([try_i32(p[0])?, try_i32(p[1])?])
+}
+
 fn i32_pt(p: Point) -> [i32; 2] {
     [
         i32::try_from(p[0]).expect("validated coordinate fits i32"),
@@ -280,6 +293,7 @@ impl Engine {
                 } => {
                     let (chords, sag) = geometry::arc_to_conservative_chords(*start, *mid, *end);
                     let eff_w = width_nm + 2 * sag;
+                    let eff_w_i32 = try_i32(eff_w)?;
                     let rad = (eff_w + 1) / 2;
                     for w in chords.windows(2) {
                         artwork_items.push((
@@ -287,9 +301,9 @@ impl Engine {
                             g.net,
                             seg_aabb(w[0], w[1], rad),
                             ArtworkGeom::Segment {
-                                a: i32_pt(w[0]),
-                                b: i32_pt(w[1]),
-                                width: eff_w as i32,
+                                a: try_i32_pt(w[0])?,
+                                b: try_i32_pt(w[1])?,
+                                width: eff_w_i32,
                             },
                         ));
                         art_ord += 1;
@@ -335,25 +349,23 @@ impl Engine {
                         ));
                         art_ord += 1;
                     }
-                    if *width_nm > 0 || *filled {
-                        let rad = (*width_nm + 1) / 2;
-                        for ring in std::iter::once(outer).chain(holes.iter()) {
-                            let n = ring.len();
-                            for i in 0..n {
-                                let a = ring[i];
-                                let b = ring[(i + 1) % n];
-                                artwork_items.push((
-                                    art_ord,
-                                    g.net,
-                                    seg_aabb(a, b, rad),
-                                    ArtworkGeom::Segment {
-                                        a: i32_pt(a),
-                                        b: i32_pt(b),
-                                        width: *width_nm as i32,
-                                    },
-                                ));
-                                art_ord += 1;
-                            }
+                    let rad = (*width_nm + 1) / 2;
+                    for ring in std::iter::once(outer).chain(holes.iter()) {
+                        let n = ring.len();
+                        for i in 0..n {
+                            let a = ring[i];
+                            let b = ring[(i + 1) % n];
+                            artwork_items.push((
+                                art_ord,
+                                g.net,
+                                seg_aabb(a, b, rad),
+                                ArtworkGeom::Segment {
+                                    a: i32_pt(a),
+                                    b: i32_pt(b),
+                                    width: *width_nm as i32,
+                                },
+                            ));
+                            art_ord += 1;
                         }
                     }
                 }
@@ -398,6 +410,7 @@ impl Engine {
                 } => {
                     let (chords, sag) = geometry::arc_to_conservative_chords(*start, *mid, *end);
                     let eff_w = width_nm + 2 * sag;
+                    let eff_w_i32 = try_i32(eff_w)?;
                     let rad = (eff_w + 1) / 2;
                     for w in chords.windows(2) {
                         mask_items.push((
@@ -405,9 +418,9 @@ impl Engine {
                             m_net,
                             seg_aabb(w[0], w[1], rad),
                             MaskGeom::Segment {
-                                a: i32_pt(w[0]),
-                                b: i32_pt(w[1]),
-                                width: eff_w as i32,
+                                a: try_i32_pt(w[0])?,
+                                b: try_i32_pt(w[1])?,
+                                width: eff_w_i32,
                                 expansion: exp,
                             },
                         ));
@@ -456,26 +469,24 @@ impl Engine {
                         ));
                         mask_ord += 1;
                     }
-                    if *width_nm > 0 || *filled {
-                        let rad = (*width_nm + 1) / 2;
-                        for ring in std::iter::once(outer).chain(holes.iter()) {
-                            let n = ring.len();
-                            for i in 0..n {
-                                let a = ring[i];
-                                let b = ring[(i + 1) % n];
-                                mask_items.push((
-                                    mask_ord,
-                                    m_net,
-                                    seg_aabb(a, b, rad),
-                                    MaskGeom::Segment {
-                                        a: i32_pt(a),
-                                        b: i32_pt(b),
-                                        width: *width_nm as i32,
-                                        expansion: exp,
-                                    },
-                                ));
-                                mask_ord += 1;
-                            }
+                    let rad = (*width_nm + 1) / 2;
+                    for ring in std::iter::once(outer).chain(holes.iter()) {
+                        let n = ring.len();
+                        for i in 0..n {
+                            let a = ring[i];
+                            let b = ring[(i + 1) % n];
+                            mask_items.push((
+                                mask_ord,
+                                m_net,
+                                seg_aabb(a, b, rad),
+                                MaskGeom::Segment {
+                                    a: i32_pt(a),
+                                    b: i32_pt(b),
+                                    width: *width_nm as i32,
+                                    expansion: exp,
+                                },
+                            ));
+                            mask_ord += 1;
                         }
                     }
                 }
@@ -837,7 +848,7 @@ impl Engine {
         if art_flow.is_break() {
             return Ok(false);
         }
-        if r.solder_mask_to_copper_clearance_nm > 0 || r.solder_mask_min_width_nm > 0 {
+        if r.solder_mask_to_copper_clearance_nm > 0 {
             let mask_swept = SweptAabb::swept(
                 a,
                 b,
@@ -978,8 +989,19 @@ impl Engine {
             .collect();
         let mut normalized = Vec::new();
         for t in proposal {
+            if self.input.rules.same_net_hole_clearance_nm > 0
+                && (t.start == t.end || !self.legal_edge(net, t.start, t.end)?)
+            {
+                return Err(Failure::new(
+                    Status::Unroutable,
+                    "proposal failed continuous clearance validation",
+                ));
+            }
             for piece in self.subtract_collinear_overlaps(&t, &normalized)? {
-                if piece.start == piece.end || !self.legal_edge(net, piece.start, piece.end)? {
+                if piece.start == piece.end
+                    || (self.input.rules.same_net_hole_clearance_nm == 0
+                        && !self.legal_edge(net, piece.start, piece.end)?)
+                {
                     return Err(Failure::new(
                         Status::Unroutable,
                         "proposal failed continuous clearance validation",

@@ -269,6 +269,27 @@ pub(crate) fn is_valid_arc(start: Point, mid: Point, end: Point) -> bool {
     }
     orientation(start, mid, end) != 0 || dot(sub(mid, start), sub(end, mid)) > 0
 }
+pub(crate) fn is_ultra_large_major_arc(start: Point, mid: Point, end: Point) -> bool {
+    if start == end || start == mid || mid == end {
+        return false;
+    }
+    let m = sub(mid, start);
+    let b = sub(end, start);
+    let cross_mb = cross(m, b);
+    if cross_mb == 0 {
+        return false;
+    }
+    let d = 2 * cross_mb;
+    let m2 = dot(m, m);
+    let b2 = dot(b, b);
+    let ux = m2 * b[1] - b2 * m[1];
+    let uy = b2 * m[0] - m2 * b[0];
+    let cx_rel = ux / d;
+    let cy_rel = uy / d;
+    const MAX_ARC_RADIUS_NM: i128 = 100_000_000_000_000;
+    (cx_rel.abs() > MAX_ARC_RADIUS_NM || cy_rel.abs() > MAX_ARC_RADIUS_NM)
+        && dot(sub(start, mid), sub(end, mid)) >= 0
+}
 pub fn point_in_simple_polygon(p: Point, verts: &[Point]) -> bool {
     let n = verts.len();
     if n < 3 {
@@ -949,6 +970,309 @@ pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
     }
 }
 
+fn gcd_u128(mut a: u128, mut b: u128) -> u128 {
+    while b != 0 {
+        let r = a % b;
+        a = b;
+        b = r;
+    }
+    a
+}
+
+fn point_strictly_in_simple_polygon_2x_rational(
+    px_num: i128,
+    px_den: i128,
+    py: i128,
+    verts: &[Point],
+) -> bool {
+    let n = verts.len();
+    if n < 3 {
+        return false;
+    }
+    for i in 0..n {
+        let ax = i128::from(verts[i][0]) * 2;
+        let ay = i128::from(verts[i][1]) * 2;
+        let bx = i128::from(verts[(i + 1) % n][0]) * 2;
+        let by = i128::from(verts[(i + 1) % n][1]) * 2;
+        let cross_p = (bx - ax) * (py - ay) * px_den - (by - ay) * (px_num - ax * px_den);
+        if cross_p == 0
+            && px_num >= ax.min(bx) * px_den
+            && px_num <= ax.max(bx) * px_den
+            && py >= ay.min(by)
+            && py <= ay.max(by)
+        {
+            return false;
+        }
+    }
+    let mut inside = false;
+    for i in 0..n {
+        let ax = i128::from(verts[i][0]) * 2;
+        let ay = i128::from(verts[i][1]) * 2;
+        let bx = i128::from(verts[(i + 1) % n][0]) * 2;
+        let by = i128::from(verts[(i + 1) % n][1]) * 2;
+        if (ay > py) != (by > py) {
+            let lhs = (px_num - ax * px_den) * (by - ay);
+            let rhs = (py - ay) * (bx - ax) * px_den;
+            if (by > ay && lhs < rhs) || (by < ay && lhs > rhs) {
+                inside = !inside;
+            }
+        }
+    }
+    inside
+}
+
+fn point_strictly_in_polygon_with_holes_2x_rational(
+    px_num: i128,
+    px_den: i128,
+    py: i128,
+    outer: &[Point],
+    holes: &[Vec<Point>],
+) -> bool {
+    if !point_strictly_in_simple_polygon_2x_rational(px_num, px_den, py, outer) {
+        return false;
+    }
+    for h in holes {
+        if point_strictly_in_simple_polygon_2x_rational(px_num, px_den, py, h) {
+            return false;
+        }
+        let n = h.len();
+        for i in 0..n {
+            let ax = i128::from(h[i][0]) * 2;
+            let ay = i128::from(h[i][1]) * 2;
+            let bx = i128::from(h[(i + 1) % n][0]) * 2;
+            let by = i128::from(h[(i + 1) % n][1]) * 2;
+            let cross_p = (bx - ax) * (py - ay) * px_den - (by - ay) * (px_num - ax * px_den);
+            if cross_p == 0
+                && px_num >= ax.min(bx) * px_den
+                && px_num <= ax.max(bx) * px_den
+                && py >= ay.min(by)
+                && py <= ay.max(by)
+            {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn interior_witness_2x_rational(
+    outer: &[Point],
+    holes: &[Vec<Point>],
+) -> Option<(i128, i128, i128)> {
+    let mut ys: Vec<i128> = outer
+        .iter()
+        .chain(holes.iter().flat_map(|h| h.iter()))
+        .map(|p| i128::from(p[1]) * 2)
+        .collect();
+    ys.sort_unstable();
+    ys.dedup();
+    if ys.len() < 2 {
+        return None;
+    }
+    let py = (ys[0] + ys[1]) / 2;
+    let mut crossings: Vec<(i128, i128)> = Vec::new();
+    for ring in std::iter::once(outer).chain(holes.iter().map(Vec::as_slice)) {
+        let n = ring.len();
+        for i in 0..n {
+            let ax = i128::from(ring[i][0]) * 2;
+            let ay = i128::from(ring[i][1]) * 2;
+            let bx = i128::from(ring[(i + 1) % n][0]) * 2;
+            let by = i128::from(ring[(i + 1) % n][1]) * 2;
+            if (ay > py) != (by > py) {
+                let mut num = ax * (by - ay) + (py - ay) * (bx - ax);
+                let mut den = by - ay;
+                if den < 0 {
+                    num = -num;
+                    den = -den;
+                }
+                let g = gcd_u128(num.unsigned_abs(), den as u128) as i128;
+                crossings.push((num / g, den / g));
+            }
+        }
+    }
+    crossings.sort_unstable_by(|&(n1, d1), &(n2, d2)| (n1 * d2).cmp(&(n2 * d1)));
+    for pair in crossings.chunks_exact(2) {
+        let (n0, d0) = pair[0];
+        let (n1, d1) = pair[1];
+        if n0 * d1 < n1 * d0 {
+            let num = n0 * d1 + n1 * d0;
+            let den = 2 * d0 * d1;
+            let g = gcd_u128(num.unsigned_abs(), den as u128) as i128;
+            return Some((num / g, den / g, py));
+        }
+    }
+    None
+}
+
+fn filled_polygons_overlap(
+    outer_a: &[Point],
+    holes_a: &[Vec<Point>],
+    outer_b: &[Point],
+    holes_b: &[Vec<Point>],
+) -> bool {
+    let aabb = |pts: &[Point]| -> (Point, Point) {
+        let mut lo = [i64::MAX, i64::MAX];
+        let mut hi = [i64::MIN, i64::MIN];
+        for p in pts {
+            lo[0] = lo[0].min(p[0]);
+            lo[1] = lo[1].min(p[1]);
+            hi[0] = hi[0].max(p[0]);
+            hi[1] = hi[1].max(p[1]);
+        }
+        (lo, hi)
+    };
+    let (alo, ahi) = aabb(outer_a);
+    let (blo, bhi) = aabb(outer_b);
+    if ahi[0] <= blo[0] || bhi[0] <= alo[0] || ahi[1] <= blo[1] || bhi[1] <= alo[1] {
+        return false;
+    }
+    for ra in std::iter::once(outer_a).chain(holes_a.iter().map(Vec::as_slice)) {
+        for rb in std::iter::once(outer_b).chain(holes_b.iter().map(Vec::as_slice)) {
+            let na = ra.len();
+            let nb = rb.len();
+            for i in 0..na {
+                let a = ra[i];
+                let b = ra[(i + 1) % na];
+                for j in 0..nb {
+                    let c = rb[j];
+                    let d = rb[(j + 1) % nb];
+                    let o1 = orientation(a, b, c);
+                    let o2 = orientation(a, b, d);
+                    let o3 = orientation(c, d, a);
+                    let o4 = orientation(c, d, b);
+                    if o1.signum() * o2.signum() < 0 && o3.signum() * o4.signum() < 0 {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    let test_samples = |rings: &[&[Point]], outer: &[Point], holes: &[Vec<Point>]| -> bool {
+        for ring in rings {
+            let n = ring.len();
+            for i in 0..n {
+                let u = ring[i];
+                let v = ring[(i + 1) % n];
+                let ux = i128::from(u[0]) * 2;
+                let uy = i128::from(u[1]) * 2;
+                if point_strictly_in_polygon_with_holes_2x_rational(ux, 1, uy, outer, holes) {
+                    return true;
+                }
+                let mx = i128::from(u[0]) + i128::from(v[0]);
+                let my = i128::from(u[1]) + i128::from(v[1]);
+                if point_strictly_in_polygon_with_holes_2x_rational(mx, 1, my, outer, holes) {
+                    return true;
+                }
+            }
+        }
+        false
+    };
+    let rings_a: Vec<&[Point]> = std::iter::once(outer_a)
+        .chain(holes_a.iter().map(Vec::as_slice))
+        .collect();
+    let rings_b: Vec<&[Point]> = std::iter::once(outer_b)
+        .chain(holes_b.iter().map(Vec::as_slice))
+        .collect();
+    if test_samples(&rings_a, outer_b, holes_b) || test_samples(&rings_b, outer_a, holes_a) {
+        return true;
+    }
+    if let Some((wx, wd, wy)) = interior_witness_2x_rational(outer_a, holes_a) {
+        if point_strictly_in_polygon_with_holes_2x_rational(wx, wd, wy, outer_b, holes_b) {
+            return true;
+        }
+    }
+    if let Some((wx, wd, wy)) = interior_witness_2x_rational(outer_b, holes_b) {
+        if point_strictly_in_polygon_with_holes_2x_rational(wx, wd, wy, outer_a, holes_a) {
+            return true;
+        }
+    }
+    false
+}
+
+fn unfilled_circle_connects_pad(center: Point, radius_nm: i64, width_nm: i64, p: &Pad) -> bool {
+    let hw = width_nm / 2;
+    let r_out = radius_nm + hw;
+    let r_in = (radius_nm - hw).max(0);
+    if r_in == 0 {
+        let synth = Pad {
+            id: String::new(),
+            net: p.net,
+            at: center,
+            shape: Shape::Circle { radius_nm: r_out },
+            drill: None,
+        };
+        return pads_touch(&synth, p);
+    }
+    match &p.shape {
+        Shape::Circle { radius_nm: pr } => track_near_circle(
+            p.at,
+            p.at,
+            2 * *pr,
+            -CONTACT_OVERLAP_NM,
+            center,
+            radius_nm,
+            hw * 2,
+            false,
+            true,
+        ),
+        Shape::Capsule {
+            start_nm,
+            end_nm,
+            width_nm: pw,
+        } => track_near_circle(
+            *start_nm,
+            *end_nm,
+            (*pw / 2) * 2,
+            -CONTACT_OVERLAP_NM,
+            center,
+            radius_nm,
+            hw * 2,
+            false,
+            true,
+        ),
+        Shape::Rect { .. } | Shape::RoundRect { .. } | Shape::BoxExact { .. } => {
+            let (ConnCore2x::Box { lo2, hi2 }, rp2) = ConnCore2x::from_pad(p) else {
+                unreachable!()
+            };
+            let c2 = [center[0] * 2, center[1] * 2];
+            let gap4 =
+                4 * i128::from(r_out) + 2 * i128::from(rp2) - 4 * i128::from(CONTACT_OVERLAP_NM);
+            if !segment_near_rect(c2, c2, lo2, hi2, gap4, true) {
+                return false;
+            }
+            let need2 = 2 * i128::from(r_in) + 2 * i128::from(CONTACT_OVERLAP_NM) - i128::from(rp2);
+            if need2 <= 0 {
+                return true;
+            }
+            let corners = [lo2, [hi2[0], lo2[1]], hi2, [lo2[0], hi2[1]]];
+            corners
+                .iter()
+                .any(|&v| dot(sub(v, c2), sub(v, c2)) >= sq(need2))
+        }
+        Shape::ConvexPolygon {
+            vertices,
+            radius_nm: rp,
+        } => {
+            if !track_near_convex_poly(
+                center,
+                center,
+                2 * r_out,
+                -CONTACT_OVERLAP_NM,
+                vertices,
+                *rp,
+                true,
+            ) {
+                return false;
+            }
+            let need = i128::from(r_in) + i128::from(CONTACT_OVERLAP_NM) - i128::from(*rp);
+            need <= 0
+                || vertices
+                    .iter()
+                    .any(|&v| dot(sub(v, center), sub(v, center)) >= sq(need))
+        }
+    }
+}
+
 pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
     let as_track = |a: Point, b: Point, w: i64| Track {
         id: String::new(),
@@ -1001,15 +1325,7 @@ pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
                 };
                 pads_touch(&synth, p)
             } else {
-                let r = *radius_nm;
-                let pts = [
-                    [center[0] + r, center[1]],
-                    [center[0] - r, center[1]],
-                    [center[0], center[1] + r],
-                    [center[0], center[1] - r],
-                ];
-                pts.iter()
-                    .any(|&pt| track_connects_pad(&as_track(pt, pt, *width_nm), p))
+                unfilled_circle_connects_pad(*center, *radius_nm, *width_nm, p)
             }
         }
         GraphicShape::Polygon {
@@ -1035,6 +1351,32 @@ pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
     }
 }
 
+fn unfilled_circles_connect(ca: Point, ra: i64, wa: i64, cb: Point, rb: i64, wb: i64) -> bool {
+    let ha = wa / 2;
+    let hb = wb / 2;
+    if ha + hb < CONTACT_OVERLAP_NM {
+        return false;
+    }
+    let r_out_a = ra + ha;
+    let r_in_a = ra - ha;
+    let r_out_b = rb + hb;
+    let r_in_b = rb - hb;
+    let d2 = dot(sub(ca, cb), sub(ca, cb));
+    let outer = i128::from(r_out_a) + i128::from(r_out_b) - i128::from(CONTACT_OVERLAP_NM);
+    if outer < 0 || d2 > sq(outer) {
+        return false;
+    }
+    let gap_a = i128::from(r_in_b) - i128::from(r_out_a) + i128::from(CONTACT_OVERLAP_NM);
+    if gap_a > 0 && d2 < sq(gap_a) {
+        return false;
+    }
+    let gap_b = i128::from(r_in_a) - i128::from(r_out_b) + i128::from(CONTACT_OVERLAP_NM);
+    if gap_b > 0 && d2 < sq(gap_b) {
+        return false;
+    }
+    true
+}
+
 pub fn graphics_connect(a: &CopperGraphic, b: &CopperGraphic) -> bool {
     let as_track = |s: Point, e: Point, w: i64, net: u32| Track {
         id: String::new(),
@@ -1044,56 +1386,210 @@ pub fn graphics_connect(a: &CopperGraphic, b: &CopperGraphic) -> bool {
         width_nm: w,
         locked: false,
     };
-    match &a.shape {
-        GraphicShape::Segment {
-            start,
-            end,
-            width_nm,
-        } => track_connects_graphic(&as_track(*start, *end, *width_nm, a.net), b),
-        GraphicShape::Arc {
-            start,
-            mid,
-            end,
-            width_nm,
-        } => {
+    match (&a.shape, &b.shape) {
+        (
+            GraphicShape::Segment {
+                start,
+                end,
+                width_nm,
+            },
+            _,
+        ) => track_connects_graphic(&as_track(*start, *end, *width_nm, a.net), b),
+        (_, GraphicShape::Segment { .. }) => graphics_connect(b, a),
+        (
+            GraphicShape::Arc {
+                start: sa,
+                mid: ma,
+                end: ea,
+                width_nm: wa,
+            },
+            GraphicShape::Arc {
+                start: sb,
+                mid: mb,
+                end: eb,
+                width_nm: wb,
+            },
+        ) => {
+            if [*sa, *ma, *ea]
+                .iter()
+                .any(|&pt| track_connects_graphic(&as_track(pt, pt, *wa, a.net), b))
+                || [*sb, *mb, *eb]
+                    .iter()
+                    .any(|&pt| track_connects_graphic(&as_track(pt, pt, *wb, b.net), a))
+            {
+                return true;
+            }
+            let (ca, sag_a) = arc_to_conservative_chords(*sa, *ma, *ea);
+            let (cb, sag_b) = arc_to_conservative_chords(*sb, *mb, *eb);
+            let gap2 = i128::from((*wa / 2) * 2) + i128::from((*wb / 2) * 2)
+                - 2 * i128::from(CONTACT_OVERLAP_NM)
+                - 2 * i128::from(sag_a)
+                - 2 * i128::from(sag_b);
+            gap2 >= 0
+                && ca.windows(2).any(|u| {
+                    cb.windows(2)
+                        .any(|v| segments_near(u[0], u[1], v[0], v[1], gap2, true))
+                })
+        }
+        (
+            GraphicShape::Arc {
+                start,
+                mid,
+                end,
+                width_nm: aw,
+            },
+            GraphicShape::Circle {
+                center,
+                radius_nm,
+                width_nm: cw,
+                filled,
+            },
+        ) => {
             if [*start, *mid, *end]
                 .iter()
-                .any(|&pt| track_connects_graphic(&as_track(pt, pt, *width_nm, a.net), b))
+                .any(|&pt| track_connects_graphic(&as_track(pt, pt, *aw, a.net), b))
             {
                 return true;
             }
             let (chords, sag) = arc_to_conservative_chords(*start, *mid, *end);
-            let w_shrunk = (*width_nm - 2 * sag).max(0);
-            w_shrunk > 0
-                && chords
-                    .windows(2)
-                    .any(|w| track_connects_graphic(&as_track(w[0], w[1], w_shrunk, a.net), b))
+            chords.windows(2).any(|w| {
+                track_near_circle(
+                    w[0],
+                    w[1],
+                    (*aw / 2) * 2,
+                    -CONTACT_OVERLAP_NM - sag,
+                    *center,
+                    *radius_nm,
+                    (*cw / 2) * 2,
+                    *filled,
+                    true,
+                )
+            })
         }
-        GraphicShape::Circle {
-            center,
-            radius_nm,
-            width_nm,
-            ..
-        } => {
-            let r_eff = *radius_nm + *width_nm / 2;
-            track_connects_graphic(&as_track(*center, *center, 2 * r_eff, a.net), b)
-        }
-        GraphicShape::Polygon {
-            outer,
-            holes,
-            width_nm,
-            ..
-        } => {
+        (GraphicShape::Circle { .. }, GraphicShape::Arc { .. }) => graphics_connect(b, a),
+        (
+            GraphicShape::Arc {
+                start,
+                mid,
+                end,
+                width_nm: aw,
+            },
+            GraphicShape::Polygon {
+                outer,
+                holes,
+                width_nm: pw,
+                ..
+            },
+        ) => {
+            if [*start, *mid, *end]
+                .iter()
+                .any(|&pt| track_connects_graphic(&as_track(pt, pt, *aw, a.net), b))
+            {
+                return true;
+            }
+            let (chords, sag) = arc_to_conservative_chords(*start, *mid, *end);
+            let gap2 = i128::from((*aw / 2) * 2) + i128::from((*pw / 2) * 2)
+                - 2 * i128::from(CONTACT_OVERLAP_NM)
+                - 2 * i128::from(sag);
+            if gap2 < 0 {
+                return false;
+            }
             let check_ring = |ring: &[Point]| {
                 let n = ring.len();
-                (0..n).any(|i| {
-                    track_connects_graphic(
-                        &as_track(ring[i], ring[(i + 1) % n], *width_nm, a.net),
-                        b,
-                    )
+                chords.windows(2).any(|w| {
+                    (0..n)
+                        .any(|i| segments_near(w[0], w[1], ring[i], ring[(i + 1) % n], gap2, true))
                 })
             };
             check_ring(outer) || holes.iter().any(|h| check_ring(h))
+        }
+        (GraphicShape::Polygon { .. }, GraphicShape::Arc { .. }) => graphics_connect(b, a),
+        (
+            GraphicShape::Circle {
+                center: ca,
+                radius_nm: ra,
+                width_nm: wa,
+                filled: fa,
+            },
+            GraphicShape::Circle {
+                center: cb,
+                radius_nm: rb,
+                width_nm: wb,
+                filled: fb,
+            },
+        ) => match (*fa, *fb) {
+            (true, true) | (true, false) => {
+                let r_eff = *ra + *wa / 2;
+                track_connects_graphic(&as_track(*ca, *ca, 2 * r_eff, a.net), b)
+            }
+            (false, true) => {
+                let r_eff = *rb + *wb / 2;
+                track_connects_graphic(&as_track(*cb, *cb, 2 * r_eff, b.net), a)
+            }
+            (false, false) => unfilled_circles_connect(*ca, *ra, *wa, *cb, *rb, *wb),
+        },
+        (
+            GraphicShape::Circle {
+                center,
+                radius_nm,
+                width_nm: cw,
+                filled,
+            },
+            GraphicShape::Polygon {
+                outer,
+                holes,
+                width_nm: pw,
+                filled: poly_filled,
+            },
+        ) => {
+            if *filled {
+                let r_eff = *radius_nm + *cw / 2;
+                return track_connects_graphic(&as_track(*center, *center, 2 * r_eff, a.net), b);
+            }
+            let check_ring = |ring: &[Point]| {
+                let n = ring.len();
+                (0..n).any(|i| {
+                    track_connects_graphic(&as_track(ring[i], ring[(i + 1) % n], *pw, b.net), a)
+                })
+            };
+            if check_ring(outer) || holes.iter().any(|h| check_ring(h)) {
+                return true;
+            }
+            *poly_filled
+                && (*cw / 2) * 2 >= 2 * CONTACT_OVERLAP_NM
+                && point_in_polygon_with_holes([center[0] + *radius_nm, center[1]], outer, holes)
+        }
+        (GraphicShape::Polygon { .. }, GraphicShape::Circle { .. }) => graphics_connect(b, a),
+        (
+            GraphicShape::Polygon {
+                outer: oa,
+                holes: ha,
+                width_nm: wa,
+                filled: fa,
+            },
+            GraphicShape::Polygon {
+                outer: ob,
+                holes: hb,
+                width_nm: wb,
+                filled: fb,
+            },
+        ) => {
+            let check_rings = |outer: &[Point],
+                               holes: &[Vec<Point>],
+                               w: i64,
+                               net: u32,
+                               other: &CopperGraphic| {
+                let check_ring = |ring: &[Point]| {
+                    let n = ring.len();
+                    (0..n).any(|i| {
+                        track_connects_graphic(&as_track(ring[i], ring[(i + 1) % n], w, net), other)
+                    })
+                };
+                check_ring(outer) || holes.iter().any(|h| check_ring(h))
+            };
+            check_rings(oa, ha, *wa, a.net, b)
+                || check_rings(ob, hb, *wb, b.net, a)
+                || (*fa && *fb && filled_polygons_overlap(oa, ha, ob, hb))
         }
     }
 }

@@ -796,3 +796,161 @@ def test_native_board_solder_mask_aperture_and_bezier_refusal(native_board, tmp_
     save(bz_path, board)
     with pytest.raises(bridge.UnsupportedBoard, match="Bezier"):
         bridge.export_board(bz_path, RULES, 100000)
+
+
+def test_native_ultra_large_major_pcb_arc_refused_without_panic(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    arc = pcbnew.PCB_ARC(board)
+    arc.SetLayer(pcbnew.F_Cu)
+    arc.SetNetCode(0)
+    arc.SetStart(pcbnew.VECTOR2I(10_000_000, 15_000_000))
+    arc.SetMid(pcbnew.VECTOR2I(9_999_999, 15_000_000))
+    arc.SetEnd(pcbnew.VECTOR2I(20_000_000, 15_000_100))
+    arc.SetWidth(250_000)
+    board.Add(arc)
+    save(native_board, board)
+
+    data = bridge.export_board(native_board, RULES, 100000)
+    request, result = tmp_path / "arc-req.json", tmp_path / "arc-res.json"
+    bridge.write_request(data, request)
+    done = subprocess.run(
+        [
+            "cargo",
+            "run",
+            "--locked",
+            "--offline",
+            "--manifest-path",
+            str(ROOT / "rust-engine/Cargo.toml"),
+            "--",
+            str(request),
+            str(result),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert done.returncode == 2, (done.stdout, done.stderr)
+    out = json.loads(result.read_text())
+    assert out["status"] == "unsupported"
+
+
+def test_native_solder_mask_min_width_without_copper_clearance_routes_over_mask_and_drc(
+    native_board, tmp_path
+):
+    board = pcbnew.LoadBoard(str(native_board))
+    ds = board.GetDesignSettings()
+    ds.m_SolderMaskMinWidth = 200000
+    ds.m_SolderMaskToCopperClearance = 0
+    board.Add(pcbnew.NETINFO_ITEM(board, "AUX", 3))
+    # 2-net footprint with an F.Mask aperture directly covering Pad 1 (Secondary Reviewer Probe 2).
+    fp_mask = pcbnew.FOOTPRINT(board)
+    fp_mask.SetReference("U_MASK")
+    fp_mask.SetPosition(pcbnew.VECTOR2I(5_000_000, 10_000_000))
+    board.Add(fp_mask)
+    ls = pcbnew.LSET()
+    ls.AddLayer(pcbnew.F_Cu)
+    for num, net_code, dy in [("1", 1, 0), ("2", 3, 2_000_000)]:
+        p = pcbnew.PAD(fp_mask)
+        p.SetNumber(num)
+        p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        p.SetLayerSet(ls)
+        p.SetShape(pcbnew.PAD_SHAPE_RECT)
+        p.SetSize(pcbnew.VECTOR2I(500_000, 500_000))
+        p.SetPosition(pcbnew.VECTOR2I(5_000_000, 10_000_000 + dy))
+        p.SetNetCode(net_code)
+        fp_mask.Add(p)
+    mask_rect = pcbnew.PCB_SHAPE(fp_mask)
+    mask_rect.SetLayer(pcbnew.F_Mask)
+    mask_rect.SetShape(pcbnew.SHAPE_T_RECT)
+    mask_rect.SetFilled(True)
+    mask_rect.SetStart(pcbnew.VECTOR2I(4_600_000, 9_600_000))
+    mask_rect.SetEnd(pcbnew.VECTOR2I(5_400_000, 10_400_000))
+    mask_rect.SetWidth(0)
+    fp_mask.Add(mask_rect)
+    save(native_board, board)
+
+    data, plan, _ = _route_and_verify_drc(native_board, tmp_path, expected_opens_before=2)
+    assert plan["added_tracks"]
+    assert data["rules"]["solder_mask_min_width_nm"] == 200000
+
+    # Verify load_supported (apply_plan) and export_board agree on F.Mask Bezier even when mask rules are 0.
+    board2 = pcbnew.LoadBoard(str(native_board))
+    ds2 = board2.GetDesignSettings()
+    ds2.m_SolderMaskMinWidth = 0
+    ds2.m_SolderMaskToCopperClearance = 0
+    bz_mask = pcbnew.PCB_SHAPE(board2)
+    bz_mask.SetLayer(pcbnew.F_Mask)
+    bz_mask.SetShape(pcbnew.SHAPE_T_BEZIER)
+    bz_mask.SetStart(pcbnew.VECTOR2I(6_000_000, 6_000_000))
+    bz_mask.SetEnd(pcbnew.VECTOR2I(8_000_000, 6_000_000))
+    bz_mask.SetBezierC1(pcbnew.VECTOR2I(6_500_000, 7_000_000))
+    bz_mask.SetBezierC2(pcbnew.VECTOR2I(7_500_000, 5_000_000))
+    bz_mask.SetWidth(100_000)
+    board2.Add(bz_mask)
+    bz_mask_path = tmp_path / "fmask-bezier.kicad_pcb"
+    save(bz_mask_path, board2)
+    with pytest.raises(bridge.UnsupportedBoard, match="Bezier"):
+        bridge.load_supported(bz_mask_path)
+
+
+def test_native_rotated_odd_circle_and_square_oval_preserve_1nm_diameter(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    pads = sorted(board.GetPads(), key=lambda p: p.GetPosition().x)
+    pads[0].SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+    pads[0].SetSize(pcbnew.VECTOR2I(1_000_001, 1_000_001))
+    pads[0].SetOrientationDegrees(45.0)
+    pads[1].SetShape(pcbnew.PAD_SHAPE_OVAL)
+    pads[1].SetSize(pcbnew.VECTOR2I(1_000_001, 1_000_001))
+    pads[1].SetOrientationDegrees(45.0)
+    save(native_board, board)
+
+    data, plan, _ = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    for p in data["pads"]:
+        assert p["shape"]["kind"] == "box_exact"
+        assert p["shape"]["half_size_2x"] == [1_000_001, 1_000_001]
+        assert p["shape"]["radius_2x"] == 1_000_001
+
+
+@pytest.mark.parametrize("size", [(1_000_001, 500_001), (2_000_000, 1_000_001), (1_000_001, 1_000_001)])
+@pytest.mark.parametrize("angle", [0.0, 45.0])
+def test_native_odd_minor_roundrect_rratio_05_routes_and_drc(native_board, tmp_path, size, angle):
+    board = pcbnew.LoadBoard(str(native_board))
+    for pad in board.GetPads():
+        rounded(pad, pcbnew.PAD_SHAPE_ROUNDRECT, size=size, angle=angle, ratio=0.5)
+    save(native_board, board)
+
+    _, plan, _ = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+
+
+def test_native_asymmetric_rotated_trapezoid_boundary_and_drc(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    fp = pcbnew.FOOTPRINT(board)
+    fp.SetReference("OB_TRAP")
+    fp.SetPosition(pcbnew.VECTOR2I(10_000_000, 18_000_000))
+    board.Add(fp)
+    trap = pcbnew.PAD(fp)
+    trap.SetNumber("1")
+    trap.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+    ls = pcbnew.LSET()
+    ls.AddLayer(pcbnew.F_Cu)
+    trap.SetLayerSet(ls)
+    trap.SetShape(pcbnew.PAD_SHAPE_TRAPEZOID)
+    trap.SetSize(pcbnew.VECTOR2I(2_000_000, 1_000_000))
+    trap.SetDelta(pcbnew.VECTOR2I(400_000, 0))
+    trap.SetOrientationDegrees(30.0)
+    trap.SetPosition(fp.GetPosition())
+    trap.SetNetCode(0)
+    fp.Add(trap)
+    save(native_board, board)
+
+    data, plan, _ = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    obs = next(p for p in data["pads"] if p["net"] == 0)
+    assert obs["shape"]["kind"] == "convex_polygon"
+    verts = obs["shape"]["vertices"]
+    # Verify exact KiCad effective shape orientation (not reflected -30 deg).
+    assert any(x > 10_900_000 and y < 17_900_000 for x, y in verts)
+    assert not any(x > 10_900_000 and y > 18_200_000 for x, y in verts)

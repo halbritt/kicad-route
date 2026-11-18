@@ -293,6 +293,20 @@ def _decode_effective_pad_shape(pad, radius_hint=None):
         return {'kind': 'box_exact',
                 'center_2x': [2 * pos[0] + sz[0], 2 * pos[1] + sz[1]],
                 'half_size_2x': sz, 'radius_2x': 0}
+    if len(subs) == 5 and subs[0].Type() == pcbnew.SH_RECT and all(s.Type() == pcbnew.SH_SEGMENT for s in subs[1:]):
+        widths = {int(pcbnew.Cast_to_SHAPE_SEGMENT(s).GetWidth()) for s in subs[1:]}
+        if len(widths) != 1:
+            raise UnsupportedBoard('native rounded-pad segment widths are inconsistent')
+        w_seg = next(iter(widths))
+        if w_seg % 2 != 0:
+            raise UnsupportedBoard('native rounded-pad segment width is odd')
+        rc = pcbnew.Cast_to_SHAPE_RECT(subs[0])
+        if rc is None:
+            raise UnsupportedBoard('native pad effective rect is unavailable')
+        pos, sz = point(rc.GetPosition()), point(rc.GetSize())
+        return {'kind': 'box_exact',
+                'center_2x': [2 * pos[0] + sz[0], 2 * pos[1] + sz[1]],
+                'half_size_2x': [sz[0] + w_seg, sz[1] + w_seg], 'radius_2x': w_seg}
     if subs and subs[0].Type() == pcbnew.SH_SIMPLE:
         r_nm = 0
         if len(subs) == 5 and all(s.Type() == pcbnew.SH_SEGMENT for s in subs[1:]):
@@ -379,7 +393,8 @@ def pad_shape(pad):
         if not math.isfinite(ratio) or not 0 <= ratio <= 0.5 or not math.isfinite(native_radius):
             raise ValueError('rounded pad radius ratio must be finite and between zero and one half')
         radius = int(native_radius)
-        if radius != native_radius or not 0 <= radius <= min(size) // 2:
+        max_radius = (min(size) + 1) // 2 if ratio == 0.5 else min(size) // 2
+        if radius != native_radius or not 0 <= radius <= max_radius:
             raise ValueError('rounded pad radius must be an integer within either half size')
 
     offset = point(pad.GetOffset())
@@ -420,9 +435,16 @@ def pad_shape(pad):
             return {'kind': 'rect', 'half_size_nm': half}
         return {'kind': 'round_rect', 'half_size_nm': half, 'radius_nm': radius}
 
-    if is_ortho and kind in (pcbnew.PAD_SHAPE_CIRCLE, pcbnew.PAD_SHAPE_RECT, pcbnew.PAD_SHAPE_ROUNDRECT):
+    if kind == pcbnew.PAD_SHAPE_CIRCLE or (kind == pcbnew.PAD_SHAPE_OVAL and size[0] == size[1]):
+        shape_pos = point(pad.ShapePos(pcbnew.F_Cu))
+        if size[0] % 2 == 0 and shape_pos == point(pad.GetPosition()):
+            return {'kind': 'circle', 'radius_nm': size[0] // 2}
+        return {'kind': 'box_exact', 'center_2x': [2 * shape_pos[0], 2 * shape_pos[1]],
+                'half_size_2x': [size[0], size[0]], 'radius_2x': size[0]}
+
+    if is_ortho and (kind == pcbnew.PAD_SHAPE_RECT or (kind == pcbnew.PAD_SHAPE_ROUNDRECT and radius <= min(size) // 2)):
         w, h = size[0], size[1]
-        if angle == 90 and kind != pcbnew.PAD_SHAPE_CIRCLE:
+        if angle == 90:
             w, h = h, w
         shape_pos = point(pad.ShapePos(pcbnew.F_Cu))
         if kind == pcbnew.PAD_SHAPE_ROUNDRECT:
@@ -453,7 +475,7 @@ def pad_shape(pad):
                         return {'kind': 'circle', 'radius_nm': c_r}
                     return {'kind': 'box_exact', 'center_2x': [2 * c_pos[0], 2 * c_pos[1]],
                             'half_size_2x': [2 * c_r, 2 * c_r], 'radius_2x': 2 * c_r}
-        radius_2x = w if kind == pcbnew.PAD_SHAPE_CIRCLE else (0 if kind == pcbnew.PAD_SHAPE_RECT else 2 * radius)
+        radius_2x = 0 if kind == pcbnew.PAD_SHAPE_RECT else 2 * radius
         return {'kind': 'box_exact', 'center_2x': [2 * shape_pos[0], 2 * shape_pos[1]],
                 'half_size_2x': [w, h], 'radius_2x': radius_2x}
 
@@ -656,7 +678,7 @@ def load_supported(path: Path):
         layer = drawing.GetLayer()
         if pcbnew.IsCopperLayer(layer):
             _check_graphic_drawing(drawing, context_label='board copper')
-        elif mask_rules_active and layer in (pcbnew.F_Mask, pcbnew.B_Mask):
+        elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE)):
             _check_graphic_drawing(drawing, context_label='board solder-mask')
     for footprint in board.GetFootprints():
         if footprint.GetLocalClearance() is not None:
@@ -676,7 +698,7 @@ def load_supported(path: Path):
                 raise UnsupportedBoard('footprint Margin geometry is not represented')
             if pcbnew.IsCopperLayer(layer):
                 _check_graphic_drawing(drawing, context_label='footprint copper')
-            elif mask_rules_active and layer in (pcbnew.F_Mask, pcbnew.B_Mask):
+            elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE)):
                 if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
                     _check_graphic_drawing(drawing, context_label='footprint solder-mask')
         for pad in footprint.Pads():
@@ -838,6 +860,10 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
     tracks.sort(key=lambda item: (item['net'], item['start'], item['end'],
                                   item['width_nm'], item['locked'], item['id']))
 
+    mask_rules_from_json = (
+        rules.get('solder_mask_to_copper_clearance_nm', 0) > 0
+        or rules.get('solder_mask_min_width_nm', 0) > 0
+    )
     mask_apertures = []
     for drawing in board.GetDrawings():
         layer = drawing.GetLayer()
@@ -846,10 +872,13 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
             net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
             for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
                 graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
-        elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and isinstance(drawing, pcbnew.PCB_SHAPE):
-            layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
-            for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
-                mask_apertures.append({'id': item_uuid, 'layer': layer_name, 'shape': shape_obj})
+        elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
+            if isinstance(drawing, pcbnew.PCB_SHAPE):
+                layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
+                for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                    mask_apertures.append({'id': item_uuid, 'layer': layer_name, 'shape': shape_obj})
+            elif mask_rules_from_json:
+                _check_graphic_drawing(drawing, context_label='board solder-mask')
 
     for footprint in board.GetFootprints():
         fp_nets = {int(p.GetNetCode()) for p in footprint.Pads() if int(p.GetNetCode()) != 0}
@@ -861,14 +890,17 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
                 net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
                 for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
                     graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
-            elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and isinstance(drawing, pcbnew.PCB_SHAPE):
+            elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
                 if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
-                    layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
-                    for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
-                        aperture = {'id': item_uuid, 'layer': layer_name, 'shape': shape_obj}
-                        if fp_mask_net is not None:
-                            aperture['net'] = fp_mask_net
-                        mask_apertures.append(aperture)
+                    if isinstance(drawing, pcbnew.PCB_SHAPE):
+                        layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
+                        for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                            aperture = {'id': item_uuid, 'layer': layer_name, 'shape': shape_obj}
+                            if fp_mask_net is not None:
+                                aperture['net'] = fp_mask_net
+                            mask_apertures.append(aperture)
+                    elif mask_rules_from_json:
+                        _check_graphic_drawing(drawing, context_label='footprint solder-mask')
 
     graphics.sort(key=lambda item: (item['layer'], item['net'], item['id']))
     mask_apertures.sort(key=lambda item: (item['layer'], item['id']))

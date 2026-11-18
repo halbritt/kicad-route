@@ -595,3 +595,220 @@ fn simple_polygon_drill_and_mask_exact_boundaries() {
     assert!(track_near_mask([11, 5], [11, 15], 2, 3, &mask, true));
     assert!(track_near_mask([10, 5], [10, 15], 2, 3, &mask, false));
 }
+
+#[test]
+fn graphics_connect_and_graphic_connects_pad_symmetry_and_45deg_annulus() {
+    let g = |n: u32, shape: GraphicShape| CopperGraphic {
+        id: format!("10000000-0000-4000-8000-{n:012}"),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape,
+    };
+    let ring = g(
+        1,
+        GraphicShape::Circle {
+            center: [0, 0],
+            radius_nm: 10_000,
+            width_nm: 200,
+            filled: false,
+        },
+    );
+    let inner_seg = g(
+        2,
+        GraphicShape::Segment {
+            start: [-500, 0],
+            end: [500, 0],
+            width_nm: 200,
+        },
+    );
+    let inner_ring = g(
+        3,
+        GraphicShape::Circle {
+            center: [0, 0],
+            radius_nm: 5_000,
+            width_nm: 200,
+            filled: false,
+        },
+    );
+    let overlap_ring = g(
+        4,
+        GraphicShape::Circle {
+            center: [10_000, 0],
+            radius_nm: 5_000,
+            width_nm: 200,
+            filled: false,
+        },
+    );
+    let outer_poly = g(
+        5,
+        GraphicShape::Polygon {
+            outer: vec![
+                [-20_000, -20_000],
+                [20_000, -20_000],
+                [20_000, 20_000],
+                [-20_000, 20_000],
+            ],
+            holes: vec![vec![
+                [-2_000, -2_000],
+                [2_000, -2_000],
+                [2_000, 2_000],
+                [-2_000, 2_000],
+            ]],
+            width_nm: 0,
+            filled: true,
+        },
+    );
+    let hole_poly = g(
+        6,
+        GraphicShape::Polygon {
+            outer: vec![
+                [-1_000, -1_000],
+                [1_000, -1_000],
+                [1_000, 1_000],
+                [-1_000, 1_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+    );
+    let inner_filled_poly = g(
+        7,
+        GraphicShape::Polygon {
+            outer: vec![
+                [4_000, 4_000],
+                [6_000, 4_000],
+                [6_000, 6_000],
+                [4_000, 6_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+    );
+    let tangent_poly = g(
+        8,
+        GraphicShape::Polygon {
+            outer: vec![
+                [20_000, -20_000],
+                [30_000, -20_000],
+                [30_000, 20_000],
+                [20_000, 20_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+    );
+    let arc_cross = g(
+        9,
+        GraphicShape::Arc {
+            start: [8_000, -5_000],
+            mid: [10_500, 0],
+            end: [8_000, 5_000],
+            width_nm: 200,
+        },
+    );
+    let all = [
+        ring.clone(),
+        inner_seg.clone(),
+        inner_ring.clone(),
+        overlap_ring.clone(),
+        outer_poly.clone(),
+        hole_poly.clone(),
+        inner_filled_poly.clone(),
+        tangent_poly.clone(),
+        arc_cross.clone(),
+    ];
+    for a in &all {
+        for b in &all {
+            assert_eq!(
+                graphics_connect(a, b),
+                graphics_connect(b, a),
+                "asymmetric graphics_connect for {} vs {}",
+                a.id,
+                b.id
+            );
+        }
+    }
+    assert!(!graphics_connect(&ring, &inner_seg));
+    assert!(!graphics_connect(&ring, &inner_ring));
+    assert!(graphics_connect(&ring, &overlap_ring));
+    assert!(!graphics_connect(&outer_poly, &hole_poly));
+    assert!(graphics_connect(&outer_poly, &inner_filled_poly));
+    assert!(!graphics_connect(&outer_poly, &tangent_poly));
+    assert!(graphics_connect(&ring, &arc_cross));
+    assert!(graphics_connect(&outer_poly, &ring));
+
+    // Off-cardinal 45-degree pad-to-unfilled-circle connectivity across pad shapes.
+    // Ring radius 10_000, half-width 100 -> copper [9_900, 10_100]. At 45 deg, 10_000 / sqrt(2) = 7071.
+    for shape in [
+        Shape::Circle { radius_nm: 200 },
+        Shape::Rect {
+            half_size_nm: [200, 200],
+        },
+        Shape::RoundRect {
+            half_size_nm: [200, 200],
+            radius_nm: 100,
+        },
+        Shape::BoxExact {
+            center_2x: [14_142, 14_142],
+            half_size_2x: [401, 401],
+            radius_2x: 401,
+        },
+        Shape::Capsule {
+            start_nm: [7_000, 7_000],
+            end_nm: [7_140, 7_140],
+            width_nm: 200,
+        },
+        Shape::ConvexPolygon {
+            vertices: vec![
+                [7_071, 6_871],
+                [7_271, 7_071],
+                [7_071, 7_271],
+                [6_871, 7_071],
+            ],
+            radius_nm: 0,
+        },
+    ] {
+        let on_45 = pad(shape, [7_071, 7_071]);
+        assert!(
+            graphic_connects_pad(&ring, &on_45),
+            "45-deg pad should connect to unfilled circle: {:?}",
+            on_45.shape
+        );
+    }
+    assert!(!graphic_connects_pad(
+        &ring,
+        &pad(Shape::Circle { radius_nm: 200 }, [0, 0])
+    ));
+    assert!(!graphic_connects_pad(
+        &ring,
+        &pad(Shape::Circle { radius_nm: 200 }, [7_400, 7_400])
+    ));
+}
+
+#[test]
+fn asymmetric_rotated_convex_polygon_catches_rotation_sign_flip() {
+    // Asymmetric trapezoid rotated +30 deg around origin (wider base at bottom, narrow top shifted right).
+    // If rotation angle sign is flipped (+30 -> -30), vertices reflect across X-axis and this assertion fails.
+    let base_verts = [[-200i64, -100], [200, -100], [100, 100], [-50, 100]];
+    let rot30 = |(x, y): (i64, i64)| -> Point {
+        let ang = std::f64::consts::PI / 6.0;
+        let rx = (x as f64) * ang.cos() - (y as f64) * ang.sin();
+        let ry = (x as f64) * ang.sin() + (y as f64) * ang.cos();
+        [rx.round() as i64, ry.round() as i64]
+    };
+    let verts: Vec<Point> = base_verts.iter().map(|&[x, y]| rot30((x, y))).collect();
+    let p = pad(
+        Shape::ConvexPolygon {
+            vertices: verts,
+            radius_nm: 10,
+        },
+        [0, 0],
+    );
+    // Point near rotated vertex (200, -100) rotated +30 deg => (223, 13):
+    // Under +30 deg, [223, 13] is inside; under -30 deg, (200, -100) maps to (123, -187), far from [223, 13]!
+    assert!(track_near_pad([223, 13], [223, 20], 2, 0, &p, false));
+    assert!(!track_near_pad([123, -187], [123, -180], 2, 0, &p, false));
+}

@@ -62,7 +62,7 @@ fn search_inner(
         limit,
         expanded,
         |p| Ok(heuristic(p)),
-        |a, b| Ok(engine.legal_edge(net, a, b)?.then_some(b)),
+        |_, a, b| Ok(engine.legal_edge(net, a, b)?.then_some(b)),
         |at, _| Ok(at == goal),
     )
 }
@@ -147,14 +147,65 @@ pub(crate) fn join_components(
         limit,
         expanded,
         |p| component_estimate(p, targets, &engine.input.rules, &engine.work),
-        |a, b| {
+        |run_start, a, b| {
             // Check the actual shortened goal edge before rejecting the full
             // grid step: its unused suffix may hit an obstacle or board edge.
             if let Some(p) = attachment(a, b)? {
-                Ok(Some(p))
-            } else {
-                Ok(engine.legal_edge(net, a, b)?.then_some(b))
+                return Ok(Some(p));
             }
+            if engine.legal_edge(net, a, b)? {
+                return Ok(Some(b));
+            }
+            if engine.input.rules.same_net_hole_clearance_nm > 0 {
+                if let Some(rs) = run_start {
+                    if engine.legal_edge(net, rs, b)? {
+                        return Ok(Some(b));
+                    }
+                }
+                let delta = [b[0] - a[0], b[1] - a[1]];
+                let axis = usize::from(delta[0] == 0);
+                let sign = delta[axis].signum();
+                let route_radius = (engine.input.rules.width_nm + 1) / 2;
+                let mut best_entry: Option<Point> = None;
+                for c in targets.iter().flatten() {
+                    let Copper::Pad(pad) = *c else {
+                        continue;
+                    };
+                    if pad.drill.is_none() {
+                        continue;
+                    }
+                    let (lo, hi) = pad.copper_bounds();
+                    if a[1 - axis] < lo[1 - axis] - route_radius
+                        || a[1 - axis] > hi[1 - axis] + route_radius
+                    {
+                        continue;
+                    }
+                    if (sign > 0 && hi[axis] < a[axis]) || (sign < 0 && lo[axis] > a[axis]) {
+                        continue;
+                    }
+                    let mut far = a;
+                    far[axis] = if sign > 0 {
+                        (hi[axis] + route_radius + engine.input.rules.grid_nm)
+                            .min(engine.input.bounds.max[axis])
+                    } else {
+                        (lo[axis] - route_radius - engine.input.rules.grid_nm)
+                            .max(engine.input.bounds.min[axis])
+                    };
+                    if far == a {
+                        continue;
+                    }
+                    if let Some(p) = attachment(a, far)? {
+                        let key = |pt: Point| ((pt[0] - a[0]).abs() + (pt[1] - a[1]).abs(), pt);
+                        if best_entry.is_none_or(|old| key(p) < key(old)) {
+                            best_entry = Some(p);
+                        }
+                    }
+                }
+                if best_entry.is_some() {
+                    return Ok(best_entry);
+                }
+            }
+            Ok(None)
         },
         |at, previous| {
             if previous.is_some() {
@@ -222,7 +273,7 @@ fn walk(
     limit: u64,
     expanded: &mut u64,
     heuristic: impl Fn(Point) -> Result<u64, Failure>,
-    advance: impl Fn(Point, Point) -> Result<Option<Point>, Failure>,
+    advance: impl Fn(Option<Point>, Point, Point) -> Result<Option<Point>, Failure>,
     finished: impl Fn(Point, Option<Point>) -> Result<bool, Failure>,
 ) -> Result<Path, Failure> {
     let grid = engine.input.rules.grid_nm;
@@ -281,7 +332,26 @@ fn walk(
             let Some(y) = state.at[1].checked_add(delta[1]) else {
                 continue;
             };
-            let Some(at) = advance(state.at, [x, y])? else {
+            let run_start = if engine.input.rules.same_net_hole_clearance_nm > 0
+                && direction as u8 == state.direction
+            {
+                let mut s = state;
+                while let Some(prev) = parent.get(&s) {
+                    engine.work.charge(1)?;
+                    if prev.direction != state.direction && prev.direction != 4 {
+                        s = *prev;
+                        break;
+                    }
+                    s = *prev;
+                    if prev.direction == 4 {
+                        break;
+                    }
+                }
+                Some(s.at)
+            } else {
+                None
+            };
+            let Some(at) = advance(run_start, state.at, [x, y])? else {
                 continue;
             };
             let next = State {

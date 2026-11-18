@@ -248,12 +248,15 @@ impl CopperGraphic {
                 )
             }
             GraphicShape::Polygon {
-                outer, width_nm, ..
+                outer,
+                holes,
+                width_nm,
+                ..
             } => {
                 let r = (width_nm + 1) / 2;
                 let mut lo = [i64::MAX, i64::MAX];
                 let mut hi = [i64::MIN, i64::MIN];
-                for p in outer {
+                for p in outer.iter().chain(holes.iter().flatten()) {
                     for k in 0..2 {
                         lo[k] = lo[k].min(p[k]);
                         hi[k] = hi[k].max(p[k]);
@@ -745,6 +748,13 @@ impl Input {
                     }
                 }
             }
+            for poly in &outline.polygons {
+                for hole in &poly.holes {
+                    if !crate::geometry::point_in_simple_polygon(hole[0], &poly.outer) {
+                        return Err(invalid("board_outline hole must lie inside outer ring"));
+                    }
+                }
+            }
         }
         let validate_graphic_shape = |shape: &GraphicShape| -> Result<(), Failure> {
             match shape {
@@ -774,6 +784,25 @@ impl Input {
                         || !(0..=2 * MAX_NM).contains(width_nm)
                     {
                         return Err(invalid("graphic arc points or width are invalid"));
+                    }
+                    if crate::geometry::is_ultra_large_major_arc(*start, *mid, *end) {
+                        return Err(unsupported("graphic arc exceeds supported extent"));
+                    }
+                    let (chords, sag) =
+                        crate::geometry::arc_to_conservative_chords(*start, *mid, *end);
+                    let fits_2x = |v: i64| (-2 * MAX_NM..=2 * MAX_NM).contains(&v);
+                    if !(0..=MAX_NM).contains(&sag)
+                        || width_nm.checked_add(2 * sag).is_none_or(|w| {
+                            !(0..=4 * MAX_NM).contains(&w) || i32::try_from(w).is_err()
+                        })
+                        || chords.iter().any(|p| {
+                            !fits_2x(p[0])
+                                || !fits_2x(p[1])
+                                || i32::try_from(p[0]).is_err()
+                                || i32::try_from(p[1]).is_err()
+                        })
+                    {
+                        return Err(unsupported("graphic arc exceeds supported extent"));
                     }
                 }
                 GraphicShape::Circle {
@@ -824,6 +853,11 @@ impl Input {
                             if crate::geometry::rings_cross(rings[i], rings[j]) {
                                 return Err(invalid("graphic polygon rings must not cross"));
                             }
+                        }
+                    }
+                    for hole in holes {
+                        if !crate::geometry::point_in_simple_polygon(hole[0], outer) {
+                            return Err(invalid("graphic polygon hole must lie inside outer ring"));
                         }
                     }
                 }
