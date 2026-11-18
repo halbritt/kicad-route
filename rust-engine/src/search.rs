@@ -101,7 +101,7 @@ pub(crate) fn join_components(
     let mut starts = BTreeSet::new();
     for c in source {
         engine.work.charge(1)?;
-        for p in c.anchors() {
+        for p in c.anchors(engine.input.bounds.min, engine.input.rules.grid_nm) {
             engine.work.charge(1)?;
             if !engine.legal_edge(net, p, p)? {
                 continue;
@@ -204,6 +204,7 @@ fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
     let (lo, hi) = match target {
         Copper::Pad(pad) => pad.copper_bounds(),
         Copper::Track(track) => track.copper_bounds(),
+        Copper::Graphic(graphic) => graphic.copper_bounds(),
     };
     let lo: Point = std::array::from_fn(|k| lo[k] - route_radius);
     let hi: Point = std::array::from_fn(|k| hi[k] + route_radius);

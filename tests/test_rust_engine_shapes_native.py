@@ -164,13 +164,9 @@ def test_native_rounded_signals_and_foreign_obstacles_route_preserve_and_validat
 @pytest.mark.parametrize(
     "feature",
     [
-        "rotation",
-        "odd_x",
-        "odd_y",
         "zero",
         "negative",
         "drill",
-        "offset",
         "clearance",
         "back",
     ],
@@ -181,20 +177,12 @@ def test_native_rounded_unsupported_and_malformed_are_not_coerced(
     board = pcbnew.LoadBoard(str(native_board))
     pad = next(iter(board.GetPads()))
     rounded(pad, kind)
-    if feature == "rotation":
-        pad.SetOrientationDegrees(45)
-    elif feature == "odd_x":
-        pad.SetSize(pcbnew.VECTOR2I(2000001, 1000000))
-    elif feature == "odd_y":
-        pad.SetSize(pcbnew.VECTOR2I(2000000, 1000001))
-    elif feature == "zero":
+    if feature == "zero":
         pad.SetSize(pcbnew.VECTOR2I(0, 1000000))
     elif feature == "negative":
         pad.SetSize(pcbnew.VECTOR2I(-2000000, 1000000))
     elif feature == "drill":
         pad.SetDrillSize(pcbnew.VECTOR2I(100000, 100000))
-    elif feature == "offset":
-        pad.SetOffset(pcbnew.VECTOR2I(1000, 0))
     elif feature == "clearance":
         pad.SetLocalClearance(2000000)
     elif feature == "back":
@@ -555,15 +543,30 @@ def test_validate_native_pad_scalars_scopes_size_to_direct_pad_child():
         )
 
 
-@pytest.mark.parametrize("size", [(1000001, 1000001), (1000000, 1000002)])
-def test_odd_or_nonsquare_circle_pad_is_rejected(native_board, size):
+def test_nonsquare_circle_pad_is_rejected(native_board):
     board = pcbnew.LoadBoard(str(native_board))
     pad = next(iter(board.GetPads()))
     pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
-    pad.SetSize(pcbnew.VECTOR2I(*size))
+    pad.SetSize(pcbnew.VECTOR2I(1000000, 1000002))
     save(native_board, board)
     with pytest.raises(bridge.UnsupportedBoard, match="circular pads"):
         bridge.export_board(native_board, RULES, 100000)
+
+
+def test_odd_circle_pad_routes_and_validates(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    for pad in board.GetPads():
+        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+        pad.SetSize(pcbnew.VECTOR2I(1000001, 1000001))
+    save(native_board, board)
+    data = bridge.export_board(native_board, RULES, 100000)
+    assert all(p["shape"]["kind"] == "box_exact" for p in data["pads"])
+    request, plan = execute(native_board, data, tmp_path)
+    output = tmp_path / "odd-circle.kicad_pcb"
+    bridge.apply_plan(native_board, plan, output, expected_request=request.read_bytes())
+    saved = pcbnew.LoadBoard(str(output))
+    saved.BuildConnectivity()
+    assert saved.GetConnectivity().GetUnconnectedCount(False) == 0
 
 
 def test_effective_shape_compound_none_fails_closed(native_board, monkeypatch):
@@ -574,3 +577,222 @@ def test_effective_shape_compound_none_fails_closed(native_board, monkeypatch):
     monkeypatch.setattr(bridge.pcbnew, "Cast_to_SHAPE_COMPOUND", lambda _raw: None)
     with pytest.raises(bridge.UnsupportedBoard, match="effective shape"):
         bridge.export_board(native_board, RULES, 100000)
+
+
+def _route_and_verify_drc(board_path, tmp_path, *, rules=RULES, expected_opens_before=1):
+    data = bridge.export_board(board_path, rules, 100000)
+    request, plan = execute(board_path, data, tmp_path)
+    output = tmp_path / "routed.kicad_pcb"
+    bridge.apply_plan(board_path, plan, output, expected_request=request.read_bytes())
+    saved = pcbnew.LoadBoard(str(output))
+    saved.BuildConnectivity()
+    assert saved.GetConnectivity().GetUnconnectedCount(False) == 0
+    before = bridge.native_violations(board_path, tmp_path / "before-drc.json")
+    after = bridge.native_violations(output, tmp_path / "after-drc.json")
+    assert len(before["unconnected_items"]) == expected_opens_before
+    assert after["unconnected_items"] == []
+    key = lambda violation: json.dumps(violation, sort_keys=True)
+    assert not (
+        Counter(map(key, after["violations"])) - Counter(map(key, before["violations"]))
+    )
+    return data, plan, output
+
+
+def test_native_rotated_odd_nm_offset_and_trapezoid_pads_route_and_drc(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    pads = sorted(board.GetPads(), key=lambda p: p.GetPosition().x)
+    # J1: odd-nm Rect + SetOffset; J2: rotated 45 deg Oval inside 30 deg rotated footprint -> 45 deg board-abs.
+    pads[0].SetShape(pcbnew.PAD_SHAPE_RECT)
+    pads[0].SetSize(pcbnew.VECTOR2I(1000001, 500001))
+    pads[0].SetOffset(pcbnew.VECTOR2I(500000, 0))
+    fp2 = pads[1].GetParentFootprint()
+    fp2.SetOrientationDegrees(30.0)
+    pads[1].SetShape(pcbnew.PAD_SHAPE_OVAL)
+    pads[1].SetSize(pcbnew.VECTOR2I(2000000, 1000000))
+    pads[1].SetOrientationDegrees(45.55)
+    # Odd-nm Oval obstacle at (10, 2) mm verifying KiCad's +1 nm width rounding in GetEffectiveShape.
+    fp_obs = pcbnew.FOOTPRINT(board)
+    fp_obs.SetReference("OB1")
+    fp_obs.SetPosition(pcbnew.VECTOR2I(10000000, 2000000))
+    board.Add(fp_obs)
+    obs = pcbnew.PAD(fp_obs)
+    obs.SetNumber("1")
+    obs.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+    layers = pcbnew.LSET()
+    layers.AddLayer(pcbnew.F_Cu)
+    obs.SetLayerSet(layers)
+    obs.SetShape(pcbnew.PAD_SHAPE_OVAL)
+    obs.SetSize(pcbnew.VECTOR2I(1000000, 500001))
+    obs.SetPosition(fp_obs.GetPosition())
+    obs.SetNetCode(0)
+    fp_obs.Add(obs)
+    # Rotated Trapezoid obstacle at (14, 18) mm.
+    fp_trap = pcbnew.FOOTPRINT(board)
+    fp_trap.SetReference("OB2")
+    fp_trap.SetPosition(pcbnew.VECTOR2I(14000000, 18000000))
+    board.Add(fp_trap)
+    trap = pcbnew.PAD(fp_trap)
+    trap.SetNumber("1")
+    trap.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+    trap.SetLayerSet(layers)
+    trap.SetShape(pcbnew.PAD_SHAPE_TRAPEZOID)
+    trap.SetSize(pcbnew.VECTOR2I(2000000, 1000000))
+    trap.SetDelta(pcbnew.VECTOR2I(200000, 0))
+    trap.SetOrientationDegrees(135.0)
+    trap.SetPosition(fp_trap.GetPosition())
+    trap.SetNetCode(0)
+    fp_trap.Add(trap)
+    save(native_board, board)
+
+    data, plan, _ = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    obs_exported = next(p for p in data["pads"] if p["net"] == 0 and p["shape"]["kind"] == "capsule")
+    assert obs_exported["shape"]["width_nm"] == 500002
+
+
+def test_native_pth_oblong_and_npth_holes_route_and_pass_drc(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    pads = sorted(board.GetPads(), key=lambda p: p.GetPosition().x)
+    all_cu = pcbnew.LSET.AllCuMask()
+    # J1: circular PTH; J2: rotated oblong PTH.
+    for pad, shape, size, drill_shape, drill_size, angle in [
+        (pads[0], pcbnew.PAD_SHAPE_CIRCLE, (2000000, 2000000), pcbnew.PAD_DRILL_SHAPE_CIRCLE, (1000000, 1000000), 0.0),
+        (pads[1], pcbnew.PAD_SHAPE_OVAL, (3000000, 1800000), pcbnew.PAD_DRILL_SHAPE_OBLONG, (1600000, 800000), 30.0),
+    ]:
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_PTH)
+        pad.SetLayerSet(all_cu)
+        pad.SetShape(shape)
+        pad.SetSize(pcbnew.VECTOR2I(*size))
+        pad.SetDrillShape(drill_shape)
+        pad.SetDrillSize(pcbnew.VECTOR2I(*drill_size))
+        pad.SetOrientationDegrees(angle)
+    # NPTH mounting hole at (10, 10) mm.
+    mh_fp = pcbnew.FOOTPRINT(board)
+    mh_fp.SetReference("MH1")
+    mh_fp.SetPosition(pcbnew.VECTOR2I(10000000, 10000000))
+    board.Add(mh_fp)
+    mh = pcbnew.PAD(mh_fp)
+    mh.SetNumber("1")
+    mh.SetAttribute(pcbnew.PAD_ATTRIB_NPTH)
+    mh.SetLayerSet(pcbnew.LSET())
+    mh.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+    mh.SetSize(pcbnew.VECTOR2I(3000000, 3000000))
+    mh.SetDrillShape(pcbnew.PAD_DRILL_SHAPE_CIRCLE)
+    mh.SetDrillSize(pcbnew.VECTOR2I(3000000, 3000000))
+    mh.SetPosition(mh_fp.GetPosition())
+    mh.SetNetCode(0)
+    mh_fp.Add(mh)
+    save(native_board, board)
+
+    data, plan, _ = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    assert len(data["holes"]) == 1
+    assert data["rules"]["hole_clearance_nm"] >= 250000
+    assert all("drill" in p for p in data["pads"])
+
+
+def test_native_nonrect_outline_footprint_slot_and_pcb_arc_route_and_drc(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    for drawing in list(board.GetDrawings()):
+        board.Remove(drawing)
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    l_pts = [
+        (0, 0), (30000000, 0), (30000000, 15000000),
+        (15000000, 15000000), (15000000, 30000000), (0, 30000000),
+    ]
+    for a, b in zip(l_pts, l_pts[1:] + l_pts[:1]):
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50000)
+        board.Add(edge)
+    pads = sorted(board.GetPads(), key=lambda p: p.GetPosition().x)
+    for pad, pos in zip(pads, [(5000000, 5000000), (5000000, 25000000)]):
+        pad.GetParentFootprint().SetPosition(pcbnew.VECTOR2I(*pos))
+        pad.SetPosition(pcbnew.VECTOR2I(*pos))
+    # Footprint closed Edge.Cuts slot at (9..11, 10..12) mm.
+    slot_fp = pcbnew.FOOTPRINT(board)
+    slot_fp.SetReference("U_SLOT")
+    slot_fp.SetPosition(pcbnew.VECTOR2I(10000000, 11000000))
+    board.Add(slot_fp)
+    slot_pts = [(9000000, 10000000), (11000000, 10000000), (11000000, 12000000), (9000000, 12000000)]
+    for a, b in zip(slot_pts, slot_pts[1:] + slot_pts[:1]):
+        seg = pcbnew.PCB_SHAPE(slot_fp)
+        seg.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        seg.SetLayer(pcbnew.Edge_Cuts)
+        seg.SetStart(pcbnew.VECTOR2I(*a))
+        seg.SetEnd(pcbnew.VECTOR2I(*b))
+        seg.SetWidth(50000)
+        slot_fp.Add(seg)
+    # Locked PCB_ARC obstacle on net 2.
+    arc = pcbnew.PCB_ARC(board)
+    arc.SetLayer(pcbnew.F_Cu)
+    arc.SetNetCode(2)
+    arc.SetStart(pcbnew.VECTOR2I(1000000, 15000000))
+    arc.SetMid(pcbnew.VECTOR2I(6000000, 13000000))
+    arc.SetEnd(pcbnew.VECTOR2I(11000000, 15000000))
+    arc.SetWidth(250000)
+    arc.SetLocked(True)
+    board.Add(arc)
+    save(native_board, board)
+
+    data, plan, output = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    assert "board_outline" in data
+    assert len(data["board_outline"]["polygons"][0]["holes"]) == 1
+    assert any(g["shape"]["kind"] == "arc" for g in data["graphics"])
+    saved = pcbnew.LoadBoard(str(output))
+    assert any(type(t) is pcbnew.PCB_ARC for t in saved.GetTracks())
+
+
+def test_native_board_solder_mask_aperture_and_bezier_refusal(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    ds = board.GetDesignSettings()
+    ds.m_SolderMaskMinWidth = 200000
+    ds.m_SolderMaskToCopperClearance = 100000
+    fp_obs = pcbnew.FOOTPRINT(board)
+    fp_obs.SetReference("TP_OBS")
+    fp_obs.SetPosition(pcbnew.VECTOR2I(10000000, 8000000))
+    board.Add(fp_obs)
+    obs = pcbnew.PAD(fp_obs)
+    obs.SetNumber("1")
+    obs.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+    ls = pcbnew.LSET()
+    ls.AddLayer(pcbnew.F_Cu)
+    obs.SetLayerSet(ls)
+    obs.SetShape(pcbnew.PAD_SHAPE_RECT)
+    obs.SetSize(pcbnew.VECTOR2I(400000, 400000))
+    obs.SetPosition(fp_obs.GetPosition())
+    obs.SetNetCode(2)
+    fp_obs.Add(obs)
+    mask_seg = pcbnew.PCB_SHAPE(board)
+    mask_seg.SetLayer(pcbnew.F_Mask)
+    mask_seg.SetShape(pcbnew.SHAPE_T_SEGMENT)
+    mask_seg.SetStart(pcbnew.VECTOR2I(10000000, 8000000))
+    mask_seg.SetEnd(pcbnew.VECTOR2I(10000000, 12000000))
+    mask_seg.SetWidth(1000000)
+    board.Add(mask_seg)
+    save(native_board, board)
+
+    data, plan, _ = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    assert data["mask_apertures"]
+    assert data["rules"]["solder_mask_min_width_nm"] == 200000
+
+    # Bezier copper curve on F.Cu must fail closed (UnsupportedBoard).
+    bz = pcbnew.PCB_SHAPE(board)
+    bz.SetLayer(pcbnew.F_Cu)
+    bz.SetShape(pcbnew.SHAPE_T_BEZIER)
+    bz.SetStart(pcbnew.VECTOR2I(10000000, 6000000))
+    bz.SetEnd(pcbnew.VECTOR2I(10000000, 14000000))
+    bz.SetBezierC1(pcbnew.VECTOR2I(12000000, 8000000))
+    bz.SetBezierC2(pcbnew.VECTOR2I(8000000, 12000000))
+    bz.SetWidth(250000)
+    board.Add(bz)
+    bz_path = tmp_path / "bezier.kicad_pcb"
+    save(bz_path, board)
+    with pytest.raises(bridge.UnsupportedBoard, match="Bezier"):
+        bridge.export_board(bz_path, RULES, 100000)

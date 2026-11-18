@@ -24,6 +24,11 @@ fn fixture(points: &[Point]) -> Input {
             clearance_nm: 1,
             grid_nm: 10,
             edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: vec![Net {
             id: 1,
@@ -37,11 +42,16 @@ fn fixture(points: &[Point]) -> Input {
                 net: 1,
                 at,
                 shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
             })
             .collect(),
         tracks: vec![],
         max_expansions: 10000,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     }
 }
 fn track(n: usize, net: u32, start: Point, end: Point, locked: bool) -> Track {
@@ -238,6 +248,7 @@ fn two_nets() -> Input {
                 net: 2,
                 at,
                 shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
             }),
     );
     i
@@ -310,6 +321,7 @@ fn work_exhaustion_at_second_insertion_rolls_back_without_refund() {
             net: 3,
             at,
             shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
         });
     }
     // One undo entry admits the entire first straight join; the next insert fails.
@@ -347,6 +359,7 @@ fn unreachable_last_terminal_cannot_publish_partial_success() {
         net: 1,
         at: [80, 10],
         shape: Shape::Circle { radius_nm: 1 },
+        drill: None,
     });
     i.nets.push(Net {
         id: 0,
@@ -638,18 +651,21 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         net: 1,
         at: [4_000_000, 10_000_000],
         shape: Shape::Circle { radius_nm: 500_000 },
+        drill: None,
     };
     let j2 = Pad {
         id: id(2),
         net: 1,
         at: [12_000_000, 10_000_000],
         shape: Shape::Circle { radius_nm: 500_000 },
+        drill: None,
     };
     let j3 = Pad {
         id: id(3),
         net: 1,
         at: [8_000_000, 16_000_000],
         shape: Shape::Circle { radius_nm: 500_000 },
+        drill: None,
     };
     let pads = if swap_j1_j2 {
         vec![j2, j1, j3]
@@ -677,6 +693,11 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
             clearance_nm: 1_000_000,
             grid_nm: 500_000,
             edge_clearance_nm: 500_000,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: vec![
             Net {
@@ -701,6 +722,10 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         ],
         max_expansions: 100_000,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     }
 }
 

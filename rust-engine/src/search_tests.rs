@@ -13,6 +13,7 @@ fn pad(n: u64, net: u32, at: Point, shape: Shape) -> Pad {
         net,
         at,
         shape,
+        drill: None,
     }
 }
 fn track(n: u64, net: u32, a: Point, b: Point, w: i64) -> Track {
@@ -104,6 +105,11 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                                 clearance_nm: clearance,
                                 grid_nm: 4,
                                 edge_clearance_nm: 0,
+                                hole_clearance_nm: 0,
+                                same_net_hole_clearance_nm: 0,
+                                solder_mask_expansion_nm: 0,
+                                solder_mask_min_width_nm: 0,
+                                solder_mask_to_copper_clearance_nm: 0,
                             },
                             nets: vec![
                                 Net {
@@ -119,6 +125,10 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                             tracks: vec![],
                             max_expansions: 10000,
                             limits: Limits::default(),
+                            holes: Vec::new(),
+                            board_outline: None,
+                            graphics: Vec::new(),
+                            mask_apertures: Vec::new(),
                         };
                         if offgrid {
                             i.tracks.push(track(1, 1, [3, 3], [7, 3], 2));
@@ -276,6 +286,11 @@ fn nearer_contact_wins_regardless_of_target_order() {
             clearance_nm: 1,
             grid_nm: 8,
             edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: vec![Net {
             id: 1,
@@ -285,6 +300,10 @@ fn nearer_contact_wins_regardless_of_target_order() {
         tracks: vec![source.clone(), near.clone(), far.clone()],
         max_expansions: 1000,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     for targets in [
@@ -396,6 +415,11 @@ fn component_estimate_charges_every_target_in_the_outer_work_scope() {
         clearance_nm: 1,
         grid_nm: 4,
         edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
     };
     let near = pad(1, 1, [4, 4], Shape::Circle { radius_nm: 2 });
     let far = track(2, 1, [12, 5], [17, 19], 3);
@@ -438,6 +462,11 @@ fn component_estimate_refuses_at_each_exact_work_cutoff() {
         clearance_nm: 1,
         grid_nm: 4,
         edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
     };
     let near = pad(1, 1, [4, 4], Shape::Circle { radius_nm: 2 });
     let far = track(2, 1, [12, 5], [17, 19], 3);
@@ -497,6 +526,11 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                             clearance_nm: 1,
                             grid_nm: grid,
                             edge_clearance_nm: 0,
+                            hole_clearance_nm: 0,
+                            same_net_hole_clearance_nm: 0,
+                            solder_mask_expansion_nm: 0,
+                            solder_mask_min_width_nm: 0,
+                            solder_mask_to_copper_clearance_nm: 0,
                         },
                         nets: vec![
                             Net {
@@ -512,6 +546,10 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                         tracks: vec![source.clone(), target_track.clone()],
                         max_expansions: 10000,
                         limits: Limits::default(),
+                        holes: Vec::new(),
+                        board_outline: None,
+                        graphics: Vec::new(),
+                        mask_apertures: Vec::new(),
                     };
                     for (bit, a, b) in [
                         (1, [10, 0], [10, 10]),
@@ -583,6 +621,11 @@ fn walk_preserves_distinct_incoming_headings_in_dominance_key() {
             clearance_nm: 0,
             grid_nm: 1,
             edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: vec![Net {
             id: 1,
@@ -592,6 +635,10 @@ fn walk_preserves_distinct_incoming_headings_in_dominance_key() {
         tracks: vec![],
         max_expansions: 100,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     let mut expanded = 0;
@@ -630,6 +677,11 @@ fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
             clearance_nm: 0,
             grid_nm: 1,
             edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: vec![Net {
             id: 1,
@@ -639,6 +691,10 @@ fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
         tracks: vec![],
         max_expansions: 1000,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     let blocks = [[1, 1], [3, 1], [1, 3], [3, 3], [1, 2], [2, 1]];
@@ -720,6 +776,11 @@ fn component_estimate_and_join_components_refuse_empty_targets_without_panicking
         clearance_nm: 1,
         grid_nm: 10,
         edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
     };
     let work = WorkBudget::new(Limits::default());
     let empty: Vec<Vec<Copper<'_>>> = Vec::new();
@@ -747,6 +808,10 @@ fn component_estimate_and_join_components_refuse_empty_targets_without_panicking
         tracks: vec![],
         max_expansions: 100,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     for targets in [&empty, &one_empty] {
@@ -765,6 +830,11 @@ fn join_components_empty_starts_records_work_used_and_expanded_states() {
         clearance_nm: 10,
         grid_nm: 10,
         edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
     };
     let p1 = pad(1, 1, [10, 10], Shape::Circle { radius_nm: 1 });
     let p2 = pad(2, 1, [40, 40], Shape::Circle { radius_nm: 1 });
@@ -792,6 +862,10 @@ fn join_components_empty_starts_records_work_used_and_expanded_states() {
         tracks: vec![],
         max_expansions: 100,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     };
     let engine = Engine::new(i).unwrap();
     let mut expanded = 0;

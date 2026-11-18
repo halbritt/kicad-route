@@ -16,6 +16,7 @@ fn fixture() -> Input {
                 net,
                 at: [x, net as i64 * 20 - 10],
                 shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
             });
         }
     }
@@ -33,6 +34,11 @@ fn fixture() -> Input {
             clearance_nm: 1,
             grid_nm: 10,
             edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: (0..=3)
             .map(|id| Net {
@@ -55,6 +61,10 @@ fn fixture() -> Input {
         }],
         max_expansions: 1000,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     }
 }
 fn bytes(copper: &CopperStore) -> Vec<u8> {

@@ -133,10 +133,81 @@ struct StaticNode {
 const _: () = assert!(std::mem::size_of::<StaticNode>() <= 64);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct PadCore {
-    pub lo: Point,
-    pub hi: Point,
-    pub radius: i64,
+pub(crate) enum PadCore {
+    Box {
+        lo: [i32; 2],
+        hi: [i32; 2],
+        radius: i32,
+    },
+    Box2x {
+        lo2: [i32; 2],
+        hi2: [i32; 2],
+        radius2: i32,
+    },
+    Capsule {
+        a: [i32; 2],
+        b: [i32; 2],
+        width: i32,
+    },
+    ConvexPoly,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DrillGeom {
+    Circle {
+        center: [i32; 2],
+        diameter: i32,
+    },
+    Capsule {
+        a: [i32; 2],
+        b: [i32; 2],
+        width: i32,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct EdgeGeom {
+    pub a: [i32; 2],
+    pub b: [i32; 2],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ArtworkGeom {
+    Segment {
+        a: [i32; 2],
+        b: [i32; 2],
+        width: i32,
+    },
+    Circle {
+        center: [i32; 2],
+        radius: i32,
+        width: i32,
+        filled: bool,
+    },
+    FilledPolygon {
+        graphic_idx: u32,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MaskGeom {
+    Segment {
+        a: [i32; 2],
+        b: [i32; 2],
+        width: i32,
+        expansion: i32,
+    },
+    Circle {
+        center: [i32; 2],
+        radius: i32,
+        width: i32,
+        expansion: i32,
+        filled: bool,
+    },
+    FilledPolygon {
+        mask_idx: u32,
+        expansion: i32,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -147,6 +218,10 @@ pub(crate) struct TrackGeom {
 }
 
 const _: () = assert!(std::mem::size_of::<PadCore>() <= 40);
+const _: () = assert!(std::mem::size_of::<DrillGeom>() <= 40);
+const _: () = assert!(std::mem::size_of::<EdgeGeom>() <= 40);
+const _: () = assert!(std::mem::size_of::<ArtworkGeom>() <= 40);
+const _: () = assert!(std::mem::size_of::<MaskGeom>() <= 40);
 const _: () = assert!(std::mem::size_of::<TrackGeom>() <= 40);
 
 #[derive(Debug)]
@@ -1030,6 +1105,10 @@ mod tests {
     fn compact_spatial_node_sizes() {
         assert!(std::mem::size_of::<LeafEntry>() <= 40);
         assert!(std::mem::size_of::<PadCore>() <= 40);
+        assert!(std::mem::size_of::<DrillGeom>() <= 40);
+        assert!(std::mem::size_of::<EdgeGeom>() <= 40);
+        assert!(std::mem::size_of::<ArtworkGeom>() <= 40);
+        assert!(std::mem::size_of::<MaskGeom>() <= 40);
         assert!(std::mem::size_of::<TrackGeom>() <= 40);
         assert!(std::mem::size_of::<StaticNode>() <= 64);
         assert!(std::mem::size_of::<TreapNode<u64, u32>>() <= 112);
@@ -1490,6 +1569,7 @@ mod tests {
                 net: 0,
                 at: [10 + n as i64 * 10, y],
                 shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
             });
             input.tracks.push(Track {
                 id: format!("20000000-0000-4000-8000-{n:012x}"),
@@ -1606,6 +1686,11 @@ mod tests {
                 clearance_nm: 2,
                 grid_nm: 10,
                 edge_clearance_nm: 0,
+                hole_clearance_nm: 0,
+                same_net_hole_clearance_nm: 0,
+                solder_mask_expansion_nm: 0,
+                solder_mask_min_width_nm: 0,
+                solder_mask_to_copper_clearance_nm: 0,
             },
             nets: (0..=4)
                 .map(|id| Net {
@@ -1621,6 +1706,10 @@ mod tests {
             tracks: Vec::new(),
             max_expansions: 5000,
             limits: Limits::default(),
+            holes: Vec::new(),
+            board_outline: None,
+            graphics: Vec::new(),
+            mask_apertures: Vec::new(),
         };
         for i in 0..20 {
             let x = ((next_u64() % 31) as i64 - 15) * 10;
@@ -1630,6 +1719,7 @@ mod tests {
                 net: (i % 5) as u32,
                 at: [x, y],
                 shape: shapes[i % shapes.len()].clone(),
+                drill: None,
             });
         }
         let mut engine = Engine::new(input).unwrap();

@@ -534,6 +534,7 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
         net: 1,
         at: [50, 53],
         shape: Shape::Circle { radius_nm: 1 },
+        drill: None,
     });
     gen1.nets.push(Net {
         id: 2,
@@ -571,12 +572,14 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
             net: id,
             at: [x0, 33],
             shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
         });
         gen3.pads.push(Pad {
             id: format!("10000000-0000-4000-8000-{:012x}", id * 2),
             net: id,
             at: [x0 + 5, 33],
             shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
         });
     }
     gen3.nets.push(Net {
@@ -766,6 +769,7 @@ fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
             net: 1,
             at: [x, 33],
             shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
         });
     }
     for limit in 0..=6u64 {
@@ -850,6 +854,7 @@ fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
             net,
             at: [x, 33],
             shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
         });
     }
     let e3b = Engine::new(s3b).unwrap();
@@ -922,12 +927,14 @@ fn generated_uniform_net_and_net0_work_accounting() {
         net: 0,
         at: [30, 30],
         shape: Shape::Circle { radius_nm: 3 },
+        drill: None,
     });
     multi.pads.push(Pad {
         id: "50000000-0000-4000-8000-000000000003".into(),
         net: 1,
         at: [50, 60],
         shape: Shape::Circle { radius_nm: 1 },
+        drill: None,
     });
     const MULTI_GEN_ROUTE_WORK: u64 = 2191;
     let mut probe = Engine::new(multi.clone()).unwrap();

@@ -20,6 +20,11 @@ fn fixture() -> Input {
             clearance_nm: 2,
             grid_nm: 1,
             edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: (0..=3)
             .map(|id| Net {
@@ -35,6 +40,10 @@ fn fixture() -> Input {
         tracks: Vec::new(),
         max_expansions: 100_000,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     }
 }
 
@@ -148,6 +157,7 @@ fn indexed_legality_matches_linear_scan_in_deterministic_mixed_worlds() {
                 net,
                 at,
                 shape,
+                drill: None,
             });
         }
         for n in 0..128 {
@@ -195,12 +205,14 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             shape: Shape::Rect {
                 half_size_nm: [3, 5],
             },
+            drill: None,
         },
         Pad {
             id: uuid(2),
             net: 2,
             at: [100, 100],
             shape: Shape::Circle { radius_nm: 7 },
+            drill: None,
         },
         Pad {
             id: uuid(5),
@@ -210,6 +222,7 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
                 half_size_nm: [12, 6],
                 radius_nm: 3,
             },
+            drill: None,
         },
         Pad {
             id: uuid(6),
@@ -219,6 +232,7 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
                 half_size_nm: [5, 12],
                 radius_nm: 5,
             },
+            drill: None,
         },
     ];
     input.tracks = vec![
@@ -314,6 +328,11 @@ fn routing_fixture() -> Input {
         clearance_nm: 2,
         grid_nm: 10,
         edge_clearance_nm: 0,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
     };
     input.pads = vec![
         Pad {
@@ -321,12 +340,14 @@ fn routing_fixture() -> Input {
             net: 1,
             at: [-50, 0],
             shape: Shape::Circle { radius_nm: 3 },
+            drill: None,
         },
         Pad {
             id: uuid(2),
             net: 1,
             at: [50, 0],
             shape: Shape::Circle { radius_nm: 3 },
+            drill: None,
         },
     ];
     input
@@ -419,6 +440,7 @@ fn linear_oracle_covers_multiple_generated_nets_after_edits_and_rollback() {
                 net,
                 at: [x, (i64::from(net) - 2) * 30],
                 shape: Shape::Circle { radius_nm: 3 },
+                drill: None,
             });
         }
     }
@@ -475,6 +497,7 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 half_size_nm: [8, 4],
                 radius_nm: 4,
             },
+            drill: None,
         },
         Pad {
             id: uuid(2),
@@ -484,6 +507,7 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 half_size_nm: [6, 4],
                 radius_nm: 2,
             },
+            drill: None,
         },
         Pad {
             id: uuid(3),
@@ -493,6 +517,7 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 half_size_nm: [4, 8],
                 radius_nm: 4,
             },
+            drill: None,
         },
         Pad {
             id: uuid(4),
@@ -502,6 +527,7 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 half_size_nm: [5, 5],
                 radius_nm: 3,
             },
+            drill: None,
         },
         Pad {
             id: uuid(5),
@@ -511,6 +537,7 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 half_size_nm: [12, 6],
                 radius_nm: 6,
             },
+            drill: None,
         },
     ];
     let mut fresh = Engine::new(input.clone()).unwrap();
@@ -562,6 +589,11 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
                 clearance_nm: 1,
                 grid_nm: 10,
                 edge_clearance_nm: 0,
+                hole_clearance_nm: 0,
+                same_net_hole_clearance_nm: 0,
+                solder_mask_expansion_nm: 0,
+                solder_mask_min_width_nm: 0,
+                solder_mask_to_copper_clearance_nm: 0,
             },
             nets: (0..=4)
                 .map(|id| Net {
@@ -577,6 +609,10 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
             tracks: Vec::new(),
             max_expansions: 50_000,
             limits: Limits::default(),
+            holes: Vec::new(),
+            board_outline: None,
+            graphics: Vec::new(),
+            mask_apertures: Vec::new(),
         };
         let mut used = BTreeSet::new();
         let mut n = 0;
@@ -603,6 +639,7 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
                     net,
                     at,
                     shape,
+                    drill: None,
                 });
             }
         }
@@ -693,24 +730,28 @@ fn generated_samenet_rollback_determinism() {
             net: 1,
             at: [-50, -20],
             shape: Shape::Circle { radius_nm: 3 },
+            drill: None,
         },
         Pad {
             id: uuid(2),
             net: 1,
             at: [50, -20],
             shape: Shape::Circle { radius_nm: 3 },
+            drill: None,
         },
         Pad {
             id: uuid(3),
             net: 2,
             at: [-50, 20],
             shape: Shape::Circle { radius_nm: 3 },
+            drill: None,
         },
         Pad {
             id: uuid(4),
             net: 2,
             at: [50, 20],
             shape: Shape::Circle { radius_nm: 3 },
+            drill: None,
         },
     ];
     let mut fresh = Engine::new(input.clone()).unwrap();

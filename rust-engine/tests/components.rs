@@ -9,6 +9,7 @@ fn pad(n: u64, at: Point) -> Pad {
         net: 1,
         at,
         shape: Shape::Circle { radius_nm: 1 },
+        drill: None,
     }
 }
 fn track(n: u64, a: Point, b: Point) -> Track {
@@ -35,6 +36,11 @@ fn base() -> Input {
             clearance_nm: 1,
             grid_nm: 10,
             edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: vec![Net {
             id: 1,
@@ -44,6 +50,10 @@ fn base() -> Input {
         tracks: vec![track(2, [35, 11], [35, 49])],
         max_expansions: 10000,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     }
 }
 mod model {
@@ -268,6 +278,11 @@ fn clearance_shadowed_target_joins_at_first_contact() {
         clearance_nm: 200000,
         grid_nm: 500000,
         edge_clearance_nm: 200000,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
     };
     i.max_expansions = 200000;
     i.nets.push(Net {
@@ -279,6 +294,7 @@ fn clearance_shadowed_target_joins_at_first_contact() {
         net: 1,
         at: [5000000, 2000000],
         shape: Shape::Circle { radius_nm: 300000 },
+        drill: None,
     }];
     i.tracks = vec![
         Track {
@@ -337,6 +353,11 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
         clearance_nm: 200000,
         grid_nm: 500000,
         edge_clearance_nm: 200000,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
     };
     i.max_expansions = 200000;
     i.nets.push(Net {
@@ -349,6 +370,7 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
             net: 1,
             at: [5000000, 2000000],
             shape: Shape::Circle { radius_nm: 300000 },
+            drill: None,
         },
         Pad {
             id: id(2),
@@ -357,6 +379,7 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
             shape: Shape::Rect {
                 half_size_nm: [200000, 50000],
             },
+            drill: None,
         },
     ];
     i.tracks = vec![Track {

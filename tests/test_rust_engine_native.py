@@ -800,16 +800,14 @@ def test_native_adapter_rejects_below_native_floor(native_board):
 
 
 @pytest.mark.parametrize('feature', [
-    'pad_offset', 'pad_clearance', 'footprint_clearance', 'copper_field',
-    'footprint_edge', 'footprint_zone', 'net_tie', 'pad_mask', 'footprint_mask', 'board_mask',
+    'pad_clearance', 'footprint_clearance', 'copper_field',
+    'footprint_edge', 'footprint_zone', 'net_tie', 'pad_mask', 'footprint_mask',
 ])
 def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_board, expected_request, feature):
     board = pcbnew.LoadBoard(str(native_board))
     footprint = next(iter(board.GetFootprints()))
     pad = next(iter(footprint.Pads()))
-    if feature == 'pad_offset':
-        pad.SetOffset(pcbnew.VECTOR2I(1000000, 0))
-    elif feature == 'pad_clearance':
+    if feature == 'pad_clearance':
         pad.SetLocalClearance(2000000)
     elif feature == 'footprint_clearance':
         footprint.SetLocalClearance(2000000)
@@ -817,12 +815,11 @@ def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_b
         pad.SetLocalSolderMaskMargin(2000000)
     elif feature == 'footprint_mask':
         footprint.SetLocalSolderMaskMargin(2000000)
-    elif feature == 'board_mask':
-        board.GetDesignSettings().m_SolderMaskExpansion = 2000000
     elif feature == 'copper_field':
         footprint.Reference().SetLayer(pcbnew.F_Cu)
         footprint.Reference().SetVisible(True)
     elif feature == 'footprint_edge':
+        # An unclosed single Edge.Cuts segment inside a footprint invalidates the board outline.
         edge = pcbnew.PCB_SHAPE(footprint)
         edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
         edge.SetLayer(pcbnew.Edge_Cuts)

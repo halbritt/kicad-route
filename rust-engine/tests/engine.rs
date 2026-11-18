@@ -13,6 +13,7 @@ fn pad(n: u64, net: u32, at: Point) -> Pad {
         net,
         at,
         shape: Shape::Circle { radius_nm: 1 },
+        drill: None,
     }
 }
 fn base() -> Input {
@@ -29,6 +30,11 @@ fn base() -> Input {
             clearance_nm: 1,
             grid_nm: 10,
             edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
         },
         nets: vec![Net {
             id: 1,
@@ -38,6 +44,10 @@ fn base() -> Input {
         tracks: vec![],
         max_expansions: 10000,
         limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
     }
 }
 fn wire(n: u64, net: u32, a: Point, b: Point) -> Track {
@@ -344,7 +354,7 @@ fn malformed_and_unsupported_never_become_empty_success() {
         ("/layer", json!("B.Cu"), Status::Unsupported),
         ("/rules/grid_nm", json!(0), Status::Invalid),
         ("/rules/clearance_nm", json!(-1), Status::Invalid),
-        ("/pads/0/at", json!([11, 10]), Status::Unsupported),
+        ("/pads/0/at", json!([100000001, 10]), Status::Invalid),
         ("/pads/0/net", json!(999), Status::Invalid),
         ("/pads/0/id", json!(id(2)), Status::Invalid),
         ("/pads/0/id", json!(""), Status::Invalid),
@@ -1096,4 +1106,206 @@ fn typed_limits_defaults_are_explicit_in_serialized_input() {
             "max_depth": 64
         })
     );
+}
+
+#[test]
+fn m3_1_off_grid_offset_and_rotated_pads_route_legally() {
+    let mut i = base();
+    i.bounds.max = [200, 200];
+    // Pad 1: off-grid position [11, 10] with grid_nm=10.
+    i.pads[0].at = [11, 10];
+    i.pads[0].shape = Shape::ConvexPolygon {
+        vertices: vec![[11, 6], [15, 10], [11, 14], [7, 10]],
+        radius_nm: 1,
+    };
+    // Pad 2: offset pad where pad.at=[150, 10] is outside copper centered at [160, 10].
+    i.pads[1].at = [150, 10];
+    i.pads[1].shape = Shape::BoxExact {
+        center_2x: [320, 20],
+        half_size_2x: [6, 6],
+        radius_2x: 0,
+    };
+    // Foreign rotated capsule obstacle blocking direct y=10 corridor.
+    i.nets.push(Net {
+        id: 2,
+        name: "OBS".into(),
+    });
+    i.pads.push(Pad {
+        id: id(3),
+        net: 2,
+        at: [80, 10],
+        shape: Shape::Capsule {
+            start_nm: [75, 5],
+            end_nm: [85, 15],
+            width_nm: 4,
+        },
+        drill: None,
+    });
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(!out.added_tracks.is_empty());
+    let e = Engine::new(i).unwrap();
+    for t in &out.added_tracks {
+        assert!(e.legal_edge(t.net, t.start, t.end).unwrap());
+    }
+}
+
+#[test]
+fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
+    // NPTH mounting hole blocks direct corridor under hole_clearance_nm=12 even though copper clearance_nm=1.
+    let mut i = base();
+    i.bounds.max = [100, 100];
+    i.pads[0].at = [10, 50];
+    i.pads[1].at = [90, 50];
+    i.rules.hole_clearance_nm = 12;
+    i.holes.push(Hole {
+        id: id(10),
+        net: 0,
+        at: [50, 50],
+        shape: DrillShape::Circle { diameter_nm: 10 },
+    });
+    let e = Engine::new(i.clone()).unwrap();
+    // Direct edge [10, 50] -> [90, 50] passes through NPTH hole.
+    assert!(!e.legal_edge(1, [10, 50], [90, 50]).unwrap());
+    // Edge at y=67: distance 17 > half_track(1) + half_hole(5) + hole_clr(12) = 18 => still blocked; y=69 legal.
+    assert!(!e.legal_edge(1, [10, 67], [90, 67]).unwrap());
+    assert!(e.legal_edge(1, [10, 69], [90, 69]).unwrap());
+    let out = run(i);
+    assert_eq!(out.status, Status::Complete);
+    for t in &out.added_tracks {
+        assert!(e.legal_edge(t.net, t.start, t.end).unwrap());
+    }
+
+    // Same-net PTH drill: connecting track enters pad's own drill, while non-connecting same-net track
+    // must clear another PTH pad's drill when same_net_hole_clearance_nm > 0.
+    let mut j = base();
+    j.bounds.max = [100, 100];
+    j.rules.same_net_hole_clearance_nm = 8;
+    j.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [10, 50],
+            shape: Shape::Circle { radius_nm: 4 },
+            drill: Some(DrillShape::Circle { diameter_nm: 2 }),
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [50, 50],
+            shape: Shape::Circle { radius_nm: 4 },
+            drill: Some(DrillShape::Circle { diameter_nm: 2 }),
+        },
+        Pad {
+            id: id(3),
+            net: 1,
+            at: [90, 50],
+            shape: Shape::Circle { radius_nm: 4 },
+            drill: None,
+        },
+    ];
+    let ej = Engine::new(j.clone()).unwrap();
+    // Connecting to pad 1 at [10, 50] is allowed.
+    assert!(ej.legal_edge(1, [10, 50], [20, 50]).unwrap());
+    // Passing close to pad 2 at y=57 without connecting to pad 2 (pad radius 4 + track radius 1 = 5 < 7,
+    // while drill radius 1 + track radius 1 + same_net_hole_clr 8 = 10 > 7) is blocked.
+    assert!(!ej.legal_edge(1, [40, 57], [60, 57]).unwrap());
+    assert_eq!(run(j).status, Status::Complete);
+}
+
+#[test]
+fn m3_1_concave_outline_cutout_arc_graphic_and_mask_web_enforce_legality() {
+    let mut i = base();
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 100],
+    };
+    i.rules.edge_clearance_nm = 2;
+    i.rules.solder_mask_min_width_nm = 4;
+    i.rules.solder_mask_to_copper_clearance_nm = 3;
+    i.pads[0].at = [20, 20];
+    i.pads[1].at = [20, 80];
+    i.board_outline = Some(BoardOutline {
+        polygons: vec![OutlinePolygon {
+            outer: vec![[0, 0], [100, 0], [100, 40], [50, 40], [50, 100], [0, 100]],
+            holes: vec![vec![[10, 45], [25, 45], [25, 55], [10, 55]]],
+        }],
+    });
+    i.nets.push(Net {
+        id: 2,
+        name: "OBS".into(),
+    });
+    i.graphics.push(CopperGraphic {
+        id: id(20),
+        net: 2,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Arc {
+            start: [2, 60],
+            mid: [12, 65],
+            end: [22, 60],
+            width_nm: 2,
+        },
+    });
+    i.mask_apertures.push(MaskAperture {
+        id: id(21),
+        net: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Segment {
+            start: [28, 60],
+            end: [28, 70],
+            width_nm: 4,
+        },
+        expansion_nm: 1,
+    });
+    let e = Engine::new(i.clone()).unwrap();
+    // Point inside L-notch [70, 70] and inside cutout slot [15, 50] are illegal.
+    assert!(!e.legal_edge(1, [70, 70], [80, 70]).unwrap());
+    assert!(!e.legal_edge(1, [15, 50], [20, 50]).unwrap());
+    // Crossing F.Mask aperture at [28, 65] is illegal; routing around x=40 is legal.
+    assert!(!e.legal_edge(1, [20, 65], [35, 65]).unwrap());
+    assert!(e.legal_edge(1, [40, 60], [40, 70]).unwrap());
+    let out = run(i);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    for t in &out.added_tracks {
+        assert!(e.legal_edge(t.net, t.start, t.end).unwrap());
+    }
+}
+
+#[test]
+fn m3_1_same_net_copper_graphic_bridges_components_and_rollback_has_zero_work_diff() {
+    let mut i = base();
+    i.bounds.max = [120, 80];
+    i.pads[0].at = [10, 40];
+    i.pads[1].at = [100, 40];
+    // Same-net copper segment touches pad 0 at [10, 40] and reaches [50, 40].
+    i.graphics.push(CopperGraphic {
+        id: id(30),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Segment {
+            start: [10, 40],
+            end: [50, 40],
+            width_nm: 2,
+        },
+    });
+    let mut e = Engine::new(i).unwrap();
+    assert!(e.legal_edge(1, [60, 10], [60, 70]).unwrap());
+    let baseline_work = e.work_used();
+
+    let _ = e.transaction(|tx| {
+        tx.route_all().unwrap();
+        Err::<(), ()>(())
+    });
+    assert!(e.copper().index_consistent());
+    assert!(e.legal_edge(1, [60, 10], [60, 70]).unwrap());
+    assert_eq!(e.work_used(), baseline_work);
+
+    let out = e.route_all().unwrap();
+    assert!(out > 0);
+    assert!(e.copper().index_consistent());
+    // Because the same-net graphic already reached x=50, generated copper starts at x >= 49.
+    assert!(e
+        .copper()
+        .generated()
+        .all(|t| t.start[0] >= 49 && t.end[0] >= 49));
 }

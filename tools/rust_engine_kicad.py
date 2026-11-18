@@ -168,33 +168,210 @@ def source_snapshot(path: Path):
         yield snapshot
 
 
+def _extract_drill_shape(pad):
+    for getter in (pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize):
+        if point(getter()) != [0, 0]:
+            raise UnsupportedBoard('secondary or tertiary pad drills are not represented')
+    if hasattr(pad, 'IsBackdrilledOrPostMachined'):
+        if any(pad.IsBackdrilledOrPostMachined(layer) for layer in (pcbnew.F_Cu, pcbnew.B_Cu)):
+            raise UnsupportedBoard('backdrilled or post-machined pads are not represented')
+    drill_shape = pad.GetDrillShape()
+    if drill_shape not in (pcbnew.PAD_DRILL_SHAPE_CIRCLE, pcbnew.PAD_DRILL_SHAPE_OBLONG):
+        raise UnsupportedBoard('only circular and oblong pad drills are supported')
+    drill_size = point(pad.GetDrillSize())
+    if any(v <= 0 for v in drill_size):
+        raise ValueError('pad drill dimensions must be positive')
+    hole = pad.GetEffectiveHoleShape()
+    if hole is None or hole.Type() == pcbnew.SH_NULL:
+        raise UnsupportedBoard('native pad hole effective shape is unavailable')
+    pad_pos = point(pad.GetPosition())
+    if hole.Type() == pcbnew.SH_CIRCLE:
+        circle = pcbnew.Cast_to_SHAPE_CIRCLE(hole)
+        if circle is None:
+            raise UnsupportedBoard('native pad hole circle is unavailable')
+        center = point(circle.GetCenter())
+        diam = 2 * int(circle.GetRadius())
+        if drill_size[0] == drill_size[1]:
+            diam = max(diam, drill_size[0])
+        if center == pad_pos:
+            return {'kind': 'circle', 'diameter_nm': diam}
+        return {'kind': 'capsule', 'start_nm': center, 'end_nm': center, 'width_nm': diam}
+    if hole.Type() == pcbnew.SH_SEGMENT:
+        seg = pcbnew.Cast_to_SHAPE_SEGMENT(hole)
+        if seg is None:
+            raise UnsupportedBoard('native pad hole segment is unavailable')
+        s = seg.GetSeg()
+        a, b = [int(s.A.x), int(s.A.y)], [int(s.B.x), int(s.B.y)]
+        w = int(seg.GetWidth())
+        if a == b and a == pad_pos:
+            return {'kind': 'circle', 'diameter_nm': w}
+        return {'kind': 'capsule', 'start_nm': a, 'end_nm': b, 'width_nm': w}
+    raise UnsupportedBoard('native pad hole effective shape is not represented')
+
+
+def _simplify_ring(pts):
+    dedup = []
+    for pt in pts:
+        if not dedup or dedup[-1] != pt:
+            dedup.append(pt)
+    if len(dedup) > 1 and dedup[0] == dedup[-1]:
+        dedup.pop()
+    return dedup
+
+
+def _cross(a, b, c):
+    return (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
+
+
+def _dot(a, b, c):
+    return (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1])
+
+
+def _orient_ccw_convex(pts):
+    pts = _simplify_ring(pts)
+    if len(pts) < 3:
+        return pts, False
+    area2 = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+                for i in range(len(pts)))
+    if area2 == 0:
+        return pts, False
+    if area2 < 0:
+        pts.reverse()
+    cleaned = []
+    n = len(pts)
+    for i in range(n):
+        a, b, c = pts[(i - 1) % n], pts[i], pts[(i + 1) % n]
+        if _cross(a, b, c) == 0 and _dot(a, b, c) >= 0:
+            continue
+        cleaned.append(b)
+    if len(cleaned) < 3:
+        return cleaned, False
+    m = len(cleaned)
+    for i in range(m):
+        if _cross(cleaned[i], cleaned[(i + 1) % m], cleaned[(i + 2) % m]) <= 0:
+            return cleaned, False
+    return cleaned, True
+
+
+def _decode_effective_pad_shape(pad, radius_hint=None):
+    raw_effective = pad.GetEffectiveShape(pcbnew.F_Cu)
+    if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
+        raise UnsupportedBoard('native pad effective shape is unavailable')
+    if raw_effective.Type() == pcbnew.SH_COMPOUND:
+        comp = pcbnew.Cast_to_SHAPE_COMPOUND(raw_effective)
+        if comp is None:
+            raise UnsupportedBoard('native pad effective shape is unavailable')
+        subs = list(comp.GetSubshapes())
+    else:
+        subs = [raw_effective]
+    pad_pos = point(pad.GetPosition())
+    if len(subs) == 1 and subs[0].Type() == pcbnew.SH_CIRCLE:
+        circle = pcbnew.Cast_to_SHAPE_CIRCLE(subs[0])
+        if circle is None:
+            raise UnsupportedBoard('native pad effective circle is unavailable')
+        center = point(circle.GetCenter())
+        r = int(circle.GetRadius())
+        if center == pad_pos:
+            return {'kind': 'circle', 'radius_nm': r}
+        return {'kind': 'box_exact', 'center_2x': [2 * center[0], 2 * center[1]],
+                'half_size_2x': [2 * r, 2 * r], 'radius_2x': 2 * r}
+    if len(subs) == 1 and subs[0].Type() == pcbnew.SH_SEGMENT:
+        seg = pcbnew.Cast_to_SHAPE_SEGMENT(subs[0])
+        if seg is None:
+            raise UnsupportedBoard('native pad effective segment is unavailable')
+        s = seg.GetSeg()
+        a, b = [int(s.A.x), int(s.A.y)], [int(s.B.x), int(s.B.y)]
+        w = int(seg.GetWidth())
+        if a == b and a == pad_pos and w % 2 == 0:
+            return {'kind': 'circle', 'radius_nm': w // 2}
+        return {'kind': 'capsule', 'start_nm': a, 'end_nm': b, 'width_nm': w}
+    if len(subs) == 1 and subs[0].Type() == pcbnew.SH_RECT:
+        rc = pcbnew.Cast_to_SHAPE_RECT(subs[0])
+        if rc is None:
+            raise UnsupportedBoard('native pad effective rect is unavailable')
+        pos, sz = point(rc.GetPosition()), point(rc.GetSize())
+        return {'kind': 'box_exact',
+                'center_2x': [2 * pos[0] + sz[0], 2 * pos[1] + sz[1]],
+                'half_size_2x': sz, 'radius_2x': 0}
+    if subs and subs[0].Type() == pcbnew.SH_SIMPLE:
+        r_nm = 0
+        if len(subs) == 5 and all(s.Type() == pcbnew.SH_SEGMENT for s in subs[1:]):
+            widths = {int(pcbnew.Cast_to_SHAPE_SEGMENT(s).GetWidth()) for s in subs[1:]}
+            if len(widths) != 1:
+                raise UnsupportedBoard('native rounded-pad segment widths are inconsistent')
+            w_seg = next(iter(widths))
+            if w_seg % 2 != 0:
+                raise UnsupportedBoard('native rounded-pad segment width is odd')
+            r_nm = w_seg // 2
+        elif len(subs) != 1:
+            raise UnsupportedBoard('native pad effective compound shape is not represented')
+        elif radius_hint is not None:
+            r_nm = radius_hint
+        poly = pcbnew.Cast_to_SHAPE_SIMPLE(subs[0])
+        if poly is None:
+            raise UnsupportedBoard('native pad effective polygon is unavailable')
+        raw_pts = [[int(poly.CPoint(j).x), int(poly.CPoint(j).y)] for j in range(poly.PointCount())]
+        pts = _simplify_ring(raw_pts)
+        if len(pts) == 1:
+            c = pts[0]
+            if r_nm <= 0:
+                raise UnsupportedBoard('degenerate zero-radius pad polygon')
+            if c == pad_pos:
+                return {'kind': 'circle', 'radius_nm': r_nm}
+            return {'kind': 'box_exact', 'center_2x': [2 * c[0], 2 * c[1]],
+                    'half_size_2x': [2 * r_nm, 2 * r_nm], 'radius_2x': 2 * r_nm}
+        if len(pts) == 2:
+            if r_nm <= 0:
+                raise UnsupportedBoard('degenerate zero-width pad segment')
+            return {'kind': 'capsule', 'start_nm': pts[0], 'end_nm': pts[1], 'width_nm': 2 * r_nm}
+        oriented, ok = _orient_ccw_convex(pts)
+        if ok:
+            return {'kind': 'convex_polygon', 'vertices': oriented, 'radius_nm': r_nm}
+        if r_nm > 0 and len(pts) >= 3:
+            # Collinear rounded-rect corners collapse to a capsule along the major axis.
+            best = max(((pts[i], pts[j]) for i in range(len(pts)) for j in range(i + 1, len(pts))),
+                       key=lambda pair: (pair[0][0] - pair[1][0]) ** 2 + (pair[0][1] - pair[1][1]) ** 2)
+            return {'kind': 'capsule', 'start_nm': best[0], 'end_nm': best[1], 'width_nm': 2 * r_nm}
+        raise UnsupportedBoard('non-convex pad polygon is not supported')
+    raise UnsupportedBoard('native pad effective shape is not represented')
+
+
 def pad_shape(pad):
     """Decode admitted native copper; leave original native pad metadata intact."""
     copper = [layer for layer in pad.GetLayerSet().Seq() if pcbnew.IsCopperLayer(layer)]
-    if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD or copper != [pcbnew.F_Cu]:
-        raise UnsupportedBoard('only front-copper SMD pads are supported')
-    if any(point(getter()) != [0, 0] for getter in (
-            pad.GetDrillSize, pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize)):
-        raise UnsupportedBoard('drilled pads are not represented')
+    attrib = pad.GetAttribute()
+    if attrib == pcbnew.PAD_ATTRIB_SMD:
+        if copper != [pcbnew.F_Cu]:
+            raise UnsupportedBoard('only front-copper SMD pads are supported')
+        if any(point(getter()) != [0, 0] for getter in (
+                pad.GetDrillSize, pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize)):
+            raise UnsupportedBoard('drilled pads are not represented')
+    elif attrib == pcbnew.PAD_ATTRIB_PTH:
+        if pcbnew.F_Cu not in copper:
+            raise UnsupportedBoard('through-hole pads must include front copper')
+        if any(v <= 0 for v in point(pad.GetDrillSize())):
+            raise UnsupportedBoard('PTH pad requires a positive drill size')
+    elif attrib == pcbnew.PAD_ATTRIB_NPTH:
+        if copper or int(pad.GetNetCode()) != 0:
+            raise UnsupportedBoard('NPTH mounting holes cannot carry copper layers or a net')
+    else:
+        raise UnsupportedBoard('only SMD, PTH and NPTH pads are supported')
     size = point(pad.GetSize())
     if any(v <= 0 for v in size):
         raise ValueError('pad dimensions must be positive')
     kind = pad.GetShape()
-    if kind == pcbnew.PAD_SHAPE_CIRCLE:
-        if size[0] != size[1] or size[0] % 2 != 0:
-            raise UnsupportedBoard('circular pads require equal even dimensions')
-        return {'kind': 'circle', 'radius_nm': size[0] // 2}
-    if kind not in (pcbnew.PAD_SHAPE_RECT, pcbnew.PAD_SHAPE_OVAL, pcbnew.PAD_SHAPE_ROUNDRECT):
-        raise UnsupportedBoard('only circular, rectangular, oval and rounded-rectangle pads are supported')
-    angle = pad.GetOrientationDegrees() % 180
-    if angle not in (0, 90) or any(v % 2 for v in size):
-        raise UnsupportedBoard('noncircular pads require orthogonal rotation and even dimensions')
-    half = [v // 2 for v in size]
-    if kind == pcbnew.PAD_SHAPE_RECT:
-        radius = 0
-    elif kind == pcbnew.PAD_SHAPE_OVAL:
-        radius = min(half)
-    else:
+    if kind in (pcbnew.PAD_SHAPE_CHAMFERED_RECT, pcbnew.PAD_SHAPE_CUSTOM):
+        if kind == pcbnew.PAD_SHAPE_CHAMFERED_RECT:
+            raise UnsupportedBoard('chamfered pads are not represented')
+        raise UnsupportedBoard('custom pads are not represented')
+    if kind not in (pcbnew.PAD_SHAPE_CIRCLE, pcbnew.PAD_SHAPE_RECT,
+                    pcbnew.PAD_SHAPE_OVAL, pcbnew.PAD_SHAPE_ROUNDRECT,
+                    pcbnew.PAD_SHAPE_TRAPEZOID):
+        raise UnsupportedBoard('only circular, rectangular, oval, rounded-rectangle and trapezoid pads are supported')
+    if kind == pcbnew.PAD_SHAPE_CIRCLE and size[0] != size[1]:
+        raise UnsupportedBoard('circular pads require equal dimensions')
+    radius = 0
+    if kind == pcbnew.PAD_SHAPE_ROUNDRECT:
         if pad.GetChamferPositions() != 0:
             raise UnsupportedBoard('chamfered pads are not represented')
         ratio = pad.GetRoundRectRadiusRatio()
@@ -202,32 +379,104 @@ def pad_shape(pad):
         if not math.isfinite(ratio) or not 0 <= ratio <= 0.5 or not math.isfinite(native_radius):
             raise ValueError('rounded pad radius ratio must be finite and between zero and one half')
         radius = int(native_radius)
-        if radius != native_radius or not 0 <= radius <= min(half):
+        if radius != native_radius or not 0 <= radius <= min(size) // 2:
             raise ValueError('rounded pad radius must be an integer within either half size')
-        # KiCad can collapse near-circle roundrects to one effective circle.
-        # Read that actual native shape instead of assuming a version-specific
-        # collapse threshold. Nominal metadata stays on the untouched pad.
-        raw_effective = pad.GetEffectiveShape(pcbnew.F_Cu)
-        if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
-            raise UnsupportedBoard('native rounded-pad effective shape is unavailable')
-        if raw_effective.Type() == pcbnew.SH_CIRCLE:
-            circle = pcbnew.Cast_to_SHAPE_CIRCLE(raw_effective)
-            if circle is None or point(circle.GetCenter()) != point(pad.GetPosition()) or circle.GetRadius() != radius:
-                raise UnsupportedBoard('native rounded-pad effective circle is not represented')
-            return {'kind': 'circle', 'radius_nm': radius}
-        effective = pcbnew.Cast_to_SHAPE_COMPOUND(raw_effective)
-        if effective is None:
-            raise UnsupportedBoard('native rounded-pad effective shape is not represented')
-        if effective.Size() == 1 and effective.UniqueSubshape().Type() == pcbnew.SH_CIRCLE:
-            circle = pcbnew.Cast_to_SHAPE_CIRCLE(effective.UniqueSubshape())
-            if circle is None or point(circle.GetCenter()) != point(pad.GetPosition()) or circle.GetRadius() != radius:
-                raise UnsupportedBoard('native rounded-pad effective circle is not represented')
-            return {'kind': 'circle', 'radius_nm': radius}
-    if angle == 90:
-        half.reverse()
-    if kind == pcbnew.PAD_SHAPE_RECT:
-        return {'kind': 'rect', 'half_size_nm': half}
-    return {'kind': 'round_rect', 'half_size_nm': half, 'radius_nm': radius}
+
+    offset = point(pad.GetOffset())
+    angle = pad.GetOrientationDegrees() % 180
+    is_ortho = angle in (0, 90)
+    is_even = size[0] % 2 == 0 and size[1] % 2 == 0
+
+    if offset == [0, 0] and is_ortho and is_even and kind in (
+            pcbnew.PAD_SHAPE_CIRCLE, pcbnew.PAD_SHAPE_RECT,
+            pcbnew.PAD_SHAPE_OVAL, pcbnew.PAD_SHAPE_ROUNDRECT):
+        if kind == pcbnew.PAD_SHAPE_CIRCLE:
+            return {'kind': 'circle', 'radius_nm': size[0] // 2}
+        half = [v // 2 for v in size]
+        if kind == pcbnew.PAD_SHAPE_RECT:
+            radius = 0
+        elif kind == pcbnew.PAD_SHAPE_OVAL:
+            radius = min(half)
+        else:
+            raw_effective = pad.GetEffectiveShape(pcbnew.F_Cu)
+            if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
+                raise UnsupportedBoard('native rounded-pad effective shape is unavailable')
+            if raw_effective.Type() == pcbnew.SH_CIRCLE:
+                circle = pcbnew.Cast_to_SHAPE_CIRCLE(raw_effective)
+                if circle is None or point(circle.GetCenter()) != point(pad.GetPosition()) or circle.GetRadius() != radius:
+                    raise UnsupportedBoard('native rounded-pad effective circle is not represented')
+                return {'kind': 'circle', 'radius_nm': radius}
+            effective = pcbnew.Cast_to_SHAPE_COMPOUND(raw_effective)
+            if effective is None:
+                raise UnsupportedBoard('native rounded-pad effective shape is not represented')
+            if effective.Size() == 1 and effective.UniqueSubshape().Type() == pcbnew.SH_CIRCLE:
+                circle = pcbnew.Cast_to_SHAPE_CIRCLE(effective.UniqueSubshape())
+                if circle is None or point(circle.GetCenter()) != point(pad.GetPosition()) or circle.GetRadius() != radius:
+                    raise UnsupportedBoard('native rounded-pad effective circle is not represented')
+                return {'kind': 'circle', 'radius_nm': radius}
+        if angle == 90:
+            half.reverse()
+        if kind == pcbnew.PAD_SHAPE_RECT:
+            return {'kind': 'rect', 'half_size_nm': half}
+        return {'kind': 'round_rect', 'half_size_nm': half, 'radius_nm': radius}
+
+    if is_ortho and kind in (pcbnew.PAD_SHAPE_CIRCLE, pcbnew.PAD_SHAPE_RECT, pcbnew.PAD_SHAPE_ROUNDRECT):
+        w, h = size[0], size[1]
+        if angle == 90 and kind != pcbnew.PAD_SHAPE_CIRCLE:
+            w, h = h, w
+        shape_pos = point(pad.ShapePos(pcbnew.F_Cu))
+        if kind == pcbnew.PAD_SHAPE_ROUNDRECT:
+            raw_effective = pad.GetEffectiveShape(pcbnew.F_Cu)
+            if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
+                raise UnsupportedBoard('native rounded-pad effective shape is unavailable')
+            if raw_effective.Type() == pcbnew.SH_CIRCLE:
+                circle = pcbnew.Cast_to_SHAPE_CIRCLE(raw_effective)
+                if circle is None:
+                    raise UnsupportedBoard('native rounded-pad effective circle is not represented')
+                c_pos = point(circle.GetCenter())
+                c_r = int(circle.GetRadius())
+                if c_pos == point(pad.GetPosition()):
+                    return {'kind': 'circle', 'radius_nm': c_r}
+                return {'kind': 'box_exact', 'center_2x': [2 * c_pos[0], 2 * c_pos[1]],
+                        'half_size_2x': [2 * c_r, 2 * c_r], 'radius_2x': 2 * c_r}
+            if raw_effective.Type() == pcbnew.SH_COMPOUND:
+                effective = pcbnew.Cast_to_SHAPE_COMPOUND(raw_effective)
+                if effective is None:
+                    raise UnsupportedBoard('native rounded-pad effective shape is not represented')
+                if effective.Size() == 1 and effective.UniqueSubshape().Type() == pcbnew.SH_CIRCLE:
+                    circle = pcbnew.Cast_to_SHAPE_CIRCLE(effective.UniqueSubshape())
+                    if circle is None:
+                        raise UnsupportedBoard('native rounded-pad effective circle is not represented')
+                    c_pos = point(circle.GetCenter())
+                    c_r = int(circle.GetRadius())
+                    if c_pos == point(pad.GetPosition()):
+                        return {'kind': 'circle', 'radius_nm': c_r}
+                    return {'kind': 'box_exact', 'center_2x': [2 * c_pos[0], 2 * c_pos[1]],
+                            'half_size_2x': [2 * c_r, 2 * c_r], 'radius_2x': 2 * c_r}
+        radius_2x = w if kind == pcbnew.PAD_SHAPE_CIRCLE else (0 if kind == pcbnew.PAD_SHAPE_RECT else 2 * radius)
+        return {'kind': 'box_exact', 'center_2x': [2 * shape_pos[0], 2 * shape_pos[1]],
+                'half_size_2x': [w, h], 'radius_2x': radius_2x}
+
+    return _decode_effective_pad_shape(pad, radius_hint=radius if kind == pcbnew.PAD_SHAPE_ROUNDRECT else None)
+
+
+def _check_decimal_nm(value, *, min_mm, max_mm, message):
+    if '_' in value:
+        raise ValueError(message)
+    try:
+        num = Decimal(value)
+    except InvalidOperation as error:
+        raise ValueError(message) from error
+    if not num.is_finite():
+        raise ValueError(message)
+    if num <= min_mm if min_mm == 0 and message.startswith('pad dimensions') else not (min_mm <= num <= max_mm):
+        raise ValueError(message)
+    if min_mm == 0 and num > max_mm:
+        raise ValueError(message)
+    _, digits, exponent = num.as_tuple()
+    if exponent < -6 and any(digits[max(0, len(digits) + exponent + 6):]):
+        raise ValueError('pad dimensions must be exact integer nanometres')
+    return num
 
 
 def validate_native_pad_scalars(body: bytes):
@@ -246,13 +495,41 @@ def validate_native_pad_scalars(body: bytes):
         if token == '(':
             in_pad_descendant = bool(stack and (stack[-1][0] == 'pad' or stack[-1][2]))
             in_pad_direct = bool(stack and stack[-1][0] == 'pad')
-            stack.append([None, [], in_pad_descendant, in_pad_direct, False])
+            in_drill_direct = bool(stack and stack[-1][0] == 'drill')
+            stack.append([None, [], in_pad_descendant, in_pad_direct, False, in_drill_direct])
         elif token == ')':
             if not stack:
                 raise ValueError('unbalanced native board expression')
-            head, values, in_pad_descendant, in_pad_direct, saw_size = stack.pop()
+            head, values, in_pad_descendant, in_pad_direct, saw_size, in_drill_direct = stack.pop()
             if in_pad_descendant and head == 'drill':
-                raise UnsupportedBoard('drilled pads are not represented')
+                pad_frame = next((frame for frame in reversed(stack) if frame[0] == 'pad'), None)
+                pad_attrib = pad_frame[1][1] if pad_frame and len(pad_frame[1]) >= 2 else None
+                drill_vals = values[1:] if values and values[0] == 'oval' else values
+                if not drill_vals:
+                    if pad_attrib == 'smd' and saw_size:
+                        continue
+                    if pad_attrib not in ('thru_hole', 'np_thru_hole'):
+                        raise UnsupportedBoard('drilled pads are not represented')
+                    raise ValueError('pad drill dimensions must be declared explicitly')
+                if pad_attrib not in ('thru_hole', 'np_thru_hole'):
+                    raise UnsupportedBoard('drilled pads are not represented')
+                if not 1 <= len(drill_vals) <= 2:
+                    raise ValueError('pad drill dimensions must be declared explicitly')
+                for v in drill_vals:
+                    num = _check_decimal_nm(v, min_mm=0, max_mm=200,
+                                            message='pad drill dimensions must be finite positive scalars <= 200 mm')
+                    if num <= 0:
+                        raise ValueError('pad drill dimensions must be positive and at most 200 mm')
+                continue
+            if in_pad_descendant and in_drill_direct and head == 'offset':
+                if len(values) != 2:
+                    raise ValueError('drill offset requires two coordinates')
+                for v in values:
+                    _check_decimal_nm(v, min_mm=-200, max_mm=200,
+                                      message='drill offset must be finite scalars within +/-200 mm')
+                if stack and stack[-1][0] == 'drill':
+                    stack[-1][4] = True
+                continue
             if in_pad_descendant and head == 'padstack':
                 raise UnsupportedBoard('custom pad stacks are not represented')
             if in_pad_descendant and head in ('chamfer', 'chamfer_ratio'):
@@ -282,10 +559,79 @@ def validate_native_pad_scalars(body: bytes):
         elif stack:
             if stack[-1][0] is None:
                 stack[-1][0] = token
-            elif stack[-1][3] and stack[-1][0] in ('size', 'roundrect_rratio'):
+            elif stack[-1][0] == 'pad':
+                stack[-1][1].append(token)
+            elif stack[-1][3] and stack[-1][0] in ('size', 'roundrect_rratio', 'drill'):
+                stack[-1][1].append(token)
+            elif stack[-1][5] and stack[-1][0] == 'offset':
                 stack[-1][1].append(token)
     if stack:
         raise ValueError('unbalanced native board expression')
+
+
+def _check_graphic_drawing(drawing, *, context_label):
+    if not isinstance(drawing, pcbnew.PCB_SHAPE):
+        raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+    if drawing.GetShape() == pcbnew.SHAPE_T_BEZIER:
+        raise UnsupportedBoard(f'{context_label} Bezier curves are not represented')
+    if drawing.IsHatchedFill():
+        raise UnsupportedBoard(f'{context_label} hatched fill graphics are not represented')
+
+
+def _extract_poly_ring(poly):
+    pts = [[int(poly.CPoint(j).x), int(poly.CPoint(j).y)] for j in range(poly.PointCount())]
+    return _simplify_ring(pts)
+
+
+def _extract_graphic_shapes(drawing, *, base_id):
+    shape_t = drawing.GetShape()
+    width_nm = int(drawing.GetWidth())
+    filled = bool(drawing.IsSolidFill())
+    if shape_t == pcbnew.SHAPE_T_SEGMENT:
+        a, b = point(drawing.GetStart()), point(drawing.GetEnd())
+        if a == b:
+            return []
+        return [(base_id, {'kind': 'segment', 'start': a, 'end': b, 'width_nm': width_nm})]
+    if shape_t == pcbnew.SHAPE_T_ARC:
+        return [(base_id, {
+            'kind': 'arc',
+            'start': point(drawing.GetStart()),
+            'mid': point(drawing.GetArcMid()),
+            'end': point(drawing.GetEnd()),
+            'width_nm': width_nm,
+        })]
+    if shape_t == pcbnew.SHAPE_T_CIRCLE:
+        return [(base_id, {
+            'kind': 'circle',
+            'center': point(drawing.GetCenter()),
+            'radius_nm': int(drawing.GetRadius()),
+            'width_nm': width_nm,
+            'filled': filled,
+        })]
+    if shape_t == pcbnew.SHAPE_T_RECT:
+        corners = _simplify_ring([point(p) for p in drawing.GetRectCorners()])
+        area2 = sum(corners[i][0] * corners[(i + 1) % len(corners)][1]
+                    - corners[(i + 1) % len(corners)][0] * corners[i][1]
+                    for i in range(len(corners)))
+        if area2 < 0:
+            corners.reverse()
+        return [(base_id, {'kind': 'polygon', 'outer': corners, 'width_nm': width_nm, 'filled': filled})]
+    if shape_t == pcbnew.SHAPE_T_POLY:
+        poly_set = drawing.GetPolyShape()
+        count = poly_set.OutlineCount()
+        if count <= 0:
+            raise UnsupportedBoard('empty polygon graphic is not represented')
+        out = []
+        for idx in range(count):
+            outer = _extract_poly_ring(poly_set.Outline(idx))
+            holes = [_extract_poly_ring(poly_set.Hole(idx, h)) for h in range(poly_set.HoleCount(idx))]
+            shape_obj = {'kind': 'polygon', 'outer': outer, 'width_nm': width_nm, 'filled': filled}
+            if holes:
+                shape_obj['holes'] = holes
+            item_uuid = base_id if count == 1 else str(uuid.uuid5(uuid.UUID(base_id), str(idx)))
+            out.append((item_uuid, shape_obj))
+        return out
+    raise UnsupportedBoard('unsupported native graphic shape')
 
 
 def load_supported(path: Path):
@@ -301,10 +647,17 @@ def load_supported(path: Path):
     if any(drawing.GetLayer() == pcbnew.Margin for drawing in board.GetDrawings()):
         raise UnsupportedBoard('board Margin geometry is not represented')
     settings = board.GetDesignSettings()
-    if any(value != 0 for value in (
+    if any(value < 0 for value in (
             settings.m_SolderMaskExpansion, settings.m_SolderMaskMinWidth,
             settings.m_SolderMaskToCopperClearance)):
-        raise UnsupportedBoard('nondefault solder-mask rules are not represented')
+        raise UnsupportedBoard('negative solder-mask rules are not represented')
+    mask_rules_active = (settings.m_SolderMaskMinWidth != 0 or settings.m_SolderMaskToCopperClearance != 0)
+    for drawing in board.GetDrawings():
+        layer = drawing.GetLayer()
+        if pcbnew.IsCopperLayer(layer):
+            _check_graphic_drawing(drawing, context_label='board copper')
+        elif mask_rules_active and layer in (pcbnew.F_Mask, pcbnew.B_Mask):
+            _check_graphic_drawing(drawing, context_label='board solder-mask')
     for footprint in board.GetFootprints():
         if footprint.GetLocalClearance() is not None:
             raise UnsupportedBoard('footprint clearance overrides are not represented')
@@ -318,44 +671,93 @@ def load_supported(path: Path):
             if pcbnew.IsCopperLayer(field.GetLayer()):
                 raise UnsupportedBoard('footprint copper fields are not represented')
         for drawing in footprint.GraphicalItems():
-            if drawing.GetLayer() == pcbnew.Margin:
+            layer = drawing.GetLayer()
+            if layer == pcbnew.Margin:
                 raise UnsupportedBoard('footprint Margin geometry is not represented')
-            if pcbnew.IsCopperLayer(drawing.GetLayer()) or drawing.GetLayer() == pcbnew.Edge_Cuts:
-                raise UnsupportedBoard('footprint copper graphics and board cuts are not represented')
+            if pcbnew.IsCopperLayer(layer):
+                _check_graphic_drawing(drawing, context_label='footprint copper')
+            elif mask_rules_active and layer in (pcbnew.F_Mask, pcbnew.B_Mask):
+                if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
+                    _check_graphic_drawing(drawing, context_label='footprint solder-mask')
         for pad in footprint.Pads():
             pad_shape(pad)
+            if pad.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
+                _extract_drill_shape(pad)
             if pad.GetLocalClearance() is not None:
                 raise UnsupportedBoard('pad clearance overrides are not represented')
             if pad.GetLocalSolderMaskMargin() is not None:
                 raise UnsupportedBoard('pad solder-mask margins are not represented')
-            if point(pad.GetOffset()) != [0, 0]:
-                raise UnsupportedBoard('offset pad copper is not represented')
+    for track in board.GetTracks():
+        if type(track) is pcbnew.PCB_TRACK and track.GetLayer() == pcbnew.F_Cu:
+            continue
+        if type(track) is pcbnew.PCB_ARC and track.GetLayer() in (pcbnew.F_Cu, pcbnew.B_Cu):
+            continue
+        raise UnsupportedBoard('vias and non-front tracks are not supported')
+    _board_bounds_and_outline(board)
     return board
 
 
-def rectangular_bounds(board):
+def _try_rectangular_bounds(board):
+    for fp in board.GetFootprints():
+        if any(d.GetLayer() == pcbnew.Edge_Cuts for d in fp.GraphicalItems()):
+            return None
     edges = []
     for drawing in board.GetDrawings():
-        if pcbnew.IsCopperLayer(drawing.GetLayer()):
-            raise UnsupportedBoard('copper drawings are not yet represented')
         if drawing.GetLayer() == pcbnew.Edge_Cuts:
             if not isinstance(drawing, pcbnew.PCB_SHAPE) or drawing.GetShape() != pcbnew.SHAPE_T_SEGMENT:
-                raise UnsupportedBoard('the board outline must be four straight edges')
+                return None
             a, b = tuple(point(drawing.GetStart())), tuple(point(drawing.GetEnd()))
             edges.append(frozenset((a, b)))
     if len(edges) != 4:
-        raise UnsupportedBoard('the board outline must be a single rectangle')
+        return None
     vertices = set().union(*edges)
     if len(vertices) != 4:
-        raise UnsupportedBoard('the board outline must have four corners')
+        return None
     xs, ys = sorted({p[0] for p in vertices}), sorted({p[1] for p in vertices})
     if len(xs) != 2 or len(ys) != 2:
-        raise UnsupportedBoard('the board outline must be axis-aligned')
+        return None
     corners = [(xs[0], ys[0]), (xs[1], ys[0]), (xs[1], ys[1]), (xs[0], ys[1])]
     expected = {frozenset((corners[i], corners[(i + 1) % 4])) for i in range(4)}
     if set(edges) != expected:
-        raise UnsupportedBoard('the board outline must be closed and non-crossing')
+        return None
     return {'min': list(corners[0]), 'max': list(corners[2])}
+
+
+def rectangular_bounds(board):
+    bounds = _try_rectangular_bounds(board)
+    if bounds is not None:
+        return bounds
+    raise UnsupportedBoard('the board outline must be a single axis-aligned rectangle')
+
+
+def _board_bounds_and_outline(board):
+    rect = _try_rectangular_bounds(board)
+    if rect is not None:
+        return rect, None
+    outlines = pcbnew.SHAPE_POLY_SET()
+    if not board.GetBoardPolygonOutlines(outlines, False) or outlines.OutlineCount() == 0:
+        raise UnsupportedBoard('board outline is missing, open, or invalid')
+    polygons = []
+    min_x = min_y = 10**12
+    max_x = max_y = -10**12
+    for i in range(outlines.OutlineCount()):
+        outer = _extract_poly_ring(outlines.Outline(i))
+        if len(outer) < 3:
+            raise UnsupportedBoard('board outline polygon is degenerate')
+        for x, y in outer:
+            min_x, max_x = min(min_x, x), max(max_x, x)
+            min_y, max_y = min(min_y, y), max(max_y, y)
+        holes = []
+        for h in range(outlines.HoleCount(i)):
+            hole = _extract_poly_ring(outlines.Hole(i, h))
+            if len(hole) < 3:
+                raise UnsupportedBoard('board outline hole polygon is degenerate')
+            holes.append(hole)
+        poly_obj = {'outer': outer}
+        if holes:
+            poly_obj['holes'] = holes
+        polygons.append(poly_obj)
+    return {'min': [min_x, min_y], 'max': [max_x, max_y]}, {'polygons': polygons}
 
 
 def export_board(path: Path, rules: dict, max_expansions: int, limits: dict | None = None,
@@ -374,37 +776,128 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
     minima = {'width_nm': settings.m_TrackMinWidth,
               'clearance_nm': max(settings.m_MinClearance, settings.GetBiggestClearanceValue()),
               'edge_clearance_nm': settings.m_CopperEdgeClearance}
-    if not isinstance(rules, dict) or set(rules) != {'width_nm', 'clearance_nm', 'grid_nm', 'edge_clearance_nm'}:
+    required_keys = {'width_nm', 'clearance_nm', 'grid_nm', 'edge_clearance_nm'}
+    optional_rule_keys = {
+        'hole_clearance_nm', 'same_net_hole_clearance_nm',
+        'solder_mask_expansion_nm', 'solder_mask_min_width_nm',
+        'solder_mask_to_copper_clearance_nm',
+    }
+    if not isinstance(rules, dict) or not required_keys.issubset(rules) or not set(rules).issubset(required_keys | optional_rule_keys):
         raise ValueError('all four explicit routing rules are required')
-    if any(type(v) is not int or v <= 0 for v in rules.values()):
+    if any(type(rules[k]) is not int or rules[k] <= 0 for k in required_keys):
         raise ValueError('routing rules must be positive integer nanometres')
+    if any(type(rules[k]) is not int or rules[k] < 0 for k in set(rules) - required_keys):
+        raise ValueError('optional routing rules must be nonnegative integer nanometres')
     for key, floor in minima.items():
         if rules[key] < floor:
             raise ValueError(f'{key}={rules[key]} is below native floor {floor}')
     if type(max_expansions) is not int or max_expansions <= 0:
         raise ValueError('max_expansions must be positive')
+    bounds, board_outline = _board_bounds_and_outline(board)
     pads = []
+    holes = []
     for footprint in board.GetFootprints():
         for pad in footprint.Pads():
+            if pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
+                drill = _extract_drill_shape(pad)
+                holes.append({'id': item_id(pad), 'net': 0,
+                              'at': point(pad.GetPosition()), 'shape': drill})
+                continue
             shape = pad_shape(pad)
-            pads.append({'id': item_id(pad), 'net': int(pad.GetNetCode()),
-                         'at': point(pad.GetPosition()), 'shape': shape})
+            entry = {'id': item_id(pad), 'net': int(pad.GetNetCode()),
+                     'at': point(pad.GetPosition()), 'shape': shape}
+            if pad.GetAttribute() == pcbnew.PAD_ATTRIB_PTH:
+                entry['drill'] = _extract_drill_shape(pad)
+            pads.append(entry)
     pads.sort(key=lambda item: (item['net'], item['at'], item['id']))
+    holes.sort(key=lambda item: (item['at'], item['id']))
+
     tracks = []
+    graphics = []
     for track in board.GetTracks():
-        if type(track) is not pcbnew.PCB_TRACK or track.GetLayer() != pcbnew.F_Cu:
-            raise UnsupportedBoard('vias, arcs and non-front tracks are not supported')
-        tracks.append({'id': item_id(track), 'net': int(track.GetNetCode()),
-                       'start': point(track.GetStart()), 'end': point(track.GetEnd()),
-                       'width_nm': int(track.GetWidth()), 'locked': bool(track.IsLocked())})
+        if type(track) is pcbnew.PCB_TRACK and track.GetLayer() == pcbnew.F_Cu:
+            tracks.append({'id': item_id(track), 'net': int(track.GetNetCode()),
+                           'start': point(track.GetStart()), 'end': point(track.GetEnd()),
+                           'width_nm': int(track.GetWidth()), 'locked': bool(track.IsLocked())})
+        elif type(track) is pcbnew.PCB_ARC and track.GetLayer() in (pcbnew.F_Cu, pcbnew.B_Cu):
+            layer_name = 'F.Cu' if track.GetLayer() == pcbnew.F_Cu else 'B.Cu'
+            graphics.append({
+                'id': item_id(track),
+                'net': int(track.GetNetCode()),
+                'layer': layer_name,
+                'shape': {
+                    'kind': 'arc',
+                    'start': point(track.GetStart()),
+                    'mid': point(track.GetMid()),
+                    'end': point(track.GetEnd()),
+                    'width_nm': int(track.GetWidth()),
+                },
+            })
+        else:
+            raise UnsupportedBoard('vias and non-front tracks are not supported')
     tracks.sort(key=lambda item: (item['net'], item['start'], item['end'],
                                   item['width_nm'], item['locked'], item['id']))
+
+    mask_apertures = []
+    for drawing in board.GetDrawings():
+        layer = drawing.GetLayer()
+        if pcbnew.IsCopperLayer(layer):
+            layer_name = 'F.Cu' if layer == pcbnew.F_Cu else 'B.Cu'
+            net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
+            for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
+        elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and isinstance(drawing, pcbnew.PCB_SHAPE):
+            layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
+            for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                mask_apertures.append({'id': item_uuid, 'layer': layer_name, 'shape': shape_obj})
+
+    for footprint in board.GetFootprints():
+        fp_nets = {int(p.GetNetCode()) for p in footprint.Pads() if int(p.GetNetCode()) != 0}
+        fp_mask_net = next(iter(fp_nets)) if len(fp_nets) == 1 else None
+        for drawing in footprint.GraphicalItems():
+            layer = drawing.GetLayer()
+            if pcbnew.IsCopperLayer(layer):
+                layer_name = 'F.Cu' if layer == pcbnew.F_Cu else 'B.Cu'
+                net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
+                for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                    graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
+            elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and isinstance(drawing, pcbnew.PCB_SHAPE):
+                if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
+                    layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
+                    for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                        aperture = {'id': item_uuid, 'layer': layer_name, 'shape': shape_obj}
+                        if fp_mask_net is not None:
+                            aperture['net'] = fp_mask_net
+                        mask_apertures.append(aperture)
+
+    graphics.sort(key=lambda item: (item['layer'], item['net'], item['id']))
+    mask_apertures.sort(key=lambda item: (item['layer'], item['id']))
+
+    out_rules = dict(rules)
+    has_drills = bool(holes) or any('drill' in p for p in pads)
+    if has_drills:
+        out_rules['hole_clearance_nm'] = max(out_rules.get('hole_clearance_nm', 0), int(settings.m_HoleClearance))
+    if settings.m_SolderMaskExpansion > 0:
+        out_rules['solder_mask_expansion_nm'] = max(out_rules.get('solder_mask_expansion_nm', 0), int(settings.m_SolderMaskExpansion))
+    if settings.m_SolderMaskMinWidth > 0:
+        out_rules['solder_mask_min_width_nm'] = max(out_rules.get('solder_mask_min_width_nm', 0), int(settings.m_SolderMaskMinWidth))
+    if settings.m_SolderMaskToCopperClearance > 0:
+        out_rules['solder_mask_to_copper_clearance_nm'] = max(out_rules.get('solder_mask_to_copper_clearance_nm', 0), int(settings.m_SolderMaskToCopperClearance))
+
     nets = [{'id': int(code), 'name': net.GetNetname()}
             for code, net in board.GetNetsByNetcode().items()]
     nets.sort(key=lambda item: (item['id'], item['name']))
     result = {'version': INPUT_VERSION, 'source_id': hashlib.sha256(read_bounded(path)).hexdigest(),
-              'layer': 'F.Cu', 'bounds': rectangular_bounds(board), 'rules': rules,
+              'layer': 'F.Cu', 'bounds': bounds, 'rules': out_rules,
               'nets': nets, 'pads': pads, 'tracks': tracks, 'max_expansions': max_expansions}
+    if holes:
+        result['holes'] = holes
+    if board_outline is not None:
+        result['board_outline'] = board_outline
+    if graphics:
+        result['graphics'] = graphics
+    if mask_apertures:
+        result['mask_apertures'] = mask_apertures
     # Resource policy and defaults belong to Rust. Preserve supplied limits
     # exactly; omitting them retains the existing input contract.
     if limits is not None:
@@ -465,6 +958,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     board = load_supported(source)
     used_ids = {item_id(x) for x in board.GetTracks()} | {item_id(x) for x in board.GetPads()}
     used_ids |= {item_id(x) for x in board.GetFootprints()} | {item_id(x) for x in board.GetDrawings()}
+    used_ids |= {item_id(x) for fp in board.GetFootprints() for x in fp.GraphicalItems()}
     nets = set(board.GetNetsByNetcode())
     for item in additions:
         if not isinstance(item, dict) or set(item) != {'id', 'net', 'start', 'end', 'width_nm', 'locked'}:
