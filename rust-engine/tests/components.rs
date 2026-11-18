@@ -17,6 +17,9 @@ fn pad(n: u64, at: Point) -> Pad {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     }
 }
 fn track(n: u64, a: Point, b: Point) -> Track {
@@ -70,6 +73,9 @@ fn base() -> Input {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     }
 }
 mod model {
@@ -318,6 +324,9 @@ fn clearance_shadowed_target_joins_at_first_contact() {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     }];
     i.tracks = vec![
         Track {
@@ -403,6 +412,9 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -419,6 +431,9 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     i.tracks = vec![Track {

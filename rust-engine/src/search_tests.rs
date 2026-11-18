@@ -19,6 +19,9 @@ fn pad(n: u64, net: u32, at: Point, shape: Shape) -> Pad {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
         shape,
         drill: None,
     }
@@ -145,6 +148,9 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                             custom_rules: None,
                             effective_rules: None,
                             zones: Vec::new(),
+                            components: Vec::new(),
+                            stackup: Vec::new(),
+                            routing_options: None,
                         };
                         if offgrid {
                             i.tracks.push(track(1, 1, [3, 3], [7, 3], 2));
@@ -333,6 +339,9 @@ fn nearer_contact_wins_regardless_of_target_order() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let engine = Engine::new(i).unwrap();
     for targets in [
@@ -590,6 +599,9 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                         custom_rules: None,
                         effective_rules: None,
                         zones: Vec::new(),
+                        components: Vec::new(),
+                        stackup: Vec::new(),
+                        routing_options: None,
                     };
                     for (bit, a, b) in [
                         (1, [10, 0], [10, 10]),
@@ -687,6 +699,9 @@ fn walk_preserves_distinct_incoming_headings_in_dominance_key() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let engine = Engine::new(i).unwrap();
     let mut expanded = 0;
@@ -751,6 +766,9 @@ fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let engine = Engine::new(i).unwrap();
     let blocks = [[1, 1], [3, 1], [1, 3], [3, 3], [1, 2], [2, 1]];
@@ -875,6 +893,9 @@ fn component_estimate_and_join_components_refuse_empty_targets_without_panicking
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let engine = Engine::new(i).unwrap();
     for targets in [&empty, &one_empty] {
@@ -937,6 +958,9 @@ fn join_components_empty_starts_records_work_used_and_expanded_states() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let engine = Engine::new(i).unwrap();
     let mut expanded = 0;
@@ -1009,6 +1033,9 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                         thermal_spoke_width_nm: None,
                         thermal_spoke_angle_mdeg: None,
                         orientation_mdeg: 0,
+                        footprint_ref: None,
+                        pad_number: None,
+                        fromto_id: None,
                     },
                     Pad {
                         id: id(2),
@@ -1023,6 +1050,9 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                         thermal_spoke_width_nm: None,
                         thermal_spoke_angle_mdeg: None,
                         orientation_mdeg: 0,
+                        footprint_ref: None,
+                        pad_number: None,
+                        fromto_id: None,
                     },
                 ],
                 tracks: Vec::new(),
@@ -1039,6 +1069,9 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                 custom_rules: None,
                 effective_rules: None,
                 zones: Vec::new(),
+                components: Vec::new(),
+                stackup: Vec::new(),
+                routing_options: None,
             };
             input.project_rules = Some(
                 serde_json::json!({
@@ -1088,6 +1121,9 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                         thermal_spoke_width_nm: None,
                         thermal_spoke_angle_mdeg: None,
                         orientation_mdeg: 0,
+                        footprint_ref: None,
+                        pad_number: None,
+                        fromto_id: None,
                     });
                 }
             }
@@ -1240,6 +1276,9 @@ fn two_via_position_only_witness_and_max_expansions_budget() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
             Pad {
                 id: id(2),
@@ -1254,6 +1293,9 @@ fn two_via_position_only_witness_and_max_expansions_budget() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
         ],
         tracks: vec![
@@ -1343,6 +1385,9 @@ fn two_via_position_only_witness_and_max_expansions_budget() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     input.project_rules = Some(
         serde_json::json!({
@@ -1441,6 +1486,9 @@ fn three_via_last_via_only_counterexample_witness_re02() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -1455,6 +1503,9 @@ fn three_via_last_via_only_counterexample_witness_re02() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     let mut tracks = Vec::new();
@@ -1473,6 +1524,9 @@ fn three_via_last_via_only_counterexample_witness_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             });
         } else {
             tracks.push(Track {
@@ -1567,6 +1621,9 @@ fn three_via_last_via_only_counterexample_witness_re02() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     input.project_rules = Some(
         serde_json::json!({
@@ -1710,6 +1767,9 @@ fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -1724,6 +1784,9 @@ fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     let tracks = vec![
@@ -1814,6 +1877,9 @@ fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
         )),
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
 
     // max_via_count = 1 must refuse Unroutable (cannot cross F.Cu/B.Cu walls with <= 1 via).
@@ -1942,6 +2008,9 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                     thermal_spoke_width_nm: None,
                     thermal_spoke_angle_mdeg: None,
                     orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 },
                 Pad {
                     id: id(2),
@@ -1956,6 +2025,9 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                     thermal_spoke_width_nm: None,
                     thermal_spoke_angle_mdeg: None,
                     orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 },
             ],
             tracks: Vec::new(),
@@ -2046,6 +2118,9 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                 .map(|m| format!("(version 1)\n(rule \"vc\" (constraint via_count (max {m})))")),
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         };
         inp
     };
@@ -2112,6 +2187,9 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
             Pad {
                 id: id(2),
@@ -2126,6 +2204,9 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
         ],
         tracks: Vec::new(),
@@ -2160,6 +2241,9 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let eng_off = Engine::new(offgrid_in.clone()).unwrap();
     let path_off = join_components(
@@ -2239,6 +2323,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
             Pad {
                 id: id(2),
@@ -2253,6 +2340,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
             Pad {
                 id: id(3),
@@ -2267,6 +2357,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
         ],
         tracks: vec![Track {
@@ -2329,6 +2422,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
         ),
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let eng_b5 = Engine::new(b5.clone()).unwrap();
     let b5_t0 = eng_b5.copper().tracks().next().unwrap();
@@ -2400,6 +2496,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
 },
             Pad {
                 id: id(2),
@@ -2414,6 +2513,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
 },
             Pad {
                 id: id(3),
@@ -2428,6 +2530,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
 },
         ],
         tracks: vec![
@@ -2506,6 +2611,9 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
         ),
         effective_rules: None,
         zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
 };
     let eng_p4 = Engine::new(p4).unwrap();
     let p4_tracks: Vec<_> = eng_p4.copper().tracks().map(Copper::Track).collect();
@@ -2580,6 +2688,9 @@ fn probe5_same_net_hole_clearance_same_path_vias_satisfy_legal_edge_on_reload() 
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
             Pad {
                 id: id(2),
@@ -2594,6 +2705,9 @@ fn probe5_same_net_hole_clearance_same_path_vias_satisfy_legal_edge_on_reload() 
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
         ],
         tracks: Vec::new(),
@@ -2640,6 +2754,9 @@ fn probe5_same_net_hole_clearance_same_path_vias_satisfy_legal_edge_on_reload() 
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let mut eng = Engine::new(i.clone()).unwrap();
     eng.route(1, 50_000).unwrap();
@@ -2898,6 +3015,9 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     thermal_spoke_width_nm: None,
                     thermal_spoke_angle_mdeg: None,
                     orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 },
                 Pad {
                     id: id(2),
@@ -2912,6 +3032,9 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     thermal_spoke_width_nm: None,
                     thermal_spoke_angle_mdeg: None,
                     orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 },
             ],
             tracks: Vec::new(),
@@ -2946,6 +3069,9 @@ fn probe_d_350_open_vs_ctrl_re02() {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         }
     };
 
@@ -3006,6 +3132,9 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
             Pad {
                 id: id(2),
@@ -3020,6 +3149,9 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
         ],
         tracks: Vec::new(),
@@ -3120,6 +3252,9 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     let eng_w = Engine::new(witness_in.clone()).unwrap();
     let path_w = join_components(
@@ -3204,6 +3339,9 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                     thermal_spoke_width_nm: None,
                     thermal_spoke_angle_mdeg: None,
                     orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 },
                 Pad {
                     id: id(2),
@@ -3218,6 +3356,9 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
                     thermal_spoke_width_nm: None,
                     thermal_spoke_angle_mdeg: None,
                     orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 },
             ],
             tracks,
@@ -3252,6 +3393,9 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         }
     };
 
@@ -3322,6 +3466,9 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                         thermal_spoke_width_nm: None,
                         thermal_spoke_angle_mdeg: None,
                         orientation_mdeg: 0,
+                        footprint_ref: None,
+                        pad_number: None,
+                        fromto_id: None,
                     },
                     Pad {
                         id: id(2),
@@ -3336,6 +3483,9 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                         thermal_spoke_width_nm: None,
                         thermal_spoke_angle_mdeg: None,
                         orientation_mdeg: 0,
+                        footprint_ref: None,
+                        pad_number: None,
+                        fromto_id: None,
                     },
                 ],
                 tracks: Vec::new(),
@@ -3370,6 +3520,9 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                 custom_rules: None,
                 effective_rules: None,
                 zones: Vec::new(),
+                components: Vec::new(),
+                stackup: Vec::new(),
+                routing_options: None,
             };
 
             // Obstacles exercising track-before-via, via-before-track, and unreachable worlds.
@@ -3630,6 +3783,9 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         };
         let res = run_and_reload(inp);
         assert_eq!(res.added_tracks.len(), 1);
@@ -3670,6 +3826,9 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         };
         let res = run_and_reload(via_to_pad);
         assert_eq!(res.added_tracks.len(), 1);
@@ -3706,6 +3865,9 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         };
         let res2 = run_and_reload(via_to_via);
         assert_eq!(res2.added_tracks.len(), 1);
@@ -3778,6 +3940,9 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     run_and_reload(repro_b);
 
@@ -3814,6 +3979,9 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     run_and_reload(buried_to_buried);
 
@@ -3854,6 +4022,9 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     };
     run_and_reload(buried_to_fcu_pad);
 }

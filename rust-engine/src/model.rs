@@ -123,6 +123,12 @@ pub struct Input {
     pub effective_rules: Option<crate::rules::EffectiveRules>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub zones: Vec<Zone>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub components: Vec<ComponentInfo>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stackup: Vec<StackupLayer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing_options: Option<RoutingOptions>,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -367,6 +373,12 @@ pub struct Pad {
     pub thermal_spoke_angle_mdeg: Option<i64>,
     #[serde(default, skip_serializing_if = "is_zero_i64")]
     pub orientation_mdeg: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub footprint_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pad_number: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fromto_id: Option<String>,
 }
 impl Pad {
     pub fn copper_center(&self) -> Point {
@@ -609,6 +621,117 @@ pub struct Zone {
     pub locked: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub layer_fills: Vec<ZoneLayerFill>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComponentInfo {
+    pub ref_des: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub dnp: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub exclude_from_bom: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub exclude_from_pos: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pad_numbers: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub net_ids: Vec<u32>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StackupKind {
+    Copper,
+    Core,
+    Prepreg,
+    SolderMask,
+    Other,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct StackupLayer {
+    pub name: String,
+    pub kind: StackupKind,
+    pub thickness_nm: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epsilon_r: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiffPairsMode {
+    Auto,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtectMode {
+    None,
+    Existing,
+    Human,
+    Locked,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LengthMatchGroupSpec {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub members: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub from_to: Vec<[String; 2]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tolerance_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delay_tolerance_as: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meander_amplitude_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meander_spacing_widths: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RoutingOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diff_pairs_mode: Option<DiffPairsMode>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub explicit_pairs: Vec<[String; 2]>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pair_layers: Vec<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub no_short_pair_deferral: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub intra_match: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub length_match_tolerance_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meander_amplitude_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub length_match_groups: Vec<LengthMatchGroupSpec>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_match_tolerance_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_delay_tolerance_as: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_meander_amplitude_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_meander_spacing_widths: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pair_impedance_ohm: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impedance_tolerance_pct: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impedance_reference: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impedance_uncoupled_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub net_filters: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protect_mode: Option<ProtectMode>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -1407,6 +1530,41 @@ impl Input {
                 return Err(unsupported("mask apertures only support F.Mask and B.Mask"));
             }
             validate_graphic_shape(&m.shape)?;
+        }
+        for sl in &self.stackup {
+            if sl.name.is_empty()
+                || sl.name.len() > 1024
+                || !(0..=2 * MAX_NM).contains(&sl.thickness_nm)
+            {
+                return Err(invalid("stackup layer name or thickness is invalid"));
+            }
+            if let Some(er) = sl.epsilon_r {
+                if !er.is_finite() || er <= 0.0 {
+                    return Err(invalid("stackup epsilon_r must be finite and positive"));
+                }
+            }
+        }
+        if let Some(ro) = &self.routing_options {
+            if ro.length_match_tolerance_nm.is_some_and(|v| v < 0)
+                || ro.meander_amplitude_nm.is_some_and(|v| v <= 0)
+                || ro.group_match_tolerance_nm.is_some_and(|v| v < 0)
+                || ro.group_delay_tolerance_as.is_some_and(|v| v < 0)
+                || ro.group_meander_amplitude_nm.is_some_and(|v| v <= 0)
+                || ro.impedance_uncoupled_nm.is_some_and(|v| v < 0)
+                || ro
+                    .group_meander_spacing_widths
+                    .is_some_and(|v| !v.is_finite() || v < 1.0)
+                || ro
+                    .pair_impedance_ohm
+                    .is_some_and(|v| !v.is_finite() || v <= 0.0)
+                || ro
+                    .impedance_tolerance_pct
+                    .is_some_and(|v| !v.is_finite() || v <= 0.0)
+            {
+                return Err(invalid(
+                    "routing_options numeric tolerance, amplitude, spacing, or impedance out of range",
+                ));
+            }
         }
         Ok(())
     }

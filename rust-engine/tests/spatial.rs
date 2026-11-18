@@ -52,6 +52,9 @@ fn fixture() -> Input {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     }
 }
 
@@ -173,6 +176,9 @@ fn indexed_legality_matches_linear_scan_in_deterministic_mixed_worlds() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             });
         }
         for n in 0..128 {
@@ -229,6 +235,9 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(2),
@@ -243,6 +252,9 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(5),
@@ -260,6 +272,9 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(6),
@@ -277,6 +292,9 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     input.tracks = vec![
@@ -395,6 +413,9 @@ fn routing_fixture() -> Input {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(2),
@@ -409,6 +430,9 @@ fn routing_fixture() -> Input {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     input
@@ -509,6 +533,9 @@ fn linear_oracle_covers_multiple_generated_nets_after_edits_and_rollback() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             });
         }
     }
@@ -573,6 +600,9 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(2),
@@ -590,6 +620,9 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(3),
@@ -607,6 +640,9 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(4),
@@ -624,6 +660,9 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(5),
@@ -641,6 +680,9 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     let mut fresh = Engine::new(input.clone()).unwrap();
@@ -724,6 +766,9 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         };
         let mut used = BTreeSet::new();
         let mut n = 0;
@@ -758,6 +803,9 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
                     thermal_spoke_width_nm: None,
                     thermal_spoke_angle_mdeg: None,
                     orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 });
             }
         }
@@ -856,6 +904,9 @@ fn generated_samenet_rollback_determinism() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(2),
@@ -870,6 +921,9 @@ fn generated_samenet_rollback_determinism() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(3),
@@ -884,6 +938,9 @@ fn generated_samenet_rollback_determinism() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: uuid(4),
@@ -898,6 +955,9 @@ fn generated_samenet_rollback_determinism() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     let mut fresh = Engine::new(input.clone()).unwrap();

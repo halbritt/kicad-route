@@ -50,6 +50,9 @@ fn fixture(points: &[Point]) -> Input {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             })
             .collect(),
         tracks: vec![],
@@ -67,6 +70,9 @@ fn fixture(points: &[Point]) -> Input {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     }
 }
 fn track(n: usize, net: u32, start: Point, end: Point, locked: bool) -> Track {
@@ -272,6 +278,9 @@ fn two_nets() -> Input {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             }),
     );
     i
@@ -352,6 +361,9 @@ fn work_exhaustion_at_second_insertion_rolls_back_without_refund() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         });
     }
     // One undo entry admits the entire first straight join; the next insert fails.
@@ -397,6 +409,9 @@ fn unreachable_last_terminal_cannot_publish_partial_success() {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     });
     i.nets.push(Net {
         id: 0,
@@ -696,6 +711,9 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     };
     let j2 = Pad {
         id: id(2),
@@ -710,6 +728,9 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     };
     let j3 = Pad {
         id: id(3),
@@ -724,6 +745,9 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     };
     let pads = if swap_j1_j2 {
         vec![j2, j1, j3]
@@ -793,6 +817,9 @@ fn p2a_forced_t_corridor(swap_j1_j2: bool) -> Input {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     }
 }
 

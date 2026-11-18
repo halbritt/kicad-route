@@ -21,6 +21,9 @@ fn pad(n: u64, net: u32, at: Point) -> Pad {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     }
 }
 fn base() -> Input {
@@ -63,6 +66,9 @@ fn base() -> Input {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     }
 }
 fn wire(n: u64, net: u32, a: Point, b: Point) -> Track {
@@ -1175,6 +1181,9 @@ fn m3_1_off_grid_offset_and_rotated_pads_route_legally() {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     });
     let out = run(i.clone());
     assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
@@ -1230,6 +1239,9 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -1244,6 +1256,9 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(3),
@@ -1258,6 +1273,9 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     let ej = Engine::new(j.clone()).unwrap();
@@ -1677,6 +1695,9 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -1695,6 +1716,9 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     let e = Engine::new(i.clone()).unwrap();
@@ -1748,6 +1772,9 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -1766,6 +1793,9 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(3),
@@ -1782,6 +1812,9 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     let ej = Engine::new(j.clone()).unwrap();
@@ -1904,6 +1937,9 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
             Pad {
                 id: id(2),
@@ -1920,6 +1956,9 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
         ];
         i.tracks = vec![Track {
@@ -1978,6 +2017,9 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -1994,6 +2036,9 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     j.tracks = vec![
@@ -2062,6 +2107,9 @@ fn m3_2_multilayer_via_spans_hole_to_hole_and_keepouts() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -2076,6 +2124,9 @@ fn m3_2_multilayer_via_spans_hole_to_hole_and_keepouts() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     i.rule_areas = vec![RuleArea {
@@ -2152,6 +2203,9 @@ fn m3_2_copper_store_multilayer_via_rollback_zero_work_diff_and_index_consistent
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -2166,6 +2220,9 @@ fn m3_2_copper_store_multilayer_via_rollback_zero_work_diff_and_index_consistent
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     i.project_rules = Some(
@@ -2311,6 +2368,9 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -2325,6 +2385,9 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(3),
@@ -2339,6 +2402,9 @@ fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     i.project_rules = Some(
@@ -2468,6 +2534,9 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -2482,6 +2551,9 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(3),
@@ -2496,6 +2568,9 @@ fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     i.project_rules = Some(
@@ -2618,6 +2693,9 @@ fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -2632,6 +2710,9 @@ fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     // Block via at [10,10], [20,10], [30,10] on F.Cu so it must step to [0,10], place Via@[0,10],
@@ -2707,6 +2788,9 @@ fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     });
     let extra_out = run(extra);
     assert_eq!(extra_out.status, Status::Complete, "{:?}", extra_out.reason);
@@ -2789,6 +2873,9 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
             Pad {
                 id: id(2),
@@ -2803,6 +2890,9 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
                 thermal_spoke_width_nm: None,
                 thermal_spoke_angle_mdeg: None,
                 orientation_mdeg: 0,
+                footprint_ref: None,
+                pad_number: None,
+                fromto_id: None,
             },
         ];
         i.project_rules = Some(
@@ -2958,6 +3048,9 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     });
     assert_eq!(run(pad_rej).status, Status::Unroutable);
 
@@ -2976,6 +3069,9 @@ fn m3_2_same_net_hole_clearance_via_to_via_and_pad_copper_symmetry() {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     });
     let out_pad_conn = run(pad_conn);
     assert_eq!(
@@ -3148,6 +3244,9 @@ fn m3_2_dru_max_bounds_only_disallow_violating_layers_and_via_spans() {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         }
     };
 
@@ -3279,6 +3378,9 @@ fn m3_2_effective_rules_invalid_via_and_microvia_dims_rejected() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
         Pad {
             id: id(2),
@@ -3293,6 +3395,9 @@ fn m3_2_effective_rules_invalid_via_and_microvia_dims_rejected() {
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
         },
     ];
     let eff = kicad_route_engine::rules::EffectiveRules::from_uniform_rules(

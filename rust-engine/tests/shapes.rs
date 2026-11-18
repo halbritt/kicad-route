@@ -19,6 +19,9 @@ fn pad(shape: Shape, at: Point) -> Pad {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     }
 }
 fn shapes() -> Vec<Shape> {

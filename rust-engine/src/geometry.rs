@@ -1346,6 +1346,9 @@ fn unfilled_circle_connects_pad(center: Point, radius_nm: i64, width_nm: i64, p:
             thermal_spoke_width_nm: None,
             thermal_spoke_angle_mdeg: None,
             orientation_mdeg: 0,
+            footprint_ref: None,
+            pad_number: None,
+            fromto_id: None,
             shape: Shape::Circle { radius_nm: r_out },
             drill: None,
         };
@@ -1794,6 +1797,9 @@ pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
                     thermal_spoke_width_nm: None,
                     thermal_spoke_angle_mdeg: None,
                     orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                     shape: Shape::Circle {
                         radius_nm: *radius_nm + *width_nm / 2,
                     },

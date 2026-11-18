@@ -63,6 +63,80 @@ fn json_bool_field(
     }
 }
 
+fn json_opt_bool_field(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Result<Option<bool>, Failure> {
+    match obj.get(key) {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(v) => v.as_bool().map(Some).ok_or_else(|| {
+            Failure::new(
+                Status::Invalid,
+                format!(".kicad_pro {key} must be a boolean"),
+            )
+        }),
+    }
+}
+
+fn json_nonneg_rounded_i64_field(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    required: bool,
+    default_val: i64,
+) -> Result<i64, Failure> {
+    match obj.get(key) {
+        None => {
+            if required {
+                Err(Failure::new(
+                    Status::Invalid,
+                    format!(".kicad_pro {key} is required"),
+                ))
+            } else {
+                Ok(default_val)
+            }
+        }
+        Some(v) => {
+            if let Some(i) = v.as_i64() {
+                if i < 0 {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!(".kicad_pro {key} must be nonnegative"),
+                    ));
+                }
+                return Ok(i);
+            }
+            if let Some(u) = v.as_u64() {
+                return i64::try_from(u).map_err(|_| {
+                    Failure::new(
+                        Status::Invalid,
+                        format!(".kicad_pro {key} exceeds i64 bounds"),
+                    )
+                });
+            }
+            if let Some(f) = v.as_f64() {
+                if !f.is_finite() || f < 0.0 {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!(".kicad_pro {key} must be finite and nonnegative"),
+                    ));
+                }
+                let r = f.round();
+                if !r.is_finite() || r < 0.0 || r >= (i64::MAX as f64) {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!(".kicad_pro {key} exceeds i64 bounds"),
+                    ));
+                }
+                return Ok(r as i64);
+            }
+            Err(Failure::new(
+                Status::Invalid,
+                format!(".kicad_pro {key} must be a number"),
+            ))
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct BoardDesignSettings {
@@ -89,6 +163,16 @@ pub struct BoardDesignSettings {
     pub min_resolved_spokes: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_error_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub netclasses: Vec<NetClassDef>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub netclass_assignments: BTreeMap<String, Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_height_for_length_calcs: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board_thickness_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outer_solder_mask_thickness_nm: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -143,7 +227,8 @@ impl Default for BoardMinimums {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default)]
 pub struct NetClassDef {
     pub name: String,
     pub priority: i64,
@@ -153,6 +238,53 @@ pub struct NetClassDef {
     pub via_drill_nm: i64,
     pub microvia_diameter_nm: i64,
     pub microvia_drill_nm: i64,
+    pub diff_pair_width_nm: i64,
+    pub diff_pair_gap_nm: i64,
+    pub diff_pair_via_gap_nm: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tuning_profile: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub struct TuningProfileLayerEntry {
+    pub signal_layer: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_reference_layer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bottom_reference_layer: Option<String>,
+    pub width_nm: i64,
+    pub diff_pair_gap_nm: i64,
+    pub delay_as_per_mm: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub struct TuningViaOverride {
+    #[serde(default)]
+    pub via_diameter_nm: i64,
+    #[serde(default)]
+    pub start_layer: String,
+    #[serde(default)]
+    pub end_layer: String,
+    #[serde(default)]
+    pub signal_layer_from: String,
+    #[serde(default)]
+    pub signal_layer_to: String,
+    #[serde(default)]
+    pub via_layer_from: String,
+    #[serde(default)]
+    pub via_layer_to: String,
+    pub delay_as: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub struct TuningProfile {
+    pub profile_name: String,
+    pub profile_type: i64,
+    pub target_impedance_ohm: i64,
+    pub enable_time_domain_tuning: bool,
+    pub layer_entries: Vec<TuningProfileLayerEntry>,
+    pub via_prop_delay_as_per_mm: i64,
+    pub via_overrides: Vec<TuningViaOverride>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -169,6 +301,8 @@ pub struct ProjectRules {
     pub classes: Vec<NetClassDef>,
     pub assignments: BTreeMap<String, Vec<String>>,
     pub patterns: Vec<NetClassPattern>,
+    pub tuning_profiles: Vec<TuningProfile>,
+    pub use_height_for_length_calcs: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -805,6 +939,7 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
     }
 
     let mut minimums = BoardMinimums::default();
+    let mut use_height_for_length_calcs: Option<bool> = None;
     if let Some(board_val) = obj.get("board") {
         let board_obj = board_val
             .as_object()
@@ -823,6 +958,9 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                         ".kicad_pro design_settings.rules must be an object",
                     )
                 })?;
+                if let Some(v) = json_opt_bool_field(r, "use_height_for_length_calcs")? {
+                    use_height_for_length_calcs = Some(v);
+                }
                 minimums.min_track_width_nm = json_mm_field(r, "min_track_width", 0)?;
                 minimums.min_clearance_nm = json_mm_field(r, "min_clearance", 0)?;
                 minimums.min_edge_clearance_nm = json_mm_field(r, "min_copper_edge_clearance", 0)?;
@@ -899,6 +1037,18 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                     })?
                     .to_owned();
                 let priority = c.get("priority").and_then(|v| v.as_i64()).unwrap_or(0);
+                let tuning_profile = match c.get("tuning_profile") {
+                    None | Some(serde_json::Value::Null) => None,
+                    Some(v) => {
+                        let s = v.as_str().ok_or_else(|| {
+                            Failure::new(
+                                Status::Invalid,
+                                ".kicad_pro netclass tuning_profile must be a string",
+                            )
+                        })?;
+                        (!s.is_empty()).then(|| s.to_owned())
+                    }
+                };
                 classes.push(NetClassDef {
                     name,
                     priority,
@@ -908,40 +1058,53 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                     via_drill_nm: json_mm_field(c, "via_drill", 0)?,
                     microvia_diameter_nm: json_mm_field(c, "microvia_diameter", 0)?,
                     microvia_drill_nm: json_mm_field(c, "microvia_drill", 0)?,
+                    diff_pair_width_nm: json_mm_field(c, "diff_pair_width", 0)?,
+                    diff_pair_gap_nm: json_mm_field(c, "diff_pair_gap", 0)?,
+                    diff_pair_via_gap_nm: json_mm_field(c, "diff_pair_via_gap", 0)?,
+                    tuning_profile,
                 });
             }
         }
         if let Some(assign_val) = ns.get("netclass_assignments") {
             if !assign_val.is_null() {
-                let map = assign_val.as_object().ok_or_else(|| {
-                    Failure::new(
-                        Status::Invalid,
-                        ".kicad_pro netclass_assignments must be an object",
-                    )
-                })?;
-                for (net_name, val) in map {
-                    match val {
-                        serde_json::Value::String(s) => {
-                            assignments.insert(net_name.clone(), vec![s.clone()]);
-                        }
-                        serde_json::Value::Array(arr) => {
-                            let mut list = Vec::with_capacity(arr.len());
-                            for elem in arr {
-                                let s = elem.as_str().ok_or_else(|| {
-                                    Failure::new(
-                                        Status::Invalid,
-                                        ".kicad_pro netclass_assignments list entries must be strings",
-                                    )
-                                })?;
-                                list.push(s.to_owned());
+                if let Some(arr) = assign_val.as_array() {
+                    if !arr.is_empty() {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            ".kicad_pro netclass_assignments must be an object",
+                        ));
+                    }
+                } else {
+                    let map = assign_val.as_object().ok_or_else(|| {
+                        Failure::new(
+                            Status::Invalid,
+                            ".kicad_pro netclass_assignments must be an object",
+                        )
+                    })?;
+                    for (net_name, val) in map {
+                        match val {
+                            serde_json::Value::String(s) => {
+                                assignments.insert(net_name.clone(), vec![s.clone()]);
                             }
-                            assignments.insert(net_name.clone(), list);
-                        }
-                        _ => {
-                            return Err(Failure::new(
-                                Status::Invalid,
-                                ".kicad_pro netclass_assignments values must be string or list",
-                            ));
+                            serde_json::Value::Array(arr) => {
+                                let mut list = Vec::with_capacity(arr.len());
+                                for elem in arr {
+                                    let s = elem.as_str().ok_or_else(|| {
+                                        Failure::new(
+                                            Status::Invalid,
+                                            ".kicad_pro netclass_assignments list entries must be strings",
+                                        )
+                                    })?;
+                                    list.push(s.to_owned());
+                                }
+                                assignments.insert(net_name.clone(), list);
+                            }
+                            _ => {
+                                return Err(Failure::new(
+                                    Status::Invalid,
+                                    ".kicad_pro netclass_assignments values must be string or list",
+                                ));
+                            }
                         }
                     }
                 }
@@ -987,12 +1150,165 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
         }
     }
 
+    let mut tuning_profiles = Vec::new();
+    if let Some(tp_val) = obj.get("tuning_profiles") {
+        if !tp_val.is_null() {
+            let tp_obj = tp_val.as_object().ok_or_else(|| {
+                Failure::new(
+                    Status::Invalid,
+                    ".kicad_pro tuning_profiles must be an object",
+                )
+            })?;
+            if let Some(arr_val) = tp_obj.get("tuning_profiles_impedance_geometric") {
+                if !arr_val.is_null() {
+                    let arr = arr_val.as_array().ok_or_else(|| {
+                        Failure::new(
+                            Status::Invalid,
+                            ".kicad_pro tuning_profiles_impedance_geometric must be an array",
+                        )
+                    })?;
+                    for item in arr {
+                        let p = item.as_object().ok_or_else(|| {
+                            Failure::new(
+                                Status::Invalid,
+                                ".kicad_pro tuning profile entry must be an object",
+                            )
+                        })?;
+                        let profile_name = p
+                            .get("profile_name")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| {
+                                Failure::new(
+                                    Status::Invalid,
+                                    ".kicad_pro tuning profile missing profile_name",
+                                )
+                            })?
+                            .to_owned();
+                        let profile_type = json_nonneg_rounded_i64_field(p, "type", false, 0)?;
+                        let target_impedance_ohm =
+                            json_nonneg_rounded_i64_field(p, "target_impedance", false, 0)?;
+                        let enable_time_domain_tuning =
+                            json_bool_field(p, "enable_time_domain_tuning", false)?;
+                        let via_prop_delay_as_per_mm =
+                            json_nonneg_rounded_i64_field(p, "via_prop_delay", false, 0)?;
+                        let mut layer_entries = Vec::new();
+                        if let Some(le_arr) = p.get("layer_entries").and_then(|v| v.as_array()) {
+                            for le_val in le_arr {
+                                let le = le_val.as_object().ok_or_else(|| {
+                                    Failure::new(
+                                        Status::Invalid,
+                                        ".kicad_pro tuning profile layer_entry must be an object",
+                                    )
+                                })?;
+                                let signal_layer = le
+                                    .get("signal_layer")
+                                    .and_then(|v| v.as_str())
+                                    .ok_or_else(|| {
+                                        Failure::new(
+                                            Status::Invalid,
+                                            ".kicad_pro layer_entry missing signal_layer",
+                                        )
+                                    })?
+                                    .to_owned();
+                                let clean_ref = |k: &str| {
+                                    le.get(k)
+                                        .and_then(|v| v.as_str())
+                                        .filter(|s| !s.is_empty() && *s != "UNDEFINED")
+                                        .map(str::to_owned)
+                                };
+                                let width_nm =
+                                    json_nonneg_rounded_i64_field(le, "width", false, 0)?;
+                                let diff_pair_gap_nm =
+                                    json_nonneg_rounded_i64_field(le, "diff_pair_gap", false, 0)?;
+                                let delay_as_per_mm =
+                                    json_nonneg_rounded_i64_field(le, "delay", false, 0)?;
+                                layer_entries.push(TuningProfileLayerEntry {
+                                    signal_layer,
+                                    top_reference_layer: clean_ref("top_reference_layer"),
+                                    bottom_reference_layer: clean_ref("bottom_reference_layer"),
+                                    width_nm,
+                                    diff_pair_gap_nm,
+                                    delay_as_per_mm,
+                                });
+                            }
+                        }
+                        let mut via_overrides = Vec::new();
+                        if let Some(vo_arr) = p.get("via_overrides").and_then(|v| v.as_array()) {
+                            for vo_val in vo_arr {
+                                let vo = vo_val.as_object().ok_or_else(|| {
+                                    Failure::new(
+                                        Status::Invalid,
+                                        ".kicad_pro via_override entry must be an object",
+                                    )
+                                })?;
+                                let via_diameter_nm =
+                                    json_nonneg_rounded_i64_field(vo, "via_diameter", false, 0)?;
+                                let signal_layer_from = vo
+                                    .get("signal_layer_from")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let signal_layer_to = vo
+                                    .get("signal_layer_to")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let via_layer_from = vo
+                                    .get("via_layer_from")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let via_layer_to = vo
+                                    .get("via_layer_to")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let start_layer = vo
+                                    .get("start_layer")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let end_layer = vo
+                                    .get("end_layer")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let delay_as = json_nonneg_rounded_i64_field(vo, "delay", true, 0)?;
+                                via_overrides.push(TuningViaOverride {
+                                    via_diameter_nm,
+                                    start_layer,
+                                    end_layer,
+                                    signal_layer_from,
+                                    signal_layer_to,
+                                    via_layer_from,
+                                    via_layer_to,
+                                    delay_as,
+                                });
+                            }
+                        }
+                        tuning_profiles.push(TuningProfile {
+                            profile_name,
+                            profile_type,
+                            target_impedance_ohm,
+                            enable_time_domain_tuning,
+                            layer_entries,
+                            via_prop_delay_as_per_mm,
+                            via_overrides,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     Ok(ProjectRules {
         version: version_u64 as u32,
         minimums,
         classes,
         assignments,
         patterns,
+        tuning_profiles,
+        use_height_for_length_calcs,
     })
 }
 
@@ -1155,6 +1471,52 @@ fn parse_dru_dim_nm(tok: &str) -> Result<i64, Failure> {
     Ok(nm as i64)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DruLengthOrDelay {
+    LengthNm(i64),
+    DelayAs(i64),
+}
+
+fn parse_dru_length_or_delay(tok: &str) -> Result<DruLengthOrDelay, Failure> {
+    let s = tok.trim();
+    let time_scale = if let Some(v) = s.strip_suffix("ps") {
+        Some((v, 1_000_000.0))
+    } else if let Some(v) = s.strip_suffix("ns") {
+        Some((v, 1_000_000_000.0))
+    } else if let Some(v) = s.strip_suffix("us") {
+        Some((v, 1_000_000_000_000.0))
+    } else if let Some(v) = s.strip_suffix("fs") {
+        Some((v, 1_000.0))
+    } else if let Some(v) = s.strip_suffix("as") {
+        Some((v, 1.0))
+    } else {
+        None
+    };
+    if let Some((num_str, scale_as)) = time_scale {
+        let val: f64 = num_str.trim().parse().map_err(|_| {
+            Failure::new(
+                Status::Invalid,
+                format!("invalid .kicad_dru time dimension: {tok}"),
+            )
+        })?;
+        if !val.is_finite() || val < 0.0 {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!(".kicad_dru time dimension must be finite and nonnegative: {tok}"),
+            ));
+        }
+        let as_val = (val * scale_as).round();
+        if !as_val.is_finite() || as_val < 0.0 || as_val > (i64::MAX / 2) as f64 {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!(".kicad_dru time dimension exceeds bounds: {tok}"),
+            ));
+        }
+        return Ok(DruLengthOrDelay::DelayAs(as_val as i64));
+    }
+    Ok(DruLengthOrDelay::LengthNm(parse_dru_dim_nm(tok)?))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DruSeverity {
@@ -1196,6 +1558,8 @@ pub enum DruExpr {
     SameNet,
     ExistsOnLayer { side: Side, layer: String },
     HasNetClass { side: Side, class_name: String },
+    InDiffPair { side: Side, pattern: String },
+    FromTo { side: Side, a: String, b: String },
 }
 
 impl DruExpr {
@@ -1209,23 +1573,71 @@ impl DruExpr {
                     || matches!(r, DruValueExpr::Prop(Side::B, _))
             }
             Self::SameNet => true,
-            Self::ExistsOnLayer { side, .. } | Self::HasNetClass { side, .. } => *side == Side::B,
+            Self::ExistsOnLayer { side, .. }
+            | Self::HasNetClass { side, .. }
+            | Self::InDiffPair { side, .. }
+            | Self::FromTo { side, .. } => *side == Side::B,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum DruConstraint {
-    Clearance { min_nm: i64 },
-    TrackWidth { min_nm: i64, max_nm: Option<i64> },
-    ViaDiameter { min_nm: i64, max_nm: Option<i64> },
-    ViaDrill { min_nm: i64, max_nm: Option<i64> },
-    HoleClearance { min_nm: i64 },
-    HoleToHole { min_nm: i64 },
-    EdgeClearance { min_nm: i64 },
-    AnnularWidth { min_nm: i64 },
-    ViaCount { max: u32 },
-    Disallow { track: bool, via: bool },
+    Clearance {
+        min_nm: i64,
+    },
+    TrackWidth {
+        min_nm: i64,
+        max_nm: Option<i64>,
+    },
+    ViaDiameter {
+        min_nm: i64,
+        max_nm: Option<i64>,
+    },
+    ViaDrill {
+        min_nm: i64,
+        max_nm: Option<i64>,
+    },
+    HoleClearance {
+        min_nm: i64,
+    },
+    HoleToHole {
+        min_nm: i64,
+    },
+    EdgeClearance {
+        min_nm: i64,
+    },
+    AnnularWidth {
+        min_nm: i64,
+    },
+    ViaCount {
+        max: u32,
+    },
+    Disallow {
+        track: bool,
+        via: bool,
+    },
+    DiffPairGap {
+        min_nm: Option<i64>,
+        max_nm: Option<i64>,
+    },
+    DiffPairUncoupled {
+        min_nm: Option<i64>,
+        max_nm: i64,
+    },
+    Length {
+        min_nm: Option<i64>,
+        max_nm: Option<i64>,
+        min_as: Option<i64>,
+        max_as: Option<i64>,
+    },
+    Skew {
+        min_nm: Option<i64>,
+        max_nm: Option<i64>,
+        min_as: Option<i64>,
+        max_as: Option<i64>,
+        within_diff_pairs: bool,
+    },
 }
 
 impl DruConstraint {
@@ -1494,45 +1906,83 @@ impl<'a> ExprParser<'a> {
             ExprTok::Ident(ident) => {
                 if self.peek() == Some(&ExprTok::LParen) {
                     self.next(); // '('
-                    let arg = match self.peek() {
-                        Some(ExprTok::RParen) => None,
-                        Some(ExprTok::Str(s)) => {
-                            let s = s.clone();
-                            self.next();
-                            Some(s)
+                    let mut fn_args: Vec<String> = Vec::new();
+                    if self.peek() != Some(&ExprTok::RParen) {
+                        loop {
+                            match self.peek() {
+                                Some(ExprTok::Str(s)) => {
+                                    fn_args.push(s.clone());
+                                    self.next();
+                                }
+                                _ => {
+                                    return Err(Failure::new(
+                                        Status::Unsupported,
+                                        format!(
+                                            "unsupported function call argument in .kicad_dru: {ident}"
+                                        ),
+                                    ));
+                                }
+                            }
+                            if self.peek() == Some(&ExprTok::Comma) {
+                                self.next();
+                                continue;
+                            }
+                            break;
                         }
-                        _ => {
-                            return Err(Failure::new(
-                                Status::Unsupported,
-                                format!(
-                                    "unsupported function call argument in .kicad_dru: {ident}"
-                                ),
-                            ));
-                        }
-                    };
+                    }
                     if self.next() != Some(&ExprTok::RParen) {
                         return Err(Failure::new(
                             Status::Unsupported,
                             format!("unsupported function call syntax in .kicad_dru: {ident}"),
                         ));
                     }
-                    return match (ident.as_str(), arg) {
-                        ("A.existsOnLayer", Some(layer)) => Ok(Err(DruExpr::ExistsOnLayer {
+                    return match ident.as_str() {
+                        "A.existsOnLayer" if fn_args.len() == 1 => {
+                            Ok(Err(DruExpr::ExistsOnLayer {
+                                side: Side::A,
+                                layer: fn_args.pop().unwrap(),
+                            }))
+                        }
+                        "B.existsOnLayer" if fn_args.len() == 1 => {
+                            Ok(Err(DruExpr::ExistsOnLayer {
+                                side: Side::B,
+                                layer: fn_args.pop().unwrap(),
+                            }))
+                        }
+                        "A.hasNetClass" if fn_args.len() == 1 => Ok(Err(DruExpr::HasNetClass {
                             side: Side::A,
-                            layer,
+                            class_name: fn_args.pop().unwrap(),
                         })),
-                        ("B.existsOnLayer", Some(layer)) => Ok(Err(DruExpr::ExistsOnLayer {
+                        "B.hasNetClass" if fn_args.len() == 1 => Ok(Err(DruExpr::HasNetClass {
                             side: Side::B,
-                            layer,
+                            class_name: fn_args.pop().unwrap(),
                         })),
-                        ("A.hasNetClass", Some(class_name)) => Ok(Err(DruExpr::HasNetClass {
+                        "A.inDiffPair" if fn_args.len() == 1 => Ok(Err(DruExpr::InDiffPair {
                             side: Side::A,
-                            class_name,
+                            pattern: fn_args.pop().unwrap(),
                         })),
-                        ("B.hasNetClass", Some(class_name)) => Ok(Err(DruExpr::HasNetClass {
+                        "B.inDiffPair" if fn_args.len() == 1 => Ok(Err(DruExpr::InDiffPair {
                             side: Side::B,
-                            class_name,
+                            pattern: fn_args.pop().unwrap(),
                         })),
+                        "A.fromTo" if fn_args.len() == 2 => {
+                            let b = fn_args.pop().unwrap();
+                            let a = fn_args.pop().unwrap();
+                            Ok(Err(DruExpr::FromTo {
+                                side: Side::A,
+                                a,
+                                b,
+                            }))
+                        }
+                        "B.fromTo" if fn_args.len() == 2 => {
+                            let b = fn_args.pop().unwrap();
+                            let a = fn_args.pop().unwrap();
+                            Ok(Err(DruExpr::FromTo {
+                                side: Side::B,
+                                a,
+                                b,
+                            }))
+                        }
                         _ => Err(Failure::new(
                             Status::Unsupported,
                             format!("unsupported .kicad_dru condition function: {ident}"),
@@ -1669,6 +2119,119 @@ fn parse_min_max_dims(
     Ok((min_nm, max_nm))
 }
 
+#[allow(clippy::type_complexity)]
+fn parse_length_or_delay_bounds(
+    args: &[Sexpr],
+    allow_within_diff_pairs: bool,
+    kind: &str,
+) -> Result<(Option<i64>, Option<i64>, Option<i64>, Option<i64>, bool), Failure> {
+    let mut min_nm: Option<i64> = None;
+    let mut max_nm: Option<i64> = None;
+    let mut min_as: Option<i64> = None;
+    let mut max_as: Option<i64> = None;
+    let mut within_diff_pairs = false;
+
+    for item in args {
+        if allow_within_diff_pairs {
+            if let Sexpr::Atom(a) = item {
+                if a == "within_diff_pairs" {
+                    within_diff_pairs = true;
+                    continue;
+                }
+            }
+            if let Sexpr::List(list) = item {
+                if list.len() == 1 && sexpr_str(&list[0]) == Some("within_diff_pairs") {
+                    within_diff_pairs = true;
+                    continue;
+                }
+            }
+        }
+        let Sexpr::List(pair) = item else {
+            return Err(Failure::new(
+                Status::Unsupported,
+                format!("unsupported .kicad_dru {kind} argument"),
+            ));
+        };
+        if pair.len() != 2 {
+            return Err(Failure::new(
+                Status::Unsupported,
+                format!("unsupported .kicad_dru {kind} subclause"),
+            ));
+        }
+        let key = sexpr_str(&pair[0]).ok_or_else(|| {
+            Failure::new(Status::Invalid, "expected keyword in .kicad_dru constraint")
+        })?;
+        let val_tok = sexpr_str(&pair[1]).ok_or_else(|| {
+            Failure::new(
+                Status::Invalid,
+                "expected dimension in .kicad_dru constraint",
+            )
+        })?;
+        let parsed = parse_dru_length_or_delay(val_tok)?;
+        match key {
+            "min" => {
+                if min_nm.is_some() || min_as.is_some() {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        "duplicate min in .kicad_dru constraint",
+                    ));
+                }
+                match parsed {
+                    DruLengthOrDelay::LengthNm(v) => min_nm = Some(v),
+                    DruLengthOrDelay::DelayAs(v) => min_as = Some(v),
+                }
+            }
+            "max" => {
+                if max_nm.is_some() || max_as.is_some() {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        "duplicate max in .kicad_dru constraint",
+                    ));
+                }
+                match parsed {
+                    DruLengthOrDelay::LengthNm(v) => max_nm = Some(v),
+                    DruLengthOrDelay::DelayAs(v) => max_as = Some(v),
+                }
+            }
+            _ => {
+                return Err(Failure::new(
+                    Status::Unsupported,
+                    format!("unsupported .kicad_dru {kind} bound '{key}'"),
+                ));
+            }
+        }
+    }
+    if min_nm.is_none() && max_nm.is_none() && min_as.is_none() && max_as.is_none() {
+        return Err(Failure::new(
+            Status::Unsupported,
+            format!(".kicad_dru {kind} constraint missing required bound"),
+        ));
+    }
+    if (min_nm.is_some() || max_nm.is_some()) && (min_as.is_some() || max_as.is_some()) {
+        return Err(Failure::new(
+            Status::Invalid,
+            format!(".kicad_dru {kind} cannot mix length and time bounds"),
+        ));
+    }
+    if let (Some(lo), Some(hi)) = (min_nm, max_nm) {
+        if lo > hi {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!(".kicad_dru {kind} min exceeds max"),
+            ));
+        }
+    }
+    if let (Some(lo), Some(hi)) = (min_as, max_as) {
+        if lo > hi {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!(".kicad_dru {kind} min exceeds max"),
+            ));
+        }
+    }
+    Ok((min_nm, max_nm, min_as, max_as, within_diff_pairs))
+}
+
 fn parse_dru_constraint(items: &[Sexpr]) -> Result<DruConstraint, Failure> {
     if items.len() < 2 {
         return Err(Failure::new(
@@ -1782,6 +2345,41 @@ fn parse_dru_constraint(items: &[Sexpr]) -> Result<DruConstraint, Failure> {
                 }
             }
             Ok(DruConstraint::Disallow { track, via })
+        }
+        "diff_pair_gap" => {
+            let (min_nm, max_nm) = parse_min_max_dims(args, true, kind)?;
+            Ok(DruConstraint::DiffPairGap { min_nm, max_nm })
+        }
+        "diff_pair_uncoupled" => {
+            let (min_nm, max_nm) = parse_min_max_dims(args, true, kind)?;
+            let max_nm = max_nm.ok_or_else(|| {
+                Failure::new(
+                    Status::Unsupported,
+                    ".kicad_dru diff_pair_uncoupled constraint missing max bound",
+                )
+            })?;
+            Ok(DruConstraint::DiffPairUncoupled { min_nm, max_nm })
+        }
+        "length" => {
+            let (min_nm, max_nm, min_as, max_as, _) =
+                parse_length_or_delay_bounds(args, false, kind)?;
+            Ok(DruConstraint::Length {
+                min_nm,
+                max_nm,
+                min_as,
+                max_as,
+            })
+        }
+        "skew" => {
+            let (min_nm, max_nm, min_as, max_as, within_diff_pairs) =
+                parse_length_or_delay_bounds(args, true, kind)?;
+            Ok(DruConstraint::Skew {
+                min_nm,
+                max_nm,
+                min_as,
+                max_as,
+                within_diff_pairs,
+            })
         }
         other => Err(Failure::new(
             Status::Unsupported,
@@ -2046,11 +2644,27 @@ fn eval_value_eq(
 }
 
 fn eval_dru_expr(expr: &DruExpr, a: &DruItem<'_>, b: Option<&DruItem<'_>>) -> bool {
+    eval_dru_expr_for_context(expr, a, b, None, None)
+}
+
+pub fn eval_dru_expr_for_context(
+    expr: &DruExpr,
+    a: &DruItem<'_>,
+    b: Option<&DruItem<'_>>,
+    in_diff_pair_stem: Option<&str>,
+    fromto_tokens: Option<&[String]>,
+) -> bool {
     match expr {
         DruExpr::BoolLit(v) => *v,
-        DruExpr::Not(x) => !eval_dru_expr(x, a, b),
-        DruExpr::And(x, y) => eval_dru_expr(x, a, b) && eval_dru_expr(y, a, b),
-        DruExpr::Or(x, y) => eval_dru_expr(x, a, b) || eval_dru_expr(y, a, b),
+        DruExpr::Not(x) => !eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_tokens),
+        DruExpr::And(x, y) => {
+            eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_tokens)
+                && eval_dru_expr_for_context(y, a, b, in_diff_pair_stem, fromto_tokens)
+        }
+        DruExpr::Or(x, y) => {
+            eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_tokens)
+                || eval_dru_expr_for_context(y, a, b, in_diff_pair_stem, fromto_tokens)
+        }
         DruExpr::Eq(l, r) => eval_value_eq(l, r, a, b),
         DruExpr::Ne(l, r) => !eval_value_eq(l, r, a, b),
         DruExpr::SameNet => b.is_some_and(|ib| a.net_id == ib.net_id),
@@ -2069,6 +2683,31 @@ fn eval_dru_expr(expr: &DruExpr, a: &DruItem<'_>, b: Option<&DruItem<'_>>) -> bo
             it.is_some_and(|item| {
                 item.net_class == class_name || item.class_members.iter().any(|c| c == class_name)
             })
+        }
+        DruExpr::InDiffPair { side, pattern } => {
+            if *side != Side::A {
+                return false;
+            }
+            let Some(stem) = in_diff_pair_stem else {
+                return false;
+            };
+            wildcard_full_match(pattern, stem)
+                || stem
+                    .strip_suffix('_')
+                    .is_some_and(|s| wildcard_full_match(pattern, s))
+        }
+        DruExpr::FromTo {
+            side,
+            a: ft_a,
+            b: ft_b,
+        } => {
+            if *side != Side::A {
+                return false;
+            }
+            let Some(tokens) = fromto_tokens else {
+                return false;
+            };
+            ft_a != ft_b && tokens.iter().any(|t| t == ft_a) && tokens.iter().any(|t| t == ft_b)
         }
     }
 }
@@ -2091,6 +2730,14 @@ pub struct NetResolvedRules {
     pub hole_to_hole_nm: i64,
     pub annular_width_nm: i64,
     pub max_via_count: Option<u32>,
+    #[serde(default)]
+    pub diff_pair_width_nm: i64,
+    #[serde(default)]
+    pub diff_pair_gap_nm: i64,
+    #[serde(default)]
+    pub diff_pair_via_gap_nm: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tuning_profile: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -2108,6 +2755,14 @@ pub struct EffectiveRules {
     pub max_edge_clearance_nm: i64,
     pub max_track_width_nm: i64,
     pub max_via_diameter_nm: i64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tuning_profiles: Vec<TuningProfile>,
+    #[serde(default)]
+    pub use_height_for_length_calcs: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board_thickness_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outer_solder_mask_thickness_nm: Option<i64>,
 }
 
 impl EffectiveRules {
@@ -2129,6 +2784,10 @@ impl EffectiveRules {
             hole_to_hole_nm: 0,
             annular_width_nm: 0,
             max_via_count: None,
+            diff_pair_width_nm: 0,
+            diff_pair_gap_nm: 0,
+            diff_pair_via_gap_nm: 0,
+            tuning_profile: None,
         };
         net_rules.insert(0, make_net(0, String::new()));
         for n in nets {
@@ -2149,6 +2808,10 @@ impl EffectiveRules {
             max_edge_clearance_nm: rules.edge_clearance_nm,
             max_track_width_nm: rules.width_nm,
             max_via_diameter_nm: (rules.width_nm * 2).max(600_000),
+            tuning_profiles: Vec::new(),
+            use_height_for_length_calcs: false,
+            board_thickness_nm: None,
+            outer_solder_mask_thickness_nm: None,
         }
     }
 
@@ -2158,6 +2821,34 @@ impl EffectiveRules {
                 Status::Invalid,
                 "effective_rules must contain net 0 fallback",
             ));
+        }
+        if self
+            .board_thickness_nm
+            .is_some_and(|bt| !(1..=2 * MAX_NM).contains(&bt))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules board_thickness_nm must be in 1..=200000000 nm",
+            ));
+        }
+        if self
+            .outer_solder_mask_thickness_nm
+            .is_some_and(|m| !(0..=2 * MAX_NM).contains(&m))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules outer_solder_mask_thickness_nm must be in 0..=200000000 nm",
+            ));
+        }
+        if let (Some(bt), Some(mask)) =
+            (self.board_thickness_nm, self.outer_solder_mask_thickness_nm)
+        {
+            if mask > bt {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "effective_rules outer_solder_mask_thickness_nm exceeds board_thickness_nm",
+                ));
+            }
         }
         let m = &self.minimums;
         if [
@@ -2287,6 +2978,54 @@ impl EffectiveRules {
                     }
                 }
                 DruConstraint::ViaCount { .. } | DruConstraint::Disallow { .. } => {}
+                DruConstraint::DiffPairGap { min_nm, max_nm } => {
+                    if min_nm.is_some_and(|v| !valid_dim(v))
+                        || max_nm.is_some_and(|v| !valid_dim(v))
+                        || min_nm.zip(max_nm).is_some_and(|(lo, hi)| lo > hi)
+                    {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            "effective_rules dru_rules diff_pair_gap bounds are invalid",
+                        ));
+                    }
+                }
+                DruConstraint::DiffPairUncoupled { min_nm, max_nm } => {
+                    if min_nm.is_some_and(|v| !valid_dim(v))
+                        || !valid_dim(max_nm)
+                        || min_nm.is_some_and(|lo| lo > max_nm)
+                    {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            "effective_rules dru_rules diff_pair_uncoupled bounds are invalid",
+                        ));
+                    }
+                }
+                DruConstraint::Length {
+                    min_nm,
+                    max_nm,
+                    min_as,
+                    max_as,
+                }
+                | DruConstraint::Skew {
+                    min_nm,
+                    max_nm,
+                    min_as,
+                    max_as,
+                    ..
+                } => {
+                    if min_nm.is_some_and(|v| !valid_dim(v))
+                        || max_nm.is_some_and(|v| !valid_dim(v))
+                        || min_nm.zip(max_nm).is_some_and(|(lo, hi)| lo > hi)
+                        || min_as.is_some_and(|v| v < 0)
+                        || max_as.is_some_and(|v| v < 0)
+                        || min_as.zip(max_as).is_some_and(|(lo, hi)| lo > hi)
+                    {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            "effective_rules dru_rules length/skew bounds are invalid",
+                        ));
+                    }
+                }
             }
             if rule.severity == DruSeverity::Ignore {
                 continue;
@@ -2316,7 +3055,12 @@ impl EffectiveRules {
                 DruConstraint::AnnularWidth { min_nm } => {
                     max_via_annular_nm = max_via_annular_nm.max(min_nm);
                 }
-                DruConstraint::ViaCount { .. } | DruConstraint::Disallow { .. } => {}
+                DruConstraint::ViaCount { .. }
+                | DruConstraint::Disallow { .. }
+                | DruConstraint::DiffPairGap { .. }
+                | DruConstraint::DiffPairUncoupled { .. }
+                | DruConstraint::Length { .. }
+                | DruConstraint::Skew { .. } => {}
             }
         }
         let req_via_diameter_i128 = i128::from(req_via_diameter_nm)
@@ -2871,7 +3615,21 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
 
     let pro = match &input.project_rules {
         Some(text) => Some(parse_kicad_pro(text.as_bytes())?),
-        None => None,
+        None => input.board_design_settings.as_ref().and_then(|bds| {
+            if bds.netclasses.is_empty() && bds.netclass_assignments.is_empty() {
+                None
+            } else {
+                Some(ProjectRules {
+                    version: 3,
+                    minimums: BoardMinimums::default(),
+                    classes: bds.netclasses.clone(),
+                    assignments: bds.netclass_assignments.clone(),
+                    patterns: Vec::new(),
+                    tuning_profiles: Vec::new(),
+                    use_height_for_length_calcs: bds.use_height_for_length_calcs,
+                })
+            }
+        }),
     };
     let dru_rules = match &input.custom_rules {
         Some(text) => parse_kicad_dru(text.as_bytes())?,
@@ -2916,6 +3674,33 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
                 Status::Invalid,
                 "board_design_settings max_error_nm must be 0..=100000000 nm",
             ));
+        }
+        if bds
+            .board_thickness_nm
+            .is_some_and(|bt| !(1..=2 * MAX_NM).contains(&bt))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings board_thickness_nm must be in 1..=200000000 nm",
+            ));
+        }
+        if bds
+            .outer_solder_mask_thickness_nm
+            .is_some_and(|m| !(0..=2 * MAX_NM).contains(&m))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings outer_solder_mask_thickness_nm must be in 0..=200000000 nm",
+            ));
+        }
+        if let (Some(bt), Some(mask)) = (bds.board_thickness_nm, bds.outer_solder_mask_thickness_nm)
+        {
+            if mask > bt {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "board_design_settings outer_solder_mask_thickness_nm exceeds board_thickness_nm",
+                ));
+            }
         }
     }
     let minimums = merge_minimums(input.board_design_settings.as_ref(), pro.as_ref());
@@ -3038,6 +3823,10 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         let cls_vdr = cls_opt.map_or(0, |c| c.via_drill_nm);
         let cls_mvd = cls_opt.map_or(0, |c| c.microvia_diameter_nm);
         let cls_mvdr = cls_opt.map_or(0, |c| c.microvia_drill_nm);
+        let diff_pair_width_nm = cls_opt.map_or(0, |c| c.diff_pair_width_nm);
+        let diff_pair_gap_nm = cls_opt.map_or(0, |c| c.diff_pair_gap_nm);
+        let diff_pair_via_gap_nm = cls_opt.map_or(0, |c| c.diff_pair_via_gap_nm);
+        let tuning_profile = cls_opt.and_then(|c| c.tuning_profile.clone());
 
         let mut width_nm = (if cls_w > 0 {
             cls_w
@@ -3211,6 +4000,10 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
                 hole_to_hole_nm,
                 annular_width_nm,
                 max_via_count,
+                diff_pair_width_nm,
+                diff_pair_gap_nm,
+                diff_pair_via_gap_nm,
+                tuning_profile,
             },
         );
     }
@@ -3278,6 +4071,29 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
     }
     max_via_diameter_nm = max_via_diameter_nm.max(max_via_drill_nm + 2 * max_via_annular_nm);
 
+    let use_height_for_length_calcs = pro
+        .as_ref()
+        .and_then(|p| p.use_height_for_length_calcs)
+        .or_else(|| {
+            input
+                .board_design_settings
+                .as_ref()
+                .and_then(|b| b.use_height_for_length_calcs)
+        })
+        .unwrap_or(false);
+    let board_thickness_nm = input
+        .board_design_settings
+        .as_ref()
+        .and_then(|b| b.board_thickness_nm);
+    let outer_solder_mask_thickness_nm = input
+        .board_design_settings
+        .as_ref()
+        .and_then(|b| b.outer_solder_mask_thickness_nm);
+    let tuning_profiles = pro
+        .as_ref()
+        .map(|p| p.tuning_profiles.clone())
+        .unwrap_or_default();
+
     Ok(EffectiveRules {
         allow_blind_buried_vias: minimums.allow_blind_buried_vias,
         allow_microvias: minimums.allow_microvias,
@@ -3291,6 +4107,10 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         max_edge_clearance_nm,
         max_track_width_nm,
         max_via_diameter_nm,
+        tuning_profiles,
+        use_height_for_length_calcs,
+        board_thickness_nm,
+        outer_solder_mask_thickness_nm,
     })
 }
 
@@ -3735,6 +4555,228 @@ mod tests {
                 .unwrap_err()
                 .status,
             Status::Unroutable
+        );
+    }
+
+    #[test]
+    fn use_height_precedence_and_board_thickness_validation() {
+        let mut inp: Input = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "source_id": "d".repeat(64),
+            "layer": "F.Cu",
+            "layers": ["F.Cu", "B.Cu"],
+            "bounds": {"min": [0, 0], "max": [10_000_000, 10_000_000]},
+            "nets": [{"id": 0, "name": ""}, {"id": 1, "name": "SIG"}],
+            "pads": [],
+            "tracks": [],
+            "board_design_settings": {
+                "use_height_for_length_calcs": true,
+                "board_thickness_nm": 1_600_000,
+                "outer_solder_mask_thickness_nm": 20_000
+            },
+            "max_expansions": 100
+        }))
+        .unwrap();
+        // Omitted in .kicad_pro -> falls back to board_design_settings (true)
+        inp.project_rules = Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {}}}
+            })
+            .to_string(),
+        );
+        let eff_omit = resolve_effective_rules(&mut inp).unwrap();
+        assert!(eff_omit.use_height_for_length_calcs);
+        assert_eq!(eff_omit.board_thickness_nm, Some(1_600_000));
+        assert_eq!(eff_omit.outer_solder_mask_thickness_nm, Some(20_000));
+
+        // Explicit false in .kicad_pro design_settings.rules overrides board_design_settings true
+        inp.project_rules = Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {"use_height_for_length_calcs": false}}}
+            })
+            .to_string(),
+        );
+        let eff_false = resolve_effective_rules(&mut inp).unwrap();
+        assert!(!eff_false.use_height_for_length_calcs);
+
+        // use_height_for_length_calcs outside .rules is ignored by KiCad 10.0.8
+        inp.project_rules = Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {
+                    "design_settings": {
+                        "use_height_for_length_calcs": false,
+                        "rules": {}
+                    }
+                }
+            })
+            .to_string(),
+        );
+        let eff_ds_ignored = resolve_effective_rules(&mut inp).unwrap();
+        assert!(eff_ds_ignored.use_height_for_length_calcs);
+
+        // Invalid board_thickness_nm (0) and mask > board_thickness fail closed
+        inp.board_design_settings
+            .as_mut()
+            .unwrap()
+            .board_thickness_nm = Some(0);
+        assert_eq!(
+            resolve_effective_rules(&mut inp).unwrap_err().status,
+            Status::Invalid
+        );
+        inp.board_design_settings
+            .as_mut()
+            .unwrap()
+            .board_thickness_nm = Some(10_000);
+        inp.board_design_settings
+            .as_mut()
+            .unwrap()
+            .outer_solder_mask_thickness_nm = Some(20_000);
+        assert_eq!(
+            resolve_effective_rules(&mut inp).unwrap_err().status,
+            Status::Invalid
+        );
+    }
+
+    #[test]
+    fn via_overrides_strict_signal_layer_parsing() {
+        let pro = serde_json::json!({
+            "meta": {"version": 3},
+            "tuning_profiles": {
+                "tuning_profiles_impedance_geometric": [{
+                    "profile_name": "P1",
+                    "type": 0,
+                    "target_impedance": 50,
+                    "enable_time_domain_tuning": true,
+                    "via_prop_delay": 7_500_000,
+                    "layer_entries": [{"signal_layer": "F.Cu", "width": 250_000, "delay": 6_000_000}],
+                    "via_overrides": [{
+                        "start_layer": "F.Cu",
+                        "end_layer": "In2.Cu",
+                        "via_layer_from": "F.Cu",
+                        "via_layer_to": "B.Cu",
+                        "via_diameter": 500_000,
+                        "delay": 90_000_000
+                    }]
+                }]
+            }
+        })
+        .to_string();
+        let parsed = parse_kicad_pro(pro.as_bytes()).unwrap();
+        let ov = &parsed.tuning_profiles[0].via_overrides[0];
+        assert_eq!(ov.signal_layer_from, "");
+        assert_eq!(ov.signal_layer_to, "");
+        assert_eq!(ov.via_layer_from, "F.Cu");
+        assert_eq!(ov.via_layer_to, "B.Cu");
+        assert_eq!(ov.via_diameter_nm, 500_000);
+        assert_eq!(ov.delay_as, 90_000_000);
+    }
+
+    #[test]
+    fn tuning_profiles_float_and_malformed_numeric_fields() {
+        let mk_pro =
+            |via_prop_delay: serde_json::Value, le: serde_json::Value, vo: serde_json::Value| {
+                serde_json::json!({
+                    "meta": {"version": 3},
+                    "tuning_profiles": {
+                        "tuning_profiles_impedance_geometric": [{
+                            "profile_name": "P1",
+                            "type": 0.0,
+                            "target_impedance": 50.0,
+                            "enable_time_domain_tuning": true,
+                            "via_prop_delay": via_prop_delay,
+                            "layer_entries": [le],
+                            "via_overrides": [vo]
+                        }]
+                    }
+                })
+                .to_string()
+            };
+        let valid = mk_pro(
+            serde_json::json!(9e7),
+            serde_json::json!({
+                "signal_layer": "F.Cu",
+                "width": 250_000.0,
+                "diff_pair_gap": 150_000.0,
+                "delay": 6_000_000.6
+            }),
+            serde_json::json!({
+                "signal_layer_from": "F.Cu",
+                "signal_layer_to": "In2.Cu",
+                "via_layer_from": "F.Cu",
+                "via_layer_to": "B.Cu",
+                "via_diameter": 600_000.0,
+                "delay": 90_000_000.6
+            }),
+        );
+        let parsed = parse_kicad_pro(valid.as_bytes()).unwrap();
+        let prof = &parsed.tuning_profiles[0];
+        assert_eq!(prof.target_impedance_ohm, 50);
+        assert_eq!(prof.via_prop_delay_as_per_mm, 90_000_000);
+        assert_eq!(prof.layer_entries[0].width_nm, 250_000);
+        assert_eq!(prof.layer_entries[0].diff_pair_gap_nm, 150_000);
+        assert_eq!(prof.layer_entries[0].delay_as_per_mm, 6_000_001);
+        assert_eq!(prof.via_overrides[0].via_diameter_nm, 600_000);
+        assert_eq!(prof.via_overrides[0].delay_as, 90_000_001);
+
+        let ok_le =
+            serde_json::json!({"signal_layer": "F.Cu", "width": 250_000, "delay": 6_000_000});
+        let ok_vo = serde_json::json!({
+            "signal_layer_from": "F.Cu",
+            "signal_layer_to": "B.Cu",
+            "via_layer_from": "F.Cu",
+            "via_layer_to": "B.Cu",
+            "delay": 90_000_000
+        });
+        for bad_delay in [
+            serde_json::json!(-1.0),
+            serde_json::json!(-0.4),
+            serde_json::json!("90000000"),
+            serde_json::Value::Null,
+            serde_json::json!(true),
+        ] {
+            let bad_vo = serde_json::json!({
+                "signal_layer_from": "F.Cu",
+                "signal_layer_to": "B.Cu",
+                "via_layer_from": "F.Cu",
+                "via_layer_to": "B.Cu",
+                "delay": bad_delay
+            });
+            let s = mk_pro(serde_json::json!(7_500_000), ok_le.clone(), bad_vo);
+            assert_eq!(
+                parse_kicad_pro(s.as_bytes()).unwrap_err().status,
+                Status::Invalid
+            );
+        }
+        // Omitted via_overrides[].delay must fail closed Invalid
+        let missing_delay_vo = serde_json::json!({
+            "signal_layer_from": "F.Cu",
+            "signal_layer_to": "B.Cu",
+            "via_layer_from": "F.Cu",
+            "via_layer_to": "B.Cu"
+        });
+        let s_missing = mk_pro(
+            serde_json::json!(7_500_000),
+            ok_le.clone(),
+            missing_delay_vo,
+        );
+        assert_eq!(
+            parse_kicad_pro(s_missing.as_bytes()).unwrap_err().status,
+            Status::Invalid
+        );
+        // Negative float on via_prop_delay and layer_entries[].delay must also fail Invalid
+        let s_bad_vp = mk_pro(serde_json::json!(-0.4), ok_le, ok_vo.clone());
+        assert_eq!(
+            parse_kicad_pro(s_bad_vp.as_bytes()).unwrap_err().status,
+            Status::Invalid
+        );
+        let bad_le = serde_json::json!({"signal_layer": "F.Cu", "width": 250_000, "delay": -0.4});
+        let s_bad_le = mk_pro(serde_json::json!(7_500_000), bad_le, ok_vo);
+        assert_eq!(
+            parse_kicad_pro(s_bad_le.as_bytes()).unwrap_err().status,
+            Status::Invalid
         );
     }
 }
