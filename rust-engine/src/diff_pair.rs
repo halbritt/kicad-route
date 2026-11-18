@@ -1791,23 +1791,88 @@ fn find_tuning_profile<'a>(rules: &'a EffectiveRules, net: u32) -> Option<&'a Tu
         .find(|p| p.profile_name == name)
 }
 
-fn via_barrel_height_mm(input: &Input, layer_a: &str, layer_b: &str) -> f64 {
-    if layer_a == layer_b || input.stackup.is_empty() {
-        return 0.0;
+fn via_barrel_height_mm(
+    input: &Input,
+    rules: &EffectiveRules,
+    layer_a: &str,
+    layer_b: &str,
+) -> Result<f64, Failure> {
+    if layer_a == layer_b {
+        return Ok(0.0);
+    }
+    if input.stackup.is_empty() {
+        let bt = rules
+            .board_thickness_nm
+            .or_else(|| {
+                input
+                    .board_design_settings
+                    .as_ref()
+                    .and_then(|b| b.board_thickness_nm)
+            })
+            .ok_or_else(|| {
+                Failure::new(
+                    Status::Invalid,
+                    "board stackup or board_thickness_nm is required when use_height_for_length_calcs is enabled and vias span layers",
+                )
+            })?;
+        let mask_nm = rules
+            .outer_solder_mask_thickness_nm
+            .or_else(|| {
+                input
+                    .board_design_settings
+                    .as_ref()
+                    .and_then(|b| b.outer_solder_mask_thickness_nm)
+            })
+            .unwrap_or(0);
+        let cu_total = (bt - mask_nm).max(0) as f64;
+        let active = input.active_layers();
+        let n = active.len();
+        if n < 2 {
+            return Ok(0.0);
+        }
+        let Some(idx_a) = active.iter().position(|l| l == layer_a) else {
+            return Ok(0.0);
+        };
+        let Some(idx_b) = active.iter().position(|l| l == layer_b) else {
+            return Ok(0.0);
+        };
+        let (lo, hi) = if idx_a < idx_b {
+            (idx_a, idx_b)
+        } else {
+            (idx_b, idx_a)
+        };
+        if lo == 0 && hi == n - 1 {
+            return Ok(cu_total / 1_000_000.0);
+        }
+        let t_cu = 35_000.0_f64;
+        let cu_all = (n as f64) * t_cu;
+        let mut cu_sum = 0.0_f64;
+        for k in lo..=hi {
+            let endpoint = k == lo || k == hi;
+            let outer = k == 0 || k == n - 1;
+            cu_sum += if endpoint && !outer { 0.5 * t_cu } else { t_cu };
+        }
+        if cu_total >= cu_all {
+            let t_diel = (cu_total - cu_all) / ((n - 1) as f64);
+            let total_nm = cu_sum + ((hi - lo) as f64) * t_diel;
+            return Ok(total_nm / 1_000_000.0);
+        }
+        let scale = if cu_all > 0.0 { cu_total / cu_all } else { 0.0 };
+        return Ok((cu_sum * scale) / 1_000_000.0);
     }
     let Some(idx_a) = input
         .stackup
         .iter()
         .position(|s| s.kind == StackupKind::Copper && s.name == layer_a)
     else {
-        return 0.0;
+        return Ok(0.0);
     };
     let Some(idx_b) = input
         .stackup
         .iter()
         .position(|s| s.kind == StackupKind::Copper && s.name == layer_b)
     else {
-        return 0.0;
+        return Ok(0.0);
     };
     let (lo, hi) = if idx_a < idx_b {
         (idx_a, idx_b)
@@ -1834,18 +1899,19 @@ fn via_barrel_height_mm(input: &Input, layer_a: &str, layer_b: &str) -> f64 {
             total_nm += t;
         }
     }
-    total_nm / 1_000_000.0
+    Ok(total_nm / 1_000_000.0)
 }
 
 fn via_delay_between_layers_as(
     input: &Input,
+    rules: &EffectiveRules,
     prof: &TuningProfile,
     via: &Via,
     layer_a: &str,
     layer_b: &str,
-) -> f64 {
+) -> Result<f64, Failure> {
     if layer_a == layer_b {
-        return 0.0;
+        return Ok(0.0);
     }
     for ov in &prof.via_overrides {
         let sf = if !ov.signal_layer_from.is_empty() {
@@ -1866,11 +1932,11 @@ fn via_delay_between_layers_as(
             && via_span_match
             && (ov.via_diameter_nm <= 0 || ov.via_diameter_nm == via.diameter_nm)
         {
-            return ov.delay_as as f64;
+            return Ok(ov.delay_as as f64);
         }
     }
-    let h_mm = via_barrel_height_mm(input, layer_a, layer_b);
-    h_mm * (prof.via_prop_delay_as_per_mm as f64)
+    let h_mm = via_barrel_height_mm(input, rules, layer_a, layer_b)?;
+    Ok(h_mm * (prof.via_prop_delay_as_per_mm as f64))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1919,88 +1985,34 @@ fn measure_net_fromto(
     let tracks: Vec<&Track> = engine.copper.tracks().filter(|t| t.net == net).collect();
     let vias: Vec<&Via> = engine.copper.vias().filter(|v| v.net == net).collect();
 
-    // Node keys: (point, layer_idx), plus virtual pad nodes 0 (pad A) and 1 (pad B).
-    let mut node_ids: BTreeMap<(Point, usize), usize> = BTreeMap::new();
-    let mut nodes: Vec<(Point, usize)> = Vec::new();
-    let get_node = |pt: Point,
-                    l_idx: usize,
-                    node_ids: &mut BTreeMap<(Point, usize), usize>,
-                    nodes: &mut Vec<(Point, usize)>|
-     -> usize {
-        *node_ids.entry((pt, l_idx)).or_insert_with(|| {
-            let id = nodes.len();
-            nodes.push((pt, l_idx));
-            id
-        })
-    };
-
-    // Split segments at any interior T-junction point (track endpoints, via centers, pad centers).
-    let mut layer_points: BTreeMap<usize, Vec<Point>> = BTreeMap::new();
-    for t in &tracks {
-        if let Some(li) = engine.layer_index(&t.layer) {
-            let entry = layer_points.entry(li).or_default();
-            entry.push(t.start);
-            entry.push(t.end);
-        }
-    }
-    for v in &vias {
-        let s = engine.layer_index(&v.start_layer).unwrap_or(0);
-        let e = engine.layer_index(&v.end_layer).unwrap_or(s);
-        for li in s.min(e)..=s.max(e) {
-            layer_points.entry(li).or_default().push(v.at);
-        }
-    }
-    for p in &pads {
-        for li in pad_layer_indices(engine, p) {
-            layer_points.entry(li).or_default().push(p.at);
-        }
-    }
-
+    // Directed split-node item-traversal graph matching KiCad 10.0.8 LENGTH_DELAY_CALCULATION:
+    // - Pad nodes: 0..pads.len() (s_node = 0, t_node = 1, plus any intermediate pads)
+    // - Track i: directed edge in_i -> out_i with (len(t_i), delay(t_i))
+    // - Same-layer touching tracks (segments_near(..., gap2, false)): out_i -> in_j & out_j -> in_i (0.0, 0.0)
+    // - Vias & pads: connect to in_i / out_i unconditionally
     #[derive(Clone, Copy)]
-    struct Edge {
+    struct DirEdge {
         to: usize,
         len_nm: f64,
         delay_as: f64,
-        alive: bool,
-        pair_rev: usize,
     }
-    let mut edges: Vec<Edge> = Vec::new();
-    let mut adj: Vec<Vec<usize>> = Vec::new();
-    let add_edge = |u: usize,
-                    v: usize,
-                    len_nm: f64,
-                    delay_as: f64,
-                    nodes_len: usize,
-                    edges: &mut Vec<Edge>,
-                    adj: &mut Vec<Vec<usize>>| {
-        if u == v {
-            return;
-        }
-        if adj.len() < nodes_len {
-            adj.resize_with(nodes_len, Vec::new);
-        }
-        let e1 = edges.len();
-        let e2 = e1 + 1;
-        edges.push(Edge {
-            to: v,
-            len_nm,
-            delay_as,
-            alive: true,
-            pair_rev: e2,
-        });
-        edges.push(Edge {
-            to: u,
-            len_nm,
-            delay_as,
-            alive: true,
-            pair_rev: e1,
-        });
-        adj[u].push(e1);
-        adj[v].push(e2);
-    };
+    let mut adj: Vec<Vec<DirEdge>> = vec![Vec::new(); pads.len()];
+    let add_dir_edge =
+        |u: usize, v: usize, len_nm: f64, delay_as: f64, adj: &mut Vec<Vec<DirEdge>>| {
+            if u == v {
+                return;
+            }
+            adj[u].push(DirEdge {
+                to: v,
+                len_nm,
+                delay_as,
+            });
+        };
 
+    let mut track_nodes: Vec<Option<(usize, usize, usize, f64)>> = Vec::with_capacity(tracks.len());
     for t in &tracks {
         let Some(li) = engine.layer_index(&t.layer) else {
+            track_nodes.push(None);
             continue;
         };
         let layer_delay_rate = if let Some(pr) = prof {
@@ -2017,354 +2029,198 @@ fn measure_net_fromto(
         } else {
             0.0
         };
-        let mut pts = vec![t.start, t.end];
-        if let Some(cands) = layer_points.get(&li) {
-            for &pt in cands {
-                if pt != t.start
-                    && pt != t.end
-                    && geometry::point_near_segment(pt, t.start, t.end, 2, false)
-                {
-                    pts.push(pt);
-                }
-            }
-        }
-        let dx = (t.end[0] - t.start[0]) as f64;
-        let dy = (t.end[1] - t.start[1]) as f64;
-        let seg_len_sq = dx * dx + dy * dy;
-        pts.sort_by(|a, b| {
-            let ta = if seg_len_sq > 0.0 {
-                ((a[0] - t.start[0]) as f64 * dx + (a[1] - t.start[1]) as f64 * dy) / seg_len_sq
-            } else {
-                0.0
-            };
-            let tb = if seg_len_sq > 0.0 {
-                ((b[0] - t.start[0]) as f64 * dx + (b[1] - t.start[1]) as f64 * dy) / seg_len_sq
-            } else {
-                0.0
-            };
-            ta.partial_cmp(&tb).unwrap_or(std::cmp::Ordering::Equal)
-        });
-        pts.dedup();
-        for win in pts.windows(2) {
-            let a = win[0];
-            let b = win[1];
-            let d = (((b[0] - a[0]) as f64).hypot((b[1] - a[1]) as f64)).max(0.0);
-            let del = (d / 1_000_000.0) * layer_delay_rate;
-            let u = get_node(a, li, &mut node_ids, &mut nodes);
-            let v = get_node(b, li, &mut node_ids, &mut nodes);
-            add_edge(u, v, d, del, nodes.len(), &mut edges, &mut adj);
-        }
+        let in_i = adj.len();
+        adj.push(Vec::new());
+        let out_i = adj.len();
+        adj.push(Vec::new());
+        let len_i = dist_f64(t.start, t.end);
+        let del_i = (len_i / 1_000_000.0) * layer_delay_rate;
+        add_dir_edge(in_i, out_i, len_i, del_i, &mut adj);
+        track_nodes.push(Some((in_i, out_i, li, layer_delay_rate)));
     }
 
-    // Same-layer non-incident track-to-track copper overlaps & acute shared-endpoint foldbacks
+    // Same-layer track-to-track copper overlaps (including crossings, endpoints, near-T, parallel)
     for i in 0..tracks.len() {
-        let ta = tracks[i];
-        if ta.start == ta.end {
-            continue;
-        }
-        let Some(li) = engine.layer_index(&ta.layer) else {
+        let Some((_, out_i, li_a, _)) = track_nodes[i] else {
             continue;
         };
-        for tb in &tracks[(i + 1)..] {
-            if tb.layer != ta.layer || tb.start == tb.end {
+        let ta = tracks[i];
+        let a_min_x = i128::from(ta.start[0].min(ta.end[0]));
+        let a_max_x = i128::from(ta.start[0].max(ta.end[0]));
+        let a_min_y = i128::from(ta.start[1].min(ta.end[1]));
+        let a_max_y = i128::from(ta.start[1].max(ta.end[1]));
+        for j in (i + 1)..tracks.len() {
+            let Some((in_j, out_j, li_b, _)) = track_nodes[j] else {
                 continue;
-            }
-            if (ta.start == tb.start && ta.end == tb.end)
-                || (ta.start == tb.end && ta.end == tb.start)
-            {
-                continue;
-            }
-            let gap2 = i128::from(ta.width_nm) + i128::from(tb.width_nm);
-            if !geometry::segments_near(ta.start, ta.end, tb.start, tb.end, gap2, false) {
-                continue;
-            }
-            let shared = if ta.start == tb.start {
-                Some((ta.start, ta.end, tb.end))
-            } else if ta.start == tb.end {
-                Some((ta.start, ta.end, tb.start))
-            } else if ta.end == tb.start {
-                Some((ta.end, ta.start, tb.end))
-            } else if ta.end == tb.end {
-                Some((ta.end, ta.start, tb.start))
-            } else {
-                None
             };
-            if let Some((s_pt, pa, pb)) = shared {
-                let dot = i128::from(pa[0] - s_pt[0]) * i128::from(pb[0] - s_pt[0])
-                    + i128::from(pa[1] - s_pt[1]) * i128::from(pb[1] - s_pt[1]);
-                if dot > 0 {
-                    let sn = get_node(s_pt, li, &mut node_ids, &mut nodes);
-                    if geometry::point_near_segment(pa, tb.start, tb.end, gap2, false) {
-                        let pan = get_node(pa, li, &mut node_ids, &mut nodes);
-                        add_edge(pan, sn, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                    }
-                    if geometry::point_near_segment(pb, ta.start, ta.end, gap2, false) {
-                        let pbn = get_node(pb, li, &mut node_ids, &mut nodes);
-                        add_edge(pbn, sn, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                    }
-                }
+            if li_a != li_b {
                 continue;
             }
-            let mut a_near = Vec::new();
-            for &p in &[ta.start, ta.end] {
-                if geometry::point_near_segment(p, tb.start, tb.end, gap2, false) {
-                    a_near.push(p);
-                }
+            let tb = tracks[j];
+            let gap2 = i128::from(ta.width_nm) + i128::from(tb.width_nm);
+            let pad = (gap2 + 1) / 2;
+            let b_min_x = i128::from(tb.start[0].min(tb.end[0]));
+            let b_max_x = i128::from(tb.start[0].max(tb.end[0]));
+            if a_max_x + pad < b_min_x || b_max_x + pad < a_min_x {
+                continue;
             }
-            let mut b_near = Vec::new();
-            for &q in &[tb.start, tb.end] {
-                if geometry::point_near_segment(q, ta.start, ta.end, gap2, false) {
-                    b_near.push(q);
-                }
+            let b_min_y = i128::from(tb.start[1].min(tb.end[1]));
+            let b_max_y = i128::from(tb.start[1].max(tb.end[1]));
+            if a_max_y + pad < b_min_y || b_max_y + pad < a_min_y {
+                continue;
             }
-            if !a_near.is_empty() && !b_near.is_empty() {
-                for &pa in &a_near {
-                    let u = get_node(pa, li, &mut node_ids, &mut nodes);
-                    for &pb in &b_near {
-                        let w = get_node(pb, li, &mut node_ids, &mut nodes);
-                        add_edge(u, w, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                    }
-                }
-            } else if !a_near.is_empty() {
-                if !a_near
-                    .iter()
-                    .any(|&pa| geometry::point_near_segment(pa, tb.start, tb.end, 2, false))
-                {
-                    for &pa in &a_near {
-                        let pb = if dist_f64(pa, tb.start) <= dist_f64(pa, tb.end) {
-                            tb.start
-                        } else {
-                            tb.end
-                        };
-                        let u = get_node(pa, li, &mut node_ids, &mut nodes);
-                        let w = get_node(pb, li, &mut node_ids, &mut nodes);
-                        add_edge(u, w, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                    }
-                }
-            } else if !b_near.is_empty() {
-                if !b_near
-                    .iter()
-                    .any(|&pb| geometry::point_near_segment(pb, ta.start, ta.end, 2, false))
-                {
-                    for &pb in &b_near {
-                        let pa = if dist_f64(pb, ta.start) <= dist_f64(pb, ta.end) {
-                            ta.start
-                        } else {
-                            ta.end
-                        };
-                        let u = get_node(pa, li, &mut node_ids, &mut nodes);
-                        let w = get_node(pb, li, &mut node_ids, &mut nodes);
-                        add_edge(u, w, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                    }
-                }
+            let touches = if gap2 > 0 {
+                geometry::segments_near(ta.start, ta.end, tb.start, tb.end, gap2, false)
             } else {
-                // KiCad 10 fromTo treats unsplit crossing tracks as indivisible items:
-                // crossing from ta to tb incurs len(ta) + len(tb) and matching layer delay.
-                let layer_delay_rate = if let Some(pr) = prof {
-                    pr.layer_entries
-                        .iter()
-                        .find(|le| le.signal_layer == ta.layer)
-                        .map_or(0.0, |le| le.delay_as_per_mm as f64)
-                } else {
-                    0.0
-                };
-                let len_sum = dist_f64(ta.start, ta.end) + dist_f64(tb.start, tb.end);
-                let del_sum = (len_sum / 1_000_000.0) * layer_delay_rate;
-                for &pa in &[ta.start, ta.end] {
-                    let u = get_node(pa, li, &mut node_ids, &mut nodes);
-                    for &pb in &[tb.start, tb.end] {
-                        let w = get_node(pb, li, &mut node_ids, &mut nodes);
-                        add_edge(u, w, len_sum, del_sum, nodes.len(), &mut edges, &mut adj);
-                    }
-                }
+                ta.start == tb.start || ta.start == tb.end || ta.end == tb.start || ta.end == tb.end
+            };
+            if touches {
+                let in_i = track_nodes[i].expect("checked above").0;
+                add_dir_edge(out_i, in_j, 0.0, 0.0, &mut adj);
+                add_dir_edge(out_j, in_i, 0.0, 0.0, &mut adj);
             }
         }
     }
 
-    // Via vertical edges between active copper layers at v.at
-    for v in &vias {
+    // Via nodes per (via_idx, layer_idx), track-to-via, pad-to-via, stacked vias, and vertical barrels
+    let mut via_nodes: Vec<BTreeMap<usize, usize>> = vec![BTreeMap::new(); vias.len()];
+    let get_via_node = |via_idx: usize,
+                        li: usize,
+                        via_nodes: &mut [BTreeMap<usize, usize>],
+                        adj: &mut Vec<Vec<DirEdge>>|
+     -> usize {
+        *via_nodes[via_idx].entry(li).or_insert_with(|| {
+            let id = adj.len();
+            adj.push(Vec::new());
+            id
+        })
+    };
+
+    for (j, v) in vias.iter().enumerate() {
         let s = engine.layer_index(&v.start_layer).unwrap_or(0);
         let e = engine.layer_index(&v.end_layer).unwrap_or(s);
-        let mut active_layers: Vec<usize> = Vec::new();
-        for li in s.min(e)..=s.max(e) {
-            if node_ids.contains_key(&(v.at, li)) {
-                active_layers.push(li);
-            }
-        }
-        // Register via center nodes on pad-overlapping layers so via-in-pad connects cleanly
-        for p in &pads {
-            if geometry::via_connects_pad(v, p) {
-                let p_layers = pad_layer_indices(engine, p);
-                for li in p_layers {
-                    if li >= s.min(e) && li <= s.max(e) {
-                        let _ = get_node(v.at, li, &mut node_ids, &mut nodes);
-                        if !active_layers.contains(&li) {
-                            active_layers.push(li);
-                        }
-                    }
-                }
-            }
-        }
-        // Connect via-to-track copper overlaps (< R_via + w/2) on all spanned layers
+        let (v_lo, v_hi) = (s.min(e), s.max(e));
         let via_r = (v.diameter_nm as f64) * 0.5;
-        for t in &tracks {
-            if t.start == v.at || t.end == v.at {
-                continue;
-            }
-            let Some(li) = engine.layer_index(&t.layer) else {
+        let mut active_layers: Vec<usize> = Vec::new();
+
+        for (i, t) in tracks.iter().enumerate() {
+            let Some((in_i, out_i, li, layer_delay_rate)) = track_nodes[i] else {
                 continue;
             };
-            if li < s.min(e) || li > s.max(e) {
+            if li < v_lo || li > v_hi {
                 continue;
             }
             if geometry::point_near_segment(v.at, t.start, t.end, 2, false) {
-                continue;
-            }
-            let gap2 = i128::from(v.diameter_nm) + i128::from(t.width_nm);
-            if !geometry::point_near_segment(v.at, t.start, t.end, gap2, false) {
-                continue;
-            }
-            let layer_delay_rate = if let Some(pr) = prof {
-                pr.layer_entries
-                    .iter()
-                    .find(|le| le.signal_layer == t.layer)
-                    .map_or(0.0, |le| le.delay_as_per_mm as f64)
-            } else {
-                0.0
-            };
-            let ds = dist_f64(t.start, v.at);
-            let de = dist_f64(t.end, v.at);
-            let vn = get_node(v.at, li, &mut node_ids, &mut nodes);
-            let mut ep_cands: Vec<(Point, f64)> = Vec::new();
-            if ds <= de + 1_000.0 {
-                ep_cands.push((t.start, ds));
-            }
-            if de <= ds + 1_000.0 {
-                ep_cands.push((t.end, de));
-            }
-            for (ep, d_ep) in ep_cands {
-                let len = if d_ep < via_r {
-                    (via_r - (via_r * via_r - d_ep * d_ep).sqrt()).max(0.0)
-                } else {
-                    0.0
-                };
-                let del = (len / 1_000_000.0) * layer_delay_rate;
-                let en = get_node(ep, li, &mut node_ids, &mut nodes);
-                add_edge(vn, en, len, del, nodes.len(), &mut edges, &mut adj);
-            }
-            if !active_layers.contains(&li) {
+                let vn = get_via_node(j, li, &mut via_nodes, &mut adj);
+                add_dir_edge(out_i, vn, 0.0, 0.0, &mut adj);
+                add_dir_edge(vn, in_i, 0.0, 0.0, &mut adj);
                 active_layers.push(li);
+            } else {
+                let gap2 = i128::from(v.diameter_nm) + i128::from(t.width_nm);
+                if geometry::point_near_segment(v.at, t.start, t.end, gap2, false) {
+                    let d_ep = dist_f64(t.start, v.at).min(dist_f64(t.end, v.at));
+                    let len = if d_ep < via_r {
+                        (via_r - (via_r * via_r - d_ep * d_ep).sqrt()).max(0.0)
+                    } else {
+                        0.0
+                    };
+                    let del = (len / 1_000_000.0) * layer_delay_rate;
+                    let vn = get_via_node(j, li, &mut via_nodes, &mut adj);
+                    add_dir_edge(out_i, vn, len, del, &mut adj);
+                    add_dir_edge(vn, in_i, len, del, &mut adj);
+                    active_layers.push(li);
+                }
             }
         }
+
+        for (k, p) in pads.iter().enumerate() {
+            if geometry::via_connects_pad(v, p) {
+                for li in pad_layer_indices(engine, p) {
+                    if li >= v_lo && li <= v_hi {
+                        let vn = get_via_node(j, li, &mut via_nodes, &mut adj);
+                        add_dir_edge(k, vn, 0.0, 0.0, &mut adj);
+                        add_dir_edge(vn, k, 0.0, 0.0, &mut adj);
+                        active_layers.push(li);
+                    }
+                }
+            }
+        }
+
+        for (jb, vb) in vias.iter().enumerate() {
+            if jb != j && vb.at == v.at {
+                let sb = engine.layer_index(&vb.start_layer).unwrap_or(0);
+                let eb = engine.layer_index(&vb.end_layer).unwrap_or(sb);
+                let (b_lo, b_hi) = (sb.min(eb), sb.max(eb));
+                for li in v_lo.max(b_lo)..=v_hi.min(b_hi) {
+                    let _ = get_via_node(j, li, &mut via_nodes, &mut adj);
+                    active_layers.push(li);
+                }
+            }
+        }
+
         active_layers.sort_unstable();
         active_layers.dedup();
         for win in active_layers.windows(2) {
             let la = win[0];
             let lb = win[1];
-            let u = get_node(v.at, la, &mut node_ids, &mut nodes);
-            let w = get_node(v.at, lb, &mut node_ids, &mut nodes);
+            let u = via_nodes[j][&la];
+            let w = via_nodes[j][&lb];
             let h_nm = if engine.effective_rules.use_height_for_length_calcs {
-                via_barrel_height_mm(&engine.input, engine.layer_name(la), engine.layer_name(lb))
-                    * 1_000_000.0
+                via_barrel_height_mm(
+                    &engine.input,
+                    &engine.effective_rules,
+                    engine.layer_name(la),
+                    engine.layer_name(lb),
+                )? * 1_000_000.0
             } else {
                 0.0
             };
             let del = if let Some(pr) = prof {
                 via_delay_between_layers_as(
                     &engine.input,
+                    &engine.effective_rules,
                     pr,
                     v,
                     engine.layer_name(la),
                     engine.layer_name(lb),
-                )
+                )?
             } else {
                 0.0
             };
-            add_edge(u, w, h_nm, del, nodes.len(), &mut edges, &mut adj);
+            add_dir_edge(u, w, h_nm, del, &mut adj);
+            add_dir_edge(w, u, h_nm, del, &mut adj);
         }
     }
 
-    // Pad super-nodes for pad 0 and pad 1
-    let mut pad_nodes = [0usize; 2];
-    for (p_idx, p) in pads.iter().take(2).enumerate() {
-        let super_id = nodes.len();
-        nodes.push((p.at, usize::MAX));
-        adj.resize_with(nodes.len(), Vec::new);
-        pad_nodes[p_idx] = super_id;
-        let p_layers = pad_layer_indices(engine, p);
-        let mut direct_pad_hit = false;
-        for li in &p_layers {
-            if let Some(&nid) = node_ids.get(&(p.at, *li)) {
-                add_edge(super_id, nid, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                direct_pad_hit = true;
-            }
-        }
-        if !direct_pad_hit {
-            for &li in &p_layers {
-                for &(pt, pt_li) in node_ids.keys() {
-                    if pt_li == li && pt != p.at && geometry::track_near_pad(pt, pt, 0, 0, p, false)
-                    {
-                        let nid = node_ids[&(pt, pt_li)];
-                        add_edge(super_id, nid, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                        direct_pad_hit = true;
-                    }
-                }
-                for v in &vias {
-                    let s = engine.layer_index(&v.start_layer).unwrap_or(0);
-                    let e = engine.layer_index(&v.end_layer).unwrap_or(s);
-                    if li >= s.min(e) && li <= s.max(e) && geometry::via_connects_pad(v, p) {
-                        if let Some(&nid) = node_ids.get(&(v.at, li)) {
-                            add_edge(super_id, nid, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                            direct_pad_hit = true;
-                        }
-                    }
-                }
-            }
-        }
-        if !direct_pad_hit {
-            for t in &tracks {
-                if let Some(li) = engine.layer_index(&t.layer) {
-                    if pad_supports_layer(engine, p, &t.layer) && geometry::track_connects_pad(t, p)
-                    {
-                        let closer = if dist_f64(t.start, p.at) <= dist_f64(t.end, p.at) {
-                            t.start
-                        } else {
-                            t.end
-                        };
-                        if let Some(&nid) = node_ids.get(&(closer, li)) {
-                            add_edge(super_id, nid, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
-                        }
+    for j in 0..vias.len() {
+        for jb in (j + 1)..vias.len() {
+            if vias[j].at == vias[jb].at {
+                for (&li, &vn_a) in &via_nodes[j] {
+                    if let Some(&vn_b) = via_nodes[jb].get(&li) {
+                        add_dir_edge(vn_a, vn_b, 0.0, 0.0, &mut adj);
+                        add_dir_edge(vn_b, vn_a, 0.0, 0.0, &mut adj);
                     }
                 }
             }
         }
     }
-    let s_node = pad_nodes[0];
-    let t_node = pad_nodes[1];
 
-    // Iteratively prune dead-end degree-1 vertices (excluding terminals s_node & t_node)
-    let mut deg: Vec<usize> = adj.iter().map(|list| list.len()).collect();
-    let mut queue: Vec<usize> = (0..nodes.len())
-        .filter(|&u| u != s_node && u != t_node && deg[u] <= 1)
-        .collect();
-    while let Some(u) = queue.pop() {
-        for &ei in &adj[u] {
-            if !edges[ei].alive {
+    // Unconditional pad-to-track edges for all net pads (handles PTH multi-layer + boundary + intermediate pads)
+    for (k, p) in pads.iter().enumerate() {
+        for (i, t) in tracks.iter().enumerate() {
+            let Some((in_i, out_i, _, _)) = track_nodes[i] else {
                 continue;
-            }
-            edges[ei].alive = false;
-            let rev = edges[ei].pair_rev;
-            edges[rev].alive = false;
-            let v = edges[ei].to;
-            deg[u] = deg[u].saturating_sub(1);
-            deg[v] = deg[v].saturating_sub(1);
-            if v != s_node && v != t_node && deg[v] == 1 {
-                queue.push(v);
+            };
+            if pad_supports_layer(engine, p, &t.layer) && geometry::track_connects_pad(t, p) {
+                add_dir_edge(k, in_i, 0.0, 0.0, &mut adj);
+                add_dir_edge(out_i, k, 0.0, 0.0, &mut adj);
             }
         }
     }
+    let s_node = 0usize;
+    let t_node = 1usize;
 
-    // Shortest useful path from s_node to t_node on pruned graph (rejects disconnected, handles loops cleanly)
+    // Shortest useful path from s_node to t_node (non-negative weights guarantee stubs are never chosen)
     #[derive(Clone, Copy)]
     struct State {
         cost: f64,
@@ -2393,7 +2249,7 @@ fn measure_net_fromto(
         }
     }
 
-    let mut dist = vec![f64::INFINITY; nodes.len()];
+    let mut dist = vec![f64::INFINITY; adj.len()];
     let mut heap = BinaryHeap::new();
     dist[s_node] = 0.0;
     heap.push(State {
@@ -2412,11 +2268,7 @@ fn measure_net_fromto(
         if cur.cost > dist[cur.node] {
             continue;
         }
-        for &ei in &adj[cur.node] {
-            let e = edges[ei];
-            if !e.alive {
-                continue;
-            }
+        for &e in &adj[cur.node] {
             let step_cost = if require_delay { e.delay_as } else { e.len_nm };
             let nc = cur.cost + step_cost;
             if nc < dist[e.to] {

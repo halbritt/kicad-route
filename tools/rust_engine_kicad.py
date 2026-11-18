@@ -1499,17 +1499,37 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             bds['netclass_assignments'] = nc_assign
     if hasattr(settings, 'm_UseHeightForLengthCalcs'):
         bds['use_height_for_length_calcs'] = bool(settings.m_UseHeightForLengthCalcs)
+    if hasattr(settings, 'GetBoardThickness'):
+        bds['board_thickness_nm'] = max(0, int(settings.GetBoardThickness()))
+    if hasattr(board, 'GetEnabledLayers'):
+        enabled_layers = board.GetEnabledLayers()
+        bds['outer_solder_mask_thickness_nm'] = (
+            (10_000 if enabled_layers.Contains(pcbnew.F_Mask) else 0)
+            + (10_000 if enabled_layers.Contains(pcbnew.B_Mask) else 0)
+        )
     pro_sidecar = path.with_suffix('.kicad_pro')
     pro_text = read_bounded(pro_sidecar).decode('utf-8') if pro_sidecar.is_file() else None
     pro_min_spokes = None
+    pro_use_height = None
     if pro_text is not None:
         try:
             pro_doc = json.loads(pro_text)
-            val = pro_doc.get('board', {}).get('design_settings', {}).get('rules', {}).get('min_resolved_spokes')
-            if type(val) is int and val >= 0:
-                pro_min_spokes = val
+            ds_doc = pro_doc.get('board', {}).get('design_settings', {})
+            if isinstance(ds_doc, dict):
+                if type(ds_doc.get('use_height_for_length_calcs')) is bool:
+                    pro_use_height = ds_doc['use_height_for_length_calcs']
+                rules_doc = ds_doc.get('rules', {})
+                if isinstance(rules_doc, dict):
+                    if type(rules_doc.get('use_height_for_length_calcs')) is bool:
+                        pro_use_height = rules_doc['use_height_for_length_calcs']
+                    val = rules_doc.get('min_resolved_spokes')
+                    if type(val) is int and val >= 0:
+                        pro_min_spokes = val
         except (ValueError, AttributeError):
             pro_min_spokes = None
+            pro_use_height = None
+    if pro_use_height is not None:
+        bds['use_height_for_length_calcs'] = pro_use_height
     min_resolved_spokes = pro_min_spokes if pro_min_spokes is not None else int(getattr(settings, 'm_MinResolvedSpokes', 2))
     bds['min_resolved_spokes'] = min_resolved_spokes
     bds['max_error_nm'] = max(0, int(getattr(settings, 'm_MaxError', 5000)))

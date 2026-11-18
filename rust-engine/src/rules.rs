@@ -63,6 +63,21 @@ fn json_bool_field(
     }
 }
 
+fn json_opt_bool_field(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Result<Option<bool>, Failure> {
+    match obj.get(key) {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(v) => v.as_bool().map(Some).ok_or_else(|| {
+            Failure::new(
+                Status::Invalid,
+                format!(".kicad_pro {key} must be a boolean"),
+            )
+        }),
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct BoardDesignSettings {
@@ -95,6 +110,10 @@ pub struct BoardDesignSettings {
     pub netclass_assignments: BTreeMap<String, Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_height_for_length_calcs: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board_thickness_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outer_solder_mask_thickness_nm: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -224,7 +243,7 @@ pub struct ProjectRules {
     pub assignments: BTreeMap<String, Vec<String>>,
     pub patterns: Vec<NetClassPattern>,
     pub tuning_profiles: Vec<TuningProfile>,
-    pub use_height_for_length_calcs: bool,
+    pub use_height_for_length_calcs: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -861,7 +880,7 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
     }
 
     let mut minimums = BoardMinimums::default();
-    let mut use_height_for_length_calcs = false;
+    let mut use_height_for_length_calcs: Option<bool> = None;
     if let Some(board_val) = obj.get("board") {
         let board_obj = board_val
             .as_object()
@@ -873,11 +892,9 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                     ".kicad_pro board.design_settings must be an object",
                 )
             })?;
-            use_height_for_length_calcs = json_bool_field(
-                ds,
-                "use_height_for_length_calcs",
-                use_height_for_length_calcs,
-            )?;
+            if let Some(v) = json_opt_bool_field(ds, "use_height_for_length_calcs")? {
+                use_height_for_length_calcs = Some(v);
+            }
             if let Some(rules_val) = ds.get("rules") {
                 let r = rules_val.as_object().ok_or_else(|| {
                     Failure::new(
@@ -885,11 +902,9 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                         ".kicad_pro design_settings.rules must be an object",
                     )
                 })?;
-                use_height_for_length_calcs = json_bool_field(
-                    r,
-                    "use_height_for_length_calcs",
-                    use_height_for_length_calcs,
-                )?;
+                if let Some(v) = json_opt_bool_field(r, "use_height_for_length_calcs")? {
+                    use_height_for_length_calcs = Some(v);
+                }
                 minimums.min_track_width_nm = json_mm_field(r, "min_track_width", 0)?;
                 minimums.min_clearance_nm = json_mm_field(r, "min_clearance", 0)?;
                 minimums.min_edge_clearance_nm = json_mm_field(r, "min_copper_edge_clearance", 0)?;
@@ -2713,6 +2728,10 @@ pub struct EffectiveRules {
     pub tuning_profiles: Vec<TuningProfile>,
     #[serde(default)]
     pub use_height_for_length_calcs: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board_thickness_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outer_solder_mask_thickness_nm: Option<i64>,
 }
 
 impl EffectiveRules {
@@ -2760,6 +2779,8 @@ impl EffectiveRules {
             max_via_diameter_nm: (rules.width_nm * 2).max(600_000),
             tuning_profiles: Vec::new(),
             use_height_for_length_calcs: false,
+            board_thickness_nm: None,
+            outer_solder_mask_thickness_nm: None,
         }
     }
 
@@ -2769,6 +2790,34 @@ impl EffectiveRules {
                 Status::Invalid,
                 "effective_rules must contain net 0 fallback",
             ));
+        }
+        if self
+            .board_thickness_nm
+            .is_some_and(|bt| !(1..=2 * MAX_NM).contains(&bt))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules board_thickness_nm must be in 1..=200000000 nm",
+            ));
+        }
+        if self
+            .outer_solder_mask_thickness_nm
+            .is_some_and(|m| !(0..=2 * MAX_NM).contains(&m))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules outer_solder_mask_thickness_nm must be in 0..=200000000 nm",
+            ));
+        }
+        if let (Some(bt), Some(mask)) =
+            (self.board_thickness_nm, self.outer_solder_mask_thickness_nm)
+        {
+            if mask > bt {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "effective_rules outer_solder_mask_thickness_nm exceeds board_thickness_nm",
+                ));
+            }
         }
         let m = &self.minimums;
         if [
@@ -3546,7 +3595,7 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
                     assignments: bds.netclass_assignments.clone(),
                     patterns: Vec::new(),
                     tuning_profiles: Vec::new(),
-                    use_height_for_length_calcs: bds.use_height_for_length_calcs.unwrap_or(false),
+                    use_height_for_length_calcs: bds.use_height_for_length_calcs,
                 })
             }
         }),
@@ -3594,6 +3643,33 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
                 Status::Invalid,
                 "board_design_settings max_error_nm must be 0..=100000000 nm",
             ));
+        }
+        if bds
+            .board_thickness_nm
+            .is_some_and(|bt| !(1..=2 * MAX_NM).contains(&bt))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings board_thickness_nm must be in 1..=200000000 nm",
+            ));
+        }
+        if bds
+            .outer_solder_mask_thickness_nm
+            .is_some_and(|m| !(0..=2 * MAX_NM).contains(&m))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings outer_solder_mask_thickness_nm must be in 0..=200000000 nm",
+            ));
+        }
+        if let (Some(bt), Some(mask)) = (bds.board_thickness_nm, bds.outer_solder_mask_thickness_nm)
+        {
+            if mask > bt {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "board_design_settings outer_solder_mask_thickness_nm exceeds board_thickness_nm",
+                ));
+            }
         }
     }
     let minimums = merge_minimums(input.board_design_settings.as_ref(), pro.as_ref());
@@ -3964,12 +4040,24 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
     }
     max_via_diameter_nm = max_via_diameter_nm.max(max_via_drill_nm + 2 * max_via_annular_nm);
 
-    let use_height_for_length_calcs = pro.as_ref().is_some_and(|p| p.use_height_for_length_calcs)
-        || input
-            .board_design_settings
-            .as_ref()
-            .and_then(|b| b.use_height_for_length_calcs)
-            .unwrap_or(false);
+    let use_height_for_length_calcs = pro
+        .as_ref()
+        .and_then(|p| p.use_height_for_length_calcs)
+        .or_else(|| {
+            input
+                .board_design_settings
+                .as_ref()
+                .and_then(|b| b.use_height_for_length_calcs)
+        })
+        .unwrap_or(false);
+    let board_thickness_nm = input
+        .board_design_settings
+        .as_ref()
+        .and_then(|b| b.board_thickness_nm);
+    let outer_solder_mask_thickness_nm = input
+        .board_design_settings
+        .as_ref()
+        .and_then(|b| b.outer_solder_mask_thickness_nm);
     let tuning_profiles = pro
         .as_ref()
         .map(|p| p.tuning_profiles.clone())
@@ -3990,6 +4078,8 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         max_via_diameter_nm,
         tuning_profiles,
         use_height_for_length_calcs,
+        board_thickness_nm,
+        outer_solder_mask_thickness_nm,
     })
 }
 
@@ -4434,6 +4524,72 @@ mod tests {
                 .unwrap_err()
                 .status,
             Status::Unroutable
+        );
+    }
+
+    #[test]
+    fn use_height_precedence_and_board_thickness_validation() {
+        let mut inp: Input = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "source_id": "d".repeat(64),
+            "layer": "F.Cu",
+            "layers": ["F.Cu", "B.Cu"],
+            "bounds": {"min": [0, 0], "max": [10_000_000, 10_000_000]},
+            "nets": [{"id": 0, "name": ""}, {"id": 1, "name": "SIG"}],
+            "pads": [],
+            "tracks": [],
+            "board_design_settings": {
+                "use_height_for_length_calcs": true,
+                "board_thickness_nm": 1_600_000,
+                "outer_solder_mask_thickness_nm": 20_000
+            },
+            "max_expansions": 100
+        }))
+        .unwrap();
+        // Omitted in .kicad_pro -> falls back to board_design_settings (true)
+        inp.project_rules = Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {}}}
+            })
+            .to_string(),
+        );
+        let eff_omit = resolve_effective_rules(&mut inp).unwrap();
+        assert!(eff_omit.use_height_for_length_calcs);
+        assert_eq!(eff_omit.board_thickness_nm, Some(1_600_000));
+        assert_eq!(eff_omit.outer_solder_mask_thickness_nm, Some(20_000));
+
+        // Explicit false in .kicad_pro overrides board_design_settings true
+        inp.project_rules = Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {"use_height_for_length_calcs": false}}}
+            })
+            .to_string(),
+        );
+        let eff_false = resolve_effective_rules(&mut inp).unwrap();
+        assert!(!eff_false.use_height_for_length_calcs);
+
+        // Invalid board_thickness_nm (0) and mask > board_thickness fail closed
+        inp.board_design_settings
+            .as_mut()
+            .unwrap()
+            .board_thickness_nm = Some(0);
+        assert_eq!(
+            resolve_effective_rules(&mut inp).unwrap_err().status,
+            Status::Invalid
+        );
+        inp.board_design_settings
+            .as_mut()
+            .unwrap()
+            .board_thickness_nm = Some(10_000);
+        inp.board_design_settings
+            .as_mut()
+            .unwrap()
+            .outer_solder_mask_thickness_nm = Some(20_000);
+        assert_eq!(
+            resolve_effective_rules(&mut inp).unwrap_err().status,
+            Status::Invalid
         );
     }
 }

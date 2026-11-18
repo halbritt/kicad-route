@@ -140,6 +140,8 @@ fn base_diff_input(net_names: &[&str]) -> Input {
             netclasses,
             netclass_assignments: assignments,
             use_height_for_length_calcs: Some(false),
+            board_thickness_nm: None,
+            outer_solder_mask_thickness_nm: None,
         }),
         project_rules: None,
         custom_rules: None,
@@ -2250,4 +2252,356 @@ fn r5_asymmetric_pad_fromto_zero_offset_xcross_split_and_dp_pn_indiffpair() {
         discover_and_validate(&dp_pm, &r_pm_).unwrap().pairs[0].dru_skew_max_nm,
         None
     );
+}
+
+#[test]
+fn r6_xcross_chained_near_ep_and_unsplit_t_match_kicad10() {
+    let sum_net_copper = |eng: &Engine, nid: u32| -> f64 {
+        eng.copper()
+            .tracks()
+            .filter(|t| t.net == nid)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum()
+    };
+    let run_probe = |p1: [i64; 2],
+                     p2: [i64; 2],
+                     pad1_layers: &[&str],
+                     pad_half: i64,
+                     segs: &[([i64; 2], [i64; 2], &str)]|
+     -> f64 {
+        let mut xc = base_diff_input(&["SIG_P", "SIG_N"]);
+        xc.pads.clear();
+        let mut px1 = pad(1, 1, p1, pad1_layers);
+        px1.shape = Shape::Rect {
+            half_size_nm: [pad_half, pad_half],
+        };
+        let mut px2 = pad(2, 1, p2, pad1_layers);
+        px2.shape = Shape::Rect {
+            half_size_nm: [pad_half, pad_half],
+        };
+        let mut pn1 = pad(3, 2, [10_000_000, 35_000_000], &["F.Cu"]);
+        pn1.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut pn2 = pad(4, 2, [20_000_000, 35_000_000], &["F.Cu"]);
+        pn2.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        xc.pads.extend([px1, px2, pn1, pn2]);
+        for (idx, &(a, b, layer)) in segs.iter().enumerate() {
+            xc.tracks.push(Track {
+                id: uuid(1800 + idx as u64),
+                net: 1,
+                start: a,
+                end: b,
+                width_nm: 300_000,
+                locked: false,
+                layer: layer.into(),
+            });
+        }
+        xc.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["SIG_P".into(), "SIG_N".into()],
+                ..Default::default()
+            }],
+            group_match_tolerance_nm: Some(100_000),
+            group_meander_amplitude_nm: Some(4_000_000),
+            ..Default::default()
+        });
+        let mut eng = Engine::new(xc).unwrap();
+        eng.route(2, 50_000).unwrap();
+        let st = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+        apply_length_matching_in_tx(&mut eng, &st).unwrap();
+        sum_net_copper(&eng, 2)
+    };
+
+    let cases: &[(
+        &str,
+        [i64; 2],
+        [i64; 2],
+        &[&str],
+        i64,
+        &[([i64; 2], [i64; 2], &str)],
+        f64,
+    )] = &[
+        (
+            "x_double_cross",
+            [10_000_000, 20_000_000],
+            [30_000_000, 20_000_000],
+            &["F.Cu"],
+            150_000,
+            &[
+                ([10_000_000, 20_000_000], [18_000_000, 24_000_000], "F.Cu"),
+                ([14_000_000, 25_000_000], [22_000_000, 18_000_000], "F.Cu"),
+                ([18_000_000, 19_000_000], [30_000_000, 20_000_000], "F.Cu"),
+            ],
+            31_616_000.0,
+        ),
+        (
+            "x_triple_cross",
+            [10_000_000, 20_000_000],
+            [30_000_000, 20_000_000],
+            &["F.Cu"],
+            150_000,
+            &[
+                ([10_000_000, 20_000_000], [16_000_000, 24_000_000], "F.Cu"),
+                ([14_000_000, 25_000_000], [20_000_000, 17_000_000], "F.Cu"),
+                ([18_000_000, 18_000_000], [24_000_000, 26_000_000], "F.Cu"),
+                ([21_000_000, 25_000_000], [30_000_000, 20_000_000], "F.Cu"),
+            ],
+            37_506_700.0,
+        ),
+        (
+            "x_near_ep_020",
+            [10_000_000, 20_000_000],
+            [30_000_000, 20_000_000],
+            &["F.Cu"],
+            150_000,
+            &[
+                ([10_000_000, 20_000_000], [15_200_000, 20_000_000], "F.Cu"),
+                ([15_000_000, 25_000_000], [15_000_000, 17_000_000], "F.Cu"),
+                ([15_000_000, 17_000_000], [30_000_000, 20_000_000], "F.Cu"),
+            ],
+            28_497_100.0,
+        ),
+        (
+            "x_near_ep_005",
+            [10_000_000, 20_000_000],
+            [30_000_000, 20_000_000],
+            &["F.Cu"],
+            150_000,
+            &[
+                ([10_000_000, 20_000_000], [15_050_000, 20_000_000], "F.Cu"),
+                ([15_000_000, 25_000_000], [15_000_000, 17_000_000], "F.Cu"),
+                ([15_000_000, 17_000_000], [30_000_000, 20_000_000], "F.Cu"),
+            ],
+            28_347_100.0,
+        ),
+        (
+            "x_near_b_ep_020",
+            [10_000_000, 20_000_000],
+            [30_000_000, 20_000_000],
+            &["F.Cu"],
+            150_000,
+            &[
+                ([10_000_000, 20_000_000], [22_000_000, 20_000_000], "F.Cu"),
+                ([15_000_000, 20_200_000], [15_000_000, 15_000_000], "F.Cu"),
+                ([15_000_000, 15_000_000], [30_000_000, 20_000_000], "F.Cu"),
+            ],
+            33_011_400.0,
+        ),
+        (
+            "t_near_gap_015",
+            [10_000_000, 20_000_000],
+            [30_000_000, 20_000_000],
+            &["F.Cu"],
+            150_000,
+            &[
+                ([10_000_000, 20_000_000], [14_850_000, 20_000_000], "F.Cu"),
+                ([15_000_000, 25_000_000], [15_000_000, 17_000_000], "F.Cu"),
+                ([15_000_000, 17_000_000], [30_000_000, 20_000_000], "F.Cu"),
+            ],
+            28_147_100.0,
+        ),
+        (
+            "t_interior_unsplit",
+            [10_000_000, 20_000_000],
+            [20_000_000, 25_000_000],
+            &["F.Cu"],
+            150_000,
+            &[
+                ([10_000_000, 20_000_000], [30_000_000, 20_000_000], "F.Cu"),
+                ([20_000_000, 20_000_000], [20_000_000, 25_000_000], "F.Cu"),
+            ],
+            25_000_000.0,
+        ),
+        (
+            "cav1_pth_direct_plus_bcu_boundary",
+            [10_000_000, 20_000_000],
+            [30_000_000, 20_000_000],
+            &["F.Cu", "B.Cu"],
+            800_000,
+            &[
+                ([10_000_000, 20_000_000], [10_000_000, 30_000_000], "F.Cu"),
+                ([10_000_000, 30_000_000], [30_000_000, 30_000_000], "F.Cu"),
+                ([30_000_000, 30_000_000], [30_000_000, 20_000_000], "F.Cu"),
+                ([10_700_000, 20_000_000], [30_000_000, 20_000_000], "B.Cu"),
+            ],
+            19_300_000.0,
+        ),
+        (
+            "cav2_t_on_unsplit_x_noncross_tc",
+            [15_000_000, 25_000_000],
+            [30_000_000, 15_000_000],
+            &["F.Cu"],
+            150_000,
+            &[
+                ([15_000_000, 25_000_000], [15_000_000, 20_000_000], "F.Cu"),
+                ([10_000_000, 20_000_000], [30_000_000, 20_000_000], "F.Cu"),
+                ([22_000_000, 25_000_000], [22_000_000, 15_000_000], "F.Cu"),
+                ([22_000_000, 15_000_000], [30_000_000, 15_000_000], "F.Cu"),
+            ],
+            43_000_000.0,
+        ),
+    ];
+    for &(name, p1, p2, p1_layers, p_half, segs, expected_nm) in cases {
+        let got = run_probe(p1, p2, p1_layers, p_half, segs);
+        assert!(
+            (got - expected_nm).abs() <= 150_000.0,
+            "{name}: SIG_N copper {got} != expected {expected_nm}"
+        );
+    }
+}
+
+#[test]
+fn r6_via_height_no_stackup_and_pro_use_height_override() {
+    let run_via_height = |layers: &[&str],
+                          mid_layer: &str,
+                          board_thickness_nm: Option<i64>,
+                          mask_nm: Option<i64>,
+                          pro_use_height: Option<bool>|
+     -> Result<f64, Failure> {
+        let mut g = base_diff_input(&["SIG_A", "SIG_B"]);
+        g.layers = layers.iter().map(|s| (*s).to_owned()).collect();
+        g.pads.clear();
+        g.pads.push(pad(1, 1, [10_000_000, 15_000_000], &["F.Cu"]));
+        g.pads.push(pad(2, 1, [30_000_000, 15_000_000], &["F.Cu"]));
+        let mut pb1 = pad(3, 2, [10_000_000, 30_000_000], &["F.Cu"]);
+        pb1.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut pb2 = pad(4, 2, [20_000_000, 30_000_000], &["F.Cu"]);
+        pb2.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        g.pads.extend([pb1, pb2]);
+        g.tracks.extend([
+            Track {
+                id: uuid(1900),
+                net: 1,
+                start: [10_000_000, 15_000_000],
+                end: [15_000_000, 15_000_000],
+                width_nm: 250_000,
+                locked: false,
+                layer: "F.Cu".into(),
+            },
+            Track {
+                id: uuid(1901),
+                net: 1,
+                start: [15_000_000, 15_000_000],
+                end: [25_000_000, 15_000_000],
+                width_nm: 250_000,
+                locked: false,
+                layer: mid_layer.into(),
+            },
+            Track {
+                id: uuid(1902),
+                net: 1,
+                start: [25_000_000, 15_000_000],
+                end: [30_000_000, 15_000_000],
+                width_nm: 250_000,
+                locked: false,
+                layer: "F.Cu".into(),
+            },
+        ]);
+        g.vias.extend([
+            Via {
+                id: uuid(1903),
+                net: 1,
+                at: [15_000_000, 15_000_000],
+                diameter_nm: 600_000,
+                drill_nm: 300_000,
+                locked: false,
+                start_layer: "F.Cu".into(),
+                end_layer: "B.Cu".into(),
+                kind: ViaKind::Through,
+            },
+            Via {
+                id: uuid(1904),
+                net: 1,
+                at: [25_000_000, 15_000_000],
+                diameter_nm: 600_000,
+                drill_nm: 300_000,
+                locked: false,
+                start_layer: "F.Cu".into(),
+                end_layer: "B.Cu".into(),
+                kind: ViaKind::Through,
+            },
+        ]);
+        let bds = g.board_design_settings.as_mut().unwrap();
+        bds.use_height_for_length_calcs = Some(true);
+        bds.board_thickness_nm = board_thickness_nm;
+        bds.outer_solder_mask_thickness_nm = mask_nm;
+        if let Some(uh) = pro_use_height {
+            g.project_rules = Some(
+                serde_json::json!({
+                    "meta": {"version": 3},
+                    "board": {"design_settings": {"rules": {"use_height_for_length_calcs": uh}}}
+                })
+                .to_string(),
+            );
+        }
+        g.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["SIG_A".into(), "SIG_B".into()],
+                ..Default::default()
+            }],
+            group_match_tolerance_nm: Some(100_000),
+            group_meander_amplitude_nm: Some(4_000_000),
+            ..Default::default()
+        });
+        let mut eng = Engine::new(g)?;
+        eng.route(2, 50_000)?;
+        let st = prepare_and_route_pairs_in_tx(&mut eng)?;
+        apply_length_matching_in_tx(&mut eng, &st)?;
+        Ok(eng
+            .copper()
+            .tracks()
+            .filter(|t| t.net == 2)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum())
+    };
+
+    // 2L 1.6mm both masks -> 2 * 1.5800mm = 3.1600mm -> 23.1600mm
+    let len_2l = run_via_height(
+        &["F.Cu", "B.Cu"],
+        "B.Cu",
+        Some(1_600_000),
+        Some(20_000),
+        None,
+    )
+    .unwrap();
+    assert!(
+        (len_2l - 23_160_000.0).abs() <= 150_000.0,
+        "2L empty-stackup via height expected ~23.1600mm, got {len_2l}"
+    );
+    // 4L 1.6mm both masks F.Cu<->In1.Cu -> 2 * 0.5325mm = 1.0650mm -> 21.0650mm
+    let len_4l = run_via_height(
+        &["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"],
+        "In1.Cu",
+        Some(1_600_000),
+        Some(20_000),
+        None,
+    )
+    .unwrap();
+    assert!(
+        (len_4l - 21_065_000.0).abs() <= 150_000.0,
+        "4L empty-stackup F->In1 via height expected ~21.0650mm, got {len_4l}"
+    );
+    // .kicad_pro use_height=false overrides bds use_height=true -> 20.0000mm
+    let len_pro_false = run_via_height(
+        &["F.Cu", "B.Cu"],
+        "B.Cu",
+        Some(1_600_000),
+        Some(20_000),
+        Some(false),
+    )
+    .unwrap();
+    assert!(
+        (len_pro_false - 20_000_000.0).abs() <= 150_000.0,
+        ".kicad_pro use_height=false expected ~20.0000mm, got {len_pro_false}"
+    );
+    // Missing stackup and missing board_thickness_nm with use_height=true fails closed Invalid
+    let err = run_via_height(&["F.Cu", "B.Cu"], "B.Cu", None, None, None).unwrap_err();
+    assert_eq!(err.status, Status::Invalid);
 }
