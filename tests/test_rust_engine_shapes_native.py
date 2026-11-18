@@ -1068,7 +1068,7 @@ def test_native_saved_reloaded_holed_fp_poly_and_multi_outline_route_and_drc(
              (7_000_000, 13_000_000), (6_000_000, 13_000_000)],
         ],
     )
-    # Pinched filled gr_poly that Unfracture() splits into 2 disjoint outlines.
+    # Pinched filled gr_poly that Simplify() splits into 2 disjoint outlines.
     _add_poly_shape(
         board,
         pcbnew.F_Cu,
@@ -1165,3 +1165,94 @@ def test_native_unfilled_figure8_poly_negative_control_is_not_unfractured(
     )
     assert done.returncode == 2
     assert json.loads(res.read_text())["status"] == "invalid"
+
+
+def test_native_rotated_holed_fp_poly_35deg_and_angles_route_and_drc(
+    native_board, tmp_path
+):
+    board = pcbnew.LoadBoard(str(native_board))
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    fp = pcbnew.FOOTPRINT(board)
+    fp.SetReference("F0")
+    fp.Reference().SetVisible(False)
+    fp.SetPosition(pcbnew.VECTOR2I(10_000_000, 10_000_000))
+    _add_poly_shape(
+        fp,
+        pcbnew.F_Cu,
+        None,
+        True,
+        0,
+        [(8_000_000, 8_000_000), (12_000_000, 8_000_000),
+         (12_000_000, 12_000_000), (8_000_000, 12_000_000)],
+        holes=[
+            [(9_000_000, 9_000_000), (11_000_000, 9_000_000),
+             (11_000_000, 11_000_000), (9_000_000, 11_000_000)],
+        ],
+    )
+    fp.SetOrientationDegrees(35.0)
+    board.Add(fp)
+    save(native_board, board)
+
+    reloaded = pcbnew.LoadBoard(str(native_board))
+    fp_polys = [
+        d for f in reloaded.GetFootprints() for d in f.GraphicalItems()
+        if d.GetShape() == pcbnew.SHAPE_T_POLY
+    ]
+    assert len(fp_polys) == 1
+    assert fp_polys[0].GetPolyShape().HoleCount(0) == 0
+
+    data, plan, output = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    assert len(data["graphics"]) == 1
+    assert data["graphics"][0]["shape"]["filled"] is True
+    assert len(data["graphics"][0]["shape"]["holes"]) == 1
+    after = bridge.native_violations(output, tmp_path / "rot35-drc.json")
+    assert after["unconnected_items"] == []
+    assert after["violations"] == []
+
+    for deg in (40, 60, 70):
+        b_ang = pcbnew.LoadBoard(str(native_board))
+        next(f for f in b_ang.GetFootprints() if f.GetReference() == "F0").SetOrientationDegrees(float(deg))
+        save(native_board, b_ang)
+        ang_data = bridge.export_board(native_board, RULES, 100000)
+        assert len(ang_data["graphics"]) == 1, deg
+        assert len(ang_data["graphics"][0]["shape"].get("holes", [])) == 1, deg
+        run_dir = tmp_path / f"run{deg}"
+        run_dir.mkdir()
+        _, ang_plan = execute(native_board, ang_data, run_dir)
+        assert ang_plan["added_tracks"], deg
+
+
+def test_native_unfractured_shape_poly_set_preserves_holes_and_islands():
+    board = pcbnew.CreateEmptyBoard()
+    shape = pcbnew.PCB_SHAPE(board)
+    shape.SetLayer(pcbnew.F_Cu)
+    shape.SetShape(pcbnew.SHAPE_T_POLY)
+    shape.SetFilled(True)
+    shape.SetWidth(0)
+    poly_set = shape.GetPolyShape()
+    out0 = poly_set.NewOutline()
+    for pt in [(4_000_000, 4_000_000), (16_000_000, 4_000_000),
+               (16_000_000, 16_000_000), (4_000_000, 16_000_000)]:
+        poly_set.Append(pt[0], pt[1], out0)
+    hole0 = poly_set.NewHole(out0)
+    for pt in [(6_000_000, 6_000_000), (14_000_000, 6_000_000),
+               (14_000_000, 14_000_000), (6_000_000, 14_000_000)]:
+        poly_set.Append(pt[0], pt[1], out0, hole0)
+    assert shape.GetPolyShape().OutlineCount() == 1
+    assert shape.GetPolyShape().HoleCount(0) == 1
+
+    base_id = str(uuid.uuid4())
+    extracted = bridge._extract_graphic_shapes(shape, base_id=base_id)
+    assert len(extracted) == 1
+    assert len(extracted[0][1]["holes"]) == 1
+    assert shape.GetPolyShape().OutlineCount() == 1
+    assert shape.GetPolyShape().HoleCount(0) == 1
+
+    out1 = poly_set.NewOutline()
+    for pt in [(8_000_000, 8_000_000), (12_000_000, 8_000_000),
+               (12_000_000, 12_000_000), (8_000_000, 12_000_000)]:
+        poly_set.Append(pt[0], pt[1], out1)
+    extracted_island = bridge._extract_graphic_shapes(shape, base_id=base_id)
+    assert sorted(len(s.get("holes", [])) for _, s in extracted_island) == [0, 1]
