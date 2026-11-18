@@ -2582,3 +2582,83 @@ def test_m4_1_crossing_nets_ripup_reroute_preserves_input_and_drc(tmp_path, guar
         assert seen_tracks[uid].GetNetCode() == net
         assert seen_tracks[uid].GetStart().y == y
         assert seen_tracks[uid].IsLocked() == locked
+
+
+def _make_rect_board(path, x0, y0, x1, y1, *, pad_margin=3_000_000):
+    board = pcbnew.BOARD()
+    board.Add(pcbnew.NETINFO_ITEM(board, 'SIGNAL', 1))
+    corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    for a, b in zip(corners, corners[1:] + corners[:1]):
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50000)
+        board.Add(edge)
+    cy = (y0 + y1) // 2
+    for idx, px in enumerate((x0 + pad_margin, x1 - pad_margin), 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(px, cy))
+        board.Add(fp)
+        p = pcbnew.PAD(fp)
+        p.SetNumber('1')
+        p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        p.SetShape(pcbnew.PAD_SHAPE_RECT)
+        p.SetSize(pcbnew.VECTOR2I(1000000, 1000000))
+        p.SetPosition(pcbnew.VECTOR2I(px, cy))
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        p.SetLayerSet(ls)
+        p.SetNetCode(1)
+        fp.Add(p)
+    assert pcbnew.SaveBoard(str(path), board)
+    return path
+
+
+def test_off_origin_centering_round_trip_and_span_boundaries(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps({
+        'width_nm': 250000, 'clearance_nm': 250000, 'grid_nm': 250000, 'edge_clearance_nm': 500000,
+    }))
+
+    # 1. Off-origin 110mm..130mm x 150mm..170mm round-trip: 0nm drift, 0 opens, 0 DRC.
+    src_off = _make_rect_board(tmp_path / 'off_origin.kicad_pcb', 110_000_000, 150_000_000, 130_000_000, 170_000_000)
+    out_off = tmp_path / 'off_origin_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(src_off), str(out_off), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, res.stderr
+    b_in, b_out = pcbnew.LoadBoard(str(src_off)), pcbnew.LoadBoard(str(out_off))
+    assert [(fp.GetReference(), p.GetPosition().x, p.GetPosition().y) for fp in b_out.GetFootprints() for p in fp.Pads()] == [
+        (fp.GetReference(), p.GetPosition().x, p.GetPosition().y) for fp in b_in.GetFootprints() for p in fp.Pads()
+    ]
+    b_out.BuildConnectivity()
+    assert b_out.GetConnectivity().GetUnconnectedCount(False) == 0
+    assert any(t.GetStart().x >= 110_000_000 and t.GetStart().y >= 150_000_000 for t in b_out.GetTracks())
+    drc_off = bridge.native_violations(out_off, tmp_path / 'off_origin_drc.json')
+    assert drc_off['unconnected_items'] == [] and drc_off['violations'] == []
+
+    # 2. Exact 200.000000mm span succeeds; 200.000001mm span fails closed with UnsupportedBoard (exit 2).
+    exact_200 = _make_rect_board(tmp_path / 'exact_200.kicad_pcb', 0, 0, 200_000_000, 20_000_000)
+    req_200 = bridge.export_snapshot(exact_200, rules=json.loads(rules_path.read_text()))
+    assert req_200['bounds'] == {'min': [-100_000_000, 0], 'max': [100_000_000, 20_000_000]}
+    out_200 = tmp_path / 'exact_200_routed.kicad_pcb'
+    res_200 = run([str(engine), 'route-native', str(exact_200), str(out_200), '--rules', str(rules_path)], check=False)
+    assert res_200.returncode == 0, res_200.stderr
+
+    over_200 = _make_rect_board(tmp_path / 'over_200.kicad_pcb', 0, 0, 200_000_001, 20_000_000)
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_snapshot(over_200, rules=json.loads(rules_path.read_text()))
+    res_over = run([str(engine), 'route-native', str(over_200), str(tmp_path / 'over_200_routed.kicad_pcb'), '--rules', str(rules_path)], check=False)
+    assert res_over.returncode == 2
+
+    # 3. Malformed / mismatched expected_request['bounds'] in apply_snapshot fails closed.
+    bad_req = dict(req_200)
+    bad_req['bounds'] = {'min': 'bad'}
+    bad_req_bytes = json.dumps(bad_req).encode()
+    plan_ok = {'version': bridge.RESULT_VERSION, 'source_id': req_200['source_id'], 'request_sha256': hashlib.sha256(bad_req_bytes).hexdigest(), 'status': 'complete', 'added_tracks': [], 'added_vias': [], 'removed_track_ids': []}
+    with pytest.raises((bridge.UnsupportedBoard, ValueError)):
+        bridge.apply_snapshot(exact_200, plan_ok, tmp_path / 'bad_bounds.kicad_pcb', expected_request=bad_req_bytes)
+

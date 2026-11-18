@@ -13,11 +13,10 @@ use crate::{Engine, TransactionError};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 use std::ops::ControlFlow;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RouteUnitId {
-    DiffPair(usize),
-    SingleNet(u32),
-}
+pub use crate::negotiate::RouteUnitId;
+use crate::negotiate::{
+    BlockedFrontier, CongestionHistory, RouteUnitAdapter, UnitRouteError, UnitSpec,
+};
 
 #[derive(Clone, Debug)]
 pub struct ImpedancePlan {
@@ -5038,6 +5037,7 @@ fn validate_and_build_coupled_solution(
     }
     Ok(Some(CoupledSolution { tracks, vias }))
 }
+#[allow(clippy::too_many_arguments)]
 fn astar_coupled_centerline(
     engine: &Engine,
     pair: &ResolvedDiffPair,
@@ -5047,6 +5047,9 @@ fn astar_coupled_centerline(
     step_nm: i64,
     step_penalty: &dyn Fn(u8, Point) -> u64,
     via_penalty: &dyn Fn(Point, u8, u8) -> u64,
+    limit: u64,
+    mut expanded_out: Option<&mut u64>,
+    mut frontier: Option<&mut BlockedFrontier>,
 ) -> Result<Option<CoupledSolution>, Failure> {
     if allowed_layer_idxs.is_empty() || sf.pos_on_left != ef.pos_on_left {
         return Ok(None);
@@ -5219,7 +5222,7 @@ fn astar_coupled_centerline(
     let snap_radius = step_nm * 6;
     let diag_len = ((step_nm as f64) * std::f64::consts::SQRT_2).round() as u64;
     let mut expansions = 0usize;
-    let max_expansions = 35_000usize;
+    let max_expansions = (engine.input.max_expansions as usize).min(35_000);
     let mut snap_attempts = 0usize;
 
     let reconstruct_runs = |tail_key: Key,
@@ -5284,6 +5287,15 @@ fn astar_coupled_centerline(
         let k = cur.key;
         if cur.g > best_g.get(&k).copied().unwrap_or(u64::MAX) {
             continue;
+        }
+        if let Some(ex) = expanded_out.as_deref_mut() {
+            if *ex >= limit {
+                return Err(Failure::new(
+                    Status::BudgetExhausted,
+                    "total expansion budget exhausted",
+                ));
+            }
+            *ex = ex.checked_add(1).expect("bounded expansion count");
         }
         expansions += 1;
         if expansions > max_expansions {
@@ -5434,6 +5446,10 @@ fn astar_coupled_centerline(
                 continue;
             }
             if !legal_pair_coupled_step(engine, pair, li, pa, pb, na, nb, pair.width_nm)? {
+                if let Some(f) = frontier.as_deref_mut() {
+                    f.push_edge(li as u8, pa, pb);
+                    f.push_edge(li as u8, na, nb);
+                }
                 continue;
             }
             let step_len = if dx != 0 && dy != 0 {
@@ -5498,6 +5514,23 @@ fn astar_coupled_centerline(
                 if coupled_via_pair_check(engine, pair, pt, cur_dir, sf.pos_on_left, li, next_li)?
                     .is_none()
                 {
+                    if let Some(f) = frontier.as_deref_mut() {
+                        let lo_l = li.min(next_li) as u8;
+                        let hi_l = li.max(next_li) as u8;
+                        let left_v = (-cur_dir.1, cur_dir.0);
+                        let half_v = 0.5 * (s_nm.max(via_diam_est) as f64);
+                        let vp_est = [
+                            pt[0] + (sign * half_v * left_v.0).round() as i64,
+                            pt[1] + (sign * half_v * left_v.1).round() as i64,
+                        ];
+                        let vn_est = [
+                            pt[0] - (sign * half_v * left_v.0).round() as i64,
+                            pt[1] - (sign * half_v * left_v.1).round() as i64,
+                        ];
+                        f.push_via_site(lo_l, hi_l, pt);
+                        f.push_via_site(lo_l, hi_l, vp_est);
+                        f.push_via_site(lo_l, hi_l, vn_est);
+                    }
                     continue;
                 }
                 let ext_via = via_penalty(pt, k.li, next_li as u8);
@@ -5527,27 +5560,60 @@ fn astar_coupled_centerline(
     Ok(None)
 }
 
-fn route_single_diff_pair(
+fn path_hits_step_penalty(
+    layer: u8,
+    path: &[Point],
+    step_penalty: &dyn Fn(u8, Point) -> u64,
+    grid_nm: i64,
+) -> bool {
+    let step = grid_nm.max(100_000);
+    for w in path.windows(2) {
+        let a = w[0];
+        let b = w[1];
+        let dx = b[0] - a[0];
+        let dy = b[1] - a[1];
+        let dist = dx.abs().max(dy.abs());
+        let samples = (dist / step).clamp(1, 32);
+        for s in 0..=samples {
+            let pt = [a[0] + dx * s / samples, a[1] + dy * s / samples];
+            if step_penalty(layer, pt) > 0 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[allow(clippy::too_many_arguments)]
+fn route_single_diff_pair_inner(
     engine: &mut Engine,
     pair: &ResolvedDiffPair,
     plan: &DiffPairPlan,
     step_penalty: &dyn Fn(u8, Point) -> u64,
     via_penalty: &dyn Fn(Point, u8, u8) -> u64,
-) -> Result<(), Failure> {
+    limit: u64,
+    mut expanded: Option<&mut u64>,
+    mut frontier: Option<&mut BlockedFrontier>,
+    use_commit_tx: bool,
+) -> Result<(), UnitRouteError> {
     // Check if already connected & protected / pre-routed
-    let p_conn = measure_net_fromto(engine, pair.pos_net, false)?.is_some();
-    let n_conn = measure_net_fromto(engine, pair.neg_net, false)?.is_some();
+    let p_conn = measure_net_fromto(engine, pair.pos_net, false)
+        .map_err(UnitRouteError::Fatal)?
+        .is_some();
+    let n_conn = measure_net_fromto(engine, pair.neg_net, false)
+        .map_err(UnitRouteError::Fatal)?
+        .is_some();
     if p_conn && n_conn {
         return Ok(());
     }
     if plan.protected_nets.contains(&pair.pos_net) || plan.protected_nets.contains(&pair.neg_net) {
-        return Err(Failure::new(
+        return Err(UnitRouteError::Fatal(Failure::new(
             Status::Unroutable,
             format!(
                 "differential pair ({:?}, {:?}) is incomplete under --protect",
                 pair.pos_name, pair.neg_name
             ),
-        ));
+        )));
     }
 
     let allowed_layer_idxs: Vec<usize> = plan
@@ -5556,20 +5622,21 @@ fn route_single_diff_pair(
         .filter_map(|ln| engine.layer_index(ln))
         .collect();
     if allowed_layer_idxs.is_empty() {
-        return Err(Failure::new(
+        return Err(UnitRouteError::Fatal(Failure::new(
             Status::Invalid,
             "no allowed copper layers available for differential pair routing",
-        ));
+        )));
     }
 
     let Some([(p_start, n_start), (p_end, n_end)]) =
         find_pad_pairs(&engine.input, pair.pos_net, pair.neg_net)
     else {
-        return Err(Failure::new(
+        return Err(UnitRouteError::Fatal(Failure::new(
             Status::Unroutable,
             format!("unable to pair terminal pads for {}", pair.stem),
-        ));
+        )));
     };
+    let (p_start_at, n_start_at, p_end_at, n_end_at) = (p_start.at, n_start.at, p_end.at, n_end.at);
 
     let start_mid = [
         (p_start.at[0] + n_start.at[0]) / 2,
@@ -5587,7 +5654,8 @@ fn route_single_diff_pair(
         end_mid,
         false,
         &allowed_layer_idxs,
-    )?;
+    )
+    .map_err(UnitRouteError::Fatal)?;
     let end_fanouts = enumerate_end_fanouts(
         engine,
         pair,
@@ -5596,7 +5664,8 @@ fn route_single_diff_pair(
         start_mid,
         true,
         &allowed_layer_idxs,
-    )?;
+    )
+    .map_err(UnitRouteError::Fatal)?;
 
     let mut pairs_ranked: Vec<(i64, usize, usize)> = Vec::new();
     for (si, sf) in start_fanouts.iter().enumerate() {
@@ -5671,10 +5740,27 @@ fn route_single_diff_pair(
                 }
             }
             for path in candidates {
+                if path_hits_step_penalty(
+                    sf.layer_idx as u8,
+                    &path,
+                    step_penalty,
+                    engine.input.rules.grid_nm,
+                ) {
+                    continue;
+                }
                 let runs = vec![(path, sf.layer_idx)];
-                if let Some(sol) = validate_and_build_coupled_solution(engine, pair, sf, ef, &runs)?
+                if let Some(sol) = validate_and_build_coupled_solution(engine, pair, sf, ef, &runs)
+                    .map_err(UnitRouteError::Fatal)?
                 {
-                    return commit_coupled_solution(engine, pair, sol);
+                    if use_commit_tx {
+                        return commit_coupled_solution(engine, pair, sol)
+                            .map_err(UnitRouteError::Fatal);
+                    }
+                    if commit_coupled_solution_direct(engine, pair, sol)
+                        .map_err(UnitRouteError::Fatal)?
+                    {
+                        return Ok(());
+                    }
                 }
             }
         }
@@ -5696,7 +5782,7 @@ fn route_single_diff_pair(
         for &(_, si, ei) in pairs_ranked.iter().take(16) {
             let sf = &start_fanouts[si];
             let ef = &end_fanouts[ei];
-            if let Some(sol) = astar_coupled_centerline(
+            let res = astar_coupled_centerline(
                 engine,
                 pair,
                 sf,
@@ -5705,19 +5791,121 @@ fn route_single_diff_pair(
                 step_nm,
                 step_penalty,
                 via_penalty,
-            )? {
-                return commit_coupled_solution(engine, pair, sol);
+                limit,
+                expanded.as_deref_mut(),
+                frontier.as_deref_mut(),
+            );
+            match res {
+                Ok(Some(sol)) => {
+                    if use_commit_tx {
+                        return commit_coupled_solution(engine, pair, sol)
+                            .map_err(UnitRouteError::Fatal);
+                    }
+                    if commit_coupled_solution_direct(engine, pair, sol)
+                        .map_err(UnitRouteError::Fatal)?
+                    {
+                        return Ok(());
+                    }
+                }
+                Ok(None) => {}
+                Err(e) if e.status == Status::BudgetExhausted => {
+                    if let Some(f) = frontier {
+                        if limit < engine.input.max_expansions && !f.is_empty() {
+                            return Err(UnitRouteError::Blocked(std::mem::take(f)));
+                        }
+                    }
+                    return Err(UnitRouteError::Fatal(e));
+                }
+                Err(e) => return Err(UnitRouteError::Fatal(e)),
             }
         }
     }
 
-    Err(Failure::new(
+    if let Some(f) = frontier {
+        if f.is_empty() {
+            for &(_, si, ei) in pairs_ranked.iter().take(4) {
+                let sf = &start_fanouts[si];
+                let ef = &end_fanouts[ei];
+                f.push_edge(sf.layer_idx as u8, sf.gp, ef.gp);
+                f.push_edge(sf.layer_idx as u8, sf.gn, ef.gn);
+            }
+            if f.is_empty() {
+                for &li in &allowed_layer_idxs {
+                    f.push_edge(li as u8, p_start_at, p_end_at);
+                    f.push_edge(li as u8, n_start_at, n_end_at);
+                }
+            }
+        }
+        return Err(UnitRouteError::Blocked(std::mem::take(f)));
+    }
+
+    Err(UnitRouteError::Fatal(Failure::new(
         Status::Unroutable,
         format!(
             "coupled routing failed for differential pair ({:?}, {:?}); no single-ended fallback allowed",
             pair.pos_name, pair.neg_name
         ),
-    ))
+    )))
+}
+
+fn route_single_diff_pair(
+    engine: &mut Engine,
+    pair: &ResolvedDiffPair,
+    plan: &DiffPairPlan,
+    step_penalty: &dyn Fn(u8, Point) -> u64,
+    via_penalty: &dyn Fn(Point, u8, u8) -> u64,
+) -> Result<(), Failure> {
+    let limit = engine.input.max_expansions;
+    match route_single_diff_pair_inner(
+        engine,
+        pair,
+        plan,
+        step_penalty,
+        via_penalty,
+        limit,
+        None,
+        None,
+        true,
+    ) {
+        Ok(()) => Ok(()),
+        Err(UnitRouteError::Fatal(e)) => Err(e),
+        Err(UnitRouteError::Blocked(_)) => Err(Failure::new(
+            Status::Unroutable,
+            format!(
+                "coupled routing failed for differential pair ({:?}, {:?}); no single-ended fallback allowed",
+                pair.pos_name, pair.neg_name
+            ),
+        )),
+    }
+}
+
+fn commit_coupled_solution_direct(
+    engine: &mut Engine,
+    pair: &ResolvedDiffPair,
+    sol: CoupledSolution,
+) -> Result<bool, Failure> {
+    let p_had_gen = engine.copper.has_generated_for_net(pair.pos_net);
+    let n_had_gen = engine.copper.has_generated_for_net(pair.neg_net);
+    for t in sol.tracks {
+        if t.start != t.end {
+            engine.copper.insert(t, &engine.work)?;
+        }
+    }
+    for v in sol.vias {
+        engine.copper.insert_via(v, &engine.work)?;
+    }
+    let p_ok = measure_net_fromto(engine, pair.pos_net, false)?.is_some();
+    let n_ok = measure_net_fromto(engine, pair.neg_net, false)?.is_some();
+    if !p_ok || !n_ok {
+        if !p_had_gen {
+            engine.copper.remove_net(pair.pos_net, &engine.work)?;
+        }
+        if !n_had_gen {
+            engine.copper.remove_net(pair.neg_net, &engine.work)?;
+        }
+        return Ok(false);
+    }
+    Ok(true)
 }
 
 fn commit_coupled_solution(
@@ -5750,17 +5938,40 @@ fn commit_coupled_solution(
     }))
 }
 
-pub fn prepare_and_route_pairs_in_tx(engine: &mut Engine) -> Result<DiffPairRunState, Failure> {
-    let zero_step = |_: u8, _: Point| 0u64;
-    let zero_via = |_: Point, _: u8, _: u8| 0u64;
-    prepare_and_route_pairs_with_penalty_in_tx(engine, &zero_step, &zero_via)
+pub(crate) fn delay_profile_layers(
+    engine: &Engine,
+    state: &DiffPairRunState,
+) -> BTreeMap<u32, BTreeSet<String>> {
+    let mut out: BTreeMap<u32, BTreeSet<String>> = BTreeMap::new();
+    for g in &state.plan.length_groups {
+        if !matches!(g.mode, GroupTargetMode::DelayAs { .. }) {
+            continue;
+        }
+        for &nid in &g.members {
+            let Some(prof_name) = engine.effective_rules.net(nid).tuning_profile.as_deref() else {
+                continue;
+            };
+            if let Some(prof) = engine
+                .effective_rules
+                .tuning_profiles
+                .iter()
+                .find(|p| p.profile_name == prof_name)
+            {
+                let allowed: BTreeSet<String> = prof
+                    .layer_entries
+                    .iter()
+                    .map(|le| le.signal_layer.clone())
+                    .collect();
+                if !allowed.is_empty() {
+                    out.insert(nid, allowed);
+                }
+            }
+        }
+    }
+    out
 }
 
-pub fn prepare_and_route_pairs_with_penalty_in_tx(
-    engine: &mut Engine,
-    step_penalty: &dyn Fn(u8, Point) -> u64,
-    via_penalty: &dyn Fn(Point, u8, u8) -> u64,
-) -> Result<DiffPairRunState, Failure> {
+pub(crate) fn plan_diff_pairs(engine: &Engine) -> Result<DiffPairRunState, Failure> {
     let plan = discover_and_validate_with_copper(
         &engine.input,
         engine.copper.input(),
@@ -5772,16 +5983,6 @@ pub fn prepare_and_route_pairs_with_penalty_in_tx(
         .iter()
         .flat_map(|p| [p.pos_net, p.neg_net])
         .collect();
-
-    if !plan.pairs.is_empty() {
-        unwrap_tx(engine.transaction(|tx| {
-            let eng = &mut *tx.engine;
-            for pair in &plan.pairs {
-                route_single_diff_pair(eng, pair, &plan, step_penalty, via_penalty)?;
-            }
-            Ok(())
-        }))?;
-    }
 
     let active_single_ended_nets = if plan.active_nets.is_some()
         || !routed_pair_nets.is_empty()
@@ -5812,6 +6013,185 @@ pub fn prepare_and_route_pairs_with_penalty_in_tx(
         protected_nets: plan.protected_nets.clone(),
         plan,
     })
+}
+
+pub struct CompositeRouteAdapter {
+    state: DiffPairRunState,
+    pair_by_net: BTreeMap<u32, usize>,
+}
+
+impl CompositeRouteAdapter {
+    pub fn new(state: DiffPairRunState) -> Self {
+        let mut pair_by_net = BTreeMap::new();
+        for (idx, pair) in state.plan.pairs.iter().enumerate() {
+            pair_by_net.insert(pair.pos_net, idx);
+            pair_by_net.insert(pair.neg_net, idx);
+        }
+        Self { state, pair_by_net }
+    }
+}
+
+impl RouteUnitAdapter for CompositeRouteAdapter {
+    fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure> {
+        engine.charge_work(engine.input().nets.len() as u64)?;
+        let mut out: Vec<UnitSpec> = self
+            .state
+            .plan
+            .pairs
+            .iter()
+            .enumerate()
+            .map(|(idx, pair)| UnitSpec {
+                id: RouteUnitId::DiffPair(idx),
+                nets: vec![pair.pos_net, pair.neg_net],
+                priority_tier: 0,
+                rippable_by_single: false,
+            })
+            .collect();
+        let mut se_nets: Vec<u32> = engine
+            .input()
+            .nets
+            .iter()
+            .filter(|n| {
+                n.id != 0
+                    && !self.state.routed_pair_nets.contains(&n.id)
+                    && !self.state.protected_nets.contains(&n.id)
+                    && self
+                        .state
+                        .active_single_ended_nets
+                        .as_ref()
+                        .is_none_or(|s| s.contains(&n.id))
+            })
+            .map(|n| n.id)
+            .collect();
+        engine.charge_work(se_nets.len() as u64)?;
+        se_nets.sort_unstable();
+        out.extend(se_nets.into_iter().map(|net| UnitSpec {
+            id: RouteUnitId::SingleNet(net),
+            nets: vec![net],
+            priority_tier: 1,
+            rippable_by_single: true,
+        }));
+        Ok(out)
+    }
+
+    fn unit_for_net(&self, net: u32) -> Option<RouteUnitId> {
+        if let Some(&idx) = self.pair_by_net.get(&net) {
+            return Some(RouteUnitId::DiffPair(idx));
+        }
+        if net == 0 || self.state.protected_nets.contains(&net) {
+            return None;
+        }
+        if let Some(active) = &self.state.active_single_ended_nets {
+            if !active.contains(&net) {
+                return None;
+            }
+        }
+        Some(RouteUnitId::SingleNet(net))
+    }
+
+    fn route_unit(
+        &mut self,
+        engine: &mut Engine,
+        unit: RouteUnitId,
+        history: &CongestionHistory,
+        max_expansions: u64,
+        expanded: &mut u64,
+    ) -> Result<(), UnitRouteError> {
+        match unit {
+            RouteUnitId::SingleNet(net) => {
+                engine.route_net_negotiated(net, max_expansions, expanded, history)
+            }
+            RouteUnitId::DiffPair(idx) => {
+                let pair = self.state.plan.pairs.get(idx).ok_or_else(|| {
+                    UnitRouteError::Fatal(Failure::new(
+                        Status::Invalid,
+                        format!("unknown diff pair unit index {idx}"),
+                    ))
+                })?;
+                let bounds_min = engine.input.bounds.min;
+                let grid_nm = engine.input.rules.grid_nm;
+                let step_pen = |layer: u8, pt: Point| -> u64 {
+                    history
+                        .step_penalty(layer, pt, bounds_min, grid_nm)
+                        .saturating_mul(250_000)
+                };
+                let via_pen = |pt: Point, s: u8, e: u8| -> u64 {
+                    history
+                        .via_penalty(pt, s, e, bounds_min, grid_nm)
+                        .saturating_mul(250_000)
+                };
+                let mut frontier = BlockedFrontier::new();
+                route_single_diff_pair_inner(
+                    engine,
+                    pair,
+                    &self.state.plan,
+                    &step_pen,
+                    &via_pen,
+                    max_expansions,
+                    Some(expanded),
+                    Some(&mut frontier),
+                    false,
+                )
+            }
+        }
+    }
+
+    fn rip_unit(&mut self, engine: &mut Engine, unit: RouteUnitId) -> Result<(), Failure> {
+        match unit {
+            RouteUnitId::SingleNet(net) => engine.remove_generated_net(net),
+            RouteUnitId::DiffPair(idx) => {
+                let pair = self.state.plan.pairs.get(idx).ok_or_else(|| {
+                    Failure::new(
+                        Status::Invalid,
+                        format!("unknown diff pair unit index {idx}"),
+                    )
+                })?;
+                engine.remove_generated_net(pair.pos_net)?;
+                engine.remove_generated_net(pair.neg_net)?;
+                Ok(())
+            }
+        }
+    }
+
+    fn is_unit_complete(&self, engine: &Engine, unit: RouteUnitId) -> Result<bool, Failure> {
+        match unit {
+            RouteUnitId::SingleNet(net) => Ok(engine.components(net)?.len() <= 1),
+            RouteUnitId::DiffPair(idx) => {
+                let pair = self.state.plan.pairs.get(idx).ok_or_else(|| {
+                    Failure::new(
+                        Status::Invalid,
+                        format!("unknown diff pair unit index {idx}"),
+                    )
+                })?;
+                Ok(measure_net_fromto(engine, pair.pos_net, false)?.is_some()
+                    && measure_net_fromto(engine, pair.neg_net, false)?.is_some())
+            }
+        }
+    }
+}
+
+pub fn prepare_and_route_pairs_in_tx(engine: &mut Engine) -> Result<DiffPairRunState, Failure> {
+    let zero_step = |_: u8, _: Point| 0u64;
+    let zero_via = |_: Point, _: u8, _: u8| 0u64;
+    prepare_and_route_pairs_with_penalty_in_tx(engine, &zero_step, &zero_via)
+}
+
+pub fn prepare_and_route_pairs_with_penalty_in_tx(
+    engine: &mut Engine,
+    step_penalty: &dyn Fn(u8, Point) -> u64,
+    via_penalty: &dyn Fn(Point, u8, u8) -> u64,
+) -> Result<DiffPairRunState, Failure> {
+    let state = plan_diff_pairs(engine)?;
+    if !state.plan.pairs.is_empty() {
+        unwrap_tx(engine.transaction(|tx| {
+            let eng = &mut *tx.engine;
+            for pair in &state.plan.pairs {
+                route_single_diff_pair(eng, pair, &state.plan, step_penalty, via_penalty)?;
+            }
+            Ok(())
+        }))?;
+    }
+    Ok(state)
 }
 // ---------------------------------------------------------------------------
 // Length & Delay Matching (Intra-Pair, Coupled Tandem & Single-Ended Meanders)
@@ -7160,6 +7540,9 @@ pub fn apply_length_matching_in_tx(
     engine: &mut Engine,
     state: &DiffPairRunState,
 ) -> Result<(), Failure> {
+    if state.plan.pairs.is_empty() && state.plan.length_groups.is_empty() {
+        return Ok(());
+    }
     let plan = &state.plan;
     let mut pair_by_net: BTreeMap<u32, usize> = BTreeMap::new();
     for (idx, p) in plan.pairs.iter().enumerate() {

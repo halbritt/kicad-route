@@ -103,9 +103,16 @@ struct LeafEntry {
 
 const _: () = assert!(std::mem::size_of::<LeafEntry>() == 40);
 
+type AxisKey = (i64, u32);
+
 #[inline(always)]
 fn entry_key(entry: &LeafEntry) -> StaticKey {
     (entry.copper.min[0], entry.copper.min[1], entry.ordinal)
+}
+
+#[inline(always)]
+fn axis_key(entry: &LeafEntry, axis: u8) -> AxisKey {
+    (entry.copper.min[axis as usize], entry.ordinal)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -113,9 +120,9 @@ enum StaticKind {
     Internal {
         left: u32,
         right: u32,
-        split_min_x: i64,
-        split_min_y: i64,
+        split_axis: u8,
         split_ordinal: u32,
+        split_coord: i64,
     },
     Leaf {
         start: u32,
@@ -290,15 +297,97 @@ impl<P: Copy + Eq> StaticSpatialIndex<P> {
         }
         let mut order: Vec<u32> =
             (0..u32::try_from(entries.len()).expect("bounded static entries")).collect();
-        order.sort_unstable_by(|&a, &b| {
-            entry_key(&entries[a as usize]).cmp(&entry_key(&entries[b as usize]))
-        });
+        order.sort_unstable_by_key(|&i| entries[i as usize].ordinal);
         assert!(
             order
                 .windows(2)
-                .all(|w| entry_key(&entries[w[0] as usize]) < entry_key(&entries[w[1] as usize])),
-            "static spatial keys must be unique"
+                .all(|w| entries[w[0] as usize].ordinal < entries[w[1] as usize].ordinal),
+            "static spatial ordinals must be unique"
         );
+        let approx_leaves = entries.len().div_ceil(STATIC_LEAF_CAP / 2).max(1);
+        let mut nodes = Vec::with_capacity(approx_leaves * 2);
+        fn build(
+            entries: &[LeafEntry],
+            order: &mut [u32],
+            start: usize,
+            end: usize,
+            nodes: &mut Vec<StaticNode>,
+        ) -> u32 {
+            let len = end - start;
+            let idx = u32::try_from(nodes.len()).expect("bounded spatial node arena");
+            if len <= STATIC_LEAF_CAP {
+                order[start..end].sort_unstable_by(|&a, &b| {
+                    entry_key(&entries[a as usize]).cmp(&entry_key(&entries[b as usize]))
+                });
+                let first = &entries[order[start] as usize];
+                let mut envelope = first.copper;
+                let mut uniform_net = first.net;
+                for &ord_idx in &order[start + 1..end] {
+                    let entry = &entries[ord_idx as usize];
+                    envelope = envelope.union(entry.copper);
+                    if entry.net != uniform_net {
+                        uniform_net = 0;
+                    }
+                }
+                nodes.push(StaticNode {
+                    envelope,
+                    kind: StaticKind::Leaf {
+                        start: u32::try_from(start).expect("bounded leaf start"),
+                        end: u32::try_from(end).expect("bounded leaf end"),
+                        uniform_net,
+                    },
+                });
+                return idx;
+            }
+            let first_c = entries[order[start] as usize].copper;
+            let mut min0 = first_c.min[0];
+            let mut max0 = first_c.min[0];
+            let mut min1 = first_c.min[1];
+            let mut max1 = first_c.min[1];
+            for &ord_idx in &order[start + 1..end] {
+                let c = entries[ord_idx as usize].copper;
+                min0 = min0.min(c.min[0]);
+                max0 = max0.max(c.min[0]);
+                min1 = min1.min(c.min[1]);
+                max1 = max1.max(c.min[1]);
+            }
+            let axis = if max1.abs_diff(min1) > max0.abs_diff(min0) {
+                1u8
+            } else {
+                0u8
+            };
+            let mid_rel = len / 2;
+            order[start..end].select_nth_unstable_by(mid_rel, |&a, &b| {
+                axis_key(&entries[a as usize], axis).cmp(&axis_key(&entries[b as usize], axis))
+            });
+            let mid = start + mid_rel;
+            let split = entries[order[mid] as usize];
+            nodes.push(StaticNode {
+                envelope: split.copper,
+                kind: StaticKind::Leaf {
+                    start: 0,
+                    end: 0,
+                    uniform_net: 0,
+                },
+            });
+            let left = build(entries, order, start, mid, nodes);
+            let right = build(entries, order, mid, end, nodes);
+            let envelope = nodes[left as usize]
+                .envelope
+                .union(nodes[right as usize].envelope);
+            nodes[idx as usize] = StaticNode {
+                envelope,
+                kind: StaticKind::Internal {
+                    left,
+                    right,
+                    split_axis: axis,
+                    split_ordinal: split.ordinal,
+                    split_coord: split.copper.min[axis as usize],
+                },
+            };
+            idx
+        }
+        let root = build(&entries, &mut order, 0, entries.len(), &mut nodes);
         for i in 0..order.len() {
             let mut dst = i;
             if order[dst] as usize == dst {
@@ -320,64 +409,6 @@ impl<P: Copy + Eq> StaticSpatialIndex<P> {
             }
         }
         drop(order);
-        let approx_leaves = entries.len().div_ceil(STATIC_LEAF_CAP / 2).max(1);
-        let mut nodes = Vec::with_capacity(approx_leaves * 2);
-        fn build(
-            entries: &[LeafEntry],
-            start: usize,
-            end: usize,
-            nodes: &mut Vec<StaticNode>,
-        ) -> u32 {
-            let len = end - start;
-            let idx = u32::try_from(nodes.len()).expect("bounded spatial node arena");
-            if len <= STATIC_LEAF_CAP {
-                let first = &entries[start];
-                let mut envelope = first.copper;
-                let mut uniform_net = first.net;
-                for entry in &entries[start + 1..end] {
-                    envelope = envelope.union(entry.copper);
-                    if entry.net != uniform_net {
-                        uniform_net = 0;
-                    }
-                }
-                nodes.push(StaticNode {
-                    envelope,
-                    kind: StaticKind::Leaf {
-                        start: u32::try_from(start).expect("bounded leaf start"),
-                        end: u32::try_from(end).expect("bounded leaf end"),
-                        uniform_net,
-                    },
-                });
-                return idx;
-            }
-            let mid = start + len / 2;
-            let split = entries[mid];
-            nodes.push(StaticNode {
-                envelope: split.copper,
-                kind: StaticKind::Leaf {
-                    start: 0,
-                    end: 0,
-                    uniform_net: 0,
-                },
-            });
-            let left = build(entries, start, mid, nodes);
-            let right = build(entries, mid, end, nodes);
-            let envelope = nodes[left as usize]
-                .envelope
-                .union(nodes[right as usize].envelope);
-            nodes[idx as usize] = StaticNode {
-                envelope,
-                kind: StaticKind::Internal {
-                    left,
-                    right,
-                    split_min_x: split.copper.min[0],
-                    split_min_y: split.copper.min[1],
-                    split_ordinal: split.ordinal,
-                },
-            };
-            idx
-        }
-        let root = build(&entries, 0, entries.len(), &mut nodes);
         Self {
             entries,
             payloads,
@@ -401,7 +432,7 @@ impl<P: Copy + Eq> StaticSpatialIndex<P> {
             work.charge(1)?;
             return Ok(ControlFlow::Continue(()));
         };
-        let mut stack = [NONE_U32; 32];
+        let mut stack = [NONE_U32; 64];
         let mut sp = 0usize;
         let mut idx = self.root;
         loop {
@@ -502,8 +533,7 @@ impl<P: Copy + Eq> StaticSpatialIndex<P> {
             entries: &[LeafEntry],
             payloads: &[P],
             idx: u32,
-            lo: Option<StaticKey>,
-            hi: Option<StaticKey>,
+            bounds: [(Option<AxisKey>, Option<AxisKey>); 2],
             visited: &mut BTreeSet<u32>,
             leaf_spans: &mut Vec<(u32, u32)>,
             actual: &mut BTreeMap<u32, (u32, CopperAabb, P)>,
@@ -516,21 +546,30 @@ impl<P: Copy + Eq> StaticSpatialIndex<P> {
                 StaticKind::Internal {
                     left,
                     right,
-                    split_min_x,
-                    split_min_y,
+                    split_axis,
                     split_ordinal,
+                    split_coord,
                 } => {
-                    let split = (split_min_x, split_min_y, split_ordinal);
-                    if !lo.is_none_or(|b| b < split) || !hi.is_none_or(|b| split < b) {
+                    if split_axis > 1 {
                         return None;
                     }
+                    let axis = split_axis as usize;
+                    let split = (split_coord, split_ordinal);
+                    if !bounds[axis].0.is_none_or(|b| b < split)
+                        || !bounds[axis].1.is_none_or(|b| split < b)
+                    {
+                        return None;
+                    }
+                    let mut left_bounds = bounds;
+                    left_bounds[axis].1 = Some(split);
+                    let mut right_bounds = bounds;
+                    right_bounds[axis].0 = Some(split);
                     let lb = inspect(
                         nodes,
                         entries,
                         payloads,
                         left,
-                        lo,
-                        Some(split),
+                        left_bounds,
                         visited,
                         leaf_spans,
                         actual,
@@ -540,8 +579,7 @@ impl<P: Copy + Eq> StaticSpatialIndex<P> {
                         entries,
                         payloads,
                         right,
-                        Some(split),
-                        hi,
+                        right_bounds,
                         visited,
                         leaf_spans,
                         actual,
@@ -571,10 +609,15 @@ impl<P: Copy + Eq> StaticSpatialIndex<P> {
                         if entry.net != expected_uniform_net {
                             expected_uniform_net = 0;
                         }
-                        let k = entry_key(entry);
-                        if !lo.is_none_or(|b| b <= k) || !hi.is_none_or(|b| k < b) {
-                            return None;
+                        for axis in 0..2 {
+                            let ak = axis_key(entry, axis as u8);
+                            if !bounds[axis].0.is_none_or(|b| b <= ak)
+                                || !bounds[axis].1.is_none_or(|b| ak < b)
+                            {
+                                return None;
+                            }
                         }
+                        let k = entry_key(entry);
                         if !prev.is_none_or(|p| p < k) {
                             return None;
                         }
@@ -609,8 +652,7 @@ impl<P: Copy + Eq> StaticSpatialIndex<P> {
             &self.entries,
             &self.payloads,
             self.root,
-            None,
-            None,
+            [(None, None), (None, None)],
             &mut visited,
             &mut leaf_spans,
             &mut actual,
@@ -1172,8 +1214,8 @@ mod tests {
         // Broken internal split key violating strict (lo, hi) BST bounds:
         // test both root (exercising leaf [lo, hi) check) and non-root internal (66 items).
         let mut idx = make();
-        if let StaticKind::Internal { split_min_x, .. } = &mut idx.nodes[0].kind {
-            *split_min_x = 10_000;
+        if let StaticKind::Internal { split_coord, .. } = &mut idx.nodes[0].kind {
+            *split_coord = 10_000;
         }
         assert!(!idx.consistent(items.iter().copied()));
 
@@ -1186,8 +1228,8 @@ mod tests {
         let mut idx66 = StaticSpatialIndex::new(items66.iter().copied());
         assert!(idx66.consistent(items66.iter().copied()));
         if let StaticKind::Internal { left, .. } = idx66.nodes[0].kind {
-            if let StaticKind::Internal { split_min_x, .. } = &mut idx66.nodes[left as usize].kind {
-                *split_min_x = 10_000;
+            if let StaticKind::Internal { split_coord, .. } = &mut idx66.nodes[left as usize].kind {
+                *split_coord = 10_000;
             } else {
                 panic!("expected non-root internal node for 66 items");
             }

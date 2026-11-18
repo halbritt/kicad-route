@@ -3990,3 +3990,196 @@ fn r8_via_overrides_canonical_stackup_stub_and_delay_overshoot_parity() {
         "empty stackup 4L F->In2 expected ~21.24mm, got {no_stack}"
     );
 }
+
+#[test]
+fn route_all_combines_diff_pair_and_congested_se_negotiation_and_protects_filters() {
+    let mut input = base_diff_input(&["DP_P", "DP_N"]);
+    // Add two crossing single-ended nets (Default netclass) and one filtered-out net.
+    for (nid, name) in [(3u32, "SE_A"), (4, "SE_B"), (5, "SE_SKIP")] {
+        input.nets.push(Net {
+            id: nid,
+            name: name.to_owned(),
+        });
+        input
+            .board_design_settings
+            .as_mut()
+            .unwrap()
+            .netclass_assignments
+            .insert(name.to_owned(), vec!["Default".to_owned()]);
+    }
+    input.pads.extend([
+        pad(101, 3, [15_000_000, 20_000_000], &["F.Cu"]),
+        pad(102, 3, [35_000_000, 20_000_000], &["F.Cu"]),
+        pad(103, 4, [25_000_000, 14_000_000], &["F.Cu"]),
+        pad(104, 4, [25_000_000, 26_000_000], &["F.Cu"]),
+        pad(105, 5, [10_000_000, 32_000_000], &["F.Cu"]),
+        pad(106, 5, [20_000_000, 32_000_000], &["F.Cu"]),
+    ]);
+    // U-shaped F.Cu keepout around SE_A's start forces SE_A onto B.Cu/detour and contends with SE_B.
+    input.rule_areas.push(RuleArea {
+        id: uuid(901),
+        name: None,
+        layers: vec!["F.Cu".to_owned()],
+        outer: vec![
+            [17_000_000, 18_000_000],
+            [23_000_000, 18_000_000],
+            [23_000_000, 22_000_000],
+            [17_000_000, 22_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: true,
+        no_pads: false,
+        no_zone_fills: false,
+        no_footprints: false,
+    });
+    let opts = input.routing_options.as_mut().unwrap();
+    opts.net_filters = vec![
+        "DP_P".to_owned(),
+        "DP_N".to_owned(),
+        "SE_A".to_owned(),
+        "SE_B".to_owned(),
+    ];
+    let mut engine = Engine::new(input).unwrap();
+    let exp = engine.route_all().unwrap();
+    assert!(exp > 0);
+    for nid in 1..=4 {
+        assert!(
+            engine.copper().generated().any(|t| t.net == nid),
+            "expected tracks for net {nid}"
+        );
+    }
+    assert!(
+        !engine.copper().generated().any(|t| t.net == 5),
+        "filtered-out net 5 must not be routed"
+    );
+    assert!(engine.copper().index_consistent());
+}
+
+#[test]
+fn route_all_resolves_multi_pair_contention_and_rolls_back_atomically_on_failure() {
+    // 1. Multi-pair contention via Engine::route_all (CompositeRouteAdapter):
+    // P1 routes horizontally across (25, 20); P2 routes vertically through an F.Cu corridor
+    // whose B.Cu underneath P2 pads is blocked, forcing Tier-0 contention resolution.
+    let mut input = base_diff_input(&["P1_P", "P1_N", "P2_P", "P2_N"]);
+    input.pads = vec![
+        pad(1, 1, [10_000_000, 19_500_000], &["F.Cu"]),
+        pad(2, 1, [40_000_000, 19_500_000], &["F.Cu"]),
+        pad(3, 2, [10_000_000, 20_500_000], &["F.Cu"]),
+        pad(4, 2, [40_000_000, 20_500_000], &["F.Cu"]),
+        pad(5, 3, [24_500_000, 10_000_000], &["F.Cu"]),
+        pad(6, 3, [24_500_000, 30_000_000], &["F.Cu"]),
+        pad(7, 4, [25_500_000, 10_000_000], &["F.Cu"]),
+        pad(8, 4, [25_500_000, 30_000_000], &["F.Cu"]),
+    ];
+    let mut engine = Engine::new(input).unwrap();
+    assert!(engine.route_all().unwrap() > 0);
+    for nid in 1..=4 {
+        assert!(
+            engine.copper().generated().any(|t| t.net == nid),
+            "expected tracks for pair net {nid}"
+        );
+    }
+    assert!(engine.copper().index_consistent());
+
+    // 2. Atomic rollback of Phase 1 diff pair when Phase 2 SE net is unroutable.
+    let mut fail_se = base_diff_input(&["DP_P", "DP_N"]);
+    fail_se.nets.push(Net {
+        id: 3,
+        name: "SE_BOXED".to_owned(),
+    });
+    fail_se
+        .board_design_settings
+        .as_mut()
+        .unwrap()
+        .netclass_assignments
+        .insert("SE_BOXED".to_owned(), vec!["Default".to_owned()]);
+    fail_se.pads.extend([
+        pad(201, 3, [15_000_000, 25_000_000], &["F.Cu"]),
+        pad(202, 3, [35_000_000, 25_000_000], &["F.Cu"]),
+    ]);
+    fail_se.rule_areas.push(RuleArea {
+        id: uuid(902),
+        name: None,
+        layers: vec!["F.Cu".to_owned(), "B.Cu".to_owned()],
+        outer: vec![
+            [33_000_000, 23_000_000],
+            [37_000_000, 23_000_000],
+            [37_000_000, 27_000_000],
+            [33_000_000, 27_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: true,
+        no_pads: false,
+        no_zone_fills: false,
+        no_footprints: false,
+    });
+    let mut eng_se = Engine::new(fail_se).unwrap();
+    assert!(
+        eng_se.route_all().is_err(),
+        "boxed SE net must fail route_all"
+    );
+    assert_eq!(
+        eng_se.copper().generated().count(),
+        0,
+        "Phase 1 diff-pair tracks must roll back"
+    );
+    assert_eq!(eng_se.copper().generated_vias().count(), 0);
+    assert!(eng_se.copper().index_consistent());
+
+    // 3. Atomic rollback of Phase 1 diff pair AND Phase 2 SE net when Phase 3 length matching fails.
+    let mut fail_lm = base_diff_input(&["DP_P", "DP_N"]);
+    fail_lm.nets.push(Net {
+        id: 3,
+        name: "SE_OK".to_owned(),
+    });
+    fail_lm
+        .board_design_settings
+        .as_mut()
+        .unwrap()
+        .netclass_assignments
+        .insert("SE_OK".to_owned(), vec!["Default".to_owned()]);
+    fail_lm.pads[2].at = [20_000_000, 11_500_000]; // DP_N much shorter than DP_P -> unmatchable at 1nm
+    fail_lm.pads.extend([
+        pad(301, 3, [10_000_000, 25_000_000], &["F.Cu"]),
+        pad(302, 3, [40_000_000, 25_000_000], &["F.Cu"]),
+    ]);
+    let opts = fail_lm.routing_options.as_mut().unwrap();
+    opts.intra_match = true;
+    opts.length_match_tolerance_nm = Some(1);
+    opts.meander_amplitude_nm = Some(5_000_000);
+    // Block F.Cu/B.Cu near DP_N so meander cannot reach required skew.
+    fail_lm.rule_areas.push(RuleArea {
+        id: uuid(903),
+        name: None,
+        layers: vec!["F.Cu".to_owned(), "B.Cu".to_owned()],
+        outer: vec![
+            [9_000_000, 12_200_000],
+            [21_000_000, 12_200_000],
+            [21_000_000, 18_000_000],
+            [9_000_000, 18_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: true,
+        no_pads: false,
+        no_zone_fills: false,
+        no_footprints: false,
+    });
+    let mut eng_lm = Engine::new(fail_lm).unwrap();
+    assert!(
+        eng_lm.route_all().is_err(),
+        "impossible intra_match must fail route_all"
+    );
+    assert_eq!(
+        eng_lm.copper().generated().count(),
+        0,
+        "Phase 1+2 tracks must roll back on Phase 3 failure"
+    );
+    assert_eq!(eng_lm.copper().generated_vias().count(), 0);
+    assert!(eng_lm.copper().index_consistent());
+}

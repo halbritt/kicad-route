@@ -27,6 +27,9 @@ fn pad(n: u64, net: u32, at: Point) -> Pad {
         thermal_spoke_width_nm: None,
         thermal_spoke_angle_mdeg: None,
         orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
     }
 }
 
@@ -76,6 +79,9 @@ fn base_input(max: Point, layers: Vec<String>) -> Input {
         custom_rules: None,
         effective_rules: None,
         zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
     }
 }
 
@@ -599,6 +605,7 @@ fn eight_crossing_nets_converge_within_compact_work_budget() {
         default_microvia_drill_nm: 150_000,
         min_resolved_spokes: None,
         max_error_nm: None,
+        ..Default::default()
     });
     let pairs = [
         ([4_000_000, 25_000_000], [26_000_000, 4_000_000]),
@@ -1161,6 +1168,7 @@ fn multilayer_microvia_enabled_still_attributes_blocked_through_via_victim() {
         default_microvia_drill_nm: 150_000,
         min_resolved_spokes: None,
         max_error_nm: None,
+        ..Default::default()
     });
     i.project_rules = Some(
         serde_json::json!({

@@ -398,6 +398,8 @@ struct ApplyValidationReport {
     request_sha256: String,
     candidate_sha256: String,
     candidate_bytes: u64,
+    #[serde(default)]
+    before_unconnected_count: Option<u64>,
     after_unconnected_count: u64,
     introduced_violation_count: u64,
     added_track_count: usize,
@@ -2459,13 +2461,21 @@ fn execute_staged_phases(
             return Err((OperationStatus::ChildProcessError, msg));
         }
     };
+    let partial_net_filter = !config.routing_options.net_filters.is_empty();
+    let unconnected_bad = if partial_net_filter {
+        report
+            .before_unconnected_count
+            .is_none_or(|b| report.after_unconnected_count > b)
+    } else {
+        report.after_unconnected_count != 0
+    };
     if report.schema != APPLY_REPORT_SCHEMA
         || report.version != APPLY_REPORT_VERSION
         || report.source_id != admitted.source_sha256
         || report.request_sha256 != req_sha
         || report.candidate_sha256 != candidate_sha256
         || report.candidate_bytes != candidate_bytes_len
-        || report.after_unconnected_count != 0
+        || unconnected_bad
         || report.introduced_violation_count != 0
         || report.added_track_count != route_output.added_tracks.len()
         || report.added_via_count != route_output.added_vias.len()

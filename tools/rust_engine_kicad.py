@@ -12,6 +12,7 @@ from collections import Counter
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
 import errno
+import fnmatch
 import hashlib
 import json
 import math
@@ -31,6 +32,7 @@ import pcbnew
 
 INPUT_VERSION = 1
 RESULT_VERSION = 3
+ENGINE_MAX_NM = 100_000_000
 # Per-document admission, not a bound on parsed/native allocations or runtime.
 MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
 MAX_SYMLINK_HOPS = 40
@@ -1151,6 +1153,126 @@ def _parse_pcb_stackup(body: bytes) -> list[dict]:
     return out
 
 
+def _visit_exported_shape_coords(shape: dict, fn_1x, fn_2x) -> None:
+    kind = shape.get('kind')
+    if kind == 'box_exact':
+        fn_2x(shape['center_2x'])
+    elif kind == 'capsule':
+        fn_1x(shape['start_nm'])
+        fn_1x(shape['end_nm'])
+    elif kind == 'convex_polygon':
+        for pt in shape['vertices']:
+            fn_1x(pt)
+
+
+def _visit_exported_poly_coords(poly: dict, fn_1x) -> None:
+    for pt in poly['outer']:
+        fn_1x(pt)
+    for hole in poly.get('holes', ()):
+        for pt in hole:
+            fn_1x(pt)
+
+
+def _visit_exported_graphic_coords(item: dict, fn_1x) -> None:
+    shape = item['shape']
+    kind = shape.get('kind')
+    if kind == 'segment':
+        fn_1x(shape['start'])
+        fn_1x(shape['end'])
+    elif kind == 'arc':
+        fn_1x(shape['start'])
+        fn_1x(shape['mid'])
+        fn_1x(shape['end'])
+    elif kind == 'circle':
+        fn_1x(shape['center'])
+    elif kind == 'polygon':
+        _visit_exported_poly_coords(shape, fn_1x)
+
+
+def _visit_exported_coords(result: dict, fn_1x, fn_2x) -> None:
+    bounds = result['bounds']
+    fn_1x(bounds['min'])
+    fn_1x(bounds['max'])
+    if 'board_outline' in result:
+        for poly in result['board_outline']['polygons']:
+            _visit_exported_poly_coords(poly, fn_1x)
+    for hole in result.get('holes', ()):
+        fn_1x(hole['at'])
+        _visit_exported_shape_coords(hole['shape'], fn_1x, fn_2x)
+    for pad in result.get('pads', ()):
+        fn_1x(pad['at'])
+        _visit_exported_shape_coords(pad['shape'], fn_1x, fn_2x)
+        if 'drill' in pad:
+            _visit_exported_shape_coords(pad['drill'], fn_1x, fn_2x)
+    for track in result.get('tracks', ()):
+        fn_1x(track['start'])
+        fn_1x(track['end'])
+    for via in result.get('vias', ()):
+        fn_1x(via['at'])
+    for ra in result.get('rule_areas', ()):
+        _visit_exported_poly_coords(ra, fn_1x)
+        for ep in ra.get('extra_polygons', ()):
+            _visit_exported_poly_coords(ep, fn_1x)
+    for z in result.get('zones', ()):
+        _visit_exported_poly_coords(z, fn_1x)
+        for ep in z.get('extra_polygons', ()):
+            _visit_exported_poly_coords(ep, fn_1x)
+        for lf in z.get('layer_fills', ()):
+            for fp in lf['polygons']:
+                _visit_exported_poly_coords(fp, fn_1x)
+    for g in result.get('graphics', ()):
+        _visit_exported_graphic_coords(g, fn_1x)
+    for ma in result.get('mask_apertures', ()):
+        _visit_exported_graphic_coords(ma, fn_1x)
+
+
+def _center_exported_coordinates_if_needed(result: dict) -> None:
+    min_2x = [None, None]
+    max_2x = [None, None]
+
+    def accum_1x(pt):
+        for k in (0, 1):
+            v2 = 2 * pt[k]
+            min_2x[k] = v2 if min_2x[k] is None else min(min_2x[k], v2)
+            max_2x[k] = v2 if max_2x[k] is None else max(max_2x[k], v2)
+
+    def accum_2x(pt2):
+        for k in (0, 1):
+            v2 = pt2[k]
+            min_2x[k] = v2 if min_2x[k] is None else min(min_2x[k], v2)
+            max_2x[k] = v2 if max_2x[k] is None else max(max_2x[k], v2)
+
+    _visit_exported_coords(result, accum_1x, accum_2x)
+    limit_2x = 2 * ENGINE_MAX_NM
+    shift = [0, 0]
+    for k in (0, 1):
+        lo, hi = min_2x[k], max_2x[k]
+        if lo is None or hi is None:
+            continue
+        if lo >= -limit_2x and hi <= limit_2x:
+            shift[k] = 0
+        else:
+            s_lo = (-limit_2x - lo + 1) // 2
+            s_hi = (limit_2x - hi) // 2
+            if s_lo > s_hi:
+                raise UnsupportedBoard(
+                    f'board coordinates span more than {2 * ENGINE_MAX_NM} nm on axis {k}'
+                )
+            shift[k] = (s_lo + s_hi) // 2
+    if shift == [0, 0]:
+        return
+
+    def shift_1x(pt):
+        pt[0] += shift[0]
+        pt[1] += shift[1]
+
+    def shift_2x(pt2):
+        pt2[0] += 2 * shift[0]
+        pt2[1] += 2 * shift[1]
+
+    _visit_exported_coords(result, shift_1x, shift_2x)
+
+
 def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int = 100000,
                     limits: dict | None = None):
     if limits is not None and not isinstance(limits, dict):
@@ -1463,7 +1585,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         nc_items = []
         seen_nc = set()
         candidates = ([default_nc] if default_nc is not None else []) + [
-            nc for _, nc in sorted(net_settings.GetNetclasses().items())
+            nc for _, nc in sorted(net_settings.GetNetclasses().items(), key=lambda kv: str(kv[0]))
         ]
         for nc in candidates:
             nc_name = nc.GetName()
@@ -1555,6 +1677,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         result['components'] = components
     if stackup:
         result['stackup'] = stackup
+    _center_exported_coordinates_if_needed(result)
     # Resource policy and defaults belong to Rust. Preserve supplied limits
     # exactly; omitting them retains the existing input contract.
     if limits is not None:
@@ -1993,6 +2116,73 @@ def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request:
                        pour_area_loss=pour_area_loss, pour_min_spokes=pour_min_spokes)
 
 
+def _net_matches_filter_token(pattern: str, net_name: str) -> bool:
+    if fnmatch.fnmatchcase(net_name, pattern):
+        return True
+    if '/' not in pattern:
+        leaf = net_name.rsplit('/', 1)[-1]
+        if fnmatch.fnmatchcase(leaf, pattern):
+            return True
+    return False
+
+
+def _filter_active_net_codes(board, net_filters: list[str]) -> set[int]:
+    pos = [pat for pat in net_filters if not pat.startswith('!')]
+    neg = [pat[1:] for pat in net_filters if pat.startswith('!')]
+    active = set()
+    for code, net in board.GetNetsByNetcode().items():
+        if int(code) == 0:
+            continue
+        name = net.GetNetname()
+        pos_ok = not pos or any(_net_matches_filter_token(p, name) for p in pos)
+        neg_hit = any(_net_matches_filter_token(p, name) for p in neg)
+        if pos_ok and not neg_hit:
+            active.add(int(code))
+    return active
+
+
+def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, net_filters: list[str]) -> None:
+    key = lambda item: json.dumps(item, sort_keys=True)
+    if not net_filters:
+        if saved.GetConnectivity().GetUnconnectedCount(False) != 0:
+            raise NativeValidationError('native connectivity still has open connections')
+        if after_drc['unconnected_items']:
+            raise NativeValidationError('native DRC still reports open connections')
+        return
+    introduced_unconnected = Counter(map(key, after_drc['unconnected_items'])) - Counter(
+        map(key, before_drc['unconnected_items'])
+    )
+    if introduced_unconnected:
+        raise NativeValidationError('native DRC reports new open connections')
+    active_codes = _filter_active_net_codes(saved, net_filters)
+    if not active_codes:
+        return
+    conn = saved.GetConnectivity()
+    pads_by_net: dict[int, list] = {}
+    for pad in saved.GetPads():
+        code = int(pad.GetNetCode())
+        if code in active_codes:
+            pads_by_net.setdefault(code, []).append(pad)
+    for code, net_pads in pads_by_net.items():
+        if len(net_pads) <= 1:
+            continue
+        pad_uuids = {p.m_Uuid.AsString() for p in net_pads}
+        visited = set()
+        queue = [net_pads[0]]
+        while queue:
+            cur = queue.pop()
+            cid = cur.m_Uuid.AsString()
+            if cid in visited:
+                continue
+            visited.add(cid)
+            for item in conn.GetConnectedItems(cur, 0):
+                iid = item.m_Uuid.AsString()
+                if iid not in visited:
+                    queue.append(item)
+        if not pad_uuids.issubset(visited):
+            raise NativeValidationError('native connectivity still has open connections on selected nets')
+
+
 def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
                    drc_timeout: float = 30.0, validation_report: Path | None = None,
                    pour_area_loss: float | None = None, pour_min_spokes: int | None = None):
@@ -2018,6 +2208,24 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     request_digest = hashlib.sha256(expected_request).hexdigest()
     if plan.get('request_sha256') != request_digest:
         raise ValueError('Rust plan request_sha256 does not match the expected request')
+    try:
+        req_doc = json.loads(expected_request.decode('utf-8'))
+    except (UnicodeDecodeError, ValueError) as error:
+        raise ValueError('expected request must be valid JSON') from error
+    req_bounds = req_doc.get('bounds') if isinstance(req_doc, dict) else None
+    if (
+        not isinstance(req_bounds, dict)
+        or not isinstance(req_bounds.get('min'), list)
+        or not isinstance(req_bounds.get('max'), list)
+        or len(req_bounds['min']) != 2
+        or len(req_bounds['max']) != 2
+        or any(type(v) is not int for v in (*req_bounds['min'], *req_bounds['max']))
+        or any(
+            not (-ENGINE_MAX_NM <= req_bounds['min'][k] < req_bounds['max'][k] <= ENGINE_MAX_NM)
+            for k in (0, 1)
+        )
+    ):
+        raise ValueError('Rust plan expected_request bounds are invalid')
     for counter in ('expanded_states', 'work_used'):
         if type(plan.get(counter)) is not int or not 0 <= plan[counter] < 2**64:
             raise ValueError(f'Rust plan requires {counter} as an unsigned 64-bit integer')
@@ -2045,6 +2253,13 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     if not isinstance(added_vias, list):
         raise ValueError('Rust plan added_vias must be a list when present')
     board = load_supported(source)
+    orig_bounds, _ = _board_bounds_and_outline(board)
+    shift = []
+    for k in (0, 1):
+        s_k = req_bounds['min'][k] - orig_bounds['min'][k]
+        if req_bounds['max'][k] - orig_bounds['max'][k] != s_k:
+            raise ValueError('Rust plan request bounds do not match source board bounds')
+        shift.append(s_k)
     cu_layers, layer_names = _cu_stack(board)
     layer_id_by_name = dict(zip(layer_names, cu_layers))
     layer_idx_by_name = {name: idx for idx, name in enumerate(layer_names)}
@@ -2074,14 +2289,18 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             raise NativeValidationError('Rust output track width is below the native minimum')
         if any(not isinstance(item[key], list) or len(item[key]) != 2 or any(type(n) is not int or abs(n) > 1_000_000_000 for n in item[key]) for key in ('start', 'end')):
             raise ValueError('Rust output coordinates exceed the supported native range')
-        if item['start'] == item['end']:
+        orig_start = [item['start'][0] - shift[0], item['start'][1] - shift[1]]
+        orig_end = [item['end'][0] - shift[0], item['end'][1] - shift[1]]
+        if any(abs(n) > 1_000_000_000 for n in (*orig_start, *orig_end)):
+            raise ValueError('Rust output coordinates exceed the supported native range')
+        if orig_start == orig_end:
             raise ValueError('Rust output track must have distinct endpoints')
         track = pcbnew.PCB_TRACK(board)
         track.SetUuid(pcbnew.KIID(ident))
         track.SetNetCode(item['net'])
         track.SetLayer(layer_id_by_name[layer_name])
-        track.SetStart(pcbnew.VECTOR2I(*item['start']))
-        track.SetEnd(pcbnew.VECTOR2I(*item['end']))
+        track.SetStart(pcbnew.VECTOR2I(*orig_start))
+        track.SetEnd(pcbnew.VECTOR2I(*orig_end))
         track.SetWidth(item['width_nm'])
         track.SetLocked(item['locked'])
         board.Add(track)
@@ -2114,12 +2333,15 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             raise ValueError('Rust output via lock flag is invalid')
         if not isinstance(v['at'], list) or len(v['at']) != 2 or any(type(n) is not int or abs(n) > 1_000_000_000 for n in v['at']):
             raise ValueError('Rust output via coordinates exceed supported native range')
+        orig_at = [v['at'][0] - shift[0], v['at'][1] - shift[1]]
+        if any(abs(n) > 1_000_000_000 for n in orig_at):
+            raise ValueError('Rust output via coordinates exceed supported native range')
         via = pcbnew.PCB_VIA(board)
         via.SetUuid(pcbnew.KIID(ident))
         via.SetNetCode(v['net'])
         via.SetViaType(kicad_via_type)
         via.SetLayerPair(cu_layers[s_idx], cu_layers[e_idx])
-        via.SetPosition(pcbnew.VECTOR2I(*v['at']))
+        via.SetPosition(pcbnew.VECTOR2I(*orig_at))
         for lid in cu_layers[s_idx:e_idx + 1]:
             via.SetWidth(lid, v['diameter_nm'])
         via.SetDrill(v['drill_nm'])
@@ -2154,21 +2376,18 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             if saved is None:
                 raise NativeValidationError('KiCad could not reload the refilled candidate')
             saved.BuildConnectivity()
-            before_unconnected = saved.GetConnectivity().GetUnconnectedCount(False)
-            if before_unconnected != 0:
-                raise NativeValidationError('native connectivity still has open connections')
         else:
             saved = pcbnew.LoadBoard(str(temporary))
             if saved is None:
                 raise NativeValidationError('KiCad could not reload the saved candidate')
             saved.BuildConnectivity()
-            before_unconnected = saved.GetConnectivity().GetUnconnectedCount(False)
-            if before_unconnected != 0:
-                raise NativeValidationError('native connectivity still has open connections')
             before = native_violations(source, directory / 'before-drc.json', timeout=drc_timeout)
             after = native_violations(temporary, directory / 'after-drc.json', timeout=drc_timeout)
-        if after['unconnected_items']:
-            raise NativeValidationError('native DRC still reports open connections')
+        ro_doc = req_doc.get('routing_options') if isinstance(req_doc, dict) else None
+        net_filters = ro_doc.get('net_filters', []) if isinstance(ro_doc, dict) else []
+        if not isinstance(net_filters, list):
+            net_filters = []
+        _verify_saved_connectivity(saved, before, after, [str(x) for x in net_filters])
         key = lambda violation: json.dumps(violation, sort_keys=True)
         introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
         if introduced:

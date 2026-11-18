@@ -1010,10 +1010,12 @@ fn analyze_blockers(
 }
 
 fn trial_cap_for(batch_limit: u64, max_ok_unit_exp: u64) -> u64 {
-    (batch_limit / 5)
-        .max(max_ok_unit_exp.saturating_mul(4))
-        .min(batch_limit / 2)
-        .max(TRIAL_EXPANSION_CAP)
+    let half = (batch_limit / 2).max(1);
+    let floor = TRIAL_EXPANSION_CAP.min(half).max(1);
+    if max_ok_unit_exp == 0 {
+        return floor;
+    }
+    max_ok_unit_exp.saturating_mul(6).clamp(floor, half)
 }
 
 enum TryUnitErr {
@@ -1579,6 +1581,7 @@ fn solve_with_adapter_units(
     let mut failed_units: Vec<RouteUnitId> = Vec::new();
     let mut stats = NegotiationStats::default();
     let mut routed_rippable_count = 0usize;
+    let mut routed_any_count = 0usize;
     let mut max_ok_unit_exp: u64 = 0;
     let mut no_trial_cap: BTreeSet<RouteUnitId> = BTreeSet::new();
     let mut saw_any_blockers = false;
@@ -1606,6 +1609,7 @@ fn solve_with_adapter_units(
             Ok(()) => {
                 max_ok_unit_exp = max_ok_unit_exp.max(expanded.saturating_sub(unit_exp_before));
                 stats.initial_routed += 1;
+                routed_any_count += 1;
                 if u.rippable_by_single {
                     routed_rippable_count += 1;
                 }
@@ -1749,7 +1753,14 @@ fn solve_with_adapter_units(
     }
 
     let mut first_failed = failed_units[0];
-    if !saw_any_blockers && (routed_rippable_count == 0 || !saw_truncated_frontier) {
+    let mut min_failed_tier = failed_units
+        .iter()
+        .filter_map(|id| spec_by_id.get(id).map(|s| s.priority_tier))
+        .min()
+        .unwrap_or(1);
+    let can_rip_routed =
+        routed_rippable_count > 0 || (min_failed_tier == 0 && routed_any_count > 0);
+    if !saw_any_blockers && (!can_rip_routed || !saw_truncated_frontier) {
         stats.history_cells_peak = history.peak_len();
         stats.history_evictions = history.evictions();
         stats.expanded_states = *expanded;
@@ -1778,13 +1789,14 @@ fn solve_with_adapter_units(
         let mut pass_rip_counts: BTreeMap<RouteUnitId, u32> = BTreeMap::new();
         let pass_res = tx.transaction(|pass_tx| -> Result<(), PassOutcome> {
             for u in units.iter().rev() {
-                if u.rippable_by_single {
+                if u.rippable_by_single || u.priority_tier >= min_failed_tier {
                     adapter
                         .rip_unit(pass_tx.engine, u.id)
                         .map_err(PassOutcome::Fatal)?;
                 }
             }
             let mut rippable_routed_in_pass = 0usize;
+            let mut routed_any_in_pass = 0usize;
             for u in &reordered {
                 pass_tx.engine.charge_work(1).map_err(PassOutcome::Fatal)?;
                 let unit_exp_before = *expanded;
@@ -1804,6 +1816,7 @@ fn solve_with_adapter_units(
                     Ok(()) => {
                         max_ok_unit_exp =
                             max_ok_unit_exp.max(expanded.saturating_sub(unit_exp_before));
+                        routed_any_in_pass += 1;
                         if u.rippable_by_single {
                             rippable_routed_in_pass += 1;
                         }
@@ -1835,6 +1848,7 @@ fn solve_with_adapter_units(
                             &mut max_ok_unit_exp,
                         ) {
                             Ok((true, _)) => {
+                                routed_any_in_pass += 1;
                                 if u.rippable_by_single {
                                     rippable_routed_in_pass += 1;
                                 }
@@ -1863,6 +1877,7 @@ fn solve_with_adapter_units(
                                             no_trial_cap.insert(u.id);
                                             max_ok_unit_exp = max_ok_unit_exp
                                                 .max(expanded.saturating_sub(retry_before));
+                                            routed_any_in_pass += 1;
                                             if u.rippable_by_single {
                                                 rippable_routed_in_pass += 1;
                                             }
@@ -1895,7 +1910,10 @@ fn solve_with_adapter_units(
                                     }
                                 }
                                 *failed_history_count.entry(u.id).or_insert(0) += 1;
-                                if rippable_routed_in_pass == 0 && top_b.is_none() {
+                                if rippable_routed_in_pass == 0
+                                    && !(u.priority_tier == 0 && routed_any_in_pass > 0)
+                                    && top_b.is_none()
+                                {
                                     return Err(PassOutcome::Unrecoverable(u.id));
                                 }
                                 if let Some(top) = top_b {
@@ -1945,6 +1963,9 @@ fn solve_with_adapter_units(
             }
             Err(TransactionError::Operation(PassOutcome::Unroutable(u_id))) => {
                 first_failed = u_id;
+                if let Some(s) = spec_by_id.get(&u_id) {
+                    min_failed_tier = min_failed_tier.min(s.priority_tier);
+                }
             }
         }
     }
@@ -2021,6 +2042,9 @@ mod tests {
                     orientation_mdeg: 0,
                     shape: Shape::Circle { radius_nm: 2 },
                     drill: None,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 },
                 Pad {
                     id: "10000000-0000-4000-8000-000000000002".into(),
@@ -2035,6 +2059,9 @@ mod tests {
                     orientation_mdeg: 0,
                     shape: Shape::Circle { radius_nm: 2 },
                     drill: None,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
                 },
             ],
             tracks: Vec::new(),
@@ -2051,6 +2078,9 @@ mod tests {
             custom_rules: None,
             effective_rules: None,
             zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
         }
     }
 

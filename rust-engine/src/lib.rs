@@ -44,6 +44,7 @@ pub struct Engine {
     last_negotiation_stats: Option<negotiate::NegotiationStats>,
     last_block_generated: std::cell::Cell<bool>,
     prefer_higher_g: bool,
+    delay_profile_layers: std::collections::BTreeMap<u32, std::collections::BTreeSet<String>>,
 }
 /// Engine scope admission errors are distinct from an arbitrary caller error.
 #[derive(Debug, PartialEq, Eq)]
@@ -692,6 +693,7 @@ impl Engine {
             last_negotiation_stats: None,
             last_block_generated: std::cell::Cell::new(false),
             prefer_higher_g: false,
+            delay_profile_layers: std::collections::BTreeMap::new(),
         })
     }
     /// Group routing operations atomically. `Ok` commits this scope; `Err`
@@ -865,7 +867,12 @@ impl Engine {
         let _scope = self.work.scope();
         self.work.charge(1)?;
         let layer_name = &self.layer_names[layer_idx];
-        if self.effective_rules.disallow_track_on(net, layer_name) {
+        if self.effective_rules.disallow_track_on(net, layer_name)
+            || self
+                .delay_profile_layers
+                .get(&net)
+                .is_some_and(|allowed| !allowed.contains(layer_name))
+        {
             return Ok(false);
         }
         let r = self.input.rules;
@@ -2919,12 +2926,34 @@ impl Engine {
     }
     pub fn route_all(&mut self) -> Result<u64, Failure> {
         self.last_negotiation_stats = None;
-        self.operation(|tx| {
-            let mut adapter = negotiate::SingleEndedAdapter::all();
-            let mut expanded = 0;
-            let _stats = negotiate::solve_with_adapter(tx, &mut adapter, &mut expanded)?;
+        self.delay_profile_layers.clear();
+        let res = self.operation(|tx| {
+            let diff_state = diff_pair::plan_diff_pairs(tx.engine)?;
+            tx.engine.delay_profile_layers =
+                diff_pair::delay_profile_layers(tx.engine, &diff_state);
+            let mut expanded = 0u64;
+            if diff_state.plan.pairs.is_empty() {
+                let mut pinned_nets = diff_state.routed_pair_nets.clone();
+                pinned_nets.extend(diff_state.protected_nets.iter().copied());
+                let mut adapter = negotiate::SingleEndedAdapter::new(
+                    pinned_nets,
+                    diff_state.active_single_ended_nets.clone(),
+                );
+                let _stats = negotiate::solve_with_adapter(tx, &mut adapter, &mut expanded)?;
+            } else {
+                let mut adapter = diff_pair::CompositeRouteAdapter::new(diff_state.clone());
+                let _stats = negotiate::solve_with_adapter(tx, &mut adapter, &mut expanded)?;
+            }
+            diff_pair::apply_length_matching_in_tx(tx.engine, &diff_state).map_err(|mut e| {
+                if e.expanded_states == 0 {
+                    e.expanded_states = expanded;
+                }
+                e
+            })?;
             Ok(expanded)
-        })
+        });
+        self.delay_profile_layers.clear();
+        res
     }
     /// Route one known nonzero net, preserving already-connected copper.
     /// The expansion limit applies to this operation, not its enclosing scope.
