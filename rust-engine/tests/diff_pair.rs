@@ -2064,3 +2064,190 @@ fn r4_multilayer_start_end_and_ortho_pads_aligned_leads() {
         }
     }
 }
+
+#[test]
+fn r5_asymmetric_pad_fromto_zero_offset_xcross_split_and_dp_pn_indiffpair() {
+    // 1. Asymmetric SMD pads (1.2x1.2mm vs 0.25x0.25mm) in SE length_match_groups:
+    //    measure_net_fromto adds 0.0mm pad-center offset, so actual copper lengths match within tol.
+    let mut asym = base_diff_input(&["SIG_A", "SIG_B"]);
+    asym.pads.clear();
+    let mut pa1 = pad(1, 1, [10_000_000, 15_000_000], &["F.Cu"]);
+    pa1.shape = Shape::Rect {
+        half_size_nm: [600_000, 600_000],
+    };
+    let mut pa2 = pad(2, 1, [35_000_000, 15_000_000], &["F.Cu"]);
+    pa2.shape = Shape::Rect {
+        half_size_nm: [600_000, 600_000],
+    };
+    let mut pb1 = pad(3, 2, [10_000_000, 25_000_000], &["F.Cu"]);
+    pb1.shape = Shape::Rect {
+        half_size_nm: [125_000, 125_000],
+    };
+    let mut pb2 = pad(4, 2, [30_000_000, 25_000_000], &["F.Cu"]);
+    pb2.shape = Shape::Rect {
+        half_size_nm: [125_000, 125_000],
+    };
+    asym.pads.extend([pa1, pa2, pb1, pb2]);
+    asym.routing_options = Some(RoutingOptions {
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["SIG_A".into(), "SIG_B".into()],
+            ..Default::default()
+        }],
+        group_match_tolerance_nm: Some(100_000),
+        group_meander_amplitude_nm: Some(3_000_000),
+        ..Default::default()
+    });
+    let mut eng_asym = Engine::new(asym).unwrap();
+    eng_asym.route(1, 50_000).unwrap();
+    eng_asym.route(2, 50_000).unwrap();
+    let st_asym = prepare_and_route_pairs_in_tx(&mut eng_asym).unwrap();
+    apply_length_matching_in_tx(&mut eng_asym, &st_asym).unwrap();
+    let sum_net_copper = |eng: &Engine, nid: u32| -> f64 {
+        eng.copper()
+            .tracks()
+            .filter(|t| t.net == nid)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum()
+    };
+    let len_a = sum_net_copper(&eng_asym, 1);
+    let len_b = sum_net_copper(&eng_asym, 2);
+    assert!(
+        (len_a - len_b).abs() <= 100_000.0,
+        "asymmetric pad SE copper skew exceeded 0.10mm: SIG_A={len_a}, SIG_B={len_b}"
+    );
+
+    // 2. Non-incident X-crossing tracks match KiCad 10.0.8 fromTo:
+    //    unsplit crossing tracks incur len(ta) + len(tb) (35.4626mm on x_cross_open / x_closed_loop,
+    //    31.6228mm on x_simple_open), while explicit shared-vertex tracks prune stubs (24.1994mm).
+    let run_xcross_probe = |segs: &[([i64; 2], [i64; 2])]| -> f64 {
+        let mut xc = base_diff_input(&["SIG_P", "SIG_N"]);
+        xc.pads.clear();
+        let mut px1 = pad(1, 1, [10_000_000, 20_000_000], &["F.Cu"]);
+        px1.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut px2 = pad(2, 1, [30_000_000, 20_000_000], &["F.Cu"]);
+        px2.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut pn1 = pad(3, 2, [10_000_000, 30_000_000], &["F.Cu"]);
+        pn1.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut pn2 = pad(4, 2, [28_000_000, 30_000_000], &["F.Cu"]);
+        pn2.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        xc.pads.extend([px1, px2, pn1, pn2]);
+        for (idx, &(a, b)) in segs.iter().enumerate() {
+            xc.tracks.push(Track {
+                id: uuid(800 + idx as u64),
+                net: 1,
+                start: a,
+                end: b,
+                width_nm: 300_000,
+                locked: false,
+                layer: "F.Cu".into(),
+            });
+        }
+        xc.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["SIG_P".into(), "SIG_N".into()],
+                ..Default::default()
+            }],
+            group_match_tolerance_nm: Some(100_000),
+            group_meander_amplitude_nm: Some(4_000_000),
+            ..Default::default()
+        });
+        let mut eng_xc = Engine::new(xc).unwrap();
+        eng_xc.route(2, 50_000).unwrap();
+        let st_xc = prepare_and_route_pairs_in_tx(&mut eng_xc).unwrap();
+        apply_length_matching_in_tx(&mut eng_xc, &st_xc).unwrap();
+        sum_net_copper(&eng_xc, 2)
+    };
+    let len_x_open = run_xcross_probe(&[
+        ([10_000_000, 20_000_000], [22_000_000, 22_000_000]),
+        ([15_000_000, 25_000_000], [15_000_000, 17_000_000]),
+        ([15_000_000, 17_000_000], [30_000_000, 20_000_000]),
+    ]);
+    assert!(
+        (len_x_open - 35_462_584.0).abs() <= 150_000.0,
+        "x_cross_open SIG_N copper {len_x_open} did not match KiCad 10.0.8 35.4626mm"
+    );
+    let len_x_closed = run_xcross_probe(&[
+        ([10_000_000, 20_000_000], [22_000_000, 22_000_000]),
+        ([22_000_000, 22_000_000], [15_000_000, 25_000_000]),
+        ([15_000_000, 25_000_000], [15_000_000, 17_000_000]),
+        ([15_000_000, 17_000_000], [30_000_000, 20_000_000]),
+    ]);
+    assert!(
+        (len_x_closed - 35_462_584.0).abs() <= 150_000.0,
+        "x_closed_loop SIG_N copper {len_x_closed} did not match KiCad 10.0.8 35.4626mm"
+    );
+    let len_x_simple = run_xcross_probe(&[
+        ([10_000_000, 20_000_000], [25_000_000, 25_000_000]),
+        ([15_000_000, 25_000_000], [30_000_000, 20_000_000]),
+    ]);
+    assert!(
+        (len_x_simple - 31_622_777.0).abs() <= 150_000.0,
+        "x_simple_open SIG_N copper {len_x_simple} did not match KiCad 10.0.8 31.6228mm"
+    );
+    let len_x_shared = run_xcross_probe(&[
+        ([10_000_000, 20_000_000], [15_000_000, 20_833_333]),
+        ([15_000_000, 20_833_333], [22_000_000, 22_000_000]),
+        ([15_000_000, 25_000_000], [15_000_000, 20_833_333]),
+        ([15_000_000, 20_833_333], [15_000_000, 17_000_000]),
+        ([15_000_000, 17_000_000], [30_000_000, 20_000_000]),
+    ]);
+    assert!(
+        (len_x_shared - 24_199_361.0).abs() <= 150_000.0,
+        "x_shared_vertex SIG_N copper {len_x_shared} did not match KiCad 10.0.8 24.1994mm"
+    );
+
+    // 3. (DP_P, DP_N) matches both A.inDiffPair('DP') and A.inDiffPair('DP_') (not 'DP_P'),
+    //    while (DP+, DP-) matches A.inDiffPair('DP') and NOT A.inDiffPair('DP_').
+    let mut dp_pn = base_diff_input(&["DP_P", "DP_N"]);
+    dp_pn.custom_rules = Some(
+        "(version 1)\n(rule \"dp\" (condition \"A.inDiffPair('DP')\") (constraint skew (max 0.025mm)))".into(),
+    );
+    let r_pn = resolve_effective_rules(&mut dp_pn).unwrap();
+    let plan_pn = discover_and_validate(&dp_pn, &r_pn).unwrap();
+    assert_eq!(plan_pn.pairs[0].stem, "DP");
+    assert_eq!(plan_pn.pairs[0].dru_skew_max_nm, Some(25_000));
+
+    dp_pn.custom_rules = Some(
+        "(version 1)\n(rule \"dp_\" (condition \"A.inDiffPair('DP_')\") (constraint skew (max 0.030mm)))".into(),
+    );
+    let r_pn_ = resolve_effective_rules(&mut dp_pn).unwrap();
+    let plan_pn_ = discover_and_validate(&dp_pn, &r_pn_).unwrap();
+    assert_eq!(plan_pn_.pairs[0].stem, "DP");
+    assert_eq!(plan_pn_.pairs[0].dru_skew_max_nm, Some(30_000));
+
+    dp_pn.custom_rules = Some(
+        "(version 1)\n(rule \"dp_p\" (condition \"A.inDiffPair('DP_P')\") (constraint skew (max 0.030mm)))".into(),
+    );
+    let r_pn_p = resolve_effective_rules(&mut dp_pn).unwrap();
+    assert_eq!(
+        discover_and_validate(&dp_pn, &r_pn_p).unwrap().pairs[0].dru_skew_max_nm,
+        None
+    );
+
+    let mut dp_pm = base_diff_input(&["DP+", "DP-"]);
+    dp_pm.custom_rules = Some(
+        "(version 1)\n(rule \"dp\" (condition \"A.inDiffPair('DP')\") (constraint skew (max 0.025mm)))".into(),
+    );
+    let r_pm = resolve_effective_rules(&mut dp_pm).unwrap();
+    assert_eq!(
+        discover_and_validate(&dp_pm, &r_pm).unwrap().pairs[0].dru_skew_max_nm,
+        Some(25_000)
+    );
+
+    dp_pm.custom_rules = Some(
+        "(version 1)\n(rule \"dp_\" (condition \"A.inDiffPair('DP_')\") (constraint skew (max 0.030mm)))".into(),
+    );
+    let r_pm_ = resolve_effective_rules(&mut dp_pm).unwrap();
+    assert_eq!(
+        discover_and_validate(&dp_pm, &r_pm_).unwrap().pairs[0].dru_skew_max_nm,
+        None
+    );
+}

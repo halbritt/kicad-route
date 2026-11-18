@@ -293,6 +293,37 @@ fn classify_pair_name(name: &str) -> Option<(String, PairConv, PairRole)> {
     None
 }
 
+/// KiCad `DRC_ENGINE::MatchDpSuffix`: scans from the end skipping ASCII digits and `'_'`,
+/// then matches `'+'`/`'-'`/`'P'`/`'N'` and returns `(complement_net_name, dru_base_stem)`.
+fn match_dp_suffix(name: &str) -> Option<(String, String)> {
+    if name.starts_with("Net-(") {
+        return None;
+    }
+    let bytes = name.as_bytes();
+    let mut i = bytes.len();
+    while i > 0 {
+        let b = bytes[i - 1];
+        if b.is_ascii_digit() || b == b'_' {
+            i -= 1;
+            continue;
+        }
+        let comp = match b {
+            b'+' => '-',
+            b'-' => '+',
+            b'P' => 'N',
+            b'N' => 'P',
+            _ => return None,
+        };
+        let base = &name[..i - 1];
+        if base.is_empty() {
+            return None;
+        }
+        let tail = &name[i..];
+        return Some((format!("{base}{comp}{tail}"), base.to_owned()));
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------
 // Closed-form Differential Impedance Equations (ported from impedance.py)
 // ---------------------------------------------------------------------------
@@ -855,7 +886,8 @@ fn net_pad_tokens(input: &Input, net_id: u32) -> Vec<String> {
 fn resolve_pair_dru_bounds(
     input: &Input,
     rules: &EffectiveRules,
-    stem: &str,
+    display_stem: &str,
+    dru_stem: &str,
     pos_net: u32,
     neg_net: u32,
     pos_name: &str,
@@ -907,7 +939,7 @@ fn resolve_pair_dru_bounds(
                 }
             }
             if let Some(cond) = &r.condition {
-                if !eval_dru_expr_for_context(cond, &item, None, Some(stem), ft_ref) {
+                if !eval_dru_expr_for_context(cond, &item, None, Some(dru_stem), ft_ref) {
                     continue;
                 }
             }
@@ -958,13 +990,13 @@ fn resolve_pair_dru_bounds(
                             cond,
                             &pos_item,
                             None,
-                            Some(stem),
+                            Some(dru_stem),
                             (!pos_ft.is_empty()).then_some(pos_ft.as_slice()),
                         ) && eval_dru_expr_for_context(
                             cond,
                             &neg_item,
                             None,
-                            Some(stem),
+                            Some(dru_stem),
                             (!neg_ft.is_empty()).then_some(neg_ft.as_slice()),
                         );
                         let any_other = input.nets.iter().any(|on| {
@@ -1003,7 +1035,9 @@ fn resolve_pair_dru_bounds(
         if lo > hi {
             return Err(Failure::new(
                 Status::Invalid,
-                format!("conflicting DRC diff_pair_gap bounds ({lo} > {hi}) for pair {stem:?}"),
+                format!(
+                    "conflicting DRC diff_pair_gap bounds ({lo} > {hi}) for pair {display_stem:?}"
+                ),
             ));
         }
     }
@@ -1240,33 +1274,25 @@ fn discover_and_validate_with_copper(
 
     let mut pair_stem_by_net: BTreeMap<u32, String> = BTreeMap::new();
     for (stem, p, n) in &raw_pairs {
-        pair_stem_by_net.insert(*p, stem.clone());
-        pair_stem_by_net.insert(*n, stem.clone());
+        let dru_stem = match_dp_suffix(name_by_id[p])
+            .filter(|(comp, _)| comp == name_by_id[n])
+            .or_else(|| match_dp_suffix(name_by_id[n]).filter(|(comp, _)| comp == name_by_id[p]))
+            .map(|(_, base)| base)
+            .unwrap_or_else(|| stem.clone());
+        pair_stem_by_net.insert(*p, dru_stem.clone());
+        pair_stem_by_net.insert(*n, dru_stem);
     }
     {
-        let mut board_groups: BTreeMap<(String, u8), (Option<u32>, Option<u32>)> = BTreeMap::new();
         for n in &input.nets {
-            if n.id == 0 {
+            if n.id == 0 || pair_stem_by_net.contains_key(&n.id) {
                 continue;
             }
-            if let Some((stem, conv, role)) = classify_pair_name(&n.name) {
-                let conv_key = match conv {
-                    PairConv::UnderscorePN => 0u8,
-                    PairConv::PlusMinus => 1u8,
-                    PairConv::BarePN => 2u8,
-                };
-                let entry = board_groups.entry((stem, conv_key)).or_insert((None, None));
-                match role {
-                    PairRole::Pos => entry.0 = Some(n.id),
-                    PairRole::Neg => entry.1 = Some(n.id),
-                }
-            }
-        }
-        for ((stem, _), (pos_opt, neg_opt)) in board_groups {
-            if let (Some(p), Some(n)) = (pos_opt, neg_opt) {
-                if !pair_stem_by_net.contains_key(&p) && !pair_stem_by_net.contains_key(&n) {
-                    pair_stem_by_net.insert(p, stem.clone());
-                    pair_stem_by_net.insert(n, stem);
+            if let Some((comp, base)) = match_dp_suffix(&n.name) {
+                if let Some(&comp_id) = net_by_name.get(comp.as_str()) {
+                    if comp_id != n.id && !pair_stem_by_net.contains_key(&comp_id) {
+                        pair_stem_by_net.insert(n.id, base.clone());
+                        pair_stem_by_net.insert(comp_id, base);
+                    }
                 }
             }
         }
@@ -1331,11 +1357,16 @@ fn discover_and_validate_with_copper(
                 ),
             ));
         }
+        let dru_stem = pair_stem_by_net
+            .get(&pos_net)
+            .map(String::as_str)
+            .unwrap_or(&stem);
         let (dru_gap_min, dru_gap_max, dru_uncoupled, dru_max_width, dru_skew_max_nm) =
             resolve_pair_dru_bounds(
                 input,
                 rules,
                 &stem,
+                dru_stem,
                 pos_net,
                 neg_net,
                 &pos_name,
@@ -2127,18 +2158,25 @@ fn measure_net_fromto(
                     }
                 }
             } else {
-                let mut best_pair = (ta.start, tb.start, dist_f64(ta.start, tb.start));
+                // KiCad 10 fromTo treats unsplit crossing tracks as indivisible items:
+                // crossing from ta to tb incurs len(ta) + len(tb) and matching layer delay.
+                let layer_delay_rate = if let Some(pr) = prof {
+                    pr.layer_entries
+                        .iter()
+                        .find(|le| le.signal_layer == ta.layer)
+                        .map_or(0.0, |le| le.delay_as_per_mm as f64)
+                } else {
+                    0.0
+                };
+                let len_sum = dist_f64(ta.start, ta.end) + dist_f64(tb.start, tb.end);
+                let del_sum = (len_sum / 1_000_000.0) * layer_delay_rate;
                 for &pa in &[ta.start, ta.end] {
+                    let u = get_node(pa, li, &mut node_ids, &mut nodes);
                     for &pb in &[tb.start, tb.end] {
-                        let d = dist_f64(pa, pb);
-                        if d < best_pair.2 {
-                            best_pair = (pa, pb, d);
-                        }
+                        let w = get_node(pb, li, &mut node_ids, &mut nodes);
+                        add_edge(u, w, len_sum, del_sum, nodes.len(), &mut edges, &mut adj);
                     }
                 }
-                let u = get_node(best_pair.0, li, &mut node_ids, &mut nodes);
-                let w = get_node(best_pair.1, li, &mut node_ids, &mut nodes);
-                add_edge(u, w, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
             }
         }
     }
@@ -2153,18 +2191,13 @@ fn measure_net_fromto(
                 active_layers.push(li);
             }
         }
-        // Also connect pads overlapping the via center
+        // Register via center nodes on pad-overlapping layers so via-in-pad connects cleanly
         for p in &pads {
             if geometry::via_connects_pad(v, p) {
                 let p_layers = pad_layer_indices(engine, p);
                 for li in p_layers {
                     if li >= s.min(e) && li <= s.max(e) {
-                        let pn = get_node(p.at, li, &mut node_ids, &mut nodes);
-                        let vn = get_node(v.at, li, &mut node_ids, &mut nodes);
-                        if pn != vn {
-                            let d = ((v.at[0] - p.at[0]) as f64).hypot((v.at[1] - p.at[1]) as f64);
-                            add_edge(pn, vn, d, 0.0, nodes.len(), &mut edges, &mut adj);
-                        }
+                        let _ = get_node(v.at, li, &mut node_ids, &mut nodes);
                         if !active_layers.contains(&li) {
                             active_layers.push(li);
                         }
@@ -2272,16 +2305,18 @@ fn measure_net_fromto(
                     if pt_li == li && pt != p.at && geometry::track_near_pad(pt, pt, 0, 0, p, false)
                     {
                         let nid = node_ids[&(pt, pt_li)];
-                        add_edge(
-                            super_id,
-                            nid,
-                            dist_f64(pt, p.at),
-                            0.0,
-                            nodes.len(),
-                            &mut edges,
-                            &mut adj,
-                        );
+                        add_edge(super_id, nid, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
                         direct_pad_hit = true;
+                    }
+                }
+                for v in &vias {
+                    let s = engine.layer_index(&v.start_layer).unwrap_or(0);
+                    let e = engine.layer_index(&v.end_layer).unwrap_or(s);
+                    if li >= s.min(e) && li <= s.max(e) && geometry::via_connects_pad(v, p) {
+                        if let Some(&nid) = node_ids.get(&(v.at, li)) {
+                            add_edge(super_id, nid, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
+                            direct_pad_hit = true;
+                        }
                     }
                 }
             }
@@ -2297,15 +2332,7 @@ fn measure_net_fromto(
                             t.end
                         };
                         if let Some(&nid) = node_ids.get(&(closer, li)) {
-                            add_edge(
-                                super_id,
-                                nid,
-                                dist_f64(closer, p.at),
-                                0.0,
-                                nodes.len(),
-                                &mut edges,
-                                &mut adj,
-                            );
+                            add_edge(super_id, nid, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
                         }
                     }
                 }
@@ -4874,15 +4901,27 @@ fn validate_and_build_coupled_solution(
         }
     }
     // Reject non-incident same-net same-layer track-to-track copper overlaps (< width_nm stub bypasses)
+    let is_short_via_jog = |tr: &Track| -> bool {
+        let Some(li) = engine.layer_index(&tr.layer) else {
+            return false;
+        };
+        vias.iter().any(|v| {
+            if v.net != tr.net || (tr.start != v.at && tr.end != v.at) {
+                return false;
+            }
+            let s_idx = engine.layer_index(&v.start_layer).unwrap_or(0);
+            let e_idx = engine.layer_index(&v.end_layer).unwrap_or(s_idx);
+            li >= s_idx.min(e_idx)
+                && li <= s_idx.max(e_idx)
+                && dist_f64(tr.start, tr.end) * 2.0 < (v.diameter_nm + tr.width_nm) as f64
+        })
+    };
     for i in 0..tracks.len() {
         let ta = &tracks[i];
         if ta.start == ta.end {
             continue;
         }
-        let ta_via = vias
-            .iter()
-            .any(|v| v.net == ta.net && (ta.start == v.at || ta.end == v.at));
-        if ta_via {
+        if is_short_via_jog(ta) {
             continue;
         }
         for tb in &tracks[(i + 1)..] {
@@ -4893,10 +4932,7 @@ fn validate_and_build_coupled_solution(
             {
                 continue;
             }
-            let tb_via = vias
-                .iter()
-                .any(|v| v.net == tb.net && (tb.start == v.at || tb.end == v.at));
-            if tb_via {
+            if is_short_via_jog(tb) {
                 continue;
             }
             let gap2 = i128::from(ta.width_nm) + i128::from(tb.width_nm);
