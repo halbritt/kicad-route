@@ -954,3 +954,214 @@ def test_native_asymmetric_rotated_trapezoid_boundary_and_drc(native_board, tmp_
     # Verify exact KiCad effective shape orientation (not reflected -30 deg).
     assert any(x > 10_900_000 and y < 17_900_000 for x, y in verts)
     assert not any(x > 10_900_000 and y > 18_200_000 for x, y in verts)
+
+
+def _add_poly_shape(parent, layer, net, filled, width, outer, holes=()):
+    shape = pcbnew.PCB_SHAPE(parent)
+    shape.SetLayer(layer)
+    shape.SetShape(pcbnew.SHAPE_T_POLY)
+    shape.SetFilled(filled)
+    shape.SetWidth(width)
+    if net is not None:
+        shape.SetNetCode(net)
+    poly_set = pcbnew.SHAPE_POLY_SET()
+    out_idx = poly_set.NewOutline()
+    for pt in outer:
+        poly_set.Append(pt[0], pt[1], out_idx)
+    for hole in holes:
+        hole_idx = poly_set.NewHole(out_idx)
+        for pt in hole:
+            poly_set.Append(pt[0], pt[1], out_idx, hole_idx)
+    shape.SetPolyShape(poly_set)
+    parent.Add(shape)
+    return shape
+
+
+def test_native_saved_reloaded_holed_gr_poly_and_overlapping_unotch_merge(
+    native_board, tmp_path
+):
+    board = pcbnew.LoadBoard(str(native_board))
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    # 2-hole filled F.Cu gr_poly covering J1=(3M, 10M) up to x=15.5M.
+    _add_poly_shape(
+        board,
+        pcbnew.F_Cu,
+        1,
+        True,
+        0,
+        [(2_000_000, 4_000_000), (15_500_000, 4_000_000),
+         (15_500_000, 16_000_000), (2_000_000, 16_000_000)],
+        holes=[
+            [(6_000_000, 5_000_000), (8_000_000, 5_000_000),
+             (8_000_000, 9_000_000), (6_000_000, 9_000_000)],
+            [(10_000_000, 5_000_000), (12_000_000, 5_000_000),
+             (12_000_000, 14_000_000), (10_000_000, 14_000_000)],
+        ],
+    )
+    # Overlapping U-notch 1-hole filled F.Cu gr_poly covering J2=(17M, 10M).
+    _add_poly_shape(
+        board,
+        pcbnew.F_Cu,
+        1,
+        True,
+        0,
+        [(15_000_000, 4_000_000), (18_000_000, 4_000_000),
+         (18_000_000, 16_000_000), (15_000_000, 16_000_000),
+         (15_000_000, 13_000_000), (16_000_000, 13_000_000),
+         (16_000_000, 7_000_000), (15_000_000, 7_000_000)],
+        holes=[
+            [(16_500_000, 4_500_000), (17_500_000, 4_500_000),
+             (17_500_000, 6_000_000), (16_500_000, 6_000_000)],
+        ],
+    )
+    save(native_board, board)
+
+    # Confirm KiCad SaveBoard/LoadBoard fractured the holes before export.
+    reloaded = pcbnew.LoadBoard(str(native_board))
+    fcu_polys = [
+        d for d in reloaded.GetDrawings()
+        if d.GetLayer() == pcbnew.F_Cu and d.GetShape() == pcbnew.SHAPE_T_POLY
+    ]
+    assert len(fcu_polys) == 2
+    assert all(d.GetPolyShape().HoleCount(0) == 0 for d in fcu_polys)
+
+    data = bridge.export_board(native_board, RULES, 100000)
+    hole_counts = sorted(len(g["shape"].get("holes", [])) for g in data["graphics"])
+    assert hole_counts == [1, 2]
+    assert all(g["shape"]["filled"] is True for g in data["graphics"])
+
+    request, plan = execute(native_board, data, tmp_path)
+    assert plan["added_tracks"] == []
+    output = tmp_path / "holed-merge.kicad_pcb"
+    bridge.apply_plan(native_board, plan, output, expected_request=request.read_bytes())
+    after = bridge.native_violations(output, tmp_path / "holed-merge-drc.json")
+    assert after["unconnected_items"] == []
+    assert after["violations"] == []
+
+
+def test_native_saved_reloaded_holed_fp_poly_and_multi_outline_route_and_drc(
+    native_board, tmp_path
+):
+    board = pcbnew.LoadBoard(str(native_board))
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    ds = board.GetDesignSettings()
+    ds.m_SolderMaskMinWidth = 200_000
+    ds.m_SolderMaskToCopperClearance = 100_000
+
+    fp = pcbnew.FOOTPRINT(board)
+    fp.SetReference("PO_HOLE")
+    fp.Reference().SetVisible(False)
+    fp.SetPosition(pcbnew.VECTOR2I(6_500_000, 10_000_000))
+    board.Add(fp)
+    _add_poly_shape(
+        fp,
+        pcbnew.F_Cu,
+        None,
+        True,
+        0,
+        [(5_500_000, 6_000_000), (7_500_000, 6_000_000),
+         (7_500_000, 14_000_000), (5_500_000, 14_000_000)],
+        holes=[
+            [(6_000_000, 7_000_000), (7_000_000, 7_000_000),
+             (7_000_000, 13_000_000), (6_000_000, 13_000_000)],
+        ],
+    )
+    # Pinched filled gr_poly that Unfracture() splits into 2 disjoint outlines.
+    _add_poly_shape(
+        board,
+        pcbnew.F_Cu,
+        0,
+        True,
+        0,
+        [(12_500_000, 6_000_000), (13_200_000, 6_000_000),
+         (13_200_000, 8_000_000), (13_800_000, 8_000_000),
+         (13_800_000, 6_000_000), (14_500_000, 6_000_000),
+         (14_500_000, 10_000_000), (13_800_000, 10_000_000),
+         (13_800_000, 8_000_000), (13_200_000, 8_000_000),
+         (13_200_000, 10_000_000), (12_500_000, 10_000_000)],
+    )
+    # F.Mask holed polygon aperture away from copper paths.
+    _add_poly_shape(
+        board,
+        pcbnew.F_Mask,
+        None,
+        True,
+        0,
+        [(12_500_000, 14_000_000), (15_500_000, 14_000_000),
+         (15_500_000, 18_000_000), (12_500_000, 18_000_000)],
+        holes=[
+            [(13_000_000, 15_000_000), (15_000_000, 15_000_000),
+             (15_000_000, 17_000_000), (13_000_000, 17_000_000)],
+        ],
+    )
+    save(native_board, board)
+
+    data, plan, output = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    assert len(data["graphics"]) == 3  # 1 fp_poly + 2 split outlines
+    assert sorted(len(g["shape"].get("holes", [])) for g in data["graphics"]) == [0, 0, 1]
+    assert len(data["mask_apertures"]) == 1
+    assert len(data["mask_apertures"][0]["shape"]["holes"]) == 1
+    after = bridge.native_violations(output, tmp_path / "fp-poly-drc.json")
+    assert after["unconnected_items"] == []
+    assert after["violations"] == []
+
+
+def test_native_unfilled_poly_positive_control_routes_and_drc(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    _add_poly_shape(
+        board,
+        pcbnew.F_Cu,
+        0,
+        False,
+        200_000,
+        [(12_500_000, 6_000_000), (14_500_000, 6_000_000),
+         (14_500_000, 10_000_000), (12_500_000, 10_000_000)],
+    )
+    save(native_board, board)
+    data, plan, output = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    assert len(data["graphics"]) == 1
+    assert data["graphics"][0]["shape"]["filled"] is False
+    assert "holes" not in data["graphics"][0]["shape"]
+    assert len(data["graphics"][0]["shape"]["outer"]) == 4
+    pos_drc = bridge.native_violations(output, tmp_path / "pos-drc.json")
+    assert pos_drc["unconnected_items"] == []
+    assert pos_drc["violations"] == []
+
+
+def test_native_unfilled_figure8_poly_negative_control_is_not_unfractured(
+    native_board, tmp_path
+):
+    board_neg = pcbnew.LoadBoard(str(native_board))
+    _add_poly_shape(
+        board_neg,
+        pcbnew.F_Cu,
+        0,
+        False,
+        200_000,
+        [(12_500_000, 6_000_000), (14_500_000, 10_000_000),
+         (14_500_000, 6_000_000), (12_500_000, 10_000_000)],
+    )
+    save(native_board, board_neg)
+    neg_data = bridge.export_board(native_board, RULES, 100000)
+    assert len(neg_data["graphics"]) == 1
+    assert neg_data["graphics"][0]["shape"]["filled"] is False
+    req, res = tmp_path / "neg-req.json", tmp_path / "neg-res.json"
+    bridge.write_request(neg_data, req)
+    done = subprocess.run(
+        [
+            "cargo", "run", "--locked", "--offline", "--manifest-path",
+            str(ROOT / "rust-engine/Cargo.toml"), "--", str(req), str(res),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert done.returncode == 2
+    assert json.loads(res.read_text())["status"] == "invalid"

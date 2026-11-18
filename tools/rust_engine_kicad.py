@@ -640,6 +640,9 @@ def _extract_graphic_shapes(drawing, *, base_id):
         return [(base_id, {'kind': 'polygon', 'outer': corners, 'width_nm': width_nm, 'filled': filled})]
     if shape_t == pcbnew.SHAPE_T_POLY:
         poly_set = drawing.GetPolyShape()
+        if filled:
+            poly_set = pcbnew.SHAPE_POLY_SET(poly_set)
+            poly_set.Unfracture()
         count = poly_set.OutlineCount()
         if count <= 0:
             raise UnsupportedBoard('empty polygon graphic is not represented')
