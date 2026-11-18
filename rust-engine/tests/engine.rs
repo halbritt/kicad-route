@@ -1701,3 +1701,203 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
         assert!(ej.legal_edge(t.net, t.start, t.end).unwrap(), "{t:?}");
     }
 }
+
+#[test]
+fn m3_1_non_crossing_u_notch_filled_polygons_merge_without_spurious_tracks() {
+    let m = 1_000_000i64;
+    let mut i = base();
+    i.bounds = Bounds {
+        min: [-5 * m, -5 * m],
+        max: [5 * m, 5 * m],
+    };
+    i.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 100_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 100_000,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.pads[0].at = [3_500_000, 2_500_000];
+    i.pads[0].shape = Shape::Circle { radius_nm: 200_000 };
+    i.pads[1].at = [-3_500_000, 2_500_000];
+    i.pads[1].shape = Shape::Circle { radius_nm: 200_000 };
+    i.graphics = vec![
+        CopperGraphic {
+            id: id(70),
+            net: 1,
+            layer: "F.Cu".into(),
+            shape: GraphicShape::Polygon {
+                outer: vec![
+                    [0, 0],
+                    [4 * m, 0],
+                    [4 * m, 3 * m],
+                    [3 * m, 3 * m],
+                    [3 * m, m],
+                    [m, m],
+                    [m, 3 * m],
+                    [0, 3 * m],
+                ],
+                holes: Vec::new(),
+                width_nm: 0,
+                filled: true,
+            },
+        },
+        CopperGraphic {
+            id: id(71),
+            net: 1,
+            layer: "F.Cu".into(),
+            shape: GraphicShape::Polygon {
+                outer: vec![
+                    [-4 * m, 0],
+                    [m, 0],
+                    [m, 3 * m],
+                    [0, 3 * m],
+                    [0, m],
+                    [-3 * m, m],
+                    [-3 * m, 3 * m],
+                    [-4 * m, 3 * m],
+                ],
+                holes: Vec::new(),
+                width_nm: 0,
+                filled: true,
+            },
+        },
+    ];
+    let out = run(i);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(
+        out.added_tracks.is_empty(),
+        "overlapping U-notch filled polygons must merge: {:?}",
+        out.added_tracks
+    );
+}
+
+#[test]
+fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragment() {
+    // Challenger 1 reproduction: incumbent collinear stub ending inside P1's moat must not
+    // cause subtract_collinear_overlaps to emit an illegal track violating Engine::legal_edge.
+    for stub_start in [[0, 0], [-2_000_000, 0]] {
+        let mut i = base();
+        i.bounds = Bounds {
+            min: [-5_000_000, -5_000_000],
+            max: [10_000_000, 5_000_000],
+        };
+        i.rules = Rules {
+            width_nm: 200_000,
+            clearance_nm: 200_000,
+            grid_nm: 500_000,
+            edge_clearance_nm: 200_000,
+            hole_clearance_nm: 1_000_000,
+            same_net_hole_clearance_nm: 1_000_000,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        };
+        i.pads = vec![
+            Pad {
+                id: id(1),
+                net: 1,
+                at: [0, 0],
+                shape: Shape::Circle { radius_nm: 600_000 },
+                drill: Some(DrillShape::Circle {
+                    diameter_nm: 400_000,
+                }),
+            },
+            Pad {
+                id: id(2),
+                net: 1,
+                at: [5_000_000, 0],
+                shape: Shape::Circle { radius_nm: 600_000 },
+                drill: Some(DrillShape::Circle {
+                    diameter_nm: 400_000,
+                }),
+            },
+        ];
+        i.tracks = vec![Track {
+            id: id(3),
+            net: 1,
+            start: stub_start,
+            end: [800_000, 0],
+            width_nm: 200_000,
+            locked: true,
+        }];
+        let e = Engine::new(i.clone()).unwrap();
+        assert!(!e.legal_edge(1, [800_000, 0], [4_300_001, 0]).unwrap());
+        let out = run(i);
+        assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+        assert!(!out.added_tracks.is_empty());
+        for t in &out.added_tracks {
+            assert!(
+                e.legal_edge(t.net, t.start, t.end).unwrap(),
+                "emitted illegal moat fragment for stub_start={stub_start:?}: {t:?}"
+            );
+        }
+    }
+
+    // Also verify partial subtraction outside moat: [0,0]->[800k,0] (in moat) + [2M,0]->[3M,0] (outside moat)
+    // still subtracts [2M,0]->[3M,0] while preserving [0,0] pad contact.
+    let mut j = base();
+    j.bounds = Bounds {
+        min: [-5_000_000, -5_000_000],
+        max: [10_000_000, 5_000_000],
+    };
+    j.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 200_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 200_000,
+        hole_clearance_nm: 1_000_000,
+        same_net_hole_clearance_nm: 1_000_000,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    j.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [0, 0],
+            shape: Shape::Circle { radius_nm: 600_000 },
+            drill: Some(DrillShape::Circle {
+                diameter_nm: 400_000,
+            }),
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [5_000_000, 0],
+            shape: Shape::Circle { radius_nm: 600_000 },
+            drill: Some(DrillShape::Circle {
+                diameter_nm: 400_000,
+            }),
+        },
+    ];
+    j.tracks = vec![
+        Track {
+            id: id(3),
+            net: 1,
+            start: [0, 0],
+            end: [800_000, 0],
+            width_nm: 200_000,
+            locked: true,
+        },
+        Track {
+            id: id(4),
+            net: 1,
+            start: [2_000_000, 0],
+            end: [3_000_000, 0],
+            width_nm: 200_000,
+            locked: true,
+        },
+    ];
+    let ej = Engine::new(j.clone()).unwrap();
+    let out_j = run(j);
+    assert_eq!(out_j.status, Status::Complete, "{:?}", out_j.reason);
+    for t in &out_j.added_tracks {
+        assert!(ej.legal_edge(t.net, t.start, t.end).unwrap(), "{t:?}");
+    }
+}

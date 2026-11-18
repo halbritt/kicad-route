@@ -812,3 +812,149 @@ fn asymmetric_rotated_convex_polygon_catches_rotation_sign_flip() {
     assert!(track_near_pad([223, 13], [223, 20], 2, 0, &p, false));
     assert!(!track_near_pad([123, -187], [123, -180], 2, 0, &p, false));
 }
+
+#[test]
+fn filled_polygons_overlap_non_crossing_u_notch_holes_and_extreme_coords() {
+    let g = |n: u32, outer: Vec<Point>, holes: Vec<Vec<Point>>| CopperGraphic {
+        id: format!("10000000-0000-4000-8000-{n:012}"),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Polygon {
+            outer,
+            holes,
+            width_nm: 0,
+            filled: true,
+        },
+    };
+    let m = 1_000_000i64;
+    // Challenger 1 hole-free U-notch counterexample (overlap across [0, 1M] x [0, 3M], zero proper edge crossings).
+    let u_a = g(
+        1,
+        vec![
+            [0, 0],
+            [4 * m, 0],
+            [4 * m, 3 * m],
+            [3 * m, 3 * m],
+            [3 * m, m],
+            [m, m],
+            [m, 3 * m],
+            [0, 3 * m],
+        ],
+        Vec::new(),
+    );
+    let u_b = g(
+        2,
+        vec![
+            [-4 * m, 0],
+            [m, 0],
+            [m, 3 * m],
+            [0, 3 * m],
+            [0, m],
+            [-3 * m, m],
+            [-3 * m, 3 * m],
+            [-4 * m, 3 * m],
+        ],
+        Vec::new(),
+    );
+    assert!(graphics_connect(&u_a, &u_b));
+    assert!(graphics_connect(&u_b, &u_a));
+
+    // Challenger 1 POLY MISMATCH #779 (with hole, overlap in upper/lower slabs without crossing).
+    let hole_a = g(
+        3,
+        vec![[0, -6 * m], [4 * m, -6 * m], [4 * m, m], [0, m]],
+        vec![vec![[m, -5 * m], [3 * m, -5 * m], [3 * m, 0], [m, 0]]],
+    );
+    let hole_b = g(
+        4,
+        vec![
+            [-4 * m, -6 * m],
+            [m, -6 * m],
+            [m, m],
+            [0, m],
+            [0, -5 * m],
+            [-3 * m, -5 * m],
+            [-3 * m, m],
+            [-4 * m, m],
+        ],
+        Vec::new(),
+    );
+    assert!(graphics_connect(&hole_a, &hole_b));
+    assert!(graphics_connect(&hole_b, &hole_a));
+
+    // Upper-slab-only overlap: lowest slab y=[-10, 0] is disjoint, upper slab y=[0, 10] overlaps without crossings.
+    let upper_a = g(
+        5,
+        vec![[0, -10], [10, -10], [10, 10], [0, 10]],
+        vec![vec![[1, -9], [9, -9], [9, 0], [1, 0]]],
+    );
+    let upper_b = g(6, vec![[2, 0], [8, 0], [8, 10], [2, 10]], Vec::new());
+    assert!(graphics_connect(&upper_a, &upper_b));
+    assert!(graphics_connect(&upper_b, &upper_a));
+
+    // Extreme ±99M coordinates: zero i128 overflow; 1 nm overlap vs 0 nm tangency vs hole exclusion.
+    let e = 99_000_000i64;
+    let ext_a = g(
+        7,
+        vec![[-e, -e], [e, -e], [e, e], [-e, e]],
+        vec![vec![
+            [0, -e + 1],
+            [e - 1, -e + 1],
+            [e - 1, e - 1],
+            [0, e - 1],
+        ]],
+    );
+    let ext_b_tan = g(
+        8,
+        vec![[0, -e + 1], [e - 1, -e + 1], [e - 1, e - 1], [0, e - 1]],
+        Vec::new(),
+    );
+    let ext_b_ov = g(
+        9,
+        vec![[-1, -e + 1], [e - 1, -e + 1], [e - 1, e - 1], [-1, e - 1]],
+        Vec::new(),
+    );
+    assert!(!graphics_connect(&ext_a, &ext_b_tan));
+    assert!(!graphics_connect(&ext_b_tan, &ext_a));
+    assert!(graphics_connect(&ext_a, &ext_b_ov));
+    assert!(graphics_connect(&ext_b_ov, &ext_a));
+
+    // Width=0 unfilled Circle is consistent (false both crossing width=0 edge and inside FilledPolygon).
+    let zero_ring = g(10, Vec::new(), Vec::new());
+    let _ = zero_ring;
+    let zero_circle = CopperGraphic {
+        id: "10000000-0000-4000-8000-000000000011".into(),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Circle {
+            center: [0, 0],
+            radius_nm: 5_000,
+            width_nm: 0,
+            filled: false,
+        },
+    };
+    let square_poly = g(
+        12,
+        vec![
+            [-10_000, -10_000],
+            [10_000, -10_000],
+            [10_000, 10_000],
+            [-10_000, 10_000],
+        ],
+        Vec::new(),
+    );
+    let cross_poly = g(
+        13,
+        vec![
+            [0, -10_000],
+            [10_000, -10_000],
+            [10_000, 10_000],
+            [0, 10_000],
+        ],
+        Vec::new(),
+    );
+    assert!(!graphics_connect(&zero_circle, &square_poly));
+    assert!(!graphics_connect(&square_poly, &zero_circle));
+    assert!(!graphics_connect(&zero_circle, &cross_poly));
+    assert!(!graphics_connect(&cross_poly, &zero_circle));
+}

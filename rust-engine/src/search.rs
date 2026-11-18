@@ -126,12 +126,12 @@ pub(crate) fn join_components(
         failure.expanded_states = *expanded;
         return Err(failure);
     }
-    let attachment = |a, b| -> Result<Option<Point>, Failure> {
+    let attachment_from = |anchor: Point, a: Point, b: Point| -> Result<Option<Point>, Failure> {
         let mut nearest = None;
         for c in targets.iter().flatten() {
             engine.work.charge(1)?;
             if let Some(p) = c.attachment(a, b, net, engine.input.rules.width_nm, &engine.work)? {
-                if engine.legal_edge(net, a, p)? {
+                if engine.legal_edge(net, anchor, p)? {
                     let key = |p: Point| ((p[0] - a[0]).abs() + (p[1] - a[1]).abs(), p);
                     if nearest.is_none_or(|old| key(p) < key(old)) {
                         nearest = Some(p);
@@ -141,6 +141,7 @@ pub(crate) fn join_components(
         }
         Ok(nearest)
     };
+    let attachment = |a, b| attachment_from(a, a, b);
     walk(
         engine,
         &starts.into_iter().collect::<Vec<_>>(),
@@ -158,6 +159,9 @@ pub(crate) fn join_components(
             }
             if engine.input.rules.same_net_hole_clearance_nm > 0 {
                 if let Some(rs) = run_start {
+                    if let Some(p) = attachment_from(rs, a, b)? {
+                        return Ok(Some(p));
+                    }
                     if engine.legal_edge(net, rs, b)? {
                         return Ok(Some(b));
                     }
@@ -194,7 +198,14 @@ pub(crate) fn join_components(
                     if far == a {
                         continue;
                     }
-                    if let Some(p) = attachment(a, far)? {
+                    let hit = match attachment(a, far)? {
+                        Some(p) => Some(p),
+                        None => match run_start {
+                            Some(rs) => attachment_from(rs, a, far)?,
+                            None => None,
+                        },
+                    };
+                    if let Some(p) = hit {
                         let key = |pt: Point| ((pt[0] - a[0]).abs() + (pt[1] - a[1]).abs(), pt);
                         if best_entry.is_none_or(|old| key(p) < key(old)) {
                             best_entry = Some(p);

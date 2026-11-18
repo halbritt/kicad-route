@@ -817,6 +817,9 @@ pub fn track_near_circle(
     if filled {
         return true;
     }
+    if i128::from(width) + i128::from(shape_width) + 2 * i128::from(clearance) < 0 {
+        return false;
+    }
     let inner2 = 2 * i128::from(radius_nm)
         - i128::from(shape_width)
         - i128::from(width)
@@ -979,129 +982,103 @@ fn gcd_u128(mut a: u128, mut b: u128) -> u128 {
     a
 }
 
-fn point_strictly_in_simple_polygon_2x_rational(
-    px_num: i128,
-    px_den: i128,
-    py: i128,
-    verts: &[Point],
-) -> bool {
-    let n = verts.len();
-    if n < 3 {
-        return false;
-    }
-    for i in 0..n {
-        let ax = i128::from(verts[i][0]) * 2;
-        let ay = i128::from(verts[i][1]) * 2;
-        let bx = i128::from(verts[(i + 1) % n][0]) * 2;
-        let by = i128::from(verts[(i + 1) % n][1]) * 2;
-        let cross_p = (bx - ax) * (py - ay) * px_den - (by - ay) * (px_num - ax * px_den);
-        if cross_p == 0
-            && px_num >= ax.min(bx) * px_den
-            && px_num <= ax.max(bx) * px_den
-            && py >= ay.min(by)
-            && py <= ay.max(by)
-        {
-            return false;
-        }
-    }
-    let mut inside = false;
-    for i in 0..n {
-        let ax = i128::from(verts[i][0]) * 2;
-        let ay = i128::from(verts[i][1]) * 2;
-        let bx = i128::from(verts[(i + 1) % n][0]) * 2;
-        let by = i128::from(verts[(i + 1) % n][1]) * 2;
-        if (ay > py) != (by > py) {
-            let lhs = (px_num - ax * px_den) * (by - ay);
-            let rhs = (py - ay) * (bx - ax) * px_den;
-            if (by > ay && lhs < rhs) || (by < ay && lhs > rhs) {
-                inside = !inside;
-            }
-        }
-    }
-    inside
+fn rat_lt(a: (i128, i128), b: (i128, i128)) -> bool {
+    a.0 * b.1 < b.0 * a.1
 }
 
-fn point_strictly_in_polygon_with_holes_2x_rational(
-    px_num: i128,
-    px_den: i128,
-    py: i128,
-    outer: &[Point],
-    holes: &[Vec<Point>],
-) -> bool {
-    if !point_strictly_in_simple_polygon_2x_rational(px_num, px_den, py, outer) {
-        return false;
-    }
-    for h in holes {
-        if point_strictly_in_simple_polygon_2x_rational(px_num, px_den, py, h) {
-            return false;
-        }
-        let n = h.len();
-        for i in 0..n {
-            let ax = i128::from(h[i][0]) * 2;
-            let ay = i128::from(h[i][1]) * 2;
-            let bx = i128::from(h[(i + 1) % n][0]) * 2;
-            let by = i128::from(h[(i + 1) % n][1]) * 2;
-            let cross_p = (bx - ax) * (py - ay) * px_den - (by - ay) * (px_num - ax * px_den);
-            if cross_p == 0
-                && px_num >= ax.min(bx) * px_den
-                && px_num <= ax.max(bx) * px_den
-                && py >= ay.min(by)
-                && py <= ay.max(by)
-            {
-                return false;
-            }
-        }
-    }
-    true
-}
-
-fn interior_witness_2x_rational(
-    outer: &[Point],
-    holes: &[Vec<Point>],
-) -> Option<(i128, i128, i128)> {
-    let mut ys: Vec<i128> = outer
-        .iter()
-        .chain(holes.iter().flat_map(|h| h.iter()))
-        .map(|p| i128::from(p[1]) * 2)
-        .collect();
-    ys.sort_unstable();
-    ys.dedup();
-    if ys.len() < 2 {
-        return None;
-    }
-    let py = (ys[0] + ys[1]) / 2;
+fn ring_slab_intervals_2x_rational(ring: &[Point], py: i128) -> Vec<((i128, i128), (i128, i128))> {
+    let n = ring.len();
     let mut crossings: Vec<(i128, i128)> = Vec::new();
-    for ring in std::iter::once(outer).chain(holes.iter().map(Vec::as_slice)) {
-        let n = ring.len();
-        for i in 0..n {
-            let ax = i128::from(ring[i][0]) * 2;
-            let ay = i128::from(ring[i][1]) * 2;
-            let bx = i128::from(ring[(i + 1) % n][0]) * 2;
-            let by = i128::from(ring[(i + 1) % n][1]) * 2;
-            if (ay > py) != (by > py) {
-                let mut num = ax * (by - ay) + (py - ay) * (bx - ax);
-                let mut den = by - ay;
-                if den < 0 {
-                    num = -num;
-                    den = -den;
-                }
-                let g = gcd_u128(num.unsigned_abs(), den as u128) as i128;
-                crossings.push((num / g, den / g));
+    for i in 0..n {
+        let ax = i128::from(ring[i][0]) * 2;
+        let ay = i128::from(ring[i][1]) * 2;
+        let bx = i128::from(ring[(i + 1) % n][0]) * 2;
+        let by = i128::from(ring[(i + 1) % n][1]) * 2;
+        if (ay > py) != (by > py) {
+            let mut num = ax * (by - ay) + (py - ay) * (bx - ax);
+            let mut den = by - ay;
+            if den < 0 {
+                num = -num;
+                den = -den;
             }
+            let g = gcd_u128(num.unsigned_abs(), den as u128) as i128;
+            crossings.push((num / g, den / g));
         }
     }
     crossings.sort_unstable_by(|&(n1, d1), &(n2, d2)| (n1 * d2).cmp(&(n2 * d1)));
+    let mut out = Vec::with_capacity(crossings.len() / 2);
     for pair in crossings.chunks_exact(2) {
-        let (n0, d0) = pair[0];
-        let (n1, d1) = pair[1];
-        if n0 * d1 < n1 * d0 {
-            let num = n0 * d1 + n1 * d0;
-            let den = 2 * d0 * d1;
-            let g = gcd_u128(num.unsigned_abs(), den as u128) as i128;
-            return Some((num / g, den / g, py));
+        if rat_lt(pair[0], pair[1]) {
+            out.push((pair[0], pair[1]));
         }
     }
-    None
+    out
+}
+
+fn polygon_slab_intervals_2x_rational(
+    outer: &[Point],
+    holes: &[Vec<Point>],
+    py: i128,
+) -> Vec<((i128, i128), (i128, i128))> {
+    let mut intervals = ring_slab_intervals_2x_rational(outer, py);
+    if intervals.is_empty() || holes.is_empty() {
+        return intervals;
+    }
+    for hole in holes {
+        let hole_ivs = ring_slab_intervals_2x_rational(hole, py);
+        if hole_ivs.is_empty() {
+            continue;
+        }
+        let mut next = Vec::with_capacity(intervals.len() + hole_ivs.len());
+        let mut hi = 0;
+        for (a0, a1) in intervals {
+            let mut cur0 = a0;
+            while hi < hole_ivs.len() && !rat_lt(cur0, hole_ivs[hi].1) {
+                hi += 1;
+            }
+            while hi < hole_ivs.len() && rat_lt(hole_ivs[hi].0, a1) {
+                let (h0, h1) = hole_ivs[hi];
+                if rat_lt(cur0, h0) {
+                    next.push((cur0, h0));
+                }
+                if rat_lt(h1, a1) {
+                    cur0 = h1;
+                    hi += 1;
+                } else {
+                    cur0 = a1;
+                    break;
+                }
+            }
+            if rat_lt(cur0, a1) {
+                next.push((cur0, a1));
+            }
+        }
+        intervals = next;
+        if intervals.is_empty() {
+            break;
+        }
+    }
+    intervals
+}
+
+fn intervals_overlap_rational(
+    a: &[((i128, i128), (i128, i128))],
+    b: &[((i128, i128), (i128, i128))],
+) -> bool {
+    let (mut ia, mut ib) = (0, 0);
+    while ia < a.len() && ib < b.len() {
+        let (a0, a1) = a[ia];
+        let (b0, b1) = b[ib];
+        if rat_lt(a0, b1) && rat_lt(b0, a1) {
+            return true;
+        }
+        if !rat_lt(b0, a1) {
+            ia += 1;
+        } else {
+            ib += 1;
+        }
+    }
+    false
 }
 
 fn filled_polygons_overlap(
@@ -1147,42 +1124,25 @@ fn filled_polygons_overlap(
             }
         }
     }
-    let test_samples = |rings: &[&[Point]], outer: &[Point], holes: &[Vec<Point>]| -> bool {
-        for ring in rings {
-            let n = ring.len();
-            for i in 0..n {
-                let u = ring[i];
-                let v = ring[(i + 1) % n];
-                let ux = i128::from(u[0]) * 2;
-                let uy = i128::from(u[1]) * 2;
-                if point_strictly_in_polygon_with_holes_2x_rational(ux, 1, uy, outer, holes) {
-                    return true;
-                }
-                let mx = i128::from(u[0]) + i128::from(v[0]);
-                let my = i128::from(u[1]) + i128::from(v[1]);
-                if point_strictly_in_polygon_with_holes_2x_rational(mx, 1, my, outer, holes) {
-                    return true;
-                }
-            }
-        }
-        false
-    };
-    let rings_a: Vec<&[Point]> = std::iter::once(outer_a)
+    let y_lo = i128::from(alo[1].max(blo[1])) * 2;
+    let y_hi = i128::from(ahi[1].min(bhi[1])) * 2;
+    let mut ys: Vec<i128> = std::iter::once(outer_a)
         .chain(holes_a.iter().map(Vec::as_slice))
-        .collect();
-    let rings_b: Vec<&[Point]> = std::iter::once(outer_b)
+        .chain(std::iter::once(outer_b))
         .chain(holes_b.iter().map(Vec::as_slice))
+        .flat_map(|ring| ring.iter().map(|p| i128::from(p[1]) * 2))
+        .filter(|&y| y >= y_lo && y <= y_hi)
         .collect();
-    if test_samples(&rings_a, outer_b, holes_b) || test_samples(&rings_b, outer_a, holes_a) {
-        return true;
-    }
-    if let Some((wx, wd, wy)) = interior_witness_2x_rational(outer_a, holes_a) {
-        if point_strictly_in_polygon_with_holes_2x_rational(wx, wd, wy, outer_b, holes_b) {
-            return true;
+    ys.sort_unstable();
+    ys.dedup();
+    for w in ys.windows(2) {
+        let py = (w[0] + w[1]) / 2;
+        let ivs_a = polygon_slab_intervals_2x_rational(outer_a, holes_a, py);
+        if ivs_a.is_empty() {
+            continue;
         }
-    }
-    if let Some((wx, wd, wy)) = interior_witness_2x_rational(outer_b, holes_b) {
-        if point_strictly_in_polygon_with_holes_2x_rational(wx, wd, wy, outer_a, holes_a) {
+        let ivs_b = polygon_slab_intervals_2x_rational(outer_b, holes_b, py);
+        if intervals_overlap_rational(&ivs_a, &ivs_b) {
             return true;
         }
     }
@@ -1557,7 +1517,14 @@ pub fn graphics_connect(a: &CopperGraphic, b: &CopperGraphic) -> bool {
             }
             *poly_filled
                 && (*cw / 2) * 2 >= 2 * CONTACT_OVERLAP_NM
-                && point_in_polygon_with_holes([center[0] + *radius_nm, center[1]], outer, holes)
+                && [
+                    [center[0] + *radius_nm, center[1]],
+                    [center[0] - *radius_nm, center[1]],
+                    [center[0], center[1] + *radius_nm],
+                    [center[0], center[1] - *radius_nm],
+                ]
+                .into_iter()
+                .any(|pt| point_in_polygon_with_holes(pt, outer, holes))
         }
         (GraphicShape::Polygon { .. }, GraphicShape::Circle { .. }) => graphics_connect(b, a),
         (

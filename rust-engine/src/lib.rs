@@ -989,31 +989,169 @@ impl Engine {
             .collect();
         let mut normalized = Vec::new();
         for t in proposal {
-            if self.input.rules.same_net_hole_clearance_nm > 0
-                && (t.start == t.end || !self.legal_edge(net, t.start, t.end)?)
-            {
-                return Err(Failure::new(
-                    Status::Unroutable,
-                    "proposal failed continuous clearance validation",
-                ));
-            }
-            for piece in self.subtract_collinear_overlaps(&t, &normalized)? {
-                if piece.start == piece.end
-                    || (self.input.rules.same_net_hole_clearance_nm == 0
-                        && !self.legal_edge(net, piece.start, piece.end)?)
-                {
+            if self.input.rules.same_net_hole_clearance_nm > 0 {
+                if t.start == t.end || !self.legal_edge(net, t.start, t.end)? {
                     return Err(Failure::new(
                         Status::Unroutable,
                         "proposal failed continuous clearance validation",
                     ));
                 }
-                normalized.push(piece);
+                for piece in self.subtract_collinear_overlaps_legal(net, &t, &normalized)? {
+                    if piece.start == piece.end {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "proposal failed continuous clearance validation",
+                        ));
+                    }
+                    normalized.push(piece);
+                }
+            } else {
+                for piece in self.subtract_collinear_overlaps(&t, &normalized)? {
+                    if piece.start == piece.end || !self.legal_edge(net, piece.start, piece.end)? {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "proposal failed continuous clearance validation",
+                        ));
+                    }
+                    normalized.push(piece);
+                }
             }
         }
         for t in normalized {
             self.copper.insert(t, &self.work)?;
         }
         Ok(())
+    }
+    fn subtract_collinear_overlaps_legal(
+        &self,
+        net: u32,
+        seg: &Track,
+        accepted: &[Track],
+    ) -> Result<Vec<Track>, Failure> {
+        let pieces = self.subtract_collinear_overlaps(seg, accepted)?;
+        if self.input.rules.same_net_hole_clearance_nm == 0 {
+            return Ok(pieces);
+        }
+        let mut all_legal = true;
+        for piece in &pieces {
+            if piece.start == piece.end || !self.legal_edge(net, piece.start, piece.end)? {
+                all_legal = false;
+                break;
+            }
+        }
+        if all_legal {
+            return Ok(pieces);
+        }
+        let axis = usize::from(seg.start[0] == seg.end[0]);
+        let ortho = seg.start[1 - axis];
+        let s_lo = seg.start[axis].min(seg.end[axis]);
+        let s_hi = seg.start[axis].max(seg.end[axis]);
+        let mut overlaps: Vec<(i64, i64)> = Vec::new();
+        for existing in self.copper.tracks().chain(accepted.iter()) {
+            self.work.charge(1)?;
+            if existing.net == seg.net
+                && existing.width_nm >= seg.width_nm
+                && existing.start[1 - axis] == ortho
+                && existing.end[1 - axis] == ortho
+            {
+                let e_lo = existing.start[axis].min(existing.end[axis]);
+                let e_hi = existing.start[axis].max(existing.end[axis]);
+                let c_lo = e_lo.max(s_lo);
+                let c_hi = e_hi.min(s_hi);
+                if c_lo < c_hi {
+                    overlaps.push((c_lo, c_hi));
+                }
+            }
+        }
+        overlaps.sort_unstable();
+        let mut merged: Vec<(i64, i64)> = Vec::new();
+        for (c_lo, c_hi) in overlaps {
+            self.work.charge(1)?;
+            if let Some(last) = merged.last_mut() {
+                if c_lo <= last.1 {
+                    last.1 = last.1.max(c_hi);
+                    continue;
+                }
+            }
+            merged.push((c_lo, c_hi));
+        }
+        let point = |coord: i64| {
+            let mut p = [0, 0];
+            p[axis] = coord;
+            p[1 - axis] = ortho;
+            p
+        };
+        let mut keep = vec![true; merged.len()];
+        let mut spans: Vec<(i64, i64)>;
+        loop {
+            let mut cursor = s_lo;
+            spans = Vec::new();
+            for (idx, &(c_lo, c_hi)) in merged.iter().enumerate() {
+                if !keep[idx] {
+                    continue;
+                }
+                if cursor < c_lo {
+                    spans.push((cursor, c_lo));
+                }
+                if c_hi > cursor {
+                    cursor = c_hi;
+                }
+            }
+            if cursor < s_hi {
+                spans.push((cursor, s_hi));
+            }
+            let mut dropped = false;
+            for &(a, b) in &spans {
+                self.work.charge(1)?;
+                if !self.legal_edge(net, point(a), point(b))? {
+                    if a > s_lo {
+                        if let Some(idx) = merged
+                            .iter()
+                            .enumerate()
+                            .position(|(idx, &(_, hi))| keep[idx] && hi == a)
+                        {
+                            keep[idx] = false;
+                            dropped = true;
+                            break;
+                        }
+                    }
+                    if b < s_hi {
+                        if let Some(idx) = merged
+                            .iter()
+                            .enumerate()
+                            .position(|(idx, &(lo, _))| keep[idx] && lo == b)
+                        {
+                            keep[idx] = false;
+                            dropped = true;
+                            break;
+                        }
+                    }
+                    return Ok(vec![seg.clone()]);
+                }
+            }
+            if !dropped {
+                break;
+            }
+        }
+        if seg.end[axis] < seg.start[axis] {
+            self.work.charge(spans.len() as u64)?;
+            spans.reverse();
+            for span in &mut spans {
+                *span = (span.1, span.0);
+            }
+        }
+        self.work.charge(spans.len() as u64)?;
+        Ok(spans
+            .into_iter()
+            .map(|(a, b)| Track {
+                id: String::new(),
+                net: seg.net,
+                start: point(a),
+                end: point(b),
+                width_nm: seg.width_nm,
+                locked: false,
+            })
+            .collect())
     }
     fn subtract_collinear_overlaps(
         &self,
