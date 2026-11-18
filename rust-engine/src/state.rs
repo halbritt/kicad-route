@@ -211,6 +211,38 @@ impl CopperStore {
             + self.via_by_net.get(&net).map_or(0, BTreeSet::len)
     }
 
+    pub(crate) fn has_generated_for_net(&self, net: u32) -> bool {
+        self.by_net.contains_key(&net) || self.via_by_net.contains_key(&net)
+    }
+
+    pub(crate) fn net_generated_tracks(&self, net: u32) -> Vec<&Track> {
+        self.by_net
+            .get(&net)
+            .into_iter()
+            .flatten()
+            .map(|seq| {
+                let slot = self.by_seq[seq];
+                self.slots[slot as usize]
+                    .as_ref()
+                    .expect("by_seq references live track slot")
+            })
+            .collect()
+    }
+
+    pub(crate) fn net_generated_vias(&self, net: u32) -> Vec<&Via> {
+        self.via_by_net
+            .get(&net)
+            .into_iter()
+            .flatten()
+            .map(|seq| {
+                let slot = self.via_by_seq[seq];
+                self.via_slots[slot as usize]
+                    .as_ref()
+                    .expect("via_by_seq references live via slot")
+            })
+            .collect()
+    }
+
     pub fn index_consistent(&self) -> bool {
         let mut expected_net: BTreeMap<u32, BTreeSet<u64>> = BTreeMap::new();
         let mut live_slots = BTreeSet::new();
@@ -384,6 +416,49 @@ impl CopperStore {
         if flow.is_break() {
             return Ok(ControlFlow::Break(()));
         }
+        self.generated_via_spatial
+            .visit_matching(bounds, net_filter, work, |_seq, &slot| {
+                work.charge(1)?;
+                let via = self.via_slots[slot as usize]
+                    .as_ref()
+                    .expect("via spatial slot references owned via");
+                visitor(via, self.via_mask(via))
+            })
+    }
+
+    #[inline(always)]
+    pub(crate) fn visit_generated_layer_candidates(
+        &self,
+        layer_idx: usize,
+        bounds: SweptAabb,
+        net_filter: Option<u32>,
+        work: &WorkBudget,
+        mut visitor: impl FnMut(u32, TrackGeom) -> Result<ControlFlow<()>, Failure>,
+    ) -> Result<ControlFlow<()>, Failure> {
+        self.generated_spatial[layer_idx].visit_matching(bounds, net_filter, work, |_seq, &slot| {
+            work.charge(1)?;
+            let track = self.slots[slot as usize]
+                .as_ref()
+                .expect("spatial slot references owned copper");
+            visitor(
+                track.net,
+                TrackGeom {
+                    start: track.start,
+                    end: track.end,
+                    width_nm: track.width_nm,
+                },
+            )
+        })
+    }
+
+    #[inline(always)]
+    pub(crate) fn visit_generated_via_candidates(
+        &self,
+        bounds: SweptAabb,
+        net_filter: Option<u32>,
+        work: &WorkBudget,
+        mut visitor: impl FnMut(&Via, u32) -> Result<ControlFlow<()>, Failure>,
+    ) -> Result<ControlFlow<()>, Failure> {
         self.generated_via_spatial
             .visit_matching(bounds, net_filter, work, |_seq, &slot| {
                 work.charge(1)?;

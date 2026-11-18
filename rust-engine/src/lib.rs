@@ -4,6 +4,7 @@ mod budget;
 mod components;
 pub mod geometry;
 pub mod model;
+pub mod negotiate;
 pub mod orchestration;
 pub mod rules;
 pub mod search;
@@ -39,6 +40,7 @@ pub struct Engine {
     mask_spatial: [StaticSpatialIndex<MaskGeom>; 2],
     max_mask_expansion: i64,
     work: budget::WorkBudget,
+    last_negotiation_stats: Option<negotiate::NegotiationStats>,
 }
 /// Engine scope admission errors are distinct from an arbitrary caller error.
 #[derive(Debug, PartialEq, Eq)]
@@ -682,6 +684,7 @@ impl Engine {
             mask_spatial,
             max_mask_expansion,
             work,
+            last_negotiation_stats: None,
         })
     }
     /// Group routing operations atomically. `Ok` commits this scope; `Err`
@@ -759,6 +762,30 @@ impl Engine {
     }
     pub fn copper(&self) -> &CopperStore {
         &self.copper
+    }
+    pub fn last_negotiation_stats(&self) -> Option<&negotiate::NegotiationStats> {
+        self.last_negotiation_stats.as_ref()
+    }
+    pub(crate) fn set_last_negotiation_stats(
+        &mut self,
+        stats: Option<negotiate::NegotiationStats>,
+    ) {
+        self.last_negotiation_stats = stats;
+    }
+    pub(crate) fn charge_work(&self, units: u64) -> Result<(), Failure> {
+        self.work.charge(units)
+    }
+    pub(crate) fn input(&self) -> &Input {
+        &self.input
+    }
+    pub(crate) fn effective_rules(&self) -> &EffectiveRules {
+        &self.effective_rules
+    }
+    pub(crate) fn work(&self) -> &budget::WorkBudget {
+        &self.work
+    }
+    pub(crate) fn remove_generated_net(&mut self, net: u32) -> Result<(), Failure> {
+        self.copper.remove_net(net, &self.work)
     }
     /// A standalone query gets its own finite work scope; inside a transaction
     /// it consumes that transaction's remaining work. Geometry is not mutated.
@@ -2325,7 +2352,7 @@ impl Engine {
         Ok(Some((diam, drill)))
     }
 
-    fn components(&self, net: u32) -> Result<Vec<Vec<Copper<'_>>>, Failure> {
+    pub(crate) fn components(&self, net: u32) -> Result<Vec<Vec<Copper<'_>>>, Failure> {
         let mut items = Vec::new();
         for p in &self.input.pads {
             self.work.charge(1)?;
@@ -2390,6 +2417,84 @@ impl Engine {
             }
         }
     }
+    pub(crate) fn route_net_negotiated(
+        &mut self,
+        net: u32,
+        limit: u64,
+        expanded: &mut u64,
+        history: &negotiate::CongestionHistory,
+    ) -> Result<(), negotiate::UnitRouteError> {
+        let had_generated_before = self.copper.has_generated_for_net(net);
+        let mut joins_done = 0usize;
+        loop {
+            let groups = self
+                .components(net)
+                .map_err(negotiate::UnitRouteError::Fatal)?;
+            let before = groups.len();
+            if before <= 1 {
+                return Ok(());
+            }
+            let mut frontier = negotiate::BlockedFrontier::new();
+            match search::join_components_negotiated(
+                self,
+                net,
+                &groups[0],
+                &groups[1..],
+                limit,
+                expanded,
+                history,
+                &mut frontier,
+            ) {
+                Ok(path) => match self.insert_path(net, path) {
+                    Ok(()) => {
+                        joins_done += 1;
+                        let after = self
+                            .components(net)
+                            .map_err(negotiate::UnitRouteError::Fatal)?
+                            .len();
+                        if after >= before {
+                            if joins_done > 0 && !had_generated_before {
+                                self.copper
+                                    .remove_net(net, &self.work)
+                                    .map_err(negotiate::UnitRouteError::Fatal)?;
+                            }
+                            return Err(negotiate::UnitRouteError::Blocked(frontier));
+                        }
+                    }
+                    Err(e) if e.status == Status::Unroutable => {
+                        if joins_done > 0 && !had_generated_before {
+                            self.copper
+                                .remove_net(net, &self.work)
+                                .map_err(negotiate::UnitRouteError::Fatal)?;
+                        }
+                        return Err(negotiate::UnitRouteError::Blocked(frontier));
+                    }
+                    Err(e) => return Err(negotiate::UnitRouteError::Fatal(e)),
+                },
+                Err(e) if e.status == Status::Unroutable => {
+                    if joins_done > 0 && !had_generated_before {
+                        self.copper
+                            .remove_net(net, &self.work)
+                            .map_err(negotiate::UnitRouteError::Fatal)?;
+                    }
+                    return Err(negotiate::UnitRouteError::Blocked(frontier));
+                }
+                Err(e)
+                    if e.status == Status::BudgetExhausted
+                        && limit < self.input.max_expansions
+                        && !frontier.is_empty() =>
+                {
+                    if joins_done > 0 && !had_generated_before {
+                        self.copper
+                            .remove_net(net, &self.work)
+                            .map_err(negotiate::UnitRouteError::Fatal)?;
+                    }
+                    return Err(negotiate::UnitRouteError::Blocked(frontier));
+                }
+                Err(e) => return Err(negotiate::UnitRouteError::Fatal(e)),
+            }
+        }
+    }
     fn insert_path(&mut self, net: u32, path: search::Path) -> Result<(), Failure> {
         let mut raw_tracks: Vec<Track> = Vec::new();
         let mut pending_vias: Vec<(search::PlacedViaKey, Via)> = Vec::new();
@@ -2406,8 +2511,16 @@ impl Engine {
                         if let Some(last) = raw_tracks.last_mut() {
                             if last.layer == *l_name
                                 && last.end == start
-                                && ((last.start[0] == last.end[0] && last.end[0] == end[0])
-                                    || (last.start[1] == last.end[1] && last.end[1] == end[1]))
+                                && ((last.start[0] == last.end[0]
+                                    && last.end[0] == end[0]
+                                    && last.end[1] != last.start[1]
+                                    && (last.end[1] - last.start[1]).signum()
+                                        == (end[1] - start[1]).signum())
+                                    || (last.start[1] == last.end[1]
+                                        && last.end[1] == end[1]
+                                        && last.end[0] != last.start[0]
+                                        && (last.end[0] - last.start[0]).signum()
+                                            == (end[0] - start[0]).signum()))
                             {
                                 last.end = end;
                                 continue;
@@ -2758,31 +2871,11 @@ impl Engine {
         })
     }
     pub fn route_all(&mut self) -> Result<u64, Failure> {
+        self.last_negotiation_stats = None;
         self.operation(|tx| {
-            let engine = &mut *tx.engine;
+            let mut adapter = negotiate::SingleEndedAdapter::all();
             let mut expanded = 0;
-            engine.work.charge(engine.input.nets.len() as u64)?;
-            let mut nets: Vec<_> = engine
-                .input
-                .nets
-                .iter()
-                .filter(|n| n.id != 0)
-                .map(|n| n.id)
-                .collect();
-            engine.work.charge(nets.len() as u64)?;
-            nets.sort();
-            for net in nets {
-                engine.work.charge(1).map_err(|mut e| {
-                    e.expanded_states = expanded;
-                    e
-                })?;
-                if let Err(mut e) =
-                    engine.route_net(net, engine.input.max_expansions, &mut expanded)
-                {
-                    e.expanded_states = expanded;
-                    return Err(scoped_routing_failure(e, net));
-                }
-            }
+            let _stats = negotiate::solve_with_adapter(tx, &mut adapter, &mut expanded)?;
             Ok(expanded)
         })
     }
@@ -2829,7 +2922,7 @@ impl Engine {
         })
     }
 }
-fn scoped_routing_failure(mut e: Failure, net: u32) -> Failure {
+pub(crate) fn scoped_routing_failure(mut e: Failure, net: u32) -> Failure {
     if e.status == Status::Unroutable {
         e.reason = format!("net {net}: {}; failure for fixed net order/current copper, fixed grid and pad-center/track-endpoint seeds; not proof of global infeasibility", e.reason);
     }

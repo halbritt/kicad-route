@@ -267,6 +267,44 @@ pub(crate) fn join_components(
     limit: u64,
     expanded: &mut u64,
 ) -> Result<Path, Failure> {
+    join_components_inner(engine, net, source, targets, limit, expanded, None, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn join_components_negotiated(
+    engine: &Engine,
+    net: u32,
+    source: &[Copper<'_>],
+    targets: &[Vec<Copper<'_>>],
+    limit: u64,
+    expanded: &mut u64,
+    history: &crate::negotiate::CongestionHistory,
+    frontier: &mut crate::negotiate::BlockedFrontier,
+) -> Result<Path, Failure> {
+    let hist_opt = (!history.is_empty()).then_some(history);
+    join_components_inner(
+        engine,
+        net,
+        source,
+        targets,
+        limit,
+        expanded,
+        hist_opt,
+        Some(frontier),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn join_components_inner(
+    engine: &Engine,
+    net: u32,
+    source: &[Copper<'_>],
+    targets: &[Vec<Copper<'_>>],
+    limit: u64,
+    expanded: &mut u64,
+    history: Option<&crate::negotiate::CongestionHistory>,
+    mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+) -> Result<Path, Failure> {
     let _scope = engine.work.scope();
     if targets.iter().flatten().next().is_none() {
         let mut failure = Failure::new(
@@ -320,6 +358,7 @@ pub(crate) fn join_components(
                         }
                     }
                 }
+                let mut via_ok = false;
                 if track_ok {
                     via_only_starts.remove(&key);
                     engine.work.search_storage(
@@ -332,7 +371,6 @@ pub(crate) fn join_components(
                     && !track_starts.contains(&key)
                     && !via_only_starts.contains(&key)
                 {
-                    let mut via_ok = false;
                     via_seed_buf.clear();
                     push_legal_via_transitions(
                         engine,
@@ -381,6 +419,11 @@ pub(crate) fn join_components(
                             .work
                             .search_storage(track_starts.len() + via_only_starts.len() + 1)?;
                         via_only_starts.insert(key);
+                    }
+                }
+                if !track_ok && !via_ok {
+                    if let Some(f) = frontier.as_deref_mut() {
+                        f.push_edge(l_idx as u8, p, p);
                     }
                 }
             }
@@ -503,6 +546,8 @@ pub(crate) fn join_components(
             track_via_count,
             &conflict_filter,
             &track_via_conflicts,
+            history,
+            frontier.as_deref_mut(),
             |p, layer_idx| {
                 let h_comp = component_estimate_multilayer(
                     p,
@@ -991,8 +1036,16 @@ fn first_same_net_via_track_conflict(
                     {
                         if *last_l == l
                             && *last_end == start
-                            && ((last_start[0] == last_end[0] && last_end[0] == end[0])
-                                || (last_start[1] == last_end[1] && last_end[1] == end[1]))
+                            && ((last_start[0] == last_end[0]
+                                && last_end[0] == end[0]
+                                && last_end[1] != last_start[1]
+                                && (last_end[1] - last_start[1]).signum()
+                                    == (end[1] - start[1]).signum())
+                                || (last_start[1] == last_end[1]
+                                    && last_end[1] == end[1]
+                                    && last_end[0] != last_start[0]
+                                    && (last_end[0] - last_start[0]).signum()
+                                        == (end[0] - start[0]).signum()))
                         {
                             *last_end = end;
                             *last_idx = edge_idx;
@@ -1349,6 +1402,8 @@ fn walk(
         false,
         &empty_filter,
         &[],
+        None,
+        None,
         |p, _| heuristic(p),
         |_, rs, a, b, _| advance(rs, a, b),
         |_, _, _, _, _, _| Ok(()),
@@ -1374,6 +1429,8 @@ fn walk_multilayer(
     track_via_count: bool,
     conflict_filter: &ConflictFilter,
     track_via_conflicts: &[PlacedViaKey],
+    history: Option<&crate::negotiate::CongestionHistory>,
+    mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
     heuristic: impl Fn(Point, usize) -> Result<u64, Failure>,
     advance: impl Fn(
         usize,
@@ -1575,6 +1632,7 @@ fn walk_multilayer(
             0
         };
 
+        let mut any_track_blocked = false;
         if !state.via_only {
             for (direction, delta) in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]]
                 .iter()
@@ -1597,6 +1655,10 @@ fn walk_multilayer(
                     via_arena.get(state.via_history),
                 )?
                 else {
+                    any_track_blocked = true;
+                    if let Some(f) = frontier.as_deref_mut() {
+                        f.push_edge(state.layer, state.at, [x, y]);
+                    }
                     continue;
                 };
                 let next_tvb = if !track_via_conflicts.is_empty() && net != 0 {
@@ -1653,7 +1715,15 @@ fn walk_multilayer(
                     via_count: state.via_count,
                     track_via_blocked: next_tvb,
                 };
-                let g = cost.checked_add(1).expect("bounded search cost");
+                let step_penalty = match history {
+                    Some(hist) if !hist.is_empty() => {
+                        engine.work.charge(1)?;
+                        hist.step_penalty(state.layer, at, engine.input.bounds.min, grid)
+                    }
+                    _ => 0,
+                };
+                let step_cost = 1u64.checked_add(step_penalty).expect("bounded step cost");
+                let g = cost.checked_add(step_cost).expect("bounded search cost");
                 if best.get(&next).is_some_and(|old| *old <= g) {
                     continue;
                 }
@@ -1709,6 +1779,11 @@ fn walk_multilayer(
             state.via_only,
             &mut via_buf,
         )?;
+        if l_count >= 2 && via_buf.is_empty() && (state.via_only || any_track_blocked) {
+            if let Some(f) = frontier.as_deref_mut() {
+                f.push_via_site(0, (l_count - 1) as u8, state.at);
+            }
+        }
         for &(target_layer, pv, v_cost) in &via_buf {
             engine.work.charge(1)?;
             if let Some(idx) = track_via_conflicts.iter().position(|&cv| cv == pv) {
@@ -1747,7 +1822,21 @@ fn walk_multilayer(
                 via_count: next_vc,
                 track_via_blocked: base_turned_blocked,
             };
-            let g = cost.checked_add(v_cost).expect("bounded search cost");
+            let v_penalty = match history {
+                Some(hist) if !hist.is_empty() => {
+                    engine.work.charge(1)?;
+                    hist.via_penalty(
+                        pv.at,
+                        pv.start_layer,
+                        pv.end_layer,
+                        engine.input.bounds.min,
+                        grid,
+                    )
+                }
+                _ => 0,
+            };
+            let total_v_cost = v_cost.checked_add(v_penalty).expect("bounded via cost");
+            let g = cost.checked_add(total_v_cost).expect("bounded search cost");
             if best.get(&next).is_some_and(|old| *old <= g) {
                 continue;
             }

@@ -1222,10 +1222,12 @@ def test_rust_budget_exhaustion_cannot_publish_native_output(
 @pytest.mark.parametrize('case', ['missing_version', 'old_with_counters', 'old_without_counters', 'old_version2',
     'future_version', 'boolean_version', 'float_version', 'string_version',
     'missing_removals', 'null_removals', 'object_removals', 'string_removals',
-    'nonstring_removal', 'supported_shape_removal'])
+    'nonstring_removal', 'non_uuid_removal', 'nil_uuid_removal',
+    'uppercase_uuid_removal', 'duplicate_uuid_removal', 'supported_shape_removal'])
 def test_native_result_schema_refusals(native_board, expected_request, guarded_cli, case):
     run, _ = guarded_cli
     original = native_board.read_bytes()
+    dup_id = str(uuid.uuid4())
     plan = {'version': 3, 'request_sha256': hashlib.sha256(expected_request.read_bytes()).hexdigest(), 'status': 'complete',
             'source_id': hashlib.sha256(original).hexdigest(),
             'added_tracks': connection_tracks(), 'removed_track_ids': [],
@@ -1244,6 +1246,10 @@ def test_native_result_schema_refusals(native_board, expected_request, guarded_c
     else:
         plan['removed_track_ids'] = {'null_removals': None, 'object_removals': {},
             'string_removals': '', 'nonstring_removal': [1],
+            'non_uuid_removal': ['not-a-uuid'],
+            'nil_uuid_removal': ['00000000-0000-0000-0000-000000000000'],
+            'uppercase_uuid_removal': [dup_id.upper()],
+            'duplicate_uuid_removal': [dup_id, dup_id],
             'supported_shape_removal': [str(uuid.uuid4())]}[case]
     plan_path = native_board.with_name('schema-plan.json')
     plan_path.write_text(json.dumps(plan))
@@ -2483,3 +2489,96 @@ def test_m3_3_extract_pour_facts_unions_overlapping_unnamed_zones(tmp_path):
     assert layer['islands_off_main'] == 0, layer
     assert facts['pads']['J1.1@F.Cu']['in_main'] is True
     assert facts['pads']['J2.1@F.Cu']['in_main'] is True
+
+
+def test_m4_1_crossing_nets_ripup_reroute_preserves_input_and_drc(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.BOARD()
+    for code, name in ((1, 'NET_A'), (2, 'NET_B'), (3, 'PRE_LOCK'), (4, 'PRE_OPEN')):
+        board.Add(pcbnew.NETINFO_ITEM(board, name, code))
+    for a, b in zip([(0, 0), (24000000, 0), (24000000, 17000000), (0, 17000000)],
+                    [(24000000, 0), (24000000, 17000000), (0, 17000000), (0, 0)]):
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50000)
+        board.Add(edge)
+    # Pre-existing locked and unlocked input tracks (must remain immutable).
+    pre_specs = []
+    for net, y, locked in ((3, 14500000, True), (4, 15500000, False)):
+        t = pcbnew.PCB_TRACK(board)
+        t.SetNetCode(net)
+        t.SetLayer(pcbnew.F_Cu)
+        t.SetStart(pcbnew.VECTOR2I(2000000, y))
+        t.SetEnd(pcbnew.VECTOR2I(22000000, y))
+        t.SetWidth(250000)
+        t.SetLocked(locked)
+        board.Add(t)
+        pre_specs.append((t.m_Uuid.AsString(), net, y, locked))
+    # NET_A (4, 8mm) -> (20, 8mm); NET_B (12, 4.5mm) -> (12, 13mm) inside F.Cu U-keepout.
+    for idx, (x, y, net) in enumerate((
+        (4000000, 8000000, 1), (20000000, 8000000, 1),
+        (12000000, 4500000, 2), (12000000, 13000000, 2),
+    ), 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(x, y))
+        board.Add(fp)
+        p = pcbnew.PAD(fp)
+        p.SetNumber('1')
+        p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        p.SetShape(pcbnew.PAD_SHAPE_RECT)
+        p.SetSize(pcbnew.VECTOR2I(1000000, 1000000))
+        p.SetPosition(pcbnew.VECTOR2I(x, y))
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        p.SetLayerSet(ls)
+        p.SetNetCode(net)
+        fp.Add(p)
+    # U-keepout on F.Cu around J3 (NET_B) open only toward y=8mm; B.Cu blocked so F.Cu rip-up is forced.
+    ko = pcbnew.ZONE(board)
+    ko.SetLayer(pcbnew.F_Cu)
+    ko.SetIsRuleArea(True)
+    ko.SetDoNotAllowTracks(True)
+    ko.SetDoNotAllowVias(True)
+    ko.SetDoNotAllowZoneFills(True)
+    ko.Outline().NewOutline()
+    for px, py in (
+        (9000000, 2000000), (15000000, 2000000), (15000000, 7500000),
+        (14000000, 7500000), (14000000, 3000000), (10000000, 3000000),
+        (10000000, 7500000), (9000000, 7500000),
+    ):
+        ko.Outline().Append(px, py)
+    board.Add(ko)
+    ko_b = pcbnew.ZONE(board)
+    ko_b.SetLayer(pcbnew.B_Cu)
+    ko_b.SetIsRuleArea(True)
+    ko_b.SetDoNotAllowTracks(True)
+    ko_b.SetDoNotAllowVias(True)
+    ko_b.SetDoNotAllowZoneFills(True)
+    _add_rect_outline(ko_b.Outline(), 0, 0, 24000000, 17000000)
+    board.Add(ko_b)
+    src = tmp_path / 'f8_crossing.kicad_pcb'
+    assert pcbnew.SaveBoard(str(src), board)
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps({
+        'width_nm': 250000, 'clearance_nm': 500000, 'grid_nm': 250000, 'edge_clearance_nm': 500000,
+    }))
+    out_a = tmp_path / 'routed_a.kicad_pcb'
+    out_b = tmp_path / 'routed_b.kicad_pcb'
+    for out in (out_a, out_b):
+        res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+        assert res.returncode == 0, res.stderr
+    assert out_a.read_bytes() == out_b.read_bytes()
+    routed = pcbnew.LoadBoard(str(out_a))
+    routed.BuildConnectivity()
+    assert routed.GetConnectivity().GetUnconnectedCount(False) == 0
+    seen_tracks = {t.m_Uuid.AsString(): t for t in routed.GetTracks() if t.GetClass() == 'PCB_TRACK'}
+    for uid, net, y, locked in pre_specs:
+        assert uid in seen_tracks
+        assert seen_tracks[uid].GetNetCode() == net
+        assert seen_tracks[uid].GetStart().y == y
+        assert seen_tracks[uid].IsLocked() == locked

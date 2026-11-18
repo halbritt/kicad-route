@@ -1856,6 +1856,15 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     removals = plan.get('removed_track_ids')
     if not isinstance(removals, list) or any(not isinstance(ident, str) for ident in removals):
         raise ValueError('Rust result requires an explicit removed_track_ids list of strings')
+    seen_removals = set()
+    for ident in removals:
+        try:
+            parsed = uuid.UUID(ident)
+        except ValueError as error:
+            raise ValueError('Rust result removed_track_ids entries must be canonical nonzero lowercase unique UUIDs') from error
+        if str(parsed) != ident or parsed.int == 0 or ident in seen_removals:
+            raise ValueError('Rust result removed_track_ids entries must be canonical nonzero lowercase unique UUIDs')
+        seen_removals.add(ident)
     if removals:
         raise UnsupportedBoard('this slice cannot remove input copper')
     additions = plan.get('added_tracks')
