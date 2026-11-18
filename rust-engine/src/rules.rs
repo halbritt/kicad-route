@@ -892,9 +892,6 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                     ".kicad_pro board.design_settings must be an object",
                 )
             })?;
-            if let Some(v) = json_opt_bool_field(ds, "use_height_for_length_calcs")? {
-                use_height_for_length_calcs = Some(v);
-            }
             if let Some(rules_val) = ds.get("rules") {
                 let r = rules_val.as_object().ok_or_else(|| {
                     Failure::new(
@@ -1205,13 +1202,11 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                                     let signal_layer_from = vo
                                         .get("signal_layer_from")
                                         .and_then(|v| v.as_str())
-                                        .or_else(|| vo.get("start_layer").and_then(|v| v.as_str()))
                                         .unwrap_or("")
                                         .to_owned();
                                     let signal_layer_to = vo
                                         .get("signal_layer_to")
                                         .and_then(|v| v.as_str())
-                                        .or_else(|| vo.get("end_layer").and_then(|v| v.as_str()))
                                         .unwrap_or("")
                                         .to_owned();
                                     let via_layer_from = vo
@@ -1227,12 +1222,12 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                                     let start_layer = vo
                                         .get("start_layer")
                                         .and_then(|v| v.as_str())
-                                        .unwrap_or(&signal_layer_from)
+                                        .unwrap_or("")
                                         .to_owned();
                                     let end_layer = vo
                                         .get("end_layer")
                                         .and_then(|v| v.as_str())
-                                        .unwrap_or(&signal_layer_to)
+                                        .unwrap_or("")
                                         .to_owned();
                                     let delay_as =
                                         vo.get("delay").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -4559,7 +4554,7 @@ mod tests {
         assert_eq!(eff_omit.board_thickness_nm, Some(1_600_000));
         assert_eq!(eff_omit.outer_solder_mask_thickness_nm, Some(20_000));
 
-        // Explicit false in .kicad_pro overrides board_design_settings true
+        // Explicit false in .kicad_pro design_settings.rules overrides board_design_settings true
         inp.project_rules = Some(
             serde_json::json!({
                 "meta": {"version": 3},
@@ -4569,6 +4564,22 @@ mod tests {
         );
         let eff_false = resolve_effective_rules(&mut inp).unwrap();
         assert!(!eff_false.use_height_for_length_calcs);
+
+        // use_height_for_length_calcs outside .rules is ignored by KiCad 10.0.8
+        inp.project_rules = Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {
+                    "design_settings": {
+                        "use_height_for_length_calcs": false,
+                        "rules": {}
+                    }
+                }
+            })
+            .to_string(),
+        );
+        let eff_ds_ignored = resolve_effective_rules(&mut inp).unwrap();
+        assert!(eff_ds_ignored.use_height_for_length_calcs);
 
         // Invalid board_thickness_nm (0) and mask > board_thickness fail closed
         inp.board_design_settings
@@ -4591,5 +4602,39 @@ mod tests {
             resolve_effective_rules(&mut inp).unwrap_err().status,
             Status::Invalid
         );
+    }
+
+    #[test]
+    fn via_overrides_strict_signal_layer_parsing() {
+        let pro = serde_json::json!({
+            "meta": {"version": 3},
+            "tuning_profiles": {
+                "tuning_profiles_impedance_geometric": [{
+                    "profile_name": "P1",
+                    "type": 0,
+                    "target_impedance": 50,
+                    "enable_time_domain_tuning": true,
+                    "via_prop_delay": 7_500_000,
+                    "layer_entries": [{"signal_layer": "F.Cu", "width": 250_000, "delay": 6_000_000}],
+                    "via_overrides": [{
+                        "start_layer": "F.Cu",
+                        "end_layer": "In2.Cu",
+                        "via_layer_from": "F.Cu",
+                        "via_layer_to": "B.Cu",
+                        "via_diameter": 500_000,
+                        "delay": 90_000_000
+                    }]
+                }]
+            }
+        })
+        .to_string();
+        let parsed = parse_kicad_pro(pro.as_bytes()).unwrap();
+        let ov = &parsed.tuning_profiles[0].via_overrides[0];
+        assert_eq!(ov.signal_layer_from, "");
+        assert_eq!(ov.signal_layer_to, "");
+        assert_eq!(ov.via_layer_from, "F.Cu");
+        assert_eq!(ov.via_layer_to, "B.Cu");
+        assert_eq!(ov.via_diameter_nm, 500_000);
+        assert_eq!(ov.delay_as, 90_000_000);
     }
 }

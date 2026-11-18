@@ -1914,24 +1914,19 @@ fn via_delay_between_layers_as(
         return Ok(0.0);
     }
     for ov in &prof.via_overrides {
-        let sf = if !ov.signal_layer_from.is_empty() {
-            ov.signal_layer_from.as_str()
-        } else {
-            ov.start_layer.as_str()
-        };
-        let st = if !ov.signal_layer_to.is_empty() {
-            ov.signal_layer_to.as_str()
-        } else {
-            ov.end_layer.as_str()
-        };
-        let signal_match = (sf == layer_a && st == layer_b) || (sf == layer_b && st == layer_a);
-        let via_span_match = (ov.via_layer_from.is_empty() && ov.via_layer_to.is_empty())
-            || (ov.via_layer_from == via.start_layer && ov.via_layer_to == via.end_layer)
-            || (ov.via_layer_from == via.end_layer && ov.via_layer_to == via.start_layer);
-        if signal_match
-            && via_span_match
-            && (ov.via_diameter_nm <= 0 || ov.via_diameter_nm == via.diameter_nm)
+        if ov.signal_layer_from.is_empty()
+            || ov.signal_layer_to.is_empty()
+            || ov.via_layer_from.is_empty()
+            || ov.via_layer_to.is_empty()
         {
+            continue;
+        }
+        let signal_match = (ov.signal_layer_from == layer_a && ov.signal_layer_to == layer_b)
+            || (ov.signal_layer_from == layer_b && ov.signal_layer_to == layer_a);
+        let via_span_match = (ov.via_layer_from == via.start_layer
+            && ov.via_layer_to == via.end_layer)
+            || (ov.via_layer_from == via.end_layer && ov.via_layer_to == via.start_layer);
+        if signal_match && via_span_match {
             return Ok(ov.delay_as as f64);
         }
     }
@@ -2118,9 +2113,33 @@ fn measure_net_fromto(
             } else {
                 let gap2 = i128::from(v.diameter_nm) + i128::from(t.width_nm);
                 if geometry::point_near_segment(v.at, t.start, t.end, gap2, false) {
-                    let d_ep = dist_f64(t.start, v.at).min(dist_f64(t.end, v.at));
+                    let d_start = dist_f64(t.start, v.at);
+                    let d_end = dist_f64(t.end, v.at);
+                    let (d_ep, ep, other) = if d_start <= d_end {
+                        (d_start, t.start, t.end)
+                    } else {
+                        (d_end, t.end, t.start)
+                    };
                     let len = if d_ep < via_r {
-                        (via_r - (via_r * via_r - d_ep * d_ep).sqrt()).max(0.0)
+                        let seg_dx = (ep[0] - other[0]) as f64;
+                        let seg_dy = (ep[1] - other[1]) as f64;
+                        let seg_len = seg_dx.hypot(seg_dy);
+                        if seg_len > 0.0 {
+                            let ux = seg_dx / seg_len;
+                            let uy = seg_dy / seg_len;
+                            let vx = (v.at[0] - ep[0]) as f64;
+                            let vy = (v.at[1] - ep[1]) as f64;
+                            let along = (vx * ux + vy * uy).max(0.0);
+                            let perp = (vx * uy - vy * ux).abs();
+                            let radial = if perp < via_r {
+                                (via_r - (via_r * via_r - perp * perp).sqrt()).max(0.0)
+                            } else {
+                                0.0
+                            };
+                            (along + radial).max(0.0)
+                        } else {
+                            0.0
+                        }
                     } else {
                         0.0
                     };

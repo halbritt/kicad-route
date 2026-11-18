@@ -2605,3 +2605,505 @@ fn r6_via_height_no_stackup_and_pro_use_height_override() {
     let err = run_via_height(&["F.Cu", "B.Cu"], "B.Cu", None, None, None).unwrap_err();
     assert_eq!(err.status, Status::Invalid);
 }
+
+#[test]
+fn r7_via_collinear_angled_via_overrides_and_pro_ds_use_height() {
+    let run_via_probe = |name: &str,
+                         p1: [i64; 2],
+                         p2: [i64; 2],
+                         p2_layers: &[&str],
+                         segs: &[([i64; 2], [i64; 2], &str)],
+                         vias: &[([i64; 2], &str, &str)]|
+     -> f64 {
+        let mut g = base_diff_input(&["SIG_P", "SIG_N"]);
+        g.pads.clear();
+        let mut p1_pad = pad(1, 1, p1, &["F.Cu"]);
+        p1_pad.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut p2_pad = pad(2, 1, p2, p2_layers);
+        p2_pad.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut n1_pad = pad(3, 2, [10_000_000, 35_000_000], &["F.Cu"]);
+        n1_pad.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut n2_pad = pad(4, 2, [20_000_000, 35_000_000], &["F.Cu"]);
+        n2_pad.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        g.pads.extend([p1_pad, p2_pad, n1_pad, n2_pad]);
+        for (idx, &(a, b, layer)) in segs.iter().enumerate() {
+            g.tracks.push(Track {
+                id: uuid(2100 + idx as u64),
+                net: 1,
+                start: a,
+                end: b,
+                width_nm: 300_000,
+                locked: false,
+                layer: layer.into(),
+            });
+        }
+        for (idx, &(at, sl, el)) in vias.iter().enumerate() {
+            g.vias.push(Via {
+                id: uuid(2200 + idx as u64),
+                net: 1,
+                at,
+                diameter_nm: 600_000,
+                drill_nm: 300_000,
+                locked: false,
+                start_layer: sl.into(),
+                end_layer: el.into(),
+                kind: ViaKind::Through,
+            });
+        }
+        g.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["SIG_P".into(), "SIG_N".into()],
+                ..Default::default()
+            }],
+            group_match_tolerance_nm: Some(10_000),
+            group_meander_amplitude_nm: Some(4_000_000),
+            ..Default::default()
+        });
+        let mut eng = Engine::new(g).unwrap();
+        eng.route(2, 50_000).unwrap();
+        let st = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+        apply_length_matching_in_tx(&mut eng, &st).unwrap();
+        let sum: f64 = eng
+            .copper()
+            .tracks()
+            .filter(|t| t.net == 2)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum();
+        assert!(sum > 0.0, "{name}: expected routed copper");
+        sum
+    };
+
+    // 1. Collinear same-layer bridge & F->B transitions + 45-deg angled probes + R4 regression
+    let len_bridge = run_via_probe(
+        "via_collinear_bridge_same_layer",
+        [10_000_000, 20_000_000],
+        [30_000_000, 20_000_000],
+        &["F.Cu"],
+        &[
+            ([10_000_000, 20_000_000], [18_000_000, 20_000_000], "F.Cu"),
+            ([18_350_000, 20_000_000], [30_000_000, 20_000_000], "F.Cu"),
+        ],
+        &[([18_175_000, 20_000_000], "F.Cu", "B.Cu")],
+    );
+    assert!(
+        (len_bridge - 20_000_000.0).abs() <= 50_000.0,
+        "via_collinear_bridge_same_layer got {len_bridge}"
+    );
+    for d_ep in [50_000_i64, 175_000, 250_000] {
+        let len_fb = run_via_probe(
+            "via_collinear_f_to_b",
+            [10_000_000, 20_000_000],
+            [30_000_000, 20_000_000],
+            &["B.Cu"],
+            &[
+                (
+                    [10_000_000, 20_000_000],
+                    [20_000_000 - d_ep, 20_000_000],
+                    "F.Cu",
+                ),
+                (
+                    [20_000_000 + d_ep, 20_000_000],
+                    [30_000_000, 20_000_000],
+                    "B.Cu",
+                ),
+            ],
+            &[([20_000_000, 20_000_000], "F.Cu", "B.Cu")],
+        );
+        assert!(
+            (len_fb - 20_000_000.0).abs() <= 50_000.0,
+            "via_collinear_f_to_b d_ep={d_ep} got {len_fb}"
+        );
+    }
+    let s175 = (175_000.0_f64 / std::f64::consts::SQRT_2).round() as i64;
+    let len_45 = run_via_probe(
+        "via_45_175",
+        [10_000_000, 20_000_000],
+        [30_000_000, 20_000_000],
+        &["B.Cu"],
+        &[
+            (
+                [10_000_000, 20_000_000],
+                [20_000_000 - s175, 20_000_000 - s175],
+                "F.Cu",
+            ),
+            (
+                [20_000_000 + s175, 20_000_000 - s175],
+                [30_000_000, 20_000_000],
+                "B.Cu",
+            ),
+        ],
+        &[([20_000_000, 20_000_000], "F.Cu", "B.Cu")],
+    );
+    assert!(
+        (len_45 - 20_053_300.0).abs() <= 50_000.0,
+        "via_45_175 got {len_45}"
+    );
+    let len_r4 = run_via_probe(
+        "r4_via_probe_175",
+        [10_000_000, 20_000_000],
+        [30_000_000, 20_000_000],
+        &["B.Cu"],
+        &[
+            ([10_000_000, 20_000_000], [20_000_000, 20_000_000], "F.Cu"),
+            ([20_000_000, 20_000_000], [30_000_000, 20_000_000], "B.Cu"),
+        ],
+        &[([20_000_000, 20_175_000], "F.Cu", "B.Cu")],
+    );
+    assert!(
+        (len_r4 - 20_112_700.0).abs() <= 50_000.0,
+        "r4_via_probe_175 got {len_r4}"
+    );
+}
+
+#[test]
+fn r7_via_overrides_and_pro_ds_use_height_parity() {
+    // 1. via_overrides KiCad 10.0.8 parity (4L F.Cu <-> In2.Cu via F.Cu..B.Cu 600um vias)
+    let run_via_ov = |via_ov_json: serde_json::Value| -> f64 {
+        let mut g = base_diff_input(&["DQ0", "DQ1"]);
+        g.layers = vec![
+            "F.Cu".into(),
+            "In1.Cu".into(),
+            "In2.Cu".into(),
+            "B.Cu".into(),
+        ];
+        g.pads.clear();
+        let mut p1 = pad(1, 1, [10_000_000, 15_000_000], &["F.Cu"]);
+        p1.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut p2 = pad(2, 1, [30_000_000, 15_000_000], &["F.Cu"]);
+        p2.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut q1 = pad(3, 2, [10_000_000, 35_000_000], &["F.Cu"]);
+        q1.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        let mut q2 = pad(4, 2, [20_000_000, 35_000_000], &["F.Cu"]);
+        q2.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        g.pads.extend([p1, p2, q1, q2]);
+        g.tracks.extend([
+            Track {
+                id: uuid(2300),
+                net: 1,
+                start: [10_000_000, 15_000_000],
+                end: [15_000_000, 15_000_000],
+                width_nm: 250_000,
+                locked: false,
+                layer: "F.Cu".into(),
+            },
+            Track {
+                id: uuid(2301),
+                net: 1,
+                start: [15_000_000, 15_000_000],
+                end: [25_000_000, 15_000_000],
+                width_nm: 250_000,
+                locked: false,
+                layer: "In2.Cu".into(),
+            },
+            Track {
+                id: uuid(2302),
+                net: 1,
+                start: [25_000_000, 15_000_000],
+                end: [30_000_000, 15_000_000],
+                width_nm: 250_000,
+                locked: false,
+                layer: "F.Cu".into(),
+            },
+        ]);
+        g.vias.extend([
+            Via {
+                id: uuid(2303),
+                net: 1,
+                at: [15_000_000, 15_000_000],
+                diameter_nm: 600_000,
+                drill_nm: 300_000,
+                locked: false,
+                start_layer: "F.Cu".into(),
+                end_layer: "B.Cu".into(),
+                kind: ViaKind::Through,
+            },
+            Via {
+                id: uuid(2304),
+                net: 1,
+                at: [25_000_000, 15_000_000],
+                diameter_nm: 600_000,
+                drill_nm: 300_000,
+                locked: false,
+                start_layer: "F.Cu".into(),
+                end_layer: "B.Cu".into(),
+                kind: ViaKind::Through,
+            },
+        ]);
+        let bds = g.board_design_settings.as_mut().unwrap();
+        bds.use_height_for_length_calcs = Some(true);
+        bds.board_thickness_nm = Some(940_000);
+        bds.outer_solder_mask_thickness_nm = Some(0);
+        bds.netclasses[1].tuning_profile = Some("P1".into());
+        bds.netclass_assignments
+            .insert("DQ0".into(), vec!["DIFF".into()]);
+        bds.netclass_assignments
+            .insert("DQ1".into(), vec!["DIFF".into()]);
+        g.stackup = vec![
+            StackupLayer {
+                name: "F.Cu".into(),
+                kind: StackupKind::Copper,
+                thickness_nm: 35_000,
+                epsilon_r: None,
+                material: None,
+            },
+            StackupLayer {
+                name: "di1".into(),
+                kind: StackupKind::Prepreg,
+                thickness_nm: 200_000,
+                epsilon_r: Some(4.0),
+                material: None,
+            },
+            StackupLayer {
+                name: "In1.Cu".into(),
+                kind: StackupKind::Copper,
+                thickness_nm: 35_000,
+                epsilon_r: None,
+                material: None,
+            },
+            StackupLayer {
+                name: "di2".into(),
+                kind: StackupKind::Core,
+                thickness_nm: 400_000,
+                epsilon_r: Some(4.0),
+                material: None,
+            },
+            StackupLayer {
+                name: "In2.Cu".into(),
+                kind: StackupKind::Copper,
+                thickness_nm: 35_000,
+                epsilon_r: None,
+                material: None,
+            },
+            StackupLayer {
+                name: "di3".into(),
+                kind: StackupKind::Prepreg,
+                thickness_nm: 200_000,
+                epsilon_r: Some(4.0),
+                material: None,
+            },
+            StackupLayer {
+                name: "B.Cu".into(),
+                kind: StackupKind::Copper,
+                thickness_nm: 35_000,
+                epsilon_r: None,
+                material: None,
+            },
+        ];
+        g.project_rules = Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {"use_height_for_length_calcs": true}}},
+                "net_settings": {
+                    "classes": [
+                        {"name": "Default"},
+                        {"name": "DIFF", "tuning_profile": "P1"}
+                    ],
+                    "netclass_assignments": {"DQ0": ["DIFF"], "DQ1": ["DIFF"]}
+                },
+                "tuning_profiles": {
+                    "tuning_profiles_impedance_geometric": [{
+                        "profile_name": "P1",
+                        "type": 0,
+                        "target_impedance": 0,
+                        "enable_time_domain_tuning": true,
+                        "via_prop_delay": 6_000_000,
+                        "layer_entries": [
+                            {"signal_layer": "F.Cu", "width": 250_000, "delay": 5_000_000},
+                            {"signal_layer": "In2.Cu", "width": 250_000, "delay": 6_000_000}
+                        ],
+                        "via_overrides": [via_ov_json]
+                    }]
+                }
+            })
+            .to_string(),
+        );
+        g.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["DQ0".into(), "DQ1".into()],
+                ..Default::default()
+            }],
+            group_delay_tolerance_as: Some(1_000_000),
+            group_meander_amplitude_nm: Some(4_000_000),
+            ..Default::default()
+        });
+        let mut eng = Engine::new(g).unwrap();
+        eng.route(2, 50_000).unwrap();
+        let st = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+        apply_length_matching_in_tx(&mut eng, &st).unwrap();
+        eng.copper()
+            .tracks()
+            .filter(|t| t.net == 2)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum()
+    };
+
+    // Baseline barrel height delay: 10mm*5ps + 10mm*6ps + 2*(0.6875mm*6ps) = 118.25ps -> 23.65mm on F.Cu
+    // Override 45ps/via: 10mm*5ps + 10mm*6ps + 2*45ps = 200ps -> 40.0mm on F.Cu
+    let len_empty_via = run_via_ov(serde_json::json!({
+        "signal_layer_from": "F.Cu",
+        "signal_layer_to": "In2.Cu",
+        "via_layer_from": "",
+        "via_layer_to": "",
+        "delay": 45_000_000
+    }));
+    assert!(
+        (len_empty_via - 23_650_000.0).abs() <= 400_000.0,
+        "sig_empty_via should ignore empty via_layer_* override, got {len_empty_via}"
+    );
+    let len_start_end = run_via_ov(serde_json::json!({
+        "start_layer": "F.Cu",
+        "end_layer": "In2.Cu",
+        "via_layer_from": "F.Cu",
+        "via_layer_to": "B.Cu",
+        "delay": 45_000_000
+    }));
+    assert!(
+        (len_start_end - 23_650_000.0).abs() <= 400_000.0,
+        "start_end_F_In2 should ignore start_layer/end_layer, got {len_start_end}"
+    );
+    let len_diam_mismatch = run_via_ov(serde_json::json!({
+        "signal_layer_from": "F.Cu",
+        "signal_layer_to": "In2.Cu",
+        "via_layer_from": "F.Cu",
+        "via_layer_to": "B.Cu",
+        "via_diameter": 500_000,
+        "delay": 45_000_000
+    }));
+    assert!(
+        (len_diam_mismatch - 40_000_000.0).abs() <= 400_000.0,
+        "sig_via_diam_500k should ignore via_diameter mismatch, got {len_diam_mismatch}"
+    );
+    let len_sig_and_via = run_via_ov(serde_json::json!({
+        "signal_layer_from": "F.Cu",
+        "signal_layer_to": "In2.Cu",
+        "via_layer_from": "F.Cu",
+        "via_layer_to": "B.Cu",
+        "delay": 45_000_000
+    }));
+    assert!(
+        (len_sig_and_via - 40_000_000.0).abs() <= 400_000.0,
+        "sig_and_via_F_B should apply override, got {len_sig_and_via}"
+    );
+
+    // 2. board.design_settings.use_height_for_length_calcs outside .rules is ignored
+    let mut ds_pro = base_diff_input(&["SIG_A", "SIG_B"]);
+    ds_pro.pads.clear();
+    ds_pro
+        .pads
+        .push(pad(1, 1, [10_000_000, 15_000_000], &["F.Cu"]));
+    ds_pro
+        .pads
+        .push(pad(2, 1, [30_000_000, 15_000_000], &["F.Cu"]));
+    let mut pb1 = pad(3, 2, [10_000_000, 30_000_000], &["F.Cu"]);
+    pb1.shape = Shape::Rect {
+        half_size_nm: [150_000, 150_000],
+    };
+    let mut pb2 = pad(4, 2, [20_000_000, 30_000_000], &["F.Cu"]);
+    pb2.shape = Shape::Rect {
+        half_size_nm: [150_000, 150_000],
+    };
+    ds_pro.pads.extend([pb1, pb2]);
+    ds_pro.tracks.extend([
+        Track {
+            id: uuid(2400),
+            net: 1,
+            start: [10_000_000, 15_000_000],
+            end: [15_000_000, 15_000_000],
+            width_nm: 250_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        },
+        Track {
+            id: uuid(2401),
+            net: 1,
+            start: [15_000_000, 15_000_000],
+            end: [25_000_000, 15_000_000],
+            width_nm: 250_000,
+            locked: false,
+            layer: "B.Cu".into(),
+        },
+        Track {
+            id: uuid(2402),
+            net: 1,
+            start: [25_000_000, 15_000_000],
+            end: [30_000_000, 15_000_000],
+            width_nm: 250_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        },
+    ]);
+    ds_pro.vias.extend([
+        Via {
+            id: uuid(2403),
+            net: 1,
+            at: [15_000_000, 15_000_000],
+            diameter_nm: 600_000,
+            drill_nm: 300_000,
+            locked: false,
+            start_layer: "F.Cu".into(),
+            end_layer: "B.Cu".into(),
+            kind: ViaKind::Through,
+        },
+        Via {
+            id: uuid(2404),
+            net: 1,
+            at: [25_000_000, 15_000_000],
+            diameter_nm: 600_000,
+            drill_nm: 300_000,
+            locked: false,
+            start_layer: "F.Cu".into(),
+            end_layer: "B.Cu".into(),
+            kind: ViaKind::Through,
+        },
+    ]);
+    let bds = ds_pro.board_design_settings.as_mut().unwrap();
+    bds.use_height_for_length_calcs = Some(true);
+    bds.board_thickness_nm = Some(1_600_000);
+    bds.outer_solder_mask_thickness_nm = Some(20_000);
+    ds_pro.project_rules = Some(
+        serde_json::json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"use_height_for_length_calcs": false, "rules": {}}}
+        })
+        .to_string(),
+    );
+    ds_pro.routing_options = Some(RoutingOptions {
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["SIG_A".into(), "SIG_B".into()],
+            ..Default::default()
+        }],
+        group_match_tolerance_nm: Some(100_000),
+        group_meander_amplitude_nm: Some(4_000_000),
+        ..Default::default()
+    });
+    let mut eng = Engine::new(ds_pro).unwrap();
+    eng.route(2, 50_000).unwrap();
+    let st = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+    apply_length_matching_in_tx(&mut eng, &st).unwrap();
+    let len_ds_ignored: f64 = eng
+        .copper()
+        .tracks()
+        .filter(|t| t.net == 2)
+        .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+        .sum();
+    assert!(
+        (len_ds_ignored - 23_160_000.0).abs() <= 150_000.0,
+        "f1_pro_false_in_ds should ignore ds.use_height_for_length_calcs and yield ~23.16mm, got {len_ds_ignored}"
+    );
+}

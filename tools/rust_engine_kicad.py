@@ -1516,8 +1516,6 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             pro_doc = json.loads(pro_text)
             ds_doc = pro_doc.get('board', {}).get('design_settings', {})
             if isinstance(ds_doc, dict):
-                if type(ds_doc.get('use_height_for_length_calcs')) is bool:
-                    pro_use_height = ds_doc['use_height_for_length_calcs']
                 rules_doc = ds_doc.get('rules', {})
                 if isinstance(rules_doc, dict):
                     if type(rules_doc.get('use_height_for_length_calcs')) is bool:
