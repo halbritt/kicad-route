@@ -1419,3 +1419,648 @@ fn optional_external_fixture_roundtrip_hook() {
     };
     std::fs::write(&out_path, serde_json::to_vec_pretty(&out).unwrap()).unwrap();
 }
+
+#[test]
+fn r4_pair_stripline_rect_circle_symmetric_escape_and_impedance_vbump_refusal() {
+    let make_stripline = |j2_neg_x: i64| -> Input {
+        let mut input = base_diff_input(&["CAN+", "CAN-", "GND"]);
+        input.layers = vec![
+            "F.Cu".into(),
+            "In1.Cu".into(),
+            "In2.Cu".into(),
+            "B.Cu".into(),
+        ];
+        input.bounds = Bounds {
+            min: [0, 0],
+            max: [100_000_000, 100_000_000],
+        };
+        input.pads.clear();
+        let all_cu = &["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"];
+        let mut p1 = pad(1, 1, [45_000_000, 48_730_000], all_cu);
+        p1.shape = Shape::Rect {
+            half_size_nm: [850_000, 850_000],
+        };
+        p1.drill = Some(DrillShape::Circle {
+            diameter_nm: 1_000_000,
+        });
+        let mut p2 = pad(2, 1, [55_000_000, 48_730_000], all_cu);
+        p2.shape = Shape::Rect {
+            half_size_nm: [850_000, 850_000],
+        };
+        p2.drill = Some(DrillShape::Circle {
+            diameter_nm: 1_000_000,
+        });
+        let mut n1 = pad(3, 2, [45_000_000, 51_270_000], all_cu);
+        n1.shape = Shape::Circle { radius_nm: 850_000 };
+        n1.drill = Some(DrillShape::Circle {
+            diameter_nm: 1_000_000,
+        });
+        let mut n2 = pad(4, 2, [j2_neg_x, 51_270_000], all_cu);
+        n2.shape = Shape::Circle { radius_nm: 850_000 };
+        n2.drill = Some(DrillShape::Circle {
+            diameter_nm: 1_000_000,
+        });
+        let g1 = pad(5, 3, [10_000_000, 10_000_000], all_cu);
+        let g2 = pad(6, 3, [90_000_000, 90_000_000], all_cu);
+        input.pads.extend([p1, p2, n1, n2, g1, g2]);
+        input.stackup = vec![
+            StackupLayer {
+                name: "F.Cu".into(),
+                kind: StackupKind::Copper,
+                thickness_nm: 35_000,
+                epsilon_r: None,
+                material: None,
+            },
+            StackupLayer {
+                name: "di1".into(),
+                kind: StackupKind::Prepreg,
+                thickness_nm: 486_667,
+                epsilon_r: Some(4.2),
+                material: None,
+            },
+            StackupLayer {
+                name: "In1.Cu".into(),
+                kind: StackupKind::Copper,
+                thickness_nm: 35_000,
+                epsilon_r: None,
+                material: None,
+            },
+            StackupLayer {
+                name: "di2".into(),
+                kind: StackupKind::Core,
+                thickness_nm: 486_667,
+                epsilon_r: Some(4.2),
+                material: None,
+            },
+            StackupLayer {
+                name: "In2.Cu".into(),
+                kind: StackupKind::Copper,
+                thickness_nm: 35_000,
+                epsilon_r: None,
+                material: None,
+            },
+            StackupLayer {
+                name: "di3".into(),
+                kind: StackupKind::Prepreg,
+                thickness_nm: 200_000,
+                epsilon_r: Some(4.2),
+                material: None,
+            },
+            StackupLayer {
+                name: "B.Cu".into(),
+                kind: StackupKind::Copper,
+                thickness_nm: 35_000,
+                epsilon_r: None,
+                material: None,
+            },
+        ];
+        // GND reference zones on F.Cu & In2.Cu with per-pad antipad holes (+200um)
+        let antipads = vec![
+            vec![
+                [43_950_000, 47_680_000],
+                [46_050_000, 47_680_000],
+                [46_050_000, 49_780_000],
+                [43_950_000, 49_780_000],
+            ],
+            vec![
+                [43_950_000, 50_220_000],
+                [46_050_000, 50_220_000],
+                [46_050_000, 52_320_000],
+                [43_950_000, 52_320_000],
+            ],
+            vec![
+                [53_950_000, 47_680_000],
+                [56_050_000, 47_680_000],
+                [56_050_000, 49_780_000],
+                [53_950_000, 49_780_000],
+            ],
+            vec![
+                [j2_neg_x - 1_050_000, 50_220_000],
+                [j2_neg_x + 1_050_000, 50_220_000],
+                [j2_neg_x + 1_050_000, 52_320_000],
+                [j2_neg_x - 1_050_000, 52_320_000],
+            ],
+        ];
+        input.zones.push(Zone {
+            id: uuid(800),
+            name: Some("GND".into()),
+            net: 3,
+            layers: vec!["F.Cu".into(), "In2.Cu".into()],
+            outer: vec![
+                [0, 0],
+                [100_000_000, 0],
+                [100_000_000, 100_000_000],
+                [0, 100_000_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            priority: 0,
+            local_clearance_nm: 200_000,
+            min_thickness_nm: 200_000,
+            connection: ZoneConnection::Thermal,
+            thermal_gap_nm: 200_000,
+            thermal_spoke_width_nm: 200_000,
+            island_removal: ZoneIslandRemoval::Always,
+            island_area_min_nm2: 0,
+            fill_mode: ZoneFillMode::Polygon,
+            filled: true,
+            refillable: false,
+            locked: false,
+            layer_fills: ["F.Cu", "In2.Cu"]
+                .into_iter()
+                .map(|ln| ZoneLayerFill {
+                    layer: ln.into(),
+                    polygons: vec![OutlinePolygon {
+                        outer: vec![
+                            [0, 0],
+                            [100_000_000, 0],
+                            [100_000_000, 100_000_000],
+                            [0, 100_000_000],
+                        ],
+                        holes: antipads.clone(),
+                    }],
+                })
+                .collect(),
+        });
+        input.custom_rules = Some(
+            "(version 1)\n(rule \"can_skew\" (condition \"A.inDiffPair('*')\") (constraint skew (max 0.15mm) (within_diff_pairs)))".into(),
+        );
+        input.routing_options = Some(RoutingOptions {
+            diff_pairs_mode: Some(DiffPairsMode::Auto),
+            pair_layers: vec!["In1.Cu".into()],
+            pair_impedance_ohm: Some(100.0),
+            impedance_tolerance_pct: Some(10.0),
+            impedance_reference: Some("GND".into()),
+            impedance_uncoupled_nm: Some(4_000_000),
+            ..Default::default()
+        });
+        input
+    };
+
+    // 1. Symmetric pair_stripline: rect+circle PTH pads choose symmetric escapes with 0 mid-trunk V-bumps
+    let mut eng = Engine::new(make_stripline(55_000_000)).unwrap();
+    let state = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+    apply_length_matching_in_tx(&mut eng, &state).unwrap();
+    let tracks: Vec<Track> = eng.copper().generated().cloned().collect();
+    assert_eq!(
+        tracks.len(),
+        6,
+        "expected 6 clean tracks (no mid-trunk V-bump), got {tracks:?}"
+    );
+    let len_p: f64 = tracks
+        .iter()
+        .filter(|t| t.net == 1)
+        .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+        .sum();
+    let len_n: f64 = tracks
+        .iter()
+        .filter(|t| t.net == 2)
+        .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+        .sum();
+    assert!(
+        (len_p - len_n).abs() <= 1_000.0,
+        "expected symmetric lengths, got {len_p} vs {len_n}"
+    );
+
+    // 2. Unabsorbable skew on impedance-controlled pair refuses Status::Unroutable rather than emitting mid-trunk V-bump
+    let mut bad_inp = make_stripline(55_500_000);
+    bad_inp.routing_options.as_mut().unwrap().intra_match = true;
+    bad_inp
+        .routing_options
+        .as_mut()
+        .unwrap()
+        .length_match_tolerance_nm = Some(50_000);
+    let mut bad_eng = Engine::new(bad_inp).unwrap();
+    let bad_state = prepare_and_route_pairs_in_tx(&mut bad_eng).unwrap();
+    let before_count = bad_eng.copper().generated().count();
+    let err = apply_length_matching_in_tx(&mut bad_eng, &bad_state).expect_err(
+        "unabsorbable skew on impedance pair must fail closed rather than emit mid-trunk V-bump",
+    );
+    assert_eq!(err.status, Status::Unroutable);
+    assert_eq!(bad_eng.copper().generated().count(), before_count);
+}
+
+#[test]
+fn r4_measure_fromto_short_segment_via_copper_and_three_pad_fromto_dru() {
+    // 1. 3+-pad net in DRU !A.fromTo(...) and A.fromTo(...)
+    let mut inp = base_diff_input(&["DP+", "DP-", "CLK"]);
+    inp.pads[0].footprint_ref = Some("J1".into());
+    inp.pads[0].pad_number = Some("1".into());
+    inp.pads[1].footprint_ref = Some("J2".into());
+    inp.pads[1].pad_number = Some("1".into());
+    inp.pads[2].footprint_ref = Some("J1".into());
+    inp.pads[2].pad_number = Some("2".into());
+    inp.pads[3].footprint_ref = Some("J2".into());
+    inp.pads[3].pad_number = Some("2".into());
+    inp.pads[4].footprint_ref = Some("U1".into());
+    inp.pads[4].pad_number = Some("1".into());
+    inp.pads[5].footprint_ref = Some("U1".into());
+    inp.pads[5].pad_number = Some("2".into());
+    let mut p_u3 = pad(99, 3, [25_000_000, 13_000_000], &["F.Cu"]);
+    p_u3.footprint_ref = Some("U1".into());
+    p_u3.pad_number = Some("3".into());
+    inp.pads.push(p_u3);
+    inp.custom_rules = Some(
+        "(version 1)\n(rule \"not_clk\" (condition \"!A.fromTo('U1-1', 'U1-2')\") (constraint skew (max 0.030mm)))".into(),
+    );
+    let r = resolve_effective_rules(&mut inp).unwrap();
+    let plan = discover_and_validate(&inp, &r).unwrap();
+    assert_eq!(plan.pairs[0].dru_skew_max_nm, Some(30_000));
+
+    // Also 3-pad pair net matching A.fromTo('J1-1', 'J2-1')
+    let mut p3 = pad(100, 1, [25_000_000, 10_000_000], &["F.Cu"]);
+    p3.footprint_ref = Some("J3".into());
+    p3.pad_number = Some("1".into());
+    let mut n3 = pad(101, 2, [25_000_000, 11_500_000], &["F.Cu"]);
+    n3.footprint_ref = Some("J3".into());
+    n3.pad_number = Some("2".into());
+    inp.pads.extend([p3, n3]);
+    inp.custom_rules = Some(
+        "(version 1)\n(rule \"dp3\" (condition \"A.fromTo('J1-1', 'J2-1') || A.fromTo('J1-2', 'J2-2')\") (constraint skew (max 0.045mm)))".into(),
+    );
+    let r2 = resolve_effective_rules(&mut inp).unwrap();
+    let plan2 = discover_and_validate(&inp, &r2).unwrap();
+    assert_eq!(plan2.pairs[0].dru_skew_max_nm, Some(45_000));
+
+    // 2. measure_net_fromto short-segment bypass (< width_nm vs >= width_nm) via group matching
+    let run_step_probe = |step_h: i64| -> f64 {
+        let mut g = base_diff_input(&["NET_A", "NET_B"]);
+        g.pads.clear();
+        g.pads.push(pad(1, 1, [10_000_000, 10_000_000], &["F.Cu"]));
+        g.pads.push(pad(2, 1, [30_000_000, 10_000_000], &["F.Cu"]));
+        let mut pb1 = pad(3, 2, [10_000_000, 25_000_000], &["F.Cu"]);
+        pb1.shape = Shape::Circle { radius_nm: 5_000 };
+        let mut pb2 = pad(4, 2, [29_000_000, 25_000_000], &["F.Cu"]);
+        pb2.shape = Shape::Circle { radius_nm: 5_000 };
+        g.pads.push(pb1);
+        g.pads.push(pb2);
+        let segs = [
+            ([10_000_000, 10_000_000], [15_000_000, 10_000_000]),
+            ([15_000_000, 10_000_000], [15_000_000, 10_000_000 + step_h]),
+            (
+                [15_000_000, 10_000_000 + step_h],
+                [20_000_000, 10_000_000 + step_h],
+            ),
+            ([20_000_000, 10_000_000 + step_h], [20_000_000, 10_000_000]),
+            ([20_000_000, 10_000_000], [30_000_000, 10_000_000]),
+        ];
+        for (idx, &(a, b)) in segs.iter().enumerate() {
+            g.tracks.push(Track {
+                id: uuid(500 + idx as u64),
+                net: 1,
+                start: a,
+                end: b,
+                width_nm: 300_000,
+                locked: false,
+                layer: "F.Cu".into(),
+            });
+        }
+        g.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["NET_A".into(), "NET_B".into()],
+                ..Default::default()
+            }],
+            group_match_tolerance_nm: Some(15_000),
+            group_meander_amplitude_nm: Some(4_000_000),
+            ..Default::default()
+        });
+        let mut eng = Engine::new(g).unwrap();
+        eng.route(2, 50_000).unwrap();
+        let st = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+        apply_length_matching_in_tx(&mut eng, &st).unwrap();
+        eng.copper()
+            .tracks()
+            .filter(|t| t.net == 2)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum()
+    };
+    let len_290 = run_step_probe(290_000);
+    assert!(
+        (len_290 - 20_000_000.0).abs() <= 200_000.0,
+        "0.29mm < 0.30mm step should bypass to ~20.00mm, got {len_290}"
+    );
+    let len_300 = run_step_probe(300_000);
+    assert!(
+        (len_300 - 20_600_000.0).abs() <= 200_000.0,
+        "0.30mm >= 0.30mm step should measure ~20.60mm, got {len_300}"
+    );
+
+    // 3. measure_net_fromto via-to-track copper overlap (d < R, R <= d < R+w/2, d >= R+w/2)
+    let run_via_probe = |y_off: i64| -> f64 {
+        let mut g = base_diff_input(&["NET_A", "NET_B"]);
+        g.layers = vec!["F.Cu".into(), "In1.Cu".into(), "B.Cu".into()];
+        g.pads.clear();
+        g.pads.push(pad(1, 1, [10_000_000, 10_000_000], &["F.Cu"]));
+        g.pads
+            .push(pad(2, 1, [30_000_000, 10_000_000], &["In1.Cu"]));
+        let mut pb1 = pad(3, 2, [10_000_000, 25_000_000], &["F.Cu"]);
+        pb1.shape = Shape::Circle { radius_nm: 5_000 };
+        let mut pb2 = pad(4, 2, [29_000_000, 25_000_000], &["F.Cu"]);
+        pb2.shape = Shape::Circle { radius_nm: 5_000 };
+        g.pads.push(pb1);
+        g.pads.push(pb2);
+        g.tracks.push(Track {
+            id: uuid(600),
+            net: 1,
+            start: [10_000_000, 10_000_000],
+            end: [15_000_000, 10_000_000],
+            width_nm: 250_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        });
+        g.tracks.push(Track {
+            id: uuid(601),
+            net: 1,
+            start: [15_000_000, 10_000_000],
+            end: [15_000_000, 10_000_000 + y_off],
+            width_nm: 250_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        });
+        g.tracks.push(Track {
+            id: uuid(602),
+            net: 1,
+            start: [15_000_000, 10_000_000 + y_off],
+            end: [15_000_000, 10_000_000],
+            width_nm: 250_000,
+            locked: false,
+            layer: "In1.Cu".into(),
+        });
+        g.tracks.push(Track {
+            id: uuid(603),
+            net: 1,
+            start: [15_000_000, 10_000_000],
+            end: [30_000_000, 10_000_000],
+            width_nm: 250_000,
+            locked: false,
+            layer: "In1.Cu".into(),
+        });
+        g.vias.push(Via {
+            id: uuid(604),
+            net: 1,
+            at: [15_000_000, 10_000_000 + y_off],
+            diameter_nm: 600_000,
+            drill_nm: 300_000,
+            locked: false,
+            start_layer: "F.Cu".into(),
+            end_layer: "B.Cu".into(),
+            kind: ViaKind::Through,
+        });
+        g.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["NET_A".into(), "NET_B".into()],
+                ..Default::default()
+            }],
+            group_match_tolerance_nm: Some(15_000),
+            group_meander_amplitude_nm: Some(4_000_000),
+            ..Default::default()
+        });
+        let mut eng = Engine::new(g).unwrap();
+        eng.route(2, 50_000).unwrap();
+        let st = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+        apply_length_matching_in_tx(&mut eng, &st).unwrap();
+        eng.copper()
+            .tracks()
+            .filter(|t| t.net == 2)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum()
+    };
+    let v_175 = run_via_probe(175_000);
+    let v_300 = run_via_probe(300_000);
+    let v_425 = run_via_probe(425_000);
+    assert!(
+        (v_175 - v_300 - 112_661.0).abs() <= 30_000.0,
+        "d=0.175 < R=0.30 should add ~0.1127mm over d=R: v_175={v_175}, v_300={v_300}"
+    );
+    assert!(
+        (v_425 - v_300 - 850_000.0).abs() <= 30_000.0,
+        "d=0.425 == R+w/2 should add ~0.8500mm over d=R: v_425={v_425}, v_300={v_300}"
+    );
+}
+
+#[test]
+fn r4_pitch_720_gap_max_enforced_and_indiffpair_underscore_stem() {
+    // 1. adv_pitch_720: 0.30x0.30mm SMD pads at 0.72mm pitch with diff_pair_gap (min 0.34mm) (max 0.36mm)
+    let mut input = base_diff_input(&["CAN+", "CAN-"]);
+    input.pads.clear();
+    let mk_rect = |id, net, at| {
+        let mut p = pad(id, net, at, &["F.Cu"]);
+        p.shape = Shape::Rect {
+            half_size_nm: [150_000, 150_000],
+        };
+        p
+    };
+    input.pads.push(mk_rect(1, 1, [10_000_000, 14_640_000]));
+    input.pads.push(mk_rect(2, 1, [40_000_000, 14_640_000]));
+    input.pads.push(mk_rect(3, 2, [10_000_000, 15_360_000]));
+    input.pads.push(mk_rect(4, 2, [40_000_000, 15_360_000]));
+    input.custom_rules = Some(
+        "(version 1)\n(rule \"gap\" (constraint diff_pair_gap (min 0.34mm) (max 0.36mm)))".into(),
+    );
+    input.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        pair_layers: vec!["F.Cu".into()],
+        ..Default::default()
+    });
+    let mut eng = Engine::new(input).unwrap();
+    prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+    let p_tracks: Vec<_> = eng.copper().generated().filter(|t| t.net == 1).collect();
+    let n_tracks: Vec<_> = eng.copper().generated().filter(|t| t.net == 2).collect();
+    assert!(!p_tracks.is_empty() && !n_tracks.is_empty());
+    // Ensure no strictly parallel overlapping segments exceed gap_max (0.36mm -> 0.61mm center-to-center)
+    for pt in &p_tracks {
+        let p_len = ((pt.end[0] - pt.start[0]) as f64).hypot((pt.end[1] - pt.start[1]) as f64);
+        let (ux, uy) = (
+            (pt.end[0] - pt.start[0]) as f64 / p_len,
+            (pt.end[1] - pt.start[1]) as f64 / p_len,
+        );
+        for nt in &n_tracks {
+            let n_len = ((nt.end[0] - nt.start[0]) as f64).hypot((nt.end[1] - nt.start[1]) as f64);
+            let (nx, ny) = (
+                (nt.end[0] - nt.start[0]) as f64 / n_len,
+                (nt.end[1] - nt.start[1]) as f64 / n_len,
+            );
+            if (ux * nx + uy * ny).abs() >= 0.99999 {
+                let p1 = ux * (nt.start[0] - pt.start[0]) as f64
+                    + uy * (nt.start[1] - pt.start[1]) as f64;
+                let p2 =
+                    ux * (nt.end[0] - pt.start[0]) as f64 + uy * (nt.end[1] - pt.start[1]) as f64;
+                if p1.max(p2).min(p_len) > p1.min(p2).max(0.0) + 1_000.0 {
+                    let perp = (ux * (nt.start[1] - pt.start[1]) as f64
+                        - uy * (nt.start[0] - pt.start[0]) as f64)
+                        .abs();
+                    assert!(
+                        perp <= 610_005.0,
+                        "parallel tracks exceeded gap_max: perp={perp}"
+                    );
+                }
+            }
+        }
+    }
+
+    // 2. DP_+/DP_- with A.inDiffPair('DP') and A.inDiffPair('DP_') match; A.inDiffPair('DP_+') does not
+    let mut dp_u = base_diff_input(&["DP_+", "DP_-"]);
+    dp_u.custom_rules = Some(
+        "(version 1)\n(rule \"dp\" (condition \"A.inDiffPair('DP')\") (constraint skew (max 0.025mm)))".into(),
+    );
+    let r_dp = resolve_effective_rules(&mut dp_u).unwrap();
+    assert_eq!(
+        discover_and_validate(&dp_u, &r_dp).unwrap().pairs[0].dru_skew_max_nm,
+        Some(25_000)
+    );
+
+    dp_u.custom_rules = Some(
+        "(version 1)\n(rule \"dp_\" (condition \"A.inDiffPair('DP_')\") (constraint skew (max 0.030mm)))".into(),
+    );
+    let r_dp_ = resolve_effective_rules(&mut dp_u).unwrap();
+    assert_eq!(
+        discover_and_validate(&dp_u, &r_dp_).unwrap().pairs[0].dru_skew_max_nm,
+        Some(30_000)
+    );
+
+    dp_u.custom_rules = Some(
+        "(version 1)\n(rule \"dp_plus\" (condition \"A.inDiffPair('DP_+')\") (constraint skew (max 0.025mm)))".into(),
+    );
+    let r_dp_plus = resolve_effective_rules(&mut dp_u).unwrap();
+    assert_eq!(
+        discover_and_validate(&dp_u, &r_dp_plus).unwrap().pairs[0].dru_skew_max_nm,
+        None
+    );
+}
+
+#[test]
+fn r4_multilayer_start_end_and_ortho_pads_aligned_leads() {
+    // 1. adv_4l_in1_in2_clean: F.Cu SMD pads -> In1.Cu (right blocked) -> In2.Cu (left blocked) -> F.Cu
+    let mut ml = base_diff_input(&["CAN+", "CAN-"]);
+    ml.layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    ml.pads.clear();
+    ml.pads.push(pad(1, 1, [10_000_000, 14_700_000], &["F.Cu"]));
+    ml.pads.push(pad(2, 1, [40_000_000, 18_700_000], &["F.Cu"]));
+    ml.pads.push(pad(3, 2, [10_000_000, 15_300_000], &["F.Cu"]));
+    ml.pads.push(pad(4, 2, [40_000_000, 19_300_000], &["F.Cu"]));
+    ml.rule_areas.push(RuleArea {
+        id: uuid(900),
+        name: None,
+        layers: vec!["In1.Cu".into()],
+        outer: vec![
+            [28_000_000, 0],
+            [50_000_000, 0],
+            [50_000_000, 40_000_000],
+            [28_000_000, 40_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: false,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    });
+    ml.rule_areas.push(RuleArea {
+        id: uuid(901),
+        name: None,
+        layers: vec!["In2.Cu".into()],
+        outer: vec![
+            [0, 0],
+            [20_000_000, 0],
+            [20_000_000, 40_000_000],
+            [0, 40_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: false,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    });
+    ml.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        pair_layers: vec!["In1.Cu".into(), "In2.Cu".into()],
+        ..Default::default()
+    });
+    let mut eng_ml = Engine::new(ml).unwrap();
+    prepare_and_route_pairs_in_tx(&mut eng_ml).unwrap();
+    assert!(eng_ml.copper().generated_vias().count() >= 6);
+    assert!(eng_ml.copper().generated().any(|t| t.layer == "In1.Cu"));
+    assert!(eng_ml.copper().generated().any(|t| t.layer == "In2.Cu"));
+
+    // 2. adv_4l_ortho_pads_in1: aligned cross-layer leads & zero non-jog via-to-track copper overlaps
+    let mut ortho = base_diff_input(&["CAN+", "CAN-"]);
+    ortho.layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    ortho.pads.clear();
+    ortho
+        .pads
+        .push(pad(1, 1, [10_000_000, 11_700_000], &["F.Cu"]));
+    ortho
+        .pads
+        .push(pad(2, 1, [35_300_000, 28_000_000], &["F.Cu"]));
+    ortho
+        .pads
+        .push(pad(3, 2, [10_000_000, 12_300_000], &["F.Cu"]));
+    ortho
+        .pads
+        .push(pad(4, 2, [34_700_000, 28_000_000], &["F.Cu"]));
+    ortho.custom_rules =
+        Some("(version 1)\n(rule \"unc\" (constraint diff_pair_uncoupled (max 8.0mm)))".into());
+    ortho.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        pair_layers: vec!["In1.Cu".into()],
+        intra_match: true,
+        length_match_tolerance_nm: Some(150_000),
+        ..Default::default()
+    });
+    let mut eng_o = Engine::new(ortho).unwrap();
+    let st_o = prepare_and_route_pairs_in_tx(&mut eng_o).unwrap();
+    apply_length_matching_in_tx(&mut eng_o, &st_o).unwrap();
+    let vias: Vec<Via> = eng_o.copper().generated_vias().cloned().collect();
+    let tracks: Vec<Track> = eng_o.copper().generated().cloned().collect();
+    assert_eq!(vias.len(), 4);
+    for v in &vias {
+        let mut hubs: Vec<(String, Point)> = Vec::new();
+        for tj in &tracks {
+            if tj.net == v.net && (tj.start == v.at || tj.end == v.at) {
+                let other = if tj.start == v.at { tj.end } else { tj.start };
+                let d = ((other[0] - v.at[0]) as f64).hypot((other[1] - v.at[1]) as f64);
+                if d * 2.0 < (v.diameter_nm + tj.width_nm) as f64 {
+                    hubs.push((tj.layer.clone(), other));
+                }
+            }
+        }
+        for tr in &tracks {
+            if tr.net != v.net || tr.start == v.at || tr.end == v.at {
+                continue;
+            }
+            if hubs
+                .iter()
+                .any(|(hl, hp)| *hl == tr.layer && (tr.start == *hp || tr.end == *hp))
+            {
+                continue;
+            }
+            assert!(
+                !kicad_route_engine::geometry::point_near_segment(
+                    v.at,
+                    tr.start,
+                    tr.end,
+                    i128::from(v.diameter_nm) + i128::from(tr.width_nm),
+                    false,
+                ),
+                "non-jog track {:?}->{:?} on {} overlapped via {:?}",
+                tr.start,
+                tr.end,
+                tr.layer,
+                v.at
+            );
+        }
+    }
+}

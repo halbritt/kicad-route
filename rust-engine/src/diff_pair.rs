@@ -47,6 +47,7 @@ pub struct ResolvedDiffPair {
     pub via_gap_nm: i64,
     pub clearance_nm: i64,
     pub uncoupled_max_nm: i64,
+    pub has_dru_gap_max: bool,
     pub dru_skew_max_nm: Option<i64>,
     pub impedance: Option<ImpedancePlan>,
 }
@@ -837,17 +838,17 @@ fn layer_matches_spec_local(layer: &str, spec: &str) -> bool {
     }
 }
 
-fn net_fromto_tokens(input: &Input, net_id: u32) -> Option<(String, String)> {
-    let pads: Vec<_> = input.pads.iter().filter(|p| p.net == net_id).collect();
-    if pads.len() != 2 {
-        return None;
-    }
-    let tok = |p: &crate::model::Pad| -> Option<String> {
-        let r = p.footprint_ref.as_deref()?;
-        let n = p.pad_number.as_deref()?;
-        Some(format!("{r}-{n}"))
-    };
-    Some((tok(pads[0])?, tok(pads[1])?))
+fn net_pad_tokens(input: &Input, net_id: u32) -> Vec<String> {
+    input
+        .pads
+        .iter()
+        .filter(|p| p.net == net_id)
+        .filter_map(|p| {
+            let r = p.footprint_ref.as_deref()?;
+            let n = p.pad_number.as_deref()?;
+            Some(format!("{r}-{n}"))
+        })
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -886,8 +887,8 @@ fn resolve_pair_dru_bounds(
 
     for (net_id, net_name) in [(pos_net, pos_name), (neg_net, neg_name)] {
         let nr_self = rules.net(net_id);
-        let ft_owned = net_fromto_tokens(input, net_id);
-        let ft_ref = ft_owned.as_ref().map(|(a, b)| (a.as_str(), b.as_str()));
+        let ft_owned = net_pad_tokens(input, net_id);
+        let ft_ref = (!ft_owned.is_empty()).then_some(ft_owned.as_slice());
         let item = DruItem {
             net_id,
             net_name,
@@ -935,8 +936,8 @@ fn resolve_pair_dru_bounds(
                     if within_diff_pairs {
                         skew_max = Some(skew_max.map_or(mx, |cur| cur.min(mx)));
                     } else if let Some(cond) = &r.condition {
-                        let pos_ft = net_fromto_tokens(input, pos_net);
-                        let neg_ft = net_fromto_tokens(input, neg_net);
+                        let pos_ft = net_pad_tokens(input, pos_net);
+                        let neg_ft = net_pad_tokens(input, neg_net);
                         let pos_item = DruItem {
                             net_id: pos_net,
                             net_name: pos_name,
@@ -958,20 +959,20 @@ fn resolve_pair_dru_bounds(
                             &pos_item,
                             None,
                             Some(stem),
-                            pos_ft.as_ref().map(|(a, b)| (a.as_str(), b.as_str())),
+                            (!pos_ft.is_empty()).then_some(pos_ft.as_slice()),
                         ) && eval_dru_expr_for_context(
                             cond,
                             &neg_item,
                             None,
                             Some(stem),
-                            neg_ft.as_ref().map(|(a, b)| (a.as_str(), b.as_str())),
+                            (!neg_ft.is_empty()).then_some(neg_ft.as_slice()),
                         );
                         let any_other = input.nets.iter().any(|on| {
                             if on.id == 0 || on.id == pos_net || on.id == neg_net {
                                 return false;
                             }
                             let nr = rules.net(on.id);
-                            let oft = net_fromto_tokens(input, on.id);
+                            let oft = net_pad_tokens(input, on.id);
                             let other_stem = pair_stem_by_net.get(&on.id).map(String::as_str);
                             let oitem = DruItem {
                                 net_id: on.id,
@@ -986,7 +987,7 @@ fn resolve_pair_dru_bounds(
                                 &oitem,
                                 None,
                                 other_stem,
-                                oft.as_ref().map(|(a, b)| (a.as_str(), b.as_str())),
+                                (!oft.is_empty()).then_some(oft.as_slice()),
                             )
                         });
                         if both_match && !any_other {
@@ -1403,6 +1404,7 @@ fn discover_and_validate_with_copper(
             via_gap_nm,
             clearance_nm: min_clr,
             uncoupled_max_nm,
+            has_dru_gap_max: dru_gap_max.is_some(),
             dru_skew_max_nm,
             impedance,
         });
@@ -2023,6 +2025,124 @@ fn measure_net_fromto(
         }
     }
 
+    // Same-layer non-incident track-to-track copper overlaps & acute shared-endpoint foldbacks
+    for i in 0..tracks.len() {
+        let ta = tracks[i];
+        if ta.start == ta.end {
+            continue;
+        }
+        let Some(li) = engine.layer_index(&ta.layer) else {
+            continue;
+        };
+        for tb in &tracks[(i + 1)..] {
+            if tb.layer != ta.layer || tb.start == tb.end {
+                continue;
+            }
+            if (ta.start == tb.start && ta.end == tb.end)
+                || (ta.start == tb.end && ta.end == tb.start)
+            {
+                continue;
+            }
+            let gap2 = i128::from(ta.width_nm) + i128::from(tb.width_nm);
+            if !geometry::segments_near(ta.start, ta.end, tb.start, tb.end, gap2, false) {
+                continue;
+            }
+            let shared = if ta.start == tb.start {
+                Some((ta.start, ta.end, tb.end))
+            } else if ta.start == tb.end {
+                Some((ta.start, ta.end, tb.start))
+            } else if ta.end == tb.start {
+                Some((ta.end, ta.start, tb.end))
+            } else if ta.end == tb.end {
+                Some((ta.end, ta.start, tb.start))
+            } else {
+                None
+            };
+            if let Some((s_pt, pa, pb)) = shared {
+                let dot = i128::from(pa[0] - s_pt[0]) * i128::from(pb[0] - s_pt[0])
+                    + i128::from(pa[1] - s_pt[1]) * i128::from(pb[1] - s_pt[1]);
+                if dot > 0 {
+                    let sn = get_node(s_pt, li, &mut node_ids, &mut nodes);
+                    if geometry::point_near_segment(pa, tb.start, tb.end, gap2, false) {
+                        let pan = get_node(pa, li, &mut node_ids, &mut nodes);
+                        add_edge(pan, sn, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
+                    }
+                    if geometry::point_near_segment(pb, ta.start, ta.end, gap2, false) {
+                        let pbn = get_node(pb, li, &mut node_ids, &mut nodes);
+                        add_edge(pbn, sn, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
+                    }
+                }
+                continue;
+            }
+            let mut a_near = Vec::new();
+            for &p in &[ta.start, ta.end] {
+                if geometry::point_near_segment(p, tb.start, tb.end, gap2, false) {
+                    a_near.push(p);
+                }
+            }
+            let mut b_near = Vec::new();
+            for &q in &[tb.start, tb.end] {
+                if geometry::point_near_segment(q, ta.start, ta.end, gap2, false) {
+                    b_near.push(q);
+                }
+            }
+            if !a_near.is_empty() && !b_near.is_empty() {
+                for &pa in &a_near {
+                    let u = get_node(pa, li, &mut node_ids, &mut nodes);
+                    for &pb in &b_near {
+                        let w = get_node(pb, li, &mut node_ids, &mut nodes);
+                        add_edge(u, w, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
+                    }
+                }
+            } else if !a_near.is_empty() {
+                if !a_near
+                    .iter()
+                    .any(|&pa| geometry::point_near_segment(pa, tb.start, tb.end, 2, false))
+                {
+                    for &pa in &a_near {
+                        let pb = if dist_f64(pa, tb.start) <= dist_f64(pa, tb.end) {
+                            tb.start
+                        } else {
+                            tb.end
+                        };
+                        let u = get_node(pa, li, &mut node_ids, &mut nodes);
+                        let w = get_node(pb, li, &mut node_ids, &mut nodes);
+                        add_edge(u, w, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
+                    }
+                }
+            } else if !b_near.is_empty() {
+                if !b_near
+                    .iter()
+                    .any(|&pb| geometry::point_near_segment(pb, ta.start, ta.end, 2, false))
+                {
+                    for &pb in &b_near {
+                        let pa = if dist_f64(pb, ta.start) <= dist_f64(pb, ta.end) {
+                            ta.start
+                        } else {
+                            ta.end
+                        };
+                        let u = get_node(pa, li, &mut node_ids, &mut nodes);
+                        let w = get_node(pb, li, &mut node_ids, &mut nodes);
+                        add_edge(u, w, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
+                    }
+                }
+            } else {
+                let mut best_pair = (ta.start, tb.start, dist_f64(ta.start, tb.start));
+                for &pa in &[ta.start, ta.end] {
+                    for &pb in &[tb.start, tb.end] {
+                        let d = dist_f64(pa, pb);
+                        if d < best_pair.2 {
+                            best_pair = (pa, pb, d);
+                        }
+                    }
+                }
+                let u = get_node(best_pair.0, li, &mut node_ids, &mut nodes);
+                let w = get_node(best_pair.1, li, &mut node_ids, &mut nodes);
+                add_edge(u, w, 0.0, 0.0, nodes.len(), &mut edges, &mut adj);
+            }
+        }
+    }
+
     // Via vertical edges between active copper layers at v.at
     for v in &vias {
         let s = engine.layer_index(&v.start_layer).unwrap_or(0);
@@ -2050,6 +2170,57 @@ fn measure_net_fromto(
                         }
                     }
                 }
+            }
+        }
+        // Connect via-to-track copper overlaps (< R_via + w/2) on all spanned layers
+        let via_r = (v.diameter_nm as f64) * 0.5;
+        for t in &tracks {
+            if t.start == v.at || t.end == v.at {
+                continue;
+            }
+            let Some(li) = engine.layer_index(&t.layer) else {
+                continue;
+            };
+            if li < s.min(e) || li > s.max(e) {
+                continue;
+            }
+            if geometry::point_near_segment(v.at, t.start, t.end, 2, false) {
+                continue;
+            }
+            let gap2 = i128::from(v.diameter_nm) + i128::from(t.width_nm);
+            if !geometry::point_near_segment(v.at, t.start, t.end, gap2, false) {
+                continue;
+            }
+            let layer_delay_rate = if let Some(pr) = prof {
+                pr.layer_entries
+                    .iter()
+                    .find(|le| le.signal_layer == t.layer)
+                    .map_or(0.0, |le| le.delay_as_per_mm as f64)
+            } else {
+                0.0
+            };
+            let ds = dist_f64(t.start, v.at);
+            let de = dist_f64(t.end, v.at);
+            let vn = get_node(v.at, li, &mut node_ids, &mut nodes);
+            let mut ep_cands: Vec<(Point, f64)> = Vec::new();
+            if ds <= de + 1_000.0 {
+                ep_cands.push((t.start, ds));
+            }
+            if de <= ds + 1_000.0 {
+                ep_cands.push((t.end, de));
+            }
+            for (ep, d_ep) in ep_cands {
+                let len = if d_ep < via_r {
+                    (via_r - (via_r * via_r - d_ep * d_ep).sqrt()).max(0.0)
+                } else {
+                    0.0
+                };
+                let del = (len / 1_000_000.0) * layer_delay_rate;
+                let en = get_node(ep, li, &mut node_ids, &mut nodes);
+                add_edge(vn, en, len, del, nodes.len(), &mut edges, &mut adj);
+            }
+            if !active_layers.contains(&li) {
+                active_layers.push(li);
             }
         }
         active_layers.sort_unstable();
@@ -3185,7 +3356,7 @@ fn octilinear_elbow_paths(a: Point, b: Point) -> Vec<Vec<Point>> {
     } else {
         [a[0], a[1] + sy * (ady - adx)]
     };
-    vec![vec![a, elbow1, b], vec![a, elbow2, b], vec![a, b]]
+    vec![vec![a, elbow1, b], vec![a, elbow2, b]]
 }
 
 #[derive(Clone, Debug)]
@@ -3201,6 +3372,7 @@ struct EndFanout {
     uncoupled_nm: i64,
     est_uncoupled_nm: i64,
     skew_nm: i64,
+    short_seg_count: usize,
 }
 
 fn find_pad_pairs<'a>(
@@ -3313,9 +3485,9 @@ fn enumerate_end_fanouts(
 
     let mut out = Vec::new();
     let max_reach = (pair.uncoupled_max_nm / 2).max(1_000_000).min(4_000_000);
-    let offsets_nm: [i64; 11] = [
-        0, 350_000, 500_000, 700_000, 1_000_000, 1_250_000, 1_500_000, 2_000_000, 2_500_000,
-        3_000_000, max_reach,
+    let offsets_nm: [i64; 12] = [
+        0, 350_000, 500_000, 700_000, 1_000_000, 1_250_000, 1_500_000, 1_750_000, 2_000_000,
+        2_500_000, 3_000_000, max_reach,
     ];
 
     let mut candidate_layers: Vec<usize> = allowed_layer_idxs
@@ -3400,9 +3572,50 @@ fn enumerate_end_fanouts(
                     }
                 }
 
+                let path_short_and_non_oct = |path: &[Point], ew: i64| -> (usize, usize) {
+                    let short_thresh = (ew.max(pair.width_nm) + 5_000) as f64;
+                    let mut short_segs = 0usize;
+                    if path.len() >= 3 {
+                        for w in path.windows(2) {
+                            if w[0] != w[1] && dist_f64(w[0], w[1]) <= short_thresh {
+                                short_segs += 1;
+                            }
+                        }
+                        if dist_f64(path[0], path[path.len() - 1]) <= short_thresh {
+                            short_segs += 1;
+                        }
+                    }
+                    let non_oct = path
+                        .windows(2)
+                        .filter(|w| {
+                            w[0] != w[1]
+                                && w[0][0] != w[1][0]
+                                && w[0][1] != w[1][1]
+                                && (w[1][0] - w[0][0]).abs() != (w[1][1] - w[0][1]).abs()
+                        })
+                        .count();
+                    (short_segs, non_oct)
+                };
+
+                let mut best_overall: Option<((usize, u8, i64, usize, i64), EndFanout)> = None;
                 'esc: for &ew in &widths_to_try {
-                    let p_paths = octilinear_elbow_paths(p_pad.at, gp);
-                    let n_paths = octilinear_elbow_paths(n_pad.at, gn);
+                    let mut p_paths = octilinear_elbow_paths(p_pad.at, gp);
+                    if p_pad.at != gp
+                        && !p_paths
+                            .iter()
+                            .any(|p| p.len() == 2 && p[0] == p_pad.at && p[1] == gp)
+                    {
+                        p_paths.push(vec![p_pad.at, gp]);
+                    }
+                    let mut n_paths = octilinear_elbow_paths(n_pad.at, gn);
+                    if n_pad.at != gn
+                        && !n_paths
+                            .iter()
+                            .any(|p| p.len() == 2 && p[0] == n_pad.at && p[1] == gn)
+                    {
+                        n_paths.push(vec![n_pad.at, gn]);
+                    }
+                    let mut best_ew: Option<((usize, i64, usize, i64), EndFanout)> = None;
                     for pp in &p_paths {
                         if !fanout_path_exits_pad_cleanly(pp, p_pad, ew, pair.width_nm) {
                             continue;
@@ -3485,7 +3698,12 @@ fn enumerate_end_fanouts(
                                 .collect();
                             let est_uncoupled_nm = measure_tracks_uncoupled_nm(pair, &fan_tracks);
                             let uncoupled_nm = lp.max(ln).round() as i64;
-                            out.push(EndFanout {
+                            let (sp, op) = path_short_and_non_oct(pp, ew);
+                            let (sn, on) = path_short_and_non_oct(np, ew);
+                            let short_seg_count = sp + sn;
+                            let non_oct_count = op + on;
+                            let key = (short_seg_count, skew_nm, non_oct_count, uncoupled_nm);
+                            let cand = EndFanout {
                                 gather: g,
                                 gp,
                                 gn,
@@ -3497,15 +3715,38 @@ fn enumerate_end_fanouts(
                                 uncoupled_nm,
                                 est_uncoupled_nm,
                                 skew_nm,
-                            });
-                            break 'esc;
+                                short_seg_count,
+                            };
+                            if best_ew.as_ref().is_none_or(|(bk, _)| key < *bk) {
+                                best_ew = Some((key, cand));
+                            }
                         }
                     }
+                    if let Some((ew_key, fan)) = best_ew {
+                        if ew == pair.width_nm && ew_key.0 == 0 {
+                            out.push(fan);
+                            best_overall = None;
+                            break 'esc;
+                        }
+                        let okey = (
+                            ew_key.0,
+                            u8::from(ew < pair.width_nm),
+                            ew_key.1,
+                            ew_key.2,
+                            ew_key.3,
+                        );
+                        if best_overall.as_ref().is_none_or(|(bk, _)| okey < *bk) {
+                            best_overall = Some((okey, fan));
+                        }
+                    }
+                }
+                if let Some((_, fan)) = best_overall {
+                    out.push(fan);
                 }
             }
         }
     }
-    out.sort_by_key(|f| (f.uncoupled_nm, f.skew_nm));
+    out.sort_by_key(|f| (f.short_seg_count, f.uncoupled_nm, f.skew_nm));
     Ok(out)
 }
 // ---------------------------------------------------------------------------
@@ -3662,7 +3903,8 @@ fn fanout_trunk_pair_ok(
         return false;
     }
     if let (Some((ufx, ufy)), Some((unx, uny))) = (dir_unit_f64(fa, fb), dir_unit_f64(na, nb)) {
-        if (ufx * unx + ufy * uny).abs() >= 0.999 {
+        let abs_dot = (ufx * unx + ufy * uny).abs();
+        if abs_dot >= 0.999 {
             let len = dist_f64(fa, fb);
             let p1 = ufx * ((na[0] - fa[0]) as f64) + ufy * ((na[1] - fa[1]) as f64);
             let p2 = ufx * ((nb[0] - fa[0]) as f64) + ufy * ((nb[1] - fa[1]) as f64);
@@ -3673,6 +3915,12 @@ fn fanout_trunk_pair_ok(
                 let min_center = 0.5 * ((fw + nw) as f64) + (pair.gap_min_nm as f64) - 1.0;
                 if perp < min_center {
                     return false;
+                }
+                if pair.has_dru_gap_max && abs_dot >= 0.99999 {
+                    let max_center = 0.5 * ((fw + nw) as f64) + (pair.gap_max_nm as f64) + 1.0;
+                    if perp > max_center {
+                        return false;
+                    }
                 }
             }
         }
@@ -3766,6 +4014,47 @@ fn validate_and_build_coupled_solution(
 ) -> Result<Option<CoupledSolution>, Failure> {
     if start_f.pos_on_left != end_f.pos_on_left {
         return Ok(None);
+    }
+    // Reject >90-degree foldbacks within any centerline run
+    for (run_pts, _) in centerline_runs {
+        let mut prev_dir: Option<(f64, f64)> = None;
+        for w in run_pts.windows(2) {
+            let Some(d) = dir_unit_f64(w[0], w[1]) else {
+                continue;
+            };
+            if let Some(pd) = prev_dir {
+                if pd.0 * d.0 + pd.1 * d.1 < -1e-6 {
+                    return Ok(None);
+                }
+            }
+            prev_dir = Some(d);
+        }
+    }
+    // Enforce aligned departure/arrival direction when crossing layers at fanout gather points
+    if let Some((first_pts, first_li)) = centerline_runs.first() {
+        if start_f.layer_idx != *first_li {
+            let Some(first_dir) = first_pts.windows(2).find_map(|w| dir_unit_f64(w[0], w[1]))
+            else {
+                return Ok(None);
+            };
+            if first_dir.0 * start_f.dir.0 + first_dir.1 * start_f.dir.1 < 0.99 {
+                return Ok(None);
+            }
+        }
+    }
+    if let Some((last_pts, last_li)) = centerline_runs.last() {
+        if end_f.layer_idx != *last_li {
+            let Some(last_dir) = last_pts
+                .windows(2)
+                .rev()
+                .find_map(|w| dir_unit_f64(w[0], w[1]))
+            else {
+                return Ok(None);
+            };
+            if last_dir.0 * end_f.dir.0 + last_dir.1 * end_f.dir.1 < 0.99 {
+                return Ok(None);
+            }
+        }
     }
     let pos_on_left = start_f.pos_on_left;
     let s_nm = pair.width_nm + pair.gap_nm;
@@ -4536,6 +4825,86 @@ fn validate_and_build_coupled_solution(
             }
         }
     }
+    // Reject non-jog same-net via-to-track copper overlaps (allows tracks incident to v.at
+    // or incident to an immediate perpendicular jog hub j_pt within R_via + w/2 of v.at).
+    for v in &vias {
+        let s_idx = engine.layer_index(&v.start_layer).unwrap_or(0);
+        let e_idx = engine.layer_index(&v.end_layer).unwrap_or(s_idx);
+        let mut jog_hubs: Vec<(usize, Point)> = Vec::new();
+        for tj in &tracks {
+            if tj.net != v.net || (tj.start != v.at && tj.end != v.at) {
+                continue;
+            }
+            let Some(li) = engine.layer_index(&tj.layer) else {
+                continue;
+            };
+            if li < s_idx.min(e_idx) || li > s_idx.max(e_idx) {
+                continue;
+            }
+            let other = if tj.start == v.at { tj.end } else { tj.start };
+            if dist_f64(other, v.at) * 2.0 < (v.diameter_nm + tj.width_nm) as f64 {
+                jog_hubs.push((li, other));
+            }
+        }
+        for tr in &tracks {
+            if tr.net != v.net || tr.start == v.at || tr.end == v.at {
+                continue;
+            }
+            let Some(li) = engine.layer_index(&tr.layer) else {
+                continue;
+            };
+            if li < s_idx.min(e_idx) || li > s_idx.max(e_idx) {
+                continue;
+            }
+            if jog_hubs
+                .iter()
+                .any(|&(jli, jpt)| jli == li && (tr.start == jpt || tr.end == jpt))
+            {
+                continue;
+            }
+            if geometry::point_near_segment(
+                v.at,
+                tr.start,
+                tr.end,
+                i128::from(v.diameter_nm) + i128::from(tr.width_nm),
+                false,
+            ) {
+                return Ok(None);
+            }
+        }
+    }
+    // Reject non-incident same-net same-layer track-to-track copper overlaps (< width_nm stub bypasses)
+    for i in 0..tracks.len() {
+        let ta = &tracks[i];
+        if ta.start == ta.end {
+            continue;
+        }
+        let ta_via = vias
+            .iter()
+            .any(|v| v.net == ta.net && (ta.start == v.at || ta.end == v.at));
+        if ta_via {
+            continue;
+        }
+        for tb in &tracks[(i + 1)..] {
+            if tb.net != ta.net || tb.layer != ta.layer || tb.start == tb.end {
+                continue;
+            }
+            if ta.start == tb.start || ta.start == tb.end || ta.end == tb.start || ta.end == tb.end
+            {
+                continue;
+            }
+            let tb_via = vias
+                .iter()
+                .any(|v| v.net == tb.net && (tb.start == v.at || tb.end == v.at));
+            if tb_via {
+                continue;
+            }
+            let gap2 = i128::from(ta.width_nm) + i128::from(tb.width_nm);
+            if geometry::segments_near(ta.start, ta.end, tb.start, tb.end, gap2, false) {
+                return Ok(None);
+            }
+        }
+    }
     let pos_pads: Vec<_> = engine
         .input
         .pads
@@ -4612,16 +4981,83 @@ fn astar_coupled_centerline(
         (dx as f64 / l, dy as f64 / l)
     };
 
-    let start_li = if allowed_layer_idxs.contains(&sf.layer_idx) {
-        sf.layer_idx
-    } else {
-        allowed_layer_idxs[0]
-    };
-    let end_li = if allowed_layer_idxs.contains(&ef.layer_idx) {
-        ef.layer_idx
-    } else {
-        allowed_layer_idxs[0]
-    };
+    let via_base_cost = 600_000u64;
+    let via_diam_est = engine
+        .effective_rules
+        .via_dims_for(pair.pos_net, false, &engine.layer_names)
+        .map_or(600_000, |(d, _)| d)
+        .max(
+            engine
+                .effective_rules
+                .via_dims_for(pair.neg_net, false, &engine.layer_names)
+                .map_or(600_000, |(d, _)| d),
+        );
+    let min_via_lead_nm = ((via_diam_est as f64) * 0.5
+        + (pair.width_nm as f64) * 0.5
+        + 0.5 * (s_nm as f64) * (std::f64::consts::SQRT_2 - 1.0)
+        + 50_000.0)
+        .max(600_000.0);
+
+    let sf_in_allowed = allowed_layer_idxs.contains(&sf.layer_idx);
+    let mut valid_start_layers: Vec<(usize, u64)> = Vec::new();
+    if sf_in_allowed {
+        valid_start_layers.push((sf.layer_idx, 0));
+    }
+    for &to_li in allowed_layer_idxs {
+        if to_li == sf.layer_idx {
+            continue;
+        }
+        if coupled_via_pair_check(
+            engine,
+            pair,
+            sf.gather,
+            sf.dir,
+            sf.pos_on_left,
+            sf.layer_idx,
+            to_li,
+        )?
+        .is_some()
+        {
+            valid_start_layers.push((
+                to_li,
+                via_base_cost.saturating_add(via_penalty(
+                    sf.gather,
+                    sf.layer_idx as u8,
+                    to_li as u8,
+                )),
+            ));
+        }
+    }
+    if valid_start_layers.is_empty() {
+        return Ok(None);
+    }
+
+    let ef_in_allowed = allowed_layer_idxs.contains(&ef.layer_idx);
+    let mut valid_end_layers: Vec<usize> = Vec::new();
+    if ef_in_allowed {
+        valid_end_layers.push(ef.layer_idx);
+    }
+    for &to_li in allowed_layer_idxs {
+        if to_li == ef.layer_idx {
+            continue;
+        }
+        if coupled_via_pair_check(
+            engine,
+            pair,
+            ef.gather,
+            ef.dir,
+            ef.pos_on_left,
+            to_li,
+            ef.layer_idx,
+        )?
+        .is_some()
+        {
+            valid_end_layers.push(to_li);
+        }
+    }
+    if valid_end_layers.is_empty() {
+        return Ok(None);
+    }
 
     let origin = sf.gather;
     let grid_pt = |gx: i32, gy: i32| -> Point {
@@ -4632,7 +5068,12 @@ fn astar_coupled_centerline(
     };
     let heuristic = |pt: Point, li: usize| -> u64 {
         let d = dist_f64(pt, ef.gather).round() as u64;
-        let v = if li == end_li { 0 } else { 400_000 };
+        let at_goal_layer = if ef_in_allowed {
+            li == ef.layer_idx
+        } else {
+            valid_end_layers.contains(&li)
+        };
+        let v = if at_goal_layer { 0 } else { 400_000 };
         d.saturating_mul(5).saturating_div(4).saturating_add(v)
     };
 
@@ -4667,32 +5108,33 @@ fn astar_coupled_centerline(
         }
     }
 
-    let start_key = Key {
-        gx: 0,
-        gy: 0,
-        li: start_li as u8,
-        dir: 8,
-    };
     let mut best_g: BTreeMap<Key, u64> = BTreeMap::new();
     let mut parent: BTreeMap<Key, Key> = BTreeMap::new();
     let mut heap = BinaryHeap::new();
-    best_g.insert(start_key, 0);
-    heap.push(Node {
-        f: heuristic(origin, start_li),
-        g: 0,
-        key: start_key,
-    });
+    for &(s_li, init_g) in &valid_start_layers {
+        let sk = Key {
+            gx: 0,
+            gy: 0,
+            li: s_li as u8,
+            dir: 8,
+        };
+        best_g.insert(sk, init_g);
+        heap.push(Node {
+            f: init_g.saturating_add(heuristic(origin, s_li)),
+            g: init_g,
+            key: sk,
+        });
+    }
 
     let snap_radius = step_nm * 6;
     let diag_len = ((step_nm as f64) * std::f64::consts::SQRT_2).round() as u64;
-    let via_base_cost = 600_000u64;
     let mut expansions = 0usize;
     let max_expansions = 35_000usize;
     let mut snap_attempts = 0usize;
 
     let reconstruct_runs = |tail_key: Key,
                             tail_pts: &[Point],
-                            tail_on_end_li: bool,
+                            tail_target_li: Option<usize>,
                             parent: &BTreeMap<Key, Key>|
      -> Vec<(Vec<Point>, usize)> {
         let mut chain = Vec::new();
@@ -4716,15 +5158,23 @@ fn astar_coupled_centerline(
                 _ => runs.push((vec![pt], li)),
             }
         }
-        if tail_on_end_li && runs.last().is_some_and(|(_, l)| *l != end_li) {
-            let pivot = *runs.last().unwrap().0.last().unwrap();
-            let mut tail_vec = vec![pivot];
-            for &tp in tail_pts {
-                if tail_vec.last().copied() != Some(tp) {
-                    tail_vec.push(tp);
+        if let Some(target_li) = tail_target_li {
+            if runs.last().is_some_and(|(_, l)| *l != target_li) {
+                let pivot = *runs.last().unwrap().0.last().unwrap();
+                let mut tail_vec = vec![pivot];
+                for &tp in tail_pts {
+                    if tail_vec.last().copied() != Some(tp) {
+                        tail_vec.push(tp);
+                    }
+                }
+                runs.push((tail_vec, target_li));
+            } else if let Some((last_pts, _)) = runs.last_mut() {
+                for &tp in tail_pts {
+                    if last_pts.last().copied() != Some(tp) {
+                        last_pts.push(tp);
+                    }
                 }
             }
-            runs.push((tail_vec, end_li));
         } else if let Some((last_pts, _)) = runs.last_mut() {
             for &tp in tail_pts {
                 if last_pts.last().copied() != Some(tp) {
@@ -4756,33 +5206,77 @@ fn astar_coupled_centerline(
         if (pt[0] - ef.gather[0]).abs() <= snap_radius
             && (pt[1] - ef.gather[1]).abs() <= snap_radius
         {
-            let mut tails = octilinear_elbow_paths(pt, ef.gather);
-            if ef.layer_idx != end_li || dist_f64(pt, ef.gather) >= 1_200_000.0 {
-                let p_out = [
-                    ef.gather[0] - (600_000.0 * ef.dir.0).round() as i64,
-                    ef.gather[1] - (600_000.0 * ef.dir.1).round() as i64,
-                ];
-                for mut t in octilinear_elbow_paths(pt, p_out) {
-                    t.push(ef.gather);
-                    tails.push(t);
+            let can_finish_here = if ef_in_allowed {
+                li == ef.layer_idx || valid_end_layers.contains(&li)
+            } else {
+                valid_end_layers.contains(&li)
+            };
+            if can_finish_here {
+                let mut tails = Vec::new();
+                if ef.layer_idx != li {
+                    let d1 = (min_via_lead_nm.round() as i64).max(800_000);
+                    let d2 = (min_via_lead_nm.round() as i64).max(600_000);
+                    let mut leads = vec![d1];
+                    if d2 != d1 {
+                        leads.push(d2);
+                    }
+                    for d_lead in leads {
+                        let p_out = [
+                            ef.gather[0] - ((d_lead as f64) * ef.dir.0).round() as i64,
+                            ef.gather[1] - ((d_lead as f64) * ef.dir.1).round() as i64,
+                        ];
+                        let fwd = ((p_out[0] - pt[0]) as f64) * ef.dir.0
+                            + ((p_out[1] - pt[1]) as f64) * ef.dir.1;
+                        if fwd < -1.0 {
+                            continue;
+                        }
+                        for mut t in octilinear_elbow_paths(pt, p_out) {
+                            t.push(ef.gather);
+                            tails.push(t);
+                        }
+                    }
+                } else {
+                    tails = octilinear_elbow_paths(pt, ef.gather);
+                    if dist_f64(pt, ef.gather) >= 700_000.0 {
+                        let p_out = [
+                            ef.gather[0] - (600_000.0 * ef.dir.0).round() as i64,
+                            ef.gather[1] - (600_000.0 * ef.dir.1).round() as i64,
+                        ];
+                        let fwd = ((p_out[0] - pt[0]) as f64) * ef.dir.0
+                            + ((p_out[1] - pt[1]) as f64) * ef.dir.1;
+                        if fwd >= -1.0 {
+                            for mut t in octilinear_elbow_paths(pt, p_out) {
+                                t.push(ef.gather);
+                                tails.push(t);
+                            }
+                        }
+                    }
                 }
-            }
-            for tail in &tails {
-                let tail_end_li = li != end_li;
-                let runs = reconstruct_runs(k, tail, tail_end_li, &parent);
-                if let Some(sol) = validate_and_build_coupled_solution(engine, pair, sf, ef, &runs)?
-                {
-                    return Ok(Some(sol));
+                let tail_target_options: &[Option<usize>] = if ef_in_allowed && li != ef.layer_idx {
+                    &[Some(ef.layer_idx), None]
+                } else {
+                    &[None]
+                };
+                for tail in &tails {
+                    for &tail_target_li in tail_target_options {
+                        let runs = reconstruct_runs(k, tail, tail_target_li, &parent);
+                        if let Some(sol) =
+                            validate_and_build_coupled_solution(engine, pair, sf, ef, &runs)?
+                        {
+                            return Ok(Some(sol));
+                        }
+                    }
                 }
-            }
-            snap_attempts += 1;
-            if snap_attempts >= 128 {
-                break;
+                snap_attempts += 1;
+                if snap_attempts >= 128 {
+                    break;
+                }
             }
         }
 
-        let sf_aligned_dir = if sf.layer_idx != start_li && k == start_key {
-            DIRS.iter()
+        let sf_aligned_dir = if sf.layer_idx != li {
+            let req_d = DIRS
+                .iter()
                 .enumerate()
                 .max_by(|(_, a), (_, b)| {
                     let la = (a.0 as f64).hypot(a.1 as f64);
@@ -4791,7 +5285,11 @@ fn astar_coupled_centerline(
                     let db = (b.0 as f64 / lb) * sf.dir.0 + (b.1 as f64 / lb) * sf.dir.1;
                     da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
                 })
-                .map(|(idx, _)| idx)
+                .map(|(idx, _)| idx);
+            req_d.filter(|&rd| {
+                k.dir == 8
+                    || (dist_f64(pt, origin) + 1_000.0 < min_via_lead_nm && k.dir == rd as u8)
+            })
         } else {
             None
         };
@@ -4831,7 +5329,7 @@ fn astar_coupled_centerline(
                 npt[0] - round_outward(sign * half * left.0),
                 npt[1] - round_outward(sign * half * left.1),
             ];
-            if k == start_key
+            if k.dir == 8
                 && sf.layer_idx == li
                 && (sf.gp != pa || sf.gn != na)
                 && geometry::segments_near(
@@ -4887,7 +5385,10 @@ fn astar_coupled_centerline(
         }
 
         // Layer transitions via coupled via pair
-        if k.dir < 8 && allowed_layer_idxs.len() > 1 {
+        if k.dir < 8
+            && allowed_layer_idxs.len() > 1
+            && !(sf.layer_idx != li && dist_f64(pt, origin) + 1_000.0 < min_via_lead_nm)
+        {
             let cur_dir = dir_vec(k.dir as usize);
             // Discourage placing a via within 1 short step of a miter turn so KiCad fromTo
             // does not collapse the corner inside the via copper pad.
@@ -5026,12 +5527,17 @@ fn route_single_diff_pair(
             } else {
                 500_000
             };
+            let short_pen = if sf.short_seg_count > 0 || ef.short_seg_count > 0 {
+                10_000_000
+            } else {
+                0
+            };
             let score = sf.uncoupled_nm
                 + ef.uncoupled_nm
-                + sf.skew_nm
-                + ef.skew_nm
+                + 2 * (sf.skew_nm + ef.skew_nm)
                 + same_layer_bonus
-                + align_pen;
+                + align_pen
+                + short_pen;
             pairs_ranked.push((score, si, ei));
         }
     }
@@ -5562,6 +6068,111 @@ fn replace_generated_track_with_pts(
     Ok(())
 }
 
+fn is_pad_connected_uncoupled_escape(
+    engine: &Engine,
+    pair: &ResolvedDiffPair,
+    net: u32,
+    cand: &Track,
+) -> bool {
+    let other_net = if net == pair.pos_net {
+        pair.neg_net
+    } else {
+        pair.pos_net
+    };
+    let own_tracks: Vec<&Track> = engine
+        .copper
+        .tracks()
+        .filter(|t| t.net == net && t.layer == cand.layer)
+        .collect();
+    let other_tracks: Vec<&Track> = engine
+        .copper
+        .tracks()
+        .filter(|t| t.net == other_net && t.layer == cand.layer)
+        .collect();
+    let has_coupled_overlap = |t: &Track| -> bool {
+        let Some((ux, uy)) = dir_unit_f64(t.start, t.end) else {
+            return false;
+        };
+        let len = dist_f64(t.start, t.end);
+        for o in &other_tracks {
+            let Some((ox, oy)) = dir_unit_f64(o.start, o.end) else {
+                continue;
+            };
+            if (ux * ox + uy * oy).abs() < 0.999 {
+                continue;
+            }
+            let vx = (o.start[0] - t.start[0]) as f64;
+            let vy = (o.start[1] - t.start[1]) as f64;
+            let perp = (ux * vy - uy * vx).abs();
+            let half_w = 0.5 * (t.width_nm + o.width_nm) as f64;
+            let min_c = (half_w + pair.gap_min_nm as f64 - 1_000.0).max(0.0);
+            let max_c = half_w + pair.gap_max_nm as f64 + 1_000.0;
+            if perp < min_c || perp > max_c {
+                continue;
+            }
+            let wx = (o.end[0] - t.start[0]) as f64;
+            let wy = (o.end[1] - t.start[1]) as f64;
+            let p1 = ux * vx + uy * vy;
+            let p2 = ux * wx + uy * wy;
+            let lo = p1.min(p2).max(0.0);
+            let hi = p1.max(p2).min(len);
+            if hi > lo + 1.0 {
+                return true;
+            }
+        }
+        false
+    };
+    if has_coupled_overlap(cand) {
+        return false;
+    }
+    let uncoupled_own: Vec<&Track> = own_tracks
+        .into_iter()
+        .filter(|t| !has_coupled_overlap(t))
+        .collect();
+    let Some(cand_idx) = uncoupled_own.iter().position(|t| {
+        t.width_nm == cand.width_nm
+            && ((t.start == cand.start && t.end == cand.end)
+                || (t.start == cand.end && t.end == cand.start))
+    }) else {
+        return false;
+    };
+    let net_pads: Vec<_> = engine
+        .input
+        .pads
+        .iter()
+        .filter(|p| p.net == net && pad_supports_layer(engine, p, &cand.layer))
+        .collect();
+    let mut visited = vec![false; uncoupled_own.len()];
+    let mut queue = Vec::new();
+    for (i, t) in uncoupled_own.iter().enumerate() {
+        if net_pads
+            .iter()
+            .any(|p| t.start == p.at || t.end == p.at || geometry::track_connects_pad(t, p))
+        {
+            visited[i] = true;
+            queue.push(i);
+        }
+    }
+    while let Some(cur) = queue.pop() {
+        if cur == cand_idx {
+            return true;
+        }
+        let ct = uncoupled_own[cur];
+        for (j, nt) in uncoupled_own.iter().enumerate() {
+            if !visited[j]
+                && (ct.start == nt.start
+                    || ct.start == nt.end
+                    || ct.end == nt.start
+                    || ct.end == nt.end)
+            {
+                visited[j] = true;
+                queue.push(j);
+            }
+        }
+    }
+    visited[cand_idx]
+}
+
 fn apply_single_ended_meander(
     engine: &mut Engine,
     net: u32,
@@ -5599,6 +6210,10 @@ fn apply_single_ended_meander(
         .copper
         .generated()
         .filter(|t| t.net == net)
+        .filter(|t| {
+            !pair_ctx.is_some_and(|p| p.impedance.is_some())
+                || pair_ctx.is_some_and(|p| is_pad_connected_uncoupled_escape(engine, p, net, t))
+        })
         .cloned()
         .collect();
     candidates.sort_by(|a, b| {
@@ -6294,6 +6909,10 @@ fn apply_intra_pair_match(
         .copper
         .generated()
         .filter(|t| t.net == short_net && (pad_pts.contains(&t.start) || pad_pts.contains(&t.end)))
+        .filter(|t| {
+            pair.impedance.is_none()
+                || is_pad_connected_uncoupled_escape(engine, pair, short_net, t)
+        })
         .cloned()
         .collect();
     let max_h = amp_max_nm.min(pair.uncoupled_max_nm / 2) as f64;

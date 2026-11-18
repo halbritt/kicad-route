@@ -2606,18 +2606,18 @@ pub fn eval_dru_expr_for_context(
     a: &DruItem<'_>,
     b: Option<&DruItem<'_>>,
     in_diff_pair_stem: Option<&str>,
-    fromto_pair: Option<(&str, &str)>,
+    fromto_tokens: Option<&[String]>,
 ) -> bool {
     match expr {
         DruExpr::BoolLit(v) => *v,
-        DruExpr::Not(x) => !eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_pair),
+        DruExpr::Not(x) => !eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_tokens),
         DruExpr::And(x, y) => {
-            eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_pair)
-                && eval_dru_expr_for_context(y, a, b, in_diff_pair_stem, fromto_pair)
+            eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_tokens)
+                && eval_dru_expr_for_context(y, a, b, in_diff_pair_stem, fromto_tokens)
         }
         DruExpr::Or(x, y) => {
-            eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_pair)
-                || eval_dru_expr_for_context(y, a, b, in_diff_pair_stem, fromto_pair)
+            eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_tokens)
+                || eval_dru_expr_for_context(y, a, b, in_diff_pair_stem, fromto_tokens)
         }
         DruExpr::Eq(l, r) => eval_value_eq(l, r, a, b),
         DruExpr::Ne(l, r) => !eval_value_eq(l, r, a, b),
@@ -2645,7 +2645,10 @@ pub fn eval_dru_expr_for_context(
             let Some(stem) = in_diff_pair_stem else {
                 return false;
             };
-            wildcard_full_match(pattern, stem) || wildcard_full_match(pattern, a.net_name)
+            wildcard_full_match(pattern, stem)
+                || stem
+                    .strip_suffix('_')
+                    .is_some_and(|s| wildcard_full_match(pattern, s))
         }
         DruExpr::FromTo {
             side,
@@ -2655,10 +2658,10 @@ pub fn eval_dru_expr_for_context(
             if *side != Side::A {
                 return false;
             }
-            let Some((p1, p2)) = fromto_pair else {
+            let Some(tokens) = fromto_tokens else {
                 return false;
             };
-            (p1 == ft_a && p2 == ft_b) || (p1 == ft_b && p2 == ft_a)
+            ft_a != ft_b && tokens.iter().any(|t| t == ft_a) && tokens.iter().any(|t| t == ft_b)
         }
     }
 }
