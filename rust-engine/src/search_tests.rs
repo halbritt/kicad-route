@@ -1624,3 +1624,201 @@ fn three_via_last_via_only_counterexample_witness_re02() {
         res.edges
     );
 }
+
+#[test]
+fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
+    // 4-layer board with hole_to_hole=30 (drill=2 -> min center dist >= 32 on grid=10)
+    // and full-height F.Cu/B.Cu walls at x=50 forcing >= 2 vias.
+    // Pad 1 at [40,20] (F.Cu), Pad 2 at [60,20] (B.Cu).
+    // Round 1 (R = empty) places conflicting V1@[40,20] & V2@[60,20] (dist 20 < 32),
+    // expanding R and triggering Round 2+ with backward Dijkstra h'.
+    // Verify DruConstraint::ViaCount { max } is enforced in both Round 1 (max=1 -> Unroutable)
+    // and Round 2+ (max=2 -> finds conflict-free 2-via detour V1@[20,20], V2@[60,20] with
+    // exactly 2 vias, while a 3-via witness board with max=2 fails Unroutable in Round 2+).
+    let stack = vec![
+        "F.Cu".to_owned(),
+        "In1.Cu".to_owned(),
+        "In2.Cu".to_owned(),
+        "B.Cu".to_owned(),
+    ];
+    let pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [40, 20],
+            layers: vec!["F.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [60, 20],
+            layers: vec!["B.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
+        },
+    ];
+    let tracks = vec![
+        Track {
+            id: id(10),
+            net: 0,
+            layer: "F.Cu".into(),
+            start: [50, 0],
+            end: [50, 40],
+            width_nm: 4,
+            locked: true,
+        },
+        Track {
+            id: id(11),
+            net: 0,
+            layer: "B.Cu".into(),
+            start: [50, 0],
+            end: [50, 40],
+            width_nm: 4,
+            locked: true,
+        },
+    ];
+    let make_input = |max_vc: u32| Input {
+        version: 1,
+        source_id: "e".repeat(64),
+        layer: "F.Cu".into(),
+        layers: stack.clone(),
+        bounds: Bounds {
+            min: [0, 0],
+            max: [100, 40],
+        },
+        rules: Rules {
+            width_nm: 2,
+            clearance_nm: 1,
+            grid_nm: 10,
+            edge_clearance_nm: 1,
+            hole_clearance_nm: 2,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads: pads.clone(),
+        tracks: tracks.clone(),
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {
+                    "min_via_diameter": 0.000004,
+                    "min_through_hole_diameter": 0.000002,
+                    "min_hole_to_hole": 0.000030,
+                    "allow_blind_buried_vias": false,
+                    "allow_microvias": false
+                }}},
+                "net_settings": {
+                    "classes": [{
+                        "name": "Default",
+                        "track_width": 0.000002,
+                        "clearance": 0.000001,
+                        "via_diameter": 0.000004,
+                        "via_drill": 0.000002
+                    }]
+                }
+            })
+            .to_string(),
+        ),
+        custom_rules: Some(format!(
+            "(version 1)\n(rule \"vc\" (constraint via_count (max {max_vc})))"
+        )),
+        effective_rules: None,
+    };
+
+    // max_via_count = 1 must refuse Unroutable (cannot cross F.Cu/B.Cu walls with <= 1 via).
+    let eng1 = Engine::new(make_input(1)).unwrap();
+    let err1 = join_components(
+        &eng1,
+        1,
+        &[Copper::Pad(&eng1.input.pads[0])],
+        &[vec![Copper::Pad(&eng1.input.pads[1])]],
+        50_000,
+        &mut 0,
+    )
+    .unwrap_err();
+    assert_eq!(err1.status, Status::Unroutable);
+
+    // max_via_count = 2: Round 1 hits V1/V2 hole-to-hole conflict, Round 2+ (M_R + h')
+    // finds the legal conflict-free 2-via route V1@[20,20] -> V2@[60,20] (dist 40 >= 32).
+    let eng2 = Engine::new(make_input(2)).unwrap();
+    let path2 = join_components(
+        &eng2,
+        1,
+        &[Copper::Pad(&eng2.input.pads[0])],
+        &[vec![Copper::Pad(&eng2.input.pads[1])]],
+        50_000,
+        &mut 0,
+    )
+    .expect("Round 2+ M_R + h' must find legal 2-via route under via_count max 2");
+    let vias2: Vec<PlacedViaKey> = path2
+        .edges
+        .iter()
+        .filter_map(|e| match *e {
+            PathEdge::Via(pv) => Some(pv),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(vias2.len(), 2, "expected 2 vias, got {vias2:?}");
+    let dx = i128::from(vias2[0].at[0] - vias2[1].at[0]);
+    let dy = i128::from(vias2[0].at[1] - vias2[1].at[1]);
+    assert!(dx * dx + dy * dy >= 32 * 32);
+
+    // Also verify Round 2+ enforces max_via_count=2 when F.Cu/B.Cu corridors only allow
+    // [40,20] on F.Cu and [60,20] on B.Cu (conflict triggers Round 2 M_R + h', which must
+    // return Unroutable rather than exceeding max_via_count=2).
+    let mut eng3_in = make_input(2);
+    eng3_in.tracks.push(Track {
+        id: id(12),
+        net: 0,
+        layer: "F.Cu".into(),
+        start: [30, 0],
+        end: [30, 40],
+        width_nm: 4,
+        locked: true,
+    });
+    eng3_in.tracks.push(Track {
+        id: id(13),
+        net: 0,
+        layer: "B.Cu".into(),
+        start: [70, 0],
+        end: [70, 40],
+        width_nm: 4,
+        locked: true,
+    });
+    let eng3 = Engine::new(eng3_in).unwrap();
+    let err3 = join_components(
+        &eng3,
+        1,
+        &[Copper::Pad(&eng3.input.pads[0])],
+        &[vec![Copper::Pad(&eng3.input.pads[1])]],
+        50_000,
+        &mut 0,
+    )
+    .unwrap_err();
+    assert_eq!(err3.status, Status::Unroutable);
+}

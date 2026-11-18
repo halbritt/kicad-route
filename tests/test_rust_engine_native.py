@@ -1925,6 +1925,82 @@ def test_route_native_accepts_valid_sidecars_and_multilayer_vias_end_to_end(
     assert output.is_file()
 
 
+def test_route_native_accepts_explicit_matching_project_flag(
+        native_board, guarded_cli, tmp_path):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.LoadBoard(str(native_board))
+    board.SetCopperLayerCount(4)
+    fps = list(board.GetFootprints())
+    b_lset = pcbnew.LSET()
+    b_lset.AddLayer(pcbnew.B_Cu)
+    next(iter(fps[1].Pads())).SetLayerSet(b_lset)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    proj_path = native_board.with_suffix('.kicad_pro')
+    proj_path.write_text(json.dumps({
+        'meta': {'version': 3},
+        'board': {'design_settings': {'rules': {
+            'min_track_width': 0.2,
+            'min_clearance': 0.2,
+            'min_via_diameter': 0.5,
+            'min_through_hole_diameter': 0.3,
+            'min_via_annular_width': 0.1,
+            'min_hole_to_hole': 0.25,
+        }}},
+        'net_settings': {'classes': [{
+            'name': 'Default',
+            'track_width': 0.35,
+            'clearance': 0.3,
+            'via_diameter': 0.7,
+            'via_drill': 0.35,
+        }]},
+    }))
+    output = tmp_path / 'routed-explicit-project.kicad_pcb'
+    res = run([
+        str(engine), 'route-native', str(native_board), str(output),
+        '--project', str(proj_path),
+    ], check=False)
+    assert res.returncode == 0, res.stderr
+    op = json.loads(res.stdout)
+    assert op['status'] == 'complete'
+    assert op['request']['project_path'] == str(proj_path)
+    assert op['routing']['added_via_count'] >= 1
+    routed = pcbnew.LoadBoard(str(output))
+    routed_tracks = [t for t in routed.GetTracks() if type(t) is pcbnew.PCB_TRACK and t.GetNetname() == 'SIGNAL']
+    assert routed_tracks and all(int(t.GetWidth()) >= 350000 for t in routed_tracks)
+
+
+def test_route_native_embedded_default_netclass_fallback_and_dru_whitespace(
+        native_board, guarded_cli, tmp_path):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    bridge._check_dru_framing(b'(  version\t1  )\n')
+    board = pcbnew.LoadBoard(str(native_board))
+    ds = board.GetDesignSettings()
+    ds.m_MinClearance = 0
+    ds.m_NetSettings.GetDefaultNetclass().SetClearance(200000)
+    ds.m_NetSettings.GetDefaultNetclass().SetTrackWidth(200000)
+    # Place a net-0 obstacle slightly off the y=10M line (gap 0.10mm < 0.20mm Default clearance).
+    obs = pcbnew.PCB_TRACK(board)
+    obs.SetLayer(pcbnew.F_Cu)
+    obs.SetNetCode(0)
+    obs.SetStart(pcbnew.VECTOR2I(9000000, 10300000))
+    obs.SetEnd(pcbnew.VECTOR2I(11000000, 10300000))
+    obs.SetWidth(200000)
+    obs.SetLocked(True)
+    board.Add(obs)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    assert not native_board.with_suffix('.kicad_pro').exists()
+    output = tmp_path / 'routed-embedded-default.kicad_pcb'
+    res = run([str(engine), 'route-native', str(native_board), str(output)], check=False)
+    assert res.returncode == 0, res.stderr
+    before = bridge.native_violations(native_board, tmp_path / 'before-drc.json')
+    after = bridge.native_violations(output, tmp_path / 'after-drc.json')
+    assert after['unconnected_items'] == []
+    key = lambda v: json.dumps(v, sort_keys=True)
+    assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
+
+
 @pytest.mark.parametrize('mode', ['chained_pro', 'chained_dru', 'chained_parent_dir_pro'])
 def test_route_native_rejects_chained_symlink_sidecars_before_python(
         native_board, guarded_cli, tmp_path, mode):

@@ -176,7 +176,7 @@ def _check_dru_framing(raw: bytes):
     if in_str or depth != 0:
         raise ValueError('unterminated string or unbalanced parentheses in .kicad_dru')
     stripped = '\n'.join(l for l in text.splitlines() if not l.lstrip().startswith('#')).strip()
-    if not stripped.startswith('(version 1)') and not stripped.startswith('(version 1\n') and not stripped.startswith('(version 1 '):
+    if not re.match(r'\(\s*version\s+1\s*\)', stripped):
         raise UnsupportedBoard('.kicad_dru requires (version 1) header')
 
 
@@ -994,9 +994,8 @@ def export_board(path: Path, rules: dict | None = None, max_expansions: int = 10
                  limits: dict | None = None, *, original_source: Path | None = None,
                  project_path: Path | None = None):
     if original_source is not None:
-        resolve_sidecars(original_source, project_path=project_path)
-    snap_project = project_path if original_source is None else None
-    with source_snapshot(path, project_path=snap_project) as snapshot:
+        resolve_sidecars(original_source)
+    with source_snapshot(path, project_path=project_path) as snapshot:
         return export_snapshot(snapshot, rules, max_expansions, limits)
 
 
@@ -1172,7 +1171,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             out_rules['solder_mask_to_copper_clearance_nm'] = max(out_rules.get('solder_mask_to_copper_clearance_nm', 0), int(settings.m_SolderMaskToCopperClearance))
         result['rules'] = out_rules
 
-    result['board_design_settings'] = {
+    bds = {
         'min_track_width_nm': int(settings.m_TrackMinWidth),
         'min_clearance_nm': int(settings.m_MinClearance),
         'min_edge_clearance_nm': int(settings.m_CopperEdgeClearance),
@@ -1187,6 +1186,16 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         'solder_mask_min_width_nm': int(settings.m_SolderMaskMinWidth),
         'solder_mask_to_copper_clearance_nm': int(settings.m_SolderMaskToCopperClearance),
     }
+    net_settings = getattr(settings, 'm_NetSettings', None)
+    default_nc = net_settings.GetDefaultNetclass() if net_settings is not None else None
+    if default_nc is not None:
+        bds['default_clearance_nm'] = max(0, int(default_nc.GetClearance()))
+        bds['default_track_width_nm'] = max(0, int(default_nc.GetTrackWidth()))
+        bds['default_via_diameter_nm'] = max(0, int(default_nc.GetViaDiameter()))
+        bds['default_via_drill_nm'] = max(0, int(default_nc.GetViaDrill()))
+        bds['default_microvia_diameter_nm'] = max(0, int(default_nc.GetuViaDiameter()))
+        bds['default_microvia_drill_nm'] = max(0, int(default_nc.GetuViaDrill()))
+    result['board_design_settings'] = bds
     pro_sidecar = path.with_suffix('.kicad_pro')
     if pro_sidecar.is_file():
         result['project_rules'] = read_bounded(pro_sidecar).decode('utf-8')

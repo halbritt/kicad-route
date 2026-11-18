@@ -79,6 +79,12 @@ pub struct BoardDesignSettings {
     pub solder_mask_expansion_nm: i64,
     pub solder_mask_min_width_nm: i64,
     pub solder_mask_to_copper_clearance_nm: i64,
+    pub default_clearance_nm: i64,
+    pub default_track_width_nm: i64,
+    pub default_via_diameter_nm: i64,
+    pub default_via_drill_nm: i64,
+    pub default_microvia_diameter_nm: i64,
+    pub default_microvia_drill_nm: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -2610,6 +2616,35 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         Some(text) => parse_kicad_dru(text.as_bytes())?,
         None => Vec::new(),
     };
+    if let Some(bds) = &input.board_design_settings {
+        let fields = [
+            bds.min_track_width_nm,
+            bds.min_clearance_nm,
+            bds.min_edge_clearance_nm,
+            bds.min_via_diameter_nm,
+            bds.min_via_annular_width_nm,
+            bds.min_through_hole_diameter_nm,
+            bds.min_hole_clearance_nm,
+            bds.min_hole_to_hole_nm,
+            bds.min_microvia_diameter_nm,
+            bds.min_microvia_drill_nm,
+            bds.solder_mask_expansion_nm,
+            bds.solder_mask_min_width_nm,
+            bds.solder_mask_to_copper_clearance_nm,
+            bds.default_clearance_nm,
+            bds.default_track_width_nm,
+            bds.default_via_diameter_nm,
+            bds.default_via_drill_nm,
+            bds.default_microvia_diameter_nm,
+            bds.default_microvia_drill_nm,
+        ];
+        if fields.iter().any(|&v| v < 0) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings values must be nonnegative",
+            ));
+        }
+    }
     let minimums = merge_minimums(input.board_design_settings.as_ref(), pro.as_ref());
 
     let explicit_rules = if input.rules.is_omitted() {
@@ -2648,11 +2683,15 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
     }
 
     let explicit_rules = input.rules;
+    let bds_default = input.board_design_settings.as_ref();
     let default_cls = pro
         .as_ref()
         .and_then(|p| p.classes.iter().find(|c| c.name == "Default"));
     let default_width = default_cls
-        .map_or(0, |c| c.track_width_nm)
+        .map_or_else(
+            || bds_default.map_or(0, |b| b.default_track_width_nm),
+            |c| c.track_width_nm,
+        )
         .max(minimums.min_track_width_nm);
     let default_width = if default_width > 0 {
         default_width
@@ -2660,7 +2699,10 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         200_000
     };
     let default_clearance = default_cls
-        .map_or(0, |c| c.clearance_nm)
+        .map_or_else(
+            || bds_default.map_or(0, |b| b.default_clearance_nm),
+            |c| c.clearance_nm,
+        )
         .max(minimums.min_clearance_nm);
 
     let base_rules = if !explicit_rules.is_omitted() {
@@ -2741,19 +2783,64 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
             clearance_nm = clearance_nm.max(explicit_rules.clearance_nm);
         }
 
-        let mut via_drill_nm = if cls_vdr > 0 { cls_vdr } else { 300_000 }
-            .max(minimums.min_through_hole_diameter_nm)
-            .max(1);
+        let fallback_vd = if pro.is_none() {
+            bds_default.map_or(0, |b| b.default_via_diameter_nm)
+        } else {
+            0
+        };
+        let fallback_vdr = if pro.is_none() {
+            bds_default.map_or(0, |b| b.default_via_drill_nm)
+        } else {
+            0
+        };
+        let fallback_mvd = if pro.is_none() {
+            bds_default.map_or(0, |b| b.default_microvia_diameter_nm)
+        } else {
+            0
+        };
+        let fallback_mvdr = if pro.is_none() {
+            bds_default.map_or(0, |b| b.default_microvia_drill_nm)
+        } else {
+            0
+        };
+
+        let mut via_drill_nm = if cls_vdr > 0 {
+            cls_vdr
+        } else if fallback_vdr > 0 {
+            fallback_vdr
+        } else {
+            300_000
+        }
+        .max(minimums.min_through_hole_diameter_nm)
+        .max(1);
         let mut annular_width_nm = minimums.min_via_annular_width_nm;
-        let mut via_diameter_nm = if cls_vd > 0 { cls_vd } else { 600_000 }
-            .max(minimums.min_via_diameter_nm)
-            .max(via_drill_nm + 2 * annular_width_nm);
-        let microvia_drill_nm = if cls_mvdr > 0 { cls_mvdr } else { 150_000 }
-            .max(minimums.min_microvia_drill_nm)
-            .max(1);
-        let microvia_diameter_nm = if cls_mvd > 0 { cls_mvd } else { 300_000 }
-            .max(minimums.min_microvia_diameter_nm)
-            .max(microvia_drill_nm + 2 * annular_width_nm);
+        let mut via_diameter_nm = if cls_vd > 0 {
+            cls_vd
+        } else if fallback_vd > 0 {
+            fallback_vd
+        } else {
+            600_000
+        }
+        .max(minimums.min_via_diameter_nm)
+        .max(via_drill_nm + 2 * annular_width_nm);
+        let microvia_drill_nm = if cls_mvdr > 0 {
+            cls_mvdr
+        } else if fallback_mvdr > 0 {
+            fallback_mvdr
+        } else {
+            150_000
+        }
+        .max(minimums.min_microvia_drill_nm)
+        .max(1);
+        let microvia_diameter_nm = if cls_mvd > 0 {
+            cls_mvd
+        } else if fallback_mvd > 0 {
+            fallback_mvd
+        } else {
+            300_000
+        }
+        .max(minimums.min_microvia_diameter_nm)
+        .max(microvia_drill_nm + 2 * annular_width_nm);
 
         let mut edge_clearance_nm = base_rules
             .edge_clearance_nm

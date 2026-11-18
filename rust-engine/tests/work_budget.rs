@@ -728,8 +728,9 @@ fn route_insertion_charges_spatial_index_mutation_work() {
     i.pads.push(p);
 
     // Exact 1-step route(1, 1000) work on this 2-pad fixture (includes 8 units
-    // for generated_spatial.mutation_work() at empty tree before insert).
-    const EXACT_1STEP_WORK: u64 = 132;
+    // for generated_spatial[0].mutation_work() at empty tree before insert, under
+    // PathEdge-based walk_multilayer/insert_path).
+    const EXACT_1STEP_WORK: u64 = 131;
 
     i.limits.max_work = EXACT_1STEP_WORK - 1;
     let mut cutoff = Engine::new(i.clone()).unwrap();
@@ -958,12 +959,12 @@ fn generated_uniform_net_and_net0_work_accounting() {
         layers: Vec::new(),
         local_clearance_nm: None,
     });
-    const MULTI_GEN_ROUTE_WORK: u64 = 2191;
+    const MULTI_GEN_ROUTE_WORK: u64 = 2196;
     let mut probe = Engine::new(multi.clone()).unwrap();
     probe.route(1, 1000).unwrap();
     assert_eq!(probe.work_used(), MULTI_GEN_ROUTE_WORK);
     assert_eq!(probe.copper().generated().count(), 5);
-    for limit in [1413u64, 1414, 1426, 1427, 1434, 1435] {
+    for limit in [1416u64, 1417, 1429, 1430, 1437, 1438] {
         multi.limits.max_work = limit;
         let mut em = Engine::new(multi.clone()).unwrap();
         let err = em.route(1, 1000).unwrap_err();
