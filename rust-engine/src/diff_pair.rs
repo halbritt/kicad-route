@@ -4,12 +4,13 @@ use crate::model::{
     Via, ViaKind,
 };
 use crate::rules::{
-    eval_dru_expr_for_context, DruConstraint, DruItem, DruItemKind, EffectiveRules, TuningProfile,
+    eval_dru_expr_for_context, DruConstraint, DruItem, DruItemKind, DruSeverity, EffectiveRules,
+    TuningProfile,
 };
 use crate::search::PlacedViaKey;
 use crate::spatial::{DrillGeom, PadCore, SweptAabb};
 use crate::{Engine, TransactionError};
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 use std::ops::ControlFlow;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -412,9 +413,15 @@ fn resolve_impedance_plan(
         .impedance_reference
         .as_deref()
         .ok_or_else(|| Failure::new(Status::Invalid, "missing --impedance-reference net name"))?;
-    let _uncoupled = opts
+    let uncoupled_imp = opts
         .impedance_uncoupled_nm
         .ok_or_else(|| Failure::new(Status::Invalid, "missing --impedance-uncoupled value"))?;
+    if uncoupled_imp <= 0 {
+        return Err(Failure::new(
+            Status::Invalid,
+            "--impedance-uncoupled must be > 0",
+        ));
+    }
 
     let ref_net = input
         .nets
@@ -679,10 +686,15 @@ fn validate_delay_member_profile(
             "use_height_for_length_calcs must be enabled in board design settings for delay matching",
         ));
     }
-    if input.stackup.is_empty() {
+    if input.stackup.is_empty()
+        || !input
+            .stackup
+            .iter()
+            .any(|sl| matches!(sl.kind, StackupKind::Core | StackupKind::Prepreg))
+    {
         return Err(Failure::new(
             Status::Invalid,
-            "complete board stackup is required for delay matching",
+            "complete board stackup with dielectric layers is required for delay matching",
         ));
     }
     for sl in &input.stackup {
@@ -725,10 +737,32 @@ fn validate_delay_member_profile(
                 format!("tuning_profile {prof_name:?} referenced by net {net_name:?} not found"),
             )
         })?;
+    if prof.profile_type != 0 {
+        return Err(Failure::new(
+            Status::Invalid,
+            format!(
+                "tuning_profile {prof_name:?} must be a single-ended profile (type 0, got {})",
+                prof.profile_type
+            ),
+        ));
+    }
     if !prof.enable_time_domain_tuning {
         return Err(Failure::new(
             Status::Invalid,
             format!("tuning_profile {prof_name:?} has enable_time_domain_tuning disabled"),
+        ));
+    }
+    if prof.layer_entries.is_empty()
+        || prof
+            .layer_entries
+            .iter()
+            .any(|le| le.delay_as_per_mm <= 0 || le.width_nm <= 0)
+    {
+        return Err(Failure::new(
+            Status::Invalid,
+            format!(
+                "tuning_profile {prof_name:?} must declare positive width and delay on all layer entries"
+            ),
         ));
     }
     if prof.via_prop_delay_as_per_mm <= 0 && prof.via_overrides.is_empty() {
@@ -788,10 +822,35 @@ fn validate_delay_member_profile(
     Ok(())
 }
 
+fn layer_matches_spec_local(layer: &str, spec: &str) -> bool {
+    match spec {
+        "*" => true,
+        "outer" => layer == "F.Cu" || layer == "B.Cu",
+        "inner" => layer != "F.Cu" && layer != "B.Cu",
+        exact => layer == exact,
+    }
+}
+
+fn net_fromto_tokens(input: &Input, net_id: u32) -> Option<(String, String)> {
+    let pads: Vec<_> = input.pads.iter().filter(|p| p.net == net_id).collect();
+    if pads.len() != 2 {
+        return None;
+    }
+    let tok = |p: &crate::model::Pad| -> Option<String> {
+        let r = p.footprint_ref.as_deref()?;
+        let n = p.pad_number.as_deref()?;
+        Some(format!("{r}-{n}"))
+    };
+    Some((tok(pads[0])?, tok(pads[1])?))
+}
+
+#[allow(clippy::too_many_arguments)]
 fn resolve_pair_dru_bounds(
+    input: &Input,
     rules: &EffectiveRules,
     stem: &str,
     pos_net: u32,
+    neg_net: u32,
     pos_name: &str,
     neg_name: &str,
     class_name: &str,
@@ -813,7 +872,9 @@ fn resolve_pair_dru_bounds(
     let mut max_track_width: Option<i64> = None;
     let mut skew_max: Option<i64> = None;
 
-    for (net_id, net_name) in [(pos_net, pos_name), (pos_net, neg_name)] {
+    for (net_id, net_name) in [(pos_net, pos_name), (neg_net, neg_name)] {
+        let ft_owned = net_fromto_tokens(input, net_id);
+        let ft_ref = ft_owned.as_ref().map(|(a, b)| (a.as_str(), b.as_str()));
         let item = DruItem {
             net_id,
             net_name,
@@ -823,8 +884,16 @@ fn resolve_pair_dru_bounds(
             layers,
         };
         for r in &rules.dru_rules {
+            if r.severity == DruSeverity::Ignore {
+                continue;
+            }
+            if let Some(rl) = r.layer.as_deref() {
+                if !layers.iter().any(|l| layer_matches_spec_local(l, rl)) {
+                    continue;
+                }
+            }
             if let Some(cond) = &r.condition {
-                if !eval_dru_expr_for_context(cond, &item, None, Some(stem), None) {
+                if !eval_dru_expr_for_context(cond, &item, None, Some(stem), ft_ref) {
                     continue;
                 }
             }
@@ -846,9 +915,70 @@ fn resolve_pair_dru_bounds(
                     max_track_width = Some(max_track_width.map_or(mx, |cur| cur.min(mx)));
                 }
                 DruConstraint::Skew {
-                    max_nm: Some(mx), ..
+                    max_nm: Some(mx),
+                    within_diff_pairs,
+                    ..
                 } => {
-                    skew_max = Some(skew_max.map_or(mx, |cur| cur.min(mx)));
+                    if within_diff_pairs {
+                        skew_max = Some(skew_max.map_or(mx, |cur| cur.min(mx)));
+                    } else if let Some(cond) = &r.condition {
+                        let pos_ft = net_fromto_tokens(input, pos_net);
+                        let neg_ft = net_fromto_tokens(input, neg_net);
+                        let pos_item = DruItem {
+                            net_id: pos_net,
+                            net_name: pos_name,
+                            net_class: class_name,
+                            class_members,
+                            kind: DruItemKind::Track,
+                            layers,
+                        };
+                        let neg_item = DruItem {
+                            net_id: neg_net,
+                            net_name: neg_name,
+                            net_class: class_name,
+                            class_members,
+                            kind: DruItemKind::Track,
+                            layers,
+                        };
+                        let both_match = eval_dru_expr_for_context(
+                            cond,
+                            &pos_item,
+                            None,
+                            Some(stem),
+                            pos_ft.as_ref().map(|(a, b)| (a.as_str(), b.as_str())),
+                        ) && eval_dru_expr_for_context(
+                            cond,
+                            &neg_item,
+                            None,
+                            Some(stem),
+                            neg_ft.as_ref().map(|(a, b)| (a.as_str(), b.as_str())),
+                        );
+                        let any_other = input.nets.iter().any(|on| {
+                            if on.id == 0 || on.id == pos_net || on.id == neg_net {
+                                return false;
+                            }
+                            let nr = rules.net(on.id);
+                            let oft = net_fromto_tokens(input, on.id);
+                            let oitem = DruItem {
+                                net_id: on.id,
+                                net_name: &on.name,
+                                net_class: &nr.class_name,
+                                class_members: &nr.class_members,
+                                kind: DruItemKind::Track,
+                                layers,
+                            };
+                            eval_dru_expr_for_context(
+                                cond,
+                                &oitem,
+                                None,
+                                None,
+                                oft.as_ref().map(|(a, b)| (a.as_str(), b.as_str())),
+                            )
+                        });
+                        if both_match && !any_other {
+                            skew_max = Some(skew_max.map_or(mx, |cur| cur.min(mx)));
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -971,15 +1101,15 @@ fn discover_and_validate_with_copper(
         ));
     }
 
-    let mut net_by_name: HashMap<&str, u32> = HashMap::new();
-    let mut name_by_id: HashMap<u32, &str> = HashMap::new();
+    let mut net_by_name: BTreeMap<&str, u32> = BTreeMap::new();
+    let mut name_by_id: BTreeMap<u32, &str> = BTreeMap::new();
     for n in &input.nets {
         if n.id != 0 {
             net_by_name.insert(n.name.as_str(), n.id);
             name_by_id.insert(n.id, n.name.as_str());
         }
     }
-    let mut pad_counts: HashMap<u32, usize> = HashMap::new();
+    let mut pad_counts: BTreeMap<u32, usize> = BTreeMap::new();
     for p in &input.pads {
         if p.net != 0 {
             *pad_counts.entry(p.net).or_insert(0) += 1;
@@ -1134,10 +1264,15 @@ fn discover_and_validate_with_copper(
                 ),
             ));
         }
+        let bds_default_clr = input
+            .board_design_settings
+            .as_ref()
+            .map_or(0, |b| b.default_clearance_nm);
         let min_clr = pr
             .clearance_nm
             .max(nr.clearance_nm)
-            .max(input.rules.clearance_nm);
+            .max(input.rules.clearance_nm)
+            .max(bds_default_clr);
         if pr.diff_pair_gap_nm < min_clr {
             return Err(Failure::new(
                 Status::Invalid,
@@ -1149,9 +1284,11 @@ fn discover_and_validate_with_copper(
         }
         let (dru_gap_min, dru_gap_max, dru_uncoupled, dru_max_width, dru_skew_max_nm) =
             resolve_pair_dru_bounds(
+                input,
                 rules,
                 &stem,
                 pos_net,
+                neg_net,
                 &pos_name,
                 &neg_name,
                 &pr.class_name,
@@ -1166,6 +1303,14 @@ fn discover_and_validate_with_copper(
                 Status::Invalid,
                 format!(
                     "differential pair ({pos_name:?}, {neg_name:?}) effective gap_min {gap_min_nm} > gap_max {gap_max_nm}"
+                ),
+            ));
+        }
+        if gap_nm < gap_min_nm || gap_nm > gap_max_nm {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!(
+                    "differential pair ({pos_name:?}, {neg_name:?}) gap {gap_nm} nm outside DRC diff_pair_gap range [{gap_min_nm}, {gap_max_nm}] nm"
                 ),
             ));
         }
@@ -1216,10 +1361,13 @@ fn discover_and_validate_with_copper(
         });
     }
 
-    let mut pair_partner_by_net: HashMap<u32, u32> = HashMap::new();
-    for p in &pairs {
+    let mut pair_partner_by_net: BTreeMap<u32, u32> = BTreeMap::new();
+    let mut pair_index_by_net: BTreeMap<u32, usize> = BTreeMap::new();
+    for (p_idx, p) in pairs.iter().enumerate() {
         pair_partner_by_net.insert(p.pos_net, p.neg_net);
         pair_partner_by_net.insert(p.neg_net, p.pos_net);
+        pair_index_by_net.insert(p.pos_net, p_idx);
+        pair_index_by_net.insert(p.neg_net, p_idx);
     }
 
     let default_group_amp = opts.group_meander_amplitude_nm.unwrap_or(1_000_000);
@@ -1231,19 +1379,106 @@ fn discover_and_validate_with_copper(
         ));
     }
 
+    let resolve_from_to_net = |tok: &str| -> Result<(u32, usize), Failure> {
+        let (fp_ref, pad_num) = tok
+            .rsplit_once('-')
+            .or_else(|| tok.rsplit_once('.'))
+            .ok_or_else(|| {
+                Failure::new(
+                    Status::Invalid,
+                    format!(
+                        "from_to terminal {tok:?} must use '<REF>-<PAD>' or '<REF>.<PAD>' format"
+                    ),
+                )
+            })?;
+        let mut found: Option<(u32, usize)> = None;
+        for (idx, p) in input.pads.iter().enumerate() {
+            if p.footprint_ref.as_deref() == Some(fp_ref)
+                && p.pad_number.as_deref() == Some(pad_num)
+            {
+                if found.is_some() {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!("ambiguous from_to terminal {tok:?}"),
+                    ));
+                }
+                found = Some((p.net, idx));
+            }
+        }
+        let (net_id, idx) = found.ok_or_else(|| {
+            Failure::new(
+                Status::Invalid,
+                format!("from_to terminal {tok:?} not found on board"),
+            )
+        })?;
+        if net_id == 0 {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!("from_to terminal {tok:?} is unconnected (net 0)"),
+            ));
+        }
+        Ok((net_id, idx))
+    };
+
     let mut length_groups = Vec::with_capacity(opts.length_match_groups.len());
     for g in &opts.length_match_groups {
-        if g.members.len() < 2 {
+        let mut from_to_nets: Vec<String> = Vec::new();
+        if !g.from_to.is_empty() {
+            let mut ft_seen_nets = BTreeSet::new();
+            for pair_tok in &g.from_to {
+                let (na, ia) = resolve_from_to_net(&pair_tok[0])?;
+                let (nb, ib) = resolve_from_to_net(&pair_tok[1])?;
+                if ia == ib {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!("from_to entry {:?} references the same pad twice", pair_tok),
+                    ));
+                }
+                if na != nb {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!(
+                            "from_to entry {:?} connects different nets ({:?} vs {:?})",
+                            pair_tok, name_by_id[&na], name_by_id[&nb]
+                        ),
+                    ));
+                }
+                if !ft_seen_nets.insert(na) {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!("duplicate net {:?} in from_to group", name_by_id[&na]),
+                    ));
+                }
+                from_to_nets.push(name_by_id[&na].to_owned());
+            }
+        }
+        let effective_member_names: Vec<String> = if !g.members.is_empty() {
+            if !from_to_nets.is_empty() {
+                let a: BTreeSet<&str> = g.members.iter().map(String::as_str).collect();
+                let b: BTreeSet<&str> = from_to_nets.iter().map(String::as_str).collect();
+                if a != b {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        "length-match group members and from_to nets do not match",
+                    ));
+                }
+            }
+            g.members.clone()
+        } else {
+            from_to_nets
+        };
+        if effective_member_names.len() < 2 {
             return Err(Failure::new(
                 Status::Invalid,
                 "length-match group requires at least 2 members",
             ));
         }
         let mut seen = BTreeSet::new();
-        let mut member_ids = Vec::with_capacity(g.members.len());
-        let mut member_names = Vec::with_capacity(g.members.len());
+        let mut member_ids = Vec::with_capacity(effective_member_names.len());
+        let mut member_names = Vec::with_capacity(effective_member_names.len());
         let mut any_pair_member = false;
-        for m in &g.members {
+        let mut any_se_member = false;
+        for m in &effective_member_names {
             let nid = *net_by_name.get(m.as_str()).ok_or_else(|| {
                 Failure::new(
                     Status::Invalid,
@@ -1299,9 +1534,17 @@ fn discover_and_validate_with_copper(
             }
             if pair_partner_by_net.contains_key(&nid) {
                 any_pair_member = true;
+            } else {
+                any_se_member = true;
             }
             member_ids.push(nid);
             member_names.push(m.clone());
+        }
+        if any_pair_member && any_se_member {
+            return Err(Failure::new(
+                Status::Invalid,
+                "coupled length-match group cannot mix differential pair members and single-ended nets",
+            ));
         }
         for &nid in &member_ids {
             if let Some(&partner) = pair_partner_by_net.get(&nid) {
@@ -1316,7 +1559,48 @@ fn discover_and_validate_with_copper(
                 }
             }
         }
+        if any_pair_member {
+            let mut imp_geom: Option<Option<(String, i64, i64)>> = None;
+            for &nid in &member_ids {
+                let p = &pairs[pair_index_by_net[&nid]];
+                let sig = p
+                    .impedance
+                    .as_ref()
+                    .map(|i| (i.signal_layer.clone(), i.solved_width_nm, p.gap_nm));
+                match &imp_geom {
+                    None => imp_geom = Some(sig),
+                    Some(prev) if *prev != sig => {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            "coupled length-match group cannot mix differing solved impedance geometries",
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let group_amp = g.meander_amplitude_nm.unwrap_or_else(|| {
+            opts.group_meander_amplitude_nm
+                .unwrap_or(if any_pair_member {
+                    opts.meander_amplitude_nm.unwrap_or(4_500_000)
+                } else {
+                    default_group_amp
+                })
+        });
+        let group_spacing = g.meander_spacing_widths.unwrap_or(default_group_spacing);
+        if group_amp <= 0 || group_spacing < 1.0 {
+            return Err(Failure::new(
+                Status::Invalid,
+                "group meander amplitude must be > 0 and spacing must be >= 1.0 widths",
+            ));
+        }
         let mode = if let Some(delay_as) = g.delay_tolerance_as.or(opts.group_delay_tolerance_as) {
+            if any_pair_member {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "delay-profile matching is not supported on coupled differential-pair groups",
+                ));
+            }
             if delay_as < 0 {
                 return Err(Failure::new(
                     Status::Invalid,
@@ -1347,6 +1631,24 @@ fn discover_and_validate_with_copper(
                     "length tolerance cannot be negative",
                 ));
             }
+            if any_pair_member {
+                if let Some(intra_tol) = opts.length_match_tolerance_nm {
+                    if intra_tol != tol_nm {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            "coupled length-match groups and intra-pair tuning must declare identical controls",
+                        ));
+                    }
+                }
+                if let Some(intra_amp) = opts.meander_amplitude_nm {
+                    if intra_amp != group_amp {
+                        return Err(Failure::new(
+                            Status::Invalid,
+                            "coupled length-match groups and intra-pair tuning must declare identical controls",
+                        ));
+                    }
+                }
+            }
             GroupTargetMode::LengthNm {
                 tolerance_nm: tol_nm,
             }
@@ -1356,8 +1658,8 @@ fn discover_and_validate_with_copper(
             member_names,
             contains_diff_pairs: any_pair_member,
             mode,
-            amplitude_nm: g.meander_amplitude_nm.unwrap_or(default_group_amp),
-            spacing_widths: g.meander_spacing_widths.unwrap_or(default_group_spacing),
+            amplitude_nm: group_amp,
+            spacing_widths: group_spacing,
         });
     }
 
@@ -1479,11 +1781,11 @@ fn measure_net_fromto(
     let vias: Vec<&Via> = engine.copper.vias().filter(|v| v.net == net).collect();
 
     // Node keys: (point, layer_idx), plus virtual pad nodes 0 (pad A) and 1 (pad B).
-    let mut node_ids: HashMap<(Point, usize), usize> = HashMap::new();
+    let mut node_ids: BTreeMap<(Point, usize), usize> = BTreeMap::new();
     let mut nodes: Vec<(Point, usize)> = Vec::new();
     let get_node = |pt: Point,
                     l_idx: usize,
-                    node_ids: &mut HashMap<(Point, usize), usize>,
+                    node_ids: &mut BTreeMap<(Point, usize), usize>,
                     nodes: &mut Vec<(Point, usize)>|
      -> usize {
         *node_ids.entry((pt, l_idx)).or_insert_with(|| {
@@ -1494,7 +1796,7 @@ fn measure_net_fromto(
     };
 
     // Split segments at any interior T-junction point (track endpoints, via centers, pad centers).
-    let mut layer_points: HashMap<usize, Vec<Point>> = HashMap::new();
+    let mut layer_points: BTreeMap<usize, Vec<Point>> = BTreeMap::new();
     for t in &tracks {
         if let Some(li) = engine.layer_index(&t.layer) {
             let entry = layer_points.entry(li).or_default();
@@ -2360,7 +2662,7 @@ fn legal_pair_coupled_step(
         return Ok(false);
     }
     // Enforce edge-to-edge gap >= gap_min_nm (segments_near threshold is w1 + w2 + 2 * clr)
-    let min_center_dist = 2 * i128::from(width_nm) + 2 * i128::from((pair.gap_min_nm - 4).max(0));
+    let min_center_dist = 2 * i128::from(width_nm) + 2 * i128::from(pair.gap_min_nm);
     if geometry::segments_near(pa, pb, na, nb, min_center_dist, false) {
         return Ok(false);
     }
@@ -2418,6 +2720,16 @@ fn simplify_collinear_points(pts: Vec<Point>) -> Vec<Point> {
     out
 }
 
+fn round_outward(val: f64) -> i64 {
+    if (val - val.round()).abs() <= 1e-6 {
+        val.round() as i64
+    } else if val >= 0.0 {
+        val.ceil() as i64
+    } else {
+        val.floor() as i64
+    }
+}
+
 /// Computes exact parallel left (+h) and right (-h) mitered offset polylines for a centerline.
 /// Left normal of unit tangent (ux, uy) is (-uy, ux).
 fn offset_centerline_mitered(
@@ -2451,8 +2763,8 @@ fn offset_centerline_mitered(
         let det = n0.0 * n1.1 - n0.1 * n1.0;
         if det.abs() < 1e-6 {
             return [
-                c[0] + (signed_h * n0.0).round() as i64,
-                c[1] + (signed_h * n0.1).round() as i64,
+                c[0] + round_outward(signed_h * n0.0),
+                c[1] + round_outward(signed_h * n0.1),
             ];
         }
         let dx = (signed_h * (n1.1 - n0.1)) / det;
@@ -2463,11 +2775,11 @@ fn offset_centerline_mitered(
             let ny = 0.5 * (n0.1 + n1.1);
             let nl = nx.hypot(ny).max(1e-9);
             return [
-                c[0] + (signed_h * nx / nl).round() as i64,
-                c[1] + (signed_h * ny / nl).round() as i64,
+                c[0] + round_outward(signed_h * nx / nl),
+                c[1] + round_outward(signed_h * ny / nl),
             ];
         }
-        [c[0] + dx.round() as i64, c[1] + dy.round() as i64]
+        [c[0] + round_outward(dx), c[1] + round_outward(dy)]
     };
 
     let mut left_poly = Vec::with_capacity(pts.len());
@@ -2475,12 +2787,12 @@ fn offset_centerline_mitered(
     // Start point
     let n_first = normals[0];
     left_poly.push([
-        pts[0][0] + (h_left * n_first.0).round() as i64,
-        pts[0][1] + (h_left * n_first.1).round() as i64,
+        pts[0][0] + round_outward(h_left * n_first.0),
+        pts[0][1] + round_outward(h_left * n_first.1),
     ]);
     right_poly.push([
-        pts[0][0] - (h_right * n_first.0).round() as i64,
-        pts[0][1] - (h_right * n_first.1).round() as i64,
+        pts[0][0] - round_outward(h_right * n_first.0),
+        pts[0][1] - round_outward(h_right * n_first.1),
     ]);
     // Interior vertices
     for i in 1..normals.len() {
@@ -2494,12 +2806,12 @@ fn offset_centerline_mitered(
     let n_last = *normals.last().unwrap();
     let p_last = *pts.last().unwrap();
     left_poly.push([
-        p_last[0] + (h_left * n_last.0).round() as i64,
-        p_last[1] + (h_left * n_last.1).round() as i64,
+        p_last[0] + round_outward(h_left * n_last.0),
+        p_last[1] + round_outward(h_left * n_last.1),
     ]);
     right_poly.push([
-        p_last[0] - (h_right * n_last.0).round() as i64,
-        p_last[1] - (h_right * n_last.1).round() as i64,
+        p_last[0] - round_outward(h_right * n_last.0),
+        p_last[1] - round_outward(h_right * n_last.1),
     ]);
 
     if pos_on_left {
@@ -2520,7 +2832,7 @@ fn offset_centerline_mitered(
 fn trim_dangling_pad_tails(tracks: &mut Vec<Track>, pads: &[&crate::model::Pad]) {
     tracks.retain(|t| t.start != t.end);
     loop {
-        let mut deg: HashMap<(Point, &str), usize> = HashMap::new();
+        let mut deg: BTreeMap<(Point, &str), usize> = BTreeMap::new();
         for t in tracks.iter() {
             *deg.entry((t.start, t.layer.as_str())).or_insert(0) += 1;
             *deg.entry((t.end, t.layer.as_str())).or_insert(0) += 1;
@@ -2929,6 +3241,73 @@ fn coupled_via_pair_check(
     Ok(Some((via_p, via_n, vp, vn)))
 }
 
+fn coupled_gap_max_ok(pair: &ResolvedDiffPair, p_poly: &[Point], n_poly: &[Point]) -> bool {
+    let max_center_dist2 = 2 * i128::from(pair.width_nm) + 2 * i128::from(pair.gap_max_nm) + 20;
+    for w in p_poly.windows(2) {
+        let mid = [(w[0][0] + w[1][0]) / 2, (w[0][1] + w[1][1]) / 2];
+        if !n_poly
+            .windows(2)
+            .any(|nw| geometry::point_near_segment(mid, nw[0], nw[1], max_center_dist2, true))
+        {
+            return false;
+        }
+    }
+    for w in n_poly.windows(2) {
+        let mid = [(w[0][0] + w[1][0]) / 2, (w[0][1] + w[1][1]) / 2];
+        if !p_poly
+            .windows(2)
+            .any(|pw| geometry::point_near_segment(mid, pw[0], pw[1], max_center_dist2, true))
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn validate_via_jog_pair(
+    engine: &Engine,
+    pair: &ResolvedDiffPair,
+    layer_idx: usize,
+    p_a: Point,
+    p_b: Point,
+    n_a: Point,
+    n_b: Point,
+) -> Result<Option<i64>, Failure> {
+    if p_a != p_b {
+        if !legal_edge_with_width(engine, pair.pos_net, layer_idx, p_a, p_b, pair.width_nm)? {
+            return Ok(None);
+        }
+        if let Some(imp) = &pair.impedance {
+            if engine.layer_name(layer_idx) != imp.signal_layer
+                || !segment_over_reference_zones(engine, p_a, p_b, imp)
+            {
+                return Ok(None);
+            }
+        }
+    }
+    if n_a != n_b {
+        if !legal_edge_with_width(engine, pair.neg_net, layer_idx, n_a, n_b, pair.width_nm)? {
+            return Ok(None);
+        }
+        if let Some(imp) = &pair.impedance {
+            if engine.layer_name(layer_idx) != imp.signal_layer
+                || !segment_over_reference_zones(engine, n_a, n_b, imp)
+            {
+                return Ok(None);
+            }
+        }
+    }
+    if p_a != p_b || n_a != n_b {
+        let min_clr2 = 2 * i128::from(pair.width_nm) + 2 * i128::from(pair.clearance_nm);
+        if geometry::segments_near(p_a, p_b, n_a, n_b, min_clr2, false) {
+            return Ok(None);
+        }
+    }
+    let lp = if p_a != p_b { dist_f64(p_a, p_b) } else { 0.0 };
+    let ln = if n_a != n_b { dist_f64(n_a, n_b) } else { 0.0 };
+    Ok(Some(lp.max(ln).round() as i64))
+}
+
 fn validate_and_build_coupled_solution(
     engine: &Engine,
     pair: &ResolvedDiffPair,
@@ -2977,7 +3356,10 @@ fn validate_and_build_coupled_solution(
     let first_run_layer = centerline_runs
         .first()
         .map_or(start_f.layer_idx, |(_, li)| *li);
-    if start_f.layer_idx != first_run_layer && centerline_runs[0].0.len() >= 2 {
+    if start_f.layer_idx != first_run_layer {
+        if centerline_runs.first().is_none_or(|(pts, _)| pts.len() < 2) {
+            return Ok(None);
+        }
         let Some((vp, vn, p_pt, n_pt)) = coupled_via_pair_check(
             engine,
             pair,
@@ -2995,24 +3377,21 @@ fn validate_and_build_coupled_solution(
             s_nm,
             pos_on_left,
         );
+        if p0.is_empty() || n0.is_empty() {
+            return Ok(None);
+        }
+        let Some(u1) =
+            validate_via_jog_pair(engine, pair, start_f.layer_idx, p0[0], p_pt, n0[0], n_pt)?
+        else {
+            return Ok(None);
+        };
+        let Some(u2) =
+            validate_via_jog_pair(engine, pair, first_run_layer, p_pt, p0[0], n_pt, n0[0])?
+        else {
+            return Ok(None);
+        };
+        total_uncoupled += u1.max(u2);
         if p0[0] != p_pt {
-            if !legal_edge_with_width(
-                engine,
-                pair.pos_net,
-                start_f.layer_idx,
-                p0[0],
-                p_pt,
-                pair.width_nm,
-            )? || !legal_edge_with_width(
-                engine,
-                pair.pos_net,
-                first_run_layer,
-                p_pt,
-                p0[0],
-                pair.width_nm,
-            )? {
-                return Ok(None);
-            }
             tracks.push(Track {
                 id: String::new(),
                 net: pair.pos_net,
@@ -3031,26 +3410,8 @@ fn validate_and_build_coupled_solution(
                 locked: false,
                 layer: engine.layer_name(first_run_layer).to_owned(),
             });
-            total_uncoupled += dist_f64(p0[0], p_pt).round() as i64;
         }
         if n0[0] != n_pt {
-            if !legal_edge_with_width(
-                engine,
-                pair.neg_net,
-                start_f.layer_idx,
-                n0[0],
-                n_pt,
-                pair.width_nm,
-            )? || !legal_edge_with_width(
-                engine,
-                pair.neg_net,
-                first_run_layer,
-                n_pt,
-                n0[0],
-                pair.width_nm,
-            )? {
-                return Ok(None);
-            }
             tracks.push(Track {
                 id: String::new(),
                 net: pair.neg_net,
@@ -3087,11 +3448,16 @@ fn validate_and_build_coupled_solution(
                     p_poly[0],
                     start_f.gn,
                     n_poly[0],
-                    2 * i128::from(pair.width_nm) + 2 * i128::from((pair.gap_min_nm - 4).max(0)),
+                    2 * i128::from(pair.width_nm) + 2 * i128::from(pair.gap_min_nm),
                     false,
                 )
             {
                 return Ok(None);
+            }
+            if start_f.gp != p_poly[0] || start_f.gn != n_poly[0] {
+                total_uncoupled += dist_f64(start_f.gp, p_poly[0])
+                    .max(dist_f64(start_f.gn, n_poly[0]))
+                    .round() as i64;
             }
             if start_f.gp != p_poly[0] {
                 if !legal_edge_with_width(
@@ -3181,8 +3547,7 @@ fn validate_and_build_coupled_solution(
         let last_p = *p_poly.last().unwrap();
         let last_n = *n_poly.last().unwrap();
         // Check coupled separation between ALL P and N segments on this layer run (including miter joins)
-        let min_center_dist =
-            2 * i128::from(pair.width_nm) + 2 * i128::from((pair.gap_min_nm - 4).max(0));
+        let min_center_dist = 2 * i128::from(pair.width_nm) + 2 * i128::from(pair.gap_min_nm);
         let mut run_p_segs: Vec<(Point, Point)> = p_poly.windows(2).map(|w| (w[0], w[1])).collect();
         let mut run_n_segs: Vec<(Point, Point)> = n_poly.windows(2).map(|w| (w[0], w[1])).collect();
         if run_idx == 0 && start_f.layer_idx == li {
@@ -3208,6 +3573,9 @@ fn validate_and_build_coupled_solution(
                 }
             }
         }
+        if !coupled_gap_max_ok(pair, &p_poly, &n_poly) {
+            return Ok(None);
+        }
         if run_idx + 1 == centerline_runs.len() && end_f.layer_idx == li {
             if (last_p != end_f.gp || last_n != end_f.gn)
                 && geometry::segments_near(
@@ -3215,11 +3583,16 @@ fn validate_and_build_coupled_solution(
                     end_f.gp,
                     last_n,
                     end_f.gn,
-                    2 * i128::from(pair.width_nm) + 2 * i128::from((pair.gap_min_nm - 4).max(0)),
+                    2 * i128::from(pair.width_nm) + 2 * i128::from(pair.gap_min_nm),
                     false,
                 )
             {
                 return Ok(None);
+            }
+            if last_p != end_f.gp || last_n != end_f.gn {
+                total_uncoupled += dist_f64(last_p, end_f.gp)
+                    .max(dist_f64(last_n, end_f.gn))
+                    .round() as i64;
             }
             if last_p != end_f.gp {
                 if !legal_edge_with_width(
@@ -3267,6 +3640,9 @@ fn validate_and_build_coupled_solution(
         if run_idx + 1 < centerline_runs.len() {
             let next_li = centerline_runs[run_idx + 1].1;
             let via_center = *run_pts.last().unwrap();
+            if run_pts.len() < 2 {
+                return Ok(None);
+            }
             let dir = dir_unit_f64(run_pts[run_pts.len() - 2], via_center).unwrap_or((1.0, 0.0));
             let Some((vp, vn, p_pt, n_pt)) =
                 coupled_via_pair_check(engine, pair, via_center, dir, pos_on_left, li, next_li)?
@@ -3277,10 +3653,20 @@ fn validate_and_build_coupled_solution(
             let n_end = *n_poly.last().unwrap();
             let (next_p, next_n) =
                 offset_centerline_mitered(&centerline_runs[run_idx + 1].0, s_nm, pos_on_left);
+            if next_p.is_empty() || next_n.is_empty() {
+                return Ok(None);
+            }
+            let Some(u1) = validate_via_jog_pair(engine, pair, li, p_end, p_pt, n_end, n_pt)?
+            else {
+                return Ok(None);
+            };
+            let Some(u2) =
+                validate_via_jog_pair(engine, pair, next_li, p_pt, next_p[0], n_pt, next_n[0])?
+            else {
+                return Ok(None);
+            };
+            total_uncoupled += u1 + u2;
             if p_end != p_pt {
-                if !legal_edge_with_width(engine, pair.pos_net, li, p_end, p_pt, pair.width_nm)? {
-                    return Ok(None);
-                }
                 tracks.push(Track {
                     id: String::new(),
                     net: pair.pos_net,
@@ -3290,12 +3676,8 @@ fn validate_and_build_coupled_solution(
                     locked: false,
                     layer: engine.layer_name(li).to_owned(),
                 });
-                total_uncoupled += dist_f64(p_end, p_pt).round() as i64;
             }
             if n_end != n_pt {
-                if !legal_edge_with_width(engine, pair.neg_net, li, n_end, n_pt, pair.width_nm)? {
-                    return Ok(None);
-                }
                 tracks.push(Track {
                     id: String::new(),
                     net: pair.neg_net,
@@ -3307,16 +3689,6 @@ fn validate_and_build_coupled_solution(
                 });
             }
             if next_p[0] != p_pt {
-                if !legal_edge_with_width(
-                    engine,
-                    pair.pos_net,
-                    next_li,
-                    p_pt,
-                    next_p[0],
-                    pair.width_nm,
-                )? {
-                    return Ok(None);
-                }
                 tracks.push(Track {
                     id: String::new(),
                     net: pair.pos_net,
@@ -3326,19 +3698,8 @@ fn validate_and_build_coupled_solution(
                     locked: false,
                     layer: engine.layer_name(next_li).to_owned(),
                 });
-                total_uncoupled += dist_f64(p_pt, next_p[0]).round() as i64;
             }
             if next_n[0] != n_pt {
-                if !legal_edge_with_width(
-                    engine,
-                    pair.neg_net,
-                    next_li,
-                    n_pt,
-                    next_n[0],
-                    pair.width_nm,
-                )? {
-                    return Ok(None);
-                }
                 tracks.push(Track {
                     id: String::new(),
                     net: pair.neg_net,
@@ -3358,6 +3719,13 @@ fn validate_and_build_coupled_solution(
         .last()
         .map_or(end_f.layer_idx, |(_, li)| *li);
     if end_f.layer_idx != last_run_layer {
+        let Some(last_run) = centerline_runs.last() else {
+            return Ok(None);
+        };
+        let last_pts = &last_run.0;
+        if last_pts.len() < 2 {
+            return Ok(None);
+        }
         let Some((vp, vn, p_pt, n_pt)) = coupled_via_pair_check(
             engine,
             pair,
@@ -3370,17 +3738,32 @@ fn validate_and_build_coupled_solution(
         else {
             return Ok(None);
         };
-        let last_pts = &centerline_runs.last().unwrap().0;
         let (p_end, n_end) = offset_centerline_mitered(
             &[last_pts[last_pts.len() - 2], end_f.gather],
             s_nm,
             pos_on_left,
         );
-        if *p_end.last().unwrap() != p_pt {
+        if p_end.is_empty() || n_end.is_empty() {
+            return Ok(None);
+        }
+        let p_last = *p_end.last().unwrap();
+        let n_last = *n_end.last().unwrap();
+        let Some(u1) =
+            validate_via_jog_pair(engine, pair, last_run_layer, p_last, p_pt, n_last, n_pt)?
+        else {
+            return Ok(None);
+        };
+        let Some(u2) =
+            validate_via_jog_pair(engine, pair, end_f.layer_idx, p_pt, p_last, n_pt, n_last)?
+        else {
+            return Ok(None);
+        };
+        total_uncoupled += u1.max(u2);
+        if p_last != p_pt {
             tracks.push(Track {
                 id: String::new(),
                 net: pair.pos_net,
-                start: *p_end.last().unwrap(),
+                start: p_last,
                 end: p_pt,
                 width_nm: pair.width_nm,
                 locked: false,
@@ -3390,18 +3773,17 @@ fn validate_and_build_coupled_solution(
                 id: String::new(),
                 net: pair.pos_net,
                 start: p_pt,
-                end: *p_end.last().unwrap(),
+                end: p_last,
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(end_f.layer_idx).to_owned(),
             });
-            total_uncoupled += dist_f64(p_pt, *p_end.last().unwrap()).round() as i64;
         }
-        if *n_end.last().unwrap() != n_pt {
+        if n_last != n_pt {
             tracks.push(Track {
                 id: String::new(),
                 net: pair.neg_net,
-                start: *n_end.last().unwrap(),
+                start: n_last,
                 end: n_pt,
                 width_nm: pair.width_nm,
                 locked: false,
@@ -3411,7 +3793,7 @@ fn validate_and_build_coupled_solution(
                 id: String::new(),
                 net: pair.neg_net,
                 start: n_pt,
-                end: *n_end.last().unwrap(),
+                end: n_last,
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(end_f.layer_idx).to_owned(),
@@ -3589,7 +3971,7 @@ fn astar_coupled_centerline(
         d.saturating_mul(5).saturating_div(4).saturating_add(v)
     };
 
-    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     struct Key {
         gx: i32,
         gy: i32,
@@ -3626,8 +4008,8 @@ fn astar_coupled_centerline(
         li: start_li as u8,
         dir: 8,
     };
-    let mut best_g: HashMap<Key, u64> = HashMap::new();
-    let mut parent: HashMap<Key, Key> = HashMap::new();
+    let mut best_g: BTreeMap<Key, u64> = BTreeMap::new();
+    let mut parent: BTreeMap<Key, Key> = BTreeMap::new();
     let mut heap = BinaryHeap::new();
     best_g.insert(start_key, 0);
     heap.push(Node {
@@ -3645,7 +4027,7 @@ fn astar_coupled_centerline(
     let reconstruct_runs = |tail_key: Key,
                             tail_pts: &[Point],
                             tail_on_end_li: bool,
-                            parent: &HashMap<Key, Key>|
+                            parent: &BTreeMap<Key, Key>|
      -> Vec<(Vec<Point>, usize)> {
         let mut chain = Vec::new();
         let mut cur = tail_key;
@@ -3768,7 +4150,12 @@ fn astar_coupled_centerline(
                 step_nm as u64
             };
             let turn_pen = if k.dir < 8 && nd as u8 != k.dir {
-                25_000
+                let just_via = parent.get(&k).is_some_and(|pk| pk.li != k.li);
+                if just_via {
+                    300_000
+                } else {
+                    25_000
+                }
             } else {
                 0
             };
@@ -3798,6 +4185,17 @@ fn astar_coupled_centerline(
         // Layer transitions via coupled via pair
         if k.dir < 8 && allowed_layer_idxs.len() > 1 {
             let cur_dir = dir_vec(k.dir as usize);
+            // Discourage placing a via within 1 short step of a miter turn so KiCad fromTo
+            // does not collapse the corner inside the via copper pad.
+            let near_turn_pen = if step_nm < 800_000
+                && parent
+                    .get(&k)
+                    .is_some_and(|pk| pk.li == k.li && pk.dir < 8 && pk.dir != k.dir)
+            {
+                300_000u64
+            } else {
+                0u64
+            };
             for &next_li in allowed_layer_idxs {
                 if next_li == li {
                     continue;
@@ -3808,7 +4206,11 @@ fn astar_coupled_centerline(
                     continue;
                 }
                 let ext_via = via_penalty(pt, k.li, next_li as u8);
-                let ng = cur.g.saturating_add(via_base_cost).saturating_add(ext_via);
+                let ng = cur
+                    .g
+                    .saturating_add(via_base_cost)
+                    .saturating_add(near_turn_pen)
+                    .saturating_add(ext_via);
                 let nk = Key {
                     gx: k.gx,
                     gy: k.gy,
@@ -4081,7 +4483,10 @@ pub fn prepare_and_route_pairs_with_penalty_in_tx(
         }))?;
     }
 
-    let active_single_ended_nets = if plan.active_nets.is_some() || !routed_pair_nets.is_empty() {
+    let active_single_ended_nets = if plan.active_nets.is_some()
+        || !routed_pair_nets.is_empty()
+        || !plan.protected_nets.is_empty()
+    {
         let mut set = BTreeSet::new();
         for n in &engine.input.nets {
             if n.id == 0 {
@@ -4092,7 +4497,7 @@ pub fn prepare_and_route_pairs_with_penalty_in_tx(
                     continue;
                 }
             }
-            if !routed_pair_nets.contains(&n.id) {
+            if !routed_pair_nets.contains(&n.id) && !plan.protected_nets.contains(&n.id) {
                 set.insert(n.id);
             }
         }
@@ -4112,6 +4517,7 @@ pub fn prepare_and_route_pairs_with_penalty_in_tx(
 // Length & Delay Matching (Intra-Pair, Coupled Tandem & Single-Ended Meanders)
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::too_many_arguments)]
 fn generate_45_meander_wave(
     start: Point,
     ux: f64,
@@ -4123,14 +4529,20 @@ fn generate_45_meander_wave(
     spacing_nm: f64,
     n_waves: usize,
     alternate_sides: bool,
+    width_nm: f64,
+    inner_offset_margin_nm: f64,
+    allow_ortho: bool,
 ) -> (Vec<Point>, f64, f64) {
-    let c = (0.3 * spacing_nm).min(0.35 * amp_nm).max(1.0);
-    let wave_span = spacing_nm + 2.0 * c;
-    let gap_between = (spacing_nm - 2.0 * c).max(0.5 * spacing_nm);
-    let pitch = wave_span + gap_between;
-    let total_span =
-        (n_waves as f64) * wave_span + (n_waves.saturating_sub(1) as f64) * gap_between;
-    let t0 = t_center - 0.5 * total_span;
+    let min_seg = (1.2 * width_nm).max(width_nm + 50_000.0);
+    let c_try = (0.3 * spacing_nm).min(0.35 * amp_nm);
+    let gap_try = (spacing_nm - 2.0 * c_try).max(0.5 * spacing_nm);
+    let inner_miter_shrink = inner_offset_margin_nm * (2.0 - std::f64::consts::SQRT_2);
+    let inner_top_shrink = 2.0 * inner_offset_margin_nm * (std::f64::consts::SQRT_2 - 1.0);
+    let chamfer_ok = c_try - inner_miter_shrink >= min_seg
+        && (spacing_nm - 2.0 * c_try - inner_top_shrink) >= min_seg
+        && (amp_nm - 2.0 * c_try - inner_top_shrink) >= min_seg
+        && (n_waves <= 1 || (gap_try - inner_top_shrink) >= min_seg);
+
     let pt_at = |t: f64, h: f64| -> Point {
         [
             start[0] + (t * ux + h * nx).round() as i64,
@@ -4138,48 +4550,213 @@ fn generate_45_meander_wave(
         ]
     };
 
-    let mut pts = Vec::with_capacity(n_waves * 8);
-    if amp_nm <= 2.2 * c {
-        // Small 45-degree triangular bump: base = 2 * amp, extra = 2 * amp * (sqrt(2) - 1)
-        let h_small = amp_nm.max(10_000.0);
-        let tri_span =
-            (n_waves as f64) * (2.0 * h_small) + (n_waves.saturating_sub(1) as f64) * gap_between;
-        let t_start = t_center - 0.5 * tri_span;
-        let step_tri = 2.0 * h_small + gap_between;
+    if chamfer_ok {
+        let c = c_try;
+        let wave_span = spacing_nm + 2.0 * c;
+        let gap_between = gap_try;
+        let pitch = wave_span + gap_between;
+        let total_span =
+            (n_waves as f64) * wave_span + (n_waves.saturating_sub(1) as f64) * gap_between;
+        let t0 = t_center - 0.5 * total_span;
+        let mut pts = Vec::with_capacity(n_waves * 8);
         for i in 0..n_waves {
             let s = if alternate_sides && (i % 2 == 1) {
                 -1.0
             } else {
                 1.0
             };
-            let tb = t_start + (i as f64) * step_tri;
+            let tb = t0 + (i as f64) * pitch;
+            let t_up = tb + c;
+            let t_dn = t_up + spacing_nm;
+            let t_end = t_dn + c;
             pts.push(pt_at(tb, 0.0));
-            pts.push(pt_at(tb + h_small, s * h_small));
-            pts.push(pt_at(tb + 2.0 * h_small, 0.0));
+            pts.push(pt_at(t_up, s * c));
+            pts.push(pt_at(t_up, s * (amp_nm - c)));
+            pts.push(pt_at(t_up + c, s * amp_nm));
+            pts.push(pt_at(t_dn - c, s * amp_nm));
+            pts.push(pt_at(t_dn, s * (amp_nm - c)));
+            pts.push(pt_at(t_dn, s * c));
+            pts.push(pt_at(t_end, 0.0));
         }
-        return (pts, t_start, t_start + tri_span);
+        return (pts, t0, t0 + total_span);
     }
 
+    let ortho_ok = allow_ortho
+        && (amp_nm - 2.0 * inner_offset_margin_nm) >= min_seg
+        && (spacing_nm - 2.0 * inner_offset_margin_nm) >= min_seg;
+    if ortho_ok {
+        let wave_span = spacing_nm;
+        let gap_between = spacing_nm;
+        let pitch = wave_span + gap_between;
+        let total_span =
+            (n_waves as f64) * wave_span + (n_waves.saturating_sub(1) as f64) * gap_between;
+        let t0 = t_center - 0.5 * total_span;
+        let mut pts = Vec::with_capacity(n_waves * 4);
+        for i in 0..n_waves {
+            let s = if alternate_sides && (i % 2 == 1) {
+                -1.0
+            } else {
+                1.0
+            };
+            let tb = t0 + (i as f64) * pitch;
+            let t_end = tb + spacing_nm;
+            pts.push(pt_at(tb, 0.0));
+            pts.push(pt_at(tb, s * amp_nm));
+            pts.push(pt_at(t_end, s * amp_nm));
+            pts.push(pt_at(t_end, 0.0));
+        }
+        return (pts, t0, t0 + total_span);
+    }
+
+    // Small 45-degree wave: flat-top 45-degree trapezoid when `!allow_ortho` (avoiding 90-degree
+    // corners that overhang in KiCad diff_pair_uncoupled), or 45-degree triangle bump otherwise.
+    let min_tri_h =
+        (0.85 * width_nm + inner_offset_margin_nm * (std::f64::consts::SQRT_2 - 1.0)).max(10_000.0);
+    let h_small = amp_nm.max(min_tri_h);
+    let top_len = if allow_ortho {
+        0.0
+    } else {
+        min_seg + inner_top_shrink
+    };
+    let gap_between = if allow_ortho {
+        (min_seg + inner_top_shrink).max(0.5 * spacing_nm)
+    } else {
+        min_seg + inner_top_shrink
+    };
+    let wave_span = 2.0 * h_small + top_len;
+    let tri_span = (n_waves as f64) * wave_span + (n_waves.saturating_sub(1) as f64) * gap_between;
+    let t_start = t_center - 0.5 * tri_span;
+    let step_tri = wave_span + gap_between;
+    let mut pts = Vec::with_capacity(n_waves * 4);
     for i in 0..n_waves {
         let s = if alternate_sides && (i % 2 == 1) {
             -1.0
         } else {
             1.0
         };
-        let tb = t0 + (i as f64) * pitch;
-        let t_up = tb + c;
-        let t_dn = t_up + spacing_nm;
-        let t_end = t_dn + c;
+        let tb = t_start + (i as f64) * step_tri;
         pts.push(pt_at(tb, 0.0));
-        pts.push(pt_at(t_up, s * c));
-        pts.push(pt_at(t_up, s * (amp_nm - c)));
-        pts.push(pt_at(t_up + c, s * amp_nm));
-        pts.push(pt_at(t_dn - c, s * amp_nm));
-        pts.push(pt_at(t_dn, s * (amp_nm - c)));
-        pts.push(pt_at(t_dn, s * c));
-        pts.push(pt_at(t_end, 0.0));
+        pts.push(pt_at(tb + h_small, s * h_small));
+        if top_len > 0.0 {
+            pts.push(pt_at(tb + h_small + top_len, s * h_small));
+        }
+        pts.push(pt_at(tb + wave_span, 0.0));
     }
-    (pts, t0, t0 + total_span)
+    (pts, t_start, t_start + tri_span)
+}
+
+fn point_to_seg_dist_f64(p: [f64; 2], a: Point, b: Point) -> f64 {
+    let vx = (b[0] - a[0]) as f64;
+    let vy = (b[1] - a[1]) as f64;
+    let wx = p[0] - a[0] as f64;
+    let wy = p[1] - a[1] as f64;
+    let len2 = vx * vx + vy * vy;
+    if len2 <= 0.0 {
+        return wx.hypot(wy);
+    }
+    let t = ((wx * vx + wy * vy) / len2).clamp(0.0, 1.0);
+    let px = a[0] as f64 + t * vx - p[0];
+    let py = a[1] as f64 + t * vy - p[1];
+    px.hypot(py)
+}
+
+fn measure_pair_uncoupled_nm(engine: &Engine, pair: &ResolvedDiffPair) -> i64 {
+    let p_tracks: Vec<&Track> = engine
+        .copper
+        .tracks()
+        .filter(|t| t.net == pair.pos_net)
+        .collect();
+    let n_tracks: Vec<&Track> = engine
+        .copper
+        .tracks()
+        .filter(|t| t.net == pair.neg_net)
+        .collect();
+
+    let leg_uncoupled = |own: &[&Track], other: &[&Track]| -> f64 {
+        let mut total = 0.0_f64;
+        for t in own {
+            let len = dist_f64(t.start, t.end);
+            if len <= 1.0 {
+                continue;
+            }
+            let steps = (len / 50_000.0).ceil().max(1.0) as usize;
+            let step_len = len / (steps as f64);
+            for k in 0..steps {
+                let frac = (k as f64 + 0.5) / (steps as f64);
+                let mx = t.start[0] as f64 + (t.end[0] - t.start[0]) as f64 * frac;
+                let my = t.start[1] as f64 + (t.end[1] - t.start[1]) as f64 * frac;
+                let coupled = other.iter().any(|o| {
+                    if o.layer != t.layer {
+                        return false;
+                    }
+                    let half_w = 0.5 * (t.width_nm + o.width_nm) as f64;
+                    let min_c = (half_w + pair.gap_min_nm as f64 - 15_000.0).max(0.0);
+                    let max_c = half_w + pair.gap_max_nm as f64 + 15_000.0;
+                    let d = point_to_seg_dist_f64([mx, my], o.start, o.end);
+                    d >= min_c && d <= max_c
+                });
+                if !coupled {
+                    total += step_len;
+                }
+            }
+        }
+        total
+    };
+
+    let u_p = leg_uncoupled(&p_tracks, &n_tracks);
+    let u_n = leg_uncoupled(&n_tracks, &p_tracks);
+    u_p.max(u_n).round() as i64
+}
+
+fn same_net_meander_clear(
+    cand: &Track,
+    clean: &[Point],
+    other_same_net: &[Track],
+    min_clr_nm: i64,
+) -> bool {
+    let clr2 = 2 * i128::from(cand.width_nm) + 2 * i128::from(min_clr_nm);
+    let on_cand_line = |p: Point| -> bool {
+        let vx = i128::from(cand.end[0] - cand.start[0]);
+        let vy = i128::from(cand.end[1] - cand.start[1]);
+        let wx = i128::from(p[0] - cand.start[0]);
+        let wy = i128::from(p[1] - cand.start[1]);
+        (vx * wy - vy * wx).abs() <= vx.abs().max(vy.abs()) * 2
+    };
+    for ot in other_same_net {
+        if ot.layer != cand.layer {
+            continue;
+        }
+        // Only check newly introduced off-line vertices and segments that leave `cand`'s line;
+        // collinear sub-segments of `cand` touching `cand.start`/`cand.end` retain pre-existing proximity.
+        for &pt in clean {
+            if pt != cand.start
+                && pt != cand.end
+                && !on_cand_line(pt)
+                && geometry::point_near_segment(pt, ot.start, ot.end, clr2, false)
+            {
+                return false;
+            }
+        }
+        for w in clean.windows(2) {
+            if !on_cand_line(w[0]) || !on_cand_line(w[1]) {
+                if w[0] != cand.start && w[0] != cand.end && w[1] != cand.start && w[1] != cand.end
+                {
+                    if geometry::segments_near(w[0], w[1], ot.start, ot.end, clr2, false) {
+                        return false;
+                    }
+                } else {
+                    // V-peak leg attached to cand endpoint: check midpoint + 75% point toward apex
+                    let off = if !on_cand_line(w[0]) { w[0] } else { w[1] };
+                    let end = if !on_cand_line(w[0]) { w[1] } else { w[0] };
+                    let mid = [(off[0] + end[0]) / 2, (off[1] + end[1]) / 2];
+                    if geometry::point_near_segment(mid, ot.start, ot.end, clr2, false) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    true
 }
 
 fn replace_generated_track_with_pts(
@@ -4246,7 +4823,16 @@ fn apply_single_ended_meander(
     amp_max_nm: i64,
     spacing_widths: f64,
     near_terminal: bool,
+    pair_ctx: Option<&ResolvedDiffPair>,
 ) -> Result<(), Failure> {
+    if let Some(pair) = pair_ctx {
+        if measure_pair_uncoupled_nm(engine, pair) > pair.uncoupled_max_nm {
+            return Err(Failure::new(
+                Status::Unroutable,
+                "diff pair already exceeds diff_pair_uncoupled limit before intra-pair meander",
+            ));
+        }
+    }
     let prof = if is_delay {
         find_tuning_profile(&engine.effective_rules, net).cloned()
     } else {
@@ -4287,13 +4873,26 @@ fn apply_single_ended_meander(
         let seg_len = dist_f64(cand.start, cand.end);
         let spacing_nm = ((cand.width_nm as f64) * spacing_widths)
             .round()
-            .max(cand.width_nm as f64 + 50_000.0);
+            .max((cand.width_nm as f64 * 1.2).max(cand.width_nm as f64 + 50_000.0));
         if seg_len < 2.2 * spacing_nm {
             continue;
         }
         let Some(li) = engine.layer_index(&cand.layer) else {
             continue;
         };
+        let other_same_net: Vec<Track> = engine
+            .copper
+            .generated()
+            .chain(engine.input.tracks.iter())
+            .filter(|t| {
+                t.net == net
+                    && !(t.layer == cand.layer
+                        && t.width_nm == cand.width_nm
+                        && ((t.start == cand.start && t.end == cand.end)
+                            || (t.start == cand.end && t.end == cand.start)))
+            })
+            .cloned()
+            .collect();
         let delay_rate = if let Some(ref p) = prof {
             let Some(le) = p
                 .layer_entries
@@ -4333,6 +4932,9 @@ fn apply_single_ended_meander(
         let max_waves =
             (((seg_len - 1.5 * spacing_nm) / (2.0 * spacing_nm)).floor() as usize).max(1);
         let max_amp = amp_max_nm as f64;
+        if max_amp <= 10_000.0 {
+            continue;
+        }
         let eval_added = |n_waves: usize,
                           amp: f64,
                           nx: f64,
@@ -4341,7 +4943,19 @@ fn apply_single_ended_meander(
                           center_t: f64|
          -> Option<(Vec<Point>, f64)> {
             let (wave_pts, t0, t1) = generate_45_meander_wave(
-                cand.start, ux, uy, nx, ny, center_t, amp, spacing_nm, n_waves, alt,
+                cand.start,
+                ux,
+                uy,
+                nx,
+                ny,
+                center_t,
+                amp,
+                spacing_nm,
+                n_waves,
+                alt,
+                cand.width_nm as f64,
+                0.0,
+                true,
             );
             if t0 < 50_000.0 || t1 > seg_len - 50_000.0 {
                 return None;
@@ -4387,7 +5001,7 @@ fn apply_single_ended_meander(
                     if max_add + (tol as f64) < needed_len_nm {
                         continue;
                     }
-                    let mut lo = 5_000.0_f64;
+                    let mut lo = (0.85 * cand.width_nm as f64).min(max_amp).max(10_000.0);
                     let mut hi = max_amp;
                     for _ in 0..32 {
                         let mid = 0.5 * (lo + hi);
@@ -4396,17 +5010,49 @@ fn apply_single_ended_meander(
                             _ => hi = mid,
                         }
                     }
-                    let best_amp = 0.5 * (lo + hi);
-                    let Some((clean, _)) = eval_added(n_waves, best_amp, nx, ny, alt, center_t)
-                    else {
+                    let mid_amp = 0.5 * (lo + hi);
+                    let best_clean = [hi, mid_amp, lo]
+                        .into_iter()
+                        .filter_map(|a| {
+                            eval_added(n_waves, a, nx, ny, alt, center_t).map(|res| (a, res))
+                        })
+                        .min_by(|(_, (_, add_a)), (_, (_, add_b))| {
+                            (add_a - needed_len_nm)
+                                .abs()
+                                .partial_cmp(&(add_b - needed_len_nm).abs())
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                        .map(|(_, (pts, _))| pts);
+                    let Some(clean) = best_clean else {
                         continue;
                     };
+                    if !same_net_meander_clear(&cand, &clean, &other_same_net, 50_000) {
+                        continue;
+                    }
                     let attempt = engine.transaction(|tx| {
                         let eng = &mut *tx.engine;
                         replace_generated_track_with_pts(eng, net, &cand, &clean)?;
                         for w in clean.windows(2) {
                             if !legal_edge_with_width(eng, net, li, w[0], w[1], cand.width_nm)? {
                                 return Err(Failure::new(Status::Unroutable, "meander illegal"));
+                            }
+                            if let Some(imp) = pair_ctx.and_then(|p| p.impedance.as_ref()) {
+                                if cand.layer == imp.signal_layer
+                                    && !segment_over_reference_zones(eng, w[0], w[1], imp)
+                                {
+                                    return Err(Failure::new(
+                                        Status::Unroutable,
+                                        "meander left impedance reference zone",
+                                    ));
+                                }
+                            }
+                        }
+                        if let Some(pair) = pair_ctx {
+                            if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "intra-pair meander exceeded diff_pair_uncoupled limit",
+                                ));
                             }
                         }
                         let m = measure_net_fromto(eng, net, is_delay)?
@@ -4452,6 +5098,16 @@ fn apply_coupled_pair_meander(
     let cur_avg = (cur_p + cur_n) / 2;
     if cur_p >= target_val - tol && cur_n >= target_val - tol {
         return Ok(());
+    }
+    let existing_uncoupled = measure_pair_uncoupled_nm(engine, pair) as f64;
+    if existing_uncoupled > pair.uncoupled_max_nm as f64 {
+        return Err(Failure::new(
+            Status::Unroutable,
+            format!(
+                "diff pair {} exceeds diff_pair_uncoupled limit before coupled meander",
+                pair.stem
+            ),
+        ));
     }
     let s_nm = pair.width_nm + pair.gap_nm;
     let pos_tracks: Vec<Track> = engine
@@ -4506,8 +5162,18 @@ fn apply_coupled_pair_meander(
     }
     trunk_pairs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
+    let min_seg = (1.2 * pair.width_nm as f64).max(pair.width_nm as f64 + 50_000.0);
+    let inner_offset = 0.5 * (s_nm as f64);
+    let inner_miter_shrink = inner_offset * (2.0 - std::f64::consts::SQRT_2);
+    let inner_top_shrink = 2.0 * inner_offset * (std::f64::consts::SQRT_2 - 1.0);
+    let min_c_chamfer = min_seg + inner_miter_shrink;
+    let min_top_chamfer = min_seg + inner_top_shrink;
+    let min_spacing_for_chamfer = (min_c_chamfer / 0.3)
+        .max(2.0 * min_c_chamfer + min_top_chamfer)
+        .max(min_top_chamfer / 0.4);
     let spacing_nm = ((2.2 * s_nm as f64)
-        .max(s_nm as f64 + 1.5 * pair.width_nm as f64 + pair.clearance_nm as f64))
+        .max(s_nm as f64 + 1.5 * pair.width_nm as f64 + pair.clearance_nm as f64)
+        .max(min_spacing_for_chamfer))
     .round();
     let prof = if is_delay {
         find_tuning_profile(&engine.effective_rules, pair.pos_net).cloned()
@@ -4540,7 +5206,12 @@ fn apply_coupled_pair_meander(
         ];
         let c_end = [(pt_orig.end[0] + nb[0]) / 2, (pt_orig.end[1] + nb[1]) / 2];
         let c_len = dist_f64(c_start, c_end);
-        let max_waves = (((c_len - 2.0 * spacing_nm) / (2.0 * spacing_nm)).floor() as usize).max(1);
+        let min_tri_step =
+            2.0 * (0.85 * pair.width_nm as f64) + min_top_chamfer.max(0.5 * spacing_nm);
+        let max_waves = (((c_len - 2.0 * s_nm as f64)
+            / min_tri_step.min(2.0 * spacing_nm).max(min_seg))
+        .floor() as usize)
+            .max(1);
 
         let delay_rate = if let Some(ref p) = prof {
             let Some(le) = p
@@ -4578,6 +5249,9 @@ fn apply_coupled_pair_meander(
                 spacing_nm,
                 n_waves,
                 alt,
+                pair.width_nm as f64,
+                0.5 * (s_nm as f64),
+                false,
             );
             if t0 < s_nm as f64 || t1 > c_len - (s_nm as f64) {
                 return None;
@@ -4602,11 +5276,7 @@ fn apply_coupled_pair_meander(
         };
 
         for n_waves in 1..=max_waves {
-            let est_bend_uncoupled =
-                (n_waves as f64) * 8.0 * (s_nm as f64) * (std::f64::consts::SQRT_2 - 1.0);
-            if est_bend_uncoupled > pair.uncoupled_max_nm as f64 {
-                break;
-            }
+            let _ = existing_uncoupled;
             for &(nx, ny, alt) in &[
                 (-uy, ux, true),
                 (uy, -ux, true),
@@ -4619,7 +5289,9 @@ fn apply_coupled_pair_meander(
                 if max_add + (tol as f64) < needed_len_nm {
                     continue;
                 }
-                let mut lo = (s_nm as f64) * 0.5;
+                let min_tri_h = 0.85 * (pair.width_nm as f64)
+                    + 0.5 * (s_nm as f64) * (std::f64::consts::SQRT_2 - 1.0);
+                let mut lo = min_tri_h.min(max_amp);
                 let mut hi = max_amp;
                 for _ in 0..32 {
                     let mid = 0.5 * (lo + hi);
@@ -4628,8 +5300,17 @@ fn apply_coupled_pair_meander(
                         _ => hi = mid,
                     }
                 }
-                let Some((p_poly, n_poly, _)) = eval_coupled(n_waves, 0.5 * (lo + hi), nx, ny, alt)
-                else {
+                let mid_amp = 0.5 * (lo + hi);
+                let best_coupled = [hi, mid_amp, lo]
+                    .into_iter()
+                    .filter_map(|a| eval_coupled(n_waves, a, nx, ny, alt))
+                    .min_by(|(_, _, add_a), (_, _, add_b)| {
+                        (add_a - needed_len_nm)
+                            .abs()
+                            .partial_cmp(&(add_b - needed_len_nm).abs())
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                let Some((p_poly, n_poly, _)) = best_coupled else {
                     continue;
                 };
                 let attempt = engine.transaction(|tx| {
@@ -4670,25 +5351,37 @@ fn apply_coupled_pair_meander(
                             }
                         }
                     }
-                    // Verify coupled gap between corresponding segments
-                    let min_center_dist = 2 * i128::from(pair.width_nm)
-                        + 2 * i128::from((pair.gap_min_nm - 4).max(0));
-                    if p_poly.len() == n_poly.len() {
-                        for k in 0..(p_poly.len() - 1) {
+                    // Verify coupled gap across all segment pairs (no -4nm slack, no equal-len gate)
+                    let min_center_dist =
+                        2 * i128::from(pair.width_nm) + 2 * i128::from(pair.gap_min_nm.max(0));
+                    for pw in p_poly.windows(2) {
+                        for nw in n_poly.windows(2) {
                             if geometry::segments_near(
-                                p_poly[k],
-                                p_poly[k + 1],
-                                n_poly[k],
-                                n_poly[k + 1],
+                                pw[0],
+                                pw[1],
+                                nw[0],
+                                nw[1],
                                 min_center_dist,
                                 false,
                             ) {
                                 return Err(Failure::new(
                                     Status::Unroutable,
-                                    "coupled meander pinched gap",
+                                    "coupled meander pinched gap below diff_pair_gap_min",
                                 ));
                             }
                         }
+                    }
+                    if !coupled_gap_max_ok(pair, &p_poly, &n_poly) {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "coupled meander exceeded diff_pair_gap_max",
+                        ));
+                    }
+                    if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "coupled meander exceeded diff_pair_uncoupled limit",
+                        ));
                     }
                     let mp2 = measure_net_fromto(eng, pair.pos_net, is_delay)?
                         .ok_or_else(|| Failure::new(Status::Unroutable, "pos disconnected"))?;
@@ -4744,6 +5437,15 @@ fn apply_intra_pair_match(
     if diff <= tol_nm {
         return Ok(());
     }
+    if measure_pair_uncoupled_nm(engine, pair) > pair.uncoupled_max_nm {
+        return Err(Failure::new(
+            Status::Unroutable,
+            format!(
+                "diff pair {} exceeds diff_pair_uncoupled limit before intra-pair match",
+                pair.stem
+            ),
+        ));
+    }
     let (short_net, long_net, long_len) = if mp.length_nm < mn.length_nm {
         (pair.pos_net, pair.neg_net, mn.length_nm)
     } else {
@@ -4769,7 +5471,7 @@ fn apply_intra_pair_match(
         .filter(|t| t.net == short_net && (pad_pts.contains(&t.start) || pad_pts.contains(&t.end)))
         .cloned()
         .collect();
-    let max_h = (amp_max_nm.min(pair.uncoupled_max_nm / 2).max(200_000)) as f64;
+    let max_h = amp_max_nm.min(pair.uncoupled_max_nm / 2) as f64;
 
     for cand in &pad_segs {
         let Some(li) = engine.layer_index(&cand.layer) else {
@@ -4784,8 +5486,7 @@ fn apply_intra_pair_match(
         let Some((ux, uy)) = dir_unit_f64(p_at, p_join) else {
             continue;
         };
-        let _ = (ux, uy);
-        if seg_len < 300_000.0 {
+        if max_h <= 10_000.0 || seg_len < ((3 * cand.width_nm).max(750_000)) as f64 {
             continue;
         }
         // Rank outward normal first (away from partner tracks)
@@ -4823,12 +5524,26 @@ fn apply_intra_pair_match(
             (clean, new_len - seg_len)
         };
 
+        let other_same_net: Vec<Track> = engine
+            .copper
+            .generated()
+            .chain(engine.input.tracks.iter())
+            .filter(|t| {
+                t.net == short_net
+                    && !(t.layer == cand.layer
+                        && t.width_nm == cand.width_nm
+                        && ((t.start == cand.start && t.end == cand.end)
+                            || (t.start == cand.end && t.end == cand.start)))
+            })
+            .cloned()
+            .collect();
+
         for &(nx, ny) in &normals {
             let (_, max_add) = eval_pad_bump(max_h, nx, ny);
             if max_add + (tol_nm as f64) < needed {
                 continue;
             }
-            let mut lo = 10_000.0_f64;
+            let mut lo = (0.85 * cand.width_nm as f64).min(max_h).max(10_000.0);
             let mut hi = max_h;
             for _ in 0..32 {
                 let mid_h = 0.5 * (lo + hi);
@@ -4839,6 +5554,9 @@ fn apply_intra_pair_match(
                 }
             }
             let (clean, _) = eval_pad_bump(0.5 * (lo + hi), nx, ny);
+            if !same_net_meander_clear(cand, &clean, &other_same_net, 50_000) {
+                continue;
+            }
             let attempt = engine.transaction(|tx| {
                 let eng = &mut *tx.engine;
                 replace_generated_track_with_pts(eng, short_net, cand, &clean)?;
@@ -4846,6 +5564,22 @@ fn apply_intra_pair_match(
                     if !legal_edge_with_width(eng, short_net, li, w[0], w[1], cand.width_nm)? {
                         return Err(Failure::new(Status::Unroutable, "pad detour illegal"));
                     }
+                    if let Some(imp) = &pair.impedance {
+                        if cand.layer == imp.signal_layer
+                            && !segment_over_reference_zones(eng, w[0], w[1], imp)
+                        {
+                            return Err(Failure::new(
+                                Status::Unroutable,
+                                "pad detour left impedance reference zone",
+                            ));
+                        }
+                    }
+                }
+                if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
+                    return Err(Failure::new(
+                        Status::Unroutable,
+                        "pad detour exceeded diff_pair_uncoupled limit",
+                    ));
                 }
                 let m = measure_net_fromto(eng, short_net, false)?
                     .ok_or_else(|| Failure::new(Status::Unroutable, "disconnected"))?;
@@ -4869,9 +5603,10 @@ fn apply_intra_pair_match(
         long_len,
         tol_nm,
         false,
-        amp_max_nm.min(pair.uncoupled_max_nm / 2).max(200_000),
+        amp_max_nm.min(pair.uncoupled_max_nm / 2),
         spacing_widths,
         true,
+        Some(pair),
     )
 }
 
@@ -4880,7 +5615,7 @@ pub fn apply_length_matching_in_tx(
     state: &DiffPairRunState,
 ) -> Result<(), Failure> {
     let plan = &state.plan;
-    let mut pair_by_net: HashMap<u32, usize> = HashMap::new();
+    let mut pair_by_net: BTreeMap<u32, usize> = BTreeMap::new();
     for (idx, p) in plan.pairs.iter().enumerate() {
         pair_by_net.insert(p.pos_net, idx);
         pair_by_net.insert(p.neg_net, idx);
@@ -4932,8 +5667,58 @@ pub fn apply_length_matching_in_tx(
                 continue;
             }
 
-            let target = max_val;
+            let mut target = max_val;
             if group.contains_diff_pairs {
+                // Option B: bring skewed pairs in a coupled group (including 1-pair coupled groups)
+                // within `tol` first so coupled meanders preserve P/N skew balance.
+                let mut intra_handled = BTreeSet::new();
+                for &(nid, _, _) in &vals {
+                    let Some(&p_idx) = pair_by_net.get(&nid) else {
+                        continue;
+                    };
+                    if !intra_handled.insert(p_idx) {
+                        continue;
+                    }
+                    let pair = &plan.pairs[p_idx];
+                    let mp = measure_net_fromto(eng, pair.pos_net, false)?.ok_or_else(|| {
+                        Failure::new(Status::Unroutable, "pos leg disconnected in group")
+                    })?;
+                    let mn = measure_net_fromto(eng, pair.neg_net, false)?.ok_or_else(|| {
+                        Failure::new(Status::Unroutable, "neg leg disconnected in group")
+                    })?;
+                    if (mp.length_nm - mn.length_nm).abs() > tol {
+                        let pair_modifiable = !plan.protected_nets.contains(&pair.pos_net)
+                            && !plan.protected_nets.contains(&pair.neg_net)
+                            && !eng
+                                .copper
+                                .input()
+                                .iter()
+                                .any(|t| t.net == pair.pos_net || t.net == pair.neg_net);
+                        if !pair_modifiable {
+                            return Err(Failure::new(
+                                Status::Unroutable,
+                                format!(
+                                    "protected/existing diff pair {} skew exceeds group tolerance {tol}",
+                                    pair.stem
+                                ),
+                            ));
+                        }
+                        apply_intra_pair_match(eng, pair, tol, group.amplitude_nm)?;
+                    }
+                }
+                let mut refreshed_max = i64::MIN;
+                for &nid in &group.members {
+                    let m = measure_net_fromto(eng, nid, is_delay)?.ok_or_else(|| {
+                        Failure::new(
+                            Status::Unroutable,
+                            format!("length-match group member net {nid} is disconnected"),
+                        )
+                    })?;
+                    let v = if is_delay { m.delay_as } else { m.length_nm };
+                    refreshed_max = refreshed_max.max(v);
+                }
+                target = refreshed_max;
+
                 let mut handled_pairs = BTreeSet::new();
                 for &(nid, v, modifiable) in &vals {
                     if let Some(&p_idx) = pair_by_net.get(&nid) {
@@ -4968,6 +5753,7 @@ pub fn apply_length_matching_in_tx(
                             group.amplitude_nm,
                             group.spacing_widths,
                             false,
+                            None,
                         )?;
                     }
                 }
@@ -4991,6 +5777,7 @@ pub fn apply_length_matching_in_tx(
                             group.amplitude_nm,
                             group.spacing_widths,
                             false,
+                            None,
                         )?;
                     }
                 }

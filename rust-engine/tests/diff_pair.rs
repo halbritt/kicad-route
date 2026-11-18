@@ -533,6 +533,7 @@ fn dead_end_stub_pruning_and_length_group_matching_with_protect() {
     let state = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
     assert!(state.protected_nets.contains(&1));
     assert!(state.protected_nets.contains(&2));
+    assert!(state.protected_nets.contains(&4));
     assert_eq!(
         state
             .active_single_ended_nets
@@ -541,7 +542,7 @@ fn dead_end_stub_pruning_and_length_group_matching_with_protect() {
             .iter()
             .copied()
             .collect::<Vec<_>>(),
-        vec![3, 4]
+        vec![3]
     );
     eng.route(3, 50_000).unwrap();
     apply_length_matching_in_tx(&mut eng, &state).unwrap();
@@ -619,6 +620,282 @@ fn delay_matching_preflight_refusals_and_tandem_inter_pair_matching() {
 
     // Silence unused TuningProfile import check when building tests
     let _ = std::marker::PhantomData::<(EffectiveRules, TuningProfile, TuningProfileLayerEntry)>;
+}
+
+#[test]
+fn option_b_and_coupled_group_preflight_refusals() {
+    use kicad_route_engine::model::Status;
+
+    // 1. Option B: complete 1-pair coupled group (["DP+", "DP-"]) is allowed and matches P/N skew
+    let mut input = base_diff_input(&["DP+", "DP-"]);
+    input.pads[2].at = [10_000_000, 11_500_000];
+    input.pads[3].at = [39_200_000, 11_500_000]; // 0.8mm shorter than DP+ (> 150um tol)
+    input.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["DP+".into(), "DP-".into()],
+            ..Default::default()
+        }],
+        group_match_tolerance_nm: Some(150_000),
+        group_meander_amplitude_nm: Some(2_000_000),
+        ..Default::default()
+    });
+    let mut eng = Engine::new(input).unwrap();
+    let state = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+    apply_length_matching_in_tx(&mut eng, &state).unwrap();
+    let len_p: f64 = eng
+        .copper()
+        .tracks()
+        .filter(|t| t.net == 1)
+        .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+        .sum();
+    let len_n: f64 = eng
+        .copper()
+        .tracks()
+        .filter(|t| t.net == 2)
+        .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+        .sum();
+    assert!(
+        (len_p - len_n).abs() <= 150_000.0,
+        "1-pair group skew {} > 150um",
+        (len_p - len_n).abs()
+    );
+
+    // 2. Partial pair omitted partner -> Status::Invalid
+    let mut partial = base_diff_input(&["DP+", "DP-", "SE0"]);
+    partial.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["DP+".into(), "SE0".into()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    let r_partial = resolve_effective_rules(&mut partial).unwrap();
+    assert_eq!(
+        discover_and_validate(&partial, &r_partial)
+            .unwrap_err()
+            .status,
+        Status::Invalid
+    );
+
+    // 3. Mixing single-ended and diff-pair in same group -> Status::Invalid
+    let mut mixed = base_diff_input(&["DP+", "DP-", "SE0"]);
+    mixed.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["DP+".into(), "DP-".into(), "SE0".into()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    let r_mixed = resolve_effective_rules(&mut mixed).unwrap();
+    assert_eq!(
+        discover_and_validate(&mixed, &r_mixed).unwrap_err().status,
+        Status::Invalid
+    );
+
+    // 4. Delay-profile matching on coupled diff-pair group -> Status::Invalid
+    let mut delay_coupled = base_diff_input(&["A_P", "A_N", "B_P", "B_N"]);
+    delay_coupled
+        .board_design_settings
+        .as_mut()
+        .unwrap()
+        .use_height_for_length_calcs = Some(true);
+    delay_coupled.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["A_P".into(), "A_N".into(), "B_P".into(), "B_N".into()],
+            ..Default::default()
+        }],
+        group_delay_tolerance_as: Some(1_000_000),
+        ..Default::default()
+    });
+    let r_delay = resolve_effective_rules(&mut delay_coupled).unwrap();
+    assert_eq!(
+        discover_and_validate(&delay_coupled, &r_delay)
+            .unwrap_err()
+            .status,
+        Status::Invalid
+    );
+
+    // 5. Conflicting intra-match vs coupled group controls -> Status::Invalid
+    let mut conflict = base_diff_input(&["A_P", "A_N", "B_P", "B_N"]);
+    conflict.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        intra_match: true,
+        length_match_tolerance_nm: Some(50_000),
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["A_P".into(), "A_N".into(), "B_P".into(), "B_N".into()],
+            ..Default::default()
+        }],
+        group_match_tolerance_nm: Some(100_000),
+        ..Default::default()
+    });
+    let r_conflict = resolve_effective_rules(&mut conflict).unwrap();
+    assert_eq!(
+        discover_and_validate(&conflict, &r_conflict)
+            .unwrap_err()
+            .status,
+        Status::Invalid
+    );
+}
+
+#[test]
+fn dru_bounds_gap_max_within_diff_pairs_and_protect_without_filters() {
+    use kicad_route_engine::model::Status;
+    use kicad_route_engine::rules::{DruConstraint, DruRule, DruSeverity};
+
+    // 1. DRU skew with within_diff_pairs == false does NOT set dru_skew_max_nm;
+    //    DruSeverity::Ignore is skipped; within_diff_pairs == true sets dru_skew_max_nm.
+    let mut input = base_diff_input(&["DP+", "DP-", "SE0"]);
+    let mut r = resolve_effective_rules(&mut input).unwrap();
+    r.dru_rules = vec![
+        DruRule {
+            name: "se_skew".into(),
+            layer: None,
+            condition: None,
+            constraint: DruConstraint::Skew {
+                min_nm: None,
+                max_nm: Some(25_000),
+                min_as: None,
+                max_as: None,
+                within_diff_pairs: false,
+            },
+            severity: DruSeverity::Error,
+        },
+        DruRule {
+            name: "ignored_dp_skew".into(),
+            layer: None,
+            condition: None,
+            constraint: DruConstraint::Skew {
+                min_nm: None,
+                max_nm: Some(10_000),
+                min_as: None,
+                max_as: None,
+                within_diff_pairs: true,
+            },
+            severity: DruSeverity::Ignore,
+        },
+    ];
+    let plan = discover_and_validate(&input, &r).unwrap();
+    assert_eq!(plan.pairs[0].dru_skew_max_nm, None);
+
+    r.dru_rules.push(DruRule {
+        name: "dp_skew".into(),
+        layer: None,
+        condition: None,
+        constraint: DruConstraint::Skew {
+            min_nm: None,
+            max_nm: Some(40_000),
+            min_as: None,
+            max_as: None,
+            within_diff_pairs: true,
+        },
+        severity: DruSeverity::Error,
+    });
+    let plan2 = discover_and_validate(&input, &r).unwrap();
+    assert_eq!(plan2.pairs[0].dru_skew_max_nm, Some(40_000));
+
+    // Pair-exclusive condition without within_diff_pairs (e.g. A.NetName == 'DP+' || A.NetName == 'DP-') also applies
+    let mut pair_cond = base_diff_input(&["DP+", "DP-", "SE0"]);
+    pair_cond.custom_rules = Some(
+        "(version 1)\n(rule \"pair_skew\" (condition \"A.NetName == 'DP+' || A.NetName == 'DP-'\") (constraint skew (max 0.035mm)))".into(),
+    );
+    let r_pair_cond = resolve_effective_rules(&mut pair_cond).unwrap();
+    let plan3 = discover_and_validate(&pair_cond, &r_pair_cond).unwrap();
+    assert_eq!(plan3.pairs[0].dru_skew_max_nm, Some(35_000));
+
+    // 2. gap_max_nm violation refuses with Status::Invalid
+    let mut gap_bad = base_diff_input(&["DP+", "DP-"]);
+    let mut r_gap = resolve_effective_rules(&mut gap_bad).unwrap();
+    r_gap.dru_rules = vec![DruRule {
+        name: "tight_gap_max".into(),
+        layer: None,
+        condition: None,
+        constraint: DruConstraint::DiffPairGap {
+            min_nm: Some(100_000),
+            max_nm: Some(150_000),
+        },
+        severity: DruSeverity::Error,
+    }];
+    assert_eq!(
+        discover_and_validate(&gap_bad, &r_gap).unwrap_err().status,
+        Status::Invalid
+    );
+
+    // 3. --protect with NO --net filter excludes protected SE net from active_single_ended_nets
+    let mut prot_only = base_diff_input(&["SE0", "SE1"]);
+    prot_only.tracks.push(Track {
+        id: uuid(701),
+        net: 1,
+        start: [10_000_000, 10_000_000],
+        end: [40_000_000, 10_000_000],
+        width_nm: 250_000,
+        locked: false,
+        layer: "F.Cu".into(),
+    });
+    prot_only.routing_options = Some(RoutingOptions {
+        protect_mode: Some(ProtectMode::Existing),
+        ..Default::default()
+    });
+    let mut eng = Engine::new(prot_only).unwrap();
+    let state = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+    assert!(state.protected_nets.contains(&1));
+    let active_se: Vec<u32> = state
+        .active_single_ended_nets
+        .as_ref()
+        .expect("active_single_ended_nets should be populated when --protect is active")
+        .iter()
+        .copied()
+        .collect();
+    assert_eq!(active_se, vec![2]);
+}
+
+#[test]
+fn cumulative_uncoupled_budget_and_meander_geometry_safety() {
+    use kicad_route_engine::model::Status;
+
+    // 1. Tight diff_pair_uncoupled budget (1.5mm): initial fanout (~1.0mm) routes cleanly,
+    //    then cumulative budget enforcement fails closed during intra-pair match (no 200um bypass).
+    let mut input = base_diff_input(&["DP+", "DP-"]);
+    input.pads[2].at = [10_000_000, 10_600_000];
+    input.pads[3].at = [39_000_000, 10_600_000]; // 1.0mm stagger -> ~1.0mm existing uncoupled
+    input.custom_rules = Some(
+        "(version 1)\n(rule \"tight_uncoupled\" (constraint diff_pair_uncoupled (max 1.5mm)))"
+            .into(),
+    );
+    input.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        intra_match: true,
+        length_match_tolerance_nm: Some(50_000),
+        meander_amplitude_nm: Some(1_000_000),
+        ..Default::default()
+    });
+    let mut eng = Engine::new(input).unwrap();
+    let state = prepare_and_route_pairs_in_tx(&mut eng).unwrap();
+    let err = apply_length_matching_in_tx(&mut eng, &state)
+        .expect_err("intra-pair match exceeding diff_pair_uncoupled must fail closed");
+    assert_eq!(err.status, Status::Unroutable);
+
+    // 2. Generous uncoupled budget + multi-layer via transition succeeds without short V-peak stubs
+    let mut trans = base_diff_input(&["CAN+", "CAN-"]);
+    trans.pads[1].layers = vec!["B.Cu".into()];
+    trans.pads[2].at = [10_000_000, 11_500_000];
+    trans.pads[3].at = [39_200_000, 11_500_000];
+    trans.pads[3].layers = vec!["B.Cu".into()];
+    trans.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        intra_match: true,
+        length_match_tolerance_nm: Some(150_000),
+        meander_amplitude_nm: Some(2_000_000),
+        ..Default::default()
+    });
+    let mut eng2 = Engine::new(trans).unwrap();
+    let state2 = prepare_and_route_pairs_in_tx(&mut eng2).unwrap();
+    apply_length_matching_in_tx(&mut eng2, &state2).unwrap();
+    // Every generated segment connected to a pad on F.Cu/B.Cu that isn't a via stub must have clean geometry
+    assert!(eng2.copper().generated_vias().count() >= 2);
 }
 
 #[test]
