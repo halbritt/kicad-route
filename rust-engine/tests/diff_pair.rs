@@ -899,6 +899,470 @@ fn cumulative_uncoupled_budget_and_meander_geometry_safety() {
 }
 
 #[test]
+fn explorer1_exact_uncoupled_projection_and_gap_corridor_slit_rejection() {
+    use kicad_route_engine::model::Status;
+
+    // 1. DEEP_2D_NO_INTRA: 1.2mm stagger with intra_match=false & max uncoupled 1mm must refuse Unroutable
+    let mut no_intra = base_diff_input(&["DP+", "DP-"]);
+    no_intra.pads[2].at = [10_000_000, 10_600_000];
+    no_intra.pads[3].at = [38_800_000, 10_600_000];
+    no_intra.custom_rules = Some(
+        "(version 1)\n(rule \"tight_unc\" (constraint diff_pair_uncoupled (max 1.0mm)))".into(),
+    );
+    no_intra.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        intra_match: false,
+        ..Default::default()
+    });
+    let mut eng1 = Engine::new(no_intra).unwrap();
+    let err1 = prepare_and_route_pairs_in_tx(&mut eng1).expect_err(
+        "1.2mm uncoupled stagger with 1mm budget must fail closed even when intra_match=false",
+    );
+    assert_eq!(err1.status, Status::Unroutable);
+    assert_eq!(eng1.copper().generated().count(), 0);
+
+    // 2. Coupled meander miter overhangs exceeding 1mm budget (2C_small_1wave) must refuse Unroutable
+    let mut miter_ov = base_diff_input(&["A_P", "A_N", "B_P", "B_N"]);
+    miter_ov.pads.clear();
+    miter_ov
+        .pads
+        .push(pad(1, 1, [10_000_000, 10_000_000], &["F.Cu"]));
+    miter_ov
+        .pads
+        .push(pad(2, 1, [30_000_000, 10_000_000], &["F.Cu"]));
+    miter_ov
+        .pads
+        .push(pad(3, 2, [10_000_000, 10_280_000], &["F.Cu"]));
+    miter_ov
+        .pads
+        .push(pad(4, 2, [29_100_000, 10_280_000], &["F.Cu"]));
+    miter_ov
+        .pads
+        .push(pad(5, 3, [10_000_000, 25_000_000], &["F.Cu"]));
+    miter_ov
+        .pads
+        .push(pad(6, 3, [40_000_000, 25_000_000], &["F.Cu"]));
+    miter_ov
+        .pads
+        .push(pad(7, 4, [10_000_000, 25_280_000], &["F.Cu"]));
+    miter_ov
+        .pads
+        .push(pad(8, 4, [40_000_000, 25_280_000], &["F.Cu"]));
+    for p in &mut miter_ov.pads {
+        p.shape = Shape::Circle { radius_nm: 60_000 };
+    }
+    for nc in miter_ov
+        .board_design_settings
+        .as_mut()
+        .unwrap()
+        .netclasses
+        .iter_mut()
+    {
+        nc.clearance_nm = 100_000;
+        nc.track_width_nm = 80_000;
+        nc.diff_pair_width_nm = 80_000;
+        nc.diff_pair_gap_nm = 200_000;
+    }
+    let bds = miter_ov.board_design_settings.as_mut().unwrap();
+    bds.default_clearance_nm = 100_000;
+    bds.default_track_width_nm = 80_000;
+    bds.min_track_width_nm = 80_000;
+    miter_ov.rules.clearance_nm = 100_000;
+    miter_ov.rules.width_nm = 80_000;
+    miter_ov.custom_rules = Some(
+        "(version 1)\n(rule \"tight_unc\" (constraint diff_pair_uncoupled (max 1.0mm)))".into(),
+    );
+    miter_ov.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["A_P".into(), "A_N".into(), "B_P".into(), "B_N".into()],
+            ..Default::default()
+        }],
+        group_match_tolerance_nm: Some(150_000),
+        group_meander_amplitude_nm: Some(3_000_000),
+        ..Default::default()
+    });
+    let mut eng2 = Engine::new(miter_ov).unwrap();
+    let st2 = prepare_and_route_pairs_in_tx(&mut eng2).unwrap();
+    let err2 = apply_length_matching_in_tx(&mut eng2, &st2)
+        .expect_err("coupled meander miter overhangs pushing uncoupled > 1mm must fail closed");
+    assert_eq!(err2.status, Status::Unroutable);
+
+    // 3. Coupled gap corridor slit strictly between P (y=10.0) and N (y=10.674) on In1.Cu forces detour or refusal
+    let mut slit = base_diff_input(&["CAN+", "CAN-", "GND"]);
+    slit.layers = vec!["F.Cu".into(), "In1.Cu".into(), "B.Cu".into()];
+    slit.pads.clear();
+    slit.pads
+        .push(pad(1, 1, [10_000_000, 10_000_000], &["F.Cu"]));
+    slit.pads
+        .push(pad(2, 1, [30_000_000, 10_000_000], &["F.Cu"]));
+    slit.pads
+        .push(pad(3, 2, [10_000_000, 10_675_537], &["F.Cu"]));
+    slit.pads
+        .push(pad(4, 2, [30_000_000, 10_675_537], &["F.Cu"]));
+    slit.pads
+        .push(pad(5, 3, [5_000_000, 5_000_000], &["F.Cu", "In1.Cu"]));
+    slit.pads
+        .push(pad(6, 3, [55_000_000, 35_000_000], &["F.Cu", "In1.Cu"]));
+    slit.stackup = vec![
+        StackupLayer {
+            name: "F.Cu".into(),
+            kind: StackupKind::Copper,
+            thickness_nm: 35_000,
+            epsilon_r: None,
+            material: None,
+        },
+        StackupLayer {
+            name: "di1".into(),
+            kind: StackupKind::Prepreg,
+            thickness_nm: 200_000,
+            epsilon_r: Some(4.2),
+            material: None,
+        },
+        StackupLayer {
+            name: "In1.Cu".into(),
+            kind: StackupKind::Copper,
+            thickness_nm: 35_000,
+            epsilon_r: None,
+            material: None,
+        },
+    ];
+    // Full-board GND plane on In1.Cu with a 100um slit strictly inside the gap at y=[10.28, 10.38], x=[18, 22]
+    slit.zones.push(Zone {
+        id: uuid(400),
+        name: Some("GND".into()),
+        net: 3,
+        layers: vec!["In1.Cu".into()],
+        outer: vec![
+            [0, 0],
+            [60_000_000, 0],
+            [60_000_000, 40_000_000],
+            [0, 40_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        priority: 0,
+        local_clearance_nm: 0,
+        min_thickness_nm: 200_000,
+        connection: ZoneConnection::Thermal,
+        thermal_gap_nm: 200_000,
+        thermal_spoke_width_nm: 200_000,
+        island_removal: ZoneIslandRemoval::Always,
+        island_area_min_nm2: 0,
+        fill_mode: ZoneFillMode::Polygon,
+        filled: true,
+        refillable: false,
+        locked: false,
+        layer_fills: vec![ZoneLayerFill {
+            layer: "In1.Cu".into(),
+            polygons: vec![OutlinePolygon {
+                outer: vec![
+                    [0, 0],
+                    [60_000_000, 0],
+                    [60_000_000, 40_000_000],
+                    [0, 40_000_000],
+                ],
+                holes: vec![vec![
+                    [18_000_000, 10_280_000],
+                    [22_000_000, 10_280_000],
+                    [22_000_000, 10_380_000],
+                    [18_000_000, 10_380_000],
+                ]],
+            }],
+        }],
+    });
+    slit.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        pair_layers: vec!["F.Cu".into()],
+        pair_impedance_ohm: Some(100.0),
+        impedance_tolerance_pct: Some(10.0),
+        impedance_reference: Some("GND".into()),
+        impedance_uncoupled_nm: Some(4_000_000),
+        ..Default::default()
+    });
+    let mut eng3 = Engine::new(slit).unwrap();
+    if prepare_and_route_pairs_in_tx(&mut eng3).is_ok() {
+        // Must have detoured around the slit rather than running straight across x=[18..22], y=[10.28..10.38]
+        let detoured = eng3.copper().generated().any(|t| {
+            t.start[1] < 9_800_000
+                || t.end[1] < 9_800_000
+                || t.start[1] > 10_900_000
+                || t.end[1] > 10_900_000
+        });
+        assert!(
+            detoured,
+            "coupled route crossed gap-corridor slit without detouring"
+        );
+    }
+}
+
+#[test]
+fn explorer2_pad_layers_cross_layer_jogs_and_non_root_pad_isolation() {
+    // 1. 2-layer F.Cu-only SMD pads (pad.layers = vec![]) routed with pair_layers=["B.Cu"] -> inserts >= 2 vias
+    let mut smd = base_diff_input(&["CAN+", "CAN-"]);
+    smd.pads.clear();
+    smd.pads.push(pad(1, 1, [10_000_000, 10_000_000], &[]));
+    smd.pads.push(pad(2, 1, [30_000_000, 10_000_000], &[]));
+    smd.pads.push(pad(3, 2, [10_000_000, 10_600_000], &[]));
+    smd.pads.push(pad(4, 2, [30_000_000, 10_600_000], &[]));
+    smd.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        pair_layers: vec!["B.Cu".into()],
+        ..Default::default()
+    });
+    let mut eng_smd = Engine::new(smd).unwrap();
+    prepare_and_route_pairs_in_tx(&mut eng_smd).unwrap();
+    assert!(
+        eng_smd.copper().generated_vias().count() >= 4,
+        "F.Cu-only SMD pads with pair_layers=B.Cu must insert start+end coupled vias"
+    );
+    assert!(
+        eng_smd.copper().generated().any(|t| t.layer == "B.Cu"),
+        "main trunk must route on B.Cu"
+    );
+
+    // 2. Angled cross-layer launch/arrival (diagonal pads -> F.Cu escape -> B.Cu trunk) has zero open endpoints
+    let mut angled = base_diff_input(&["CAN+", "CAN-"]);
+    angled.pads.clear();
+    angled.pads.push(pad(1, 1, [10_000_000, 10_000_000], &[]));
+    angled.pads.push(pad(2, 1, [35_000_000, 22_000_000], &[]));
+    angled.pads.push(pad(3, 2, [10_000_000, 11_000_000], &[]));
+    angled.pads.push(pad(4, 2, [35_000_000, 23_000_000], &[]));
+    angled.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        pair_layers: vec!["B.Cu".into()],
+        ..Default::default()
+    });
+    let mut eng_ang = Engine::new(angled).unwrap();
+    prepare_and_route_pairs_in_tx(&mut eng_ang).unwrap();
+    assert!(eng_ang.copper().generated_vias().count() >= 4);
+
+    // 3. Staggered SMD pads (adv_uncoupled_6mm geometry): zero non-root tracks touch pad copper & intra-match hits 50um
+    let mut stag = base_diff_input(&["CAN+", "CAN-"]);
+    stag.pads.clear();
+    let mk_pad = |id, net, at| {
+        let mut p = pad(id, net, at, &["F.Cu"]);
+        p.shape = Shape::Circle { radius_nm: 300_000 };
+        p
+    };
+    stag.pads.push(mk_pad(1, 1, [10_000_000, 14_000_000]));
+    stag.pads.push(mk_pad(2, 1, [40_000_000, 14_700_000]));
+    stag.pads.push(mk_pad(3, 2, [10_000_000, 16_000_000]));
+    stag.pads.push(mk_pad(4, 2, [41_200_000, 15_300_000]));
+    stag.custom_rules =
+        Some("(version 1)\n(rule \"unc6\" (constraint diff_pair_uncoupled (max 6.0mm)))".into());
+    stag.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        intra_match: true,
+        length_match_tolerance_nm: Some(50_000),
+        meander_amplitude_nm: Some(1_500_000),
+        ..Default::default()
+    });
+    let stag_pads = stag.pads.clone();
+    let mut eng_stag = Engine::new(stag).unwrap();
+    let st_stag = prepare_and_route_pairs_in_tx(&mut eng_stag).unwrap();
+    apply_length_matching_in_tx(&mut eng_stag, &st_stag).unwrap();
+    for p in &stag_pads {
+        let non_root_hit = eng_stag.copper().generated().any(|t| {
+            t.net == p.net
+                && t.start != p.at
+                && t.end != p.at
+                && kicad_route_engine::geometry::track_near_pad(
+                    t.start, t.end, t.width_nm, 1_000, p, true,
+                )
+        });
+        assert!(
+            !non_root_hit,
+            "non-root track entered pad {:?} copper",
+            p.at
+        );
+    }
+}
+
+#[test]
+fn explorer3_dru_indiffpair_wildcard_option_b_defaults_and_via_overrides() {
+    use kicad_route_engine::model::Status;
+    use kicad_route_engine::rules::parse_kicad_pro;
+
+    // 1. A.inDiffPair('*') with within_diff_pairs=false across 2 pairs -> dru_skew_max_nm == None (even with --nets A_*)
+    let mut mp = base_diff_input(&["A_P", "A_N", "B_P", "B_N"]);
+    mp.custom_rules = Some(
+        "(version 1)\n(rule \"all_dp_skew\" (condition \"A.inDiffPair('*')\") (constraint skew (max 0.025mm)))".into(),
+    );
+    let r_full = resolve_effective_rules(&mut mp).unwrap();
+    let p_full = discover_and_validate(&mp, &r_full).unwrap();
+    assert_eq!(p_full.pairs[0].dru_skew_max_nm, None);
+    assert_eq!(p_full.pairs[1].dru_skew_max_nm, None);
+
+    mp.routing_options.as_mut().unwrap().net_filters = vec!["A_*".into()];
+    let r_filt = resolve_effective_rules(&mut mp).unwrap();
+    let p_filt = discover_and_validate(&mp, &r_filt).unwrap();
+    assert_eq!(p_filt.pairs[0].dru_skew_max_nm, None);
+
+    // Pair-specific A.inDiffPair('A') applies only to pair A
+    mp.routing_options.as_mut().unwrap().net_filters.clear();
+    mp.custom_rules = Some(
+        "(version 1)\n(rule \"a_skew\" (condition \"A.inDiffPair('A')\") (constraint skew (max 0.025mm)))".into(),
+    );
+    let r_spec = resolve_effective_rules(&mut mp).unwrap();
+    let p_spec = discover_and_validate(&mp, &r_spec).unwrap();
+    assert_eq!(p_spec.pairs[0].dru_skew_max_nm, Some(25_000));
+    assert_eq!(p_spec.pairs[1].dru_skew_max_nm, None);
+
+    // 2. Option B implicit-default conflict check
+    let mut opt_b = base_diff_input(&["CAN+", "CAN-"]);
+    opt_b.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        intra_match: true,
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["CAN+".into(), "CAN-".into()],
+            ..Default::default()
+        }],
+        group_match_tolerance_nm: Some(150_000),
+        ..Default::default()
+    });
+    let r_ob1 = resolve_effective_rules(&mut opt_b).unwrap();
+    assert_eq!(
+        discover_and_validate(&opt_b, &r_ob1).unwrap_err().status,
+        Status::Invalid
+    );
+
+    opt_b
+        .routing_options
+        .as_mut()
+        .unwrap()
+        .group_match_tolerance_nm = None;
+    opt_b
+        .routing_options
+        .as_mut()
+        .unwrap()
+        .group_meander_amplitude_nm = Some(4_000_000);
+    let r_ob2 = resolve_effective_rules(&mut opt_b).unwrap();
+    assert_eq!(
+        discover_and_validate(&opt_b, &r_ob2).unwrap_err().status,
+        Status::Invalid
+    );
+
+    // Omitting --group-* inherits unified 50um / 1.5mm defaults -> Ok
+    opt_b
+        .routing_options
+        .as_mut()
+        .unwrap()
+        .group_meander_amplitude_nm = None;
+    let r_ob3 = resolve_effective_rules(&mut opt_b).unwrap();
+    let p_ob3 = discover_and_validate(&opt_b, &r_ob3).unwrap();
+    assert_eq!(p_ob3.intra_tolerance_nm, 50_000);
+    assert_eq!(p_ob3.intra_amplitude_nm, 1_500_000);
+
+    // 3. KiCad 10 via_overrides schema parsing + positive delay validation
+    let pro_json = r#"{
+        "meta": {"version": 1},
+        "tuning_profiles": {
+            "tuning_profiles_impedance_geometric": [
+                {
+                    "profile_name": "P1",
+                    "type": 0,
+                    "target_impedance": 50,
+                    "enable_time_domain_tuning": true,
+                    "via_prop_delay": 7500000,
+                    "layer_entries": [
+                        {"signal_layer": "F.Cu", "width": 250000, "delay": 6000000000},
+                        {"signal_layer": "B.Cu", "width": 250000, "delay": 6000000000}
+                    ],
+                    "via_overrides": [
+                        {
+                            "signal_layer_from": "F.Cu",
+                            "signal_layer_to": "B.Cu",
+                            "via_layer_from": "F.Cu",
+                            "via_layer_to": "B.Cu",
+                            "delay": 12000000
+                        }
+                    ]
+                }
+            ]
+        }
+    }"#;
+    let parsed = parse_kicad_pro(pro_json.as_bytes()).unwrap();
+    assert_eq!(parsed.tuning_profiles.len(), 1);
+    let ov = &parsed.tuning_profiles[0].via_overrides[0];
+    assert_eq!(ov.signal_layer_from, "F.Cu");
+    assert_eq!(ov.signal_layer_to, "B.Cu");
+    assert_eq!(ov.via_layer_from, "F.Cu");
+    assert_eq!(ov.via_layer_to, "B.Cu");
+    assert_eq!(ov.delay_as, 12_000_000);
+
+    // Non-positive override delay in an active delay group must refuse Status::Invalid
+    let mut bad_ov = base_diff_input(&["DQ0", "DQ1"]);
+    bad_ov
+        .board_design_settings
+        .as_mut()
+        .unwrap()
+        .use_height_for_length_calcs = Some(true);
+    bad_ov
+        .board_design_settings
+        .as_mut()
+        .unwrap()
+        .netclass_assignments
+        .insert("DQ0".into(), vec!["DIFF".into()]);
+    bad_ov
+        .board_design_settings
+        .as_mut()
+        .unwrap()
+        .netclass_assignments
+        .insert("DQ1".into(), vec!["DIFF".into()]);
+    bad_ov.project_rules = Some(
+        r#"{
+            "meta": {"version": 1},
+            "board": {
+                "design_settings": {
+                    "rules": {},
+                    "net_settings": {
+                        "classes": [
+                            {"name": "Default"},
+                            {"name": "DIFF", "tuning_profile": "P1"}
+                        ],
+                        "netclass_assignments": {"DQ0": ["DIFF"], "DQ1": ["DIFF"]}
+                    }
+                }
+            },
+            "tuning_profiles": {
+                "tuning_profiles_impedance_geometric": [{
+                    "profile_name": "P1",
+                    "type": 0,
+                    "target_impedance": 50,
+                    "enable_time_domain_tuning": true,
+                    "via_prop_delay": 7500000,
+                    "layer_entries": [{"signal_layer": "F.Cu", "width": 250000, "delay": 6000000000}],
+                    "via_overrides": [{
+                        "signal_layer_from": "F.Cu",
+                        "signal_layer_to": "B.Cu",
+                        "via_layer_from": "F.Cu",
+                        "via_layer_to": "B.Cu",
+                        "delay": 0
+                    }]
+                }]
+            }
+        }"#
+        .into(),
+    );
+    let r_bad_ov = resolve_effective_rules(&mut bad_ov).unwrap();
+    bad_ov.routing_options = Some(RoutingOptions {
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["DQ0".into(), "DQ1".into()],
+            ..Default::default()
+        }],
+        group_delay_tolerance_as: Some(1_000_000),
+        ..Default::default()
+    });
+    assert_eq!(
+        discover_and_validate(&bad_ov, &r_bad_ov)
+            .unwrap_err()
+            .status,
+        Status::Invalid
+    );
+}
+
+#[test]
 fn optional_external_fixture_roundtrip_hook() {
     let Ok(in_path) = std::env::var("AE_F9_FIXTURE_IN") else {
         return;

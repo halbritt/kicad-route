@@ -181,9 +181,20 @@ pub struct TuningProfileLayerEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TuningViaOverride {
+    #[serde(default)]
     pub via_diameter_nm: i64,
+    #[serde(default)]
     pub start_layer: String,
+    #[serde(default)]
     pub end_layer: String,
+    #[serde(default)]
+    pub signal_layer_from: String,
+    #[serde(default)]
+    pub signal_layer_to: String,
+    #[serde(default)]
+    pub via_layer_from: String,
+    #[serde(default)]
+    pub via_layer_to: String,
     pub delay_as: i64,
 }
 
@@ -1176,15 +1187,37 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                                         .get("via_diameter")
                                         .and_then(|v| v.as_i64())
                                         .unwrap_or(0);
+                                    let signal_layer_from = vo
+                                        .get("signal_layer_from")
+                                        .and_then(|v| v.as_str())
+                                        .or_else(|| vo.get("start_layer").and_then(|v| v.as_str()))
+                                        .unwrap_or("")
+                                        .to_owned();
+                                    let signal_layer_to = vo
+                                        .get("signal_layer_to")
+                                        .and_then(|v| v.as_str())
+                                        .or_else(|| vo.get("end_layer").and_then(|v| v.as_str()))
+                                        .unwrap_or("")
+                                        .to_owned();
+                                    let via_layer_from = vo
+                                        .get("via_layer_from")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .to_owned();
+                                    let via_layer_to = vo
+                                        .get("via_layer_to")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .to_owned();
                                     let start_layer = vo
                                         .get("start_layer")
                                         .and_then(|v| v.as_str())
-                                        .unwrap_or("")
+                                        .unwrap_or(&signal_layer_from)
                                         .to_owned();
                                     let end_layer = vo
                                         .get("end_layer")
                                         .and_then(|v| v.as_str())
-                                        .unwrap_or("")
+                                        .unwrap_or(&signal_layer_to)
                                         .to_owned();
                                     let delay_as =
                                         vo.get("delay").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -1198,6 +1231,10 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                                         via_diameter_nm,
                                         start_layer,
                                         end_layer,
+                                        signal_layer_from,
+                                        signal_layer_to,
+                                        via_layer_from,
+                                        via_layer_to,
                                         delay_as,
                                     });
                                 }

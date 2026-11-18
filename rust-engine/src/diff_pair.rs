@@ -765,10 +765,16 @@ fn validate_delay_member_profile(
             ),
         ));
     }
-    if prof.via_prop_delay_as_per_mm <= 0 && prof.via_overrides.is_empty() {
+    if prof.via_prop_delay_as_per_mm <= 0 {
         return Err(Failure::new(
             Status::Invalid,
             format!("tuning_profile {prof_name:?} missing positive via delay"),
+        ));
+    }
+    if prof.via_overrides.iter().any(|ov| ov.delay_as <= 0) {
+        return Err(Failure::new(
+            Status::Invalid,
+            format!("tuning_profile {prof_name:?} via_overrides must have positive delay"),
         ));
     }
     for t in copper_tracks {
@@ -853,9 +859,8 @@ fn resolve_pair_dru_bounds(
     neg_net: u32,
     pos_name: &str,
     neg_name: &str,
-    class_name: &str,
-    class_members: &[String],
     layers: &[String],
+    pair_stem_by_net: &BTreeMap<u32, String>,
 ) -> Result<
     (
         Option<i64>,
@@ -871,15 +876,23 @@ fn resolve_pair_dru_bounds(
     let mut uncoupled_max: Option<i64> = None;
     let mut max_track_width: Option<i64> = None;
     let mut skew_max: Option<i64> = None;
+    let board_layers: &[String] = if input.layers.is_empty() {
+        std::slice::from_ref(&input.layer)
+    } else {
+        &input.layers
+    };
+    let pos_rules = rules.net(pos_net);
+    let neg_rules = rules.net(neg_net);
 
     for (net_id, net_name) in [(pos_net, pos_name), (neg_net, neg_name)] {
+        let nr_self = rules.net(net_id);
         let ft_owned = net_fromto_tokens(input, net_id);
         let ft_ref = ft_owned.as_ref().map(|(a, b)| (a.as_str(), b.as_str()));
         let item = DruItem {
             net_id,
             net_name,
-            net_class: class_name,
-            class_members,
+            net_class: &nr_self.class_name,
+            class_members: &nr_self.class_members,
             kind: DruItemKind::Track,
             layers,
         };
@@ -927,16 +940,16 @@ fn resolve_pair_dru_bounds(
                         let pos_item = DruItem {
                             net_id: pos_net,
                             net_name: pos_name,
-                            net_class: class_name,
-                            class_members,
+                            net_class: &pos_rules.class_name,
+                            class_members: &pos_rules.class_members,
                             kind: DruItemKind::Track,
                             layers,
                         };
                         let neg_item = DruItem {
                             net_id: neg_net,
                             net_name: neg_name,
-                            net_class: class_name,
-                            class_members,
+                            net_class: &neg_rules.class_name,
+                            class_members: &neg_rules.class_members,
                             kind: DruItemKind::Track,
                             layers,
                         };
@@ -959,19 +972,20 @@ fn resolve_pair_dru_bounds(
                             }
                             let nr = rules.net(on.id);
                             let oft = net_fromto_tokens(input, on.id);
+                            let other_stem = pair_stem_by_net.get(&on.id).map(String::as_str);
                             let oitem = DruItem {
                                 net_id: on.id,
                                 net_name: &on.name,
                                 net_class: &nr.class_name,
                                 class_members: &nr.class_members,
                                 kind: DruItemKind::Track,
-                                layers,
+                                layers: board_layers,
                             };
                             eval_dru_expr_for_context(
                                 cond,
                                 &oitem,
                                 None,
-                                None,
+                                other_stem,
                                 oft.as_ref().map(|(a, b)| (a.as_str(), b.as_str())),
                             )
                         });
@@ -1223,6 +1237,40 @@ fn discover_and_validate_with_copper(
     // Sort deterministically by positive net name per docs/diff-pairs.md
     raw_pairs.sort_by(|a, b| name_by_id[&a.1].cmp(name_by_id[&b.1]));
 
+    let mut pair_stem_by_net: BTreeMap<u32, String> = BTreeMap::new();
+    for (stem, p, n) in &raw_pairs {
+        pair_stem_by_net.insert(*p, stem.clone());
+        pair_stem_by_net.insert(*n, stem.clone());
+    }
+    {
+        let mut board_groups: BTreeMap<(String, u8), (Option<u32>, Option<u32>)> = BTreeMap::new();
+        for n in &input.nets {
+            if n.id == 0 {
+                continue;
+            }
+            if let Some((stem, conv, role)) = classify_pair_name(&n.name) {
+                let conv_key = match conv {
+                    PairConv::UnderscorePN => 0u8,
+                    PairConv::PlusMinus => 1u8,
+                    PairConv::BarePN => 2u8,
+                };
+                let entry = board_groups.entry((stem, conv_key)).or_insert((None, None));
+                match role {
+                    PairRole::Pos => entry.0 = Some(n.id),
+                    PairRole::Neg => entry.1 = Some(n.id),
+                }
+            }
+        }
+        for ((stem, _), (pos_opt, neg_opt)) in board_groups {
+            if let (Some(p), Some(n)) = (pos_opt, neg_opt) {
+                if !pair_stem_by_net.contains_key(&p) && !pair_stem_by_net.contains_key(&n) {
+                    pair_stem_by_net.insert(p, stem.clone());
+                    pair_stem_by_net.insert(n, stem);
+                }
+            }
+        }
+    }
+
     let mut pairs = Vec::with_capacity(raw_pairs.len());
     for (idx, (stem, pos_net, neg_net)) in raw_pairs.into_iter().enumerate() {
         let pos_name = name_by_id[&pos_net].to_owned();
@@ -1291,9 +1339,8 @@ fn discover_and_validate_with_copper(
                 neg_net,
                 &pos_name,
                 &neg_name,
-                &pr.class_name,
-                &pr.class_members,
                 &pair_layers,
+                &pair_stem_by_net,
             )?;
         let gap_nm = pr.diff_pair_gap_nm;
         let gap_min_nm = dru_gap_min.unwrap_or(gap_nm).max(min_clr);
@@ -1417,6 +1464,12 @@ fn discover_and_validate_with_copper(
                 format!("from_to terminal {tok:?} is unconnected (net 0)"),
             ));
         }
+        if !name_by_id.contains_key(&net_id) {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!("from_to terminal {tok:?} references undeclared net id {net_id}"),
+            ));
+        }
         Ok((net_id, idx))
     };
 
@@ -1434,22 +1487,24 @@ fn discover_and_validate_with_copper(
                         format!("from_to entry {:?} references the same pad twice", pair_tok),
                     ));
                 }
+                let na_name = name_by_id.get(&na).copied().unwrap_or("");
+                let nb_name = name_by_id.get(&nb).copied().unwrap_or("");
                 if na != nb {
                     return Err(Failure::new(
                         Status::Invalid,
                         format!(
                             "from_to entry {:?} connects different nets ({:?} vs {:?})",
-                            pair_tok, name_by_id[&na], name_by_id[&nb]
+                            pair_tok, na_name, nb_name
                         ),
                     ));
                 }
                 if !ft_seen_nets.insert(na) {
                     return Err(Failure::new(
                         Status::Invalid,
-                        format!("duplicate net {:?} in from_to group", name_by_id[&na]),
+                        format!("duplicate net {:?} in from_to group", na_name),
                     ));
                 }
-                from_to_nets.push(name_by_id[&na].to_owned());
+                from_to_nets.push(na_name.to_owned());
             }
         }
         let effective_member_names: Vec<String> = if !g.members.is_empty() {
@@ -1579,13 +1634,23 @@ fn discover_and_validate_with_copper(
                 }
             }
         }
-        let group_amp = g.meander_amplitude_nm.unwrap_or_else(|| {
-            opts.group_meander_amplitude_nm
-                .unwrap_or(if any_pair_member {
-                    opts.meander_amplitude_nm.unwrap_or(4_500_000)
-                } else {
-                    default_group_amp
-                })
+        let intra_tol_opt = if opts.intra_match {
+            Some(opts.length_match_tolerance_nm.unwrap_or(50_000))
+        } else {
+            opts.length_match_tolerance_nm
+        };
+        let intra_amp_opt = if opts.intra_match {
+            Some(opts.meander_amplitude_nm.unwrap_or(1_500_000))
+        } else {
+            opts.meander_amplitude_nm
+        };
+        let explicit_group_amp = g.meander_amplitude_nm.or(opts.group_meander_amplitude_nm);
+        let group_amp = explicit_group_amp.unwrap_or_else(|| {
+            if any_pair_member {
+                intra_amp_opt.unwrap_or(4_500_000)
+            } else {
+                default_group_amp
+            }
         });
         let group_spacing = g.meander_spacing_widths.unwrap_or(default_group_spacing);
         if group_amp <= 0 || group_spacing < 1.0 {
@@ -1621,10 +1686,14 @@ fn discover_and_validate_with_copper(
                 tolerance_as: delay_as,
             }
         } else {
-            let tol_nm = g
-                .tolerance_nm
-                .or(opts.group_match_tolerance_nm)
-                .unwrap_or(100_000);
+            let explicit_group_tol = g.tolerance_nm.or(opts.group_match_tolerance_nm);
+            let tol_nm = explicit_group_tol.unwrap_or_else(|| {
+                if any_pair_member {
+                    intra_tol_opt.unwrap_or(100_000)
+                } else {
+                    100_000
+                }
+            });
             if tol_nm < 0 {
                 return Err(Failure::new(
                     Status::Invalid,
@@ -1632,16 +1701,16 @@ fn discover_and_validate_with_copper(
                 ));
             }
             if any_pair_member {
-                if let Some(intra_tol) = opts.length_match_tolerance_nm {
-                    if intra_tol != tol_nm {
+                if let (Some(intra_tol), Some(grp_tol)) = (intra_tol_opt, explicit_group_tol) {
+                    if intra_tol != grp_tol {
                         return Err(Failure::new(
                             Status::Invalid,
                             "coupled length-match groups and intra-pair tuning must declare identical controls",
                         ));
                     }
                 }
-                if let Some(intra_amp) = opts.meander_amplitude_nm {
-                    if intra_amp != group_amp {
+                if let (Some(intra_amp), Some(grp_amp)) = (intra_amp_opt, explicit_group_amp) {
+                    if intra_amp != grp_amp {
                         return Err(Failure::new(
                             Status::Invalid,
                             "coupled length-match groups and intra-pair tuning must declare identical controls",
@@ -1746,9 +1815,24 @@ fn via_delay_between_layers_as(
         return 0.0;
     }
     for ov in &prof.via_overrides {
-        let layer_match = (ov.start_layer == layer_a && ov.end_layer == layer_b)
-            || (ov.start_layer == layer_b && ov.end_layer == layer_a);
-        if layer_match && (ov.via_diameter_nm <= 0 || ov.via_diameter_nm == via.diameter_nm) {
+        let sf = if !ov.signal_layer_from.is_empty() {
+            ov.signal_layer_from.as_str()
+        } else {
+            ov.start_layer.as_str()
+        };
+        let st = if !ov.signal_layer_to.is_empty() {
+            ov.signal_layer_to.as_str()
+        } else {
+            ov.end_layer.as_str()
+        };
+        let signal_match = (sf == layer_a && st == layer_b) || (sf == layer_b && st == layer_a);
+        let via_span_match = (ov.via_layer_from.is_empty() && ov.via_layer_to.is_empty())
+            || (ov.via_layer_from == via.start_layer && ov.via_layer_to == via.end_layer)
+            || (ov.via_layer_from == via.end_layer && ov.via_layer_to == via.start_layer);
+        if signal_match
+            && via_span_match
+            && (ov.via_diameter_nm <= 0 || ov.via_diameter_nm == via.diameter_nm)
+        {
             return ov.delay_as as f64;
         }
     }
@@ -1760,6 +1844,28 @@ fn via_delay_between_layers_as(
 struct NetMeasure {
     length_nm: i64,
     delay_as: i64,
+}
+
+fn pad_supports_layer(engine: &Engine, pad: &crate::model::Pad, layer_name: &str) -> bool {
+    if pad.layers.is_empty() {
+        layer_name == engine.input.layer
+    } else {
+        pad.layers.iter().any(|l| l == layer_name)
+    }
+}
+
+fn pad_layer_indices(engine: &Engine, pad: &crate::model::Pad) -> Vec<usize> {
+    if pad.layers.is_empty() {
+        engine
+            .layer_index(&engine.input.layer)
+            .into_iter()
+            .collect()
+    } else {
+        pad.layers
+            .iter()
+            .filter_map(|ln| engine.layer_index(ln))
+            .collect()
+    }
 }
 
 fn measure_net_fromto(
@@ -1812,15 +1918,7 @@ fn measure_net_fromto(
         }
     }
     for p in &pads {
-        let layers: Vec<usize> = if p.layers.is_empty() {
-            (0..engine.layer_count()).collect()
-        } else {
-            p.layers
-                .iter()
-                .filter_map(|ln| engine.layer_index(ln))
-                .collect()
-        };
-        for li in layers {
+        for li in pad_layer_indices(engine, p) {
             layer_points.entry(li).or_default().push(p.at);
         }
     }
@@ -1938,14 +2036,7 @@ fn measure_net_fromto(
         // Also connect pads overlapping the via center
         for p in &pads {
             if geometry::via_connects_pad(v, p) {
-                let p_layers: Vec<usize> = if p.layers.is_empty() {
-                    (s.min(e)..=s.max(e)).collect()
-                } else {
-                    p.layers
-                        .iter()
-                        .filter_map(|ln| engine.layer_index(ln))
-                        .collect()
-                };
+                let p_layers = pad_layer_indices(engine, p);
                 for li in p_layers {
                     if li >= s.min(e) && li <= s.max(e) {
                         let pn = get_node(p.at, li, &mut node_ids, &mut nodes);
@@ -1996,14 +2087,7 @@ fn measure_net_fromto(
         nodes.push((p.at, usize::MAX));
         adj.resize_with(nodes.len(), Vec::new);
         pad_nodes[p_idx] = super_id;
-        let p_layers: Vec<usize> = if p.layers.is_empty() {
-            (0..engine.layer_count()).collect()
-        } else {
-            p.layers
-                .iter()
-                .filter_map(|ln| engine.layer_index(ln))
-                .collect()
-        };
+        let p_layers = pad_layer_indices(engine, p);
         let mut direct_pad_hit = false;
         for li in &p_layers {
             if let Some(&nid) = node_ids.get(&(p.at, *li)) {
@@ -2034,7 +2118,8 @@ fn measure_net_fromto(
         if !direct_pad_hit {
             for t in &tracks {
                 if let Some(li) = engine.layer_index(&t.layer) {
-                    if pad_supports_layer(p, &t.layer) && geometry::track_connects_pad(t, p) {
+                    if pad_supports_layer(engine, p, &t.layer) && geometry::track_connects_pad(t, p)
+                    {
                         let closer = if dist_f64(t.start, p.at) <= dist_f64(t.end, p.at) {
                             t.start
                         } else {
@@ -2518,7 +2603,7 @@ fn legal_edge_with_width(
                     return Ok(ControlFlow::Continue(()));
                 }
                 if let Some(pad) = maybe_pad {
-                    if pad.layers.is_empty() || pad.layers.iter().any(|l| l == layer_name) {
+                    if pad_supports_layer(engine, pad, layer_name) {
                         let seg = Track {
                             id: String::new(),
                             net,
@@ -2614,35 +2699,250 @@ fn point_in_poly_ray(pt: Point, outer: &[Point], holes: &[Vec<Point>]) -> bool {
     !holes.iter().any(|h| inside(h))
 }
 
-fn point_over_reference_zones(engine: &Engine, pt: Point, imp: &ImpedancePlan) -> bool {
-    imp.reference_layers.iter().all(|rl| {
-        engine.input.zones.iter().any(|z| {
-            z.net == imp.reference_net
-                && z.layer_fills.iter().any(|lf| {
-                    lf.layer == *rl
-                        && lf
-                            .polygons
-                            .iter()
-                            .any(|poly| point_in_poly_ray(pt, &poly.outer, &poly.holes))
-                })
-        })
+fn point_over_layer(engine: &Engine, pt: Point, ref_net: u32, layer_name: &str) -> bool {
+    engine.input.zones.iter().any(|z| {
+        z.net == ref_net
+            && z.layer_fills.iter().any(|lf| {
+                lf.layer == layer_name
+                    && lf
+                        .polygons
+                        .iter()
+                        .any(|poly| point_in_poly_ray(pt, &poly.outer, &poly.holes))
+            })
     })
 }
 
-fn segment_over_reference_zones(engine: &Engine, a: Point, b: Point, imp: &ImpedancePlan) -> bool {
-    let len = ((b[0] - a[0]) as f64).hypot((b[1] - a[1]) as f64);
-    let steps = (len / 200_000.0).ceil().max(1.0) as usize;
-    for k in 0..=steps {
-        let t = (k as f64) / (steps as f64);
-        let pt = [
-            a[0] + ((b[0] - a[0]) as f64 * t).round() as i64,
-            a[1] + ((b[1] - a[1]) as f64 * t).round() as i64,
-        ];
+fn point_over_reference_zones(engine: &Engine, pt: Point, imp: &ImpedancePlan) -> bool {
+    imp.reference_layers
+        .iter()
+        .all(|rl| point_over_layer(engine, pt, imp.reference_net, rl))
+}
+
+fn ring_aabb_overlaps(ring: &[Point], qx0: i64, qx1: i64, qy0: i64, qy1: i64) -> bool {
+    if ring.is_empty() {
+        return false;
+    }
+    let mut rx0 = i64::MAX;
+    let mut rx1 = i64::MIN;
+    let mut ry0 = i64::MAX;
+    let mut ry1 = i64::MIN;
+    for p in ring {
+        rx0 = rx0.min(p[0]);
+        rx1 = rx1.max(p[0]);
+        ry0 = ry0.min(p[1]);
+        ry1 = ry1.max(p[1]);
+    }
+    rx1 >= qx0 && rx0 <= qx1 && ry1 >= qy0 && ry0 <= qy1
+}
+
+fn quad_over_reference_zones(engine: &Engine, quad: [Point; 4], imp: &ImpedancePlan) -> bool {
+    let cx = (quad[0][0] + quad[1][0] + quad[2][0] + quad[3][0]) / 4;
+    let cy = (quad[0][1] + quad[1][1] + quad[2][1] + quad[3][1]) / 4;
+    for &pt in &quad {
         if !point_over_reference_zones(engine, pt, imp) {
             return false;
         }
     }
+    if !point_over_reference_zones(engine, [cx, cy], imp) {
+        return false;
+    }
+
+    let qx0 = quad[0][0].min(quad[1][0]).min(quad[2][0]).min(quad[3][0]);
+    let qx1 = quad[0][0].max(quad[1][0]).max(quad[2][0]).max(quad[3][0]);
+    let qy0 = quad[0][1].min(quad[1][1]).min(quad[2][1]).min(quad[3][1]);
+    let qy1 = quad[0][1].max(quad[1][1]).max(quad[2][1]).max(quad[3][1]);
+
+    // Precompute inward half-planes (nx, ny) for each quad edge
+    let mut planes = [(0.0_f64, 0.0_f64, [0i64; 2]); 4];
+    for i in 0..4 {
+        let a = quad[i];
+        let b = quad[(i + 1) % 4];
+        let ex = (b[0] - a[0]) as f64;
+        let ey = (b[1] - a[1]) as f64;
+        let elen = ex.hypot(ey);
+        if elen < 1.0 {
+            return true;
+        }
+        let mut nx = -ey / elen;
+        let mut ny = ex / elen;
+        if ((cx - a[0]) as f64) * nx + ((cy - a[1]) as f64) * ny < 0.0 {
+            nx = -nx;
+            ny = -ny;
+        }
+        planes[i] = (nx, ny, a);
+    }
+
+    let in_quad = |pt: Point| -> bool {
+        planes
+            .iter()
+            .all(|&(nx, ny, a)| ((pt[0] - a[0]) as f64) * nx + ((pt[1] - a[1]) as f64) * ny >= 0.0)
+    };
+
+    for rl in &imp.reference_layers {
+        for z in &engine.input.zones {
+            if z.net != imp.reference_net {
+                continue;
+            }
+            for lf in &z.layer_fills {
+                if lf.layer != *rl {
+                    continue;
+                }
+                for poly in &lf.polygons {
+                    for ring in std::iter::once(&poly.outer).chain(poly.holes.iter()) {
+                        if ring.len() < 3 || !ring_aabb_overlaps(ring, qx0, qx1, qy0, qy1) {
+                            continue;
+                        }
+                        for i in 0..ring.len() {
+                            let e0 = ring[i];
+                            let e1 = ring[(i + 1) % ring.len()];
+                            if e0[0].max(e1[0]) < qx0
+                                || e0[0].min(e1[0]) > qx1
+                                || e0[1].max(e1[1]) < qy0
+                                || e0[1].min(e1[1]) > qy1
+                            {
+                                continue;
+                            }
+                            let dx = (e1[0] - e0[0]) as f64;
+                            let dy = (e1[1] - e0[1]) as f64;
+                            let seg_len = dx.hypot(dy);
+                            if seg_len < 1.0 {
+                                continue;
+                            }
+                            let mut t_lo = 0.0_f64;
+                            let mut t_hi = 1.0_f64;
+                            let mut outside = false;
+                            for &(nx, ny, a) in &planes {
+                                let num =
+                                    ((e0[0] - a[0]) as f64) * nx + ((e0[1] - a[1]) as f64) * ny;
+                                let den = dx * nx + dy * ny;
+                                if den.abs() < 1e-9 {
+                                    if num < 0.0 {
+                                        outside = true;
+                                        break;
+                                    }
+                                } else if den > 0.0 {
+                                    t_lo = t_lo.max(-num / den);
+                                } else {
+                                    t_hi = t_hi.min(-num / den);
+                                }
+                            }
+                            if outside || t_hi <= t_lo || seg_len * (t_hi - t_lo) <= 1.0 {
+                                continue;
+                            }
+                            let t_mid = 0.5 * (t_lo + t_hi);
+                            let mx = e0[0] as f64 + t_mid * dx;
+                            let my = e0[1] as f64 + t_mid * dy;
+                            let n_perp = (-dy / seg_len, dx / seg_len);
+                            let d_min = planes
+                                .iter()
+                                .map(|&(nx, ny, a)| {
+                                    ((mx - a[0] as f64) * nx + (my - a[1] as f64) * ny).max(0.0)
+                                })
+                                .fold(f64::MAX, f64::min);
+                            for base_eps in [5.0_f64, 100.0_f64] {
+                                let eps = if d_min > 2.0 {
+                                    base_eps.min(0.5 * d_min)
+                                } else {
+                                    base_eps
+                                };
+                                for sign in [1.0_f64, -1.0_f64] {
+                                    let pt = [
+                                        (mx + sign * eps * n_perp.0).round() as i64,
+                                        (my + sign * eps * n_perp.1).round() as i64,
+                                    ];
+                                    if in_quad(pt)
+                                        && !point_over_layer(engine, pt, imp.reference_net, rl)
+                                    {
+                                        return false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     true
+}
+
+fn segment_footprint_over_reference_zones(
+    engine: &Engine,
+    a: Point,
+    b: Point,
+    width_nm: i64,
+    imp: &ImpedancePlan,
+) -> bool {
+    let Some((ux, uy)) = dir_unit_f64(a, b) else {
+        return point_over_reference_zones(engine, a, imp);
+    };
+    let hw = 0.5 * (width_nm as f64);
+    if hw < 1.0 {
+        return point_over_reference_zones(engine, a, imp)
+            && point_over_reference_zones(engine, b, imp)
+            && point_over_reference_zones(engine, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], imp);
+    }
+    let nx = -uy * hw;
+    let ny = ux * hw;
+    let quad = [
+        [a[0] + nx.round() as i64, a[1] + ny.round() as i64],
+        [b[0] + nx.round() as i64, b[1] + ny.round() as i64],
+        [b[0] - nx.round() as i64, b[1] - ny.round() as i64],
+        [a[0] - nx.round() as i64, a[1] - ny.round() as i64],
+    ];
+    quad_over_reference_zones(engine, quad, imp)
+}
+
+fn coupled_corridor_over_reference_zones(
+    engine: &Engine,
+    pa: Point,
+    pb: Point,
+    na: Point,
+    nb: Point,
+    width_nm: i64,
+    imp: &ImpedancePlan,
+) -> bool {
+    if pa != pb && !segment_footprint_over_reference_zones(engine, pa, pb, width_nm, imp) {
+        return false;
+    }
+    if na != nb && !segment_footprint_over_reference_zones(engine, na, nb, width_nm, imp) {
+        return false;
+    }
+    let Some((ux, uy)) = dir_unit_f64(pa, pb) else {
+        return true;
+    };
+    let Some((vx, vy)) = dir_unit_f64(na, nb) else {
+        return true;
+    };
+    if (ux * vx + uy * vy).abs() < 0.999 {
+        return true;
+    }
+    let len = dist_f64(pa, pb);
+    let p1 = ux * ((na[0] - pa[0]) as f64) + uy * ((na[1] - pa[1]) as f64);
+    let p2 = ux * ((nb[0] - pa[0]) as f64) + uy * ((nb[1] - pa[1]) as f64);
+    let lo = p1.min(p2).max(0.0);
+    let hi = p1.max(p2).min(len);
+    if hi - lo <= 1.0 {
+        return true;
+    }
+    // Left normal (-uy, ux): signed perpendicular offset of N relative to P
+    let offset = (-uy) * ((na[0] - pa[0]) as f64) + ux * ((na[1] - pa[1]) as f64);
+    let hw = 0.5 * (width_nm as f64);
+    let low = (-hw).min(offset - hw);
+    let high = hw.max(offset + hw);
+    let pt_along_across = |along: f64, across: f64| -> Point {
+        [
+            pa[0] + (ux * along - uy * across).round() as i64,
+            pa[1] + (uy * along + ux * across).round() as i64,
+        ]
+    };
+    let corridor = [
+        pt_along_across(lo, low),
+        pt_along_across(hi, low),
+        pt_along_across(hi, high),
+        pt_along_across(lo, high),
+    ];
+    quad_over_reference_zones(engine, corridor, imp)
 }
 
 fn legal_pair_coupled_step(
@@ -2670,9 +2970,7 @@ fn legal_pair_coupled_step(
         if engine.layer_name(layer_idx) != imp.signal_layer {
             return Ok(false);
         }
-        if !segment_over_reference_zones(engine, pa, pb, imp)
-            || !segment_over_reference_zones(engine, na, nb, imp)
-        {
+        if !coupled_corridor_over_reference_zones(engine, pa, pb, na, nb, width_nm, imp) {
             return Ok(false);
         }
     }
@@ -2829,7 +3127,7 @@ fn offset_centerline_mitered(
 
 /// Removes dangling degree-1 endpoints that terminate inside a terminal pad other than `pad.at`,
 /// preventing `track_dangling` DRC violations when coupled segments clip across pad copper.
-fn trim_dangling_pad_tails(tracks: &mut Vec<Track>, pads: &[&crate::model::Pad]) {
+fn trim_dangling_pad_tails(tracks: &mut Vec<Track>, pads: &[&crate::model::Pad], engine: &Engine) {
     tracks.retain(|t| t.start != t.end);
     loop {
         let mut deg: BTreeMap<(Point, &str), usize> = BTreeMap::new();
@@ -2845,7 +3143,8 @@ fn trim_dangling_pad_tails(tracks: &mut Vec<Track>, pads: &[&crate::model::Pad])
             let is_pad_center = |pt: Point| pads.iter().any(|p| p.at == pt);
             let in_pad_copper = |pt: Point, layer: &str| {
                 pads.iter().any(|p| {
-                    pad_supports_layer(p, layer) && geometry::track_near_pad(pt, pt, 0, 0, p, false)
+                    pad_supports_layer(engine, p, layer)
+                        && geometry::track_near_pad(pt, pt, 0, 0, p, false)
                 })
             };
             if (ds == 1 && !is_pad_center(t.start) && in_pad_copper(t.start, &t.layer))
@@ -2900,6 +3199,7 @@ struct EndFanout {
     pos_segs: Vec<(Point, Point, i64)>,
     neg_segs: Vec<(Point, Point, i64)>,
     uncoupled_nm: i64,
+    est_uncoupled_nm: i64,
     skew_nm: i64,
 }
 
@@ -2934,8 +3234,37 @@ fn find_pad_pairs<'a>(
     best.map(|(_, pair)| pair)
 }
 
-fn pad_supports_layer(pad: &crate::model::Pad, layer_name: &str) -> bool {
-    pad.layers.is_empty() || pad.layers.iter().any(|l| l == layer_name)
+fn fanout_path_exits_pad_cleanly(
+    path: &[Point],
+    pad: &crate::model::Pad,
+    esc_width: i64,
+    trunk_width: i64,
+) -> bool {
+    if path.len() < 2 || path.first() == path.last() {
+        return true;
+    }
+    let exit_pt = *path.last().unwrap();
+    if geometry::track_near_pad(
+        exit_pt,
+        exit_pt,
+        trunk_width.max(esc_width),
+        1_000,
+        pad,
+        true,
+    ) {
+        return false;
+    }
+    for &v in &path[1..path.len() - 1] {
+        if geometry::track_near_pad(v, v, esc_width, 1_000, pad, true) {
+            return false;
+        }
+    }
+    for seg in path.windows(2).skip(1) {
+        if geometry::track_near_pad(seg[0], seg[1], esc_width, 1_000, pad, true) {
+            return false;
+        }
+    }
+    true
 }
 
 fn enumerate_end_fanouts(
@@ -2984,8 +3313,9 @@ fn enumerate_end_fanouts(
 
     let mut out = Vec::new();
     let max_reach = (pair.uncoupled_max_nm / 2).max(1_000_000).min(4_000_000);
-    let offsets_nm: [i64; 7] = [
-        0, 350_000, 700_000, 1_000_000, 1_500_000, 2_000_000, max_reach,
+    let offsets_nm: [i64; 11] = [
+        0, 350_000, 500_000, 700_000, 1_000_000, 1_250_000, 1_500_000, 2_000_000, 2_500_000,
+        3_000_000, max_reach,
     ];
 
     let mut candidate_layers: Vec<usize> = allowed_layer_idxs
@@ -2993,20 +3323,22 @@ fn enumerate_end_fanouts(
         .copied()
         .filter(|&li| {
             let lname = engine.layer_name(li);
-            pad_supports_layer(p_pad, lname) && pad_supports_layer(n_pad, lname)
+            pad_supports_layer(engine, p_pad, lname) && pad_supports_layer(engine, n_pad, lname)
         })
         .collect();
     if candidate_layers.is_empty() {
         // SMD pads on a layer excluded from --pair-layers: escape on pad layer to coupled via
         for li in 0..engine.layer_count() {
             let lname = engine.layer_name(li);
-            if pad_supports_layer(p_pad, lname) && pad_supports_layer(n_pad, lname) {
+            if pad_supports_layer(engine, p_pad, lname) && pad_supports_layer(engine, n_pad, lname)
+            {
                 candidate_layers.push(li);
             }
         }
     }
 
     for &li in &candidate_layers {
+        let needs_via_escape = !allowed_layer_idxs.contains(&li);
         for &(_, dir) in &ranked_dirs {
             let left = (-dir.1, dir.0);
             let pn_vec = (
@@ -3016,6 +3348,7 @@ fn enumerate_end_fanouts(
             let pos_on_left = (pn_vec.0 * left.0 + pn_vec.1 * left.1) >= 0.0;
             let sign = if pos_on_left { 1.0 } else { -1.0 };
             let step_sign = if is_end { -1.0 } else { 1.0 };
+            let esc_dir = (step_sign * dir.0, step_sign * dir.1);
 
             for &off in &offsets_nm {
                 if off == 0 && (pad_dist - s_nm as f64).abs() > 2_000.0 {
@@ -3037,6 +3370,28 @@ fn enumerate_end_fanouts(
                     g[0] - (sign * h * left.0).round() as i64,
                     g[1] - (sign * h * left.1).round() as i64,
                 ];
+                let p_fwd = (gp[0] - p_pad.at[0]) as f64 * esc_dir.0
+                    + (gp[1] - p_pad.at[1]) as f64 * esc_dir.1;
+                let n_fwd = (gn[0] - n_pad.at[0]) as f64 * esc_dir.0
+                    + (gn[1] - n_pad.at[1]) as f64 * esc_dir.1;
+                if p_fwd < -1.0 || n_fwd < -1.0 {
+                    continue;
+                }
+                if needs_via_escape
+                    && !allowed_layer_idxs.iter().any(|&to_li| {
+                        let (from_l, to_l) = if is_end { (to_li, li) } else { (li, to_li) };
+                        let Ok(Some((vp, vn, _, _))) =
+                            coupled_via_pair_check(engine, pair, g, dir, pos_on_left, from_l, to_l)
+                        else {
+                            return false;
+                        };
+                        let p_ok = vp.at == p_pad.at || !geometry::via_connects_pad(&vp, p_pad);
+                        let n_ok = vn.at == n_pad.at || !geometry::via_connects_pad(&vn, n_pad);
+                        p_ok && n_ok
+                    })
+                {
+                    continue;
+                }
                 if let Some(imp) = &pair.impedance {
                     if !point_over_reference_zones(engine, gp, imp)
                         || !point_over_reference_zones(engine, gn, imp)
@@ -3049,6 +3404,9 @@ fn enumerate_end_fanouts(
                     let p_paths = octilinear_elbow_paths(p_pad.at, gp);
                     let n_paths = octilinear_elbow_paths(n_pad.at, gn);
                     for pp in &p_paths {
+                        if !fanout_path_exits_pad_cleanly(pp, p_pad, ew, pair.width_nm) {
+                            continue;
+                        }
                         let p_legal = pp.windows(2).all(|seg| {
                             legal_edge_with_width(engine, pair.pos_net, li, seg[0], seg[1], ew)
                                 .unwrap_or(false)
@@ -3057,6 +3415,9 @@ fn enumerate_end_fanouts(
                             continue;
                         }
                         for np in &n_paths {
+                            if !fanout_path_exits_pad_cleanly(np, n_pad, ew, pair.width_nm) {
+                                continue;
+                            }
                             let n_legal = np.windows(2).all(|seg| {
                                 legal_edge_with_width(engine, pair.neg_net, li, seg[0], seg[1], ew)
                                     .unwrap_or(false)
@@ -3064,18 +3425,17 @@ fn enumerate_end_fanouts(
                             if !n_legal {
                                 continue;
                             }
-                            let min_esc_clr =
-                                2 * i128::from(ew) + 2 * i128::from(pair.clearance_nm);
                             let mut cross_ok = true;
                             for ps in pp.windows(2) {
+                                if ps[0] == ps[1] {
+                                    continue;
+                                }
                                 for ns in np.windows(2) {
-                                    if geometry::segments_near(
-                                        ps[0],
-                                        ps[1],
-                                        ns[0],
-                                        ns[1],
-                                        min_esc_clr,
-                                        false,
+                                    if ns[0] == ns[1] {
+                                        continue;
+                                    }
+                                    if !fanout_trunk_pair_ok(
+                                        pair, ps[0], ps[1], ew, ns[0], ns[1], ew,
                                     ) {
                                         cross_ok = false;
                                         break;
@@ -3090,7 +3450,6 @@ fn enumerate_end_fanouts(
                             }
                             let lp: f64 = pp.windows(2).map(|w| dist_f64(w[0], w[1])).sum();
                             let ln: f64 = np.windows(2).map(|w| dist_f64(w[0], w[1])).sum();
-                            let uncoupled_nm = lp.max(ln).round() as i64;
                             let skew_nm = (lp - ln).abs().round() as i64;
                             let pos_segs: Vec<_> = pp
                                 .windows(2)
@@ -3102,6 +3461,30 @@ fn enumerate_end_fanouts(
                                 .filter(|w| w[0] != w[1])
                                 .map(|w| (w[0], w[1], ew))
                                 .collect();
+                            let lname = engine.layer_name(li);
+                            let fan_tracks: Vec<Track> = pos_segs
+                                .iter()
+                                .map(|&(a, b, w)| Track {
+                                    id: String::new(),
+                                    net: pair.pos_net,
+                                    start: a,
+                                    end: b,
+                                    width_nm: w,
+                                    locked: false,
+                                    layer: lname.to_owned(),
+                                })
+                                .chain(neg_segs.iter().map(|&(a, b, w)| Track {
+                                    id: String::new(),
+                                    net: pair.neg_net,
+                                    start: a,
+                                    end: b,
+                                    width_nm: w,
+                                    locked: false,
+                                    layer: lname.to_owned(),
+                                }))
+                                .collect();
+                            let est_uncoupled_nm = measure_tracks_uncoupled_nm(pair, &fan_tracks);
+                            let uncoupled_nm = lp.max(ln).round() as i64;
                             out.push(EndFanout {
                                 gather: g,
                                 gp,
@@ -3112,6 +3495,7 @@ fn enumerate_end_fanouts(
                                 pos_segs,
                                 neg_segs,
                                 uncoupled_nm,
+                                est_uncoupled_nm,
                                 skew_nm,
                             });
                             break 'esc;
@@ -3264,6 +3648,70 @@ fn coupled_gap_max_ok(pair: &ResolvedDiffPair, p_poly: &[Point], n_poly: &[Point
     true
 }
 
+fn fanout_trunk_pair_ok(
+    pair: &ResolvedDiffPair,
+    fa: Point,
+    fb: Point,
+    fw: i64,
+    na: Point,
+    nb: Point,
+    nw: i64,
+) -> bool {
+    let min_clr2 = i128::from(fw) + i128::from(nw) + 2 * i128::from(pair.clearance_nm);
+    if geometry::segments_near(fa, fb, na, nb, min_clr2, false) {
+        return false;
+    }
+    if let (Some((ufx, ufy)), Some((unx, uny))) = (dir_unit_f64(fa, fb), dir_unit_f64(na, nb)) {
+        if (ufx * unx + ufy * uny).abs() >= 0.999 {
+            let len = dist_f64(fa, fb);
+            let p1 = ufx * ((na[0] - fa[0]) as f64) + ufy * ((na[1] - fa[1]) as f64);
+            let p2 = ufx * ((nb[0] - fa[0]) as f64) + ufy * ((nb[1] - fa[1]) as f64);
+            let lo = p1.min(p2).max(0.0);
+            let hi = p1.max(p2).min(len);
+            if hi > lo + 1_000.0 {
+                let perp = (ufx * ((na[1] - fa[1]) as f64) - ufy * ((na[0] - fa[0]) as f64)).abs();
+                let min_center = 0.5 * ((fw + nw) as f64) + (pair.gap_min_nm as f64) - 1.0;
+                if perp < min_center {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
+fn net_clear_non_root_pads(engine: &Engine, net: u32, tracks: &[Track], vias: &[Via]) -> bool {
+    for pad in engine.input.pads.iter().filter(|p| p.net == net) {
+        let mut root_touches = 0usize;
+        for t in tracks {
+            if t.net != net || !pad_supports_layer(engine, pad, &t.layer) {
+                continue;
+            }
+            if t.start == pad.at || t.end == pad.at {
+                root_touches += 1;
+                if root_touches > 1 {
+                    return false;
+                }
+            } else if geometry::track_near_pad(t.start, t.end, t.width_nm, 1_000, pad, true) {
+                return false;
+            }
+        }
+        for v in vias {
+            if v.net != net || v.at == pad.at {
+                continue;
+            }
+            let s_idx = engine.layer_index(&v.start_layer).unwrap_or(0);
+            let e_idx = engine.layer_index(&v.end_layer).unwrap_or(s_idx);
+            let shares_layer = (s_idx.min(e_idx)..=s_idx.max(e_idx))
+                .any(|li| pad_supports_layer(engine, pad, engine.layer_name(li)));
+            if shares_layer && geometry::via_connects_pad(v, pad) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 fn validate_via_jog_pair(
     engine: &Engine,
     pair: &ResolvedDiffPair,
@@ -3273,31 +3721,32 @@ fn validate_via_jog_pair(
     n_a: Point,
     n_b: Point,
 ) -> Result<Option<i64>, Failure> {
-    if p_a != p_b {
-        if !legal_edge_with_width(engine, pair.pos_net, layer_idx, p_a, p_b, pair.width_nm)? {
-            return Ok(None);
-        }
-        if let Some(imp) = &pair.impedance {
-            if engine.layer_name(layer_idx) != imp.signal_layer
-                || !segment_over_reference_zones(engine, p_a, p_b, imp)
-            {
-                return Ok(None);
-            }
-        }
+    if p_a != p_b
+        && !legal_edge_with_width(engine, pair.pos_net, layer_idx, p_a, p_b, pair.width_nm)?
+    {
+        return Ok(None);
     }
-    if n_a != n_b {
-        if !legal_edge_with_width(engine, pair.neg_net, layer_idx, n_a, n_b, pair.width_nm)? {
-            return Ok(None);
-        }
-        if let Some(imp) = &pair.impedance {
-            if engine.layer_name(layer_idx) != imp.signal_layer
-                || !segment_over_reference_zones(engine, n_a, n_b, imp)
-            {
-                return Ok(None);
-            }
-        }
+    if n_a != n_b
+        && !legal_edge_with_width(engine, pair.neg_net, layer_idx, n_a, n_b, pair.width_nm)?
+    {
+        return Ok(None);
     }
     if p_a != p_b || n_a != n_b {
+        if let Some(imp) = &pair.impedance {
+            if engine.layer_name(layer_idx) != imp.signal_layer
+                || !coupled_corridor_over_reference_zones(
+                    engine,
+                    p_a,
+                    p_b,
+                    n_a,
+                    n_b,
+                    pair.width_nm,
+                    imp,
+                )
+            {
+                return Ok(None);
+            }
+        }
         let min_clr2 = 2 * i128::from(pair.width_nm) + 2 * i128::from(pair.clearance_nm);
         if geometry::segments_near(p_a, p_b, n_a, n_b, min_clr2, false) {
             return Ok(None);
@@ -3322,7 +3771,9 @@ fn validate_and_build_coupled_solution(
     let s_nm = pair.width_nm + pair.gap_nm;
     let mut tracks: Vec<Track> = Vec::new();
     let mut vias: Vec<Via> = Vec::new();
-    let mut total_uncoupled = start_f.uncoupled_nm + end_f.uncoupled_nm;
+    let mut non_fanout_tracks: Vec<Track> = Vec::new();
+    let mut start_run_jog_p: Option<(Point, Point)> = None;
+    let mut start_run_jog_n: Option<(Point, Point)> = None;
 
     for &(a, b, w) in &start_f.pos_segs {
         if !legal_edge_with_width(engine, pair.pos_net, start_f.layer_idx, a, b, w)? {
@@ -3380,28 +3831,51 @@ fn validate_and_build_coupled_solution(
         if p0.is_empty() || n0.is_empty() {
             return Ok(None);
         }
-        let Some(u1) =
-            validate_via_jog_pair(engine, pair, start_f.layer_idx, p0[0], p_pt, n0[0], n_pt)?
-        else {
+        if validate_via_jog_pair(
+            engine,
+            pair,
+            start_f.layer_idx,
+            start_f.gp,
+            p_pt,
+            start_f.gn,
+            n_pt,
+        )?
+        .is_none()
+        {
             return Ok(None);
-        };
-        let Some(u2) =
-            validate_via_jog_pair(engine, pair, first_run_layer, p_pt, p0[0], n_pt, n0[0])?
-        else {
+        }
+        if validate_via_jog_pair(engine, pair, first_run_layer, p_pt, p0[0], n_pt, n0[0])?.is_none()
+        {
             return Ok(None);
-        };
-        total_uncoupled += u1.max(u2);
-        if p0[0] != p_pt {
-            tracks.push(Track {
+        }
+        if start_f.gp != p_pt {
+            let t = Track {
                 id: String::new(),
                 net: pair.pos_net,
-                start: p0[0],
+                start: start_f.gp,
                 end: p_pt,
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(start_f.layer_idx).to_owned(),
-            });
-            tracks.push(Track {
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
+        }
+        if start_f.gn != n_pt {
+            let t = Track {
+                id: String::new(),
+                net: pair.neg_net,
+                start: start_f.gn,
+                end: n_pt,
+                width_nm: pair.width_nm,
+                locked: false,
+                layer: engine.layer_name(start_f.layer_idx).to_owned(),
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
+        }
+        if p_pt != p0[0] {
+            let t = Track {
                 id: String::new(),
                 net: pair.pos_net,
                 start: p_pt,
@@ -3409,19 +3883,13 @@ fn validate_and_build_coupled_solution(
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(first_run_layer).to_owned(),
-            });
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
+            start_run_jog_p = Some((p_pt, p0[0]));
         }
-        if n0[0] != n_pt {
-            tracks.push(Track {
-                id: String::new(),
-                net: pair.neg_net,
-                start: n0[0],
-                end: n_pt,
-                width_nm: pair.width_nm,
-                locked: false,
-                layer: engine.layer_name(start_f.layer_idx).to_owned(),
-            });
-            tracks.push(Track {
+        if n_pt != n0[0] {
+            let t = Track {
                 id: String::new(),
                 net: pair.neg_net,
                 start: n_pt,
@@ -3429,11 +3897,17 @@ fn validate_and_build_coupled_solution(
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(first_run_layer).to_owned(),
-            });
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
+            start_run_jog_n = Some((n_pt, n0[0]));
         }
         vias.push(vp);
         vias.push(vn);
     }
+
+    let mut last_run_p_segs: Vec<(Point, Point)> = Vec::new();
+    let mut last_run_n_segs: Vec<(Point, Point)> = Vec::new();
 
     for run_idx in 0..centerline_runs.len() {
         let (ref run_pts, li) = centerline_runs[run_idx];
@@ -3455,9 +3929,21 @@ fn validate_and_build_coupled_solution(
                 return Ok(None);
             }
             if start_f.gp != p_poly[0] || start_f.gn != n_poly[0] {
-                total_uncoupled += dist_f64(start_f.gp, p_poly[0])
-                    .max(dist_f64(start_f.gn, n_poly[0]))
-                    .round() as i64;
+                if let Some(imp) = &pair.impedance {
+                    if engine.layer_name(li) != imp.signal_layer
+                        || !coupled_corridor_over_reference_zones(
+                            engine,
+                            start_f.gp,
+                            p_poly[0],
+                            start_f.gn,
+                            n_poly[0],
+                            pair.width_nm,
+                            imp,
+                        )
+                    {
+                        return Ok(None);
+                    }
+                }
             }
             if start_f.gp != p_poly[0] {
                 if !legal_edge_with_width(
@@ -3470,7 +3956,7 @@ fn validate_and_build_coupled_solution(
                 )? {
                     return Ok(None);
                 }
-                tracks.push(Track {
+                let t = Track {
                     id: String::new(),
                     net: pair.pos_net,
                     start: start_f.gp,
@@ -3478,7 +3964,9 @@ fn validate_and_build_coupled_solution(
                     width_nm: pair.width_nm,
                     locked: false,
                     layer: engine.layer_name(li).to_owned(),
-                });
+                };
+                non_fanout_tracks.push(t.clone());
+                tracks.push(t);
             }
             if start_f.gn != n_poly[0] {
                 if !legal_edge_with_width(
@@ -3491,7 +3979,7 @@ fn validate_and_build_coupled_solution(
                 )? {
                     return Ok(None);
                 }
-                tracks.push(Track {
+                let t = Track {
                     id: String::new(),
                     net: pair.neg_net,
                     start: start_f.gn,
@@ -3499,21 +3987,16 @@ fn validate_and_build_coupled_solution(
                     width_nm: pair.width_nm,
                     locked: false,
                     layer: engine.layer_name(li).to_owned(),
-                });
+                };
+                non_fanout_tracks.push(t.clone());
+                tracks.push(t);
             }
         }
         for w in p_poly.windows(2) {
             if !legal_edge_with_width(engine, pair.pos_net, li, w[0], w[1], pair.width_nm)? {
                 return Ok(None);
             }
-            if let Some(imp) = &pair.impedance {
-                if engine.layer_name(li) != imp.signal_layer
-                    || !segment_over_reference_zones(engine, w[0], w[1], imp)
-                {
-                    return Ok(None);
-                }
-            }
-            tracks.push(Track {
+            let t = Track {
                 id: String::new(),
                 net: pair.pos_net,
                 start: w[0],
@@ -3521,20 +4004,15 @@ fn validate_and_build_coupled_solution(
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(li).to_owned(),
-            });
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
         }
         for w in n_poly.windows(2) {
             if !legal_edge_with_width(engine, pair.neg_net, li, w[0], w[1], pair.width_nm)? {
                 return Ok(None);
             }
-            if let Some(imp) = &pair.impedance {
-                if engine.layer_name(li) != imp.signal_layer
-                    || !segment_over_reference_zones(engine, w[0], w[1], imp)
-                {
-                    return Ok(None);
-                }
-            }
-            tracks.push(Track {
+            let t = Track {
                 id: String::new(),
                 net: pair.neg_net,
                 start: w[0],
@@ -3542,7 +4020,52 @@ fn validate_and_build_coupled_solution(
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(li).to_owned(),
-            });
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
+        }
+        if let Some(imp) = &pair.impedance {
+            if engine.layer_name(li) != imp.signal_layer {
+                return Ok(None);
+            }
+            if p_poly.len() == n_poly.len() {
+                for (pw, nw) in p_poly.windows(2).zip(n_poly.windows(2)) {
+                    if !coupled_corridor_over_reference_zones(
+                        engine,
+                        pw[0],
+                        pw[1],
+                        nw[0],
+                        nw[1],
+                        pair.width_nm,
+                        imp,
+                    ) {
+                        return Ok(None);
+                    }
+                }
+            } else {
+                for w in p_poly.windows(2) {
+                    if !segment_footprint_over_reference_zones(
+                        engine,
+                        w[0],
+                        w[1],
+                        pair.width_nm,
+                        imp,
+                    ) {
+                        return Ok(None);
+                    }
+                }
+                for w in n_poly.windows(2) {
+                    if !segment_footprint_over_reference_zones(
+                        engine,
+                        w[0],
+                        w[1],
+                        pair.width_nm,
+                        imp,
+                    ) {
+                        return Ok(None);
+                    }
+                }
+            }
         }
         let last_p = *p_poly.last().unwrap();
         let last_n = *n_poly.last().unwrap();
@@ -3573,6 +4096,27 @@ fn validate_and_build_coupled_solution(
                 }
             }
         }
+        let min_clr2 = 2 * i128::from(pair.width_nm) + 2 * i128::from(pair.clearance_nm);
+        if run_idx == 0 {
+            if let Some((ja, jb)) = start_run_jog_p {
+                for &(na, nb) in &run_n_segs {
+                    if geometry::segments_near(ja, jb, na, nb, min_clr2, false) {
+                        return Ok(None);
+                    }
+                }
+            }
+            if let Some((ja, jb)) = start_run_jog_n {
+                for &(pa, pb) in &run_p_segs {
+                    if geometry::segments_near(pa, pb, ja, jb, min_clr2, false) {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+        if run_idx + 1 == centerline_runs.len() {
+            last_run_p_segs = run_p_segs;
+            last_run_n_segs = run_n_segs;
+        }
         if !coupled_gap_max_ok(pair, &p_poly, &n_poly) {
             return Ok(None);
         }
@@ -3590,9 +4134,21 @@ fn validate_and_build_coupled_solution(
                 return Ok(None);
             }
             if last_p != end_f.gp || last_n != end_f.gn {
-                total_uncoupled += dist_f64(last_p, end_f.gp)
-                    .max(dist_f64(last_n, end_f.gn))
-                    .round() as i64;
+                if let Some(imp) = &pair.impedance {
+                    if engine.layer_name(li) != imp.signal_layer
+                        || !coupled_corridor_over_reference_zones(
+                            engine,
+                            last_p,
+                            end_f.gp,
+                            last_n,
+                            end_f.gn,
+                            pair.width_nm,
+                            imp,
+                        )
+                    {
+                        return Ok(None);
+                    }
+                }
             }
             if last_p != end_f.gp {
                 if !legal_edge_with_width(
@@ -3605,7 +4161,7 @@ fn validate_and_build_coupled_solution(
                 )? {
                     return Ok(None);
                 }
-                tracks.push(Track {
+                let t = Track {
                     id: String::new(),
                     net: pair.pos_net,
                     start: last_p,
@@ -3613,7 +4169,9 @@ fn validate_and_build_coupled_solution(
                     width_nm: pair.width_nm,
                     locked: false,
                     layer: engine.layer_name(li).to_owned(),
-                });
+                };
+                non_fanout_tracks.push(t.clone());
+                tracks.push(t);
             }
             if last_n != end_f.gn {
                 if !legal_edge_with_width(
@@ -3626,7 +4184,7 @@ fn validate_and_build_coupled_solution(
                 )? {
                     return Ok(None);
                 }
-                tracks.push(Track {
+                let t = Track {
                     id: String::new(),
                     net: pair.neg_net,
                     start: last_n,
@@ -3634,7 +4192,9 @@ fn validate_and_build_coupled_solution(
                     width_nm: pair.width_nm,
                     locked: false,
                     layer: engine.layer_name(li).to_owned(),
-                });
+                };
+                non_fanout_tracks.push(t.clone());
+                tracks.push(t);
             }
         }
         if run_idx + 1 < centerline_runs.len() {
@@ -3656,18 +4216,16 @@ fn validate_and_build_coupled_solution(
             if next_p.is_empty() || next_n.is_empty() {
                 return Ok(None);
             }
-            let Some(u1) = validate_via_jog_pair(engine, pair, li, p_end, p_pt, n_end, n_pt)?
-            else {
+            if validate_via_jog_pair(engine, pair, li, p_end, p_pt, n_end, n_pt)?.is_none() {
                 return Ok(None);
-            };
-            let Some(u2) =
-                validate_via_jog_pair(engine, pair, next_li, p_pt, next_p[0], n_pt, next_n[0])?
-            else {
+            }
+            if validate_via_jog_pair(engine, pair, next_li, p_pt, next_p[0], n_pt, next_n[0])?
+                .is_none()
+            {
                 return Ok(None);
-            };
-            total_uncoupled += u1 + u2;
+            }
             if p_end != p_pt {
-                tracks.push(Track {
+                let t = Track {
                     id: String::new(),
                     net: pair.pos_net,
                     start: p_end,
@@ -3675,10 +4233,12 @@ fn validate_and_build_coupled_solution(
                     width_nm: pair.width_nm,
                     locked: false,
                     layer: engine.layer_name(li).to_owned(),
-                });
+                };
+                non_fanout_tracks.push(t.clone());
+                tracks.push(t);
             }
             if n_end != n_pt {
-                tracks.push(Track {
+                let t = Track {
                     id: String::new(),
                     net: pair.neg_net,
                     start: n_end,
@@ -3686,10 +4246,12 @@ fn validate_and_build_coupled_solution(
                     width_nm: pair.width_nm,
                     locked: false,
                     layer: engine.layer_name(li).to_owned(),
-                });
+                };
+                non_fanout_tracks.push(t.clone());
+                tracks.push(t);
             }
             if next_p[0] != p_pt {
-                tracks.push(Track {
+                let t = Track {
                     id: String::new(),
                     net: pair.pos_net,
                     start: p_pt,
@@ -3697,10 +4259,12 @@ fn validate_and_build_coupled_solution(
                     width_nm: pair.width_nm,
                     locked: false,
                     layer: engine.layer_name(next_li).to_owned(),
-                });
+                };
+                non_fanout_tracks.push(t.clone());
+                tracks.push(t);
             }
             if next_n[0] != n_pt {
-                tracks.push(Track {
+                let t = Track {
                     id: String::new(),
                     net: pair.neg_net,
                     start: n_pt,
@@ -3708,7 +4272,9 @@ fn validate_and_build_coupled_solution(
                     width_nm: pair.width_nm,
                     locked: false,
                     layer: engine.layer_name(next_li).to_owned(),
-                });
+                };
+                non_fanout_tracks.push(t.clone());
+                tracks.push(t);
             }
             vias.push(vp);
             vias.push(vn);
@@ -3748,19 +4314,32 @@ fn validate_and_build_coupled_solution(
         }
         let p_last = *p_end.last().unwrap();
         let n_last = *n_end.last().unwrap();
-        let Some(u1) =
-            validate_via_jog_pair(engine, pair, last_run_layer, p_last, p_pt, n_last, n_pt)?
-        else {
+        if validate_via_jog_pair(engine, pair, last_run_layer, p_last, p_pt, n_last, n_pt)?
+            .is_none()
+        {
             return Ok(None);
-        };
-        let Some(u2) =
-            validate_via_jog_pair(engine, pair, end_f.layer_idx, p_pt, p_last, n_pt, n_last)?
-        else {
+        }
+        if validate_via_jog_pair(
+            engine,
+            pair,
+            end_f.layer_idx,
+            p_pt,
+            end_f.gp,
+            n_pt,
+            end_f.gn,
+        )?
+        .is_none()
+        {
             return Ok(None);
-        };
-        total_uncoupled += u1.max(u2);
+        }
+        let min_clr2 = 2 * i128::from(pair.width_nm) + 2 * i128::from(pair.clearance_nm);
         if p_last != p_pt {
-            tracks.push(Track {
+            for &(na, nb) in &last_run_n_segs {
+                if geometry::segments_near(p_last, p_pt, na, nb, min_clr2, false) {
+                    return Ok(None);
+                }
+            }
+            let t = Track {
                 id: String::new(),
                 net: pair.pos_net,
                 start: p_last,
@@ -3768,19 +4347,17 @@ fn validate_and_build_coupled_solution(
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(last_run_layer).to_owned(),
-            });
-            tracks.push(Track {
-                id: String::new(),
-                net: pair.pos_net,
-                start: p_pt,
-                end: p_last,
-                width_nm: pair.width_nm,
-                locked: false,
-                layer: engine.layer_name(end_f.layer_idx).to_owned(),
-            });
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
         }
         if n_last != n_pt {
-            tracks.push(Track {
+            for &(pa, pb) in &last_run_p_segs {
+                if geometry::segments_near(pa, pb, n_last, n_pt, min_clr2, false) {
+                    return Ok(None);
+                }
+            }
+            let t = Track {
                 id: String::new(),
                 net: pair.neg_net,
                 start: n_last,
@@ -3788,16 +4365,35 @@ fn validate_and_build_coupled_solution(
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(last_run_layer).to_owned(),
-            });
-            tracks.push(Track {
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
+        }
+        if p_pt != end_f.gp {
+            let t = Track {
                 id: String::new(),
-                net: pair.neg_net,
-                start: n_pt,
-                end: n_last,
+                net: pair.pos_net,
+                start: p_pt,
+                end: end_f.gp,
                 width_nm: pair.width_nm,
                 locked: false,
                 layer: engine.layer_name(end_f.layer_idx).to_owned(),
-            });
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
+        }
+        if n_pt != end_f.gn {
+            let t = Track {
+                id: String::new(),
+                net: pair.neg_net,
+                start: n_pt,
+                end: end_f.gn,
+                width_nm: pair.width_nm,
+                locked: false,
+                layer: engine.layer_name(end_f.layer_idx).to_owned(),
+            };
+            non_fanout_tracks.push(t.clone());
+            tracks.push(t);
         }
         vias.push(vp);
         vias.push(vn);
@@ -3832,8 +4428,62 @@ fn validate_and_build_coupled_solution(
         });
     }
 
-    if total_uncoupled > pair.uncoupled_max_nm {
-        return Ok(None);
+    // Check fanouts vs opposite-net trunks/via-jogs/opposite-end fanout for clearance & parallel gap_min_nm
+    let start_lname = engine.layer_name(start_f.layer_idx);
+    let end_lname = engine.layer_name(end_f.layer_idx);
+    for &(fa, fb, fw) in &start_f.pos_segs {
+        for nt in &non_fanout_tracks {
+            if nt.net == pair.neg_net
+                && nt.layer == start_lname
+                && !fanout_trunk_pair_ok(pair, fa, fb, fw, nt.start, nt.end, nt.width_nm)
+            {
+                return Ok(None);
+            }
+        }
+        if start_f.layer_idx == end_f.layer_idx {
+            for &(na, nb, nw) in &end_f.neg_segs {
+                if !fanout_trunk_pair_ok(pair, fa, fb, fw, na, nb, nw) {
+                    return Ok(None);
+                }
+            }
+        }
+    }
+    for &(fa, fb, fw) in &start_f.neg_segs {
+        for pt in &non_fanout_tracks {
+            if pt.net == pair.pos_net
+                && pt.layer == start_lname
+                && !fanout_trunk_pair_ok(pair, fa, fb, fw, pt.start, pt.end, pt.width_nm)
+            {
+                return Ok(None);
+            }
+        }
+        if start_f.layer_idx == end_f.layer_idx {
+            for &(pa, pb, pw) in &end_f.pos_segs {
+                if !fanout_trunk_pair_ok(pair, fa, fb, fw, pa, pb, pw) {
+                    return Ok(None);
+                }
+            }
+        }
+    }
+    for &(fa, fb, fw) in &end_f.pos_segs {
+        for nt in &non_fanout_tracks {
+            if nt.net == pair.neg_net
+                && nt.layer == end_lname
+                && !fanout_trunk_pair_ok(pair, fa, fb, fw, nt.start, nt.end, nt.width_nm)
+            {
+                return Ok(None);
+            }
+        }
+    }
+    for &(fa, fb, fw) in &end_f.neg_segs {
+        for pt in &non_fanout_tracks {
+            if pt.net == pair.pos_net
+                && pt.layer == end_lname
+                && !fanout_trunk_pair_ok(pair, fa, fb, fw, pt.start, pt.end, pt.width_nm)
+            {
+                return Ok(None);
+            }
+        }
     }
     // Verify every generated track in `tracks` clears every opposite-net via in `vias`
     for tr in &tracks {
@@ -3908,10 +4558,25 @@ fn validate_and_build_coupled_solution(
         .filter(|t| t.net == pair.neg_net)
         .cloned()
         .collect();
-    trim_dangling_pad_tails(&mut p_tracks, &pos_pads);
-    trim_dangling_pad_tails(&mut n_tracks, &neg_pads);
+    trim_dangling_pad_tails(&mut p_tracks, &pos_pads, engine);
+    trim_dangling_pad_tails(&mut n_tracks, &neg_pads, engine);
+    if !net_clear_non_root_pads(engine, pair.pos_net, &p_tracks, &vias)
+        || !net_clear_non_root_pads(engine, pair.neg_net, &n_tracks, &vias)
+    {
+        return Ok(None);
+    }
     tracks = p_tracks;
     tracks.extend(n_tracks);
+    let mut all_pair_tracks: Vec<Track> = engine
+        .copper
+        .tracks()
+        .filter(|t| t.net == pair.pos_net || t.net == pair.neg_net)
+        .cloned()
+        .collect();
+    all_pair_tracks.extend(tracks.iter().cloned());
+    if measure_tracks_uncoupled_nm(pair, &all_pair_tracks) > pair.uncoupled_max_nm {
+        return Ok(None);
+    }
     Ok(Some(CoupledSolution { tracks, vias }))
 }
 fn astar_coupled_centerline(
@@ -4023,6 +4688,7 @@ fn astar_coupled_centerline(
     let via_base_cost = 600_000u64;
     let mut expansions = 0usize;
     let max_expansions = 35_000usize;
+    let mut snap_attempts = 0usize;
 
     let reconstruct_runs = |tail_key: Key,
                             tail_pts: &[Point],
@@ -4091,7 +4757,7 @@ fn astar_coupled_centerline(
             && (pt[1] - ef.gather[1]).abs() <= snap_radius
         {
             let mut tails = octilinear_elbow_paths(pt, ef.gather);
-            if dist_f64(pt, ef.gather) >= 1_200_000.0 {
+            if ef.layer_idx != end_li || dist_f64(pt, ef.gather) >= 1_200_000.0 {
                 let p_out = [
                     ef.gather[0] - (600_000.0 * ef.dir.0).round() as i64,
                     ef.gather[1] - (600_000.0 * ef.dir.1).round() as i64,
@@ -4109,10 +4775,34 @@ fn astar_coupled_centerline(
                     return Ok(Some(sol));
                 }
             }
+            snap_attempts += 1;
+            if snap_attempts >= 128 {
+                break;
+            }
         }
+
+        let sf_aligned_dir = if sf.layer_idx != start_li && k == start_key {
+            DIRS.iter()
+                .enumerate()
+                .max_by(|(_, a), (_, b)| {
+                    let la = (a.0 as f64).hypot(a.1 as f64);
+                    let lb = (b.0 as f64).hypot(b.1 as f64);
+                    let da = (a.0 as f64 / la) * sf.dir.0 + (a.1 as f64 / la) * sf.dir.1;
+                    let db = (b.0 as f64 / lb) * sf.dir.0 + (b.1 as f64 / lb) * sf.dir.1;
+                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|(idx, _)| idx)
+        } else {
+            None
+        };
 
         // 8 octilinear steps
         for (nd, &(dx, dy)) in DIRS.iter().enumerate() {
+            if let Some(req_d) = sf_aligned_dir {
+                if nd != req_d {
+                    continue;
+                }
+            }
             if k.dir < 8 {
                 let d_diff = ((nd as i32 - i32::from(k.dir)).rem_euclid(8))
                     .min(8 - (nd as i32 - i32::from(k.dir)).rem_euclid(8));
@@ -4126,21 +4816,35 @@ fn astar_coupled_centerline(
             let (ux, uy) = dir_vec(nd);
             let left = (-uy, ux);
             let pa = [
-                pt[0] + (sign * half * left.0).round() as i64,
-                pt[1] + (sign * half * left.1).round() as i64,
+                pt[0] + round_outward(sign * half * left.0),
+                pt[1] + round_outward(sign * half * left.1),
             ];
             let pb = [
-                npt[0] + (sign * half * left.0).round() as i64,
-                npt[1] + (sign * half * left.1).round() as i64,
+                npt[0] + round_outward(sign * half * left.0),
+                npt[1] + round_outward(sign * half * left.1),
             ];
             let na = [
-                pt[0] - (sign * half * left.0).round() as i64,
-                pt[1] - (sign * half * left.1).round() as i64,
+                pt[0] - round_outward(sign * half * left.0),
+                pt[1] - round_outward(sign * half * left.1),
             ];
             let nb = [
-                npt[0] - (sign * half * left.0).round() as i64,
-                npt[1] - (sign * half * left.1).round() as i64,
+                npt[0] - round_outward(sign * half * left.0),
+                npt[1] - round_outward(sign * half * left.1),
             ];
+            if k == start_key
+                && sf.layer_idx == li
+                && (sf.gp != pa || sf.gn != na)
+                && geometry::segments_near(
+                    sf.gp,
+                    pa,
+                    sf.gn,
+                    na,
+                    2 * i128::from(pair.width_nm) + 2 * i128::from(pair.gap_min_nm),
+                    false,
+                )
+            {
+                continue;
+            }
             if !legal_pair_coupled_step(engine, pair, li, pa, pb, na, nb, pair.width_nm)? {
                 continue;
             }
@@ -4309,7 +5013,7 @@ fn route_single_diff_pair(
             if sf.pos_on_left != ef.pos_on_left {
                 continue;
             }
-            if sf.uncoupled_nm + ef.uncoupled_nm > pair.uncoupled_max_nm {
+            if sf.est_uncoupled_nm + ef.est_uncoupled_nm > pair.uncoupled_max_nm {
                 continue;
             }
             let trunk_dir = dir_unit_f64(sf.gather, ef.gather).unwrap_or(sf.dir);
@@ -4532,13 +5236,15 @@ fn generate_45_meander_wave(
     width_nm: f64,
     inner_offset_margin_nm: f64,
     allow_ortho: bool,
+    allow_chamfer: bool,
 ) -> (Vec<Point>, f64, f64) {
     let min_seg = (1.2 * width_nm).max(width_nm + 50_000.0);
     let c_try = (0.3 * spacing_nm).min(0.35 * amp_nm);
     let gap_try = (spacing_nm - 2.0 * c_try).max(0.5 * spacing_nm);
     let inner_miter_shrink = inner_offset_margin_nm * (2.0 - std::f64::consts::SQRT_2);
     let inner_top_shrink = 2.0 * inner_offset_margin_nm * (std::f64::consts::SQRT_2 - 1.0);
-    let chamfer_ok = c_try - inner_miter_shrink >= min_seg
+    let chamfer_ok = allow_chamfer
+        && c_try - inner_miter_shrink >= min_seg
         && (spacing_nm - 2.0 * c_try - inner_top_shrink) >= min_seg
         && (amp_nm - 2.0 * c_try - inner_top_shrink) >= min_seg
         && (n_waves <= 1 || (gap_try - inner_top_shrink) >= min_seg);
@@ -4645,60 +5351,61 @@ fn generate_45_meander_wave(
     (pts, t_start, t_start + tri_span)
 }
 
-fn point_to_seg_dist_f64(p: [f64; 2], a: Point, b: Point) -> f64 {
-    let vx = (b[0] - a[0]) as f64;
-    let vy = (b[1] - a[1]) as f64;
-    let wx = p[0] - a[0] as f64;
-    let wy = p[1] - a[1] as f64;
-    let len2 = vx * vx + vy * vy;
-    if len2 <= 0.0 {
-        return wx.hypot(wy);
-    }
-    let t = ((wx * vx + wy * vy) / len2).clamp(0.0, 1.0);
-    let px = a[0] as f64 + t * vx - p[0];
-    let py = a[1] as f64 + t * vy - p[1];
-    px.hypot(py)
-}
-
-fn measure_pair_uncoupled_nm(engine: &Engine, pair: &ResolvedDiffPair) -> i64 {
-    let p_tracks: Vec<&Track> = engine
-        .copper
-        .tracks()
-        .filter(|t| t.net == pair.pos_net)
-        .collect();
-    let n_tracks: Vec<&Track> = engine
-        .copper
-        .tracks()
-        .filter(|t| t.net == pair.neg_net)
-        .collect();
+fn measure_tracks_uncoupled_nm(pair: &ResolvedDiffPair, tracks: &[Track]) -> i64 {
+    let p_tracks: Vec<&Track> = tracks.iter().filter(|t| t.net == pair.pos_net).collect();
+    let n_tracks: Vec<&Track> = tracks.iter().filter(|t| t.net == pair.neg_net).collect();
 
     let leg_uncoupled = |own: &[&Track], other: &[&Track]| -> f64 {
         let mut total = 0.0_f64;
         for t in own {
+            let Some((ux, uy)) = dir_unit_f64(t.start, t.end) else {
+                continue;
+            };
             let len = dist_f64(t.start, t.end);
             if len <= 1.0 {
                 continue;
             }
-            let steps = (len / 50_000.0).ceil().max(1.0) as usize;
-            let step_len = len / (steps as f64);
-            for k in 0..steps {
-                let frac = (k as f64 + 0.5) / (steps as f64);
-                let mx = t.start[0] as f64 + (t.end[0] - t.start[0]) as f64 * frac;
-                let my = t.start[1] as f64 + (t.end[1] - t.start[1]) as f64 * frac;
-                let coupled = other.iter().any(|o| {
-                    if o.layer != t.layer {
-                        return false;
-                    }
-                    let half_w = 0.5 * (t.width_nm + o.width_nm) as f64;
-                    let min_c = (half_w + pair.gap_min_nm as f64 - 15_000.0).max(0.0);
-                    let max_c = half_w + pair.gap_max_nm as f64 + 15_000.0;
-                    let d = point_to_seg_dist_f64([mx, my], o.start, o.end);
-                    d >= min_c && d <= max_c
-                });
-                if !coupled {
-                    total += step_len;
+            let mut intervals: Vec<(f64, f64)> = Vec::new();
+            for o in other {
+                if o.layer != t.layer {
+                    continue;
+                }
+                let Some((ox, oy)) = dir_unit_f64(o.start, o.end) else {
+                    continue;
+                };
+                if (ux * ox + uy * oy).abs() < 0.999 {
+                    continue;
+                }
+                let vx = (o.start[0] - t.start[0]) as f64;
+                let vy = (o.start[1] - t.start[1]) as f64;
+                let perp = (ux * vy - uy * vx).abs();
+                let half_w = 0.5 * (t.width_nm + o.width_nm) as f64;
+                let min_c = (half_w + pair.gap_min_nm as f64 - 500.0).max(0.0);
+                let max_c = half_w + pair.gap_max_nm as f64 + 500.0;
+                if perp < min_c || perp > max_c {
+                    continue;
+                }
+                let wx = (o.end[0] - t.start[0]) as f64;
+                let wy = (o.end[1] - t.start[1]) as f64;
+                let p1 = ux * vx + uy * vy;
+                let p2 = ux * wx + uy * wy;
+                let lo = p1.min(p2).max(0.0);
+                let hi = p1.max(p2).min(len);
+                if hi > lo {
+                    intervals.push((lo, hi));
                 }
             }
+            intervals.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+            let mut coupled = 0.0_f64;
+            let mut cur_end = 0.0_f64;
+            for (lo, hi) in intervals {
+                let start = lo.max(cur_end);
+                if hi > start {
+                    coupled += hi - start;
+                    cur_end = hi;
+                }
+            }
+            total += (len - coupled).max(0.0);
         }
         total
     };
@@ -4706,6 +5413,47 @@ fn measure_pair_uncoupled_nm(engine: &Engine, pair: &ResolvedDiffPair) -> i64 {
     let u_p = leg_uncoupled(&p_tracks, &n_tracks);
     let u_n = leg_uncoupled(&n_tracks, &p_tracks);
     u_p.max(u_n).round() as i64
+}
+
+fn measure_pair_uncoupled_nm(engine: &Engine, pair: &ResolvedDiffPair) -> i64 {
+    let pair_tracks: Vec<Track> = engine
+        .copper
+        .tracks()
+        .filter(|t| t.net == pair.pos_net || t.net == pair.neg_net)
+        .cloned()
+        .collect();
+    measure_tracks_uncoupled_nm(pair, &pair_tracks)
+}
+
+fn meander_clean_clears_pads(engine: &Engine, net: u32, cand: &Track, clean: &[Point]) -> bool {
+    if clean.len() < 2 {
+        return true;
+    }
+    for pad in engine.input.pads.iter().filter(|p| p.net == net) {
+        if !pad_supports_layer(engine, pad, &cand.layer) {
+            continue;
+        }
+        for &v in &clean[1..clean.len() - 1] {
+            if geometry::track_near_pad(v, v, cand.width_nm, 1_000, pad, true) {
+                return false;
+            }
+        }
+        let start_in_pad =
+            geometry::track_near_pad(cand.start, cand.start, cand.width_nm, 1_000, pad, true);
+        let end_in_pad =
+            geometry::track_near_pad(cand.end, cand.end, cand.width_nm, 1_000, pad, true);
+        for (idx, w) in clean.windows(2).enumerate() {
+            let skip_start = idx == 0 && start_in_pad;
+            let skip_end = idx + 2 == clean.len() && end_in_pad;
+            if skip_start || skip_end {
+                continue;
+            }
+            if geometry::track_near_pad(w[0], w[1], cand.width_nm, 1_000, pad, true) {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 fn same_net_meander_clear(
@@ -4956,6 +5704,7 @@ fn apply_single_ended_meander(
                 cand.width_nm as f64,
                 0.0,
                 true,
+                true,
             );
             if t0 < 50_000.0 || t1 > seg_len - 50_000.0 {
                 return None;
@@ -5038,7 +5787,13 @@ fn apply_single_ended_meander(
                             }
                             if let Some(imp) = pair_ctx.and_then(|p| p.impedance.as_ref()) {
                                 if cand.layer == imp.signal_layer
-                                    && !segment_over_reference_zones(eng, w[0], w[1], imp)
+                                    && !segment_footprint_over_reference_zones(
+                                        eng,
+                                        w[0],
+                                        w[1],
+                                        cand.width_nm,
+                                        imp,
+                                    )
                                 {
                                     return Err(Failure::new(
                                         Status::Unroutable,
@@ -5046,6 +5801,12 @@ fn apply_single_ended_meander(
                                     ));
                                 }
                             }
+                        }
+                        if !meander_clean_clears_pads(eng, net, &cand, &clean) {
+                            return Err(Failure::new(
+                                Status::Unroutable,
+                                "meander re-entered pad copper",
+                            ));
                         }
                         if let Some(pair) = pair_ctx {
                             if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
@@ -5174,7 +5935,7 @@ fn apply_coupled_pair_meander(
     let spacing_nm = ((2.2 * s_nm as f64)
         .max(s_nm as f64 + 1.5 * pair.width_nm as f64 + pair.clearance_nm as f64)
         .max(min_spacing_for_chamfer))
-    .round();
+    .ceil();
     let prof = if is_delay {
         find_tuning_profile(&engine.effective_rules, pair.pos_net).cloned()
     } else {
@@ -5236,7 +5997,8 @@ fn apply_coupled_pair_meander(
                             amp: f64,
                             nx: f64,
                             ny: f64,
-                            alt: bool|
+                            alt: bool,
+                            allow_chamfer: bool|
          -> Option<(Vec<Point>, Vec<Point>, f64)> {
             let (wave_pts, t0, t1) = generate_45_meander_wave(
                 c_start,
@@ -5252,6 +6014,7 @@ fn apply_coupled_pair_meander(
                 pair.width_nm as f64,
                 0.5 * (s_nm as f64),
                 false,
+                allow_chamfer,
             );
             if t0 < s_nm as f64 || t1 > c_len - (s_nm as f64) {
                 return None;
@@ -5276,139 +6039,201 @@ fn apply_coupled_pair_meander(
         };
 
         for n_waves in 1..=max_waves {
-            let _ = existing_uncoupled;
-            for &(nx, ny, alt) in &[
-                (-uy, ux, true),
-                (uy, -ux, true),
-                (-uy, ux, false),
-                (uy, -ux, false),
-            ] {
-                let Some((_, _, max_add)) = eval_coupled(n_waves, max_amp, nx, ny, alt) else {
-                    continue;
-                };
-                if max_add + (tol as f64) < needed_len_nm {
-                    continue;
-                }
-                let min_tri_h = 0.85 * (pair.width_nm as f64)
-                    + 0.5 * (s_nm as f64) * (std::f64::consts::SQRT_2 - 1.0);
-                let mut lo = min_tri_h.min(max_amp);
-                let mut hi = max_amp;
-                for _ in 0..32 {
-                    let mid = 0.5 * (lo + hi);
-                    match eval_coupled(n_waves, mid, nx, ny, alt) {
-                        Some((_, _, add)) if add < needed_len_nm => lo = mid,
-                        _ => hi = mid,
+            for allow_chamfer in [true, false] {
+                for &(nx, ny, alt) in &[
+                    (-uy, ux, true),
+                    (uy, -ux, true),
+                    (-uy, ux, false),
+                    (uy, -ux, false),
+                ] {
+                    let Some((_, _, max_add)) =
+                        eval_coupled(n_waves, max_amp, nx, ny, alt, allow_chamfer)
+                    else {
+                        continue;
+                    };
+                    if max_add + (tol as f64) < needed_len_nm {
+                        continue;
                     }
-                }
-                let mid_amp = 0.5 * (lo + hi);
-                let best_coupled = [hi, mid_amp, lo]
-                    .into_iter()
-                    .filter_map(|a| eval_coupled(n_waves, a, nx, ny, alt))
-                    .min_by(|(_, _, add_a), (_, _, add_b)| {
-                        (add_a - needed_len_nm)
-                            .abs()
-                            .partial_cmp(&(add_b - needed_len_nm).abs())
-                            .unwrap_or(std::cmp::Ordering::Equal)
+                    let min_tri_h = 0.85 * (pair.width_nm as f64)
+                        + 0.5 * (s_nm as f64) * (std::f64::consts::SQRT_2 - 1.0);
+                    let mut lo = min_tri_h.min(max_amp);
+                    let mut hi = max_amp;
+                    for _ in 0..32 {
+                        let mid = 0.5 * (lo + hi);
+                        match eval_coupled(n_waves, mid, nx, ny, alt, allow_chamfer) {
+                            Some((_, _, add)) if add < needed_len_nm => lo = mid,
+                            _ => hi = mid,
+                        }
+                    }
+                    let mid_amp = 0.5 * (lo + hi);
+                    let best_coupled = [hi, mid_amp, lo]
+                        .into_iter()
+                        .filter_map(|a| eval_coupled(n_waves, a, nx, ny, alt, allow_chamfer))
+                        .min_by(|(_, _, add_a), (_, _, add_b)| {
+                            (add_a - needed_len_nm)
+                                .abs()
+                                .partial_cmp(&(add_b - needed_len_nm).abs())
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                    let Some((p_poly, n_poly, _)) = best_coupled else {
+                        continue;
+                    };
+                    let attempt = engine.transaction(|tx| {
+                        let eng = &mut *tx.engine;
+                        replace_generated_track_with_pts(eng, pair.pos_net, &pt_orig, &p_poly)?;
+                        replace_generated_track_with_pts(eng, pair.neg_net, &nt_orig, &n_poly)?;
+                        for w in p_poly.windows(2) {
+                            if !legal_edge_with_width(
+                                eng,
+                                pair.pos_net,
+                                li,
+                                w[0],
+                                w[1],
+                                pair.width_nm,
+                            )? {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "coupled meander pos illegal",
+                                ));
+                            }
+                        }
+                        for w in n_poly.windows(2) {
+                            if !legal_edge_with_width(
+                                eng,
+                                pair.neg_net,
+                                li,
+                                w[0],
+                                w[1],
+                                pair.width_nm,
+                            )? {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "coupled meander neg illegal",
+                                ));
+                            }
+                        }
+                        if let Some(imp) = &pair.impedance {
+                            if pt_orig.layer != imp.signal_layer {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "coupled meander outside ref layer",
+                                ));
+                            }
+                            if p_poly.len() == n_poly.len() {
+                                for (pw, nw) in p_poly.windows(2).zip(n_poly.windows(2)) {
+                                    if !coupled_corridor_over_reference_zones(
+                                        eng,
+                                        pw[0],
+                                        pw[1],
+                                        nw[0],
+                                        nw[1],
+                                        pair.width_nm,
+                                        imp,
+                                    ) {
+                                        return Err(Failure::new(
+                                            Status::Unroutable,
+                                            "coupled meander outside ref zone",
+                                        ));
+                                    }
+                                }
+                            } else {
+                                for w in p_poly.windows(2) {
+                                    if !segment_footprint_over_reference_zones(
+                                        eng,
+                                        w[0],
+                                        w[1],
+                                        pair.width_nm,
+                                        imp,
+                                    ) {
+                                        return Err(Failure::new(
+                                            Status::Unroutable,
+                                            "coupled meander outside ref zone",
+                                        ));
+                                    }
+                                }
+                                for w in n_poly.windows(2) {
+                                    if !segment_footprint_over_reference_zones(
+                                        eng,
+                                        w[0],
+                                        w[1],
+                                        pair.width_nm,
+                                        imp,
+                                    ) {
+                                        return Err(Failure::new(
+                                            Status::Unroutable,
+                                            "coupled meander outside ref zone",
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        if !meander_clean_clears_pads(eng, pair.pos_net, &pt_orig, &p_poly)
+                            || !meander_clean_clears_pads(eng, pair.neg_net, &nt_orig, &n_poly)
+                        {
+                            return Err(Failure::new(
+                                Status::Unroutable,
+                                "coupled meander re-entered pad copper",
+                            ));
+                        }
+                        // Verify coupled gap across all segment pairs (no -4nm slack, no equal-len gate)
+                        let min_center_dist =
+                            2 * i128::from(pair.width_nm) + 2 * i128::from(pair.gap_min_nm.max(0));
+                        for pw in p_poly.windows(2) {
+                            for nw in n_poly.windows(2) {
+                                if geometry::segments_near(
+                                    pw[0],
+                                    pw[1],
+                                    nw[0],
+                                    nw[1],
+                                    min_center_dist,
+                                    false,
+                                ) {
+                                    return Err(Failure::new(
+                                        Status::Unroutable,
+                                        "coupled meander pinched gap below diff_pair_gap_min",
+                                    ));
+                                }
+                            }
+                        }
+                        if !coupled_gap_max_ok(pair, &p_poly, &n_poly) {
+                            return Err(Failure::new(
+                                Status::Unroutable,
+                                "coupled meander exceeded diff_pair_gap_max",
+                            ));
+                        }
+                        if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
+                            return Err(Failure::new(
+                                Status::Unroutable,
+                                "coupled meander exceeded diff_pair_uncoupled limit",
+                            ));
+                        }
+                        let mp2 = measure_net_fromto(eng, pair.pos_net, is_delay)?
+                            .ok_or_else(|| Failure::new(Status::Unroutable, "pos disconnected"))?;
+                        let mn2 = measure_net_fromto(eng, pair.neg_net, is_delay)?
+                            .ok_or_else(|| Failure::new(Status::Unroutable, "neg disconnected"))?;
+                        let vp = if is_delay {
+                            mp2.delay_as
+                        } else {
+                            mp2.length_nm
+                        };
+                        let vn = if is_delay {
+                            mn2.delay_as
+                        } else {
+                            mn2.length_nm
+                        };
+                        if (vp - target_val).abs() > tol || (vn - target_val).abs() > tol {
+                            return Err(Failure::new(
+                                Status::Unroutable,
+                                "coupled meander missed tolerance",
+                            ));
+                        }
+                        Ok(())
                     });
-                let Some((p_poly, n_poly, _)) = best_coupled else {
-                    continue;
-                };
-                let attempt = engine.transaction(|tx| {
-                    let eng = &mut *tx.engine;
-                    replace_generated_track_with_pts(eng, pair.pos_net, &pt_orig, &p_poly)?;
-                    replace_generated_track_with_pts(eng, pair.neg_net, &nt_orig, &n_poly)?;
-                    for w in p_poly.windows(2) {
-                        if !legal_edge_with_width(eng, pair.pos_net, li, w[0], w[1], pair.width_nm)?
-                        {
-                            return Err(Failure::new(
-                                Status::Unroutable,
-                                "coupled meander pos illegal",
-                            ));
-                        }
-                        if let Some(imp) = &pair.impedance {
-                            if !segment_over_reference_zones(eng, w[0], w[1], imp) {
-                                return Err(Failure::new(
-                                    Status::Unroutable,
-                                    "coupled meander outside ref zone",
-                                ));
-                            }
-                        }
+                    match attempt {
+                        Ok(()) => return Ok(()),
+                        Err(TransactionError::Limit(f)) => return Err(f),
+                        Err(TransactionError::Operation(_)) => {}
                     }
-                    for w in n_poly.windows(2) {
-                        if !legal_edge_with_width(eng, pair.neg_net, li, w[0], w[1], pair.width_nm)?
-                        {
-                            return Err(Failure::new(
-                                Status::Unroutable,
-                                "coupled meander neg illegal",
-                            ));
-                        }
-                        if let Some(imp) = &pair.impedance {
-                            if !segment_over_reference_zones(eng, w[0], w[1], imp) {
-                                return Err(Failure::new(
-                                    Status::Unroutable,
-                                    "coupled meander outside ref zone",
-                                ));
-                            }
-                        }
-                    }
-                    // Verify coupled gap across all segment pairs (no -4nm slack, no equal-len gate)
-                    let min_center_dist =
-                        2 * i128::from(pair.width_nm) + 2 * i128::from(pair.gap_min_nm.max(0));
-                    for pw in p_poly.windows(2) {
-                        for nw in n_poly.windows(2) {
-                            if geometry::segments_near(
-                                pw[0],
-                                pw[1],
-                                nw[0],
-                                nw[1],
-                                min_center_dist,
-                                false,
-                            ) {
-                                return Err(Failure::new(
-                                    Status::Unroutable,
-                                    "coupled meander pinched gap below diff_pair_gap_min",
-                                ));
-                            }
-                        }
-                    }
-                    if !coupled_gap_max_ok(pair, &p_poly, &n_poly) {
-                        return Err(Failure::new(
-                            Status::Unroutable,
-                            "coupled meander exceeded diff_pair_gap_max",
-                        ));
-                    }
-                    if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
-                        return Err(Failure::new(
-                            Status::Unroutable,
-                            "coupled meander exceeded diff_pair_uncoupled limit",
-                        ));
-                    }
-                    let mp2 = measure_net_fromto(eng, pair.pos_net, is_delay)?
-                        .ok_or_else(|| Failure::new(Status::Unroutable, "pos disconnected"))?;
-                    let mn2 = measure_net_fromto(eng, pair.neg_net, is_delay)?
-                        .ok_or_else(|| Failure::new(Status::Unroutable, "neg disconnected"))?;
-                    let vp = if is_delay {
-                        mp2.delay_as
-                    } else {
-                        mp2.length_nm
-                    };
-                    let vn = if is_delay {
-                        mn2.delay_as
-                    } else {
-                        mn2.length_nm
-                    };
-                    if (vp - target_val).abs() > tol || (vn - target_val).abs() > tol {
-                        return Err(Failure::new(
-                            Status::Unroutable,
-                            "coupled meander missed tolerance",
-                        ));
-                    }
-                    Ok(())
-                });
-                match attempt {
-                    Ok(()) => return Ok(()),
-                    Err(TransactionError::Limit(f)) => return Err(f),
-                    Err(TransactionError::Operation(_)) => {}
                 }
             }
         }
@@ -5566,7 +6391,13 @@ fn apply_intra_pair_match(
                     }
                     if let Some(imp) = &pair.impedance {
                         if cand.layer == imp.signal_layer
-                            && !segment_over_reference_zones(eng, w[0], w[1], imp)
+                            && !segment_footprint_over_reference_zones(
+                                eng,
+                                w[0],
+                                w[1],
+                                cand.width_nm,
+                                imp,
+                            )
                         {
                             return Err(Failure::new(
                                 Status::Unroutable,
@@ -5574,6 +6405,12 @@ fn apply_intra_pair_match(
                             ));
                         }
                     }
+                }
+                if !meander_clean_clears_pads(eng, short_net, cand, &clean) {
+                    return Err(Failure::new(
+                        Status::Unroutable,
+                        "pad detour re-entered pad copper",
+                    ));
                 }
                 if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
                     return Err(Failure::new(
