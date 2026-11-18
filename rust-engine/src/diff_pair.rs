@@ -1902,6 +1902,30 @@ fn via_barrel_height_mm(
     Ok(total_nm / 1_000_000.0)
 }
 
+fn copper_layer_order_index(input: &Input, layer: &str) -> Option<usize> {
+    if !input.stackup.is_empty() {
+        if let Some(pos) = input
+            .stackup
+            .iter()
+            .filter(|s| s.kind == StackupKind::Copper)
+            .position(|s| s.name == layer)
+        {
+            return Some(pos);
+        }
+    }
+    input.active_layers().iter().position(|l| l == layer)
+}
+
+fn canonical_layer_pair<'a>(input: &Input, a: &'a str, b: &'a str) -> (&'a str, &'a str) {
+    match (
+        copper_layer_order_index(input, a),
+        copper_layer_order_index(input, b),
+    ) {
+        (Some(ia), Some(ib)) if ia > ib => (b, a),
+        _ => (a, b),
+    }
+}
+
 fn via_delay_between_layers_as(
     input: &Input,
     rules: &EffectiveRules,
@@ -1913,7 +1937,9 @@ fn via_delay_between_layers_as(
     if layer_a == layer_b {
         return Ok(0.0);
     }
-    for ov in &prof.via_overrides {
+    let (sig_top, sig_bot) = canonical_layer_pair(input, layer_a, layer_b);
+    let (via_top, via_bot) = canonical_layer_pair(input, &via.start_layer, &via.end_layer);
+    for ov in prof.via_overrides.iter().rev() {
         if ov.signal_layer_from.is_empty()
             || ov.signal_layer_to.is_empty()
             || ov.via_layer_from.is_empty()
@@ -1921,12 +1947,11 @@ fn via_delay_between_layers_as(
         {
             continue;
         }
-        let signal_match = (ov.signal_layer_from == layer_a && ov.signal_layer_to == layer_b)
-            || (ov.signal_layer_from == layer_b && ov.signal_layer_to == layer_a);
-        let via_span_match = (ov.via_layer_from == via.start_layer
-            && ov.via_layer_to == via.end_layer)
-            || (ov.via_layer_from == via.end_layer && ov.via_layer_to == via.start_layer);
-        if signal_match && via_span_match {
+        if ov.signal_layer_from == sig_top
+            && ov.signal_layer_to == sig_bot
+            && ov.via_layer_from == via_top
+            && ov.via_layer_to == via_bot
+        {
             return Ok(ov.delay_as as f64);
         }
     }
@@ -1991,7 +2016,16 @@ fn measure_net_fromto(
         len_nm: f64,
         delay_as: f64,
     }
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum NodeKind {
+        Pad,
+        TrackIn(usize),
+        TrackOut(usize),
+        ViaIn(usize, usize),
+        ViaOut(usize, usize),
+    }
     let mut adj: Vec<Vec<DirEdge>> = vec![Vec::new(); pads.len()];
+    let mut node_kind: Vec<NodeKind> = vec![NodeKind::Pad; pads.len()];
     let add_dir_edge =
         |u: usize, v: usize, len_nm: f64, delay_as: f64, adj: &mut Vec<Vec<DirEdge>>| {
             if u == v {
@@ -2004,8 +2038,9 @@ fn measure_net_fromto(
             });
         };
 
-    let mut track_nodes: Vec<Option<(usize, usize, usize, f64)>> = Vec::with_capacity(tracks.len());
-    for t in &tracks {
+    let mut track_nodes: Vec<Option<(usize, usize, usize, f64, f64)>> =
+        Vec::with_capacity(tracks.len());
+    for (i, t) in tracks.iter().enumerate() {
         let Some(li) = engine.layer_index(&t.layer) else {
             track_nodes.push(None);
             continue;
@@ -2026,17 +2061,19 @@ fn measure_net_fromto(
         };
         let in_i = adj.len();
         adj.push(Vec::new());
+        node_kind.push(NodeKind::TrackIn(i));
         let out_i = adj.len();
         adj.push(Vec::new());
+        node_kind.push(NodeKind::TrackOut(i));
         let len_i = dist_f64(t.start, t.end);
         let del_i = (len_i / 1_000_000.0) * layer_delay_rate;
         add_dir_edge(in_i, out_i, len_i, del_i, &mut adj);
-        track_nodes.push(Some((in_i, out_i, li, layer_delay_rate)));
+        track_nodes.push(Some((in_i, out_i, li, layer_delay_rate, len_i)));
     }
 
     // Same-layer track-to-track copper overlaps (including crossings, endpoints, near-T, parallel)
     for i in 0..tracks.len() {
-        let Some((_, out_i, li_a, _)) = track_nodes[i] else {
+        let Some((_, out_i, li_a, _, _)) = track_nodes[i] else {
             continue;
         };
         let ta = tracks[i];
@@ -2045,7 +2082,7 @@ fn measure_net_fromto(
         let a_min_y = i128::from(ta.start[1].min(ta.end[1]));
         let a_max_y = i128::from(ta.start[1].max(ta.end[1]));
         for j in (i + 1)..tracks.len() {
-            let Some((in_j, out_j, li_b, _)) = track_nodes[j] else {
+            let Some((in_j, out_j, li_b, _, _)) = track_nodes[j] else {
                 continue;
             };
             if li_a != li_b {
@@ -2077,17 +2114,27 @@ fn measure_net_fromto(
         }
     }
 
-    // Via nodes per (via_idx, layer_idx), track-to-via, pad-to-via, stacked vias, and vertical barrels
-    let mut via_nodes: Vec<BTreeMap<usize, usize>> = vec![BTreeMap::new(); vias.len()];
+    // Via split nodes (via_in, via_out) per (via_idx, layer_idx), track-to-via, pad-to-via, stacked vias, and vertical barrels
+    let mut via_nodes: Vec<BTreeMap<usize, (usize, usize)>> = vec![BTreeMap::new(); vias.len()];
+    let mut neg_vias: Vec<Vec<(usize, usize, bool, f64)>> = vec![Vec::new(); tracks.len()];
+    let mut track_pos_vias: Vec<Vec<usize>> = vec![Vec::new(); tracks.len()];
+    let mut via_touch_count: Vec<Vec<usize>> = vec![vec![0; engine.layer_names.len()]; vias.len()];
+    let mut via_any_pos_tracks: Vec<Vec<bool>> =
+        vec![vec![false; engine.layer_names.len()]; vias.len()];
     let get_via_node = |via_idx: usize,
                         li: usize,
-                        via_nodes: &mut [BTreeMap<usize, usize>],
-                        adj: &mut Vec<Vec<DirEdge>>|
-     -> usize {
+                        via_nodes: &mut [BTreeMap<usize, (usize, usize)>],
+                        adj: &mut Vec<Vec<DirEdge>>,
+                        node_kind: &mut Vec<NodeKind>|
+     -> (usize, usize) {
         *via_nodes[via_idx].entry(li).or_insert_with(|| {
-            let id = adj.len();
+            let v_in = adj.len();
             adj.push(Vec::new());
-            id
+            node_kind.push(NodeKind::ViaIn(via_idx, li));
+            let v_out = adj.len();
+            adj.push(Vec::new());
+            node_kind.push(NodeKind::ViaOut(via_idx, li));
+            (v_in, v_out)
         })
     };
 
@@ -2099,56 +2146,70 @@ fn measure_net_fromto(
         let mut active_layers: Vec<usize> = Vec::new();
 
         for (i, t) in tracks.iter().enumerate() {
-            let Some((in_i, out_i, li, layer_delay_rate)) = track_nodes[i] else {
+            let Some((in_i, out_i, li, layer_delay_rate, len_i)) = track_nodes[i] else {
                 continue;
             };
             if li < v_lo || li > v_hi {
                 continue;
             }
-            if geometry::point_near_segment(v.at, t.start, t.end, 2, false) {
-                let vn = get_via_node(j, li, &mut via_nodes, &mut adj);
-                add_dir_edge(out_i, vn, 0.0, 0.0, &mut adj);
-                add_dir_edge(vn, in_i, 0.0, 0.0, &mut adj);
-                active_layers.push(li);
-            } else {
-                let gap2 = i128::from(v.diameter_nm) + i128::from(t.width_nm);
-                if geometry::point_near_segment(v.at, t.start, t.end, gap2, false) {
-                    let d_start = dist_f64(t.start, v.at);
-                    let d_end = dist_f64(t.end, v.at);
-                    let (d_ep, ep, other) = if d_start <= d_end {
-                        (d_start, t.start, t.end)
-                    } else {
-                        (d_end, t.end, t.start)
-                    };
-                    let len = if d_ep < via_r {
-                        let seg_dx = (ep[0] - other[0]) as f64;
-                        let seg_dy = (ep[1] - other[1]) as f64;
-                        let seg_len = seg_dx.hypot(seg_dy);
-                        if seg_len > 0.0 {
-                            let ux = seg_dx / seg_len;
-                            let uy = seg_dy / seg_len;
-                            let vx = (v.at[0] - ep[0]) as f64;
-                            let vy = (v.at[1] - ep[1]) as f64;
-                            let along = (vx * ux + vy * uy).max(0.0);
-                            let perp = (vx * uy - vy * ux).abs();
-                            let radial = if perp < via_r {
-                                (via_r - (via_r * via_r - perp * perp).sqrt()).max(0.0)
-                            } else {
-                                0.0
-                            };
-                            (along + radial).max(0.0)
-                        } else {
-                            0.0
-                        }
+            let gap2 = i128::from(v.diameter_nm) + i128::from(t.width_nm);
+            let touches = geometry::point_near_segment(v.at, t.start, t.end, 2, false)
+                || geometry::point_near_segment(v.at, t.start, t.end, gap2, false);
+            if !touches {
+                continue;
+            }
+            let (v_in, v_out) = get_via_node(j, li, &mut via_nodes, &mut adj, &mut node_kind);
+            active_layers.push(li);
+            via_touch_count[j][li] += 1;
+
+            let d_start = dist_f64(t.start, v.at);
+            let d_end = dist_f64(t.end, v.at);
+            let start_in = d_start < via_r;
+            let end_in = d_end < via_r;
+            let has_pos_via_cost = start_in ^ end_in;
+            let mut ep_is_end = false;
+            let delta = if has_pos_via_cost {
+                track_pos_vias[i].push(j);
+                via_any_pos_tracks[j][li] = true;
+                let (ep, other, is_end) = if start_in {
+                    (t.start, t.end, false)
+                } else {
+                    (t.end, t.start, true)
+                };
+                ep_is_end = is_end;
+                let seg_dx = (ep[0] - other[0]) as f64;
+                let seg_dy = (ep[1] - other[1]) as f64;
+                let seg_len = seg_dx.hypot(seg_dy);
+                if seg_len > 0.0 {
+                    let ux = seg_dx / seg_len;
+                    let uy = seg_dy / seg_len;
+                    let vx = (v.at[0] - ep[0]) as f64;
+                    let vy = (v.at[1] - ep[1]) as f64;
+                    let signed_along = vx * ux + vy * uy;
+                    let perp = (vx * uy - vy * ux).abs();
+                    let radial = if perp < via_r {
+                        (via_r - (via_r * via_r - perp * perp).sqrt()).max(0.0)
                     } else {
                         0.0
                     };
-                    let del = (len / 1_000_000.0) * layer_delay_rate;
-                    let vn = get_via_node(j, li, &mut via_nodes, &mut adj);
-                    add_dir_edge(out_i, vn, len, del, &mut adj);
-                    add_dir_edge(vn, in_i, len, del, &mut adj);
-                    active_layers.push(li);
+                    signed_along + radial
+                } else {
+                    0.0
                 }
+            } else {
+                0.0
+            };
+
+            if delta >= 0.0 {
+                let del = (delta / 1_000_000.0) * layer_delay_rate;
+                add_dir_edge(out_i, v_in, delta, del, &mut adj);
+                add_dir_edge(v_out, in_i, delta, del, &mut adj);
+            } else {
+                let eff_len = (len_i + delta).max(0.0);
+                let eff_del = (eff_len / 1_000_000.0) * layer_delay_rate;
+                add_dir_edge(in_i, v_in, eff_len, eff_del, &mut adj);
+                add_dir_edge(v_out, out_i, eff_len, eff_del, &mut adj);
+                neg_vias[i].push((v_in, v_out, ep_is_end, delta));
             }
         }
 
@@ -2156,9 +2217,14 @@ fn measure_net_fromto(
             if geometry::via_connects_pad(v, p) {
                 for li in pad_layer_indices(engine, p) {
                     if li >= v_lo && li <= v_hi {
-                        let vn = get_via_node(j, li, &mut via_nodes, &mut adj);
-                        add_dir_edge(k, vn, 0.0, 0.0, &mut adj);
-                        add_dir_edge(vn, k, 0.0, 0.0, &mut adj);
+                        let (v_in, v_out) =
+                            get_via_node(j, li, &mut via_nodes, &mut adj, &mut node_kind);
+                        if k != 1 {
+                            add_dir_edge(k, v_in, 0.0, 0.0, &mut adj);
+                        }
+                        if k != 0 {
+                            add_dir_edge(v_out, k, 0.0, 0.0, &mut adj);
+                        }
                         active_layers.push(li);
                     }
                 }
@@ -2171,7 +2237,7 @@ fn measure_net_fromto(
                 let eb = engine.layer_index(&vb.end_layer).unwrap_or(sb);
                 let (b_lo, b_hi) = (sb.min(eb), sb.max(eb));
                 for li in v_lo.max(b_lo)..=v_hi.min(b_hi) {
-                    let _ = get_via_node(j, li, &mut via_nodes, &mut adj);
+                    let _ = get_via_node(j, li, &mut via_nodes, &mut adj, &mut node_kind);
                     active_layers.push(li);
                 }
             }
@@ -2179,55 +2245,89 @@ fn measure_net_fromto(
 
         active_layers.sort_unstable();
         active_layers.dedup();
-        for win in active_layers.windows(2) {
-            let la = win[0];
-            let lb = win[1];
-            let u = via_nodes[j][&la];
-            let w = via_nodes[j][&lb];
-            let h_nm = if engine.effective_rules.use_height_for_length_calcs {
-                via_barrel_height_mm(
-                    &engine.input,
-                    &engine.effective_rules,
-                    engine.layer_name(la),
-                    engine.layer_name(lb),
-                )? * 1_000_000.0
-            } else {
-                0.0
-            };
-            let del = if let Some(pr) = prof {
-                via_delay_between_layers_as(
-                    &engine.input,
-                    &engine.effective_rules,
-                    pr,
-                    v,
-                    engine.layer_name(la),
-                    engine.layer_name(lb),
-                )?
-            } else {
-                0.0
-            };
-            add_dir_edge(u, w, h_nm, del, &mut adj);
-            add_dir_edge(w, u, h_nm, del, &mut adj);
+        for &li in &active_layers {
+            let (v_in, v_out) = via_nodes[j][&li];
+            add_dir_edge(v_in, v_out, 0.0, 0.0, &mut adj);
+        }
+        for a_idx in 0..active_layers.len() {
+            for b_idx in (a_idx + 1)..active_layers.len() {
+                let la = active_layers[a_idx];
+                let lb = active_layers[b_idx];
+                let (u_in, u_out) = via_nodes[j][&la];
+                let (w_in, w_out) = via_nodes[j][&lb];
+                let h_nm = if engine.effective_rules.use_height_for_length_calcs {
+                    via_barrel_height_mm(
+                        &engine.input,
+                        &engine.effective_rules,
+                        engine.layer_name(la),
+                        engine.layer_name(lb),
+                    )? * 1_000_000.0
+                } else {
+                    0.0
+                };
+                let del = if engine.effective_rules.use_height_for_length_calcs {
+                    if let Some(pr) = prof {
+                        via_delay_between_layers_as(
+                            &engine.input,
+                            &engine.effective_rules,
+                            pr,
+                            v,
+                            engine.layer_name(la),
+                            engine.layer_name(lb),
+                        )?
+                    } else {
+                        0.0
+                    }
+                } else {
+                    0.0
+                };
+                add_dir_edge(u_in, w_out, h_nm, del, &mut adj);
+                add_dir_edge(w_in, u_out, h_nm, del, &mut adj);
+            }
         }
     }
 
     for j in 0..vias.len() {
         for jb in (j + 1)..vias.len() {
             if vias[j].at == vias[jb].at {
-                for (&li, &vn_a) in &via_nodes[j] {
-                    if let Some(&vn_b) = via_nodes[jb].get(&li) {
-                        add_dir_edge(vn_a, vn_b, 0.0, 0.0, &mut adj);
-                        add_dir_edge(vn_b, vn_a, 0.0, 0.0, &mut adj);
+                for (&li, &(in_a, out_a)) in &via_nodes[j] {
+                    if let Some(&(in_b, out_b)) = via_nodes[jb].get(&li) {
+                        add_dir_edge(out_a, in_b, 0.0, 0.0, &mut adj);
+                        add_dir_edge(out_b, in_a, 0.0, 0.0, &mut adj);
                     }
                 }
             }
         }
     }
 
+    for (i, nv) in neg_vias.iter().enumerate() {
+        if nv.len() < 2 {
+            continue;
+        }
+        let Some((_, _, _, layer_delay_rate, len_i)) = track_nodes[i] else {
+            continue;
+        };
+        for a in 0..nv.len() {
+            for b in (a + 1)..nv.len() {
+                if nv[a].2 == nv[b].2 {
+                    continue;
+                }
+                let eff_len = (len_i + nv[a].3 + nv[b].3).max(0.0);
+                let eff_del = (eff_len / 1_000_000.0) * layer_delay_rate;
+                add_dir_edge(nv[a].1, nv[b].0, eff_len, eff_del, &mut adj);
+                add_dir_edge(nv[b].1, nv[a].0, eff_len, eff_del, &mut adj);
+            }
+        }
+    }
+    for tv in &mut track_pos_vias {
+        tv.sort_unstable();
+        tv.dedup();
+    }
+
     // Unconditional pad-to-track edges for all net pads (handles PTH multi-layer + boundary + intermediate pads)
     for (k, p) in pads.iter().enumerate() {
         for (i, t) in tracks.iter().enumerate() {
-            let Some((in_i, out_i, _, _)) = track_nodes[i] else {
+            let Some((in_i, out_i, _, _, _)) = track_nodes[i] else {
                 continue;
             };
             if pad_supports_layer(engine, p, &t.layer) && geometry::track_connects_pad(t, p) {
@@ -2240,16 +2340,21 @@ fn measure_net_fromto(
     let t_node = 1usize;
 
     // Shortest useful path from s_node to t_node (non-negative weights guarantee stubs are never chosen)
-    #[derive(Clone, Copy)]
+    #[derive(Clone)]
     struct State {
         cost: f64,
         len_nm: f64,
         delay_as: f64,
         node: usize,
+        exited_via: Option<usize>,
+        blocked_vias: Vec<usize>,
     }
     impl PartialEq for State {
         fn eq(&self, other: &Self) -> bool {
-            self.cost == other.cost && self.node == other.node
+            self.cost == other.cost
+                && self.node == other.node
+                && self.exited_via == other.exited_via
+                && self.blocked_vias == other.blocked_vias
         }
     }
     impl Eq for State {}
@@ -2260,6 +2365,8 @@ fn measure_net_fromto(
                 .partial_cmp(&self.cost)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| self.node.cmp(&other.node))
+                .then_with(|| self.exited_via.cmp(&other.exited_via))
+                .then_with(|| self.blocked_vias.cmp(&other.blocked_vias))
         }
     }
     impl PartialOrd for State {
@@ -2268,14 +2375,17 @@ fn measure_net_fromto(
         }
     }
 
-    let mut dist = vec![f64::INFINITY; adj.len()];
+    let mut base_dist = vec![f64::INFINITY; adj.len()];
+    let mut ext_dist: BTreeMap<(usize, Option<usize>, Vec<usize>), f64> = BTreeMap::new();
     let mut heap = BinaryHeap::new();
-    dist[s_node] = 0.0;
+    base_dist[s_node] = 0.0;
     heap.push(State {
         cost: 0.0,
         len_nm: 0.0,
         delay_as: 0.0,
         node: s_node,
+        exited_via: None,
+        blocked_vias: Vec::new(),
     });
     while let Some(cur) = heap.pop() {
         if cur.node == t_node {
@@ -2284,19 +2394,92 @@ fn measure_net_fromto(
                 delay_as: cur.delay_as.round() as i64,
             }));
         }
-        if cur.cost > dist[cur.node] {
+        let best = if cur.exited_via.is_none() && cur.blocked_vias.is_empty() {
+            base_dist[cur.node]
+        } else {
+            ext_dist
+                .get(&(cur.node, cur.exited_via, cur.blocked_vias.clone()))
+                .copied()
+                .unwrap_or(f64::INFINITY)
+        };
+        if cur.cost > best {
             continue;
         }
+        let cur_kind = node_kind[cur.node];
         for &e in &adj[cur.node] {
+            let next_kind = node_kind[e.to];
+            if matches!(cur_kind, NodeKind::TrackOut(_) | NodeKind::TrackIn(_)) {
+                if let NodeKind::ViaIn(vj, _) = next_kind {
+                    if cur.exited_via == Some(vj) || cur.blocked_vias.binary_search(&vj).is_ok() {
+                        continue;
+                    }
+                }
+            }
+            if let (NodeKind::TrackOut(_), NodeKind::TrackIn(ti)) = (cur_kind, next_kind) {
+                if let Some(ev) = cur.exited_via {
+                    if track_pos_vias[ti].binary_search(&ev).is_ok() {
+                        continue;
+                    }
+                }
+            }
+            let (next_exited_via, next_blocked_vias) = match (cur_kind, next_kind) {
+                (_, NodeKind::Pad | NodeKind::ViaIn(_, _) | NodeKind::ViaOut(_, _)) => {
+                    (None, Vec::new())
+                }
+                (NodeKind::ViaOut(vj, vli), NodeKind::TrackIn(_)) => {
+                    if (via_any_pos_tracks[vj][vli] && via_touch_count[vj][vli] >= 2)
+                        || via_nodes[vj].len() >= 3
+                    {
+                        (Some(vj), Vec::new())
+                    } else {
+                        (None, Vec::new())
+                    }
+                }
+                (NodeKind::ViaOut(_, _), NodeKind::TrackOut(_)) => (None, Vec::new()),
+                (NodeKind::TrackOut(ti), NodeKind::TrackIn(_)) => {
+                    let mut nb = cur.blocked_vias.clone();
+                    if let Some((_, _, li_i, _, _)) = track_nodes[ti] {
+                        for &vj in &track_pos_vias[ti] {
+                            if via_touch_count[vj][li_i] >= 2 {
+                                if let Err(pos) = nb.binary_search(&vj) {
+                                    nb.insert(pos, vj);
+                                }
+                            }
+                        }
+                    }
+                    (cur.exited_via, nb)
+                }
+                _ => (cur.exited_via, cur.blocked_vias.clone()),
+            };
             let step_cost = if require_delay { e.delay_as } else { e.len_nm };
             let nc = cur.cost + step_cost;
-            if nc < dist[e.to] {
-                dist[e.to] = nc;
+            let improved = if next_exited_via.is_none() && next_blocked_vias.is_empty() {
+                if nc < base_dist[e.to] {
+                    base_dist[e.to] = nc;
+                    true
+                } else {
+                    false
+                }
+            } else if nc < base_dist[e.to] {
+                let key = (e.to, next_exited_via, next_blocked_vias.clone());
+                let prev = ext_dist.get(&key).copied().unwrap_or(f64::INFINITY);
+                if nc < prev {
+                    ext_dist.insert(key, nc);
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            if improved {
                 heap.push(State {
                     cost: nc,
                     len_nm: cur.len_nm + e.len_nm,
                     delay_as: cur.delay_as + e.delay_as,
                     node: e.to,
+                    exited_via: next_exited_via,
+                    blocked_vias: next_blocked_vias,
                 });
             }
         }
@@ -7172,4 +7355,88 @@ pub fn apply_length_matching_in_tx(
         }
         Ok(())
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn measure_net_fromto_use_height_false_ignores_via_overrides_and_45_offcenter_overshoot() {
+        let uid = |n: u64| format!("00000000-0000-4000-8000-{n:012}");
+        let pro = serde_json::json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {"use_height_for_length_calcs": false}}},
+            "net_settings": {"classes": [{"name": "Default", "tuning_profile": "P1"}]},
+            "tuning_profiles": {
+                "tuning_profiles_impedance_geometric": [{
+                    "profile_name": "P1",
+                    "type": 0,
+                    "enable_time_domain_tuning": true,
+                    "via_prop_delay": 10_000_000,
+                    "layer_entries": [
+                        {"signal_layer": "F.Cu", "width": 250_000, "delay": 5_000_000},
+                        {"signal_layer": "B.Cu", "width": 250_000, "delay": 8_000_000}
+                    ],
+                    "via_overrides": [{
+                        "signal_layer_from": "F.Cu",
+                        "signal_layer_to": "B.Cu",
+                        "via_layer_from": "F.Cu",
+                        "via_layer_to": "B.Cu",
+                        "delay": 90_000_000
+                    }]
+                }]
+            }
+        })
+        .to_string();
+        let mut inp: Input = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "source_id": "e".repeat(64),
+            "layer": "F.Cu",
+            "layers": ["F.Cu", "B.Cu"],
+            "bounds": {"min": [0, 0], "max": [50_000_000, 50_000_000]},
+            "nets": [{"id": 0, "name": ""}, {"id": 1, "name": "SIG"}],
+            "pads": [
+                {"id": uid(1), "net": 1, "at": [10_000_000, 20_000_000], "shape": {"kind": "rect", "half_size_nm": [150_000, 150_000]}, "layers": ["F.Cu"]},
+                {"id": uid(2), "net": 1, "at": [30_000_000, 20_550_000], "shape": {"kind": "rect", "half_size_nm": [150_000, 150_000]}, "layers": ["B.Cu"]}
+            ],
+            "tracks": [
+                {"id": uid(10), "net": 1, "start": [10_000_000, 20_000_000], "end": [19_500_000, 20_000_000], "width_nm": 250_000, "locked": false, "layer": "F.Cu"},
+                {"id": uid(11), "net": 1, "start": [19_500_000, 20_000_000], "end": [20_100_000, 20_600_000], "width_nm": 250_000, "locked": false, "layer": "F.Cu"},
+                {"id": uid(12), "net": 1, "start": [19_900_000, 20_550_000], "end": [30_000_000, 20_550_000], "width_nm": 250_000, "locked": false, "layer": "B.Cu"}
+            ],
+            "vias": [
+                {"id": uid(20), "net": 1, "at": [19_900_000, 20_550_000], "diameter_nm": 600_000, "drill_nm": 300_000, "locked": false, "start_layer": "F.Cu", "end_layer": "B.Cu", "kind": "through"}
+            ],
+            "rules": {
+                "grid_nm": 100_000, "width_nm": 250_000, "clearance_nm": 200_000,
+                "edge_clearance_nm": 200_000, "hole_clearance_nm": 200_000, "same_net_hole_clearance_nm": 200_000
+            },
+            "max_expansions": 50_000,
+            "board_design_settings": {
+                "use_height_for_length_calcs": false,
+                "netclasses": [{"name": "Default", "tuning_profile": "P1"}]
+            },
+            "project_rules": pro,
+            "stackup": [
+                {"name": "F.Cu", "kind": "copper", "thickness_nm": 35_000},
+                {"name": "di", "kind": "core", "thickness_nm": 1_530_000, "epsilon_r": 4.0},
+                {"name": "B.Cu", "kind": "copper", "thickness_nm": 35_000}
+            ]
+        }))
+        .unwrap();
+        crate::rules::resolve_effective_rules(&mut inp).unwrap();
+        let eng = Engine::new(inp).unwrap();
+        let m = measure_net_fromto(&eng, 1, true).unwrap().unwrap();
+        assert!(
+            (m.length_nm - 20_291_128).abs() <= 50,
+            "expected ~20291128 nm, got {}",
+            m.length_nm
+        );
+        assert!(
+            (m.delay_as - 131_755_640).abs() <= 5_000,
+            "expected ~131755640 as with 0 via delay, got {}",
+            m.delay_as
+        );
+    }
 }

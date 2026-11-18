@@ -78,6 +78,65 @@ fn json_opt_bool_field(
     }
 }
 
+fn json_nonneg_rounded_i64_field(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    required: bool,
+    default_val: i64,
+) -> Result<i64, Failure> {
+    match obj.get(key) {
+        None => {
+            if required {
+                Err(Failure::new(
+                    Status::Invalid,
+                    format!(".kicad_pro {key} is required"),
+                ))
+            } else {
+                Ok(default_val)
+            }
+        }
+        Some(v) => {
+            if let Some(i) = v.as_i64() {
+                if i < 0 {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!(".kicad_pro {key} must be nonnegative"),
+                    ));
+                }
+                return Ok(i);
+            }
+            if let Some(u) = v.as_u64() {
+                return i64::try_from(u).map_err(|_| {
+                    Failure::new(
+                        Status::Invalid,
+                        format!(".kicad_pro {key} exceeds i64 bounds"),
+                    )
+                });
+            }
+            if let Some(f) = v.as_f64() {
+                if !f.is_finite() || f < 0.0 {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!(".kicad_pro {key} must be finite and nonnegative"),
+                    ));
+                }
+                let r = f.round();
+                if !r.is_finite() || r < 0.0 || r >= (i64::MAX as f64) {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!(".kicad_pro {key} exceeds i64 bounds"),
+                    ));
+                }
+                return Ok(r as i64);
+            }
+            Err(Failure::new(
+                Status::Invalid,
+                format!(".kicad_pro {key} must be a number"),
+            ))
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct BoardDesignSettings {
@@ -1125,23 +1184,13 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                                 )
                             })?
                             .to_owned();
-                        let profile_type = p.get("type").and_then(|v| v.as_i64()).unwrap_or(0);
-                        let target_impedance_ohm = p
-                            .get("target_impedance")
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
+                        let profile_type = json_nonneg_rounded_i64_field(p, "type", false, 0)?;
+                        let target_impedance_ohm =
+                            json_nonneg_rounded_i64_field(p, "target_impedance", false, 0)?;
                         let enable_time_domain_tuning =
                             json_bool_field(p, "enable_time_domain_tuning", false)?;
-                        let via_prop_delay_as_per_mm = p
-                            .get("via_prop_delay")
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
-                        if via_prop_delay_as_per_mm < 0 {
-                            return Err(Failure::new(
-                                Status::Invalid,
-                                ".kicad_pro tuning profile via_prop_delay must be nonnegative",
-                            ));
-                        }
+                        let via_prop_delay_as_per_mm =
+                            json_nonneg_rounded_i64_field(p, "via_prop_delay", false, 0)?;
                         let mut layer_entries = Vec::new();
                         if let Some(le_arr) = p.get("layer_entries").and_then(|v| v.as_array()) {
                             for le_val in le_arr {
@@ -1168,19 +1217,11 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                                         .map(str::to_owned)
                                 };
                                 let width_nm =
-                                    le.get("width").and_then(|v| v.as_i64()).unwrap_or(0);
-                                let diff_pair_gap_nm = le
-                                    .get("diff_pair_gap")
-                                    .and_then(|v| v.as_i64())
-                                    .unwrap_or(0);
+                                    json_nonneg_rounded_i64_field(le, "width", false, 0)?;
+                                let diff_pair_gap_nm =
+                                    json_nonneg_rounded_i64_field(le, "diff_pair_gap", false, 0)?;
                                 let delay_as_per_mm =
-                                    le.get("delay").and_then(|v| v.as_i64()).unwrap_or(0);
-                                if width_nm < 0 || diff_pair_gap_nm < 0 || delay_as_per_mm < 0 {
-                                    return Err(Failure::new(
-                                        Status::Invalid,
-                                        ".kicad_pro layer_entry dimensions/delay must be nonnegative",
-                                    ));
-                                }
+                                    json_nonneg_rounded_i64_field(le, "delay", false, 0)?;
                                 layer_entries.push(TuningProfileLayerEntry {
                                     signal_layer,
                                     top_reference_layer: clean_ref("top_reference_layer"),
@@ -1194,60 +1235,55 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                         let mut via_overrides = Vec::new();
                         if let Some(vo_arr) = p.get("via_overrides").and_then(|v| v.as_array()) {
                             for vo_val in vo_arr {
-                                if let Some(vo) = vo_val.as_object() {
-                                    let via_diameter_nm = vo
-                                        .get("via_diameter")
-                                        .and_then(|v| v.as_i64())
-                                        .unwrap_or(0);
-                                    let signal_layer_from = vo
-                                        .get("signal_layer_from")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("")
-                                        .to_owned();
-                                    let signal_layer_to = vo
-                                        .get("signal_layer_to")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("")
-                                        .to_owned();
-                                    let via_layer_from = vo
-                                        .get("via_layer_from")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("")
-                                        .to_owned();
-                                    let via_layer_to = vo
-                                        .get("via_layer_to")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("")
-                                        .to_owned();
-                                    let start_layer = vo
-                                        .get("start_layer")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("")
-                                        .to_owned();
-                                    let end_layer = vo
-                                        .get("end_layer")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("")
-                                        .to_owned();
-                                    let delay_as =
-                                        vo.get("delay").and_then(|v| v.as_i64()).unwrap_or(0);
-                                    if delay_as < 0 || via_diameter_nm < 0 {
-                                        return Err(Failure::new(
-                                            Status::Invalid,
-                                            ".kicad_pro via_override values must be nonnegative",
-                                        ));
-                                    }
-                                    via_overrides.push(TuningViaOverride {
-                                        via_diameter_nm,
-                                        start_layer,
-                                        end_layer,
-                                        signal_layer_from,
-                                        signal_layer_to,
-                                        via_layer_from,
-                                        via_layer_to,
-                                        delay_as,
-                                    });
-                                }
+                                let vo = vo_val.as_object().ok_or_else(|| {
+                                    Failure::new(
+                                        Status::Invalid,
+                                        ".kicad_pro via_override entry must be an object",
+                                    )
+                                })?;
+                                let via_diameter_nm =
+                                    json_nonneg_rounded_i64_field(vo, "via_diameter", false, 0)?;
+                                let signal_layer_from = vo
+                                    .get("signal_layer_from")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let signal_layer_to = vo
+                                    .get("signal_layer_to")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let via_layer_from = vo
+                                    .get("via_layer_from")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let via_layer_to = vo
+                                    .get("via_layer_to")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let start_layer = vo
+                                    .get("start_layer")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let end_layer = vo
+                                    .get("end_layer")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                let delay_as = json_nonneg_rounded_i64_field(vo, "delay", true, 0)?;
+                                via_overrides.push(TuningViaOverride {
+                                    via_diameter_nm,
+                                    start_layer,
+                                    end_layer,
+                                    signal_layer_from,
+                                    signal_layer_to,
+                                    via_layer_from,
+                                    via_layer_to,
+                                    delay_as,
+                                });
                             }
                         }
                         tuning_profiles.push(TuningProfile {
@@ -4636,5 +4672,111 @@ mod tests {
         assert_eq!(ov.via_layer_to, "B.Cu");
         assert_eq!(ov.via_diameter_nm, 500_000);
         assert_eq!(ov.delay_as, 90_000_000);
+    }
+
+    #[test]
+    fn tuning_profiles_float_and_malformed_numeric_fields() {
+        let mk_pro =
+            |via_prop_delay: serde_json::Value, le: serde_json::Value, vo: serde_json::Value| {
+                serde_json::json!({
+                    "meta": {"version": 3},
+                    "tuning_profiles": {
+                        "tuning_profiles_impedance_geometric": [{
+                            "profile_name": "P1",
+                            "type": 0.0,
+                            "target_impedance": 50.0,
+                            "enable_time_domain_tuning": true,
+                            "via_prop_delay": via_prop_delay,
+                            "layer_entries": [le],
+                            "via_overrides": [vo]
+                        }]
+                    }
+                })
+                .to_string()
+            };
+        let valid = mk_pro(
+            serde_json::json!(9e7),
+            serde_json::json!({
+                "signal_layer": "F.Cu",
+                "width": 250_000.0,
+                "diff_pair_gap": 150_000.0,
+                "delay": 6_000_000.6
+            }),
+            serde_json::json!({
+                "signal_layer_from": "F.Cu",
+                "signal_layer_to": "In2.Cu",
+                "via_layer_from": "F.Cu",
+                "via_layer_to": "B.Cu",
+                "via_diameter": 600_000.0,
+                "delay": 90_000_000.6
+            }),
+        );
+        let parsed = parse_kicad_pro(valid.as_bytes()).unwrap();
+        let prof = &parsed.tuning_profiles[0];
+        assert_eq!(prof.target_impedance_ohm, 50);
+        assert_eq!(prof.via_prop_delay_as_per_mm, 90_000_000);
+        assert_eq!(prof.layer_entries[0].width_nm, 250_000);
+        assert_eq!(prof.layer_entries[0].diff_pair_gap_nm, 150_000);
+        assert_eq!(prof.layer_entries[0].delay_as_per_mm, 6_000_001);
+        assert_eq!(prof.via_overrides[0].via_diameter_nm, 600_000);
+        assert_eq!(prof.via_overrides[0].delay_as, 90_000_001);
+
+        let ok_le =
+            serde_json::json!({"signal_layer": "F.Cu", "width": 250_000, "delay": 6_000_000});
+        let ok_vo = serde_json::json!({
+            "signal_layer_from": "F.Cu",
+            "signal_layer_to": "B.Cu",
+            "via_layer_from": "F.Cu",
+            "via_layer_to": "B.Cu",
+            "delay": 90_000_000
+        });
+        for bad_delay in [
+            serde_json::json!(-1.0),
+            serde_json::json!(-0.4),
+            serde_json::json!("90000000"),
+            serde_json::Value::Null,
+            serde_json::json!(true),
+        ] {
+            let bad_vo = serde_json::json!({
+                "signal_layer_from": "F.Cu",
+                "signal_layer_to": "B.Cu",
+                "via_layer_from": "F.Cu",
+                "via_layer_to": "B.Cu",
+                "delay": bad_delay
+            });
+            let s = mk_pro(serde_json::json!(7_500_000), ok_le.clone(), bad_vo);
+            assert_eq!(
+                parse_kicad_pro(s.as_bytes()).unwrap_err().status,
+                Status::Invalid
+            );
+        }
+        // Omitted via_overrides[].delay must fail closed Invalid
+        let missing_delay_vo = serde_json::json!({
+            "signal_layer_from": "F.Cu",
+            "signal_layer_to": "B.Cu",
+            "via_layer_from": "F.Cu",
+            "via_layer_to": "B.Cu"
+        });
+        let s_missing = mk_pro(
+            serde_json::json!(7_500_000),
+            ok_le.clone(),
+            missing_delay_vo,
+        );
+        assert_eq!(
+            parse_kicad_pro(s_missing.as_bytes()).unwrap_err().status,
+            Status::Invalid
+        );
+        // Negative float on via_prop_delay and layer_entries[].delay must also fail Invalid
+        let s_bad_vp = mk_pro(serde_json::json!(-0.4), ok_le, ok_vo.clone());
+        assert_eq!(
+            parse_kicad_pro(s_bad_vp.as_bytes()).unwrap_err().status,
+            Status::Invalid
+        );
+        let bad_le = serde_json::json!({"signal_layer": "F.Cu", "width": 250_000, "delay": -0.4});
+        let s_bad_le = mk_pro(serde_json::json!(7_500_000), bad_le, ok_vo);
+        assert_eq!(
+            parse_kicad_pro(s_bad_le.as_bytes()).unwrap_err().status,
+            Status::Invalid
+        );
     }
 }
