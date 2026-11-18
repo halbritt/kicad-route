@@ -53,17 +53,43 @@ fn is_zero_i64(v: &i64) -> bool {
     *v == 0
 }
 
+pub(crate) fn default_front_layer() -> String {
+    "F.Cu".to_owned()
+}
+
+pub(crate) fn is_front_layer(layer: &str) -> bool {
+    layer == "F.Cu"
+}
+
+fn deserialize_rules_or_omitted<'de, D>(deserializer: D) -> Result<Rules, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<Rules>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_else(Rules::omitted_sentinel))
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Input {
     pub version: u32,
     pub source_id: String,
     pub layer: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<String>,
     pub bounds: Bounds,
+    #[serde(
+        default = "Rules::omitted_sentinel",
+        deserialize_with = "deserialize_rules_or_omitted"
+    )]
     pub rules: Rules,
     pub nets: Vec<Net>,
     pub pads: Vec<Pad>,
     pub tracks: Vec<Track>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vias: Vec<Via>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rule_areas: Vec<RuleArea>,
     pub max_expansions: u64,
     #[serde(default)]
     pub limits: Limits,
@@ -75,6 +101,14 @@ pub struct Input {
     pub graphics: Vec<CopperGraphic>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mask_apertures: Vec<MaskAperture>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board_design_settings: Option<crate::rules::BoardDesignSettings>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_rules: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_rules: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_rules: Option<crate::rules::EffectiveRules>,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -99,6 +133,24 @@ pub struct Rules {
     pub solder_mask_min_width_nm: i64,
     #[serde(default, skip_serializing_if = "is_zero_i64")]
     pub solder_mask_to_copper_clearance_nm: i64,
+}
+impl Rules {
+    pub(crate) fn omitted_sentinel() -> Self {
+        Self {
+            width_nm: i64::MIN,
+            clearance_nm: 0,
+            grid_nm: i64::MIN,
+            edge_clearance_nm: 0,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        }
+    }
+    pub(crate) fn is_omitted(&self) -> bool {
+        self.width_nm == i64::MIN && self.grid_nm == i64::MIN
+    }
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -287,6 +339,10 @@ pub struct Pad {
     pub shape: Shape,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drill: Option<DrillShape>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_clearance_nm: Option<i64>,
 }
 impl Pad {
     pub fn copper_center(&self) -> Point {
@@ -413,6 +469,42 @@ pub struct Track {
     pub end: Point,
     pub width_nm: i64,
     pub locked: bool,
+    #[serde(
+        default = "default_front_layer",
+        skip_serializing_if = "is_front_layer"
+    )]
+    pub layer: String,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ViaKind {
+    Through,
+    BlindBuried,
+    Micro,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Via {
+    pub id: String,
+    pub net: u32,
+    pub at: Point,
+    pub diameter_nm: i64,
+    pub drill_nm: i64,
+    pub start_layer: String,
+    pub end_layer: String,
+    pub kind: ViaKind,
+    pub locked: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuleArea {
+    pub id: String,
+    pub layers: Vec<String>,
+    pub outer: Vec<Point>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub holes: Vec<Vec<Point>>,
+    pub no_tracks: bool,
+    pub no_vias: bool,
 }
 impl Track {
     /// Outward copper envelope for an admitted track, including odd-nm widths
@@ -446,6 +538,8 @@ pub struct Output {
     pub source_id: String,
     pub status: Status,
     pub added_tracks: Vec<Track>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub added_vias: Vec<Via>,
     pub removed_track_ids: Vec<String>,
     pub expanded_states: u64,
     pub work_used: u64,
@@ -481,6 +575,14 @@ pub fn canonical_uuid(id: &str) -> bool {
         && id.bytes().any(|b| b != b'0' && b != b'-')
 }
 impl Input {
+    pub fn active_layers(&self) -> Vec<String> {
+        if self.layers.is_empty() {
+            vec![self.layer.clone()]
+        } else {
+            self.layers.clone()
+        }
+    }
+
     pub fn validate(&self) -> Result<(), Failure> {
         self.limits.validate()?;
         if self
@@ -488,6 +590,8 @@ impl Input {
             .len()
             .saturating_add(self.pads.len())
             .saturating_add(self.tracks.len())
+            .saturating_add(self.vias.len())
+            .saturating_add(self.rule_areas.len())
             .saturating_add(self.holes.len())
             .saturating_add(self.graphics.len())
             .saturating_add(self.mask_apertures.len())
@@ -503,9 +607,48 @@ impl Input {
         if self.version != INPUT_VERSION {
             return Err(unsupported("only input version 1 is supported"));
         }
-        if self.layer != "F.Cu" {
-            return Err(unsupported("only F.Cu routing is supported"));
-        }
+        let active_layers: Vec<String> = if self.layers.is_empty() {
+            if self.layer != "F.Cu" {
+                return Err(unsupported(
+                    "only F.Cu routing is supported without stackup layers",
+                ));
+            }
+            vec![self.layer.clone()]
+        } else {
+            if self.layers.len() > 32 {
+                return Err(unsupported(
+                    "board copper stackup supports at most 32 layers",
+                ));
+            }
+            if self.layers[0] != "F.Cu" {
+                return Err(unsupported("copper stackup must start at F.Cu"));
+            }
+            if self.layers.len() >= 2 && self.layers.last().map(String::as_str) != Some("B.Cu") {
+                return Err(unsupported("multi-layer copper stackup must end at B.Cu"));
+            }
+            let mut seen_layers = BTreeSet::new();
+            for (idx, lname) in self.layers.iter().enumerate() {
+                if !seen_layers.insert(lname.as_str()) {
+                    return Err(invalid("duplicate layer in copper stackup"));
+                }
+                if idx > 0 && idx + 1 < self.layers.len() {
+                    let valid_inner = lname
+                        .strip_prefix("In")
+                        .and_then(|s| s.strip_suffix(".Cu"))
+                        .and_then(|n| n.parse::<u32>().ok())
+                        .is_some_and(|n| (1..=30).contains(&n));
+                    if !valid_inner {
+                        return Err(unsupported("unsupported inner copper layer name"));
+                    }
+                }
+            }
+            if !self.layers.contains(&self.layer) {
+                return Err(unsupported("input.layer must be in active copper stackup"));
+            }
+            self.layers.clone()
+        };
+        let layer_idx_of =
+            |name: &str| -> Option<usize> { active_layers.iter().position(|l| l == name) };
         if self.source_id.len() != 64
             || !self
                 .source_id
@@ -601,6 +744,16 @@ impl Input {
                 return Err(invalid(
                     "pad identity, net membership or position is invalid",
                 ));
+            }
+            if let Some(lc) = p.local_clearance_nm {
+                if !(0..=MAX_NM).contains(&lc) {
+                    return Err(invalid("pad local_clearance_nm must be 0..=100000000 nm"));
+                }
+            }
+            for pl in &p.layers {
+                if layer_idx_of(pl).is_none() {
+                    return Err(unsupported("pad layer is not in active board stackup"));
+                }
             }
             match &p.shape {
                 Shape::Circle { radius_nm } => {
@@ -703,6 +856,99 @@ impl Input {
                 return Err(invalid(
                     "track identity, net membership, endpoints or width is invalid",
                 ));
+            }
+            if layer_idx_of(&t.layer).is_none() {
+                return Err(unsupported("track layer is not in active board stackup"));
+            }
+        }
+        for v in &self.vias {
+            if !canonical_uuid(&v.id)
+                || !ids.insert(&v.id)
+                || (v.net != 0 && !nets.contains(&v.net))
+                || !inside(v.at)
+                || !(1..=2 * MAX_NM).contains(&v.drill_nm)
+                || !(v.drill_nm + 1..=2 * MAX_NM).contains(&v.diameter_nm)
+            {
+                return Err(invalid(
+                    "via identity, net membership, position, or dimensions are invalid",
+                ));
+            }
+            let Some(s_idx) = layer_idx_of(&v.start_layer) else {
+                return Err(unsupported(
+                    "via start_layer is not in active board stackup",
+                ));
+            };
+            let Some(e_idx) = layer_idx_of(&v.end_layer) else {
+                return Err(unsupported("via end_layer is not in active board stackup"));
+            };
+            if s_idx >= e_idx {
+                return Err(invalid("via start_layer must precede end_layer in stackup"));
+            }
+            match v.kind {
+                ViaKind::Through => {
+                    if s_idx != 0 || e_idx + 1 != active_layers.len() {
+                        return Err(invalid("through via must span first to last copper layer"));
+                    }
+                }
+                ViaKind::BlindBuried => {
+                    if s_idx == 0 && e_idx + 1 == active_layers.len() {
+                        return Err(invalid("blind/buried via cannot span full through stackup"));
+                    }
+                }
+                ViaKind::Micro => {
+                    if e_idx != s_idx + 1 || (s_idx != 0 && e_idx + 1 != active_layers.len()) {
+                        return Err(unsupported(
+                            "microvia must span adjacent outer-to-inner layer",
+                        ));
+                    }
+                }
+            }
+        }
+        for ra in &self.rule_areas {
+            if !canonical_uuid(&ra.id) || !ids.insert(&ra.id) || ra.layers.is_empty() {
+                return Err(invalid("rule_area identity or layers are invalid"));
+            }
+            for l in &ra.layers {
+                if layer_idx_of(l).is_none() {
+                    return Err(unsupported(
+                        "rule_area layer is not in active board stackup",
+                    ));
+                }
+            }
+            if ra.outer.len() < 3
+                || !ra.outer.iter().all(|p| bounded_pt(*p))
+                || !crate::geometry::is_valid_simple_ring(&ra.outer)
+            {
+                return Err(invalid("rule_area outer polygon is invalid"));
+            }
+            let mut rings: Vec<&[Point]> = vec![&ra.outer];
+            for hole in &ra.holes {
+                if hole.len() < 3
+                    || !hole.iter().all(|p| bounded_pt(*p))
+                    || !crate::geometry::is_valid_simple_ring(hole)
+                {
+                    return Err(invalid("rule_area hole polygon is invalid"));
+                }
+                rings.push(hole);
+            }
+            let total_verts: usize = rings.iter().map(|r| r.len()).sum();
+            if total_verts > 65_536 {
+                return Err(Failure::new(
+                    Status::AdmissionExceeded,
+                    "rule_area vertex limit exceeded",
+                ));
+            }
+            for i in 0..rings.len() {
+                for j in (i + 1)..rings.len() {
+                    if crate::geometry::rings_cross(rings[i], rings[j]) {
+                        return Err(invalid("rule_area rings must not cross"));
+                    }
+                }
+            }
+            for hole in &ra.holes {
+                if !crate::geometry::point_in_simple_polygon(hole[0], &ra.outer) {
+                    return Err(invalid("rule_area hole must lie inside outer ring"));
+                }
             }
         }
         if let Some(outline) = &self.board_outline {
@@ -871,8 +1117,10 @@ impl Input {
             {
                 return Err(invalid("graphic identity or net membership is invalid"));
             }
-            if g.layer != "F.Cu" && g.layer != "B.Cu" {
-                return Err(unsupported("copper graphics only support F.Cu and B.Cu"));
+            if layer_idx_of(&g.layer).is_none() {
+                return Err(unsupported(
+                    "copper graphic layer is not in active board stackup",
+                ));
             }
             validate_graphic_shape(&g.shape)?;
         }

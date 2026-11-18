@@ -241,7 +241,8 @@ impl OperationStatus {
 pub struct OperationConfig {
     pub source: PathBuf,
     pub output: PathBuf,
-    pub rules: PathBuf,
+    pub rules: Option<PathBuf>,
+    pub project: Option<PathBuf>,
     pub limits: Option<PathBuf>,
     pub max_expansions: u64,
     pub operation_result: Option<PathBuf>,
@@ -280,8 +281,16 @@ pub struct SourceRecord {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestRecord {
-    pub rules_path: String,
+    pub rules_path: Option<String>,
     pub rules_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dru_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dru_sha256: Option<String>,
     pub limits_path: Option<String>,
     pub limits_sha256: Option<String>,
     pub max_expansions: u64,
@@ -332,6 +341,8 @@ pub struct RoutingSummary {
     pub expanded_states: u64,
     pub work_used: u64,
     pub added_track_count: usize,
+    #[serde(default)]
+    pub added_via_count: usize,
     pub removed_track_count: usize,
     pub request_sha256: Option<String>,
 }
@@ -387,6 +398,8 @@ struct ApplyValidationReport {
     after_unconnected_count: u64,
     introduced_violation_count: u64,
     added_track_count: usize,
+    #[serde(default)]
+    added_via_count: usize,
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -621,13 +634,29 @@ fn resolve_native_bridge(explicit: Option<&Path>) -> Result<PathBuf, String> {
     Err("cannot locate tools/rust_engine_kicad.py; pass --native-bridge".to_owned())
 }
 
+fn is_canonical_board_alias(path: &Path, canonical: Option<&Path>) -> bool {
+    let Some(canon) = canonical else {
+        return false;
+    };
+    if path == canon {
+        return true;
+    }
+    if path.file_name() != canon.file_name() {
+        return false;
+    }
+    let parent = parent_dir_or_dot(path);
+    fs::canonicalize(parent).ok().as_deref() == canon.parent()
+}
+
 fn check_sidecar_at(
     path: &Path,
+    canonical: Option<&Path>,
     check: &mut SidecarCheck,
 ) -> Result<(), (OperationStatus, String)> {
     if path.file_name().is_none() {
         return Ok(());
     }
+    let is_canon = is_canonical_board_alias(path, canonical);
     for (ext, flag) in [
         ("kicad_pro", &mut check.kicad_pro_present),
         ("kicad_dru", &mut check.kicad_dru_present),
@@ -636,6 +665,15 @@ fn check_sidecar_at(
         match fs::symlink_metadata(&sidecar) {
             Ok(_) => {
                 *flag = true;
+                if !is_canon {
+                    return Err((
+                        OperationStatus::Unsupported,
+                        format!(
+                            "ambiguous symlink-hop .{ext} sidecar shadows canonical board: {}",
+                            sidecar.display()
+                        ),
+                    ));
+                }
             }
             Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) => {
@@ -665,7 +703,7 @@ fn check_source_sidecars(
 
     for hop in 0..=MAX_SYMLINK_HOPS {
         if seen.insert(cur.clone()) {
-            if let Err(err) = check_sidecar_at(&cur, &mut check) {
+            if let Err(err) = check_sidecar_at(&cur, canonical, &mut check) {
                 return (check, Err(err));
             }
         }
@@ -674,7 +712,7 @@ fn check_source_sidecars(
         if let (Some(name), Some(cp)) = (cur.file_name(), canon_parent.as_ref()) {
             let norm_cur = cp.join(name);
             if seen.insert(norm_cur.clone()) {
-                if let Err(err) = check_sidecar_at(&norm_cur, &mut check) {
+                if let Err(err) = check_sidecar_at(&norm_cur, canonical, &mut check) {
                     return (check, Err(err));
                 }
             }
@@ -729,25 +767,10 @@ fn check_source_sidecars(
     if let Some(canon) = canonical {
         check.checked_canonical_path = true;
         if seen.insert(canon.to_path_buf()) {
-            if let Err(err) = check_sidecar_at(canon, &mut check) {
+            if let Err(err) = check_sidecar_at(canon, canonical, &mut check) {
                 return (check, Err(err));
             }
         }
-    }
-    if check.kicad_pro_present || check.kicad_dru_present {
-        let which = match (check.kicad_pro_present, check.kicad_dru_present) {
-            (true, true) => ".kicad_pro and .kicad_dru",
-            (true, false) => ".kicad_pro",
-            (false, true) => ".kicad_dru",
-            _ => unreachable!(),
-        };
-        return (
-            check,
-            Err((
-                OperationStatus::Unsupported,
-                format!("project/custom-rule import is not implemented: {which}"),
-            )),
-        );
     }
     check.passed = true;
     (check, Ok(()))
@@ -1237,8 +1260,12 @@ fn run_native_with_hooks(
             snapshot_sha256: None,
         },
         request: RequestRecord {
-            rules_path: config.rules.display().to_string(),
+            rules_path: config.rules.as_ref().map(|p| p.display().to_string()),
             rules_sha256: None,
+            project_path: config.project.as_ref().map(|p| p.display().to_string()),
+            project_sha256: None,
+            dru_path: None,
+            dru_sha256: None,
             limits_path: config.limits.as_ref().map(|p| p.display().to_string()),
             limits_sha256: None,
             max_expansions: config.max_expansions,
@@ -1327,11 +1354,24 @@ fn run_native_with_hooks(
     result
 }
 
+#[derive(Debug)]
+struct AdmittedSource {
+    source_bytes: Vec<u8>,
+    source_sha256: String,
+    project_bytes: Option<Vec<u8>>,
+    project_sha256: Option<String>,
+    project_canonical: Option<PathBuf>,
+    dru_bytes: Option<Vec<u8>>,
+    dru_sha256: Option<String>,
+}
+
 struct AdmittedInputs {
     bridge_path: PathBuf,
     source_bytes: Vec<u8>,
     source_sha256: String,
-    rules_bytes: Vec<u8>,
+    rules_bytes: Option<Vec<u8>>,
+    project_bytes: Option<Vec<u8>>,
+    dru_bytes: Option<Vec<u8>>,
     limits_bytes: Option<Vec<u8>>,
 }
 
@@ -1381,12 +1421,13 @@ fn check_operation_result_preflight(config: &OperationConfig, bridge_path: Optio
     if check_output_preflight(op_result_path, "operation-result").is_err() {
         return false;
     }
-    let mut others: Vec<&Path> = vec![
-        &config.source,
-        &config.rules,
-        &config.output,
-        &config.python,
-    ];
+    let mut others: Vec<&Path> = vec![&config.source, &config.output, &config.python];
+    if let Some(r) = &config.rules {
+        others.push(r);
+    }
+    if let Some(p) = &config.project {
+        others.push(p);
+    }
     if let Some(l) = &config.limits {
         others.push(l);
     }
@@ -1399,11 +1440,89 @@ fn check_operation_result_preflight(config: &OperationConfig, bridge_path: Optio
     !others.iter().any(|p| paths_may_alias(op_result_path, p))
 }
 
+fn admit_optional_sidecar(
+    path: &Path,
+    present: bool,
+    label: &str,
+) -> Result<Option<(Vec<u8>, fs::Metadata, PathBuf)>, (OperationStatus, String)> {
+    if !present {
+        return Ok(None);
+    }
+    let (bytes, meta) = read_bounded_regular_with_meta(path, MAX_REQUEST_BYTES, label)
+        .map_err(BoundedReadError::into_status)?;
+    let canon = fs::canonicalize(path).map_err(|e| {
+        (
+            OperationStatus::Invalid,
+            format!("cannot resolve {label} {}: {e}", path.display()),
+        )
+    })?;
+    Ok(Some((bytes, meta, canon)))
+}
+
+fn verify_sidecar_unchanged(
+    path: &Path,
+    present_after: bool,
+    pre: &Option<(Vec<u8>, fs::Metadata, PathBuf)>,
+    label: &str,
+) -> Result<(), (OperationStatus, String)> {
+    match (pre, present_after) {
+        (None, false) => Ok(()),
+        (None, true) => Err((
+            OperationStatus::Invalid,
+            format!("{label} appeared during read: {}", path.display()),
+        )),
+        (Some(_), false) => Err((
+            OperationStatus::Invalid,
+            format!("{label} disappeared during read: {}", path.display()),
+        )),
+        (Some((_, pre_meta, pre_canon)), true) => {
+            let post_canon = fs::canonicalize(path).map_err(|e| {
+                (
+                    OperationStatus::Invalid,
+                    format!("cannot re-resolve {label} {}: {e}", path.display()),
+                )
+            })?;
+            if &post_canon != pre_canon {
+                return Err((
+                    OperationStatus::Invalid,
+                    format!(
+                        "{label} symlink/path changed during read: {} -> {}",
+                        pre_canon.display(),
+                        post_canon.display()
+                    ),
+                ));
+            }
+            let post_meta = fs::metadata(&post_canon).map_err(|e| {
+                (
+                    OperationStatus::Invalid,
+                    format!(
+                        "cannot inspect resolved {label} {}: {e}",
+                        post_canon.display()
+                    ),
+                )
+            })?;
+            #[cfg(unix)]
+            if (pre_meta.dev(), pre_meta.ino()) != (post_meta.dev(), post_meta.ino()) {
+                return Err((
+                    OperationStatus::Invalid,
+                    format!(
+                        "{label} changed during read (device/inode mismatch): {}",
+                        path.display()
+                    ),
+                ));
+            }
+            #[cfg(not(unix))]
+            let _ = (pre_meta, post_meta);
+            Ok(())
+        }
+    }
+}
+
 fn admit_source_board_with_hook(
     source: &Path,
     result: &mut OperationResult,
     after_read_hook: Option<&mut dyn FnMut()>,
-) -> Result<(Vec<u8>, String), (OperationStatus, String)> {
+) -> Result<AdmittedSource, (OperationStatus, String)> {
     let canon_source = fs::canonicalize(source).map_err(|e| {
         (
             OperationStatus::Invalid,
@@ -1413,12 +1532,36 @@ fn admit_source_board_with_hook(
     result.source.canonical_path = Some(canon_source.display().to_string());
 
     let (sidecar_check, sidecar_res) = check_source_sidecars(source, Some(&canon_source));
-    result.source.sidecar_check = sidecar_check;
+    result.source.sidecar_check = sidecar_check.clone();
     sidecar_res?;
 
     let (source_bytes, open_meta) =
         read_bounded_regular_with_meta(source, MAX_REQUEST_BYTES, "source board")
             .map_err(BoundedReadError::into_status)?;
+    let pro_path = canon_source.with_extension("kicad_pro");
+    let dru_path = canon_source.with_extension("kicad_dru");
+    let pre_pro = match admit_optional_sidecar(
+        &pro_path,
+        sidecar_check.kicad_pro_present,
+        "project sidecar (.kicad_pro)",
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            result.source.sidecar_check.passed = false;
+            return Err(e);
+        }
+    };
+    let pre_dru = match admit_optional_sidecar(
+        &dru_path,
+        sidecar_check.kicad_dru_present,
+        "custom rules sidecar (.kicad_dru)",
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            result.source.sidecar_check.passed = false;
+            return Err(e);
+        }
+    };
 
     if let Some(hook) = after_read_hook {
         hook();
@@ -1431,7 +1574,7 @@ fn admit_source_board_with_hook(
         )
     })?;
     let (recheck, recheck_res) = check_source_sidecars(source, Some(&canon_after));
-    result.source.sidecar_check = recheck;
+    result.source.sidecar_check = recheck.clone();
     recheck_res?;
 
     if canon_after != canon_source {
@@ -1466,10 +1609,51 @@ fn admit_source_board_with_hook(
     #[cfg(not(unix))]
     let _ = (open_meta, canon_meta);
 
+    if let Err(e) = verify_sidecar_unchanged(
+        &canon_after.with_extension("kicad_pro"),
+        recheck.kicad_pro_present,
+        &pre_pro,
+        "project sidecar (.kicad_pro)",
+    ) {
+        result.source.sidecar_check.passed = false;
+        return Err(e);
+    }
+    if let Err(e) = verify_sidecar_unchanged(
+        &canon_after.with_extension("kicad_dru"),
+        recheck.kicad_dru_present,
+        &pre_dru,
+        "custom rules sidecar (.kicad_dru)",
+    ) {
+        result.source.sidecar_check.passed = false;
+        return Err(e);
+    }
+
     let source_sha256 = sha256_hex(&source_bytes);
     result.source.source_sha256 = Some(source_sha256.clone());
     result.source.source_bytes = Some(source_bytes.len() as u64);
-    Ok((source_bytes, source_sha256))
+    let (project_bytes, project_sha256, project_canonical) = match pre_pro {
+        Some((b, _, c)) => {
+            let sha = sha256_hex(&b);
+            (Some(b), Some(sha), Some(c))
+        }
+        None => (None, None, None),
+    };
+    let (dru_bytes, dru_sha256) = match pre_dru {
+        Some((b, _, _)) => {
+            let sha = sha256_hex(&b);
+            (Some(b), Some(sha))
+        }
+        None => (None, None),
+    };
+    Ok(AdmittedSource {
+        source_bytes,
+        source_sha256,
+        project_bytes,
+        project_sha256,
+        project_canonical,
+        dru_bytes,
+        dru_sha256,
+    })
 }
 
 fn phase_pre_snapshot_admission(
@@ -1511,10 +1695,15 @@ fn phase_pre_snapshot_admission(
 
         let mut inputs: Vec<(&Path, &str)> = vec![
             (&config.source, "source"),
-            (&config.rules, "rules"),
             (&bridge_path, "native-bridge"),
             (&config.python, "python"),
         ];
+        if let Some(rp) = &config.rules {
+            inputs.push((rp, "rules"));
+        }
+        if let Some(pp) = &config.project {
+            inputs.push((pp, "project"));
+        }
         if let Some(lim) = &config.limits {
             inputs.push((lim, "limits"));
         }
@@ -1549,12 +1738,90 @@ fn phase_pre_snapshot_admission(
             check_output_preflight(out_p, out_lbl)?;
         }
 
-        let (source_bytes, source_sha256) =
-            admit_source_board_with_hook(&config.source, result, None)?;
+        let admitted_source = admit_source_board_with_hook(&config.source, result, None)?;
 
-        let rules_bytes = read_bounded_regular(&config.rules, MAX_REQUEST_BYTES, "rules")
-            .map_err(BoundedReadError::into_status)?;
-        result.request.rules_sha256 = Some(sha256_hex(&rules_bytes));
+        if let Some(proj) = &config.project {
+            let ext_ok = proj.extension().and_then(|e| e.to_str()) == Some("kicad_pro");
+            if !ext_ok || proj.file_stem() != config.source.file_stem() {
+                return Err((
+                    OperationStatus::Invalid,
+                    format!(
+                        "--project {} must be a .kicad_pro file matching source board stem",
+                        proj.display()
+                    ),
+                ));
+            }
+            let _ = read_bounded_regular(proj, MAX_REQUEST_BYTES, "project rules (--project)")
+                .map_err(BoundedReadError::into_status)?;
+            let canon_proj = fs::canonicalize(proj).map_err(|e| {
+                (
+                    OperationStatus::Invalid,
+                    format!("cannot resolve --project {}: {e}", proj.display()),
+                )
+            })?;
+            let canon_src_dir = result
+                .source
+                .canonical_path
+                .as_deref()
+                .and_then(|s| Path::new(s).parent());
+            let proj_parent_canon = proj
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new("."))
+                .canonicalize()
+                .ok();
+            let same_dir = proj_parent_canon.as_deref() == canon_src_dir;
+            let matches_sidecar = admitted_source.project_canonical.as_ref() == Some(&canon_proj);
+            if !same_dir && !matches_sidecar {
+                return Err((
+                    OperationStatus::Invalid,
+                    format!(
+                        "--project {} does not match source board directory",
+                        proj.display()
+                    ),
+                ));
+            }
+            result.request.project_path = Some(proj.display().to_string());
+        }
+
+        if let Some(pro_bytes) = &admitted_source.project_bytes {
+            crate::rules::parse_kicad_pro(pro_bytes)
+                .map_err(|f| (map_routing_status(f.status), f.reason))?;
+            if result.request.project_path.is_none() {
+                if let Some(canon_src) = &result.source.canonical_path {
+                    result.request.project_path = Some(
+                        Path::new(canon_src)
+                            .with_extension("kicad_pro")
+                            .display()
+                            .to_string(),
+                    );
+                }
+            }
+            result.request.project_sha256 = admitted_source.project_sha256.clone();
+        }
+        if let Some(dru_bytes) = &admitted_source.dru_bytes {
+            crate::rules::parse_kicad_dru(dru_bytes)
+                .map_err(|f| (map_routing_status(f.status), f.reason))?;
+            if let Some(canon_src) = &result.source.canonical_path {
+                result.request.dru_path = Some(
+                    Path::new(canon_src)
+                        .with_extension("kicad_dru")
+                        .display()
+                        .to_string(),
+                );
+            }
+            result.request.dru_sha256 = admitted_source.dru_sha256.clone();
+        }
+
+        let rules_bytes = match &config.rules {
+            Some(rp) => {
+                let rb = read_bounded_regular(rp, MAX_REQUEST_BYTES, "rules")
+                    .map_err(BoundedReadError::into_status)?;
+                result.request.rules_sha256 = Some(sha256_hex(&rb));
+                Some(rb)
+            }
+            None => None,
+        };
 
         let limits_bytes = match &config.limits {
             Some(lp) => {
@@ -1569,9 +1836,11 @@ fn phase_pre_snapshot_admission(
 
         Ok(AdmittedInputs {
             bridge_path,
-            source_bytes,
-            source_sha256,
+            source_bytes: admitted_source.source_bytes,
+            source_sha256: admitted_source.source_sha256,
             rules_bytes,
+            project_bytes: admitted_source.project_bytes,
+            dru_bytes: admitted_source.dru_bytes,
             limits_bytes,
         })
     })();
@@ -1636,14 +1905,33 @@ fn execute_phases(
     result.staging.cleaned_up = false;
 
     let staged_source = staging_dir.join("source.kicad_pcb");
-    let staged_rules = staging_dir.join("rules.json");
+    let staged_rules = admitted
+        .rules_bytes
+        .as_ref()
+        .map(|_| staging_dir.join("rules.json"));
+    let staged_pro = admitted
+        .project_bytes
+        .as_ref()
+        .map(|_| staging_dir.join("source.kicad_pro"));
+    let staged_dru = admitted
+        .dru_bytes
+        .as_ref()
+        .map(|_| staging_dir.join("source.kicad_dru"));
     let staged_limits = admitted
         .limits_bytes
         .as_ref()
         .map(|_| staging_dir.join("limits.json"));
     let stage_write_res = (|| -> std::io::Result<()> {
         write_file_create_new(&staged_source, &admitted.source_bytes, 0o600)?;
-        write_file_create_new(&staged_rules, &admitted.rules_bytes, 0o600)?;
+        if let (Some(rp), Some(rb)) = (&staged_rules, &admitted.rules_bytes) {
+            write_file_create_new(rp, rb, 0o600)?;
+        }
+        if let (Some(pp), Some(pb)) = (&staged_pro, &admitted.project_bytes) {
+            write_file_create_new(pp, pb, 0o600)?;
+        }
+        if let (Some(dp), Some(db)) = (&staged_dru, &admitted.dru_bytes) {
+            write_file_create_new(dp, db, 0o600)?;
+        }
         if let (Some(lp), Some(lb)) = (&staged_limits, &admitted.limits_bytes) {
             write_file_create_new(lp, lb, 0o600)?;
         }
@@ -1677,7 +1965,8 @@ fn execute_phases(
         &admitted,
         &staging_dir,
         &staged_source,
-        &staged_rules,
+        staged_rules.as_deref(),
+        staged_pro.as_deref(),
         staged_limits.as_deref(),
         result,
         &mut hooks,
@@ -1761,6 +2050,7 @@ fn phase_rust_route_with_hook(
         expanded_states: route_output.expanded_states,
         work_used: route_output.work_used,
         added_track_count: route_output.added_tracks.len(),
+        added_via_count: route_output.added_vias.len(),
         removed_track_count: route_output.removed_track_ids.len(),
         request_sha256: route_output.request_sha256.clone(),
     });
@@ -1825,7 +2115,8 @@ fn execute_staged_phases(
     admitted: &AdmittedInputs,
     staging_dir: &Path,
     staged_source: &Path,
-    staged_rules: &Path,
+    staged_rules: Option<&Path>,
+    staged_project: Option<&Path>,
     staged_limits: Option<&Path>,
     result: &mut OperationResult,
     hooks: &mut Option<CommitHooks<'_>>,
@@ -1842,13 +2133,21 @@ fn execute_staged_phases(
         "export".into(),
         staged_source.as_os_str().to_os_string(),
         staged_request.as_os_str().to_os_string(),
-        "--rules".into(),
-        staged_rules.as_os_str().to_os_string(),
         "--max-expansions".into(),
         config.max_expansions.to_string().into(),
         "--original-source".into(),
         config.source.as_os_str().to_os_string(),
     ];
+    if let Some(rp) = staged_rules {
+        export_args.push("--rules".into());
+        export_args.push(rp.as_os_str().to_os_string());
+    }
+    if let Some(pp) = staged_project {
+        if config.project.is_some() {
+            export_args.push("--project".into());
+            export_args.push(pp.as_os_str().to_os_string());
+        }
+    }
     if let Some(lp) = staged_limits {
         export_args.push("--limits".into());
         export_args.push(lp.as_os_str().to_os_string());
@@ -2086,6 +2385,7 @@ fn execute_staged_phases(
         || report.after_unconnected_count != 0
         || report.introduced_violation_count != 0
         || report.added_track_count != route_output.added_tracks.len()
+        || report.added_via_count != route_output.added_vias.len()
     {
         let msg = "apply-report.json failed consistency or native validation checks".to_owned();
         result.phases.push(PhaseRecord {
@@ -2263,7 +2563,7 @@ fn execute_staged_phases(
     Ok(())
 }
 
-const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> --rules <RULES.json> [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>]";
+const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>]";
 
 fn take_flag_value(
     args: &[OsString],
@@ -2303,6 +2603,7 @@ fn parse_u64_flag(val: &OsString, flag: &str, min: u64, max: u64) -> Result<u64,
 pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
     let mut positional: Vec<PathBuf> = Vec::new();
     let mut rules: Option<PathBuf> = None;
+    let mut project: Option<PathBuf> = None;
     let mut limits: Option<PathBuf> = None;
     let mut max_expansions: Option<u64> = None;
     let mut operation_result: Option<PathBuf> = None;
@@ -2334,6 +2635,13 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                                 return Err("duplicate --rules flag".to_owned());
                             }
                             rules =
+                                Some(PathBuf::from(take_flag_value(args, &mut i, inline, flag)?));
+                        }
+                        "--project" => {
+                            if project.is_some() {
+                                return Err("duplicate --project flag".to_owned());
+                            }
+                            project =
                                 Some(PathBuf::from(take_flag_value(args, &mut i, inline, flag)?));
                         }
                         "--limits" => {
@@ -2420,7 +2728,6 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
             positional.len()
         ));
     }
-    let rules = rules.ok_or_else(|| "missing required --rules <RULES.json>".to_owned())?;
     let mut pos_iter = positional.into_iter();
     let source = pos_iter.next().unwrap();
     let output = pos_iter.next().unwrap();
@@ -2428,6 +2735,7 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
         source,
         output,
         rules,
+        project,
         limits,
         max_expansions: max_expansions.unwrap_or(DEFAULT_MAX_EXPANSIONS),
         operation_result,
@@ -2458,8 +2766,12 @@ fn usage_error_result(reason: String) -> OperationResult {
             snapshot_sha256: None,
         },
         request: RequestRecord {
-            rules_path: String::new(),
+            rules_path: None,
             rules_sha256: None,
+            project_path: None,
+            project_sha256: None,
+            dru_path: None,
+            dru_sha256: None,
             limits_path: None,
             limits_sha256: None,
             max_expansions: DEFAULT_MAX_EXPANSIONS,
@@ -2495,7 +2807,27 @@ fn usage_error_result(reason: String) -> OperationResult {
     }
 }
 
+fn emit_stderr_failure(result: &OperationResult) {
+    let summary = serde_json::json!({
+        "status": result.status,
+        "exit_code": result.exit_code,
+        "reason": result.reason,
+    });
+    if let Ok(line) = serde_json::to_string(&summary) {
+        eprintln!("{line}");
+    }
+}
+
 pub fn run_cli(args: &[OsString]) -> u8 {
+    for arg in args {
+        if arg == "--" {
+            break;
+        }
+        if arg == "--help" || arg == "-h" {
+            println!("{USAGE_MSG}");
+            return 0;
+        }
+    }
     let config = match parse_cli_args(args) {
         Ok(c) => c,
         Err(msg) => {
@@ -2504,6 +2836,7 @@ pub fn run_cli(args: &[OsString]) -> u8 {
                 println!("{json_text}");
             }
             eprintln!("{msg}\n{USAGE_MSG}");
+            emit_stderr_failure(&result);
             return result.exit_code;
         }
     };
@@ -2587,6 +2920,7 @@ pub fn run_cli(args: &[OsString]) -> u8 {
         if let Some(reason) = &result.reason {
             eprintln!("route-native failed (exit {}): {reason}", result.exit_code);
         }
+        emit_stderr_failure(&result);
     }
     result.exit_code
 }
@@ -2669,7 +3003,8 @@ elif cmd == "apply":
         OperationConfig {
             source,
             output,
-            rules,
+            rules: Some(rules),
+            project: None,
             limits: None,
             max_expansions: 1000,
             operation_result: None,
@@ -2872,7 +3207,9 @@ elif cmd == "apply":
             bridge_path: bridge,
             source_bytes: b"(kicad_pcb)".to_vec(),
             source_sha256: sha256_hex(b"(kicad_pcb)"),
-            rules_bytes: b"{}".to_vec(),
+            rules_bytes: Some(b"{}".to_vec()),
+            project_bytes: None,
+            dru_bytes: None,
             limits_bytes: None,
         };
         let mut res = usage_error_result("init".to_owned());
@@ -2885,7 +3222,8 @@ elif cmd == "apply":
             &admitted,
             &dir,
             &cfg.source,
-            &cfg.rules,
+            cfg.rules.as_deref(),
+            None,
             None,
             &mut res,
             &mut hooks,
@@ -2948,8 +3286,9 @@ elif cmd == "apply":
         };
         let err_c =
             admit_source_board_with_hook(&plain, &mut res_c, Some(&mut sidecar_hook)).unwrap_err();
-        assert_eq!(err_c.0, OperationStatus::Unsupported);
+        assert_eq!(err_c.0, OperationStatus::Invalid);
         assert!(res_c.source.sidecar_check.kicad_pro_present);
+        assert!(err_c.1.contains("appeared during read"), "got: {}", err_c.1);
 
         let _ = fs::remove_dir_all(&dir);
     }

@@ -787,10 +787,21 @@ def test_rust_does_not_report_tangent_copper_as_connected(native_board, contact)
     assert native_board.read_bytes() == original
 
 
-@pytest.mark.parametrize('suffix', ['.kicad_pro', '.kicad_dru'])
-def test_native_adapter_rejects_unimplemented_rule_import(native_board, suffix):
-    native_board.with_suffix(suffix).write_text('{}')
-    with pytest.raises(bridge.UnsupportedBoard, match='project/custom-rule'):
+def test_native_adapter_accepts_valid_rule_import_and_rejects_malformed(native_board):
+    native_board.with_suffix('.kicad_pro').write_text('{"meta":{"version":3}}')
+    native_board.with_suffix('.kicad_dru').write_text('(version 1)')
+    exported = bridge.export_board(native_board, RULES, 100000)
+    assert 'project_rules' in exported and 'custom_rules' in exported
+
+    native_board.with_suffix('.kicad_pro').write_text('{"meta":{"version":99}}')
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_board(native_board, RULES, 100000)
+    native_board.with_suffix('.kicad_pro').write_text('{"meta":{"version":3}}')
+    native_board.with_suffix('.kicad_dru').write_text('(version 99)')
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_board(native_board, RULES, 100000)
+    native_board.with_suffix('.kicad_dru').write_text('(version 1')
+    with pytest.raises(ValueError):
         bridge.export_board(native_board, RULES, 100000)
 
 
@@ -799,19 +810,25 @@ def test_native_adapter_rejects_below_native_floor(native_board):
         bridge.export_board(native_board, {**RULES, 'width_nm': 100000}, 100000)
 
 
+def test_native_adapter_exports_pad_and_footprint_local_clearance(native_board):
+    board = pcbnew.LoadBoard(str(native_board))
+    footprints = list(board.GetFootprints())
+    footprints[0].SetLocalClearance(1500000)
+    next(iter(footprints[1].Pads())).SetLocalClearance(2000000)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    exported = bridge.export_board(native_board, RULES, 100000)
+    clearances = {p.get('local_clearance_nm') for p in exported['pads']}
+    assert clearances == {1500000, 2000000}
+
+
 @pytest.mark.parametrize('feature', [
-    'pad_clearance', 'footprint_clearance', 'copper_field',
-    'footprint_edge', 'footprint_zone', 'net_tie', 'pad_mask', 'footprint_mask',
+    'copper_field', 'footprint_edge', 'footprint_zone', 'net_tie', 'pad_mask', 'footprint_mask',
 ])
 def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_board, expected_request, feature):
     board = pcbnew.LoadBoard(str(native_board))
     footprint = next(iter(board.GetFootprints()))
     pad = next(iter(footprint.Pads()))
-    if feature == 'pad_clearance':
-        pad.SetLocalClearance(2000000)
-    elif feature == 'footprint_clearance':
-        footprint.SetLocalClearance(2000000)
-    elif feature == 'pad_mask':
+    if feature == 'pad_mask':
         pad.SetLocalSolderMaskMargin(2000000)
     elif feature == 'footprint_mask':
         footprint.SetLocalSolderMaskMargin(2000000)
@@ -1016,7 +1033,7 @@ def test_apply_cli_reports_input_failures_without_publication(native_board, expe
     elif case == 'duplicate_id':
         additions[1]['id'] = additions[0]['id']
     elif case == 'unsupported_rules':
-        native_board.with_suffix('.kicad_dru').write_text('(version 1)')
+        native_board.with_suffix('.kicad_dru').write_text('(version 99)')
     plan_path = native_board.with_name('invalid-plan.json')
     text = json.dumps(plan)
     if case == 'duplicate_json':
@@ -1828,8 +1845,8 @@ def test_route_native_end_to_end_under_guarded_cli(native_board, guarded_cli):
     assert all(row.get('allowed', True) for row in observed)
 
 
-@pytest.mark.parametrize('mode', ['pro', 'dru', 'dangling_pro', 'symlinked_board_with_dru'])
-def test_route_native_rejects_original_and_symlink_sidecars_before_python(
+@pytest.mark.parametrize('mode', ['unsupported_pro', 'unsupported_dru', 'dangling_pro', 'symlinked_board_with_bad_dru'])
+def test_route_native_rejects_bad_and_dangling_sidecars_before_python(
         native_board, guarded_cli, tmp_path, mode):
     run, audit_log = guarded_cli
     engine = _built_rust_engine(run)
@@ -1837,14 +1854,14 @@ def test_route_native_rejects_original_and_symlink_sidecars_before_python(
     rules_path.write_text(json.dumps(RULES))
 
     source = native_board
-    if mode == 'pro':
+    if mode == 'unsupported_pro':
         native_board.with_suffix('.kicad_pro').write_text('{}')
-    elif mode == 'dru':
-        native_board.with_suffix('.kicad_dru').write_text('(version 1)')
+    elif mode == 'unsupported_dru':
+        native_board.with_suffix('.kicad_dru').write_text('(version 99)')
     elif mode == 'dangling_pro':
         native_board.with_suffix('.kicad_pro').symlink_to(tmp_path / 'absent.kicad_pro')
     else:
-        native_board.with_suffix('.kicad_dru').write_text('(version 1)')
+        native_board.with_suffix('.kicad_dru').write_text('(version 99)')
         clean_dir = tmp_path / 'clean-dir'
         clean_dir.mkdir()
         source = clean_dir / 'alias.kicad_pcb'
@@ -1857,11 +1874,55 @@ def test_route_native_rejects_original_and_symlink_sidecars_before_python(
     ], check=False)
     assert res.returncode == 2
     op = json.loads(res.stdout)
-    assert op['status'] == 'unsupported'
-    assert op['source']['sidecar_check']['passed'] is False
+    if mode == 'dangling_pro':
+        assert op['status'] == 'invalid'
+        assert op['source']['sidecar_check']['passed'] is False
+    else:
+        assert op['status'] == 'unsupported'
     assert op['staging']['dir'] is None
     assert not output.exists()
     assert not audit_log.exists() or audit_log.read_text() == ''
+
+
+def test_route_native_accepts_valid_sidecars_and_multilayer_vias_end_to_end(
+        native_board, guarded_cli, tmp_path):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.LoadBoard(str(native_board))
+    board.SetCopperLayerCount(4)
+    fps = list(board.GetFootprints())
+    b_lset = pcbnew.LSET()
+    b_lset.AddLayer(pcbnew.B_Cu)
+    next(iter(fps[1].Pads())).SetLayerSet(b_lset)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    native_board.with_suffix('.kicad_pro').write_text(json.dumps({
+        'meta': {'version': 3},
+        'board': {'design_settings': {'rules': {
+            'min_track_width': 0.2,
+            'min_clearance': 0.2,
+            'min_via_diameter': 0.5,
+            'min_through_hole_diameter': 0.3,
+            'min_via_annular_width': 0.1,
+            'min_hole_to_hole': 0.25,
+        }}},
+        'net_settings': {'classes': [{
+            'name': 'Default',
+            'track_width': 0.25,
+            'clearance': 0.25,
+            'via_diameter': 0.6,
+            'via_drill': 0.3,
+        }]},
+    }))
+    native_board.with_suffix('.kicad_dru').write_text(
+        '(version 1)\n(rule "sig_width" (condition "A.NetName == \'SIGNAL\'") (constraint track_width (min 0.25mm)))'
+    )
+    output = tmp_path / 'routed-4l.kicad_pcb'
+    res = run([str(engine), 'route-native', str(native_board), str(output)], check=False)
+    assert res.returncode == 0, res.stderr
+    op = json.loads(res.stdout)
+    assert op['status'] == 'complete'
+    assert op['routing']['added_via_count'] >= 1
+    assert output.is_file()
 
 
 @pytest.mark.parametrize('mode', ['chained_pro', 'chained_dru', 'chained_parent_dir_pro'])

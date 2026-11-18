@@ -103,25 +103,91 @@ def item_id(item):
     return item.m_Uuid.AsString()
 
 
-def _check_sidecar_at(path: Path):
+def _is_canonical_board_alias(path: Path, resolved: Path) -> bool:
+    if path == resolved:
+        return True
+    if path.name != resolved.name:
+        return False
+    parent = path.parent if path.parent != Path('') else Path('.')
+    try:
+        return Path(os.path.realpath(parent)) == resolved.parent
+    except OSError:
+        return False
+
+
+def _check_sidecar_at(path: Path, resolved: Path):
     if not path.name:
         return
+    is_canon = _is_canonical_board_alias(path, resolved)
     for suffix in ('.kicad_pro', '.kicad_dru'):
         sidecar = path.with_suffix(suffix)
         try:
             os.lstat(sidecar)
         except (FileNotFoundError, NotADirectoryError):
             continue
-        raise UnsupportedBoard(f'project/custom-rule import is not implemented: {suffix}')
+        if not is_canon:
+            raise UnsupportedBoard(f'project/custom-rule ambiguous symlink-hop {suffix} sidecar shadows canonical board: {sidecar}')
 
 
-def reject_external_rules(path: Path):
+def _check_pro_framing(raw: bytes):
+    try:
+        doc = json.loads(raw.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f'malformed .kicad_pro JSON: {exc}') from exc
+    if not isinstance(doc, dict):
+        raise ValueError('.kicad_pro root must be a JSON object')
+    meta = doc.get('meta')
+    if not isinstance(meta, dict) or type(meta.get('version')) is not int or meta['version'] not in (1, 2, 3):
+        raise UnsupportedBoard('.kicad_pro requires meta.version in 1..=3')
+
+
+def _check_dru_framing(raw: bytes):
+    try:
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError as exc:
+        raise ValueError(f'.kicad_dru is not valid UTF-8: {exc}') from exc
+    depth = 0
+    in_str = False
+    esc = False
+    in_comment = False
+    for ch in text:
+        if in_comment:
+            if ch == '\n':
+                in_comment = False
+            continue
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '#':
+            in_comment = True
+        elif ch == '"':
+            in_str = True
+        elif ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth -= 1
+            if depth < 0:
+                raise ValueError('unbalanced parentheses in .kicad_dru')
+    if in_str or depth != 0:
+        raise ValueError('unterminated string or unbalanced parentheses in .kicad_dru')
+    stripped = '\n'.join(l for l in text.splitlines() if not l.lstrip().startswith('#')).strip()
+    if not stripped.startswith('(version 1)') and not stripped.startswith('(version 1\n') and not stripped.startswith('(version 1 '):
+        raise UnsupportedBoard('.kicad_dru requires (version 1) header')
+
+
+def resolve_sidecars(path: Path, *, project_path: Path | None = None) -> tuple[bytes | None, bytes | None]:
+    resolved = Path(os.path.realpath(path))
     cur = path
     seen: set[Path] = set()
     for hop in range(MAX_SYMLINK_HOPS + 1):
         if cur not in seen:
             seen.add(cur)
-            _check_sidecar_at(cur)
+            _check_sidecar_at(cur, resolved)
         parent = cur.parent if cur.parent != Path('') else Path('.')
         canon_parent: Path | None = None
         if cur.name:
@@ -130,7 +196,7 @@ def reject_external_rules(path: Path):
                 norm_cur = canon_parent / cur.name
                 if norm_cur not in seen:
                     seen.add(norm_cur)
-                    _check_sidecar_at(norm_cur)
+                    _check_sidecar_at(norm_cur, resolved)
             except OSError:
                 canon_parent = None
         try:
@@ -142,38 +208,81 @@ def reject_external_rules(path: Path):
         if hop >= MAX_SYMLINK_HOPS:
             raise OSError(errno.ELOOP, 'too many levels of symbolic links', str(path))
         target = Path(os.readlink(cur))
-        if target.is_absolute():
-            cur = target
-        else:
-            base = canon_parent if canon_parent is not None else parent
-            cur = base / target
-    try:
-        resolved = path.resolve()
-    except OSError:
-        return
+        cur = target if target.is_absolute() else (canon_parent or parent) / target
     if resolved not in seen:
-        _check_sidecar_at(resolved)
+        _check_sidecar_at(resolved, resolved)
+
+    if project_path is not None:
+        if project_path.suffix != '.kicad_pro' or project_path.stem != path.stem:
+            raise ValueError(f'--project {project_path} must be a .kicad_pro matching board stem {path.stem}')
+        proj_parent_real = Path(os.path.realpath(project_path.parent if project_path.parent != Path('') else Path('.')))
+        if proj_parent_real != resolved.parent:
+            raise ValueError(f'--project {project_path} directory does not match board directory {resolved.parent}')
+        if not os.path.exists(project_path):
+            raise ValueError(f'--project file does not exist: {project_path}')
+
+    pro_bytes = None
+    dru_bytes = None
+    for suffix in ('.kicad_pro', '.kicad_dru'):
+        sidecar = resolved.with_suffix(suffix)
+        try:
+            os.lstat(sidecar)
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        try:
+            raw = read_bounded(sidecar)
+        except OSError as exc:
+            raise ValueError(f'cannot read sidecar {sidecar}: {exc}') from exc
+        if suffix == '.kicad_pro':
+            _check_pro_framing(raw)
+            pro_bytes = raw
+        else:
+            _check_dru_framing(raw)
+            dru_bytes = raw
+    return pro_bytes, dru_bytes
+
+
+def reject_external_rules(path: Path):
+    return resolve_sidecars(path)
 
 
 @contextmanager
-def source_snapshot(path: Path):
-    # Reject rules beside the real source before isolating its standalone bytes.
-    # One read defines the source identity, parsed geometry and DRC baseline.
-    reject_external_rules(path)
+def source_snapshot(path: Path, *, project_path: Path | None = None):
+    pro_before, dru_before = resolve_sidecars(path, project_path=project_path)
     body = read_bounded(path)
-    reject_external_rules(path)
+    pro_after, dru_after = resolve_sidecars(path, project_path=project_path)
+    if pro_before != pro_after or dru_before != dru_after:
+        raise ValueError('sidecar changed during snapshot admission')
     with tempfile.TemporaryDirectory(prefix='kicad-route-source-') as directory:
         snapshot = Path(directory) / 'source.kicad_pcb'
         snapshot.write_bytes(body)
+        if pro_after is not None:
+            snapshot.with_suffix('.kicad_pro').write_bytes(pro_after)
+        if dru_after is not None:
+            snapshot.with_suffix('.kicad_dru').write_bytes(dru_after)
         yield snapshot
 
 
-def _extract_drill_shape(pad):
+def _cu_stack(board):
+    copper = list(board.GetEnabledLayers().CuStack())
+    if not (2 <= len(copper) <= 32):
+        raise UnsupportedBoard('board copper stackup must have 2 to 32 layers')
+    if copper[0] != pcbnew.F_Cu or copper[-1] != pcbnew.B_Cu:
+        raise UnsupportedBoard('board copper stackup must start at F.Cu and end at B.Cu')
+    valid_inner = {getattr(pcbnew, f'In{i}_Cu') for i in range(1, 31) if hasattr(pcbnew, f'In{i}_Cu')}
+    for lid in copper[1:-1]:
+        if lid not in valid_inner:
+            raise UnsupportedBoard('unsupported inner copper layer in stackup')
+    return copper, [board.GetLayerName(lid) for lid in copper]
+
+
+def _extract_drill_shape(pad, cu_layers=None):
     for getter in (pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize):
         if point(getter()) != [0, 0]:
             raise UnsupportedBoard('secondary or tertiary pad drills are not represented')
+    check_layers = cu_layers if cu_layers is not None else (pcbnew.F_Cu, pcbnew.B_Cu)
     if hasattr(pad, 'IsBackdrilledOrPostMachined'):
-        if any(pad.IsBackdrilledOrPostMachined(layer) for layer in (pcbnew.F_Cu, pcbnew.B_Cu)):
+        if any(pad.IsBackdrilledOrPostMachined(layer) for layer in check_layers):
             raise UnsupportedBoard('backdrilled or post-machined pads are not represented')
     drill_shape = pad.GetDrillShape()
     if drill_shape not in (pcbnew.PAD_DRILL_SHAPE_CIRCLE, pcbnew.PAD_DRILL_SHAPE_OBLONG):
@@ -253,8 +362,8 @@ def _orient_ccw_convex(pts):
     return cleaned, True
 
 
-def _decode_effective_pad_shape(pad, radius_hint=None):
-    raw_effective = pad.GetEffectiveShape(pcbnew.F_Cu)
+def _decode_effective_pad_shape(pad, radius_hint=None, *, layer_id=pcbnew.F_Cu):
+    raw_effective = pad.GetEffectiveShape(layer_id)
     if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
         raise UnsupportedBoard('native pad effective shape is unavailable')
     if raw_effective.Type() == pcbnew.SH_COMPOUND:
@@ -350,21 +459,36 @@ def _decode_effective_pad_shape(pad, radius_hint=None):
     raise UnsupportedBoard('native pad effective shape is not represented')
 
 
-def pad_shape(pad):
+def pad_shape(pad, cu_layers=None):
     """Decode admitted native copper; leave original native pad metadata intact."""
-    copper = [layer for layer in pad.GetLayerSet().Seq() if pcbnew.IsCopperLayer(layer)]
+    raw_copper = [layer for layer in pad.GetLayerSet().Seq() if pcbnew.IsCopperLayer(layer)]
     attrib = pad.GetAttribute()
+    if cu_layers is not None:
+        cu_set = set(cu_layers)
+        if attrib == pcbnew.PAD_ATTRIB_PTH:
+            copper = [layer for layer in raw_copper if layer in cu_set]
+        elif attrib == pcbnew.PAD_ATTRIB_NPTH:
+            copper = []
+        else:
+            if any(layer not in cu_set for layer in raw_copper):
+                raise UnsupportedBoard('pad references a disabled copper layer')
+            copper = raw_copper
+    else:
+        copper = [] if attrib == pcbnew.PAD_ATTRIB_NPTH else raw_copper
     if attrib == pcbnew.PAD_ATTRIB_SMD:
-        if copper != [pcbnew.F_Cu]:
-            raise UnsupportedBoard('only front-copper SMD pads are supported')
+        if len(copper) != 1:
+            raise UnsupportedBoard('SMD pads must sit on exactly one copper layer')
         if any(point(getter()) != [0, 0] for getter in (
                 pad.GetDrillSize, pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize)):
             raise UnsupportedBoard('drilled pads are not represented')
     elif attrib == pcbnew.PAD_ATTRIB_PTH:
-        if pcbnew.F_Cu not in copper:
-            raise UnsupportedBoard('through-hole pads must include front copper')
+        if not copper:
+            raise UnsupportedBoard('through-hole pads must include at least one copper layer')
+        if hasattr(pad, 'GetPadstackMode') and hasattr(pcbnew, 'PAD_MODE_NORMAL'):
+            if pad.GetPadstackMode() != pcbnew.PAD_MODE_NORMAL:
+                raise UnsupportedBoard('non-uniform PTH padstack mode is not represented')
         if any(v <= 0 for v in point(pad.GetDrillSize())):
-            raise UnsupportedBoard('PTH pad requires a positive drill size')
+            raise ValueError('pad drill dimensions must be positive')
     elif attrib == pcbnew.PAD_ATTRIB_NPTH:
         if copper or int(pad.GetNetCode()) != 0:
             raise UnsupportedBoard('NPTH mounting holes cannot carry copper layers or a net')
@@ -402,6 +526,10 @@ def pad_shape(pad):
     is_ortho = angle in (0, 90)
     is_even = size[0] % 2 == 0 and size[1] % 2 == 0
 
+    return _decode_effective_pad_shape_checked(pad, copper, attrib, size, kind, radius, angle, is_ortho, is_even, offset)
+
+
+def _pad_shape_on_layer(pad, layer_id, size, kind, radius, angle, is_ortho, is_even, offset):
     if offset == [0, 0] and is_ortho and is_even and kind in (
             pcbnew.PAD_SHAPE_CIRCLE, pcbnew.PAD_SHAPE_RECT,
             pcbnew.PAD_SHAPE_OVAL, pcbnew.PAD_SHAPE_ROUNDRECT):
@@ -413,7 +541,7 @@ def pad_shape(pad):
         elif kind == pcbnew.PAD_SHAPE_OVAL:
             radius = min(half)
         else:
-            raw_effective = pad.GetEffectiveShape(pcbnew.F_Cu)
+            raw_effective = pad.GetEffectiveShape(layer_id)
             if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
                 raise UnsupportedBoard('native rounded-pad effective shape is unavailable')
             if raw_effective.Type() == pcbnew.SH_CIRCLE:
@@ -436,7 +564,7 @@ def pad_shape(pad):
         return {'kind': 'round_rect', 'half_size_nm': half, 'radius_nm': radius}
 
     if kind == pcbnew.PAD_SHAPE_CIRCLE or (kind == pcbnew.PAD_SHAPE_OVAL and size[0] == size[1]):
-        shape_pos = point(pad.ShapePos(pcbnew.F_Cu))
+        shape_pos = point(pad.ShapePos(layer_id))
         if size[0] % 2 == 0 and shape_pos == point(pad.GetPosition()):
             return {'kind': 'circle', 'radius_nm': size[0] // 2}
         return {'kind': 'box_exact', 'center_2x': [2 * shape_pos[0], 2 * shape_pos[1]],
@@ -446,9 +574,9 @@ def pad_shape(pad):
         w, h = size[0], size[1]
         if angle == 90:
             w, h = h, w
-        shape_pos = point(pad.ShapePos(pcbnew.F_Cu))
+        shape_pos = point(pad.ShapePos(layer_id))
         if kind == pcbnew.PAD_SHAPE_ROUNDRECT:
-            raw_effective = pad.GetEffectiveShape(pcbnew.F_Cu)
+            raw_effective = pad.GetEffectiveShape(layer_id)
             if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
                 raise UnsupportedBoard('native rounded-pad effective shape is unavailable')
             if raw_effective.Type() == pcbnew.SH_CIRCLE:
@@ -479,7 +607,17 @@ def pad_shape(pad):
         return {'kind': 'box_exact', 'center_2x': [2 * shape_pos[0], 2 * shape_pos[1]],
                 'half_size_2x': [w, h], 'radius_2x': radius_2x}
 
-    return _decode_effective_pad_shape(pad, radius_hint=radius if kind == pcbnew.PAD_SHAPE_ROUNDRECT else None)
+    return _decode_effective_pad_shape(pad, radius_hint=radius if kind == pcbnew.PAD_SHAPE_ROUNDRECT else None, layer_id=layer_id)
+
+
+def _decode_effective_pad_shape_checked(pad, copper, attrib, size, kind, radius, angle, is_ortho, is_even, offset):
+    ref_layer = copper[0] if copper else pcbnew.F_Cu
+    shape = _pad_shape_on_layer(pad, ref_layer, size, kind, radius, angle, is_ortho, is_even, offset)
+    if attrib == pcbnew.PAD_ATTRIB_PTH and len(copper) > 1:
+        for extra_layer in copper[1:]:
+            if _pad_shape_on_layer(pad, extra_layer, size, kind, radius, angle, is_ortho, is_even, offset) != shape:
+                raise UnsupportedBoard('non-uniform PTH padstack across copper layers is not represented')
+    return shape
 
 
 def _check_decimal_nm(value, *, min_mm, max_mm, message):
@@ -659,16 +797,74 @@ def _extract_graphic_shapes(drawing, *, base_id):
     raise UnsupportedBoard('unsupported native graphic shape')
 
 
-def load_supported(path: Path):
-    reject_external_rules(path)
+def _extract_rule_area_polygon(zone):
+    outline = zone.Outline()
+    if outline is None or outline.OutlineCount() != 1:
+        raise UnsupportedBoard('rule area must have a single outline polygon')
+    ring = outline.Outline(0)
+    outer = [[ring.CPoint(i).x, ring.CPoint(i).y] for i in range(ring.PointCount())]
+    holes = []
+    for h in range(outline.HoleCount(0)):
+        hr = outline.Hole(0, h)
+        holes.append([[hr.CPoint(i).x, hr.CPoint(i).y] for i in range(hr.PointCount())])
+    poly = {'outer': outer}
+    if holes:
+        poly['holes'] = holes
+    return poly
+
+
+def _via_kind_str(via_type):
+    if via_type == pcbnew.VIATYPE_THROUGH:
+        return 'through'
+    if via_type in (pcbnew.VIATYPE_BLIND, pcbnew.VIATYPE_BURIED):
+        return 'blind_buried'
+    if via_type == pcbnew.VIATYPE_MICROVIA:
+        return 'micro'
+    raise UnsupportedBoard('unsupported via type')
+
+
+def _extract_via(via, cu_layers, board):
+    kind = _via_kind_str(via.GetViaType())
+    if hasattr(via, 'IsBackdrilledOrPostMachined') and any(via.IsBackdrilledOrPostMachined(l) for l in cu_layers):
+        raise UnsupportedBoard('backdrilled or post-machined vias are not represented')
+    top, bot = via.TopLayer(), via.BottomLayer()
+    if top not in cu_layers or bot not in cu_layers:
+        raise UnsupportedBoard('via references a disabled copper layer')
+    i0, i1 = cu_layers.index(top), cu_layers.index(bot)
+    lo, hi = min(i0, i1), max(i0, i1)
+    span = cu_layers[lo:hi + 1]
+    widths = {int(via.GetWidth(l)) for l in span}
+    if len(widths) != 1:
+        raise UnsupportedBoard('non-uniform per-layer via widths are not represented')
+    diam = next(iter(widths))
+    drill = int(via.GetDrillValue())
+    if diam <= 0 or drill <= 0 or diam < drill:
+        raise ValueError('via diameter and drill must be positive with diameter >= drill')
+    return {
+        'id': item_id(via),
+        'net': int(via.GetNetCode()),
+        'at': point(via.GetPosition()),
+        'diameter_nm': diam,
+        'drill_nm': drill,
+        'start_layer': board.GetLayerName(cu_layers[lo]),
+        'end_layer': board.GetLayerName(cu_layers[hi]),
+        'kind': kind,
+        'locked': bool(via.IsLocked()),
+    }
+
+
+def load_supported(path: Path, *, project_path: Path | None = None):
+    resolve_sidecars(path, project_path=project_path)
     validate_native_pad_scalars(read_bounded(path))
     board = pcbnew.LoadBoard(str(path))
     if board is None:
         raise ValueError(f'KiCad could not load {path}')
-    if board.Zones():
-        raise UnsupportedBoard('zones are not supported by the first Rust slice')
-    if board.GetCopperLayerCount() != 2:
-        raise UnsupportedBoard('the first native slice requires a two-layer board')
+    cu_layers, _ = _cu_stack(board)
+    cu_set = set(cu_layers)
+    for zone in board.Zones():
+        if not zone.GetIsRuleArea():
+            raise UnsupportedBoard('zones are not supported by the first Rust slice')
+        _extract_rule_area_polygon(zone)
     if any(drawing.GetLayer() == pcbnew.Margin for drawing in board.GetDrawings()):
         raise UnsupportedBoard('board Margin geometry is not represented')
     settings = board.GetDesignSettings()
@@ -679,13 +875,16 @@ def load_supported(path: Path):
     mask_rules_active = (settings.m_SolderMaskMinWidth != 0 or settings.m_SolderMaskToCopperClearance != 0)
     for drawing in board.GetDrawings():
         layer = drawing.GetLayer()
-        if pcbnew.IsCopperLayer(layer):
+        if layer in cu_set:
             _check_graphic_drawing(drawing, context_label='board copper')
+        elif pcbnew.IsCopperLayer(layer):
+            raise UnsupportedBoard('board copper on disabled layer is not represented')
         elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE)):
             _check_graphic_drawing(drawing, context_label='board solder-mask')
     for footprint in board.GetFootprints():
-        if footprint.GetLocalClearance() is not None:
-            raise UnsupportedBoard('footprint clearance overrides are not represented')
+        fp_clr = footprint.GetLocalClearance()
+        if fp_clr is not None and fp_clr < 0:
+            raise UnsupportedBoard('negative footprint clearance overrides are not represented')
         if footprint.GetLocalSolderMaskMargin() is not None:
             raise UnsupportedBoard('footprint solder-mask margins are not represented')
         if footprint.Zones():
@@ -699,25 +898,31 @@ def load_supported(path: Path):
             layer = drawing.GetLayer()
             if layer == pcbnew.Margin:
                 raise UnsupportedBoard('footprint Margin geometry is not represented')
-            if pcbnew.IsCopperLayer(layer):
+            if layer in cu_set:
                 _check_graphic_drawing(drawing, context_label='footprint copper')
+            elif pcbnew.IsCopperLayer(layer):
+                raise UnsupportedBoard('footprint copper on disabled layer is not represented')
             elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE)):
                 if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
                     _check_graphic_drawing(drawing, context_label='footprint solder-mask')
         for pad in footprint.Pads():
-            pad_shape(pad)
+            pad_shape(pad, cu_layers)
             if pad.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
-                _extract_drill_shape(pad)
-            if pad.GetLocalClearance() is not None:
-                raise UnsupportedBoard('pad clearance overrides are not represented')
+                _extract_drill_shape(pad, cu_layers)
+            pad_clr = pad.GetLocalClearance()
+            if pad_clr is not None and pad_clr < 0:
+                raise UnsupportedBoard('negative pad clearance overrides are not represented')
             if pad.GetLocalSolderMaskMargin() is not None:
                 raise UnsupportedBoard('pad solder-mask margins are not represented')
     for track in board.GetTracks():
-        if type(track) is pcbnew.PCB_TRACK and track.GetLayer() == pcbnew.F_Cu:
+        if type(track) is pcbnew.PCB_TRACK and track.GetLayer() in cu_set:
             continue
-        if type(track) is pcbnew.PCB_ARC and track.GetLayer() in (pcbnew.F_Cu, pcbnew.B_Cu):
+        if type(track) is pcbnew.PCB_ARC and track.GetLayer() in cu_set:
             continue
-        raise UnsupportedBoard('vias and non-front tracks are not supported')
+        if type(track) is pcbnew.PCB_VIA:
+            _extract_via(track, cu_layers, board)
+            continue
+        raise UnsupportedBoard('track or via references unsupported type or disabled layer')
     _board_bounds_and_outline(board)
     return board
 
@@ -785,67 +990,86 @@ def _board_bounds_and_outline(board):
     return {'min': [min_x, min_y], 'max': [max_x, max_y]}, {'polygons': polygons}
 
 
-def export_board(path: Path, rules: dict, max_expansions: int, limits: dict | None = None,
-                 *, original_source: Path | None = None):
+def export_board(path: Path, rules: dict | None = None, max_expansions: int = 100000,
+                 limits: dict | None = None, *, original_source: Path | None = None,
+                 project_path: Path | None = None):
     if original_source is not None:
-        reject_external_rules(original_source)
-    with source_snapshot(path) as snapshot:
+        resolve_sidecars(original_source, project_path=project_path)
+    snap_project = project_path if original_source is None else None
+    with source_snapshot(path, project_path=snap_project) as snapshot:
         return export_snapshot(snapshot, rules, max_expansions, limits)
 
 
-def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict | None = None):
+def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int = 100000,
+                    limits: dict | None = None):
     if limits is not None and not isinstance(limits, dict):
         raise ValueError('limits must be an object')
     board = load_supported(path)
+    cu_layers, layer_names = _cu_stack(board)
+    cu_set = set(cu_layers)
     settings = board.GetDesignSettings()
     minima = {'width_nm': settings.m_TrackMinWidth,
-              'clearance_nm': max(settings.m_MinClearance, settings.GetBiggestClearanceValue()),
+              'clearance_nm': settings.m_MinClearance,
               'edge_clearance_nm': settings.m_CopperEdgeClearance}
-    required_keys = {'width_nm', 'clearance_nm', 'grid_nm', 'edge_clearance_nm'}
-    optional_rule_keys = {
-        'hole_clearance_nm', 'same_net_hole_clearance_nm',
-        'solder_mask_expansion_nm', 'solder_mask_min_width_nm',
-        'solder_mask_to_copper_clearance_nm',
-    }
-    if not isinstance(rules, dict) or not required_keys.issubset(rules) or not set(rules).issubset(required_keys | optional_rule_keys):
-        raise ValueError('all four explicit routing rules are required')
-    if any(type(rules[k]) is not int or rules[k] <= 0 for k in required_keys):
-        raise ValueError('routing rules must be positive integer nanometres')
-    if any(type(rules[k]) is not int or rules[k] < 0 for k in set(rules) - required_keys):
-        raise ValueError('optional routing rules must be nonnegative integer nanometres')
-    for key, floor in minima.items():
-        if rules[key] < floor:
-            raise ValueError(f'{key}={rules[key]} is below native floor {floor}')
+    if rules is not None:
+        required_keys = {'width_nm', 'clearance_nm', 'grid_nm', 'edge_clearance_nm'}
+        optional_rule_keys = {
+            'hole_clearance_nm', 'same_net_hole_clearance_nm',
+            'solder_mask_expansion_nm', 'solder_mask_min_width_nm',
+            'solder_mask_to_copper_clearance_nm',
+        }
+        if not isinstance(rules, dict) or not required_keys.issubset(rules) or not set(rules).issubset(required_keys | optional_rule_keys):
+            raise ValueError('all four explicit routing rules are required')
+        if any(type(rules[k]) is not int or rules[k] <= 0 for k in required_keys):
+            raise ValueError('routing rules must be positive integer nanometres')
+        if any(type(rules[k]) is not int or rules[k] < 0 for k in set(rules) - required_keys):
+            raise ValueError('optional routing rules must be nonnegative integer nanometres')
+        for key, floor in minima.items():
+            if rules[key] < floor:
+                raise ValueError(f'{key}={rules[key]} is below native floor {floor}')
     if type(max_expansions) is not int or max_expansions <= 0:
         raise ValueError('max_expansions must be positive')
     bounds, board_outline = _board_bounds_and_outline(board)
     pads = []
     holes = []
     for footprint in board.GetFootprints():
+        fp_clr = footprint.GetLocalClearance()
         for pad in footprint.Pads():
             if pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
-                drill = _extract_drill_shape(pad)
+                drill = _extract_drill_shape(pad, cu_layers)
                 holes.append({'id': item_id(pad), 'net': 0,
                               'at': point(pad.GetPosition()), 'shape': drill})
                 continue
-            shape = pad_shape(pad)
+            shape = pad_shape(pad, cu_layers)
+            pad_layers = [board.GetLayerName(l) for l in pad.GetLayerSet().Seq() if l in cu_set]
             entry = {'id': item_id(pad), 'net': int(pad.GetNetCode()),
                      'at': point(pad.GetPosition()), 'shape': shape}
+            if pad_layers != ['F.Cu'] or len(layer_names) > 2:
+                entry['layers'] = pad_layers
+            pad_clr = pad.GetLocalClearance()
+            eff_clr = int(pad_clr) if pad_clr is not None else (int(fp_clr) if fp_clr is not None else None)
+            if eff_clr is not None and eff_clr > 0:
+                entry['local_clearance_nm'] = eff_clr
             if pad.GetAttribute() == pcbnew.PAD_ATTRIB_PTH:
-                entry['drill'] = _extract_drill_shape(pad)
+                entry['drill'] = _extract_drill_shape(pad, cu_layers)
             pads.append(entry)
     pads.sort(key=lambda item: (item['net'], item['at'], item['id']))
     holes.sort(key=lambda item: (item['at'], item['id']))
 
     tracks = []
+    vias = []
     graphics = []
     for track in board.GetTracks():
-        if type(track) is pcbnew.PCB_TRACK and track.GetLayer() == pcbnew.F_Cu:
-            tracks.append({'id': item_id(track), 'net': int(track.GetNetCode()),
-                           'start': point(track.GetStart()), 'end': point(track.GetEnd()),
-                           'width_nm': int(track.GetWidth()), 'locked': bool(track.IsLocked())})
-        elif type(track) is pcbnew.PCB_ARC and track.GetLayer() in (pcbnew.F_Cu, pcbnew.B_Cu):
-            layer_name = 'F.Cu' if track.GetLayer() == pcbnew.F_Cu else 'B.Cu'
+        if type(track) is pcbnew.PCB_TRACK and track.GetLayer() in cu_set:
+            lname = board.GetLayerName(track.GetLayer())
+            item = {'id': item_id(track), 'net': int(track.GetNetCode()),
+                    'start': point(track.GetStart()), 'end': point(track.GetEnd()),
+                    'width_nm': int(track.GetWidth()), 'locked': bool(track.IsLocked())}
+            if lname != 'F.Cu':
+                item['layer'] = lname
+            tracks.append(item)
+        elif type(track) is pcbnew.PCB_ARC and track.GetLayer() in cu_set:
+            layer_name = board.GetLayerName(track.GetLayer())
             graphics.append({
                 'id': item_id(track),
                 'net': int(track.GetNetCode()),
@@ -858,20 +1082,41 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
                     'width_nm': int(track.GetWidth()),
                 },
             })
+        elif type(track) is pcbnew.PCB_VIA:
+            vias.append(_extract_via(track, cu_layers, board))
         else:
-            raise UnsupportedBoard('vias and non-front tracks are not supported')
-    tracks.sort(key=lambda item: (item['net'], item['start'], item['end'],
+            raise UnsupportedBoard('track or via references unsupported type or disabled layer')
+    tracks.sort(key=lambda item: (item.get('layer', 'F.Cu'), item['net'], item['start'], item['end'],
                                   item['width_nm'], item['locked'], item['id']))
+    vias.sort(key=lambda item: (item['net'], item['at'], item['id']))
 
-    mask_rules_from_json = (
+    rule_areas = []
+    for zone in board.Zones():
+        if zone.GetIsRuleArea():
+            zlayers = [board.GetLayerName(l) for l in cu_layers if zone.GetLayerSet().Contains(l)]
+            if zlayers and (zone.GetDoNotAllowTracks() or zone.GetDoNotAllowVias()):
+                poly = _extract_rule_area_polygon(zone)
+                ra = {
+                    'id': item_id(zone),
+                    'layers': zlayers,
+                    'outer': poly['outer'],
+                    'no_tracks': bool(zone.GetDoNotAllowTracks()),
+                    'no_vias': bool(zone.GetDoNotAllowVias()),
+                }
+                if 'holes' in poly:
+                    ra['holes'] = poly['holes']
+                rule_areas.append(ra)
+    rule_areas.sort(key=lambda item: item['id'])
+
+    mask_rules_from_json = rules is not None and (
         rules.get('solder_mask_to_copper_clearance_nm', 0) > 0
         or rules.get('solder_mask_min_width_nm', 0) > 0
     )
     mask_apertures = []
     for drawing in board.GetDrawings():
         layer = drawing.GetLayer()
-        if pcbnew.IsCopperLayer(layer):
-            layer_name = 'F.Cu' if layer == pcbnew.F_Cu else 'B.Cu'
+        if layer in cu_set:
+            layer_name = board.GetLayerName(layer)
             net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
             for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
                 graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
@@ -888,8 +1133,8 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
         fp_mask_net = next(iter(fp_nets)) if len(fp_nets) == 1 else None
         for drawing in footprint.GraphicalItems():
             layer = drawing.GetLayer()
-            if pcbnew.IsCopperLayer(layer):
-                layer_name = 'F.Cu' if layer == pcbnew.F_Cu else 'B.Cu'
+            if layer in cu_set:
+                layer_name = board.GetLayerName(layer)
                 net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
                 for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
                     graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
@@ -908,23 +1153,50 @@ def export_snapshot(path: Path, rules: dict, max_expansions: int, limits: dict |
     graphics.sort(key=lambda item: (item['layer'], item['net'], item['id']))
     mask_apertures.sort(key=lambda item: (item['layer'], item['id']))
 
-    out_rules = dict(rules)
-    has_drills = bool(holes) or any('drill' in p for p in pads)
-    if has_drills:
-        out_rules['hole_clearance_nm'] = max(out_rules.get('hole_clearance_nm', 0), int(settings.m_HoleClearance))
-    if settings.m_SolderMaskExpansion > 0:
-        out_rules['solder_mask_expansion_nm'] = max(out_rules.get('solder_mask_expansion_nm', 0), int(settings.m_SolderMaskExpansion))
-    if settings.m_SolderMaskMinWidth > 0:
-        out_rules['solder_mask_min_width_nm'] = max(out_rules.get('solder_mask_min_width_nm', 0), int(settings.m_SolderMaskMinWidth))
-    if settings.m_SolderMaskToCopperClearance > 0:
-        out_rules['solder_mask_to_copper_clearance_nm'] = max(out_rules.get('solder_mask_to_copper_clearance_nm', 0), int(settings.m_SolderMaskToCopperClearance))
-
     nets = [{'id': int(code), 'name': net.GetNetname()}
             for code, net in board.GetNetsByNetcode().items()]
     nets.sort(key=lambda item: (item['id'], item['name']))
     result = {'version': INPUT_VERSION, 'source_id': hashlib.sha256(read_bounded(path)).hexdigest(),
-              'layer': 'F.Cu', 'bounds': bounds, 'rules': out_rules,
+              'layer': 'F.Cu', 'layers': layer_names, 'bounds': bounds,
               'nets': nets, 'pads': pads, 'tracks': tracks, 'max_expansions': max_expansions}
+    if rules is not None:
+        out_rules = dict(rules)
+        has_drills = bool(holes) or any('drill' in p for p in pads) or bool(vias)
+        if has_drills:
+            out_rules['hole_clearance_nm'] = max(out_rules.get('hole_clearance_nm', 0), int(settings.m_HoleClearance))
+        if settings.m_SolderMaskExpansion > 0:
+            out_rules['solder_mask_expansion_nm'] = max(out_rules.get('solder_mask_expansion_nm', 0), int(settings.m_SolderMaskExpansion))
+        if settings.m_SolderMaskMinWidth > 0:
+            out_rules['solder_mask_min_width_nm'] = max(out_rules.get('solder_mask_min_width_nm', 0), int(settings.m_SolderMaskMinWidth))
+        if settings.m_SolderMaskToCopperClearance > 0:
+            out_rules['solder_mask_to_copper_clearance_nm'] = max(out_rules.get('solder_mask_to_copper_clearance_nm', 0), int(settings.m_SolderMaskToCopperClearance))
+        result['rules'] = out_rules
+
+    result['board_design_settings'] = {
+        'min_track_width_nm': int(settings.m_TrackMinWidth),
+        'min_clearance_nm': int(settings.m_MinClearance),
+        'min_edge_clearance_nm': int(settings.m_CopperEdgeClearance),
+        'min_via_diameter_nm': int(settings.m_ViasMinSize),
+        'min_via_annular_width_nm': int(settings.m_ViasMinAnnularWidth),
+        'min_through_hole_diameter_nm': int(settings.m_MinThroughDrill),
+        'min_hole_clearance_nm': int(settings.m_HoleClearance),
+        'min_hole_to_hole_nm': int(settings.m_HoleToHoleMin),
+        'min_microvia_diameter_nm': int(settings.m_MicroViasMinSize),
+        'min_microvia_drill_nm': int(settings.m_MicroViasMinDrill),
+        'solder_mask_expansion_nm': int(settings.m_SolderMaskExpansion),
+        'solder_mask_min_width_nm': int(settings.m_SolderMaskMinWidth),
+        'solder_mask_to_copper_clearance_nm': int(settings.m_SolderMaskToCopperClearance),
+    }
+    pro_sidecar = path.with_suffix('.kicad_pro')
+    if pro_sidecar.is_file():
+        result['project_rules'] = read_bounded(pro_sidecar).decode('utf-8')
+    dru_sidecar = path.with_suffix('.kicad_dru')
+    if dru_sidecar.is_file():
+        result['custom_rules'] = read_bounded(dru_sidecar).decode('utf-8')
+    if vias:
+        result['vias'] = vias
+    if rule_areas:
+        result['rule_areas'] = rule_areas
     if holes:
         result['holes'] = holes
     if board_outline is not None:
@@ -950,7 +1222,7 @@ def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request:
     if validation_report is not None and os.path.lexists(validation_report):
         raise FileExistsError(f'validation report already exists: {validation_report}')
     if original_source is not None:
-        reject_external_rules(original_source)
+        resolve_sidecars(original_source)
     with source_snapshot(source) as snapshot:
         apply_snapshot(snapshot, plan, destination, expected_request=expected_request,
                        drc_timeout=drc_timeout, validation_report=validation_report)
@@ -990,14 +1262,25 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     additions = plan.get('added_tracks')
     if not isinstance(additions, list):
         raise ValueError('Rust plan must contain an explicit added_tracks list')
+    added_vias = plan.get('added_vias', [])
+    if not isinstance(added_vias, list):
+        raise ValueError('Rust plan added_vias must be a list when present')
     board = load_supported(source)
+    cu_layers, layer_names = _cu_stack(board)
+    layer_id_by_name = dict(zip(layer_names, cu_layers))
+    layer_idx_by_name = {name: idx for idx, name in enumerate(layer_names)}
     used_ids = {item_id(x) for x in board.GetTracks()} | {item_id(x) for x in board.GetPads()}
     used_ids |= {item_id(x) for x in board.GetFootprints()} | {item_id(x) for x in board.GetDrawings()}
     used_ids |= {item_id(x) for fp in board.GetFootprints() for x in fp.GraphicalItems()}
     nets = set(board.GetNetsByNetcode())
+    allowed_track_keys = {'id', 'net', 'layer', 'start', 'end', 'width_nm', 'locked'}
+    required_track_keys = {'id', 'net', 'start', 'end', 'width_nm', 'locked'}
     for item in additions:
-        if not isinstance(item, dict) or set(item) != {'id', 'net', 'start', 'end', 'width_nm', 'locked'}:
-            raise ValueError('Rust output track must contain exactly id, net, start, end, width_nm and locked')
+        if not isinstance(item, dict) or not required_track_keys.issubset(item) or not set(item).issubset(allowed_track_keys):
+            raise ValueError('Rust output track contains invalid keys')
+        layer_name = item.get('layer', 'F.Cu')
+        if not isinstance(layer_name, str) or layer_name not in layer_id_by_name:
+            raise ValueError(f'Rust output track references unknown copper layer: {layer_name}')
         ident = item['id']
         if not isinstance(ident, str) or str(uuid.UUID(ident)) != ident or uuid.UUID(ident).int == 0 or ident in used_ids:
             raise ValueError('Rust output item identity must be canonical, nonzero and unique')
@@ -1014,12 +1297,52 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         track = pcbnew.PCB_TRACK(board)
         track.SetUuid(pcbnew.KIID(ident))
         track.SetNetCode(item['net'])
-        track.SetLayer(pcbnew.F_Cu)
+        track.SetLayer(layer_id_by_name[layer_name])
         track.SetStart(pcbnew.VECTOR2I(*item['start']))
         track.SetEnd(pcbnew.VECTOR2I(*item['end']))
         track.SetWidth(item['width_nm'])
         track.SetLocked(item['locked'])
         board.Add(track)
+        used_ids.add(ident)
+    via_keys = {'id', 'net', 'at', 'diameter_nm', 'drill_nm', 'start_layer', 'end_layer', 'kind', 'locked'}
+    for v in added_vias:
+        if not isinstance(v, dict) or set(v) != via_keys:
+            raise ValueError('Rust output via contains invalid keys')
+        ident = v['id']
+        if not isinstance(ident, str) or str(uuid.UUID(ident)) != ident or uuid.UUID(ident).int == 0 or ident in used_ids:
+            raise ValueError('Rust output via identity must be canonical, nonzero and unique')
+        if type(v['net']) is not int or v['net'] not in nets or v['net'] == 0:
+            raise ValueError('Rust output via requires a known nonzero integer net')
+        if type(v['diameter_nm']) is not int or type(v['drill_nm']) is not int or v['drill_nm'] <= 0 or v['diameter_nm'] < v['drill_nm'] or v['diameter_nm'] > 1_000_000_000:
+            raise ValueError('Rust output via diameter and drill must be positive with diameter >= drill')
+        if v['start_layer'] not in layer_idx_by_name or v['end_layer'] not in layer_idx_by_name:
+            raise ValueError('Rust output via references unknown copper layer')
+        s_idx, e_idx = layer_idx_by_name[v['start_layer']], layer_idx_by_name[v['end_layer']]
+        if s_idx >= e_idx:
+            raise ValueError('Rust output via start_layer must be strictly above end_layer')
+        if v['kind'] == 'through':
+            kicad_via_type = pcbnew.VIATYPE_THROUGH
+        elif v['kind'] == 'blind_buried':
+            kicad_via_type = pcbnew.VIATYPE_BLIND if (s_idx == 0 or e_idx == len(cu_layers) - 1) else pcbnew.VIATYPE_BURIED
+        elif v['kind'] == 'micro':
+            kicad_via_type = pcbnew.VIATYPE_MICROVIA
+        else:
+            raise ValueError('Rust output via kind is invalid')
+        if type(v['locked']) is not bool:
+            raise ValueError('Rust output via lock flag is invalid')
+        if not isinstance(v['at'], list) or len(v['at']) != 2 or any(type(n) is not int or abs(n) > 1_000_000_000 for n in v['at']):
+            raise ValueError('Rust output via coordinates exceed supported native range')
+        via = pcbnew.PCB_VIA(board)
+        via.SetUuid(pcbnew.KIID(ident))
+        via.SetNetCode(v['net'])
+        via.SetViaType(kicad_via_type)
+        via.SetLayerPair(cu_layers[s_idx], cu_layers[e_idx])
+        via.SetPosition(pcbnew.VECTOR2I(*v['at']))
+        for lid in cu_layers[s_idx:e_idx + 1]:
+            via.SetWidth(lid, v['diameter_nm'])
+        via.SetDrill(v['drill_nm'])
+        via.SetLocked(v['locked'])
+        board.Add(via)
         used_ids.add(ident)
     # Keep the candidate unpublished until the saved native representation
     # independently confirms completion and DRC non-regression.
@@ -1028,6 +1351,10 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         temporary = directory / destination.name
         if not pcbnew.SaveBoard(str(temporary), board):
             raise OSError('KiCad did not save the candidate board')
+        for suffix in ('.kicad_pro', '.kicad_dru'):
+            src_sc = source.with_suffix(suffix)
+            if src_sc.is_file():
+                temporary.with_suffix(suffix).write_bytes(src_sc.read_bytes())
         saved = pcbnew.LoadBoard(str(temporary))
         if saved is None:
             raise NativeValidationError('KiCad could not reload the saved candidate')
@@ -1063,6 +1390,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
                 'after_violation_count': len(after['violations']),
                 'introduced_violation_count': sum(introduced.values()),
                 'added_track_count': len(additions),
+                'added_via_count': len(added_vias),
                 'kicad_version': str(pcbnew.Version()) if hasattr(pcbnew, 'Version') else 'unknown',
             }
         # Atomic create-if-absent: a concurrent writer's destination is preserved.
@@ -1110,7 +1438,8 @@ def main():
     export = sub.add_parser('export')
     export.add_argument('board', type=Path)
     export.add_argument('output', type=Path)
-    export.add_argument('--rules', type=Path, required=True)
+    export.add_argument('--rules', type=Path, default=None)
+    export.add_argument('--project', type=Path, default=None)
     export.add_argument('--max-expansions', type=int, default=100000)
     export.add_argument('--limits', type=Path,
                         help='optional Rust resource limits JSON; Rust validates policy and defaults')
@@ -1132,8 +1461,10 @@ def main():
     try:
         if args.command == 'export':
             limits = read_object(args.limits) if args.limits is not None else None
-            result = export_board(args.board, read_object(args.rules), args.max_expansions, limits,
-                                  original_source=args.original_source)
+            rules_obj = read_object(args.rules) if args.rules is not None else None
+            result = export_board(args.board, rules_obj, args.max_expansions, limits,
+                                  original_source=args.original_source,
+                                  project_path=args.project)
             write_request(result, args.output)
         else:
             apply_plan(args.board, read_object(args.plan), args.output,

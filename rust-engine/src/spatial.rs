@@ -217,12 +217,29 @@ pub(crate) struct TrackGeom {
     pub width_nm: i64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ViaGeom {
+    pub at: [i32; 2],
+    pub diameter: i32,
+    pub drill: i32,
+    pub layer_mask: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct KeepoutGeom {
+    pub rule_area_idx: u32,
+    pub no_tracks: bool,
+    pub no_vias: bool,
+}
+
 const _: () = assert!(std::mem::size_of::<PadCore>() <= 40);
 const _: () = assert!(std::mem::size_of::<DrillGeom>() <= 40);
 const _: () = assert!(std::mem::size_of::<EdgeGeom>() <= 40);
 const _: () = assert!(std::mem::size_of::<ArtworkGeom>() <= 40);
 const _: () = assert!(std::mem::size_of::<MaskGeom>() <= 40);
 const _: () = assert!(std::mem::size_of::<TrackGeom>() <= 40);
+const _: () = assert!(std::mem::size_of::<ViaGeom>() <= 40);
+const _: () = assert!(std::mem::size_of::<KeepoutGeom>() <= 40);
 
 #[derive(Debug)]
 pub(crate) struct StaticSpatialIndex<P> {
@@ -1568,12 +1585,15 @@ mod tests {
                 id: format!("10000000-0000-4000-8000-{n:012x}"),
                 net: 0,
                 at: [10 + n as i64 * 10, y],
+                layers: Vec::new(),
+                local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
             });
             input.tracks.push(Track {
                 id: format!("20000000-0000-4000-8000-{n:012x}"),
                 net: 0,
+                layer: "F.Cu".into(),
                 start: [10 + n as i64 * 10, y],
                 end: [11 + n as i64 * 10, y],
                 width_nm: 1,
@@ -1631,7 +1651,7 @@ mod tests {
             let b = [11000, 0];
             let swept = SweptAabb::swept(a, b, input.rules.width_nm, input.rules.clearance_nm);
             let query_work = WorkBudget::new(input.limits);
-            let pads = engine.pad_spatial.query(swept, &query_work).unwrap();
+            let pads = engine.pad_spatial[0].query(swept, &query_work).unwrap();
             let tracks = engine.copper.candidates(swept, &query_work).unwrap();
             let candidates = pads.len() + tracks.len();
             assert_eq!(candidates, expected_candidates);
@@ -1677,6 +1697,7 @@ mod tests {
             version: 1,
             source_id: "c".repeat(64),
             layer: "F.Cu".into(),
+            layers: Vec::new(),
             bounds: Bounds {
                 min: [-200, -200],
                 max: [200, 200],
@@ -1704,12 +1725,18 @@ mod tests {
                 .collect(),
             pads: Vec::new(),
             tracks: Vec::new(),
+            vias: Vec::new(),
+            rule_areas: Vec::new(),
             max_expansions: 5000,
             limits: Limits::default(),
             holes: Vec::new(),
             board_outline: None,
             graphics: Vec::new(),
             mask_apertures: Vec::new(),
+            board_design_settings: None,
+            project_rules: None,
+            custom_rules: None,
+            effective_rules: None,
         };
         for i in 0..20 {
             let x = ((next_u64() % 31) as i64 - 15) * 10;
@@ -1718,6 +1745,8 @@ mod tests {
                 id: format!("30000000-0000-4000-8000-{:012x}", i + 1),
                 net: (i % 5) as u32,
                 at: [x, y],
+                layers: Vec::new(),
+                local_clearance_nm: None,
                 shape: shapes[i % shapes.len()].clone(),
                 drill: None,
             });
@@ -1751,8 +1780,7 @@ mod tests {
             };
             let swept = SweptAabb::swept(a, b, r.width_nm, r.clearance_nm);
             let work = WorkBudget::new(Limits::default());
-            let pad_cands: BTreeSet<u32> = engine
-                .pad_spatial
+            let pad_cands: BTreeSet<u32> = engine.pad_spatial[0]
                 .query(swept, &work)
                 .unwrap()
                 .into_iter()

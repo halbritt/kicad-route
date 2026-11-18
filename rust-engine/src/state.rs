@@ -1,7 +1,8 @@
 use crate::{
     budget::WorkBudget,
-    model::{Failure, Status, Track},
-    spatial::{CopperAabb, SpatialIndex, StaticSpatialIndex, SweptAabb, TrackGeom},
+    components::span_mask,
+    model::{Failure, Point, Status, Track, Via},
+    spatial::{CopperAabb, SpatialIndex, StaticSpatialIndex, SweptAabb, TrackGeom, ViaGeom},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -10,8 +11,10 @@ use std::{
 
 #[derive(Debug)]
 enum Undo {
-    Inserted(u64),
-    Removed(u64, Track),
+    InsertedTrack(u64),
+    RemovedTrack(u64, Track),
+    InsertedVia(u64),
+    RemovedVia(u64, Via),
 }
 
 #[derive(Debug)]
@@ -20,17 +23,30 @@ struct Frame {
     next: u64,
 }
 
+fn via_bounds(v: &Via) -> (Point, Point) {
+    let r = (v.diameter_nm + 1) / 2;
+    ([v.at[0] - r, v.at[1] - r], [v.at[0] + r, v.at[1] + r])
+}
+
 /// Input copper has no mutation/removal API. The net and spatial indexes are
 /// derived only from owned copper and are maintained by the same owning store.
 #[derive(Debug)]
 pub struct CopperStore {
+    layer_names: Vec<String>,
     input: Vec<Track>,
     slots: Vec<Option<Track>>,
     free_slots: Vec<u32>,
     by_seq: BTreeMap<u64, u32>,
     by_net: BTreeMap<u32, BTreeSet<u64>>,
-    input_spatial: StaticSpatialIndex<TrackGeom>,
-    generated_spatial: SpatialIndex<u64, u32>,
+    input_spatial: Vec<StaticSpatialIndex<TrackGeom>>,
+    generated_spatial: Vec<SpatialIndex<u64, u32>>,
+    input_vias: Vec<Via>,
+    via_slots: Vec<Option<Via>>,
+    free_via_slots: Vec<u32>,
+    via_by_seq: BTreeMap<u64, u32>,
+    via_by_net: BTreeMap<u32, BTreeSet<u64>>,
+    input_via_spatial: StaticSpatialIndex<ViaGeom>,
+    generated_via_spatial: SpatialIndex<u64, u32>,
     journal: Vec<Undo>,
     frames: Vec<Frame>,
     next: u64,
@@ -40,14 +56,33 @@ pub struct CopperStore {
 }
 
 impl CopperStore {
+    #[allow(dead_code)]
     pub(crate) fn new(
         input: Vec<Track>,
         reserved: BTreeSet<String>,
         source: &str,
         base_items: usize,
     ) -> Self {
+        Self::new_multilayer(
+            input,
+            Vec::new(),
+            vec!["F.Cu".to_owned()],
+            reserved,
+            source,
+            base_items,
+        )
+    }
+
+    pub(crate) fn new_multilayer(
+        input: Vec<Track>,
+        input_vias: Vec<Via>,
+        layer_names: Vec<String>,
+        reserved: BTreeSet<String>,
+        source: &str,
+        base_items: usize,
+    ) -> Self {
         // Deterministic custom UUID (version 8), source prefix plus counter.
-        // All input pad/track IDs are reserved; collisions advance the counter.
+        // All input pad/track/via IDs are reserved; collisions advance the counter.
         let prefix = format!(
             "{}-{}-8{}-8{}-",
             &source[..8],
@@ -55,8 +90,15 @@ impl CopperStore {
             &source[12..15],
             &source[15..18]
         );
-        let input_spatial = StaticSpatialIndex::new(input.iter().enumerate().map(|(i, track)| {
-            (
+        let layer_count = layer_names.len().max(1);
+        let mut per_layer_items: Vec<Vec<(u32, u32, CopperAabb, TrackGeom)>> =
+            vec![Vec::new(); layer_count];
+        for (i, track) in input.iter().enumerate() {
+            let l_idx = layer_names
+                .iter()
+                .position(|l| l == &track.layer)
+                .unwrap_or(0);
+            per_layer_items[l_idx].push((
                 u32::try_from(i).expect("bounded input track count"),
                 track.net,
                 CopperAabb::from_bounds(track.copper_bounds()),
@@ -65,16 +107,51 @@ impl CopperStore {
                     end: track.end,
                     width_nm: track.width_nm,
                 },
-            )
-        }));
+            ));
+        }
+        let input_spatial = per_layer_items
+            .into_iter()
+            .map(StaticSpatialIndex::new)
+            .collect();
+        let generated_spatial = (0..layer_count).map(|_| SpatialIndex::new()).collect();
+        let input_via_spatial =
+            StaticSpatialIndex::new(input_vias.iter().enumerate().map(|(i, v)| {
+                let s = layer_names
+                    .iter()
+                    .position(|l| l == &v.start_layer)
+                    .unwrap_or(0);
+                let e = layer_names
+                    .iter()
+                    .position(|l| l == &v.end_layer)
+                    .unwrap_or(s);
+                (
+                    u32::try_from(i).expect("bounded input via count"),
+                    v.net,
+                    CopperAabb::from_bounds(via_bounds(v)),
+                    ViaGeom {
+                        at: [v.at[0] as i32, v.at[1] as i32],
+                        diameter: v.diameter_nm as i32,
+                        drill: v.drill_nm as i32,
+                        layer_mask: span_mask(s, e),
+                    },
+                )
+            }));
         Self {
+            layer_names,
             input,
             slots: Vec::new(),
             free_slots: Vec::new(),
             by_seq: BTreeMap::new(),
             by_net: BTreeMap::new(),
             input_spatial,
-            generated_spatial: SpatialIndex::new(),
+            generated_spatial,
+            input_vias,
+            via_slots: Vec::new(),
+            free_via_slots: Vec::new(),
+            via_by_seq: BTreeMap::new(),
+            via_by_net: BTreeMap::new(),
+            input_via_spatial,
+            generated_via_spatial: SpatialIndex::new(),
             journal: Vec::new(),
             frames: Vec::new(),
             next: 1,
@@ -82,6 +159,19 @@ impl CopperStore {
             prefix,
             base_items,
         }
+    }
+
+    fn layer_idx(&self, layer: &str) -> usize {
+        self.layer_names
+            .iter()
+            .position(|l| l == layer)
+            .expect("validated track layer exists in stackup")
+    }
+
+    fn via_mask(&self, v: &Via) -> u32 {
+        let s = self.layer_idx(&v.start_layer);
+        let e = self.layer_idx(&v.end_layer);
+        span_mask(s, e)
     }
 
     pub fn tracks(&self) -> impl Iterator<Item = &Track> {
@@ -98,6 +188,27 @@ impl CopperStore {
 
     pub fn input(&self) -> &[Track] {
         &self.input
+    }
+
+    pub fn vias(&self) -> impl Iterator<Item = &Via> {
+        self.input_vias.iter().chain(self.generated_vias())
+    }
+
+    pub fn generated_vias(&self) -> impl Iterator<Item = &Via> {
+        self.via_by_seq.values().map(|&slot| {
+            self.via_slots[slot as usize]
+                .as_ref()
+                .expect("via_by_seq references live via slot")
+        })
+    }
+
+    pub fn input_vias(&self) -> &[Via] {
+        &self.input_vias
+    }
+
+    pub fn via_count_for_net(&self, net: u32) -> usize {
+        self.input_vias.iter().filter(|v| v.net == net).count()
+            + self.via_by_net.get(&net).map_or(0, BTreeSet::len)
     }
 
     pub fn index_consistent(&self) -> bool {
@@ -118,31 +229,94 @@ impl CopperStore {
                 return false;
             }
         }
-        live_slots.len() + free_set.len() == self.slots.len()
-            && live_slots.is_disjoint(&free_set)
-            && expected_net == self.by_net
+        if live_slots.len() + free_set.len() != self.slots.len()
+            || !live_slots.is_disjoint(&free_set)
+            || expected_net != self.by_net
+        {
+            return false;
+        }
+        for (l_idx, l_name) in self.layer_names.iter().enumerate() {
+            let input_ok = self.input_spatial[l_idx].consistent(
+                self.input
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| &t.layer == l_name)
+                    .map(|(i, t)| {
+                        (
+                            u32::try_from(i).expect("bounded input track count"),
+                            t.net,
+                            CopperAabb::from_bounds(t.copper_bounds()),
+                            TrackGeom {
+                                start: t.start,
+                                end: t.end,
+                                width_nm: t.width_nm,
+                            },
+                        )
+                    }),
+            );
+            if !input_ok {
+                return false;
+            }
+            let gen_ok = self.generated_spatial[l_idx].consistent(self.by_seq.iter().filter_map(
+                |(&seq, &slot)| {
+                    let t = self.slots[slot as usize].as_ref().unwrap();
+                    (&t.layer == l_name)
+                        .then(|| (seq, slot, t.net, CopperAabb::from_bounds(t.copper_bounds())))
+                },
+            ));
+            if !gen_ok {
+                return false;
+            }
+        }
+        let mut expected_via_net: BTreeMap<u32, BTreeSet<u64>> = BTreeMap::new();
+        let mut live_via_slots = BTreeSet::new();
+        for (&seq, &slot) in &self.via_by_seq {
+            let Some(Some(v)) = self.via_slots.get(slot as usize) else {
+                return false;
+            };
+            if !live_via_slots.insert(slot) || v.id != format!("{}{:012x}", self.prefix, seq) {
+                return false;
+            }
+            expected_via_net.entry(v.net).or_default().insert(seq);
+        }
+        let mut free_via_set = BTreeSet::new();
+        for &slot in &self.free_via_slots {
+            if !free_via_set.insert(slot)
+                || self
+                    .via_slots
+                    .get(slot as usize)
+                    .is_none_or(Option::is_some)
+            {
+                return false;
+            }
+        }
+        live_via_slots.len() + free_via_set.len() == self.via_slots.len()
+            && live_via_slots.is_disjoint(&free_via_set)
+            && expected_via_net == self.via_by_net
             && self
-                .input_spatial
-                .consistent(self.input.iter().enumerate().map(|(i, t)| {
+                .input_via_spatial
+                .consistent(self.input_vias.iter().enumerate().map(|(i, v)| {
                     (
-                        u32::try_from(i).expect("bounded input track count"),
-                        t.net,
-                        CopperAabb::from_bounds(t.copper_bounds()),
-                        TrackGeom {
-                            start: t.start,
-                            end: t.end,
-                            width_nm: t.width_nm,
+                        u32::try_from(i).expect("bounded input via count"),
+                        v.net,
+                        CopperAabb::from_bounds(via_bounds(v)),
+                        ViaGeom {
+                            at: [v.at[0] as i32, v.at[1] as i32],
+                            diameter: v.diameter_nm as i32,
+                            drill: v.drill_nm as i32,
+                            layer_mask: self.via_mask(v),
                         },
                     )
                 }))
             && self
-                .generated_spatial
-                .consistent(self.by_seq.iter().map(|(&seq, &slot)| {
-                    let t = self.slots[slot as usize].as_ref().unwrap();
-                    (seq, slot, t.net, CopperAabb::from_bounds(t.copper_bounds()))
+                .generated_via_spatial
+                .consistent(self.via_by_seq.iter().map(|(&seq, &slot)| {
+                    let v = self.via_slots[slot as usize].as_ref().unwrap();
+                    (seq, slot, v.net, CopperAabb::from_bounds(via_bounds(v)))
                 }))
     }
 
+    #[cfg(test)]
     #[inline(always)]
     pub(crate) fn visit_candidates_geoms_filtered(
         &self,
@@ -151,26 +325,72 @@ impl CopperStore {
         work: &WorkBudget,
         mut visitor: impl FnMut(TrackGeom) -> Result<ControlFlow<()>, Failure>,
     ) -> Result<ControlFlow<()>, Failure> {
+        self.visit_layer_candidates_with_net_filtered(0, bounds, net_filter, work, |_, g| {
+            visitor(g)
+        })
+    }
+
+    #[inline(always)]
+    pub(crate) fn visit_layer_candidates_with_net_filtered(
+        &self,
+        layer_idx: usize,
+        bounds: SweptAabb,
+        net_filter: Option<u32>,
+        work: &WorkBudget,
+        mut visitor: impl FnMut(u32, TrackGeom) -> Result<ControlFlow<()>, Failure>,
+    ) -> Result<ControlFlow<()>, Failure> {
+        let flow = self.input_spatial[layer_idx].visit_matching(
+            bounds,
+            net_filter,
+            work,
+            |ordinal, geom| {
+                work.charge(1)?;
+                visitor(self.input[ordinal as usize].net, *geom)
+            },
+        )?;
+        if flow.is_break() {
+            return Ok(ControlFlow::Break(()));
+        }
+        self.generated_spatial[layer_idx].visit_matching(bounds, net_filter, work, |_seq, &slot| {
+            work.charge(1)?;
+            let track = self.slots[slot as usize]
+                .as_ref()
+                .expect("spatial slot references owned copper");
+            visitor(
+                track.net,
+                TrackGeom {
+                    start: track.start,
+                    end: track.end,
+                    width_nm: track.width_nm,
+                },
+            )
+        })
+    }
+
+    #[inline(always)]
+    pub(crate) fn visit_via_candidates_filtered(
+        &self,
+        bounds: SweptAabb,
+        net_filter: Option<u32>,
+        work: &WorkBudget,
+        mut visitor: impl FnMut(&Via, u32) -> Result<ControlFlow<()>, Failure>,
+    ) -> Result<ControlFlow<()>, Failure> {
         let flow =
-            self.input_spatial
-                .visit_matching(bounds, net_filter, work, |_ordinal, geom| {
+            self.input_via_spatial
+                .visit_matching(bounds, net_filter, work, |ordinal, geom| {
                     work.charge(1)?;
-                    visitor(*geom)
+                    visitor(&self.input_vias[ordinal as usize], geom.layer_mask)
                 })?;
         if flow.is_break() {
             return Ok(ControlFlow::Break(()));
         }
-        self.generated_spatial
+        self.generated_via_spatial
             .visit_matching(bounds, net_filter, work, |_seq, &slot| {
                 work.charge(1)?;
-                let track = self.slots[slot as usize]
+                let via = self.via_slots[slot as usize]
                     .as_ref()
-                    .expect("spatial slot references owned copper");
-                visitor(TrackGeom {
-                    start: track.start,
-                    end: track.end,
-                    width_nm: track.width_nm,
-                })
+                    .expect("via spatial slot references owned via");
+                visitor(via, self.via_mask(via))
             })
     }
 
@@ -184,22 +404,20 @@ impl CopperStore {
         mut visitor: impl FnMut(&'a Track) -> Result<ControlFlow<()>, Failure>,
     ) -> Result<ControlFlow<()>, Failure> {
         let flow =
-            self.input_spatial
-                .visit_matching(bounds, net_filter, work, |ordinal, _geom| {
-                    work.charge(1)?;
-                    visitor(&self.input[ordinal as usize])
-                })?;
+            self.input_spatial[0].visit_matching(bounds, net_filter, work, |ordinal, _geom| {
+                work.charge(1)?;
+                visitor(&self.input[ordinal as usize])
+            })?;
         if flow.is_break() {
             return Ok(ControlFlow::Break(()));
         }
-        self.generated_spatial
-            .visit_matching(bounds, net_filter, work, |_seq, &slot| {
-                work.charge(1)?;
-                let track = self.slots[slot as usize]
-                    .as_ref()
-                    .expect("spatial slot references owned copper");
-                visitor(track)
-            })
+        self.generated_spatial[0].visit_matching(bounds, net_filter, work, |_seq, &slot| {
+            work.charge(1)?;
+            let track = self.slots[slot as usize]
+                .as_ref()
+                .expect("spatial slot references owned copper");
+            visitor(track)
+        })
     }
 
     #[cfg(test)]
@@ -245,6 +463,7 @@ impl CopperStore {
     }
 
     fn add_raw(&mut self, seq: u64, t: Track) {
+        let l_idx = self.layer_idx(&t.layer);
         let slot = if let Some(slot) = self.free_slots.pop() {
             assert!(self.slots[slot as usize].is_none());
             self.slots[slot as usize] = Some(t);
@@ -255,7 +474,7 @@ impl CopperStore {
             slot
         };
         let track = self.slots[slot as usize].as_ref().unwrap();
-        self.generated_spatial.insert(
+        self.generated_spatial[l_idx].insert(
             seq,
             slot,
             track.net,
@@ -274,14 +493,54 @@ impl CopperStore {
             .take()
             .expect("slot references owned generated copper");
         self.free_slots.push(slot);
-        self.generated_spatial
-            .remove(&seq, CopperAabb::from_bounds(t.copper_bounds()));
+        let l_idx = self.layer_idx(&t.layer);
+        self.generated_spatial[l_idx].remove(&seq, CopperAabb::from_bounds(t.copper_bounds()));
         let seqs = self.by_net.get_mut(&t.net).unwrap();
         assert!(seqs.remove(&seq));
         if seqs.is_empty() {
             self.by_net.remove(&t.net);
         }
         t
+    }
+
+    fn add_via_raw(&mut self, seq: u64, v: Via) {
+        let slot = if let Some(slot) = self.free_via_slots.pop() {
+            assert!(self.via_slots[slot as usize].is_none());
+            self.via_slots[slot as usize] = Some(v);
+            slot
+        } else {
+            let slot = u32::try_from(self.via_slots.len()).expect("bounded via slots");
+            self.via_slots.push(Some(v));
+            slot
+        };
+        let via = self.via_slots[slot as usize].as_ref().unwrap();
+        self.generated_via_spatial.insert(
+            seq,
+            slot,
+            via.net,
+            CopperAabb::from_bounds(via_bounds(via)),
+        );
+        self.via_by_net.entry(via.net).or_default().insert(seq);
+        assert!(self.via_by_seq.insert(seq, slot).is_none());
+    }
+
+    fn remove_via_raw(&mut self, seq: u64) -> Via {
+        let slot = self
+            .via_by_seq
+            .remove(&seq)
+            .expect("journal/index references owned generated via");
+        let v = self.via_slots[slot as usize]
+            .take()
+            .expect("slot references owned generated via");
+        self.free_via_slots.push(slot);
+        self.generated_via_spatial
+            .remove(&seq, CopperAabb::from_bounds(via_bounds(&v)));
+        let seqs = self.via_by_net.get_mut(&v.net).unwrap();
+        assert!(seqs.remove(&seq));
+        if seqs.is_empty() {
+            self.via_by_net.remove(&v.net);
+        }
+        v
     }
 
     fn admit_journal(&self, count: usize, work: &WorkBudget) -> Result<(), Failure> {
@@ -299,13 +558,8 @@ impl CopperStore {
         Ok(())
     }
 
-    pub(crate) fn insert(&mut self, mut t: Track, work: &WorkBudget) -> Result<(), Failure> {
-        self.admit_journal(1, work)?;
-        if self.base_items + self.by_seq.len() >= work.limits.max_items {
-            return Err(work.failure(Status::AdmissionExceeded, "copper item limit exceeded"));
-        }
-        work.charge(1)?;
-        let seq = loop {
+    fn alloc_seq_id(&mut self, work: &WorkBudget) -> Result<(u64, String), Failure> {
+        loop {
             work.charge(1)?;
             assert!(
                 self.next < (1u64 << 48),
@@ -314,32 +568,75 @@ impl CopperStore {
             let seq = self.next;
             let id = format!("{}{:012x}", self.prefix, seq);
             self.next = self.next.checked_add(1).expect("bounded ID counter");
-            if !self.reserved.contains(&id) && !self.by_seq.contains_key(&seq) {
-                t.id = id;
-                break seq;
+            if !self.reserved.contains(&id)
+                && !self.by_seq.contains_key(&seq)
+                && !self.via_by_seq.contains_key(&seq)
+            {
+                return Ok((seq, id));
             }
-        };
-        work.charge(self.generated_spatial.mutation_work())?;
-        self.journal.push(Undo::Inserted(seq));
+        }
+    }
+
+    pub(crate) fn insert(&mut self, mut t: Track, work: &WorkBudget) -> Result<(), Failure> {
+        self.admit_journal(1, work)?;
+        if self.base_items + self.by_seq.len() + self.via_by_seq.len() >= work.limits.max_items {
+            return Err(work.failure(Status::AdmissionExceeded, "copper item limit exceeded"));
+        }
+        let l_idx = self.layer_idx(&t.layer);
+        work.charge(1)?;
+        let (seq, id) = self.alloc_seq_id(work)?;
+        t.id = id;
+        work.charge(self.generated_spatial[l_idx].mutation_work())?;
+        self.journal.push(Undo::InsertedTrack(seq));
         self.add_raw(seq, t);
         Ok(())
     }
 
+    pub(crate) fn insert_via(&mut self, mut v: Via, work: &WorkBudget) -> Result<(), Failure> {
+        self.admit_journal(1, work)?;
+        if self.base_items + self.by_seq.len() + self.via_by_seq.len() >= work.limits.max_items {
+            return Err(work.failure(Status::AdmissionExceeded, "copper item limit exceeded"));
+        }
+        work.charge(1)?;
+        let (seq, id) = self.alloc_seq_id(work)?;
+        v.id = id;
+        work.charge(self.generated_via_spatial.mutation_work())?;
+        self.journal.push(Undo::InsertedVia(seq));
+        self.add_via_raw(seq, v);
+        Ok(())
+    }
+
     pub(crate) fn remove_net(&mut self, net: u32, work: &WorkBudget) -> Result<(), Failure> {
-        let count = self.by_net.get(&net).map_or(0, BTreeSet::len);
-        self.admit_journal(count, work)?;
-        work.charge(count as u64)?;
-        let seqs: Vec<u64> = self
+        let track_count = self.by_net.get(&net).map_or(0, BTreeSet::len);
+        let via_count = self.via_by_net.get(&net).map_or(0, BTreeSet::len);
+        let total = track_count + via_count;
+        self.admit_journal(total, work)?;
+        work.charge(total as u64)?;
+        let track_seqs: Vec<u64> = self
             .by_net
             .get(&net)
             .into_iter()
             .flatten()
             .copied()
             .collect();
-        for seq in seqs {
-            work.charge(1 + self.generated_spatial.mutation_work())?;
+        for seq in track_seqs {
+            let slot = self.by_seq[&seq];
+            let l_idx = self.layer_idx(&self.slots[slot as usize].as_ref().unwrap().layer);
+            work.charge(1 + self.generated_spatial[l_idx].mutation_work())?;
             let t = self.remove_raw(seq);
-            self.journal.push(Undo::Removed(seq, t));
+            self.journal.push(Undo::RemovedTrack(seq, t));
+        }
+        let via_seqs: Vec<u64> = self
+            .via_by_net
+            .get(&net)
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect();
+        for seq in via_seqs {
+            work.charge(1 + self.generated_via_spatial.mutation_work())?;
+            let v = self.remove_via_raw(seq);
+            self.journal.push(Undo::RemovedVia(seq, v));
         }
         Ok(())
     }
@@ -348,10 +645,14 @@ impl CopperStore {
         let c = self.frames.pop().expect("scope owns an open transaction");
         while self.journal.len() > c.journal {
             match self.journal.pop().unwrap() {
-                Undo::Inserted(seq) => {
+                Undo::InsertedTrack(seq) => {
                     self.remove_raw(seq);
                 }
-                Undo::Removed(seq, t) => self.add_raw(seq, t),
+                Undo::RemovedTrack(seq, t) => self.add_raw(seq, t),
+                Undo::InsertedVia(seq) => {
+                    self.remove_via_raw(seq);
+                }
+                Undo::RemovedVia(seq, v) => self.add_via_raw(seq, v),
             }
         }
         self.next = c.next;
@@ -380,6 +681,7 @@ mod tests {
             end: [x + 5, 0],
             width_nm: 2,
             locked: false,
+            layer: "F.Cu".into(),
         }
     }
 
@@ -390,10 +692,10 @@ mod tests {
         for step in 1..=12u32 {
             let mut work = WorkBudget::new(Limits::default());
             let mut scope = work.scope();
-            let mutation = store.generated_spatial.mutation_work();
+            let mutation = store.generated_spatial[0].mutation_work();
             assert_eq!(
                 mutation,
-                8 * (u64::from(store.generated_spatial.height()) + 1)
+                8 * (u64::from(store.generated_spatial[0].height()) + 1)
             );
             let short_work = WorkBudget::new(Limits {
                 max_work: 2 + mutation - 1,
@@ -419,9 +721,9 @@ mod tests {
             assert!(store.index_consistent());
             drop(scope);
         }
-        assert_eq!(store.generated_spatial.height(), 8);
+        assert_eq!(store.generated_spatial[0].height(), 8);
 
-        let mutation = store.generated_spatial.mutation_work();
+        let mutation = store.generated_spatial[0].mutation_work();
         assert_eq!(mutation, 72);
         let short_budget = WorkBudget::new(Limits {
             max_work: 1 + 1 + mutation - 1,
@@ -454,6 +756,7 @@ mod tests {
                 end: [20, 0],
                 width_nm: 2,
                 locked: true,
+                layer: "F.Cu".into(),
             },
             Track {
                 id: "10000000-0000-4000-8000-000000000002".into(),
@@ -462,6 +765,7 @@ mod tests {
                 end: [40, 0],
                 width_nm: 2,
                 locked: true,
+                layer: "F.Cu".into(),
             },
             Track {
                 id: "10000000-0000-4000-8000-000000000003".into(),
@@ -470,6 +774,7 @@ mod tests {
                 end: [510, 500],
                 width_nm: 2,
                 locked: true,
+                layer: "F.Cu".into(),
             },
         ];
         let mut store = CopperStore::new(input, BTreeSet::new(), &source, 3);
@@ -484,8 +789,7 @@ mod tests {
         let input_only = WorkBudget::new(Limits::default());
         let _s1 = input_only.scope();
         let mut input_hits = 0u64;
-        assert!(store
-            .input_spatial
+        assert!(store.input_spatial[0]
             .visit(swept, &input_only, |_| {
                 input_hits += 1;
                 Ok::<_, Failure>(ControlFlow::Continue(()))
@@ -498,8 +802,7 @@ mod tests {
         let gen_only = WorkBudget::new(Limits::default());
         let _s2 = gen_only.scope();
         let mut gen_hits = 0u64;
-        assert!(store
-            .generated_spatial
+        assert!(store.generated_spatial[0]
             .visit(swept, &gen_only, |_, _| {
                 gen_hits += 1;
                 Ok::<_, Failure>(ControlFlow::Continue(()))
@@ -542,8 +845,7 @@ mod tests {
         let gen_pruned_only = WorkBudget::new(Limits::default());
         let _s3 = gen_pruned_only.scope();
         let mut gen_pruned_hits = 0u64;
-        assert!(store
-            .generated_spatial
+        assert!(store.generated_spatial[0]
             .visit(pruned_swept, &gen_pruned_only, |_, _| {
                 gen_pruned_hits += 1;
                 Ok::<_, Failure>(ControlFlow::Continue(()))
@@ -675,6 +977,7 @@ mod tests {
                 end: [x + 5, 33],
                 width_nm: 2,
                 locked: true,
+                layer: "F.Cu".into(),
             })
             .collect();
         let store = CopperStore::new(input, BTreeSet::new(), &source, 4);

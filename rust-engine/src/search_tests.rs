@@ -12,6 +12,8 @@ fn pad(n: u64, net: u32, at: Point, shape: Shape) -> Pad {
         id: id(n),
         net,
         at,
+        layers: Vec::new(),
+        local_clearance_nm: None,
         shape,
         drill: None,
     }
@@ -20,6 +22,7 @@ fn track(n: u64, net: u32, a: Point, b: Point, w: i64) -> Track {
     Track {
         id: id(n),
         net,
+        layer: "F.Cu".into(),
         start: a,
         end: b,
         width_nm: w,
@@ -96,6 +99,7 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                             version: 1,
                             source_id: "a".repeat(64),
                             layer: "F.Cu".into(),
+                            layers: Vec::new(),
                             bounds: Bounds {
                                 min: [0, 0],
                                 max: [20, 20],
@@ -123,12 +127,18 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                             ],
                             pads: vec![],
                             tracks: vec![],
+                            vias: Vec::new(),
+                            rule_areas: Vec::new(),
                             max_expansions: 10000,
                             limits: Limits::default(),
                             holes: Vec::new(),
                             board_outline: None,
                             graphics: Vec::new(),
                             mask_apertures: Vec::new(),
+                            board_design_settings: None,
+                            project_rules: None,
+                            custom_rules: None,
+                            effective_rules: None,
                         };
                         if offgrid {
                             i.tracks.push(track(1, 1, [3, 3], [7, 3], 2));
@@ -243,12 +253,15 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
 #[test]
 fn diagonal_interval_between_integer_endpoints_is_not_a_contact() {
     let t = track(1, 1, [5, 1], [8, 8], 3); // effective radius 0 with a width1 route
+    let stack = [String::from("F.Cu")];
     assert!(Copper::Track(&t)
         .attachment(
             [4, 4],
             [9, 4],
             1,
             1,
+            "F.Cu",
+            &stack,
             &crate::budget::WorkBudget::new(Limits::default())
         )
         .unwrap()
@@ -261,6 +274,8 @@ fn diagonal_interval_between_integer_endpoints_is_not_a_contact() {
                 [9, 3],
                 1,
                 1,
+                "F.Cu",
+                &stack,
                 &crate::budget::WorkBudget::new(Limits::default())
             )
             .unwrap(),
@@ -277,6 +292,7 @@ fn nearer_contact_wins_regardless_of_target_order() {
         version: 1,
         source_id: "a".repeat(64),
         layer: "F.Cu".into(),
+        layers: Vec::new(),
         bounds: Bounds {
             min: [0, 0],
             max: [20, 20],
@@ -298,12 +314,18 @@ fn nearer_contact_wins_regardless_of_target_order() {
         }],
         pads: vec![],
         tracks: vec![source.clone(), near.clone(), far.clone()],
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
         max_expansions: 1000,
         limits: Limits::default(),
         holes: Vec::new(),
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     };
     let engine = Engine::new(i).unwrap();
     for targets in [
@@ -388,7 +410,10 @@ fn contact_bound_contains_caps_and_is_consistent_on_shortened_edges() {
                         // This is the actual search goal predicate, including
                         // arbitrary-angle incumbent copper and odd half-widths.
                         // The separate axis-aligned cost oracles stay independent.
-                        if target.touches_route(&cap, &work).unwrap() {
+                        if target
+                            .touches_route(&cap, &[String::from("F.Cu")], &work)
+                            .unwrap()
+                        {
                             contacts[n] += 1;
                             assert_eq!(h, 0, "production goal cap must have zero heuristic: target={n} point={p:?} width={width}");
                         }
@@ -517,6 +542,7 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                         version: 1,
                         source_id: "a".repeat(64),
                         layer: "F.Cu".into(),
+                        layers: Vec::new(),
                         bounds: Bounds {
                             min: [0, 0],
                             max: [20, 20],
@@ -544,12 +570,18 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                         ],
                         pads: vec![target_pad.clone()],
                         tracks: vec![source.clone(), target_track.clone()],
+                        vias: Vec::new(),
+                        rule_areas: Vec::new(),
                         max_expansions: 10000,
                         limits: Limits::default(),
                         holes: Vec::new(),
                         board_outline: None,
                         graphics: Vec::new(),
                         mask_apertures: Vec::new(),
+                        board_design_settings: None,
+                        project_rules: None,
+                        custom_rules: None,
+                        effective_rules: None,
                     };
                     for (bit, a, b) in [
                         (1, [10, 0], [10, 10]),
@@ -612,6 +644,7 @@ fn walk_preserves_distinct_incoming_headings_in_dominance_key() {
         version: 1,
         source_id: "a".repeat(64),
         layer: "F.Cu".into(),
+        layers: Vec::new(),
         bounds: Bounds {
             min: [0, 0],
             max: [10, 10],
@@ -633,12 +666,18 @@ fn walk_preserves_distinct_incoming_headings_in_dominance_key() {
         }],
         pads: vec![],
         tracks: vec![],
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
         max_expansions: 100,
         limits: Limits::default(),
         holes: Vec::new(),
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     };
     let engine = Engine::new(i).unwrap();
     let mut expanded = 0;
@@ -668,6 +707,7 @@ fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
         version: 1,
         source_id: "a".repeat(64),
         layer: "F.Cu".into(),
+        layers: Vec::new(),
         bounds: Bounds {
             min: [0, 0],
             max: [10, 10],
@@ -689,12 +729,18 @@ fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
         }],
         pads: vec![],
         tracks: vec![],
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
         max_expansions: 1000,
         limits: Limits::default(),
         holes: Vec::new(),
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     };
     let engine = Engine::new(i).unwrap();
     let blocks = [[1, 1], [3, 1], [1, 3], [3, 3], [1, 2], [2, 1]];
@@ -768,7 +814,6 @@ fn walk_matches_heading_aware_bfs_oracle_for_all_four_headings() {
     }
     assert!(reachable > 0 && unreachable > 0);
 }
-
 #[test]
 fn component_estimate_and_join_components_refuse_empty_targets_without_panicking() {
     let rules = Rules {
@@ -795,6 +840,7 @@ fn component_estimate_and_join_components_refuse_empty_targets_without_panicking
         version: 1,
         source_id: "a".repeat(64),
         layer: "F.Cu".into(),
+        layers: Vec::new(),
         bounds: Bounds {
             min: [0, 0],
             max: [40, 40],
@@ -806,12 +852,18 @@ fn component_estimate_and_join_components_refuse_empty_targets_without_panicking
         }],
         pads: vec![p.clone()],
         tracks: vec![],
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
         max_expansions: 100,
         limits: Limits::default(),
         holes: Vec::new(),
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     };
     let engine = Engine::new(i).unwrap();
     for targets in [&empty, &one_empty] {
@@ -843,6 +895,7 @@ fn join_components_empty_starts_records_work_used_and_expanded_states() {
         version: 1,
         source_id: "a".repeat(64),
         layer: "F.Cu".into(),
+        layers: Vec::new(),
         bounds: Bounds {
             min: [0, 0],
             max: [50, 50],
@@ -860,12 +913,18 @@ fn join_components_empty_starts_records_work_used_and_expanded_states() {
         ],
         pads: vec![p1.clone(), p2.clone(), blocker],
         tracks: vec![],
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
         max_expansions: 100,
         limits: Limits::default(),
         holes: Vec::new(),
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     };
     let engine = Engine::new(i).unwrap();
     let mut expanded = 0;
@@ -882,4 +941,686 @@ fn join_components_empty_starts_records_work_used_and_expanded_states() {
     assert_eq!(expanded, 0);
     assert_eq!(err.expanded_states, 0);
     assert!(err.work_used > 0);
+}
+
+#[test]
+fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
+    use std::cmp::Reverse;
+    use std::collections::{BinaryHeap, HashMap};
+
+    let stack = vec!["F.Cu".to_owned(), "In1.Cu".to_owned(), "B.Cu".to_owned()];
+    let mut reachable = 0usize;
+    let mut unreachable = 0usize;
+    for allow_blind in [false, true] {
+        for mask in 0..32u32 {
+            let mut input = Input {
+                version: 1,
+                source_id: "b".repeat(64),
+                layer: "F.Cu".into(),
+                layers: stack.clone(),
+                bounds: Bounds {
+                    min: [0, 0],
+                    max: [40, 20],
+                },
+                rules: Rules {
+                    width_nm: 2,
+                    clearance_nm: 1,
+                    grid_nm: 10,
+                    edge_clearance_nm: 1,
+                    hole_clearance_nm: 2,
+                    same_net_hole_clearance_nm: 0,
+                    solder_mask_expansion_nm: 0,
+                    solder_mask_min_width_nm: 0,
+                    solder_mask_to_copper_clearance_nm: 0,
+                },
+                nets: vec![
+                    Net {
+                        id: 0,
+                        name: String::new(),
+                    },
+                    Net {
+                        id: 1,
+                        name: "SIG".into(),
+                    },
+                ],
+                pads: vec![
+                    Pad {
+                        id: id(1),
+                        net: 1,
+                        at: [10, 10],
+                        layers: vec!["F.Cu".into()],
+                        local_clearance_nm: None,
+                        shape: Shape::Circle { radius_nm: 1 },
+                        drill: None,
+                    },
+                    Pad {
+                        id: id(2),
+                        net: 1,
+                        at: [30, 10],
+                        layers: vec!["B.Cu".into()],
+                        local_clearance_nm: None,
+                        shape: Shape::Circle { radius_nm: 1 },
+                        drill: None,
+                    },
+                ],
+                tracks: Vec::new(),
+                vias: Vec::new(),
+                rule_areas: Vec::new(),
+                max_expansions: 10_000,
+                limits: Limits::default(),
+                holes: Vec::new(),
+                board_outline: None,
+                graphics: Vec::new(),
+                mask_apertures: Vec::new(),
+                board_design_settings: None,
+                project_rules: None,
+                custom_rules: None,
+                effective_rules: None,
+            };
+            input.project_rules = Some(
+                serde_json::json!({
+                    "meta": {"version": 3},
+                    "board": {
+                        "design_settings": {
+                            "rules": {
+                                "min_via_diameter": 0.000004,
+                                "min_through_hole_diameter": 0.000002,
+                                "min_hole_to_hole": 0.000002,
+                                "allow_blind_buried_vias": allow_blind,
+                                "allow_microvias": false
+                            }
+                        }
+                    },
+                    "net_settings": {
+                        "classes": [{
+                            "name": "Default",
+                            "track_width": 0.000002,
+                            "clearance": 0.000001,
+                            "via_diameter": 0.000004,
+                            "via_drill": 0.000002
+                        }]
+                    }
+                })
+                .to_string(),
+            );
+            let blockers = [
+                ("F.Cu", [20, 10]),
+                ("In1.Cu", [20, 10]),
+                ("B.Cu", [20, 10]),
+                ("F.Cu", [30, 10]),
+                ("B.Cu", [10, 10]),
+            ];
+            for (bit, (lname, pt)) in blockers.iter().enumerate() {
+                if (mask & (1 << bit)) != 0 {
+                    input.pads.push(Pad {
+                        id: id(10 + bit as u64),
+                        net: 0,
+                        at: *pt,
+                        layers: vec![(*lname).to_owned()],
+                        local_clearance_nm: None,
+                        shape: Shape::Circle { radius_nm: 2 },
+                        drill: None,
+                    });
+                }
+            }
+            let engine = Engine::new(input).unwrap();
+            let src_pad = &engine.input.pads[0];
+            let dst_pad = &engine.input.pads[1];
+            let actual = join_components(
+                &engine,
+                1,
+                &[Copper::Pad(src_pad)],
+                &[vec![Copper::Pad(dst_pad)]],
+                10_000,
+                &mut 0,
+            );
+
+            // Independent state-augmented Dijkstra oracle over (at, layer, sorted placed vias).
+            let via_cost = engine.effective_rules.via_cost.max(1);
+            let oracle_cost = {
+                let mut dist: HashMap<(Point, usize, Vec<PlacedViaKey>), u64> = HashMap::new();
+                let mut pq: BinaryHeap<Reverse<(u64, Point, usize, Vec<PlacedViaKey>)>> =
+                    BinaryHeap::new();
+                if engine.legal_edge_on(1, 0, [10, 10], [10, 10]).unwrap() {
+                    dist.insert(([10, 10], 0, Vec::new()), 0);
+                    pq.push(Reverse((0, [10, 10], 0, Vec::new())));
+                }
+                let mut found = None;
+                while let Some(Reverse((g, p, l, vias))) = pq.pop() {
+                    if dist.get(&(p, l, vias.clone())).is_some_and(|&d| d < g) {
+                        continue;
+                    }
+                    if p == [30, 10] && l == 2 {
+                        found = Some(g);
+                        break;
+                    }
+                    for d in [[10, 0], [-10, 0], [0, 10], [0, -10]] {
+                        let q = [p[0] + d[0], p[1] + d[1]];
+                        if engine.legal_edge_on(1, l, p, q).unwrap() {
+                            let ng = g + 1;
+                            let k = (q, l, vias.clone());
+                            if dist.get(&k).is_none_or(|&old| ng < old) {
+                                dist.insert(k, ng);
+                                pq.push(Reverse((ng, q, l, vias.clone())));
+                            }
+                        }
+                    }
+                    for tl in 0..3usize {
+                        if tl == l {
+                            continue;
+                        }
+                        let mut cands = vec![(0, 2, ViaKind::Through, 0u8)];
+                        if allow_blind && (l.min(tl) > 0 || l.max(tl) < 2) {
+                            cands.push((l.min(tl), l.max(tl), ViaKind::BlindBuried, 1u8));
+                        }
+                        for (s, e, kind, kcode) in cands {
+                            let pv = PlacedViaKey {
+                                at: p,
+                                start_layer: s as u8,
+                                end_layer: e as u8,
+                                kind: kcode,
+                            };
+                            if vias.contains(&pv) {
+                                continue;
+                            }
+                            if engine.legal_via(1, p, s, e, kind, &vias).unwrap().is_some() {
+                                let mut nv = vias.clone();
+                                nv.push(pv);
+                                nv.sort_unstable();
+                                let ng = g + via_cost;
+                                let k = (p, tl, nv.clone());
+                                if dist.get(&k).is_none_or(|&old| ng < old) {
+                                    dist.insert(k, ng);
+                                    pq.push(Reverse((ng, p, tl, nv)));
+                                }
+                            }
+                        }
+                    }
+                }
+                found
+            };
+            match (oracle_cost, actual) {
+                (Some(c), Ok(path)) => {
+                    reachable += 1;
+                    assert_eq!(path.steps, c, "allow_blind={allow_blind} mask={mask}");
+                    for e in &path.edges {
+                        if let PathEdge::Track { start, end, layer } = *e {
+                            assert!(engine.legal_edge_on(1, layer as usize, start, end).unwrap());
+                        }
+                    }
+                }
+                (None, Err(err)) => {
+                    unreachable += 1;
+                    assert_eq!(err.status, Status::Unroutable);
+                }
+                (exp, got) => panic!(
+                    "mismatch allow_blind={allow_blind} mask={mask}: oracle={exp:?} got={got:?}"
+                ),
+            }
+        }
+    }
+    assert!(reachable > 0 && unreachable > 0);
+}
+
+#[test]
+fn two_via_position_only_witness_and_max_expansions_budget() {
+    // 2-via position-only witness: short F.Cu->In1.Cu->B.Cu path places V1 at [20, 10] which
+    // blocks the only exit via V2 at [20, 20] (dist 10 < hole_to_hole 12); longer path places
+    // V1' at [0, 10] and succeeds. Also checks max_expansions=15 returns BudgetExhausted, never Unroutable.
+    let stack = vec!["F.Cu".to_owned(), "In1.Cu".to_owned(), "B.Cu".to_owned()];
+    let mut input = Input {
+        version: 1,
+        source_id: "c".repeat(64),
+        layer: "F.Cu".into(),
+        layers: stack,
+        bounds: Bounds {
+            min: [-10, 0],
+            max: [50, 40],
+        },
+        rules: Rules {
+            width_nm: 2,
+            clearance_nm: 1,
+            grid_nm: 10,
+            edge_clearance_nm: 1,
+            hole_clearance_nm: 2,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads: vec![
+            Pad {
+                id: id(1),
+                net: 1,
+                at: [10, 10],
+                layers: vec!["F.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
+            },
+            Pad {
+                id: id(2),
+                net: 1,
+                at: [20, 30],
+                layers: vec!["B.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
+            },
+        ],
+        tracks: vec![
+            Track {
+                id: id(10),
+                net: 0,
+                layer: "In1.Cu".into(),
+                start: [20, 30],
+                end: [30, 30],
+                width_nm: 4,
+                locked: true,
+            },
+            Track {
+                id: id(11),
+                net: 0,
+                layer: "In1.Cu".into(),
+                start: [10, 20],
+                end: [10, 30],
+                width_nm: 4,
+                locked: true,
+            },
+            Track {
+                id: id(12),
+                net: 0,
+                layer: "F.Cu".into(),
+                start: [10, 20],
+                end: [20, 20],
+                width_nm: 4,
+                locked: true,
+            },
+            Track {
+                id: id(15),
+                net: 0,
+                layer: "F.Cu".into(),
+                start: [0, 30],
+                end: [30, 30],
+                width_nm: 4,
+                locked: true,
+            },
+            Track {
+                id: id(13),
+                net: 0,
+                layer: "B.Cu".into(),
+                start: [0, 10],
+                end: [30, 10],
+                width_nm: 4,
+                locked: true,
+            },
+            Track {
+                id: id(14),
+                net: 0,
+                layer: "B.Cu".into(),
+                start: [30, 10],
+                end: [30, 30],
+                width_nm: 4,
+                locked: true,
+            },
+            Track {
+                id: id(16),
+                net: 0,
+                layer: "B.Cu".into(),
+                start: [0, 20],
+                end: [10, 30],
+                width_nm: 4,
+                locked: true,
+            },
+            Track {
+                id: id(17),
+                net: 0,
+                layer: "B.Cu".into(),
+                start: [30, 30],
+                end: [40, 30],
+                width_nm: 4,
+                locked: true,
+            },
+        ],
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        max_expansions: 5000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
+    };
+    input.project_rules = Some(
+        serde_json::json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {
+                "min_via_diameter": 0.000004,
+                "min_through_hole_diameter": 0.000002,
+                "min_hole_to_hole": 0.000010,
+                "allow_blind_buried_vias": true,
+                "allow_microvias": false
+            }}},
+            "net_settings": {
+                "classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000004,
+                    "via_drill": 0.000002
+                }]
+            }
+        })
+        .to_string(),
+    );
+    let engine = Engine::new(input.clone()).unwrap();
+    let res = join_components(
+        &engine,
+        1,
+        &[Copper::Pad(&engine.input.pads[0])],
+        &[vec![Copper::Pad(&engine.input.pads[1])]],
+        5000,
+        &mut 0,
+    )
+    .expect("2-via position-only witness must find legal route");
+    let via_count = res
+        .edges
+        .iter()
+        .filter(|e| matches!(e, PathEdge::Via(_)))
+        .count();
+    assert!(via_count >= 2);
+    for e in &res.edges {
+        if let PathEdge::Track { start, end, layer } = *e {
+            assert!(engine.legal_edge_on(1, layer as usize, start, end).unwrap());
+        }
+    }
+
+    // max_expansions=15 on a distant target returns BudgetExhausted, never Unroutable.
+    let mut far_input = input;
+    far_input.bounds = Bounds {
+        min: [-10, 0],
+        max: [700, 40],
+    };
+    far_input.tracks.clear();
+    far_input.pads[1].at = [650, 10];
+    let far_engine = Engine::new(far_input).unwrap();
+    let err = join_components(
+        &far_engine,
+        1,
+        &[Copper::Pad(&far_engine.input.pads[0])],
+        &[vec![Copper::Pad(&far_engine.input.pads[1])]],
+        15,
+        &mut 0,
+    )
+    .unwrap_err();
+    assert_eq!(err.status, Status::BudgetExhausted);
+}
+
+#[test]
+fn three_via_last_via_only_counterexample_witness_re02() {
+    use std::cmp::Reverse;
+    use std::collections::{BinaryHeap, HashMap};
+
+    // 4-layer world with blind/buried vias and hole_to_hole=10 (min center dist 12 on grid 10):
+    // Path A: [10,10](F.Cu)->[20,10]->V1(F..In2)->[30,10]->[40,10]->[40,20]->V2(In1..In2)->[30,20]->[20,20](In1.Cu)
+    // Path B: [10,10](F.Cu)->[0,10]->V1'(F..In2)->[0,20]->[0,30]->[40,30]->[40,20]->V2(In1..In2)->[30,20]->[20,20](In1.Cu)
+    // Both reach ([20,20], In1.Cu, dir=-x) with last_via=V2@[40,20]. Path A is shorter, so a last-via-only
+    // probe settles ([20,20], In1.Cu, -x, V2) with {V1@[20,10], V2@[40,20]} and drops Path B. The only exit
+    // to target [20,30](B.Cu) is V3@[20,20](In1..B), which conflicts with V1@[20,10] (dist 10 < 12) so
+    // last_via_only returns Unroutable, while production full via-history search finds the legal 3-via path!
+    let stack = vec![
+        "F.Cu".to_owned(),
+        "In1.Cu".to_owned(),
+        "In2.Cu".to_owned(),
+        "B.Cu".to_owned(),
+    ];
+    let mut pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [10, 10],
+            layers: vec!["F.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [20, 30],
+            layers: vec!["B.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
+        },
+    ];
+    let mut tracks = Vec::new();
+    let mut add_block = |nid: u64, layer: &str, a: Point, b: Point| {
+        if a == b {
+            pads.push(Pad {
+                id: id(nid),
+                net: 0,
+                at: a,
+                layers: vec![layer.to_owned()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 2 },
+                drill: None,
+            });
+        } else {
+            tracks.push(Track {
+                id: id(nid),
+                net: 0,
+                layer: layer.to_owned(),
+                start: a,
+                end: b,
+                width_nm: 4,
+                locked: true,
+            });
+        }
+    };
+    // Force start->V1/V1' on F.Cu; block [20,20] & [20,30] on F.Cu and [10,20],[10,30] on F.Cu.
+    add_block(10, "F.Cu", [-10, 20], [50, 20]);
+    add_block(11, "F.Cu", [-10, 30], [50, 30]);
+    add_block(12, "F.Cu", [-10, 0], [50, 0]);
+    add_block(13, "F.Cu", [-10, 40], [50, 40]);
+    add_block(14, "F.Cu", [30, 10], [30, 10]);
+    // Block B.Cu everywhere except [20,20]->[20,30]
+    add_block(20, "B.Cu", [-10, 10], [50, 10]);
+    add_block(21, "B.Cu", [-10, 20], [10, 20]);
+    add_block(22, "B.Cu", [30, 20], [50, 20]);
+    add_block(23, "B.Cu", [-10, 30], [10, 30]);
+    add_block(24, "B.Cu", [30, 30], [50, 30]);
+    add_block(25, "B.Cu", [-10, 40], [50, 40]);
+    add_block(26, "B.Cu", [-10, 0], [50, 0]);
+    // Block In1.Cu exits from [20,20] except arriving from [30,20] (use [20,15] between V1 and V3)
+    add_block(30, "In1.Cu", [10, 20], [10, 20]);
+    add_block(31, "In1.Cu", [20, 15], [20, 15]);
+    add_block(32, "In1.Cu", [20, 30], [20, 30]);
+    add_block(33, "In1.Cu", [0, 20], [0, 30]);
+    add_block(34, "In1.Cu", [30, 10], [30, 10]);
+    add_block(35, "In1.Cu", [30, 30], [30, 30]);
+    add_block(36, "In1.Cu", [10, 10], [10, 10]);
+    add_block(37, "In1.Cu", [10, 30], [10, 30]);
+    add_block(38, "In1.Cu", [-10, 40], [50, 40]);
+    add_block(39, "In1.Cu", [-10, 0], [50, 0]);
+    add_block(50, "In1.Cu", [40, 10], [40, 10]);
+    add_block(51, "In1.Cu", [40, 30], [40, 30]);
+    // Block In2.Cu direct drop to [20,20]/[20,30] without blocking V3 through-path at [20,20]
+    add_block(40, "In2.Cu", [10, 20], [10, 20]);
+    add_block(41, "In2.Cu", [20, 30], [20, 30]);
+    add_block(42, "In2.Cu", [10, 30], [10, 30]);
+    add_block(43, "In2.Cu", [10, 10], [10, 10]);
+    add_block(44, "In2.Cu", [30, 20], [30, 20]);
+    add_block(45, "In2.Cu", [-10, 0], [50, 0]);
+    add_block(46, "In2.Cu", [20, 15], [20, 15]);
+
+    let mut input = Input {
+        version: 1,
+        source_id: "d".repeat(64),
+        layer: "F.Cu".into(),
+        layers: stack,
+        bounds: Bounds {
+            min: [-10, 0],
+            max: [50, 50],
+        },
+        rules: Rules {
+            width_nm: 2,
+            clearance_nm: 1,
+            grid_nm: 10,
+            edge_clearance_nm: 1,
+            hole_clearance_nm: 2,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads,
+        tracks,
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
+    };
+    input.project_rules = Some(
+        serde_json::json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {
+                "min_via_diameter": 0.000004,
+                "min_through_hole_diameter": 0.000002,
+                "min_hole_to_hole": 0.000010,
+                "allow_blind_buried_vias": true,
+                "allow_microvias": false
+            }}},
+            "net_settings": {
+                "classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000004,
+                    "via_drill": 0.000002
+                }]
+            }
+        })
+        .to_string(),
+    );
+    let engine = Engine::new(input).unwrap();
+    let res = join_components(
+        &engine,
+        1,
+        &[Copper::Pad(&engine.input.pads[0])],
+        &[vec![Copper::Pad(&engine.input.pads[1])]],
+        50_000,
+        &mut 0,
+    )
+    .expect("full via-history search must find 3-via route");
+    let via_count = res
+        .edges
+        .iter()
+        .filter(|e| matches!(e, PathEdge::Via(_)))
+        .count();
+    assert!(via_count >= 3, "expected >= 3 vias, got {:?}", res.edges);
+
+    // Reference last-via-only Dijkstra probe on the exact same transition rules:
+    // dominance key is (at, layer, dir, last_via_only).
+    let via_cost = engine.effective_rules.via_cost.max(1);
+    let mut best_last: HashMap<(Point, usize, u8, Option<PlacedViaKey>), u64> = HashMap::new();
+    let mut pq: BinaryHeap<
+        Reverse<(
+            u64,
+            Point,
+            usize,
+            u8,
+            Option<PlacedViaKey>,
+            Vec<PlacedViaKey>,
+        )>,
+    > = BinaryHeap::new();
+    best_last.insert(([10, 10], 0, 4, None), 0);
+    pq.push(Reverse((0, [10, 10], 0, 4, None, Vec::new())));
+    let mut last_via_only_found = None;
+    while let Some(Reverse((g, p, l, d, lv, hist))) = pq.pop() {
+        if best_last.get(&(p, l, d, lv)).is_some_and(|&old| old < g) {
+            continue;
+        }
+        if p == [20, 30] && l == 3 {
+            last_via_only_found = Some((g, hist.clone()));
+            break;
+        }
+        for (dc, delta) in [[10, 0], [0, 10], [-10, 0], [0, -10]].iter().enumerate() {
+            let q = [p[0] + delta[0], p[1] + delta[1]];
+            if engine.legal_edge_on(1, l, p, q).unwrap() {
+                let k = (q, l, dc as u8, lv);
+                let ng = g + 1;
+                if best_last.get(&k).is_none_or(|&old| ng < old) {
+                    best_last.insert(k, ng);
+                    pq.push(Reverse((ng, q, l, dc as u8, lv, hist.clone())));
+                }
+            }
+        }
+        for tl in 0..4usize {
+            if tl == l {
+                continue;
+            }
+            let (s, e, kind, kcode) = if l.min(tl) == 0 && l.max(tl) == 3 {
+                (0, 3, ViaKind::Through, 0u8)
+            } else {
+                (l.min(tl), l.max(tl), ViaKind::BlindBuried, 1u8)
+            };
+            let pv = PlacedViaKey {
+                at: p,
+                start_layer: s as u8,
+                end_layer: e as u8,
+                kind: kcode,
+            };
+            if hist.iter().any(|h| h.at == p) {
+                continue;
+            }
+            if engine.legal_via(1, p, s, e, kind, &hist).unwrap().is_some() {
+                let mut nh = hist.clone();
+                nh.push(pv);
+                let k = (p, tl, 4, Some(pv));
+                let ng = g + via_cost;
+                if best_last.get(&k).is_none_or(|&old| ng < old) {
+                    best_last.insert(k, ng);
+                    pq.push(Reverse((ng, p, tl, 4, Some(pv), nh)));
+                }
+            }
+        }
+    }
+    assert!(
+        last_via_only_found.is_none(),
+        "last-via-only probe must fail (Unroutable) on RE-02 3-via witness, got {last_via_only_found:?}, prod={:?}",
+        res.edges
+    );
 }

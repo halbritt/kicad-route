@@ -109,6 +109,7 @@ fn exhausted_work_stops_before_quadratic_partition() {
             end: [2, 1],
             width_nm: 2,
             locked: false,
+            layer: "F.Cu".into(),
         });
     }
     i.limits.max_work = 20;
@@ -323,6 +324,7 @@ fn every_work_cutoff_rolls_back_component_join_and_id_allocation() {
         end: [45, 49],
         width_nm: 2,
         locked: false,
+        layer: "F.Cu".into(),
     });
     i.nets.push(Net {
         id: 2,
@@ -497,6 +499,7 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
             end: [20, 33],
             width_nm: 2,
             locked: true,
+            layer: "F.Cu".into(),
         },
         Track {
             id: "10000000-0000-4000-8000-000000000011".into(),
@@ -505,6 +508,7 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
             end: [40, 33],
             width_nm: 2,
             locked: true,
+            layer: "F.Cu".into(),
         },
     ];
     // Bounds(1) + 1 input_spatial leaf(1) + 2 leaf entries(2) + 2 foreign track lookups/geom(2) = 6.
@@ -535,6 +539,8 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
         at: [50, 53],
         shape: Shape::Circle { radius_nm: 1 },
         drill: None,
+        layers: Vec::new(),
+        local_clearance_nm: None,
     });
     gen1.nets.push(Net {
         id: 2,
@@ -573,6 +579,8 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
             at: [x0, 33],
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         });
         gen3.pads.push(Pad {
             id: format!("10000000-0000-4000-8000-{:012x}", id * 2),
@@ -580,6 +588,8 @@ fn standalone_clearance_query_charges_input_and_generated_lookups() {
             at: [x0 + 5, 33],
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         });
     }
     gen3.nets.push(Net {
@@ -633,6 +643,7 @@ fn static_spatial_internal_and_leaf_nodes_charge_before_pruning() {
             end: [x + 10, 33],
             width_nm: 2,
             locked: true,
+            layer: "F.Cu".into(),
         });
     }
     // 33 items => 1 Internal root + 2 Leaves (16 and 17 entries).
@@ -770,6 +781,8 @@ fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
             at: [x, 33],
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         });
     }
     for limit in 0..=6u64 {
@@ -805,6 +818,7 @@ fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
             end: [x + 5, 33],
             width_nm: 2,
             locked: true,
+            layer: "F.Cu".into(),
         });
     }
     for limit in 0..=6u64 {
@@ -838,6 +852,7 @@ fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
             end: [x + 5, 33],
             width_nm: 2,
             locked: true,
+            layer: "F.Cu".into(),
         });
     }
     let e3a = Engine::new(s3a).unwrap();
@@ -855,6 +870,8 @@ fn static_uniform_net_bulk_charge_exhausts_step_by_step() {
             at: [x, 33],
             shape: Shape::Circle { radius_nm: 1 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         });
     }
     let e3b = Engine::new(s3b).unwrap();
@@ -891,6 +908,7 @@ fn generated_uniform_net_and_net0_work_accounting() {
         end: [30, 70],
         width_nm: 2,
         locked: true,
+        layer: "F.Cu".into(),
     });
     let mut e = Engine::new(i).unwrap();
     e.route(1, 1000).unwrap();
@@ -928,6 +946,8 @@ fn generated_uniform_net_and_net0_work_accounting() {
         at: [30, 30],
         shape: Shape::Circle { radius_nm: 3 },
         drill: None,
+        layers: Vec::new(),
+        local_clearance_nm: None,
     });
     multi.pads.push(Pad {
         id: "50000000-0000-4000-8000-000000000003".into(),
@@ -935,6 +955,8 @@ fn generated_uniform_net_and_net0_work_accounting() {
         at: [50, 60],
         shape: Shape::Circle { radius_nm: 1 },
         drill: None,
+        layers: Vec::new(),
+        local_clearance_nm: None,
     });
     const MULTI_GEN_ROUTE_WORK: u64 = 2191;
     let mut probe = Engine::new(multi.clone()).unwrap();

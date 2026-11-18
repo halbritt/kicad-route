@@ -167,8 +167,6 @@ def test_native_rounded_signals_and_foreign_obstacles_route_preserve_and_validat
         "zero",
         "negative",
         "drill",
-        "clearance",
-        "back",
     ],
 )
 def test_native_rounded_unsupported_and_malformed_are_not_coerced(
@@ -183,12 +181,6 @@ def test_native_rounded_unsupported_and_malformed_are_not_coerced(
         pad.SetSize(pcbnew.VECTOR2I(-2000000, 1000000))
     elif feature == "drill":
         pad.SetDrillSize(pcbnew.VECTOR2I(100000, 100000))
-    elif feature == "clearance":
-        pad.SetLocalClearance(2000000)
-    elif feature == "back":
-        layers = pcbnew.LSET()
-        layers.AddLayer(pcbnew.B_Cu)
-        pad.SetLayerSet(layers)
     save(native_board, board)
     if feature == "drill":
         # KiCad omits an SMD drill set via its API on save. Inject the source
@@ -220,6 +212,25 @@ def test_native_rounded_unsupported_and_malformed_are_not_coerced(
     with pytest.raises(ValueError):
         bridge.apply_plan(native_board, plan, output, expected_request=request)
     assert not output.exists() and native_board.read_bytes() == original
+
+
+def test_native_rounded_back_copper_smd_pad_and_clearance_export_and_route(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    pads = list(board.GetPads())
+    rounded(pads[1], pcbnew.PAD_SHAPE_ROUNDRECT)
+    pads[1].SetLocalClearance(500000)
+    layers = pcbnew.LSET()
+    layers.AddLayer(pcbnew.B_Cu)
+    pads[1].SetLayerSet(layers)
+    save(native_board, board)
+    data = bridge.export_board(native_board, RULES, 100000)
+    b_pads = [p for p in data["pads"] if p.get("layers") == ["B.Cu"]]
+    assert len(b_pads) == 1 and b_pads[0]["local_clearance_nm"] == 500000
+    request, plan = execute(native_board, data, tmp_path)
+    assert plan["status"] == "complete" and plan["added_vias"]
+    output = tmp_path / "routed-back.kicad_pcb"
+    bridge.apply_plan(native_board, plan, output, expected_request=request.read_bytes())
+    assert output.is_file()
 
 
 def test_custom_pad_still_rejected(native_board):

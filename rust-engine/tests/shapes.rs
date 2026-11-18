@@ -12,6 +12,8 @@ fn pad(shape: Shape, at: Point) -> Pad {
         at,
         shape,
         drill: None,
+        layers: Vec::new(),
+        local_clearance_nm: None,
     }
 }
 fn shapes() -> Vec<Shape> {
@@ -74,6 +76,7 @@ fn every_shape_swept_clearance_and_odd_width_contact_match_oracle() {
                                 end,
                                 width_nm: width,
                                 locked: true,
+                                layer: "F.Cu".into(),
                             };
                             assert_eq!(
                                 track_near_pad(t.start, t.end, width, clearance, &p, false),
@@ -113,6 +116,7 @@ fn rounded_corners_are_not_envelope_contacts_or_rectangular_obstacles() {
         end: [11, 11],
         width_nm: 2,
         locked: false,
+        layer: "F.Cu".into(),
     };
     assert!(!track_connects_pad(&t, &p)); // envelope has a spurious corner contact
     let mut rect = p.clone();
@@ -130,6 +134,7 @@ fn rounded_corners_are_not_envelope_contacts_or_rectangular_obstacles() {
         end: [11, 8],
         width_nm: 2,
         locked: false,
+        layer: "F.Cu".into(),
     };
     assert!(!track_near_pad(
         diagonal.start,
@@ -161,6 +166,7 @@ fn rounded_corners_are_not_envelope_contacts_or_rectangular_obstacles() {
         end: [x + 2, 0],
         width_nm: 3,
         locked: false,
+        layer: "F.Cu".into(),
     };
     assert!(!track_connects_pad(&t(11), &cap)); // tangent after odd-width floor
     assert!(track_connects_pad(&t(10), &cap)); // one whole nm overlap
@@ -187,6 +193,7 @@ fn outward_envelopes_and_degenerate_shapes_retain_exact_copper() {
         end: [9, -3],
         width_nm: 3,
         locked: false,
+        layer: "F.Cu".into(),
     };
     assert_eq!(t.copper_bounds(), ([-6, -5], [11, 10]));
 }
@@ -303,6 +310,7 @@ fn box_exact_odd_nm_and_offset_match_2x_oracle() {
         end: [20, 10],
         width_nm: 2,
         locked: false,
+        layer: "F.Cu".into(),
     };
     assert!(!track_connects_pad(&t_tan, &odd_rect));
     let t_ov = Track {

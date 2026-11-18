@@ -17,6 +17,8 @@ fn fixture() -> Input {
                 at: [x, net as i64 * 20 - 10],
                 shape: Shape::Circle { radius_nm: 1 },
                 drill: None,
+                layers: Vec::new(),
+                local_clearance_nm: None,
             });
         }
     }
@@ -25,6 +27,7 @@ fn fixture() -> Input {
         version: 1,
         source_id: "a".repeat(64),
         layer: "F.Cu".into(),
+        layers: Vec::new(),
         bounds: Bounds {
             min: [0, 0],
             max: [60, 60],
@@ -58,6 +61,7 @@ fn fixture() -> Input {
             end: [60, 0],
             width_nm: 2,
             locked: false,
+            layer: "F.Cu".into(),
         }],
         max_expansions: 1000,
         limits: Limits::default(),
@@ -65,6 +69,12 @@ fn fixture() -> Input {
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     }
 }
 fn bytes(copper: &CopperStore) -> Vec<u8> {
@@ -267,6 +277,7 @@ impl Oracle {
                 end: [49, y],
                 width_nm: 2,
                 locked: false,
+                layer: "F.Cu".into(),
             },
         );
         self.next += 1;

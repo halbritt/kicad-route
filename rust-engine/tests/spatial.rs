@@ -11,6 +11,7 @@ fn fixture() -> Input {
         version: 1,
         source_id: "a".repeat(64),
         layer: "F.Cu".into(),
+        layers: Vec::new(),
         bounds: Bounds {
             min: [-5000, -5000],
             max: [5000, 5000],
@@ -44,6 +45,12 @@ fn fixture() -> Input {
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     }
 }
 
@@ -158,6 +165,8 @@ fn indexed_legality_matches_linear_scan_in_deterministic_mixed_worlds() {
                 at,
                 shape,
                 drill: None,
+                layers: Vec::new(),
+                local_clearance_nm: None,
             });
         }
         for n in 0..128 {
@@ -173,6 +182,7 @@ fn indexed_legality_matches_linear_scan_in_deterministic_mixed_worlds() {
                 end,
                 width_nm: 1 + (random(&mut seed) % 15) as i64,
                 locked: n % 2 == 0,
+                layer: "F.Cu".into(),
             });
         }
         let engine = Engine::new(input.clone()).unwrap();
@@ -206,6 +216,8 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
                 half_size_nm: [3, 5],
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(2),
@@ -213,6 +225,8 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             at: [100, 100],
             shape: Shape::Circle { radius_nm: 7 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(5),
@@ -223,6 +237,8 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
                 radius_nm: 3,
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(6),
@@ -233,6 +249,8 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
                 radius_nm: 5,
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     input.tracks = vec![
@@ -243,6 +261,7 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             end: [50, -50],
             width_nm: 5,
             locked: true,
+            layer: "F.Cu".into(),
         },
         Track {
             id: uuid(4),
@@ -251,6 +270,7 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
             end: [200, -200],
             width_nm: 1,
             locked: false,
+            layer: "F.Cu".into(),
         },
     ];
     let engine = Engine::new(input.clone()).unwrap();
@@ -295,6 +315,7 @@ fn boundary_equality_odd_widths_diagonals_roundrect_and_unconnected_copper_are_n
                     end: b,
                     width_nm: input.rules.width_nm,
                     locked: false,
+                    layer: "F.Cu".into(),
                 };
                 let expected = !Body::pad(pad).violates(Body::track(&t), input.rules.clearance_nm);
                 assert_eq!(engine.legal_edge(1, a, b).unwrap(), expected);
@@ -341,6 +362,8 @@ fn routing_fixture() -> Input {
             at: [-50, 0],
             shape: Shape::Circle { radius_nm: 3 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(2),
@@ -348,6 +371,8 @@ fn routing_fixture() -> Input {
             at: [50, 0],
             shape: Shape::Circle { radius_nm: 3 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     input
@@ -441,6 +466,8 @@ fn linear_oracle_covers_multiple_generated_nets_after_edits_and_rollback() {
                 at: [x, (i64::from(net) - 2) * 30],
                 shape: Shape::Circle { radius_nm: 3 },
                 drill: None,
+                layers: Vec::new(),
+                local_clearance_nm: None,
             });
         }
     }
@@ -498,6 +525,8 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 radius_nm: 4,
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(2),
@@ -508,6 +537,8 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 radius_nm: 2,
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(3),
@@ -518,6 +549,8 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 radius_nm: 4,
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(4),
@@ -528,6 +561,8 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 radius_nm: 3,
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(5),
@@ -538,6 +573,8 @@ fn roundrect_and_oval_pads_route_and_roll_back_deterministically() {
                 radius_nm: 6,
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     let mut fresh = Engine::new(input.clone()).unwrap();
@@ -580,6 +617,7 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
             version: 1,
             source_id: "e".repeat(64),
             layer: "F.Cu".into(),
+            layers: Vec::new(),
             bounds: Bounds {
                 min: [-200, -200],
                 max: [200, 200],
@@ -613,6 +651,12 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
             board_outline: None,
             graphics: Vec::new(),
             mask_apertures: Vec::new(),
+            vias: Vec::new(),
+            rule_areas: Vec::new(),
+            board_design_settings: None,
+            project_rules: None,
+            custom_rules: None,
+            effective_rules: None,
         };
         let mut used = BTreeSet::new();
         let mut n = 0;
@@ -640,6 +684,8 @@ fn post_rollback_and_unwind_yield_zero_query_and_reroute_work_diffs() {
                     at,
                     shape,
                     drill: None,
+                    layers: Vec::new(),
+                    local_clearance_nm: None,
                 });
             }
         }
@@ -731,6 +777,8 @@ fn generated_samenet_rollback_determinism() {
             at: [-50, -20],
             shape: Shape::Circle { radius_nm: 3 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(2),
@@ -738,6 +786,8 @@ fn generated_samenet_rollback_determinism() {
             at: [50, -20],
             shape: Shape::Circle { radius_nm: 3 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(3),
@@ -745,6 +795,8 @@ fn generated_samenet_rollback_determinism() {
             at: [-50, 20],
             shape: Shape::Circle { radius_nm: 3 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: uuid(4),
@@ -752,6 +804,8 @@ fn generated_samenet_rollback_determinism() {
             at: [50, 20],
             shape: Shape::Circle { radius_nm: 3 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     let mut fresh = Engine::new(input.clone()).unwrap();

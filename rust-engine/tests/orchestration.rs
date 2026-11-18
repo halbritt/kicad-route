@@ -338,13 +338,13 @@ fn sidecar_refusal_on_original_canonical_and_dangling_symlink_before_child_launc
     assert_eq!(r1.status.code(), Some(2));
     assert!(!poison_marker.exists());
     let op1 = parse_stdout_json(&r1.stdout);
-    assert_eq!(op1["status"], "unsupported");
+    assert_eq!(op1["status"], "invalid");
     assert_eq!(op1["source"]["sidecar_check"]["kicad_pro_present"], true);
     assert_eq!(op1["source"]["sidecar_check"]["passed"], false);
 
-    // Case 2: symlinked source pointing into project dir containing .kicad_dru
+    // Case 2: symlinked source pointing into project dir containing unsupported .kicad_dru
     let real_src = ws.write("proj/real.kicad_pcb", b"(kicad_pcb)");
-    ws.write("proj/real.kicad_dru", b"(version 1)");
+    ws.write("proj/real.kicad_dru", b"(version 99)");
     let link_src = ws.path("clean/alias.kicad_pcb");
     fs::create_dir_all(link_src.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink(&real_src, &link_src).unwrap();
@@ -368,6 +368,48 @@ fn sidecar_refusal_on_original_canonical_and_dangling_symlink_before_child_launc
         true
     );
     assert_eq!(op2["source"]["sidecar_check"]["kicad_dru_present"], true);
+
+    // Case 3: valid canonical .kicad_pro + (version 1) .kicad_dru beside symlinked target are admitted & staged
+    let ok_bridge = write_stub_bridge(
+        &ws,
+        "ok_sidecars.py",
+        &standard_stub_script(
+            "    assert (board.with_suffix('.kicad_pro')).is_file()\n    assert (board.with_suffix('.kicad_dru')).is_file()\n",
+            "",
+        ),
+    );
+    ws.write(
+        "proj/real.kicad_pro",
+        br#"{"meta":{"version":3},"board":{"design_settings":{"rules":{"min_track_width":0.2}}}}"#,
+    );
+    ws.write(
+        "proj/real.kicad_dru",
+        b"(version 1)\n(rule \"min\" (constraint clearance (min 0.2mm)))",
+    );
+    let out3 = ws.path("out3.kicad_pcb");
+    let r3 = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&link_src)
+        .arg(&out3)
+        .arg("--native-bridge")
+        .arg(&ok_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(
+        r3.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&r3.stderr)
+    );
+    let op3 = parse_stdout_json(&r3.stdout);
+    assert_eq!(op3["status"], "complete");
+    assert_eq!(
+        op3["source"]["sidecar_check"]["checked_canonical_path"],
+        true
+    );
+    assert_eq!(op3["source"]["sidecar_check"]["kicad_pro_present"], true);
+    assert_eq!(op3["source"]["sidecar_check"]["kicad_dru_present"], true);
+    assert_eq!(op3["source"]["sidecar_check"]["passed"], true);
 }
 
 #[test]
@@ -1224,4 +1266,73 @@ fn chained_symlink_intermediate_sidecars_refused_before_child_launch() {
     let op_ok = parse_stdout_json(&r_ok.stdout);
     assert_eq!(op_ok["status"], "complete");
     assert_eq!(op_ok["source"]["sidecar_check"]["passed"], true);
+}
+
+#[test]
+fn m3_2_cli_help_optional_rules_project_mismatch_and_stderr_json() {
+    let ws = Workspace::new("m3-2-cli");
+    let top_help = Command::new(engine_bin()).arg("--help").output().unwrap();
+    assert_eq!(top_help.status.code(), Some(0));
+    let top_txt = String::from_utf8_lossy(&top_help.stdout);
+    assert!(top_txt.contains("INPUT.json") && top_txt.contains("route-native"));
+
+    let sub_help = Command::new(engine_bin())
+        .args(["route-native", "--help"])
+        .output()
+        .unwrap();
+    assert_eq!(sub_help.status.code(), Some(0));
+    let sub_txt = String::from_utf8_lossy(&sub_help.stdout);
+    assert!(sub_txt.contains("[--rules") && sub_txt.contains("[--project"));
+
+    let source = ws.write("board.kicad_pcb", b"(kicad_pcb)");
+    let other_proj = ws.write("other.kicad_pro", br#"{"meta":{"version":3}}"#);
+    let poison_marker = ws.path("poison_called");
+    let poison_bridge = write_stub_bridge(
+        &ws,
+        "poison.py",
+        &format!(
+            "import pathlib, sys\npathlib.Path({:?}).write_text('called')\nsys.exit(99)\n",
+            poison_marker
+        ),
+    );
+    let out1 = ws.path("out1.kicad_pcb");
+    let r_mismatch = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&source)
+        .arg(&out1)
+        .arg("--project")
+        .arg(&other_proj)
+        .arg("--native-bridge")
+        .arg(&poison_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(r_mismatch.status.code(), Some(2));
+    assert!(!poison_marker.exists());
+    let stderr_str = String::from_utf8_lossy(&r_mismatch.stderr);
+    let last_line = stderr_str.lines().last().unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(last_line).unwrap();
+    assert_eq!(parsed["exit_code"], 2);
+    assert_eq!(parsed["status"], "invalid");
+
+    // Optional --rules succeeds when valid .kicad_pro exists beside source.
+    ws.write(
+        "board.kicad_pro",
+        br#"{"meta":{"version":3},"board":{"design_settings":{"rules":{"min_track_width":0.2}}}}"#,
+    );
+    let ok_bridge = write_stub_bridge(&ws, "ok.py", &standard_stub_script("", ""));
+    let out2 = ws.path("out2.kicad_pcb");
+    let r_ok = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&source)
+        .arg(&out2)
+        .arg("--native-bridge")
+        .arg(&ok_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(
+        r_ok.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&r_ok.stderr)
+    );
 }

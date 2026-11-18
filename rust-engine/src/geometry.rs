@@ -1,7 +1,8 @@
 //! Exact swept-copper tests. Distances are compared as integer fractions;
 //! no raster sampling, floating point tolerances, or square roots.
 use crate::model::{
-    BoardOutline, CopperGraphic, DrillShape, GraphicShape, MaskAperture, Pad, Point, Shape, Track,
+    BoardOutline, CopperGraphic, DrillShape, GraphicShape, MaskAperture, Pad, Point, RuleArea,
+    Shape, Track, Via,
 };
 fn sub(a: Point, b: Point) -> [i128; 2] {
     [
@@ -973,6 +974,115 @@ pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
     }
 }
 
+pub fn holes_near(
+    a_at: Point,
+    a_shape: &DrillShape,
+    b_at: Point,
+    b_shape: &DrillShape,
+    min_hole_to_hole_nm: i64,
+    inclusive: bool,
+) -> bool {
+    match (a_shape, b_shape) {
+        (DrillShape::Circle { diameter_nm: da }, DrillShape::Circle { diameter_nm: db }) => {
+            let gap2 = i128::from(*da) + i128::from(*db) + 2 * i128::from(min_hole_to_hole_nm);
+            point_near_segment(a_at, b_at, b_at, gap2, inclusive)
+        }
+        (
+            DrillShape::Circle { diameter_nm: da },
+            DrillShape::Capsule {
+                start_nm,
+                end_nm,
+                width_nm,
+            },
+        )
+        | (
+            DrillShape::Capsule {
+                start_nm,
+                end_nm,
+                width_nm,
+            },
+            DrillShape::Circle { diameter_nm: da },
+        ) => {
+            let gap2 =
+                i128::from(*da) + i128::from(*width_nm) + 2 * i128::from(min_hole_to_hole_nm);
+            point_near_segment(a_at, *start_nm, *end_nm, gap2, inclusive)
+        }
+        (
+            DrillShape::Capsule {
+                start_nm: a0,
+                end_nm: a1,
+                width_nm: wa,
+            },
+            DrillShape::Capsule {
+                start_nm: b0,
+                end_nm: b1,
+                width_nm: wb,
+            },
+        ) => {
+            let gap2 = i128::from(*wa) + i128::from(*wb) + 2 * i128::from(min_hole_to_hole_nm);
+            segments_near(*a0, *a1, *b0, *b1, gap2, inclusive)
+        }
+    }
+}
+
+pub fn track_near_rule_area(a: Point, b: Point, width_nm: i64, ra: &RuleArea) -> bool {
+    if point_in_polygon_with_holes(a, &ra.outer, &ra.holes)
+        || point_in_polygon_with_holes(b, &ra.outer, &ra.holes)
+    {
+        return true;
+    }
+    let gap2 = i128::from(width_nm);
+    let check_ring = |ring: &[Point]| {
+        let n = ring.len();
+        (0..n).any(|i| segments_near(a, b, ring[i], ring[(i + 1) % n], gap2, false))
+    };
+    check_ring(&ra.outer) || ra.holes.iter().any(|h| check_ring(h))
+}
+
+pub fn via_near_rule_area(at: Point, diameter_nm: i64, ra: &RuleArea) -> bool {
+    track_near_rule_area(at, at, diameter_nm, ra)
+}
+
+pub fn track_connects_via(t: &Track, v: &Via) -> bool {
+    let wt = (t.width_nm / 2) * 2;
+    let wv = (v.diameter_nm / 2) * 2;
+    let gap2 = i128::from(wt) + i128::from(wv) - 2 * i128::from(CONTACT_OVERLAP_NM);
+    point_near_segment(v.at, t.start, t.end, gap2, true)
+}
+
+pub fn via_connects_pad(v: &Via, p: &Pad) -> bool {
+    let synth = Track {
+        id: String::new(),
+        net: v.net,
+        start: v.at,
+        end: v.at,
+        width_nm: v.diameter_nm,
+        locked: false,
+        layer: v.start_layer.clone(),
+    };
+    track_connects_pad(&synth, p)
+}
+
+pub fn via_connects_graphic(v: &Via, g: &CopperGraphic) -> bool {
+    let synth = Track {
+        id: String::new(),
+        net: v.net,
+        start: v.at,
+        end: v.at,
+        width_nm: v.diameter_nm,
+        locked: false,
+        layer: v.start_layer.clone(),
+    };
+    track_connects_graphic(&synth, g)
+}
+
+pub fn vias_connect(a: &Via, b: &Via) -> bool {
+    let wa = (a.diameter_nm / 2) * 2;
+    let wb = (b.diameter_nm / 2) * 2;
+    let gap2 = i128::from(wa) + i128::from(wb) - 2 * i128::from(CONTACT_OVERLAP_NM);
+    point_near_segment(a.at, b.at, b.at, gap2, true)
+}
+
 fn gcd_u128(mut a: u128, mut b: u128) -> u128 {
     while b != 0 {
         let r = a % b;
@@ -1158,6 +1268,8 @@ fn unfilled_circle_connects_pad(center: Point, radius_nm: i64, width_nm: i64, p:
             id: String::new(),
             net: p.net,
             at: center,
+            layers: p.layers.clone(),
+            local_clearance_nm: p.local_clearance_nm,
             shape: Shape::Circle { radius_nm: r_out },
             drill: None,
         };
@@ -1237,6 +1349,7 @@ pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
     let as_track = |a: Point, b: Point, w: i64| Track {
         id: String::new(),
         net: g.net,
+        layer: g.layer.clone(),
         start: a,
         end: b,
         width_nm: w,
@@ -1278,6 +1391,8 @@ pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
                     id: String::new(),
                     net: g.net,
                     at: *center,
+                    layers: vec![g.layer.clone()],
+                    local_clearance_nm: None,
                     shape: Shape::Circle {
                         radius_nm: *radius_nm + *width_nm / 2,
                     },
@@ -1341,6 +1456,7 @@ pub fn graphics_connect(a: &CopperGraphic, b: &CopperGraphic) -> bool {
     let as_track = |s: Point, e: Point, w: i64, net: u32| Track {
         id: String::new(),
         net,
+        layer: a.layer.clone(),
         start: s,
         end: e,
         width_nm: w,

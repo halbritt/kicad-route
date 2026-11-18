@@ -54,6 +54,15 @@ fn write_output(path: &Path, output: &Output) -> std::io::Result<()> {
     result
 }
 pub(crate) fn run_main(args: &[OsString]) -> u8 {
+    if args
+        .get(1)
+        .is_some_and(|arg| arg == "--help" || arg == "-h")
+    {
+        println!(
+            "usage: kicad-route-engine <INPUT.json> <OUTPUT.json>\n       kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>]"
+        );
+        return 0;
+    }
     if args.get(1).is_some_and(|arg| arg == "route-native") {
         return kicad_route_engine::orchestration::run_cli(&args[2..]);
     }

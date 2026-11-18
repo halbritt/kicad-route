@@ -10,6 +10,8 @@ fn pad(n: u64, at: Point) -> Pad {
         at,
         shape: Shape::Circle { radius_nm: 1 },
         drill: None,
+        layers: Vec::new(),
+        local_clearance_nm: None,
     }
 }
 fn track(n: u64, a: Point, b: Point) -> Track {
@@ -20,6 +22,7 @@ fn track(n: u64, a: Point, b: Point) -> Track {
         end: b,
         width_nm: 2,
         locked: true,
+        layer: "F.Cu".into(),
     }
 }
 fn base() -> Input {
@@ -54,6 +57,13 @@ fn base() -> Input {
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        layers: Vec::new(),
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     }
 }
 mod model {
@@ -295,6 +305,8 @@ fn clearance_shadowed_target_joins_at_first_contact() {
         at: [5000000, 2000000],
         shape: Shape::Circle { radius_nm: 300000 },
         drill: None,
+        layers: Vec::new(),
+        local_clearance_nm: None,
     }];
     i.tracks = vec![
         Track {
@@ -304,6 +316,7 @@ fn clearance_shadowed_target_joins_at_first_contact() {
             end: [8000000, 6000000],
             width_nm: 100000,
             locked: false,
+            layer: "F.Cu".into(),
         },
         Track {
             id: id(3),
@@ -312,6 +325,7 @@ fn clearance_shadowed_target_joins_at_first_contact() {
             end: [8000000, 6300000],
             width_nm: 100000,
             locked: true,
+            layer: "F.Cu".into(),
         },
     ];
     let o = run(i.clone());
@@ -371,6 +385,8 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
             at: [5000000, 2000000],
             shape: Shape::Circle { radius_nm: 300000 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: id(2),
@@ -380,6 +396,8 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
                 half_size_nm: [200000, 50000],
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     i.tracks = vec![Track {
@@ -389,6 +407,7 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
         end: [8000000, 6300000],
         width_nm: 100000,
         locked: true,
+        layer: "F.Cu".into(),
     }];
     let o = run(i.clone());
     assert_eq!(o.status, Status::Complete, "{:?}", o.reason);

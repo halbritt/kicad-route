@@ -5,25 +5,33 @@ mod components;
 pub mod geometry;
 pub mod model;
 pub mod orchestration;
+pub mod rules;
 pub mod search;
 mod spatial;
 pub mod state;
-use components::Copper;
+use components::{span_mask, Copper};
 use model::*;
+use rules::{DruItemKind, EffectiveRules};
 use spatial::{
-    ArtworkGeom, CopperAabb, DrillGeom, EdgeGeom, MaskGeom, PadCore, StaticSpatialIndex, SweptAabb,
+    ArtworkGeom, CopperAabb, DrillGeom, EdgeGeom, KeepoutGeom, MaskGeom, PadCore,
+    StaticSpatialIndex, SweptAabb,
 };
 use state::CopperStore;
 use std::ops::ControlFlow;
 
 pub struct Engine {
     input: Input,
+    layer_names: Vec<String>,
+    effective_rules: EffectiveRules,
+    max_pad_local_clearance_nm: i64,
     copper: CopperStore,
-    pad_spatial: StaticSpatialIndex<PadCore>,
+    pad_spatial: Vec<StaticSpatialIndex<PadCore>>,
     hole_spatial: StaticSpatialIndex<DrillGeom>,
     outline_spatial: StaticSpatialIndex<EdgeGeom>,
-    artwork_spatial: StaticSpatialIndex<ArtworkGeom>,
-    mask_spatial: StaticSpatialIndex<MaskGeom>,
+    artwork_spatial: Vec<StaticSpatialIndex<ArtworkGeom>>,
+    artwork_graphic_idx: Vec<Vec<usize>>,
+    keepout_spatial: Vec<StaticSpatialIndex<KeepoutGeom>>,
+    mask_spatial: [StaticSpatialIndex<MaskGeom>; 2],
     max_mask_expansion: i64,
     work: budget::WorkBudget,
 }
@@ -128,9 +136,21 @@ fn seg_aabb(a: Point, b: Point, radius: i64) -> CopperAabb {
 
 impl Engine {
     pub fn new(mut input: Input) -> Result<Self, Failure> {
+        input.limits.validate()?;
+        if input.version != INPUT_VERSION {
+            return Err(Failure::new(
+                Status::Unsupported,
+                "only input version 1 is supported",
+            ));
+        }
+        let effective_rules = rules::resolve_effective_rules(&mut input)?;
         input.validate()?;
+        let layer_names = input.active_layers();
+        let layer_count = layer_names.len();
         let base_items = input.pads.len()
             + input.tracks.len()
+            + input.vias.len()
+            + input.rule_areas.len()
             + input.nets.len()
             + input.holes.len()
             + input.graphics.len()
@@ -141,11 +161,21 @@ impl Engine {
             .iter()
             .map(|p| p.id.clone())
             .chain(input.tracks.iter().map(|t| t.id.clone()))
+            .chain(input.vias.iter().map(|v| v.id.clone()))
+            .chain(input.rule_areas.iter().map(|ra| ra.id.clone()))
             .chain(input.holes.iter().map(|h| h.id.clone()))
             .chain(input.graphics.iter().map(|g| g.id.clone()))
             .chain(input.mask_apertures.iter().map(|m| m.id.clone()))
             .collect();
-        let pad_spatial = StaticSpatialIndex::new(input.pads.iter().enumerate().map(|(i, pad)| {
+        let max_pad_local_clearance_nm = input
+            .pads
+            .iter()
+            .filter_map(|p| p.local_clearance_nm)
+            .max()
+            .unwrap_or(0);
+        let mut per_layer_pads: Vec<Vec<(u32, u32, CopperAabb, PadCore)>> =
+            vec![Vec::new(); layer_count];
+        for (i, pad) in input.pads.iter().enumerate() {
             let core = match &pad.shape {
                 Shape::Circle { radius_nm } => PadCore::Box {
                     lo: i32_pt(pad.at),
@@ -188,13 +218,30 @@ impl Engine {
                 },
                 Shape::ConvexPolygon { .. } => PadCore::ConvexPoly,
             };
-            (
+            let entry = (
                 u32::try_from(i).expect("bounded input pad count"),
                 pad.net,
                 CopperAabb::from_bounds(pad.copper_bounds()),
                 core,
-            )
-        }));
+            );
+            if pad.layers.is_empty() {
+                let l_idx = layer_names
+                    .iter()
+                    .position(|l| l == &input.layer)
+                    .unwrap_or(0);
+                per_layer_pads[l_idx].push(entry);
+            } else {
+                for pl in &pad.layers {
+                    if let Some(l_idx) = layer_names.iter().position(|l| l == pl) {
+                        per_layer_pads[l_idx].push(entry);
+                    }
+                }
+            }
+        }
+        let pad_spatial = per_layer_pads
+            .into_iter()
+            .map(StaticSpatialIndex::new)
+            .collect();
         let drill_to_geom = |at: Point, drill: &DrillShape| -> DrillGeom {
             match *drill {
                 DrillShape::Circle { diameter_nm } => DrillGeom::Circle {
@@ -261,29 +308,37 @@ impl Engine {
         }
         let outline_spatial = StaticSpatialIndex::new(outline_items);
 
-        let mut artwork_items = Vec::new();
-        let mut art_ord = 0u32;
+        let mut per_layer_art: Vec<Vec<(u32, u32, CopperAabb, ArtworkGeom)>> =
+            vec![Vec::new(); layer_count];
+        let mut artwork_graphic_idx: Vec<Vec<usize>> = vec![Vec::new(); layer_count];
         for (g_idx, g) in input.graphics.iter().enumerate() {
-            if g.layer != input.layer {
+            let Some(l_idx) = layer_names.iter().position(|l| l == &g.layer) else {
                 continue;
-            }
+            };
+            let push_art = |per_layer: &mut Vec<Vec<_>>,
+                            g_map: &mut Vec<Vec<usize>>,
+                            aabb: CopperAabb,
+                            geom: ArtworkGeom| {
+                let ord = u32::try_from(g_map[l_idx].len()).expect("bounded artwork count");
+                g_map[l_idx].push(g_idx);
+                per_layer[l_idx].push((ord, g.net, aabb, geom));
+            };
             match &g.shape {
                 GraphicShape::Segment {
                     start,
                     end,
                     width_nm,
                 } => {
-                    artwork_items.push((
-                        art_ord,
-                        g.net,
+                    push_art(
+                        &mut per_layer_art,
+                        &mut artwork_graphic_idx,
                         seg_aabb(*start, *end, (*width_nm + 1) / 2),
                         ArtworkGeom::Segment {
                             a: i32_pt(*start),
                             b: i32_pt(*end),
                             width: *width_nm as i32,
                         },
-                    ));
-                    art_ord += 1;
+                    );
                 }
                 GraphicShape::Arc {
                     start,
@@ -296,17 +351,16 @@ impl Engine {
                     let eff_w_i32 = try_i32(eff_w)?;
                     let rad = (eff_w + 1) / 2;
                     for w in chords.windows(2) {
-                        artwork_items.push((
-                            art_ord,
-                            g.net,
+                        push_art(
+                            &mut per_layer_art,
+                            &mut artwork_graphic_idx,
                             seg_aabb(w[0], w[1], rad),
                             ArtworkGeom::Segment {
                                 a: try_i32_pt(w[0])?,
                                 b: try_i32_pt(w[1])?,
                                 width: eff_w_i32,
                             },
-                        ));
-                        art_ord += 1;
+                        );
                     }
                 }
                 GraphicShape::Circle {
@@ -316,9 +370,9 @@ impl Engine {
                     filled,
                 } => {
                     let r = radius_nm + (width_nm + 1) / 2;
-                    artwork_items.push((
-                        art_ord,
-                        g.net,
+                    push_art(
+                        &mut per_layer_art,
+                        &mut artwork_graphic_idx,
                         CopperAabb::from_bounds((
                             [center[0] - r, center[1] - r],
                             [center[0] + r, center[1] + r],
@@ -329,8 +383,7 @@ impl Engine {
                             width: *width_nm as i32,
                             filled: *filled,
                         },
-                    ));
-                    art_ord += 1;
+                    );
                 }
                 GraphicShape::Polygon {
                     outer,
@@ -339,15 +392,14 @@ impl Engine {
                     filled,
                 } => {
                     if *filled {
-                        artwork_items.push((
-                            art_ord,
-                            g.net,
+                        push_art(
+                            &mut per_layer_art,
+                            &mut artwork_graphic_idx,
                             ring_aabb(outer),
                             ArtworkGeom::FilledPolygon {
                                 graphic_idx: g_idx as u32,
                             },
-                        ));
-                        art_ord += 1;
+                        );
                     }
                     let rad = (*width_nm + 1) / 2;
                     for ring in std::iter::once(outer).chain(holes.iter()) {
@@ -355,31 +407,62 @@ impl Engine {
                         for i in 0..n {
                             let a = ring[i];
                             let b = ring[(i + 1) % n];
-                            artwork_items.push((
-                                art_ord,
-                                g.net,
+                            push_art(
+                                &mut per_layer_art,
+                                &mut artwork_graphic_idx,
                                 seg_aabb(a, b, rad),
                                 ArtworkGeom::Segment {
                                     a: i32_pt(a),
                                     b: i32_pt(b),
                                     width: *width_nm as i32,
                                 },
-                            ));
-                            art_ord += 1;
+                            );
                         }
                     }
                 }
             }
         }
-        let artwork_spatial = StaticSpatialIndex::new(artwork_items);
+        let artwork_spatial = per_layer_art
+            .into_iter()
+            .map(StaticSpatialIndex::new)
+            .collect();
 
-        let mut mask_items = Vec::new();
-        let mut mask_ord = 0u32;
-        let mut max_mask_expansion = 0i64;
-        for (m_idx, m) in input.mask_apertures.iter().enumerate() {
-            if m.layer != "F.Mask" {
+        let mut per_layer_keepouts: Vec<Vec<(u32, u32, CopperAabb, KeepoutGeom)>> =
+            vec![Vec::new(); layer_count];
+        for (ra_idx, ra) in input.rule_areas.iter().enumerate() {
+            if !ra.no_tracks && !ra.no_vias {
                 continue;
             }
+            let aabb = ring_aabb(&ra.outer);
+            let geom = KeepoutGeom {
+                rule_area_idx: u32::try_from(ra_idx).expect("bounded rule area count"),
+                no_tracks: ra.no_tracks,
+                no_vias: ra.no_vias,
+            };
+            for lname in &ra.layers {
+                if let Some(l_idx) = layer_names.iter().position(|l| l == lname) {
+                    let ord = u32::try_from(per_layer_keepouts[l_idx].len())
+                        .expect("bounded keepout count");
+                    per_layer_keepouts[l_idx].push((ord, 0u32, aabb, geom));
+                }
+            }
+        }
+        let keepout_spatial = per_layer_keepouts
+            .into_iter()
+            .map(StaticSpatialIndex::new)
+            .collect();
+
+        let mut mask_items: [Vec<(u32, u32, CopperAabb, MaskGeom)>; 2] = [Vec::new(), Vec::new()];
+        let mut mask_ord = [0u32; 2];
+        let mut max_mask_expansion = 0i64;
+        for (m_idx, m) in input.mask_apertures.iter().enumerate() {
+            let m_slot = if m.layer == "F.Mask" {
+                0
+            } else if m.layer == "B.Mask" {
+                1
+            } else {
+                continue;
+            };
             max_mask_expansion = max_mask_expansion.max(m.expansion_nm);
             let m_net = m.net.unwrap_or(0);
             let exp = m.expansion_nm as i32;
@@ -389,8 +472,8 @@ impl Engine {
                     end,
                     width_nm,
                 } => {
-                    mask_items.push((
-                        mask_ord,
+                    mask_items[m_slot].push((
+                        mask_ord[m_slot],
                         m_net,
                         seg_aabb(*start, *end, (*width_nm + 1) / 2),
                         MaskGeom::Segment {
@@ -400,7 +483,7 @@ impl Engine {
                             expansion: exp,
                         },
                     ));
-                    mask_ord += 1;
+                    mask_ord[m_slot] += 1;
                 }
                 GraphicShape::Arc {
                     start,
@@ -413,8 +496,8 @@ impl Engine {
                     let eff_w_i32 = try_i32(eff_w)?;
                     let rad = (eff_w + 1) / 2;
                     for w in chords.windows(2) {
-                        mask_items.push((
-                            mask_ord,
+                        mask_items[m_slot].push((
+                            mask_ord[m_slot],
                             m_net,
                             seg_aabb(w[0], w[1], rad),
                             MaskGeom::Segment {
@@ -424,7 +507,7 @@ impl Engine {
                                 expansion: exp,
                             },
                         ));
-                        mask_ord += 1;
+                        mask_ord[m_slot] += 1;
                     }
                 }
                 GraphicShape::Circle {
@@ -434,8 +517,8 @@ impl Engine {
                     filled,
                 } => {
                     let r = radius_nm + (width_nm + 1) / 2;
-                    mask_items.push((
-                        mask_ord,
+                    mask_items[m_slot].push((
+                        mask_ord[m_slot],
                         m_net,
                         CopperAabb::from_bounds((
                             [center[0] - r, center[1] - r],
@@ -449,7 +532,7 @@ impl Engine {
                             filled: *filled,
                         },
                     ));
-                    mask_ord += 1;
+                    mask_ord[m_slot] += 1;
                 }
                 GraphicShape::Polygon {
                     outer,
@@ -458,8 +541,8 @@ impl Engine {
                     filled,
                 } => {
                     if *filled {
-                        mask_items.push((
-                            mask_ord,
+                        mask_items[m_slot].push((
+                            mask_ord[m_slot],
                             m_net,
                             ring_aabb(outer),
                             MaskGeom::FilledPolygon {
@@ -467,7 +550,7 @@ impl Engine {
                                 expansion: exp,
                             },
                         ));
-                        mask_ord += 1;
+                        mask_ord[m_slot] += 1;
                     }
                     let rad = (*width_nm + 1) / 2;
                     for ring in std::iter::once(outer).chain(holes.iter()) {
@@ -475,8 +558,8 @@ impl Engine {
                         for i in 0..n {
                             let a = ring[i];
                             let b = ring[(i + 1) % n];
-                            mask_items.push((
-                                mask_ord,
+                            mask_items[m_slot].push((
+                                mask_ord[m_slot],
                                 m_net,
                                 seg_aabb(a, b, rad),
                                 MaskGeom::Segment {
@@ -486,27 +569,38 @@ impl Engine {
                                     expansion: exp,
                                 },
                             ));
-                            mask_ord += 1;
+                            mask_ord[m_slot] += 1;
                         }
                     }
                 }
             }
         }
-        let mask_spatial = StaticSpatialIndex::new(mask_items);
+        let [mask_f, mask_b] = mask_items;
+        let mask_spatial = [
+            StaticSpatialIndex::new(mask_f),
+            StaticSpatialIndex::new(mask_b),
+        ];
 
-        let copper = CopperStore::new(
+        let copper = CopperStore::new_multilayer(
             std::mem::take(&mut input.tracks),
+            std::mem::take(&mut input.vias),
+            layer_names.clone(),
             reserved,
             &input.source_id,
             base_items,
         );
         Ok(Self {
             input,
+            layer_names,
+            effective_rules,
+            max_pad_local_clearance_nm,
             copper,
             pad_spatial,
             hole_spatial,
             outline_spatial,
             artwork_spatial,
+            artwork_graphic_idx,
+            keepout_spatial,
             mask_spatial,
             max_mask_expansion,
             work,
@@ -591,11 +685,58 @@ impl Engine {
     /// A standalone query gets its own finite work scope; inside a transaction
     /// it consumes that transaction's remaining work. Geometry is not mutated.
     pub fn legal_edge(&self, net: u32, a: Point, b: Point) -> Result<bool, Failure> {
+        self.legal_edge_on(net, 0, a, b)
+    }
+
+    pub(crate) fn layer_count(&self) -> usize {
+        self.layer_names.len()
+    }
+
+    pub(crate) fn layer_name(&self, idx: usize) -> &str {
+        &self.layer_names[idx]
+    }
+
+    pub(crate) fn layer_index(&self, name: &str) -> Option<usize> {
+        self.layer_names.iter().position(|l| l == name)
+    }
+
+    pub(crate) fn all_layers_slice(&self) -> &[String] {
+        &self.layer_names
+    }
+
+    pub(crate) fn pad_layers_owned(&self, pad: &Pad) -> Vec<String> {
+        if pad.layers.is_empty() {
+            vec![self.input.layer.clone()]
+        } else {
+            pad.layers.clone()
+        }
+    }
+
+    pub(crate) fn legal_edge_on(
+        &self,
+        net: u32,
+        layer_idx: usize,
+        a: Point,
+        b: Point,
+    ) -> Result<bool, Failure> {
         let _scope = self.work.scope();
         self.work.charge(1)?;
+        let layer_name = &self.layer_names[layer_idx];
+        if self.effective_rules.disallow_track_on(net, layer_name) {
+            return Ok(false);
+        }
         let r = self.input.rules;
+        let width_nm = if net == 0 {
+            r.width_nm
+        } else {
+            self.effective_rules.track_width_for(net, layer_name)?
+        };
+        let layer_slice = std::slice::from_ref(layer_name);
+        let edge_clr =
+            self.effective_rules
+                .edge_clearance_for(net, DruItemKind::Track, layer_slice);
         let bounds = self.input.bounds;
-        let margin = i128::from(r.width_nm) + 2 * i128::from(r.edge_clearance_nm);
+        let margin = i128::from(width_nm) + 2 * i128::from(edge_clr);
         for p in [a, b] {
             for (i, value) in p.iter().enumerate() {
                 if 2 * i128::from(*value) < 2 * i128::from(bounds.min[i]) + margin
@@ -612,7 +753,7 @@ impl Engine {
             {
                 return Ok(false);
             }
-            let edge_swept = SweptAabb::swept(a, b, r.width_nm, r.edge_clearance_nm);
+            let edge_swept = SweptAabb::swept(a, b, width_nm, edge_clr);
             let edge_flow =
                 self.outline_spatial
                     .visit_matching(edge_swept, None, &self.work, |_, edge| {
@@ -633,24 +774,64 @@ impl Engine {
                 return Ok(false);
             }
         }
-        let pad_clr = if r.solder_mask_to_copper_clearance_nm > 0 {
-            r.clearance_nm
-                .max(r.solder_mask_expansion_nm + r.solder_mask_to_copper_clearance_nm)
+        let ko_swept = SweptAabb::swept(a, b, width_nm, 0);
+        let ko_flow = self.keepout_spatial[layer_idx].visit_matching(
+            ko_swept,
+            None,
+            &self.work,
+            |_, kg| {
+                self.work.charge(1)?;
+                if kg.no_tracks
+                    && geometry::track_near_rule_area(
+                        a,
+                        b,
+                        width_nm,
+                        &self.input.rule_areas[kg.rule_area_idx as usize],
+                    )
+                {
+                    return Ok(ControlFlow::Break(()));
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        if ko_flow.is_break() {
+            return Ok(false);
+        }
+
+        let mask_pad_clr = if r.solder_mask_to_copper_clearance_nm > 0 {
+            r.solder_mask_expansion_nm + r.solder_mask_to_copper_clearance_nm
         } else {
-            r.clearance_nm
+            0
         };
-        let pad_swept = SweptAabb::swept(a, b, r.width_nm, pad_clr);
-        let pad_flow = self.pad_spatial.visit_matching(
+        let max_pad_query_clr = self
+            .effective_rules
+            .max_pair_clearance_nm
+            .max(self.max_pad_local_clearance_nm)
+            .max(mask_pad_clr);
+        let pad_swept = SweptAabb::swept(a, b, width_nm, max_pad_query_clr);
+        let pad_flow = self.pad_spatial[layer_idx].visit_matching(
             pad_swept,
             Some(net),
             &self.work,
             |ordinal, core| {
                 self.work.charge(1)?;
+                let pad = &self.input.pads[ordinal as usize];
+                let pad_clr = self
+                    .effective_rules
+                    .pair_clearance(
+                        net,
+                        DruItemKind::Track,
+                        pad.net,
+                        DruItemKind::Pad,
+                        layer_name,
+                        pad.local_clearance_nm,
+                    )
+                    .max(mask_pad_clr);
                 let hit = match *core {
                     PadCore::Box { lo, hi, radius } => geometry::track_near_core(
                         a,
                         b,
-                        r.width_nm,
+                        width_nm,
                         pad_clr,
                         [i64::from(lo[0]), i64::from(lo[1])],
                         [i64::from(hi[0]), i64::from(hi[1])],
@@ -660,7 +841,7 @@ impl Engine {
                     PadCore::Box2x { lo2, hi2, radius2 } => geometry::track_near_core_2x(
                         a,
                         b,
-                        r.width_nm,
+                        width_nm,
                         pad_clr,
                         [i64::from(lo2[0]), i64::from(lo2[1])],
                         [i64::from(hi2[0]), i64::from(hi2[1])],
@@ -676,17 +857,12 @@ impl Engine {
                         b,
                         [i64::from(sa[0]), i64::from(sa[1])],
                         [i64::from(sb[0]), i64::from(sb[1])],
-                        i128::from(r.width_nm) + i128::from(width) + 2 * i128::from(pad_clr),
+                        i128::from(width_nm) + i128::from(width) + 2 * i128::from(pad_clr),
                         false,
                     ),
-                    PadCore::ConvexPoly => geometry::track_near_pad(
-                        a,
-                        b,
-                        r.width_nm,
-                        pad_clr,
-                        &self.input.pads[ordinal as usize],
-                        false,
-                    ),
+                    PadCore::ConvexPoly => {
+                        geometry::track_near_pad(a, b, width_nm, pad_clr, pad, false)
+                    }
                 };
                 if hit {
                     return Ok(ControlFlow::Break(()));
@@ -697,38 +873,140 @@ impl Engine {
         if pad_flow.is_break() {
             return Ok(false);
         }
-        let swept = SweptAabb::swept(a, b, r.width_nm, r.clearance_nm);
-        let track_flow =
-            self.copper
-                .visit_candidates_geoms_filtered(swept, Some(net), &self.work, |t| {
-                    if geometry::segments_near(
+        let swept = SweptAabb::swept(a, b, width_nm, self.effective_rules.max_pair_clearance_nm);
+        let track_flow = self.copper.visit_layer_candidates_with_net_filtered(
+            layer_idx,
+            swept,
+            Some(net),
+            &self.work,
+            |other_net, t| {
+                let clr = self.effective_rules.pair_clearance(
+                    net,
+                    DruItemKind::Track,
+                    other_net,
+                    DruItemKind::Track,
+                    layer_name,
+                    None,
+                );
+                if geometry::segments_near(
+                    a,
+                    b,
+                    t.start,
+                    t.end,
+                    i128::from(width_nm) + i128::from(t.width_nm) + 2 * i128::from(clr),
+                    false,
+                ) {
+                    return Ok(ControlFlow::Break(()));
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        if track_flow.is_break() {
+            return Ok(false);
+        }
+
+        let layer_bit = 1u32 << layer_idx;
+        let max_via_query_clr = self
+            .effective_rules
+            .max_pair_clearance_nm
+            .max(self.effective_rules.max_hole_clearance_nm)
+            .max(r.same_net_hole_clearance_nm);
+        let via_net_filter = if r.same_net_hole_clearance_nm > 0 {
+            None
+        } else {
+            Some(net)
+        };
+        let via_swept = SweptAabb::swept(a, b, width_nm, max_via_query_clr);
+        let via_flow = self.copper.visit_via_candidates_filtered(
+            via_swept,
+            via_net_filter,
+            &self.work,
+            |via, v_mask| {
+                if (v_mask & layer_bit) == 0 {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                if via.net == net && net != 0 {
+                    if r.same_net_hole_clearance_nm == 0 {
+                        return Ok(ControlFlow::Continue(()));
+                    }
+                    let seg = Track {
+                        id: String::new(),
+                        net,
+                        start: a,
+                        end: b,
+                        width_nm,
+                        locked: false,
+                        layer: layer_name.clone(),
+                    };
+                    if geometry::track_connects_via(&seg, via) {
+                        return Ok(ControlFlow::Continue(()));
+                    }
+                    if geometry::point_near_segment(
+                        via.at,
                         a,
                         b,
-                        t.start,
-                        t.end,
-                        i128::from(r.width_nm)
-                            + i128::from(t.width_nm)
-                            + 2 * i128::from(r.clearance_nm),
+                        i128::from(width_nm)
+                            + i128::from(via.drill_nm)
+                            + 2 * i128::from(r.same_net_hole_clearance_nm),
                         false,
                     ) {
                         return Ok(ControlFlow::Break(()));
                     }
-                    Ok(ControlFlow::Continue(()))
-                })?;
-        if track_flow.is_break() {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                let copper_clr = self.effective_rules.pair_clearance(
+                    net,
+                    DruItemKind::Track,
+                    via.net,
+                    DruItemKind::Via,
+                    layer_name,
+                    None,
+                );
+                if geometry::point_near_segment(
+                    via.at,
+                    a,
+                    b,
+                    i128::from(width_nm) + i128::from(via.diameter_nm) + 2 * i128::from(copper_clr),
+                    false,
+                ) {
+                    return Ok(ControlFlow::Break(()));
+                }
+                let s_idx = self.layer_index(&via.start_layer).unwrap_or(0);
+                let e_idx = self.layer_index(&via.end_layer).unwrap_or(s_idx);
+                let hole_clr = self.effective_rules.pair_hole_clearance(
+                    net,
+                    DruItemKind::Track,
+                    layer_slice,
+                    via.net,
+                    DruItemKind::Via,
+                    &self.layer_names[s_idx..=e_idx],
+                );
+                if geometry::point_near_segment(
+                    via.at,
+                    a,
+                    b,
+                    i128::from(width_nm) + i128::from(via.drill_nm) + 2 * i128::from(hole_clr),
+                    false,
+                ) {
+                    return Ok(ControlFlow::Break(()));
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        if via_flow.is_break() {
             return Ok(false);
         }
+
         let hole_net_filter = if r.same_net_hole_clearance_nm > 0 {
             None
         } else {
             Some(net)
         };
-        let max_hole_clr = if r.same_net_hole_clearance_nm > 0 {
-            r.hole_clearance_nm.max(r.same_net_hole_clearance_nm)
-        } else {
-            r.hole_clearance_nm
-        };
-        let hole_swept = SweptAabb::swept(a, b, r.width_nm, max_hole_clr);
+        let max_hole_clr = self
+            .effective_rules
+            .max_hole_clearance_nm
+            .max(r.same_net_hole_clearance_nm);
+        let hole_swept = SweptAabb::swept(a, b, width_nm, max_hole_clr);
         let holes_len = self.input.holes.len();
         let hole_flow = self.hole_spatial.visit_matching(
             hole_swept,
@@ -748,28 +1026,48 @@ impl Engine {
                         return Ok(ControlFlow::Continue(()));
                     }
                     if let Some(pad) = maybe_pad {
-                        let seg = Track {
-                            id: String::new(),
-                            net,
-                            start: a,
-                            end: b,
-                            width_nm: r.width_nm,
-                            locked: false,
-                        };
-                        if geometry::track_connects_pad(&seg, pad) {
-                            return Ok(ControlFlow::Continue(()));
+                        if pad.layers.is_empty() || pad.layers.iter().any(|l| l == layer_name) {
+                            let seg = Track {
+                                id: String::new(),
+                                net,
+                                start: a,
+                                end: b,
+                                width_nm,
+                                locked: false,
+                                layer: layer_name.clone(),
+                            };
+                            if geometry::track_connects_pad(&seg, pad) {
+                                return Ok(ControlFlow::Continue(()));
+                            }
                         }
                     }
                     r.same_net_hole_clearance_nm
+                } else if let Some(pad) = maybe_pad {
+                    let p_layers = self.pad_layers_owned(pad);
+                    self.effective_rules.pair_hole_clearance(
+                        net,
+                        DruItemKind::Track,
+                        layer_slice,
+                        entry_net,
+                        DruItemKind::Pad,
+                        &p_layers,
+                    )
                 } else {
-                    r.hole_clearance_nm
+                    self.effective_rules.pair_hole_clearance(
+                        net,
+                        DruItemKind::Track,
+                        layer_slice,
+                        entry_net,
+                        DruItemKind::Hole,
+                        &self.layer_names,
+                    )
                 };
                 let hit = match *drill {
                     DrillGeom::Circle { center, diameter } => geometry::point_near_segment(
                         [i64::from(center[0]), i64::from(center[1])],
                         a,
                         b,
-                        i128::from(r.width_nm) + i128::from(diameter) + 2 * i128::from(clr),
+                        i128::from(width_nm) + i128::from(diameter) + 2 * i128::from(clr),
                         false,
                     ),
                     DrillGeom::Capsule {
@@ -781,7 +1079,7 @@ impl Engine {
                         b,
                         [i64::from(da[0]), i64::from(da[1])],
                         [i64::from(db[0]), i64::from(db[1])],
-                        i128::from(r.width_nm) + i128::from(width) + 2 * i128::from(clr),
+                        i128::from(width_nm) + i128::from(width) + 2 * i128::from(clr),
                         false,
                     ),
                 };
@@ -794,23 +1092,467 @@ impl Engine {
         if hole_flow.is_break() {
             return Ok(false);
         }
-        let art_flow =
-            self.artwork_spatial
-                .visit_matching(swept, Some(net), &self.work, |_, geom| {
+        let art_flow = self.artwork_spatial[layer_idx].visit_matching(
+            swept,
+            Some(net),
+            &self.work,
+            |ordinal, geom| {
+                self.work.charge(1)?;
+                let g_idx = self.artwork_graphic_idx[layer_idx][ordinal as usize];
+                let g_net = self.input.graphics[g_idx].net;
+                let clr = self.effective_rules.pair_clearance(
+                    net,
+                    DruItemKind::Track,
+                    g_net,
+                    DruItemKind::Graphic,
+                    layer_name,
+                    None,
+                );
+                let hit = match *geom {
+                    ArtworkGeom::Segment {
+                        a: sa,
+                        b: sb,
+                        width,
+                    } => geometry::segments_near(
+                        a,
+                        b,
+                        [i64::from(sa[0]), i64::from(sa[1])],
+                        [i64::from(sb[0]), i64::from(sb[1])],
+                        i128::from(width_nm) + i128::from(width) + 2 * i128::from(clr),
+                        false,
+                    ),
+                    ArtworkGeom::Circle {
+                        center,
+                        radius,
+                        width,
+                        filled,
+                    } => geometry::track_near_circle(
+                        a,
+                        b,
+                        width_nm,
+                        clr,
+                        [i64::from(center[0]), i64::from(center[1])],
+                        i64::from(radius),
+                        i64::from(width),
+                        filled,
+                        false,
+                    ),
+                    ArtworkGeom::FilledPolygon { graphic_idx } => {
+                        if let GraphicShape::Polygon { outer, holes, .. } =
+                            &self.input.graphics[graphic_idx as usize].shape
+                        {
+                            geometry::point_in_polygon_with_holes(a, outer, holes)
+                                || geometry::point_in_polygon_with_holes(b, outer, holes)
+                        } else {
+                            false
+                        }
+                    }
+                };
+                if hit {
+                    return Ok(ControlFlow::Break(()));
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        if art_flow.is_break() {
+            return Ok(false);
+        }
+        let mask_slot = if layer_name == "F.Cu" {
+            Some(0usize)
+        } else if layer_name == "B.Cu" {
+            Some(1usize)
+        } else {
+            None
+        };
+        if let Some(ms) = mask_slot {
+            if r.solder_mask_to_copper_clearance_nm > 0 {
+                let mask_swept = SweptAabb::swept(
+                    a,
+                    b,
+                    width_nm,
+                    r.solder_mask_to_copper_clearance_nm + self.max_mask_expansion,
+                );
+                let mask_flow = self.mask_spatial[ms].visit_matching(
+                    mask_swept,
+                    Some(net),
+                    &self.work,
+                    |_, geom| {
+                        self.work.charge(1)?;
+                        let hit = match *geom {
+                            MaskGeom::Segment {
+                                a: sa,
+                                b: sb,
+                                width,
+                                expansion,
+                            } => {
+                                let clr =
+                                    r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
+                                geometry::segments_near(
+                                    a,
+                                    b,
+                                    [i64::from(sa[0]), i64::from(sa[1])],
+                                    [i64::from(sb[0]), i64::from(sb[1])],
+                                    i128::from(width_nm) + i128::from(width) + 2 * i128::from(clr),
+                                    false,
+                                )
+                            }
+                            MaskGeom::Circle {
+                                center,
+                                radius,
+                                width,
+                                expansion,
+                                filled,
+                            } => {
+                                let clr =
+                                    r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
+                                geometry::track_near_circle(
+                                    a,
+                                    b,
+                                    width_nm,
+                                    clr,
+                                    [i64::from(center[0]), i64::from(center[1])],
+                                    i64::from(radius),
+                                    i64::from(width),
+                                    filled,
+                                    false,
+                                )
+                            }
+                            MaskGeom::FilledPolygon { mask_idx, .. } => {
+                                if let GraphicShape::Polygon { outer, holes, .. } =
+                                    &self.input.mask_apertures[mask_idx as usize].shape
+                                {
+                                    geometry::point_in_polygon_with_holes(a, outer, holes)
+                                        || geometry::point_in_polygon_with_holes(b, outer, holes)
+                                } else {
+                                    false
+                                }
+                            }
+                        };
+                        if hit {
+                            return Ok(ControlFlow::Break(()));
+                        }
+                        Ok(ControlFlow::Continue(()))
+                    },
+                )?;
+                if mask_flow.is_break() {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+    pub(crate) fn legal_via(
+        &self,
+        net: u32,
+        at: Point,
+        start_idx: usize,
+        end_idx: usize,
+        kind: ViaKind,
+        prior_vias: &[search::PlacedViaKey],
+    ) -> Result<Option<(i64, i64)>, Failure> {
+        let _scope = self.work.scope();
+        self.work.charge(1)?;
+        let l_count = self.layer_names.len();
+        if l_count < 2 || start_idx >= end_idx || end_idx >= l_count {
+            return Ok(None);
+        }
+        match kind {
+            ViaKind::Through => {
+                if start_idx != 0 || end_idx + 1 != l_count {
+                    return Ok(None);
+                }
+            }
+            ViaKind::BlindBuried => {
+                if !self.effective_rules.allow_blind_buried_vias
+                    || (start_idx == 0 && end_idx + 1 == l_count)
+                {
+                    return Ok(None);
+                }
+            }
+            ViaKind::Micro => {
+                if !self.effective_rules.allow_microvias
+                    || end_idx != start_idx + 1
+                    || (start_idx != 0 && end_idx + 1 != l_count)
+                {
+                    return Ok(None);
+                }
+            }
+        }
+        if let Some(max_vc) = self.effective_rules.net(net).max_via_count {
+            if self.copper.via_count_for_net(net) + prior_vias.len() + 1 > max_vc as usize {
+                return Ok(None);
+            }
+        }
+        let span_layers = &self.layer_names[start_idx..=end_idx];
+        let (diam, drill) =
+            self.effective_rules
+                .via_dims_for(net, kind == ViaKind::Micro, span_layers)?;
+        if self.effective_rules.disallow_via_on(net, span_layers) {
+            return Ok(None);
+        }
+        let edge_clr = self
+            .effective_rules
+            .edge_clearance_for(net, DruItemKind::Via, span_layers);
+        let bounds = self.input.bounds;
+        let margin = i128::from(diam) + 2 * i128::from(edge_clr);
+        for (i, value) in at.iter().enumerate() {
+            if 2 * i128::from(*value) < 2 * i128::from(bounds.min[i]) + margin
+                || 2 * i128::from(*value) > 2 * i128::from(bounds.max[i]) - margin
+            {
+                return Ok(None);
+            }
+        }
+        if let Some(outline) = &self.input.board_outline {
+            self.work.charge(1)?;
+            if !geometry::point_in_board_outline(at, outline) {
+                return Ok(None);
+            }
+            let edge_swept = SweptAabb::swept(at, at, diam, edge_clr);
+            let edge_flow =
+                self.outline_spatial
+                    .visit_matching(edge_swept, None, &self.work, |_, edge| {
+                        self.work.charge(1)?;
+                        if geometry::segments_near(
+                            at,
+                            at,
+                            [i64::from(edge.a[0]), i64::from(edge.a[1])],
+                            [i64::from(edge.b[0]), i64::from(edge.b[1])],
+                            margin,
+                            false,
+                        ) {
+                            return Ok(ControlFlow::Break(()));
+                        }
+                        Ok(ControlFlow::Continue(()))
+                    })?;
+            if edge_flow.is_break() {
+                return Ok(None);
+            }
+        }
+        let my_mask = span_mask(start_idx, end_idx);
+        let my_drill = DrillShape::Circle { diameter_nm: drill };
+        for pv in prior_vias {
+            self.work.charge(1)?;
+            let pv_mask = span_mask(pv.start_layer as usize, pv.end_layer as usize);
+            if (my_mask & pv_mask) == 0 {
+                continue;
+            }
+            let pv_layers = &self.layer_names[pv.start_layer as usize..=pv.end_layer as usize];
+            let pv_drill_nm = self
+                .effective_rules
+                .via_dims_for(net, pv.kind == 2, pv_layers)?
+                .1;
+            let h2h = self.effective_rules.pair_hole_to_hole(
+                net,
+                DruItemKind::Via,
+                span_layers,
+                net,
+                DruItemKind::Via,
+                pv_layers,
+            );
+            if geometry::holes_near(
+                at,
+                &my_drill,
+                pv.at,
+                &DrillShape::Circle {
+                    diameter_nm: pv_drill_nm,
+                },
+                h2h,
+                false,
+            ) {
+                return Ok(None);
+            }
+        }
+
+        let r = self.input.rules;
+        let mask_pad_clr = if r.solder_mask_to_copper_clearance_nm > 0 {
+            r.solder_mask_expansion_nm + r.solder_mask_to_copper_clearance_nm
+        } else {
+            0
+        };
+        let max_copper_query_clr = self
+            .effective_rules
+            .max_pair_clearance_nm
+            .max(self.max_pad_local_clearance_nm)
+            .max(self.effective_rules.max_hole_clearance_nm)
+            .max(mask_pad_clr);
+
+        for l_idx in start_idx..=end_idx {
+            let layer_name = &self.layer_names[l_idx];
+            let layer_slice = std::slice::from_ref(layer_name);
+            let ko_swept = SweptAabb::swept(at, at, diam, 0);
+            let ko_flow = self.keepout_spatial[l_idx].visit_matching(
+                ko_swept,
+                None,
+                &self.work,
+                |_, kg| {
                     self.work.charge(1)?;
+                    if kg.no_vias
+                        && geometry::via_near_rule_area(
+                            at,
+                            diam,
+                            &self.input.rule_areas[kg.rule_area_idx as usize],
+                        )
+                    {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            if ko_flow.is_break() {
+                return Ok(None);
+            }
+            let pad_swept = SweptAabb::swept(at, at, diam, max_copper_query_clr);
+            let pad_flow = self.pad_spatial[l_idx].visit_matching(
+                pad_swept,
+                Some(net),
+                &self.work,
+                |ordinal, core| {
+                    self.work.charge(1)?;
+                    let pad = &self.input.pads[ordinal as usize];
+                    let pad_clr = self
+                        .effective_rules
+                        .pair_clearance(
+                            net,
+                            DruItemKind::Via,
+                            pad.net,
+                            DruItemKind::Pad,
+                            layer_name,
+                            pad.local_clearance_nm,
+                        )
+                        .max(mask_pad_clr);
+                    let p_layers = self.pad_layers_owned(pad);
+                    let hole_clr = self.effective_rules.pair_hole_clearance(
+                        net,
+                        DruItemKind::Via,
+                        span_layers,
+                        pad.net,
+                        DruItemKind::Pad,
+                        &p_layers,
+                    );
+                    let check_core = |w: i64, clr: i64| -> bool {
+                        match *core {
+                            PadCore::Box { lo, hi, radius } => geometry::track_near_core(
+                                at,
+                                at,
+                                w,
+                                clr,
+                                [i64::from(lo[0]), i64::from(lo[1])],
+                                [i64::from(hi[0]), i64::from(hi[1])],
+                                i64::from(radius),
+                                false,
+                            ),
+                            PadCore::Box2x { lo2, hi2, radius2 } => geometry::track_near_core_2x(
+                                at,
+                                at,
+                                w,
+                                clr,
+                                [i64::from(lo2[0]), i64::from(lo2[1])],
+                                [i64::from(hi2[0]), i64::from(hi2[1])],
+                                i64::from(radius2),
+                                false,
+                            ),
+                            PadCore::Capsule {
+                                a: sa,
+                                b: sb,
+                                width,
+                            } => geometry::segments_near(
+                                at,
+                                at,
+                                [i64::from(sa[0]), i64::from(sa[1])],
+                                [i64::from(sb[0]), i64::from(sb[1])],
+                                i128::from(w) + i128::from(width) + 2 * i128::from(clr),
+                                false,
+                            ),
+                            PadCore::ConvexPoly => {
+                                geometry::track_near_pad(at, at, w, clr, pad, false)
+                            }
+                        }
+                    };
+                    if check_core(diam, pad_clr) || (hole_clr > 0 && check_core(drill, hole_clr)) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            if pad_flow.is_break() {
+                return Ok(None);
+            }
+            let trk_swept = SweptAabb::swept(at, at, diam, max_copper_query_clr);
+            let trk_flow = self.copper.visit_layer_candidates_with_net_filtered(
+                l_idx,
+                trk_swept,
+                Some(net),
+                &self.work,
+                |other_net, t| {
+                    let clr = self.effective_rules.pair_clearance(
+                        net,
+                        DruItemKind::Via,
+                        other_net,
+                        DruItemKind::Track,
+                        layer_name,
+                        None,
+                    );
+                    if geometry::point_near_segment(
+                        at,
+                        t.start,
+                        t.end,
+                        i128::from(diam) + i128::from(t.width_nm) + 2 * i128::from(clr),
+                        false,
+                    ) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    let hole_clr = self.effective_rules.pair_hole_clearance(
+                        net,
+                        DruItemKind::Via,
+                        span_layers,
+                        other_net,
+                        DruItemKind::Track,
+                        layer_slice,
+                    );
+                    if hole_clr > 0
+                        && geometry::point_near_segment(
+                            at,
+                            t.start,
+                            t.end,
+                            i128::from(drill) + i128::from(t.width_nm) + 2 * i128::from(hole_clr),
+                            false,
+                        )
+                    {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            if trk_flow.is_break() {
+                return Ok(None);
+            }
+            let art_flow = self.artwork_spatial[l_idx].visit_matching(
+                trk_swept,
+                Some(net),
+                &self.work,
+                |ordinal, geom| {
+                    self.work.charge(1)?;
+                    let g_idx = self.artwork_graphic_idx[l_idx][ordinal as usize];
+                    let g_net = self.input.graphics[g_idx].net;
+                    let clr = self.effective_rules.pair_clearance(
+                        net,
+                        DruItemKind::Via,
+                        g_net,
+                        DruItemKind::Graphic,
+                        layer_name,
+                        None,
+                    );
                     let hit = match *geom {
                         ArtworkGeom::Segment {
                             a: sa,
                             b: sb,
                             width,
                         } => geometry::segments_near(
-                            a,
-                            b,
+                            at,
+                            at,
                             [i64::from(sa[0]), i64::from(sa[1])],
                             [i64::from(sb[0]), i64::from(sb[1])],
-                            i128::from(r.width_nm)
-                                + i128::from(width)
-                                + 2 * i128::from(r.clearance_nm),
+                            i128::from(diam) + i128::from(width) + 2 * i128::from(clr),
                             false,
                         ),
                         ArtworkGeom::Circle {
@@ -819,10 +1561,10 @@ impl Engine {
                             width,
                             filled,
                         } => geometry::track_near_circle(
-                            a,
-                            b,
-                            r.width_nm,
-                            r.clearance_nm,
+                            at,
+                            at,
+                            diam,
+                            clr,
                             [i64::from(center[0]), i64::from(center[1])],
                             i64::from(radius),
                             i64::from(width),
@@ -833,77 +1575,7 @@ impl Engine {
                             if let GraphicShape::Polygon { outer, holes, .. } =
                                 &self.input.graphics[graphic_idx as usize].shape
                             {
-                                geometry::point_in_polygon_with_holes(a, outer, holes)
-                                    || geometry::point_in_polygon_with_holes(b, outer, holes)
-                            } else {
-                                false
-                            }
-                        }
-                    };
-                    if hit {
-                        return Ok(ControlFlow::Break(()));
-                    }
-                    Ok(ControlFlow::Continue(()))
-                })?;
-        if art_flow.is_break() {
-            return Ok(false);
-        }
-        if r.solder_mask_to_copper_clearance_nm > 0 {
-            let mask_swept = SweptAabb::swept(
-                a,
-                b,
-                r.width_nm,
-                r.solder_mask_to_copper_clearance_nm + self.max_mask_expansion,
-            );
-            let mask_flow = self.mask_spatial.visit_matching(
-                mask_swept,
-                Some(net),
-                &self.work,
-                |_, geom| {
-                    self.work.charge(1)?;
-                    let hit = match *geom {
-                        MaskGeom::Segment {
-                            a: sa,
-                            b: sb,
-                            width,
-                            expansion,
-                        } => {
-                            let clr = r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
-                            geometry::segments_near(
-                                a,
-                                b,
-                                [i64::from(sa[0]), i64::from(sa[1])],
-                                [i64::from(sb[0]), i64::from(sb[1])],
-                                i128::from(r.width_nm) + i128::from(width) + 2 * i128::from(clr),
-                                false,
-                            )
-                        }
-                        MaskGeom::Circle {
-                            center,
-                            radius,
-                            width,
-                            expansion,
-                            filled,
-                        } => {
-                            let clr = r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
-                            geometry::track_near_circle(
-                                a,
-                                b,
-                                r.width_nm,
-                                clr,
-                                [i64::from(center[0]), i64::from(center[1])],
-                                i64::from(radius),
-                                i64::from(width),
-                                filled,
-                                false,
-                            )
-                        }
-                        MaskGeom::FilledPolygon { mask_idx, .. } => {
-                            if let GraphicShape::Polygon { outer, holes, .. } =
-                                &self.input.mask_apertures[mask_idx as usize].shape
-                            {
-                                geometry::point_in_polygon_with_holes(a, outer, holes)
-                                    || geometry::point_in_polygon_with_holes(b, outer, holes)
+                                geometry::point_in_polygon_with_holes(at, outer, holes)
                             } else {
                                 false
                             }
@@ -915,12 +1587,270 @@ impl Engine {
                     Ok(ControlFlow::Continue(()))
                 },
             )?;
-            if mask_flow.is_break() {
-                return Ok(false);
+            if art_flow.is_break() {
+                return Ok(None);
+            }
+            let mask_slot = if layer_name == "F.Cu" {
+                Some(0usize)
+            } else if layer_name == "B.Cu" {
+                Some(1usize)
+            } else {
+                None
+            };
+            if let Some(ms) = mask_slot {
+                if r.solder_mask_to_copper_clearance_nm > 0 {
+                    let mask_swept = SweptAabb::swept(
+                        at,
+                        at,
+                        diam,
+                        r.solder_mask_to_copper_clearance_nm + self.max_mask_expansion,
+                    );
+                    let mask_flow = self.mask_spatial[ms].visit_matching(
+                        mask_swept,
+                        Some(net),
+                        &self.work,
+                        |_, geom| {
+                            self.work.charge(1)?;
+                            let hit = match *geom {
+                                MaskGeom::Segment {
+                                    a: sa,
+                                    b: sb,
+                                    width,
+                                    expansion,
+                                } => {
+                                    let clr =
+                                        r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
+                                    geometry::segments_near(
+                                        at,
+                                        at,
+                                        [i64::from(sa[0]), i64::from(sa[1])],
+                                        [i64::from(sb[0]), i64::from(sb[1])],
+                                        i128::from(diam) + i128::from(width) + 2 * i128::from(clr),
+                                        false,
+                                    )
+                                }
+                                MaskGeom::Circle {
+                                    center,
+                                    radius,
+                                    width,
+                                    expansion,
+                                    filled,
+                                } => {
+                                    let clr =
+                                        r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
+                                    geometry::track_near_circle(
+                                        at,
+                                        at,
+                                        diam,
+                                        clr,
+                                        [i64::from(center[0]), i64::from(center[1])],
+                                        i64::from(radius),
+                                        i64::from(width),
+                                        filled,
+                                        false,
+                                    )
+                                }
+                                MaskGeom::FilledPolygon { mask_idx, .. } => {
+                                    if let GraphicShape::Polygon { outer, holes, .. } =
+                                        &self.input.mask_apertures[mask_idx as usize].shape
+                                    {
+                                        geometry::point_in_polygon_with_holes(at, outer, holes)
+                                    } else {
+                                        false
+                                    }
+                                }
+                            };
+                            if hit {
+                                return Ok(ControlFlow::Break(()));
+                            }
+                            Ok(ControlFlow::Continue(()))
+                        },
+                    )?;
+                    if mask_flow.is_break() {
+                        return Ok(None);
+                    }
+                }
             }
         }
-        Ok(true)
+
+        let max_hole_clr = self
+            .effective_rules
+            .max_hole_clearance_nm
+            .max(self.effective_rules.max_hole_to_hole_nm)
+            .max(r.same_net_hole_clearance_nm);
+        let hole_swept = SweptAabb::swept(at, at, diam, max_hole_clr);
+        let holes_len = self.input.holes.len();
+        let hole_flow = self.hole_spatial.visit_matching(
+            hole_swept,
+            None,
+            &self.work,
+            |ordinal, other_drill| {
+                self.work.charge(1)?;
+                let idx = ordinal as usize;
+                let (entry_net, entry_at, entry_shape, maybe_pad) = if idx < holes_len {
+                    let h = &self.input.holes[idx];
+                    (h.net, h.at, &h.shape, None)
+                } else {
+                    let p = &self.input.pads[idx - holes_len];
+                    (p.net, p.at, p.drill.as_ref().unwrap(), Some(p))
+                };
+                let (hole_kind, hole_layers) = match maybe_pad {
+                    Some(p) => (DruItemKind::Pad, self.pad_layers_owned(p)),
+                    None => (DruItemKind::Hole, self.layer_names.clone()),
+                };
+                let overlaps_span = hole_layers.iter().any(|hl| span_layers.contains(hl));
+                if !overlaps_span {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                let h2h = self.effective_rules.pair_hole_to_hole(
+                    net,
+                    DruItemKind::Via,
+                    span_layers,
+                    entry_net,
+                    hole_kind,
+                    &hole_layers,
+                );
+                if geometry::holes_near(at, &my_drill, entry_at, entry_shape, h2h, false) {
+                    return Ok(ControlFlow::Break(()));
+                }
+                if entry_net != net || entry_net == 0 {
+                    let hole_clr = self.effective_rules.pair_hole_clearance(
+                        net,
+                        DruItemKind::Via,
+                        span_layers,
+                        entry_net,
+                        hole_kind,
+                        &hole_layers,
+                    );
+                    let via_copper = DrillShape::Circle { diameter_nm: diam };
+                    if geometry::holes_near(at, &via_copper, entry_at, entry_shape, hole_clr, false)
+                    {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                } else if r.same_net_hole_clearance_nm > 0 {
+                    let connects = maybe_pad.is_some_and(|pad| {
+                        let synth = Via {
+                            id: String::new(),
+                            net,
+                            at,
+                            diameter_nm: diam,
+                            drill_nm: drill,
+                            start_layer: self.layer_names[start_idx].clone(),
+                            end_layer: self.layer_names[end_idx].clone(),
+                            kind,
+                            locked: false,
+                        };
+                        geometry::via_connects_pad(&synth, pad)
+                    });
+                    if !connects {
+                        let via_copper = DrillShape::Circle { diameter_nm: diam };
+                        if geometry::holes_near(
+                            at,
+                            &via_copper,
+                            entry_at,
+                            entry_shape,
+                            r.same_net_hole_clearance_nm,
+                            false,
+                        ) {
+                            return Ok(ControlFlow::Break(()));
+                        }
+                    }
+                }
+                let _ = other_drill;
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        if hole_flow.is_break() {
+            return Ok(None);
+        }
+
+        let via_swept = SweptAabb::swept(at, at, diam, max_copper_query_clr.max(max_hole_clr));
+        let via_flow = self.copper.visit_via_candidates_filtered(
+            via_swept,
+            None,
+            &self.work,
+            |ev, ev_mask| {
+                if (my_mask & ev_mask) == 0 {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                let ev_s = self.layer_index(&ev.start_layer).unwrap_or(0);
+                let ev_e = self.layer_index(&ev.end_layer).unwrap_or(ev_s);
+                let ev_layers = &self.layer_names[ev_s..=ev_e];
+                let h2h = self.effective_rules.pair_hole_to_hole(
+                    net,
+                    DruItemKind::Via,
+                    span_layers,
+                    ev.net,
+                    DruItemKind::Via,
+                    ev_layers,
+                );
+                if geometry::holes_near(
+                    at,
+                    &my_drill,
+                    ev.at,
+                    &DrillShape::Circle {
+                        diameter_nm: ev.drill_nm,
+                    },
+                    h2h,
+                    false,
+                ) {
+                    return Ok(ControlFlow::Break(()));
+                }
+                if ev.net != net || ev.net == 0 {
+                    for l_idx in start_idx..=end_idx {
+                        if (ev_mask & (1u32 << l_idx)) != 0 {
+                            let clr = self.effective_rules.pair_clearance(
+                                net,
+                                DruItemKind::Via,
+                                ev.net,
+                                DruItemKind::Via,
+                                &self.layer_names[l_idx],
+                                None,
+                            );
+                            if geometry::point_near_segment(
+                                at,
+                                ev.at,
+                                ev.at,
+                                i128::from(diam) + i128::from(ev.diameter_nm) + 2 * i128::from(clr),
+                                false,
+                            ) {
+                                return Ok(ControlFlow::Break(()));
+                            }
+                        }
+                    }
+                    let hole_clr = self.effective_rules.pair_hole_clearance(
+                        net,
+                        DruItemKind::Via,
+                        span_layers,
+                        ev.net,
+                        DruItemKind::Via,
+                        ev_layers,
+                    );
+                    if geometry::point_near_segment(
+                        at,
+                        ev.at,
+                        ev.at,
+                        i128::from(diam) + i128::from(ev.drill_nm) + 2 * i128::from(hole_clr),
+                        false,
+                    ) || geometry::point_near_segment(
+                        at,
+                        ev.at,
+                        ev.at,
+                        i128::from(drill) + i128::from(ev.diameter_nm) + 2 * i128::from(hole_clr),
+                        false,
+                    ) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        if via_flow.is_break() {
+            return Ok(None);
+        }
+        Ok(Some((diam, drill)))
     }
+
     fn components(&self, net: u32) -> Result<Vec<Vec<Copper<'_>>>, Failure> {
         let mut items = Vec::new();
         for p in &self.input.pads {
@@ -935,13 +1865,19 @@ impl Engine {
                 items.push(Copper::Track(t));
             }
         }
+        for v in self.copper.vias() {
+            self.work.charge(1)?;
+            if v.net == net {
+                items.push(Copper::Via(v));
+            }
+        }
         for g in &self.input.graphics {
             self.work.charge(1)?;
-            if g.layer == self.input.layer && g.net == net {
+            if g.net == net && self.layer_index(&g.layer).is_some() {
                 items.push(Copper::Graphic(g));
             }
         }
-        components::partition(items, &self.work)
+        components::partition(items, &self.layer_names, &self.work)
     }
     fn route_net(&mut self, net: u32, limit: u64, expanded: &mut u64) -> Result<(), Failure> {
         loop {
@@ -962,41 +1898,92 @@ impl Engine {
         }
     }
     fn insert_path(&mut self, net: u32, path: search::Path) -> Result<(), Failure> {
-        // Coalesce only collinear steps: the swept geometry is unchanged.
-        let mut points: Vec<Point> = Vec::new();
-        for p in path.points {
+        let mut raw_tracks: Vec<Track> = Vec::new();
+        let mut pending_vias: Vec<(search::PlacedViaKey, Via)> = Vec::new();
+        let mut prior_vias: Vec<search::PlacedViaKey> = Vec::new();
+        let mut can_coalesce_last = false;
+
+        for edge in path.edges {
             self.work.charge(1)?;
-            if points.len() >= 2 {
-                let a = points[points.len() - 2];
-                let b = points[points.len() - 1];
-                if (a[0] == b[0] && b[0] == p[0]) || (a[1] == b[1] && b[1] == p[1]) {
-                    points.pop();
+            match edge {
+                search::PathEdge::Track { start, end, layer } => {
+                    let l_name = &self.layer_names[layer as usize];
+                    let width_nm = self.effective_rules.track_width_for(net, l_name)?;
+                    if can_coalesce_last {
+                        if let Some(last) = raw_tracks.last_mut() {
+                            if last.layer == *l_name
+                                && last.end == start
+                                && ((last.start[0] == last.end[0] && last.end[0] == end[0])
+                                    || (last.start[1] == last.end[1] && last.end[1] == end[1]))
+                            {
+                                last.end = end;
+                                continue;
+                            }
+                        }
+                    }
+                    raw_tracks.push(Track {
+                        id: String::new(),
+                        net,
+                        start,
+                        end,
+                        width_nm,
+                        locked: false,
+                        layer: l_name.clone(),
+                    });
+                    can_coalesce_last = true;
+                }
+                search::PathEdge::Via(pv) => {
+                    can_coalesce_last = false;
+                    let kind = match pv.kind {
+                        0 => ViaKind::Through,
+                        1 => ViaKind::BlindBuried,
+                        _ => ViaKind::Micro,
+                    };
+                    let Some((diam, drill)) = self.legal_via(
+                        net,
+                        pv.at,
+                        pv.start_layer as usize,
+                        pv.end_layer as usize,
+                        kind,
+                        &prior_vias,
+                    )?
+                    else {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "proposed via failed continuous clearance validation",
+                        ));
+                    };
+                    prior_vias.push(pv);
+                    pending_vias.push((
+                        pv,
+                        Via {
+                            id: String::new(),
+                            net,
+                            at: pv.at,
+                            diameter_nm: diam,
+                            drill_nm: drill,
+                            start_layer: self.layer_names[pv.start_layer as usize].clone(),
+                            end_layer: self.layer_names[pv.end_layer as usize].clone(),
+                            kind,
+                            locked: false,
+                        },
+                    ));
                 }
             }
-            points.push(p);
         }
-        self.work.charge(points.len() as u64)?;
-        let proposal: Vec<_> = points
-            .windows(2)
-            .map(|p| Track {
-                id: String::new(),
-                net,
-                start: p[0],
-                end: p[1],
-                width_nm: self.input.rules.width_nm,
-                locked: false,
-            })
-            .collect();
+        let _ = pending_vias.len();
+        self.work.charge(raw_tracks.len() as u64)?;
         let mut normalized = Vec::new();
-        for t in proposal {
+        for t in raw_tracks {
+            let l_idx = self.layer_index(&t.layer).expect("validated layer");
             if self.input.rules.same_net_hole_clearance_nm > 0 {
-                if t.start == t.end || !self.legal_edge(net, t.start, t.end)? {
+                if t.start == t.end || !self.legal_edge_on(net, l_idx, t.start, t.end)? {
                     return Err(Failure::new(
                         Status::Unroutable,
                         "proposal failed continuous clearance validation",
                     ));
                 }
-                for piece in self.subtract_collinear_overlaps_legal(net, &t, &normalized)? {
+                for piece in self.subtract_collinear_overlaps_legal(net, l_idx, &t, &normalized)? {
                     if piece.start == piece.end {
                         return Err(Failure::new(
                             Status::Unroutable,
@@ -1007,7 +1994,9 @@ impl Engine {
                 }
             } else {
                 for piece in self.subtract_collinear_overlaps(&t, &normalized)? {
-                    if piece.start == piece.end || !self.legal_edge(net, piece.start, piece.end)? {
+                    if piece.start == piece.end
+                        || !self.legal_edge_on(net, l_idx, piece.start, piece.end)?
+                    {
                         return Err(Failure::new(
                             Status::Unroutable,
                             "proposal failed continuous clearance validation",
@@ -1020,11 +2009,15 @@ impl Engine {
         for t in normalized {
             self.copper.insert(t, &self.work)?;
         }
+        for (_, v) in pending_vias {
+            self.copper.insert_via(v, &self.work)?;
+        }
         Ok(())
     }
     fn subtract_collinear_overlaps_legal(
         &self,
         net: u32,
+        layer_idx: usize,
         seg: &Track,
         accepted: &[Track],
     ) -> Result<Vec<Track>, Failure> {
@@ -1034,7 +2027,9 @@ impl Engine {
         }
         let mut all_legal = true;
         for piece in &pieces {
-            if piece.start == piece.end || !self.legal_edge(net, piece.start, piece.end)? {
+            if piece.start == piece.end
+                || !self.legal_edge_on(net, layer_idx, piece.start, piece.end)?
+            {
                 all_legal = false;
                 break;
             }
@@ -1050,6 +2045,7 @@ impl Engine {
         for existing in self.copper.tracks().chain(accepted.iter()) {
             self.work.charge(1)?;
             if existing.net == seg.net
+                && existing.layer == seg.layer
                 && existing.width_nm >= seg.width_nm
                 && existing.start[1 - axis] == ortho
                 && existing.end[1 - axis] == ortho
@@ -1103,7 +2099,7 @@ impl Engine {
             let mut dropped = false;
             for &(a, b) in &spans {
                 self.work.charge(1)?;
-                if !self.legal_edge(net, point(a), point(b))? {
+                if !self.legal_edge_on(net, layer_idx, point(a), point(b))? {
                     if a > s_lo {
                         if let Some(idx) = merged
                             .iter()
@@ -1150,6 +2146,7 @@ impl Engine {
                 end: point(b),
                 width_nm: seg.width_nm,
                 locked: false,
+                layer: seg.layer.clone(),
             })
             .collect())
     }
@@ -1172,6 +2169,7 @@ impl Engine {
         for existing in self.copper.tracks().chain(accepted.iter()) {
             self.work.charge(1)?;
             if existing.net == seg.net
+                && existing.layer == seg.layer
                 && existing.width_nm >= seg.width_nm
                 && existing.start[1 - axis] == ortho
                 && existing.end[1 - axis] == ortho
@@ -1227,6 +2225,7 @@ impl Engine {
                 end: point(b),
                 width_nm: seg.width_nm,
                 locked: false,
+                layer: seg.layer.clone(),
             })
             .collect())
     }
@@ -1326,6 +2325,7 @@ impl Output {
             source_id,
             status: e.status,
             added_tracks: Vec::new(),
+            added_vias: Vec::new(),
             removed_track_ids: Vec::new(),
             expanded_states: e.expanded_states,
             work_used: e.work_used,
@@ -1354,6 +2354,7 @@ fn run_unidentified(input: Input) -> Output {
             source_id: source,
             status: Status::Complete,
             added_tracks: engine.copper.generated().cloned().collect(),
+            added_vias: engine.copper.generated_vias().cloned().collect(),
             removed_track_ids: Vec::new(),
             expanded_states: expanded,
             work_used: engine.work_used(),

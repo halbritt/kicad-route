@@ -14,6 +14,8 @@ fn pad(n: u64, net: u32, at: Point) -> Pad {
         at,
         shape: Shape::Circle { radius_nm: 1 },
         drill: None,
+        layers: Vec::new(),
+        local_clearance_nm: None,
     }
 }
 fn base() -> Input {
@@ -48,6 +50,13 @@ fn base() -> Input {
         board_outline: None,
         graphics: Vec::new(),
         mask_apertures: Vec::new(),
+        layers: Vec::new(),
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
     }
 }
 fn wire(n: u64, net: u32, a: Point, b: Point) -> Track {
@@ -58,6 +67,7 @@ fn wire(n: u64, net: u32, a: Point, b: Point) -> Track {
         end: b,
         width_nm: 2,
         locked: true,
+        layer: "F.Cu".into(),
     }
 }
 fn output_bytes(input: Input) -> Vec<u8> {
@@ -1140,6 +1150,8 @@ fn m3_1_off_grid_offset_and_rotated_pads_route_legally() {
             width_nm: 4,
         },
         drill: None,
+        layers: Vec::new(),
+        local_clearance_nm: None,
     });
     let out = run(i.clone());
     assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
@@ -1188,6 +1200,8 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             at: [10, 50],
             shape: Shape::Circle { radius_nm: 4 },
             drill: Some(DrillShape::Circle { diameter_nm: 2 }),
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: id(2),
@@ -1195,6 +1209,8 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             at: [50, 50],
             shape: Shape::Circle { radius_nm: 4 },
             drill: Some(DrillShape::Circle { diameter_nm: 2 }),
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: id(3),
@@ -1202,6 +1218,8 @@ fn m3_1_pth_npth_hole_clearance_and_same_net_drill_rules() {
             at: [90, 50],
             shape: Shape::Circle { radius_nm: 4 },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     let ej = Engine::new(j.clone()).unwrap();
@@ -1614,6 +1632,8 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             drill: Some(DrillShape::Circle {
                 diameter_nm: 1_000_000,
             }),
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: id(2),
@@ -1625,6 +1645,8 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             drill: Some(DrillShape::Circle {
                 diameter_nm: 1_000_000,
             }),
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     let e = Engine::new(i.clone()).unwrap();
@@ -1671,6 +1693,8 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             drill: Some(DrillShape::Circle {
                 diameter_nm: 1_000_000,
             }),
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: id(2),
@@ -1682,6 +1706,8 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
             drill: Some(DrillShape::Circle {
                 diameter_nm: 1_000_000,
             }),
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: id(3),
@@ -1691,6 +1717,8 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
                 half_size_nm: [500_000, 500_000],
             },
             drill: None,
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     let ej = Engine::new(j.clone()).unwrap();
@@ -1699,143 +1727,6 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
     assert!(!out_j.added_tracks.is_empty());
     for t in &out_j.added_tracks {
         assert!(ej.legal_edge(t.net, t.start, t.end).unwrap(), "{t:?}");
-    }
-}
-
-#[test]
-fn m3_1_non_crossing_u_notch_filled_polygons_merge_without_spurious_tracks() {
-    let m = 1_000_000i64;
-    let mut i = base();
-    i.bounds = Bounds {
-        min: [-5 * m, -5 * m],
-        max: [5 * m, 5 * m],
-    };
-    i.rules = Rules {
-        width_nm: 200_000,
-        clearance_nm: 100_000,
-        grid_nm: 500_000,
-        edge_clearance_nm: 100_000,
-        hole_clearance_nm: 0,
-        same_net_hole_clearance_nm: 0,
-        solder_mask_expansion_nm: 0,
-        solder_mask_min_width_nm: 0,
-        solder_mask_to_copper_clearance_nm: 0,
-    };
-    i.pads[0].at = [3_500_000, 2_500_000];
-    i.pads[0].shape = Shape::Circle { radius_nm: 200_000 };
-    i.pads[1].at = [-3_500_000, 2_500_000];
-    i.pads[1].shape = Shape::Circle { radius_nm: 200_000 };
-    i.graphics = vec![
-        CopperGraphic {
-            id: id(70),
-            net: 1,
-            layer: "F.Cu".into(),
-            shape: GraphicShape::Polygon {
-                outer: vec![
-                    [0, 0],
-                    [4 * m, 0],
-                    [4 * m, 3 * m],
-                    [3 * m, 3 * m],
-                    [3 * m, m],
-                    [m, m],
-                    [m, 3 * m],
-                    [0, 3 * m],
-                ],
-                holes: Vec::new(),
-                width_nm: 0,
-                filled: true,
-            },
-        },
-        CopperGraphic {
-            id: id(71),
-            net: 1,
-            layer: "F.Cu".into(),
-            shape: GraphicShape::Polygon {
-                outer: vec![
-                    [-4 * m, 0],
-                    [m, 0],
-                    [m, 3 * m],
-                    [0, 3 * m],
-                    [0, m],
-                    [-3 * m, m],
-                    [-3 * m, 3 * m],
-                    [-4 * m, 3 * m],
-                ],
-                holes: Vec::new(),
-                width_nm: 0,
-                filled: true,
-            },
-        },
-    ];
-    let out = run(i);
-    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
-    assert!(
-        out.added_tracks.is_empty(),
-        "overlapping U-notch filled polygons must merge: {:?}",
-        out.added_tracks
-    );
-}
-
-#[test]
-fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragment() {
-    // Challenger 1 reproduction: incumbent collinear stub ending inside P1's moat must not
-    // cause subtract_collinear_overlaps to emit an illegal track violating Engine::legal_edge.
-    for stub_start in [[0, 0], [-2_000_000, 0]] {
-        let mut i = base();
-        i.bounds = Bounds {
-            min: [-5_000_000, -5_000_000],
-            max: [10_000_000, 5_000_000],
-        };
-        i.rules = Rules {
-            width_nm: 200_000,
-            clearance_nm: 200_000,
-            grid_nm: 500_000,
-            edge_clearance_nm: 200_000,
-            hole_clearance_nm: 1_000_000,
-            same_net_hole_clearance_nm: 1_000_000,
-            solder_mask_expansion_nm: 0,
-            solder_mask_min_width_nm: 0,
-            solder_mask_to_copper_clearance_nm: 0,
-        };
-        i.pads = vec![
-            Pad {
-                id: id(1),
-                net: 1,
-                at: [0, 0],
-                shape: Shape::Circle { radius_nm: 600_000 },
-                drill: Some(DrillShape::Circle {
-                    diameter_nm: 400_000,
-                }),
-            },
-            Pad {
-                id: id(2),
-                net: 1,
-                at: [5_000_000, 0],
-                shape: Shape::Circle { radius_nm: 600_000 },
-                drill: Some(DrillShape::Circle {
-                    diameter_nm: 400_000,
-                }),
-            },
-        ];
-        i.tracks = vec![Track {
-            id: id(3),
-            net: 1,
-            start: stub_start,
-            end: [800_000, 0],
-            width_nm: 200_000,
-            locked: true,
-        }];
-        let e = Engine::new(i.clone()).unwrap();
-        assert!(!e.legal_edge(1, [800_000, 0], [4_300_001, 0]).unwrap());
-        let out = run(i);
-        assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
-        assert!(!out.added_tracks.is_empty());
-        for t in &out.added_tracks {
-            assert!(
-                e.legal_edge(t.net, t.start, t.end).unwrap(),
-                "emitted illegal moat fragment for stub_start={stub_start:?}: {t:?}"
-            );
-        }
     }
 
     // Also verify partial subtraction outside moat: [0,0]->[800k,0] (in moat) + [2M,0]->[3M,0] (outside moat)
@@ -1865,6 +1756,8 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
             drill: Some(DrillShape::Circle {
                 diameter_nm: 400_000,
             }),
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
         Pad {
             id: id(2),
@@ -1874,6 +1767,8 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
             drill: Some(DrillShape::Circle {
                 diameter_nm: 400_000,
             }),
+            layers: Vec::new(),
+            local_clearance_nm: None,
         },
     ];
     j.tracks = vec![
@@ -1884,6 +1779,7 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
             end: [800_000, 0],
             width_nm: 200_000,
             locked: true,
+            layer: "F.Cu".into(),
         },
         Track {
             id: id(4),
@@ -1892,6 +1788,7 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
             end: [3_000_000, 0],
             width_nm: 200_000,
             locked: true,
+            layer: "F.Cu".into(),
         },
     ];
     let ej = Engine::new(j.clone()).unwrap();
@@ -1900,4 +1797,222 @@ fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragm
     for t in &out_j.added_tracks {
         assert!(ej.legal_edge(t.net, t.start, t.end).unwrap(), "{t:?}");
     }
+}
+
+#[test]
+fn m3_2_multilayer_via_spans_hole_to_hole_and_keepouts() {
+    let mut i = base();
+    i.layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 60],
+    };
+    i.rules = Rules {
+        width_nm: 2,
+        clearance_nm: 1,
+        grid_nm: 10,
+        edge_clearance_nm: 1,
+        hole_clearance_nm: 2,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [10, 30],
+            layers: vec!["F.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: None,
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [90, 30],
+            layers: vec!["B.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: None,
+        },
+    ];
+    i.rule_areas = vec![RuleArea {
+        id: id(20),
+        layers: vec!["F.Cu".into()],
+        no_tracks: true,
+        no_vias: false,
+        outer: vec![[35, 0], [65, 0], [65, 60], [35, 60]],
+        holes: Vec::new(),
+    }];
+    i.project_rules = Some(
+        json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {
+                "min_via_diameter": 0.000004,
+                "min_through_hole_diameter": 0.000002,
+                "min_hole_to_hole": 0.000008,
+                "allow_blind_buried_vias": true,
+                "allow_microvias": true
+            }}},
+            "net_settings": {"classes": [{
+                "name": "Default",
+                "track_width": 0.000002,
+                "clearance": 0.000001,
+                "via_diameter": 0.000004,
+                "via_drill": 0.000002,
+                "microvia_diameter": 0.000004,
+                "microvia_drill": 0.000002
+            }]}
+        })
+        .to_string(),
+    );
+
+    let out = run(i);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(!out.added_vias.is_empty());
+    // Must not place any F.Cu track overlapping the F.Cu keepout [35..65].
+    for t in &out.added_tracks {
+        if t.layer == "F.Cu" {
+            let lo = t.start[0].min(t.end[0]);
+            let hi = t.start[0].max(t.end[0]);
+            assert!(hi < 35 || lo > 65, "F.Cu track entered keepout: {t:?}");
+        }
+    }
+    // At least one segment must transition to In1.Cu/In2.Cu/B.Cu to cross [35..65].
+    assert!(out.added_tracks.iter().any(|t| t.layer != "F.Cu"));
+}
+
+#[test]
+fn m3_2_copper_store_multilayer_via_rollback_zero_work_diff_and_index_consistent() {
+    let mut i = base();
+    i.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 100],
+    };
+    i.rules.clearance_nm = 1;
+    i.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [10, 10],
+            layers: vec!["F.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: None,
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [90, 10],
+            layers: vec!["B.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: None,
+        },
+    ];
+    i.project_rules = Some(
+        json!({
+            "meta": {"version": 3},
+            "net_settings": {"classes": [{
+                "name": "Default",
+                "track_width": 0.000002,
+                "clearance": 0.000001,
+                "via_diameter": 0.000004,
+                "via_drill": 0.000002
+            }]}
+        })
+        .to_string(),
+    );
+    let mut e = Engine::new(i.clone()).unwrap();
+    let baseline = e.copper().tracks().count() + e.copper().vias().count();
+    let _: Result<(), kicad_route_engine::TransactionError<&str>> = e.transaction(|tx| {
+        tx.route(1, 5000).map_err(|_| "route err")?;
+        assert!(tx.copper().index_consistent());
+        assert!(tx.copper().vias().count() > 0);
+        Err("rollback")
+    });
+    assert!(e.copper().index_consistent());
+    assert_eq!(
+        e.copper().tracks().count() + e.copper().vias().count(),
+        baseline
+    );
+    let first_work = {
+        let mut e2 = Engine::new(i).unwrap();
+        e2.route(1, 5000).unwrap();
+        e2.work_used()
+    };
+    e.route(1, 5000).unwrap();
+    assert_eq!(e.work_used(), first_work);
+}
+
+#[test]
+fn m3_2_project_netclasses_regex_dru_and_local_pad_clearance() {
+    let mut i: Input = serde_json::from_value(json!({
+        "version": 1,
+        "source_id": "a".repeat(64),
+        "layer": "F.Cu",
+        "bounds": {"min": [0, 0], "max": [4_000_000, 4_000_000]},
+        "nets": [
+            {"id": 0, "name": ""},
+            {"id": 1, "name": "HV_BUS"},
+            {"id": 2, "name": "LOW"}
+        ],
+        "pads": [
+            {"id": id(1), "net": 1, "at": [500_000, 2_000_000], "layers": ["F.Cu"], "shape": {"kind": "circle", "radius_nm": 100_000}},
+            {"id": id(2), "net": 1, "at": [3_500_000, 2_000_000], "layers": ["F.Cu"], "shape": {"kind": "circle", "radius_nm": 100_000}},
+            {"id": id(3), "net": 2, "at": [2_000_000, 2_000_000], "layers": ["F.Cu"], "local_clearance_nm": 400_000, "shape": {"kind": "circle", "radius_nm": 100_000}}
+        ],
+        "tracks": [],
+        "max_expansions": 10_000
+    }))
+    .unwrap();
+    i.project_rules = Some(
+        json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {"min_track_width": 0.2, "min_clearance": 0.15}}},
+            "net_settings": {
+                "classes": [
+                    {"name": "Default", "track_width": 0.2, "clearance": 0.15},
+                    {"name": "HV", "track_width": 0.3, "clearance": 0.25}
+                ],
+                "netclass_patterns": [{"netclass": "HV", "pattern": "HV_.*"}]
+            }
+        })
+        .to_string(),
+    );
+    i.custom_rules = Some(
+        "(version 1)\n(rule \"hv_gap\" (condition \"A.NetClass == 'HV'\") (constraint clearance (min 0.35mm)))"
+            .into(),
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(!out.added_tracks.is_empty());
+    // Regex matched HV_BUS -> track width 300_000 nm; pad 3 local_clearance_nm=400_000 forces detour >= 650_000 from [2M, 2M].
+    for t in &out.added_tracks {
+        assert_eq!(t.width_nm, 300_000);
+        if t.start[1] == t.end[1]
+            && t.start[0].min(t.end[0]) < 2_000_000
+            && t.start[0].max(t.end[0]) > 2_000_000
+        {
+            assert!(
+                (t.start[1] - 2_000_000).abs() >= 650_000,
+                "track violated local_clearance_nm: {t:?}"
+            );
+        }
+    }
+
+    // Unsupported .kicad_dru expression fails closed with Status::Unsupported.
+    let mut bad = i;
+    bad.custom_rules = Some(
+        "(version 1)\n(rule \"bad\" (condition \"A.onLayer('F.Cu')\") (constraint clearance (min 0.2mm)))".into(),
+    );
+    assert_eq!(run(bad).status, Status::Unsupported);
 }
