@@ -25,6 +25,8 @@ struct State {
     at: Point,
     layer: u8,
     direction: u8,
+    arrived_by_via: bool,
+    is_via_goal: bool,
     via_history: u32,
     via_count: u16,
 }
@@ -259,37 +261,63 @@ pub(crate) fn join_components(
         failure.expanded_states = *expanded;
         return Err(failure);
     }
-    let attachment_from =
-        |layer_idx: usize, anchor: Point, a: Point, b: Point| -> Result<Option<Point>, Failure> {
-            let l_name = engine.layer_name(layer_idx);
-            let width_nm = engine.effective_rules.track_width_for(net, l_name)?;
-            let mut nearest = None;
-            for c in targets.iter().flatten() {
-                engine.work.charge(1)?;
-                if let Some(p) = c.attachment(a, b, net, width_nm, l_name, stackup, &engine.work)? {
-                    if engine.legal_edge_on(net, layer_idx, anchor, p)? {
-                        let key = |p: Point| ((p[0] - a[0]).abs() + (p[1] - a[1]).abs(), p);
-                        if nearest.is_none_or(|old| key(p) < key(old)) {
-                            nearest = Some(p);
-                        }
+    let attachment_from = |layer_idx: usize,
+                           anchor: Point,
+                           a: Point,
+                           b: Point,
+                           prior_vias: &[PlacedViaKey]|
+     -> Result<Option<Point>, Failure> {
+        let l_name = engine.layer_name(layer_idx);
+        let width_nm = engine.effective_rules.track_width_for(net, l_name)?;
+        let mut nearest = None;
+        for c in targets.iter().flatten() {
+            engine.work.charge(1)?;
+            if let Some(p) = c.attachment(a, b, net, width_nm, l_name, stackup, &engine.work)? {
+                if engine.legal_edge_on(net, layer_idx, anchor, p)?
+                    && engine.edge_clears_same_net_vias(net, layer_idx, anchor, p, prior_vias)?
+                {
+                    let key = |p: Point| ((p[0] - a[0]).abs() + (p[1] - a[1]).abs(), p);
+                    if nearest.is_none_or(|old| key(p) < key(old)) {
+                        nearest = Some(p);
                     }
                 }
             }
-            Ok(nearest)
-        };
-    let attachment = |layer_idx: usize, a: Point, b: Point| attachment_from(layer_idx, a, a, b);
+        }
+        Ok(nearest)
+    };
+    let attachment = |layer_idx: usize, a: Point, b: Point, prior_vias: &[PlacedViaKey]| {
+        attachment_from(layer_idx, a, a, b, prior_vias)
+    };
 
-    let max_via_diam = if l_count > 1 {
-        let nr = engine.effective_rules.net(net);
-        let mut d = nr.via_diameter_nm.max(nr.microvia_diameter_nm);
-        for rule in &engine.effective_rules.dru_rules {
-            if let crate::rules::DruConstraint::ViaDiameter { min_nm, .. } = rule.constraint {
-                d = d.max(min_nm);
+    let (max_via_diam, max_net_drill) = if l_count > 1 {
+        let mut max_d = 0i64;
+        let mut max_dr = 0i64;
+        let mut consider_span = |is_micro: bool, span: &[String]| {
+            if !engine.effective_rules.disallow_via_on(net, span) {
+                if let Ok((d, dr)) = engine.effective_rules.via_dims_for(net, is_micro, span) {
+                    max_d = max_d.max(d);
+                    max_dr = max_dr.max(dr);
+                }
+            }
+        };
+        consider_span(false, stackup);
+        if engine.effective_rules.allow_blind_buried_vias {
+            for s_min in 0..l_count {
+                for s_max in (s_min + 1)..l_count {
+                    if s_min == 0 && s_max + 1 == l_count {
+                        continue;
+                    }
+                    consider_span(false, &stackup[s_min..=s_max]);
+                }
             }
         }
-        d
+        if engine.effective_rules.allow_microvias {
+            consider_span(true, &stackup[0..=1]);
+            consider_span(true, &stackup[l_count - 2..=l_count - 1]);
+        }
+        (max_d, max_dr)
     } else {
-        0
+        (0, 0)
     };
     let mut max_net_track_width = 0i64;
     for l_name in stackup {
@@ -298,18 +326,6 @@ pub(crate) fn join_components(
     }
     let max_eff_width = max_net_track_width.max(max_via_diam);
 
-    let max_net_drill = if l_count > 1 {
-        let nr = engine.effective_rules.net(net);
-        let mut d = nr.via_drill_nm.max(nr.microvia_drill_nm);
-        for rule in &engine.effective_rules.dru_rules {
-            if let crate::rules::DruConstraint::ViaDrill { min_nm, .. } = rule.constraint {
-                d = d.max(min_nm);
-            }
-        }
-        d
-    } else {
-        0
-    };
     let max_h2h = engine.effective_rules.max_hole_to_hole_nm;
     let conflict_radius_upper = i128::from(max_net_drill) + i128::from(max_h2h);
     let conflict_radius_sq_upper = conflict_radius_upper * conflict_radius_upper;
@@ -325,6 +341,7 @@ pub(crate) fn join_components(
     loop {
         let result = walk_multilayer(
             engine,
+            net,
             &start_vec,
             limit,
             expanded,
@@ -358,21 +375,26 @@ pub(crate) fn join_components(
                 }
                 Ok(h_comp)
             },
-            |layer_idx, run_start, a, b| {
+            |layer_idx, run_start, a, b, prior_vias| {
                 let l_name = engine.layer_name(layer_idx);
                 let width_nm = engine.effective_rules.track_width_for(net, l_name)?;
-                if let Some(p) = attachment(layer_idx, a, b)? {
+                if let Some(p) = attachment(layer_idx, a, b, prior_vias)? {
                     return Ok(Some(p));
                 }
-                if engine.legal_edge_on(net, layer_idx, a, b)? {
+                if engine.legal_edge_on(net, layer_idx, a, b)?
+                    && engine.edge_clears_same_net_vias(net, layer_idx, a, b, prior_vias)?
+                {
                     return Ok(Some(b));
                 }
                 if engine.input.rules.same_net_hole_clearance_nm > 0 {
                     if let Some(rs) = run_start {
-                        if let Some(p) = attachment_from(layer_idx, rs, a, b)? {
+                        if let Some(p) = attachment_from(layer_idx, rs, a, b, prior_vias)? {
                             return Ok(Some(p));
                         }
-                        if engine.legal_edge_on(net, layer_idx, rs, b)? {
+                        if engine.legal_edge_on(net, layer_idx, rs, b)?
+                            && engine
+                                .edge_clears_same_net_vias(net, layer_idx, rs, b, prior_vias)?
+                        {
                             return Ok(Some(b));
                         }
                     }
@@ -409,10 +431,10 @@ pub(crate) fn join_components(
                         if far == a {
                             continue;
                         }
-                        let hit = match attachment(layer_idx, a, far)? {
+                        let hit = match attachment(layer_idx, a, far, prior_vias)? {
                             Some(p) => Some(p),
                             None => match run_start {
-                                Some(rs) => attachment_from(layer_idx, rs, a, far)?,
+                                Some(rs) => attachment_from(layer_idx, rs, a, far, prior_vias)?,
                                 None => None,
                             },
                         };
@@ -489,9 +511,9 @@ pub(crate) fn join_components(
                             kind,
                             locked: false,
                         };
-                        let target_bit = 1u32 << layer_idx;
+                        let via_mask = span_mask(pv.start_layer as usize, pv.end_layer as usize);
                         for c in targets.iter().flatten() {
-                            if (c.layer_mask(stackup) & target_bit) != 0
+                            if (c.layer_mask(stackup) & via_mask) != 0
                                 && c.touches_via(&probe_via, stackup, &engine.work)?
                             {
                                 return Ok(true);
@@ -503,43 +525,62 @@ pub(crate) fn join_components(
             },
         )?;
 
+        let path_via_count = result
+            .edges
+            .iter()
+            .filter(|e| matches!(e, PathEdge::Via(_)))
+            .count();
         if l_count < 2
-            || result
-                .edges
-                .iter()
-                .filter(|e| matches!(e, PathEdge::Via(_)))
-                .count()
-                < 2
+            || (path_via_count < 2
+                && (engine.input.rules.same_net_hole_clearance_nm == 0 || path_via_count == 0))
         {
             return Ok(result);
         }
 
-        let Some((v_a, v_b)) = first_via_conflict(engine, net, &result)? else {
-            return Ok(result);
-        };
-        let dx = i128::from(v_a.at[0] - v_b.at[0]);
-        let dy = i128::from(v_a.at[1] - v_b.at[1]);
-        let pair_sq = dx * dx + dy * dy;
-        conflict_filter.zones.push(ConflictZone {
-            center: v_b.at,
-            radius_sq_upper: conflict_radius_sq_upper.max(pair_sq),
-        });
-        if engine.input.rules.same_net_hole_clearance_nm == 0 {
-            let needed_cutoff = result.steps.saturating_add(via_cost);
-            if backward_h.as_ref().is_none_or(|(m, _)| needed_cutoff > *m) {
-                let bwd = compute_backward_heuristic(
-                    engine,
-                    net,
-                    &start_vec,
-                    targets,
-                    max_eff_width,
-                    via_cost,
-                    needed_cutoff,
-                    limit,
-                )?;
-                backward_h = Some((needed_cutoff, bwd));
+        if path_via_count >= 2 {
+            if let Some((v_a, v_b)) = first_via_conflict(engine, net, &result)? {
+                let dx = i128::from(v_a.at[0] - v_b.at[0]);
+                let dy = i128::from(v_a.at[1] - v_b.at[1]);
+                let pair_sq = dx * dx + dy * dy;
+                conflict_filter.zones.push(ConflictZone {
+                    center: v_b.at,
+                    radius_sq_upper: conflict_radius_sq_upper.max(pair_sq),
+                });
+                if engine.input.rules.same_net_hole_clearance_nm == 0 {
+                    let needed_cutoff = result.steps.saturating_add(via_cost);
+                    if backward_h.as_ref().is_none_or(|(m, _)| needed_cutoff > *m) {
+                        let bwd = compute_backward_heuristic(
+                            engine,
+                            net,
+                            &start_vec,
+                            targets,
+                            max_eff_width,
+                            via_cost,
+                            needed_cutoff,
+                            limit,
+                        )?;
+                        backward_h = Some((needed_cutoff, bwd));
+                    }
+                }
+                continue;
             }
         }
+        if engine.input.rules.same_net_hole_clearance_nm > 0 {
+            if let Some(conflict_pv) = first_same_net_via_track_conflict(engine, net, &result)? {
+                if conflict_filter.contains(conflict_pv.at) {
+                    return Err(Failure::new(
+                        Status::Unroutable,
+                        "proposed path violates same-net via hole clearance",
+                    ));
+                }
+                conflict_filter.zones.push(ConflictZone {
+                    center: conflict_pv.at,
+                    radius_sq_upper: 0,
+                });
+                continue;
+            }
+        }
+        return Ok(result);
     }
 }
 
@@ -687,6 +728,53 @@ fn first_via_conflict(
             return Ok(Some((pv, pv)));
         }
         prior_vias.push(pv);
+    }
+    Ok(None)
+}
+
+fn first_same_net_via_track_conflict(
+    engine: &Engine,
+    net: u32,
+    path: &Path,
+) -> Result<Option<PlacedViaKey>, Failure> {
+    if engine.input.rules.same_net_hole_clearance_nm <= 0 || net == 0 {
+        return Ok(None);
+    }
+    let mut coalesced_tracks: Vec<(usize, Point, Point)> = Vec::new();
+    let mut path_vias: Vec<PlacedViaKey> = Vec::new();
+    let mut can_coalesce_last = false;
+    for edge in &path.edges {
+        engine.work.charge(1)?;
+        match *edge {
+            PathEdge::Track { start, end, layer } => {
+                let l = layer as usize;
+                if can_coalesce_last {
+                    if let Some((last_l, last_start, last_end)) = coalesced_tracks.last_mut() {
+                        if *last_l == l
+                            && *last_end == start
+                            && ((last_start[0] == last_end[0] && last_end[0] == end[0])
+                                || (last_start[1] == last_end[1] && last_end[1] == end[1]))
+                        {
+                            *last_end = end;
+                            continue;
+                        }
+                    }
+                }
+                coalesced_tracks.push((l, start, end));
+                can_coalesce_last = true;
+            }
+            PathEdge::Via(pv) => {
+                can_coalesce_last = false;
+                path_vias.push(pv);
+            }
+        }
+    }
+    for pv in path_vias {
+        for &(l_idx, start, end) in &coalesced_tracks {
+            if !engine.edge_clears_same_net_vias(net, l_idx, start, end, &[pv])? {
+                return Ok(Some(pv));
+            }
+        }
     }
     Ok(None)
 }
@@ -993,6 +1081,7 @@ fn walk(
     let empty_filter = ConflictFilter::default();
     walk_multilayer(
         engine,
+        0,
         &start_vec,
         limit,
         expanded,
@@ -1000,7 +1089,7 @@ fn walk(
         false,
         &empty_filter,
         |p, _| heuristic(p),
-        |_, rs, a, b| advance(rs, a, b),
+        |_, rs, a, b, _| advance(rs, a, b),
         |_, _, _, _, _| Ok(()),
         |at, _, edge| {
             let prev = match edge {
@@ -1016,6 +1105,7 @@ fn walk(
 #[allow(clippy::too_many_arguments)]
 fn walk_multilayer(
     engine: &Engine,
+    net: u32,
     starts: &[(Point, u8)],
     limit: u64,
     expanded: &mut u64,
@@ -1023,7 +1113,13 @@ fn walk_multilayer(
     track_via_count: bool,
     conflict_filter: &ConflictFilter,
     heuristic: impl Fn(Point, usize) -> Result<u64, Failure>,
-    advance: impl Fn(usize, Option<Point>, Point, Point) -> Result<Option<Point>, Failure>,
+    advance: impl Fn(
+        usize,
+        Option<Point>,
+        Point,
+        Point,
+        &[PlacedViaKey],
+    ) -> Result<Option<Point>, Failure>,
     via_transitions: impl Fn(
         Point,
         usize,
@@ -1034,10 +1130,12 @@ fn walk_multilayer(
     finished: impl Fn(Point, usize, Option<PathEdge>) -> Result<bool, Failure>,
 ) -> Result<Path, Failure> {
     let grid = engine.input.rules.grid_nm;
+    let l_count = engine.layer_count();
     let mut via_arena = ViaHistoryArena::new();
     let mut queue = BinaryHeap::new();
     let mut best: HashMap<State, u64> = HashMap::new();
-    let mut settled_by_pos: HashMap<(Point, u8, u8), Vec<(u32, u16, u64)>> = HashMap::new();
+    let mut settled_by_pos: HashMap<(Point, u8, u8, bool, bool), Vec<(u32, u16, u64)>> =
+        HashMap::new();
     let mut parent: HashMap<State, (State, PathEdge)> = HashMap::new();
     for &(at, layer) in starts {
         engine
@@ -1048,6 +1146,8 @@ fn walk_multilayer(
             at,
             layer,
             direction: 4,
+            arrived_by_via: false,
+            is_via_goal: false,
             via_history: 0,
             via_count: 0,
         };
@@ -1056,13 +1156,22 @@ fn walk_multilayer(
         best.insert(initial, 0u64);
     }
 
-    let is_dominated_by_settled = |settled: &HashMap<(Point, u8, u8), Vec<(u32, u16, u64)>>,
+    let is_dominated_by_settled = |settled: &HashMap<
+        (Point, u8, u8, bool, bool),
+        Vec<(u32, u16, u64)>,
+    >,
                                    arena: &ViaHistoryArena,
                                    cand: State,
                                    cand_g: u64,
                                    work: &WorkBudget|
      -> Result<bool, Failure> {
-        if let Some(list) = settled.get(&(cand.at, cand.layer, cand.direction)) {
+        if let Some(list) = settled.get(&(
+            cand.at,
+            cand.layer,
+            cand.direction,
+            cand.arrived_by_via,
+            cand.is_via_goal,
+        )) {
             for &(v1, vc1, g1) in list {
                 work.charge(1)?;
                 if g1 <= cand_g && vc1 <= cand.via_count && arena.is_subset(v1, cand.via_history) {
@@ -1091,15 +1200,23 @@ fn walk_multilayer(
         }
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
         settled_by_pos
-            .entry((state.at, state.layer, state.direction))
+            .entry((
+                state.at,
+                state.layer,
+                state.direction,
+                state.arrived_by_via,
+                state.is_via_goal,
+            ))
             .or_default()
             .push((state.via_history, state.via_count, cost));
 
-        if finished(
-            state.at,
-            state.layer as usize,
-            parent.get(&state).map(|(_, e)| *e),
-        )? {
+        if state.is_via_goal
+            || finished(
+                state.at,
+                state.layer as usize,
+                parent.get(&state).map(|(_, e)| *e),
+            )?
+        {
             engine.work.charge(1)?;
             let mut edges = Vec::new();
             let mut points = vec![state.at];
@@ -1152,7 +1269,14 @@ fn walk_multilayer(
             } else {
                 None
             };
-            let Some(at) = advance(state.layer as usize, run_start, state.at, [x, y])? else {
+            let Some(at) = advance(
+                state.layer as usize,
+                run_start,
+                state.at,
+                [x, y],
+                via_arena.get(state.via_history),
+            )?
+            else {
                 continue;
             };
             let next_dir = if track_direction_matters {
@@ -1164,6 +1288,8 @@ fn walk_multilayer(
                 at,
                 layer: state.layer,
                 direction: next_dir,
+                arrived_by_via: false,
+                is_via_goal: false,
                 via_history: state.via_history,
                 via_count: state.via_count,
             };
@@ -1209,8 +1335,55 @@ fn walk_multilayer(
             state.via_count,
             &mut via_buf,
         )?;
+        let prior_tracks: Vec<(usize, Point, Point)> =
+            if engine.input.rules.same_net_hole_clearance_nm > 0 && !via_buf.is_empty() && net != 0
+            {
+                let mut tracks: Vec<(usize, Point, Point)> = Vec::new();
+                let mut cur = state;
+                let mut can_coalesce = false;
+                while let Some((prev, edge)) = parent.get(&cur) {
+                    engine.work.charge(1)?;
+                    if let PathEdge::Track { start, end, layer } = *edge {
+                        let l = layer as usize;
+                        if can_coalesce {
+                            if let Some((last_l, last_start, last_end)) = tracks.last_mut() {
+                                if *last_l == l
+                                    && *last_start == end
+                                    && ((last_start[0] == last_end[0] && last_start[0] == start[0])
+                                        || (last_start[1] == last_end[1]
+                                            && last_start[1] == start[1]))
+                                {
+                                    *last_start = start;
+                                    cur = *prev;
+                                    continue;
+                                }
+                            }
+                        }
+                        tracks.push((l, start, end));
+                        can_coalesce = true;
+                    } else {
+                        can_coalesce = false;
+                    }
+                    cur = *prev;
+                }
+                tracks
+            } else {
+                Vec::new()
+            };
         for &(target_layer, pv, v_cost) in &via_buf {
             engine.work.charge(1)?;
+            if !prior_tracks.is_empty() {
+                let mut clears_all = true;
+                for &(l_idx, t_start, t_end) in &prior_tracks {
+                    if !engine.edge_clears_same_net_vias(net, l_idx, t_start, t_end, &[pv])? {
+                        clears_all = false;
+                        break;
+                    }
+                }
+                if !clears_all {
+                    continue;
+                }
+            }
             let next_vh = if conflict_filter.contains(pv.at) {
                 let Some(vh) = via_arena.append(state.via_history, pv) else {
                     continue;
@@ -1224,10 +1397,13 @@ fn walk_multilayer(
             } else {
                 0
             };
+            let is_goal = finished(state.at, target_layer as usize, Some(PathEdge::Via(pv)))?;
             let next = State {
                 at: state.at,
                 layer: target_layer,
                 direction: 4,
+                arrived_by_via: l_count > 1,
+                is_via_goal: is_goal,
                 via_history: next_vh,
                 via_count: next_vc,
             };
@@ -1247,10 +1423,11 @@ fn walk_multilayer(
             engine.work.charge(1)?;
             best.insert(next, g);
             parent.insert(next, (state, PathEdge::Via(pv)));
-            let mut h = heuristic(next.at, next.layer as usize)?;
-            if h > 0 && finished(next.at, next.layer as usize, Some(PathEdge::Via(pv)))? {
-                h = 0;
-            }
+            let h = if is_goal {
+                0
+            } else {
+                heuristic(next.at, next.layer as usize)?
+            };
             queue.push(Reverse((
                 g.checked_add(h).expect("bounded heuristic"),
                 g,

@@ -1822,3 +1822,684 @@ fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
     .unwrap_err();
     assert_eq!(err3.status, Status::Unroutable);
 }
+
+#[test]
+fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
+    // 1. Reviewer 1 probe_a: 2L PTH [0,0] on ["F.Cu", "B.Cu"] -> [460_000, 160_000] on ["F.Cu"].
+    // Tracks only permitted in y in [-50_000, 50_000], x <= 250_000; Through via at [100_000, 0]
+    // (or [200_000, 0]) contacts P2 (dist 304_631 < 400_000) via its 600_000 nm diameter.
+    // Also test max_via_count = 1 boundary where Track at [100_000, 0] with vc=1 would dominate Via if conflated.
+    let make_probe_a = |max_vc: Option<u32>| {
+        let inp = Input {
+            version: 1,
+            source_id: "f".repeat(64),
+            layer: "F.Cu".into(),
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            bounds: Bounds {
+                min: [-2_000_000, -2_000_000],
+                max: [2_000_000, 2_000_000],
+            },
+            rules: Rules {
+                width_nm: 100_000,
+                clearance_nm: 50_000,
+                grid_nm: 100_000,
+                edge_clearance_nm: 100_000,
+                hole_clearance_nm: 0,
+                same_net_hole_clearance_nm: 0,
+                solder_mask_expansion_nm: 0,
+                solder_mask_min_width_nm: 0,
+                solder_mask_to_copper_clearance_nm: 0,
+            },
+            nets: vec![
+                Net {
+                    id: 0,
+                    name: String::new(),
+                },
+                Net {
+                    id: 1,
+                    name: "SIG".into(),
+                },
+            ],
+            pads: vec![
+                Pad {
+                    id: id(1),
+                    net: 1,
+                    at: [0, 0],
+                    layers: vec!["F.Cu".into(), "B.Cu".into()],
+                    local_clearance_nm: None,
+                    shape: Shape::Circle { radius_nm: 50_000 },
+                    drill: Some(DrillShape::Circle {
+                        diameter_nm: 50_000,
+                    }),
+                },
+                Pad {
+                    id: id(2),
+                    net: 1,
+                    at: [460_000, 160_000],
+                    layers: vec!["F.Cu".into()],
+                    local_clearance_nm: None,
+                    shape: Shape::Circle { radius_nm: 100_000 },
+                    drill: None,
+                },
+            ],
+            tracks: Vec::new(),
+            vias: Vec::new(),
+            rule_areas: vec![
+                RuleArea {
+                    id: id(10),
+                    layers: vec!["F.Cu".into(), "B.Cu".into()],
+                    no_tracks: true,
+                    no_vias: false,
+                    outer: vec![
+                        [-1_900_000, 50_000],
+                        [1_900_000, 50_000],
+                        [1_900_000, 1_900_000],
+                        [-1_900_000, 1_900_000],
+                    ],
+                    holes: Vec::new(),
+                },
+                RuleArea {
+                    id: id(11),
+                    layers: vec!["F.Cu".into(), "B.Cu".into()],
+                    no_tracks: true,
+                    no_vias: false,
+                    outer: vec![
+                        [-1_900_000, -1_900_000],
+                        [1_900_000, -1_900_000],
+                        [1_900_000, -50_000],
+                        [-1_900_000, -50_000],
+                    ],
+                    holes: Vec::new(),
+                },
+                RuleArea {
+                    id: id(12),
+                    layers: vec!["F.Cu".into(), "B.Cu".into()],
+                    no_tracks: true,
+                    no_vias: false,
+                    outer: vec![
+                        [250_000, -100_000],
+                        [1_900_000, -100_000],
+                        [1_900_000, 100_000],
+                        [250_000, 100_000],
+                    ],
+                    holes: Vec::new(),
+                },
+            ],
+            max_expansions: 50_000,
+            limits: Limits::default(),
+            holes: Vec::new(),
+            board_outline: None,
+            graphics: Vec::new(),
+            mask_apertures: Vec::new(),
+            board_design_settings: None,
+            project_rules: Some(
+                serde_json::json!({
+                    "meta": {"version": 3},
+                    "board": {"design_settings": {"rules": {
+                        "min_via_diameter": 0.6,
+                        "min_through_hole_diameter": 0.3,
+                        "allow_blind_buried_vias": false,
+                        "allow_microvias": false
+                    }}},
+                    "net_settings": {"classes": [{
+                        "name": "Default",
+                        "track_width": 0.1,
+                        "clearance": 0.05,
+                        "via_diameter": 0.6,
+                        "via_drill": 0.3
+                    }]}
+                })
+                .to_string(),
+            ),
+            custom_rules: max_vc
+                .map(|m| format!("(version 1)\n(rule \"vc\" (constraint via_count (max {m})))")),
+            effective_rules: None,
+        };
+        inp
+    };
+    for max_vc in [None, Some(1)] {
+        let eng = Engine::new(make_probe_a(max_vc)).unwrap();
+        let path = join_components(
+            &eng,
+            1,
+            &[Copper::Pad(&eng.input.pads[0])],
+            &[vec![Copper::Pad(&eng.input.pads[1])]],
+            50_000,
+            &mut 0,
+        )
+        .unwrap_or_else(|e| panic!("probe_a (max_vc={max_vc:?}) failed: {e:?}"));
+        assert!(
+            path.edges.iter().any(|e| matches!(e, PathEdge::Via(_))),
+            "probe_a (max_vc={max_vc:?}) must use a Via: {:?}",
+            path.edges
+        );
+    }
+
+    // 2. Reviewer 2 off-grid Via-only contact witness: [10,10]/[20,10] -> [23,14] on B.Cu.
+    let mut offgrid_in = Input {
+        version: 1,
+        source_id: "0".repeat(64),
+        layer: "F.Cu".into(),
+        layers: vec!["F.Cu".into(), "B.Cu".into()],
+        bounds: Bounds {
+            min: [0, 0],
+            max: [50, 50],
+        },
+        rules: Rules {
+            width_nm: 2,
+            clearance_nm: 1,
+            grid_nm: 10,
+            edge_clearance_nm: 1,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads: vec![
+            Pad {
+                id: id(1),
+                net: 1,
+                at: [10, 10],
+                layers: vec!["F.Cu".into(), "B.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: Some(DrillShape::Circle { diameter_nm: 1 }),
+            },
+            Pad {
+                id: id(2),
+                net: 1,
+                at: [23, 14],
+                layers: vec!["B.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
+            },
+        ],
+        tracks: Vec::new(),
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        max_expansions: 10_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {
+                    "min_via_diameter": 0.000010,
+                    "min_through_hole_diameter": 0.000002,
+                    "allow_blind_buried_vias": false,
+                    "allow_microvias": false
+                }}},
+                "net_settings": {"classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000010,
+                    "via_drill": 0.000002
+                }]}
+            })
+            .to_string(),
+        ),
+        custom_rules: None,
+        effective_rules: None,
+    };
+    let eng_off = Engine::new(offgrid_in.clone()).unwrap();
+    let path_off = join_components(
+        &eng_off,
+        1,
+        &[Copper::Pad(&eng_off.input.pads[0])],
+        &[vec![Copper::Pad(&eng_off.input.pads[1])]],
+        10_000,
+        &mut 0,
+    )
+    .expect("off-grid Via-only contact witness from [10,10] must succeed");
+    assert!(path_off.edges.iter().any(|e| matches!(e, PathEdge::Via(_))));
+
+    offgrid_in.pads[0].at = [20, 10];
+    offgrid_in.pads[0].drill = None;
+    let eng_off2 = Engine::new(offgrid_in).unwrap();
+    let path_off2 = join_components(
+        &eng_off2,
+        1,
+        &[Copper::Pad(&eng_off2.input.pads[0])],
+        &[vec![Copper::Pad(&eng_off2.input.pads[1])]],
+        10_000,
+        &mut 0,
+    )
+    .expect("off-grid Via-only contact witness from [20,10] must succeed");
+    assert_eq!(path_off2.steps, 40);
+}
+
+#[test]
+fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
+    // 1. Reviewer 1 probe_b5: layer-scoped (layer "F.Cu") (constraint annular_width (min 1.0mm))
+    // gives effective via diameter 2_200_000 (radius 1_100_000), making Via@[500_000,0] (cost 40)
+    // beat the 41-step F.Cu detour around y=9_100_000.
+    let mut b5 = Input {
+        version: 1,
+        source_id: "1".repeat(64),
+        layer: "F.Cu".into(),
+        layers: vec!["F.Cu".into(), "B.Cu".into()],
+        bounds: Bounds {
+            min: [-2_000_000, -2_000_000],
+            max: [5_000_000, 12_000_000],
+        },
+        rules: Rules {
+            width_nm: 100_000,
+            clearance_nm: 100_000,
+            grid_nm: 500_000,
+            edge_clearance_nm: 100_000,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads: vec![
+            Pad {
+                id: id(1),
+                net: 1,
+                at: [0, 0],
+                layers: vec!["F.Cu".into(), "B.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 100_000 },
+                drill: Some(DrillShape::Circle {
+                    diameter_nm: 100_000,
+                }),
+            },
+            Pad {
+                id: id(2),
+                net: 1,
+                at: [500_000, 0],
+                layers: vec!["B.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 100_000 },
+                drill: None,
+            },
+            Pad {
+                id: id(3),
+                net: 1,
+                at: [1_500_000, 0],
+                layers: vec!["F.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 100_000 },
+                drill: None,
+            },
+        ],
+        tracks: vec![Track {
+            id: id(10),
+            net: 1,
+            layer: "B.Cu".into(),
+            start: [0, 0],
+            end: [500_000, 0],
+            width_nm: 100_000,
+            locked: true,
+        }],
+        vias: Vec::new(),
+        rule_areas: vec![RuleArea {
+            id: id(11),
+            layers: vec!["F.Cu".into()],
+            no_tracks: true,
+            no_vias: false,
+            outer: vec![
+                [900_000, -1_500_000],
+                [1_100_000, -1_500_000],
+                [1_100_000, 9_100_000],
+                [900_000, 9_100_000],
+            ],
+            holes: Vec::new(),
+        }],
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {
+                    "min_via_diameter": 0.2,
+                    "min_through_hole_diameter": 0.2,
+                    "allow_blind_buried_vias": false,
+                    "allow_microvias": false
+                }}},
+                "net_settings": {"classes": [{
+                    "name": "Default",
+                    "track_width": 0.1,
+                    "clearance": 0.1,
+                    "via_diameter": 0.2,
+                    "via_drill": 0.2
+                }]}
+            })
+            .to_string(),
+        ),
+        custom_rules: Some(
+            "(version 1)\n(rule \"ann\" (layer \"F.Cu\") (constraint annular_width (min 1.0mm)))"
+                .into(),
+        ),
+        effective_rules: None,
+    };
+    let eng_b5 = Engine::new(b5.clone()).unwrap();
+    let b5_t0 = eng_b5.copper().tracks().next().unwrap();
+    let path_b5 = join_components(
+        &eng_b5,
+        1,
+        &[
+            Copper::Pad(&eng_b5.input.pads[0]),
+            Copper::Pad(&eng_b5.input.pads[1]),
+            Copper::Track(b5_t0),
+        ],
+        &[vec![Copper::Pad(&eng_b5.input.pads[2])]],
+        50_000,
+        &mut 0,
+    )
+    .unwrap();
+    assert_eq!(
+        path_b5.steps, 40,
+        "probe_b5 must choose optimal 40-cost Via: {:?}",
+        path_b5.edges
+    );
+    assert!(path_b5.edges.iter().any(|e| matches!(e, PathEdge::Via(_))));
+
+    // 2. Challenger 1 Probe 4: 3L board with (layer "B.Cu") (constraint via_drill (min 0.000046mm))
+    // gives effective via diam = 46 nm, making [0,10]->[10,10] + Via@[10,10] (cost 41)
+    // beat the 42-step F.Cu route [0,10]->[-418,10].
+    let p4 = Input {
+        version: 1,
+        source_id: "2".repeat(64),
+        layer: "F.Cu".into(),
+        layers: vec!["F.Cu".into(), "In1.Cu".into(), "B.Cu".into()],
+        bounds: Bounds {
+            min: [-500, -100],
+            max: [200, 100],
+        },
+        rules: Rules {
+            width_nm: 2,
+            clearance_nm: 1,
+            grid_nm: 10,
+            edge_clearance_nm: 1,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads: vec![
+            Pad {
+                id: id(1),
+                net: 1,
+                at: [0, 10],
+                layers: vec!["F.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
+            },
+            Pad {
+                id: id(2),
+                net: 1,
+                at: [32, 10],
+                layers: vec!["B.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
+            },
+            Pad {
+                id: id(3),
+                net: 1,
+                at: [-418, 10],
+                layers: vec!["F.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
+            },
+        ],
+        tracks: vec![
+            Track {
+                id: id(10),
+                net: 1,
+                layer: "B.Cu".into(),
+                start: [-418, 10],
+                end: [-418, 60],
+                width_nm: 2,
+                locked: true,
+            },
+            Track {
+                id: id(12),
+                net: 1,
+                layer: "B.Cu".into(),
+                start: [-418, 60],
+                end: [32, 60],
+                width_nm: 2,
+                locked: true,
+            },
+            Track {
+                id: id(13),
+                net: 1,
+                layer: "B.Cu".into(),
+                start: [32, 60],
+                end: [32, 10],
+                width_nm: 2,
+                locked: true,
+            },
+        ],
+        vias: vec![Via {
+            id: id(11),
+            net: 1,
+            at: [-418, 10],
+            diameter_nm: 4,
+            drill_nm: 2,
+            start_layer: "F.Cu".into(),
+            end_layer: "B.Cu".into(),
+            kind: ViaKind::Through,
+            locked: true,
+        }],
+        rule_areas: Vec::new(),
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {
+                    "min_via_diameter": 0.000004,
+                    "min_through_hole_diameter": 0.000002,
+                    "allow_blind_buried_vias": false,
+                    "allow_microvias": false
+                }}},
+                "net_settings": {"classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000004,
+                    "via_drill": 0.000002,
+                    "microvia_diameter": 0.000004,
+                    "microvia_drill": 0.000002
+                }]}
+            })
+            .to_string(),
+        ),
+        custom_rules: Some(
+            "(version 1)\n(rule \"big_bcu_drill\" (layer \"B.Cu\") (constraint via_drill (min 0.000046mm)))"
+                .into(),
+        ),
+        effective_rules: None,
+    };
+    let eng_p4 = Engine::new(p4).unwrap();
+    let p4_tracks: Vec<_> = eng_p4.copper().tracks().map(Copper::Track).collect();
+    let p4_v0 = eng_p4.copper().vias().next().unwrap();
+    let mut p4_targets = vec![
+        Copper::Pad(&eng_p4.input.pads[1]),
+        Copper::Pad(&eng_p4.input.pads[2]),
+        Copper::Via(p4_v0),
+    ];
+    p4_targets.extend(p4_tracks);
+    let path_p4 = join_components(
+        &eng_p4,
+        1,
+        &[Copper::Pad(&eng_p4.input.pads[0])],
+        &[p4_targets],
+        50_000,
+        &mut 0,
+    )
+    .unwrap();
+    assert_eq!(
+        path_p4.steps, 41,
+        "Probe 4 must choose optimal 41-cost Via route: {:?}",
+        path_p4.edges
+    );
+    assert!(path_p4.edges.iter().any(|e| matches!(e, PathEdge::Via(_))));
+    let _ = &mut b5;
+}
+
+#[test]
+fn probe5_same_net_hole_clearance_same_path_vias_satisfy_legal_edge_on_reload() {
+    let mut i = Input {
+        version: 1,
+        source_id: "3".repeat(64),
+        layer: "F.Cu".into(),
+        layers: vec!["F.Cu".into(), "B.Cu".into()],
+        bounds: Bounds {
+            min: [-20, 0],
+            max: [60, 60],
+        },
+        rules: Rules {
+            width_nm: 2,
+            clearance_nm: 1,
+            grid_nm: 10,
+            edge_clearance_nm: 1,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 10,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads: vec![
+            Pad {
+                id: id(1),
+                net: 1,
+                at: [10, 10],
+                layers: vec!["F.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
+            },
+            Pad {
+                id: id(2),
+                net: 1,
+                at: [30, 20],
+                layers: vec!["B.Cu".into()],
+                local_clearance_nm: None,
+                shape: Shape::Circle { radius_nm: 1 },
+                drill: None,
+            },
+        ],
+        tracks: Vec::new(),
+        vias: Vec::new(),
+        rule_areas: vec![RuleArea {
+            id: id(20),
+            layers: vec!["F.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[5, 0], [55, 0], [55, 55], [5, 55]],
+            holes: Vec::new(),
+        }],
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {
+                    "min_via_diameter": 0.000004,
+                    "min_through_hole_diameter": 0.000002,
+                    "allow_blind_buried_vias": false,
+                    "allow_microvias": false
+                }}},
+                "net_settings": {"classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000004,
+                    "via_drill": 0.000002
+                }]}
+            })
+            .to_string(),
+        ),
+        custom_rules: None,
+        effective_rules: None,
+    };
+    let mut eng = Engine::new(i.clone()).unwrap();
+    eng.route(1, 50_000).unwrap();
+    let vias: Vec<Via> = eng.copper().vias().cloned().collect();
+    let tracks: Vec<Track> = eng.copper().tracks().cloned().collect();
+    assert!(!vias.is_empty());
+
+    for (idx, mut v) in vias.into_iter().enumerate() {
+        v.id = id(100 + idx as u64);
+        v.locked = true;
+        i.vias.push(v);
+    }
+    let reload = Engine::new(i).unwrap();
+    for t in &tracks {
+        let l_idx = reload.layer_index(&t.layer).unwrap();
+        assert!(
+            reload.legal_edge_on(t.net, l_idx, t.start, t.end).unwrap(),
+            "emitted track {t:?} violates Engine::legal_edge_on against emitted vias"
+        );
+    }
+}

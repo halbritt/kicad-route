@@ -1742,7 +1742,16 @@ fn phase_pre_snapshot_admission(
 
         if let Some(proj) = &config.project {
             let ext_ok = proj.extension().and_then(|e| e.to_str()) == Some("kicad_pro");
-            if !ext_ok || proj.file_stem() != config.source.file_stem() {
+            let canon_src_stem = result
+                .source
+                .canonical_path
+                .as_deref()
+                .and_then(|s| Path::new(s).file_stem());
+            if !ext_ok
+                || proj.file_stem() != config.source.file_stem()
+                || canon_src_stem.is_none()
+                || proj.file_stem() != canon_src_stem
+            {
                 return Err((
                     OperationStatus::Invalid,
                     format!(
@@ -1759,6 +1768,15 @@ fn phase_pre_snapshot_admission(
                     format!("cannot resolve --project {}: {e}", proj.display()),
                 )
             })?;
+            if canon_proj.file_stem() != canon_src_stem {
+                return Err((
+                    OperationStatus::Invalid,
+                    format!(
+                        "--project {} canonical target must match canonical source board stem",
+                        proj.display()
+                    ),
+                ));
+            }
             let canon_src_dir = result
                 .source
                 .canonical_path

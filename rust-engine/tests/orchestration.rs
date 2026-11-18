@@ -1335,4 +1335,29 @@ fn m3_2_cli_help_optional_rules_project_mismatch_and_stderr_json() {
         "stderr: {}",
         String::from_utf8_lossy(&r_ok.stderr)
     );
+
+    // Stem-changing source symlink must not bypass --project canonical stem validation.
+    let real_stem = ws.write("stem_real/real_name.kicad_pcb", b"(kicad_pcb)");
+    fs::create_dir_all(ws.path("stem_link")).unwrap();
+    let symlink_stem = ws.path("stem_link/alias_name.kicad_pcb");
+    std::os::unix::fs::symlink(&real_stem, &symlink_stem).unwrap();
+    let alias_proj = ws.write(
+        "stem_real/alias_name.kicad_pro",
+        br#"{"meta":{"version":3}}"#,
+    );
+    let out3 = ws.path("out3.kicad_pcb");
+    let r_symlink_stem = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&symlink_stem)
+        .arg(&out3)
+        .arg("--project")
+        .arg(&alias_proj)
+        .arg("--native-bridge")
+        .arg(&poison_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(r_symlink_stem.status.code(), Some(2));
+    assert!(!poison_marker.exists());
+    let op_sym = parse_stdout_json(&r_symlink_stem.stdout);
+    assert_eq!(op_sym["status"], "invalid");
 }

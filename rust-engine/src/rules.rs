@@ -88,6 +88,7 @@ pub struct BoardDesignSettings {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct BoardMinimums {
     pub min_track_width_nm: i64,
     pub min_clearance_nm: i64,
@@ -243,21 +244,17 @@ impl PatternMatcher {
                 c,
                 '^' | '$' | '\\' | '+' | '[' | ']' | '(' | ')' | '{' | '}' | '|'
             )
-        });
+        }) || pattern.contains(".*")
+            || pattern.contains(".?");
         let wildcard = if !has_regex_meta && (pattern.contains('*') || pattern.contains('?')) {
             Some(pattern.to_owned())
         } else {
             None
         };
-        let regex = match compile_nfa(pattern) {
-            Ok(nfa) => Some(nfa),
-            Err(err) => {
-                if wildcard.is_some() {
-                    None
-                } else {
-                    return Err(err);
-                }
-            }
+        let regex = if wildcard.is_some() {
+            None
+        } else {
+            Some(compile_nfa(pattern)?)
         };
         Ok(Self { regex, wildcard })
     }
@@ -2048,6 +2045,7 @@ fn eval_dru_expr(expr: &DruExpr, a: &DruItem<'_>, b: Option<&DruItem<'_>>) -> bo
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct NetResolvedRules {
     pub net_id: u32,
     pub net_name: String,
@@ -2067,6 +2065,7 @@ pub struct NetResolvedRules {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct EffectiveRules {
     pub minimums: BoardMinimums,
     pub net_rules: BTreeMap<u32, NetResolvedRules>,
@@ -2122,6 +2121,72 @@ impl EffectiveRules {
             max_track_width_nm: rules.width_nm,
             max_via_diameter_nm: (rules.width_nm * 2).max(600_000),
         }
+    }
+
+    pub fn validate(&self) -> Result<(), Failure> {
+        if !self.net_rules.contains_key(&0) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules must contain net 0 fallback",
+            ));
+        }
+        let m = &self.minimums;
+        if [
+            m.min_track_width_nm,
+            m.min_clearance_nm,
+            m.min_edge_clearance_nm,
+            m.min_via_diameter_nm,
+            m.min_via_annular_width_nm,
+            m.min_through_hole_diameter_nm,
+            m.min_hole_clearance_nm,
+            m.min_hole_to_hole_nm,
+            m.min_microvia_diameter_nm,
+            m.min_microvia_drill_nm,
+            m.solder_mask_expansion_nm,
+            m.solder_mask_min_width_nm,
+            m.solder_mask_to_copper_clearance_nm,
+            self.max_pair_clearance_nm,
+            self.max_hole_clearance_nm,
+            self.max_hole_to_hole_nm,
+            self.max_edge_clearance_nm,
+            self.max_track_width_nm,
+            self.max_via_diameter_nm,
+        ]
+        .iter()
+        .any(|&v| v < 0)
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "effective_rules minimums and maximums must be nonnegative",
+            ));
+        }
+        for (&id, nr) in &self.net_rules {
+            if nr.net_id != id || nr.width_nm <= 0 || nr.via_diameter_nm <= 0 {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "effective_rules net entry has invalid id or nonpositive width/via diameter",
+                ));
+            }
+            if [
+                nr.clearance_nm,
+                nr.via_drill_nm,
+                nr.microvia_diameter_nm,
+                nr.microvia_drill_nm,
+                nr.edge_clearance_nm,
+                nr.hole_clearance_nm,
+                nr.hole_to_hole_nm,
+                nr.annular_width_nm,
+            ]
+            .iter()
+            .any(|&v| v < 0)
+            {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "effective_rules net entry values must be nonnegative",
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub fn net(&self, net_id: u32) -> &NetResolvedRules {
@@ -2583,6 +2648,7 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         && input.board_design_settings.is_none()
     {
         if let Some(eff) = &input.effective_rules {
+            eff.validate()?;
             if input.rules.is_omitted() {
                 let nr = eff.net(0);
                 input.rules = Rules {
@@ -2954,6 +3020,8 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
     let mut max_edge_clearance_nm = base_rules.edge_clearance_nm;
     let mut max_track_width_nm = base_rules.width_nm;
     let mut max_via_diameter_nm = minimums.min_via_diameter_nm;
+    let mut max_via_drill_nm = minimums.min_through_hole_diameter_nm;
+    let mut max_via_annular_nm = minimums.min_via_annular_width_nm;
 
     for nr in net_rules.values() {
         max_pair_clearance_nm = max_pair_clearance_nm.max(nr.clearance_nm);
@@ -2961,9 +3029,13 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         max_hole_to_hole_nm = max_hole_to_hole_nm.max(nr.hole_to_hole_nm);
         max_edge_clearance_nm = max_edge_clearance_nm.max(nr.edge_clearance_nm);
         max_track_width_nm = max_track_width_nm.max(nr.width_nm);
-        max_via_diameter_nm = max_via_diameter_nm
-            .max(nr.via_diameter_nm)
-            .max(nr.microvia_diameter_nm);
+        max_via_diameter_nm = max_via_diameter_nm.max(nr.via_diameter_nm);
+        max_via_drill_nm = max_via_drill_nm.max(nr.via_drill_nm);
+        max_via_annular_nm = max_via_annular_nm.max(nr.annular_width_nm);
+        if minimums.allow_microvias {
+            max_via_diameter_nm = max_via_diameter_nm.max(nr.microvia_diameter_nm);
+            max_via_drill_nm = max_via_drill_nm.max(nr.microvia_drill_nm);
+        }
     }
     for rule in &dru_rules {
         if rule.severity == DruSeverity::Ignore {
@@ -2988,9 +3060,16 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
             DruConstraint::ViaDiameter { min_nm, .. } => {
                 max_via_diameter_nm = max_via_diameter_nm.max(min_nm);
             }
+            DruConstraint::ViaDrill { min_nm, .. } => {
+                max_via_drill_nm = max_via_drill_nm.max(min_nm);
+            }
+            DruConstraint::AnnularWidth { min_nm } => {
+                max_via_annular_nm = max_via_annular_nm.max(min_nm);
+            }
             _ => {}
         }
     }
+    max_via_diameter_nm = max_via_diameter_nm.max(max_via_drill_nm + 2 * max_via_annular_nm);
 
     Ok(EffectiveRules {
         allow_blind_buried_vias: minimums.allow_blind_buried_vias,
@@ -3036,6 +3115,26 @@ mod tests {
         let p_glob = PatternMatcher::compile("*PWR*").unwrap();
         assert!(p_glob.matches("SYS_PWR_3V3"));
         assert!(!p_glob.matches("SIGNAL"));
+
+        // Wildcard mode must not evaluate regex quantifier semantics (* = 0+, ? = 0/1)
+        let p_pwr_glob = PatternMatcher::compile("PWR*").unwrap();
+        assert!(p_pwr_glob.matches("PWR"));
+        assert!(p_pwr_glob.matches("PWR_3V3"));
+        assert!(!p_pwr_glob.matches("PW"));
+
+        let p_usb_glob = PatternMatcher::compile("USB?").unwrap();
+        assert!(p_usb_glob.matches("USB1"));
+        assert!(p_usb_glob.matches("USBA"));
+        assert!(!p_usb_glob.matches("USB"));
+        assert!(!p_usb_glob.matches("US"));
+
+        let p_dot_glob = PatternMatcher::compile("3.3V*").unwrap();
+        assert!(p_dot_glob.matches("3.3V_SYS"));
+        assert!(!p_dot_glob.matches("3a3"));
+
+        let p_dotstar_re = PatternMatcher::compile("HV_.*").unwrap();
+        assert!(p_dotstar_re.matches("HV_BUS"));
+        assert!(!p_dotstar_re.matches("LV_BUS"));
 
         // ReDoS adversarial pattern remains linear-time
         let redos = PatternMatcher::compile(r"(a+)+b").unwrap();
@@ -3126,5 +3225,110 @@ mod tests {
             let err = parse_kicad_dru(bad.as_bytes()).unwrap_err();
             assert_eq!(err.status, expected, "input: {bad}");
         }
+    }
+
+    #[test]
+    fn caller_effective_rules_missing_net0_or_invalid_bounds_returns_invalid() {
+        let mut inp: Input = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "source_id": "a".repeat(64),
+            "layer": "F.Cu",
+            "bounds": {"min": [0, 0], "max": [1_000_000, 1_000_000]},
+            "nets": [{"id": 0, "name": ""}, {"id": 1, "name": "N"}],
+            "pads": [],
+            "tracks": [],
+            "max_expansions": 100
+        }))
+        .unwrap();
+        let base_rules = Rules {
+            width_nm: 200_000,
+            clearance_nm: 200_000,
+            grid_nm: 100_000,
+            edge_clearance_nm: 200_000,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        };
+        let mut eff = EffectiveRules::from_uniform_rules(base_rules, &inp.nets);
+        eff.net_rules.remove(&0);
+        inp.effective_rules = Some(eff);
+        let err = resolve_effective_rules(&mut inp).unwrap_err();
+        assert_eq!(err.status, Status::Invalid);
+
+        let mut eff2 = EffectiveRules::from_uniform_rules(base_rules, &inp.nets);
+        eff2.net_rules.get_mut(&0).unwrap().width_nm = 0;
+        inp.effective_rules = Some(eff2);
+        let err2 = resolve_effective_rules(&mut inp).unwrap_err();
+        assert_eq!(err2.status, Status::Invalid);
+
+        let mut eff3 = EffectiveRules::from_uniform_rules(base_rules, &inp.nets);
+        eff3.max_pair_clearance_nm = -1;
+        inp.effective_rules = Some(eff3);
+        let err3 = resolve_effective_rules(&mut inp).unwrap_err();
+        assert_eq!(err3.status, Status::Invalid);
+    }
+
+    #[test]
+    fn effective_rules_max_via_diameter_includes_layer_scoped_annular_and_drill() {
+        let mut inp: Input = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "source_id": "b".repeat(64),
+            "layer": "F.Cu",
+            "layers": ["F.Cu", "B.Cu"],
+            "bounds": {"min": [0, 0], "max": [10_000_000, 10_000_000]},
+            "rules": {
+                "width_nm": 100_000,
+                "clearance_nm": 100_000,
+                "grid_nm": 100_000,
+                "edge_clearance_nm": 100_000,
+                "hole_clearance_nm": 0,
+                "same_net_hole_clearance_nm": 0,
+                "solder_mask_expansion_nm": 0,
+                "solder_mask_min_width_nm": 0,
+                "solder_mask_to_copper_clearance_nm": 0
+            },
+            "nets": [{"id": 0, "name": ""}, {"id": 1, "name": "N"}],
+            "pads": [],
+            "tracks": [],
+            "max_expansions": 100
+        }))
+        .unwrap();
+        inp.project_rules = Some(
+            serde_json::json!({
+                "meta": {"version": 3},
+                "board": {"design_settings": {"rules": {"allow_microvias": false}}},
+                "net_settings": {"classes": [{
+                    "name": "Default",
+                    "track_width": 0.1,
+                    "clearance": 0.1,
+                    "via_diameter": 0.2,
+                    "via_drill": 0.2
+                }]}
+            })
+            .to_string(),
+        );
+        inp.custom_rules = Some(
+            "(version 1)\n(rule \"ann\" (layer \"F.Cu\") (constraint annular_width (min 1.0mm)))"
+                .into(),
+        );
+        let eff = resolve_effective_rules(&mut inp).unwrap();
+        assert!(
+            eff.max_via_diameter_nm >= 2_200_000,
+            "got {}",
+            eff.max_via_diameter_nm
+        );
+
+        inp.custom_rules = Some(
+            "(version 1)\n(rule \"drl\" (layer \"B.Cu\") (constraint via_drill (min 0.9mm)))"
+                .into(),
+        );
+        let eff2 = resolve_effective_rules(&mut inp).unwrap();
+        assert!(
+            eff2.max_via_diameter_nm >= 900_000,
+            "got {}",
+            eff2.max_via_diameter_nm
+        );
     }
 }

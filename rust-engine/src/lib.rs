@@ -1241,6 +1241,73 @@ impl Engine {
         }
         Ok(true)
     }
+
+    pub(crate) fn edge_clears_same_net_vias(
+        &self,
+        net: u32,
+        layer_idx: usize,
+        a: Point,
+        b: Point,
+        prior_vias: &[search::PlacedViaKey],
+    ) -> Result<bool, Failure> {
+        let r = self.input.rules;
+        if r.same_net_hole_clearance_nm <= 0 || net == 0 || prior_vias.is_empty() {
+            return Ok(true);
+        }
+        let layer_name = &self.layer_names[layer_idx];
+        let width_nm = self.effective_rules.track_width_for(net, layer_name)?;
+        let seg = Track {
+            id: String::new(),
+            net,
+            start: a,
+            end: b,
+            width_nm,
+            locked: false,
+            layer: layer_name.clone(),
+        };
+        for pv in prior_vias {
+            self.work.charge(1)?;
+            if layer_idx < pv.start_layer as usize || layer_idx > pv.end_layer as usize {
+                continue;
+            }
+            let kind = match pv.kind {
+                0 => ViaKind::Through,
+                1 => ViaKind::BlindBuried,
+                _ => ViaKind::Micro,
+            };
+            let pv_layers = &self.layer_names[pv.start_layer as usize..=pv.end_layer as usize];
+            let (diam, drill) =
+                self.effective_rules
+                    .via_dims_for(net, kind == ViaKind::Micro, pv_layers)?;
+            let synth = Via {
+                id: String::new(),
+                net,
+                at: pv.at,
+                diameter_nm: diam,
+                drill_nm: drill,
+                start_layer: self.layer_names[pv.start_layer as usize].clone(),
+                end_layer: self.layer_names[pv.end_layer as usize].clone(),
+                kind,
+                locked: false,
+            };
+            if geometry::track_connects_via(&seg, &synth) {
+                continue;
+            }
+            if geometry::point_near_segment(
+                pv.at,
+                a,
+                b,
+                i128::from(width_nm)
+                    + i128::from(drill)
+                    + 2 * i128::from(r.same_net_hole_clearance_nm),
+                false,
+            ) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(crate) fn legal_via(
         &self,
         net: u32,
@@ -1477,13 +1544,63 @@ impl Engine {
             if pad_flow.is_break() {
                 return Ok(None);
             }
-            let trk_swept = SweptAabb::swept(at, at, diam, max_copper_query_clr);
+            let trk_net_filter = if r.same_net_hole_clearance_nm > 0 {
+                None
+            } else {
+                Some(net)
+            };
+            let trk_swept = SweptAabb::swept(
+                at,
+                at,
+                diam.max(drill),
+                max_copper_query_clr.max(r.same_net_hole_clearance_nm),
+            );
             let trk_flow = self.copper.visit_layer_candidates_with_net_filtered(
                 l_idx,
                 trk_swept,
-                Some(net),
+                trk_net_filter,
                 &self.work,
                 |other_net, t| {
+                    if other_net == net && net != 0 {
+                        if r.same_net_hole_clearance_nm == 0 {
+                            return Ok(ControlFlow::Continue(()));
+                        }
+                        let synth = Via {
+                            id: String::new(),
+                            net,
+                            at,
+                            diameter_nm: diam,
+                            drill_nm: drill,
+                            start_layer: self.layer_names[start_idx].clone(),
+                            end_layer: self.layer_names[end_idx].clone(),
+                            kind,
+                            locked: false,
+                        };
+                        let seg = Track {
+                            id: String::new(),
+                            net: other_net,
+                            start: t.start,
+                            end: t.end,
+                            width_nm: t.width_nm,
+                            locked: false,
+                            layer: layer_name.clone(),
+                        };
+                        if geometry::track_connects_via(&seg, &synth) {
+                            return Ok(ControlFlow::Continue(()));
+                        }
+                        if geometry::point_near_segment(
+                            at,
+                            t.start,
+                            t.end,
+                            i128::from(drill)
+                                + i128::from(t.width_nm)
+                                + 2 * i128::from(r.same_net_hole_clearance_nm),
+                            false,
+                        ) {
+                            return Ok(ControlFlow::Break(()));
+                        }
+                        return Ok(ControlFlow::Continue(()));
+                    }
                     let clr = self.effective_rules.pair_clearance(
                         net,
                         DruItemKind::Via,
@@ -1698,17 +1815,14 @@ impl Engine {
                     Some(p) => (DruItemKind::Pad, self.pad_layers_owned(p)),
                     None => (DruItemKind::Hole, self.layer_names.clone()),
                 };
-                let overlaps_span = hole_layers.iter().any(|hl| span_layers.contains(hl));
-                if !overlaps_span {
-                    return Ok(ControlFlow::Continue(()));
-                }
+                // Physical drills (both non-plated/plated Hole and PTH Pad.drill) traverse all layers.
                 let h2h = self.effective_rules.pair_hole_to_hole(
                     net,
                     DruItemKind::Via,
                     span_layers,
                     entry_net,
                     hole_kind,
-                    &hole_layers,
+                    &self.layer_names,
                 );
                 if geometry::holes_near(at, &my_drill, entry_at, entry_shape, h2h, false) {
                     return Ok(ControlFlow::Break(()));
@@ -1728,20 +1842,23 @@ impl Engine {
                         return Ok(ControlFlow::Break(()));
                     }
                 } else if r.same_net_hole_clearance_nm > 0 {
-                    let connects = maybe_pad.is_some_and(|pad| {
-                        let synth = Via {
-                            id: String::new(),
-                            net,
-                            at,
-                            diameter_nm: diam,
-                            drill_nm: drill,
-                            start_layer: self.layer_names[start_idx].clone(),
-                            end_layer: self.layer_names[end_idx].clone(),
-                            kind,
-                            locked: false,
-                        };
-                        geometry::via_connects_pad(&synth, pad)
-                    });
+                    let connects = match maybe_pad {
+                        Some(pad) => {
+                            let synth = Via {
+                                id: String::new(),
+                                net,
+                                at,
+                                diameter_nm: diam,
+                                drill_nm: drill,
+                                start_layer: self.layer_names[start_idx].clone(),
+                                end_layer: self.layer_names[end_idx].clone(),
+                                kind,
+                                locked: false,
+                            };
+                            Copper::Pad(pad).touches_via(&synth, &self.layer_names, &self.work)?
+                        }
+                        None => false,
+                    };
                     if !connects {
                         let via_copper = DrillShape::Circle { diameter_nm: diam };
                         if geometry::holes_near(
@@ -1977,13 +2094,22 @@ impl Engine {
         for t in raw_tracks {
             let l_idx = self.layer_index(&t.layer).expect("validated layer");
             if self.input.rules.same_net_hole_clearance_nm > 0 {
-                if t.start == t.end || !self.legal_edge_on(net, l_idx, t.start, t.end)? {
+                if t.start == t.end
+                    || !self.legal_edge_on(net, l_idx, t.start, t.end)?
+                    || !self.edge_clears_same_net_vias(net, l_idx, t.start, t.end, &prior_vias)?
+                {
                     return Err(Failure::new(
                         Status::Unroutable,
                         "proposal failed continuous clearance validation",
                     ));
                 }
-                for piece in self.subtract_collinear_overlaps_legal(net, l_idx, &t, &normalized)? {
+                for piece in self.subtract_collinear_overlaps_legal(
+                    net,
+                    l_idx,
+                    &t,
+                    &normalized,
+                    &prior_vias,
+                )? {
                     if piece.start == piece.end {
                         return Err(Failure::new(
                             Status::Unroutable,
@@ -2020,6 +2146,7 @@ impl Engine {
         layer_idx: usize,
         seg: &Track,
         accepted: &[Track],
+        prior_vias: &[search::PlacedViaKey],
     ) -> Result<Vec<Track>, Failure> {
         let pieces = self.subtract_collinear_overlaps(seg, accepted)?;
         if self.input.rules.same_net_hole_clearance_nm == 0 {
@@ -2029,6 +2156,13 @@ impl Engine {
         for piece in &pieces {
             if piece.start == piece.end
                 || !self.legal_edge_on(net, layer_idx, piece.start, piece.end)?
+                || !self.edge_clears_same_net_vias(
+                    net,
+                    layer_idx,
+                    piece.start,
+                    piece.end,
+                    prior_vias,
+                )?
             {
                 all_legal = false;
                 break;
@@ -2099,7 +2233,15 @@ impl Engine {
             let mut dropped = false;
             for &(a, b) in &spans {
                 self.work.charge(1)?;
-                if !self.legal_edge_on(net, layer_idx, point(a), point(b))? {
+                if !self.legal_edge_on(net, layer_idx, point(a), point(b))?
+                    || !self.edge_clears_same_net_vias(
+                        net,
+                        layer_idx,
+                        point(a),
+                        point(b),
+                        prior_vias,
+                    )?
+                {
                     if a > s_lo {
                         if let Some(idx) = merged
                             .iter()

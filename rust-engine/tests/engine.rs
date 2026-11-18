@@ -1728,6 +1728,148 @@ fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connectin
     for t in &out_j.added_tracks {
         assert!(ej.legal_edge(t.net, t.start, t.end).unwrap(), "{t:?}");
     }
+}
+
+#[test]
+fn m3_1_non_crossing_u_notch_filled_polygons_merge_without_spurious_tracks() {
+    let m = 1_000_000i64;
+    let mut i = base();
+    i.bounds = Bounds {
+        min: [-5 * m, -5 * m],
+        max: [5 * m, 5 * m],
+    };
+    i.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 100_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 100_000,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.pads[0].at = [3_500_000, 2_500_000];
+    i.pads[0].shape = Shape::Circle { radius_nm: 200_000 };
+    i.pads[1].at = [-3_500_000, 2_500_000];
+    i.pads[1].shape = Shape::Circle { radius_nm: 200_000 };
+    i.graphics = vec![
+        CopperGraphic {
+            id: id(70),
+            net: 1,
+            layer: "F.Cu".into(),
+            shape: GraphicShape::Polygon {
+                outer: vec![
+                    [0, 0],
+                    [4 * m, 0],
+                    [4 * m, 3 * m],
+                    [3 * m, 3 * m],
+                    [3 * m, m],
+                    [m, m],
+                    [m, 3 * m],
+                    [0, 3 * m],
+                ],
+                holes: Vec::new(),
+                width_nm: 0,
+                filled: true,
+            },
+        },
+        CopperGraphic {
+            id: id(71),
+            net: 1,
+            layer: "F.Cu".into(),
+            shape: GraphicShape::Polygon {
+                outer: vec![
+                    [-4 * m, 0],
+                    [m, 0],
+                    [m, 3 * m],
+                    [0, 3 * m],
+                    [0, m],
+                    [-3 * m, m],
+                    [-3 * m, 3 * m],
+                    [-4 * m, 3 * m],
+                ],
+                holes: Vec::new(),
+                width_nm: 0,
+                filled: true,
+            },
+        },
+    ];
+    let out = run(i);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(
+        out.added_tracks.is_empty(),
+        "overlapping U-notch filled polygons must merge: {:?}",
+        out.added_tracks
+    );
+}
+
+#[test]
+fn m3_1_same_net_hole_clearance_incumbent_stub_in_moat_never_emits_illegal_fragment() {
+    // Challenger 1 reproduction: incumbent collinear stub ending inside P1's moat must not
+    // cause subtract_collinear_overlaps to emit an illegal track violating Engine::legal_edge.
+    for stub_start in [[0, 0], [-2_000_000, 0]] {
+        let mut i = base();
+        i.bounds = Bounds {
+            min: [-5_000_000, -5_000_000],
+            max: [10_000_000, 5_000_000],
+        };
+        i.rules = Rules {
+            width_nm: 200_000,
+            clearance_nm: 200_000,
+            grid_nm: 500_000,
+            edge_clearance_nm: 200_000,
+            hole_clearance_nm: 1_000_000,
+            same_net_hole_clearance_nm: 1_000_000,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        };
+        i.pads = vec![
+            Pad {
+                id: id(1),
+                net: 1,
+                at: [0, 0],
+                shape: Shape::Circle { radius_nm: 600_000 },
+                drill: Some(DrillShape::Circle {
+                    diameter_nm: 400_000,
+                }),
+                layers: Vec::new(),
+                local_clearance_nm: None,
+            },
+            Pad {
+                id: id(2),
+                net: 1,
+                at: [5_000_000, 0],
+                shape: Shape::Circle { radius_nm: 600_000 },
+                drill: Some(DrillShape::Circle {
+                    diameter_nm: 400_000,
+                }),
+                layers: Vec::new(),
+                local_clearance_nm: None,
+            },
+        ];
+        i.tracks = vec![Track {
+            id: id(3),
+            net: 1,
+            start: stub_start,
+            end: [800_000, 0],
+            width_nm: 200_000,
+            locked: true,
+            layer: "F.Cu".into(),
+        }];
+        let e = Engine::new(i.clone()).unwrap();
+        assert!(!e.legal_edge(1, [800_000, 0], [4_300_001, 0]).unwrap());
+        let out = run(i);
+        assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+        assert!(!out.added_tracks.is_empty());
+        for t in &out.added_tracks {
+            assert!(
+                e.legal_edge(t.net, t.start, t.end).unwrap(),
+                "emitted illegal moat fragment for stub_start={stub_start:?}: {t:?}"
+            );
+        }
+    }
 
     // Also verify partial subtraction outside moat: [0,0]->[800k,0] (in moat) + [2M,0]->[3M,0] (outside moat)
     // still subtracts [2M,0]->[3M,0] while preserving [0,0] pad contact.
@@ -2015,4 +2157,400 @@ fn m3_2_project_netclasses_regex_dru_and_local_pad_clearance() {
         "(version 1)\n(rule \"bad\" (condition \"A.onLayer('F.Cu')\") (constraint clearance (min 0.2mm)))".into(),
     );
     assert_eq!(run(bad).status, Status::Unsupported);
+}
+
+#[test]
+fn m3_2_pth_pad_drill_blocks_overlapping_buried_via_hole_to_hole() {
+    // 4-layer board with PTH pad declared only on F.Cu+B.Cu; buried via on In1.Cu..In2.Cu
+    // must still respect physical drill hole_to_hole against the PTH drill.
+    let mut i = base();
+    i.layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 60],
+    };
+    i.rules = Rules {
+        width_nm: 2,
+        clearance_nm: 1,
+        grid_nm: 10,
+        edge_clearance_nm: 1,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.nets.push(Net {
+        id: 2,
+        name: "OBS".into(),
+    });
+    i.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [10, 30],
+            layers: vec!["In1.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: None,
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [50, 30],
+            layers: vec!["In2.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: None,
+        },
+        Pad {
+            id: id(3),
+            net: 2,
+            at: [30, 20],
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: Some(DrillShape::Circle { diameter_nm: 2 }),
+        },
+    ];
+    i.project_rules = Some(
+        json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {
+                "min_via_diameter": 0.000004,
+                "min_through_hole_diameter": 0.000002,
+                "min_hole_to_hole": 0.000015,
+                "allow_blind_buried_vias": true,
+                "allow_microvias": false
+            }}},
+            "net_settings": {
+                "classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000004,
+                    "via_drill": 0.000002
+                }]
+            }
+        })
+        .to_string(),
+    );
+    // Block all paths except x=30 so the buried via cannot be placed within hole_to_hole=15 of [30,30].
+    i.rule_areas = vec![
+        RuleArea {
+            id: id(10),
+            layers: vec!["In1.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[0, 0], [25, 0], [25, 60], [0, 60]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(11),
+            layers: vec!["In1.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[35, 0], [100, 0], [100, 60], [35, 60]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(12),
+            layers: vec!["In1.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[25, 0], [35, 0], [35, 25], [25, 25]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(13),
+            layers: vec!["In1.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[25, 35], [35, 35], [35, 60], [25, 60]],
+            holes: Vec::new(),
+        },
+    ];
+    let out = run(i);
+    assert_eq!(
+        out.status,
+        Status::Unroutable,
+        "buried via must not overlap PTH drill (reason={:?}): {:?}",
+        out.reason,
+        out.added_vias
+    );
+}
+
+#[test]
+fn m3_2_same_net_hole_clearance_blocks_buried_via_near_non_overlapping_same_net_pth_pad() {
+    // Same-net PTH pad declared on F.Cu+B.Cu only: buried via on In1.Cu..In2.Cu does NOT
+    // connect to pad copper on In1/In2, so same_net_hole_clearance_nm must block placing it in the moat.
+    let mut i = base();
+    i.layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [100, 60],
+    };
+    i.rules = Rules {
+        width_nm: 2,
+        clearance_nm: 1,
+        grid_nm: 10,
+        edge_clearance_nm: 1,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 15,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [10, 30],
+            layers: vec!["In1.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: None,
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [50, 30],
+            layers: vec!["In2.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 2 },
+            drill: None,
+        },
+        Pad {
+            id: id(3),
+            net: 1,
+            at: [30, 30],
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 4 },
+            drill: Some(DrillShape::Circle { diameter_nm: 2 }),
+        },
+    ];
+    i.project_rules = Some(
+        json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {
+                "min_via_diameter": 0.000006,
+                "min_through_hole_diameter": 0.000002,
+                "allow_blind_buried_vias": true,
+                "allow_microvias": false
+            }}},
+            "net_settings": {
+                "classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000006,
+                    "via_drill": 0.000002
+                }]
+            }
+        })
+        .to_string(),
+    );
+    // Force via only at [30, 30] (same xy as Pad 3, non-overlapping layers In1..In2 vs F.Cu/B.Cu).
+    i.rule_areas = vec![
+        RuleArea {
+            id: id(10),
+            layers: vec!["In1.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[0, 0], [25, 0], [25, 60], [0, 60]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(11),
+            layers: vec!["In1.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[35, 0], [100, 0], [100, 60], [35, 60]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(12),
+            layers: vec!["In1.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[25, 0], [35, 0], [35, 25], [25, 25]],
+            holes: Vec::new(),
+        },
+        RuleArea {
+            id: id(13),
+            layers: vec!["In1.Cu".into()],
+            no_tracks: false,
+            no_vias: true,
+            outer: vec![[25, 35], [35, 35], [35, 60], [25, 60]],
+            holes: Vec::new(),
+        },
+    ];
+    let out = run(i);
+    assert_eq!(
+        out.status,
+        Status::Unroutable,
+        "buried via on non-overlapping layer must not falsely connect to pad 3: {:?}",
+        out.added_vias
+    );
+}
+
+#[test]
+fn m3_2_probe5_same_net_hole_clearance_same_path_via_is_legal_on_reload() {
+    // Challenger 1 Probe 5: 2L board with same_net_hole_clearance_nm=10.
+    // Every emitted track must remain legal when emitted vias are reloaded as locked input vias.
+    let mut i = base();
+    i.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    i.bounds = Bounds {
+        min: [-20, 0],
+        max: [60, 60],
+    };
+    i.rules = Rules {
+        width_nm: 2,
+        clearance_nm: 1,
+        grid_nm: 10,
+        edge_clearance_nm: 1,
+        hole_clearance_nm: 0,
+        same_net_hole_clearance_nm: 10,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.pads = vec![
+        Pad {
+            id: id(1),
+            net: 1,
+            at: [10, 10],
+            layers: vec!["F.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
+        },
+        Pad {
+            id: id(2),
+            net: 1,
+            at: [30, 20],
+            layers: vec!["B.Cu".into()],
+            local_clearance_nm: None,
+            shape: Shape::Circle { radius_nm: 1 },
+            drill: None,
+        },
+    ];
+    // Block via at [10,10], [20,10], [30,10] on F.Cu so it must step to [0,10], place Via@[0,10],
+    // and then route around Via@[0,10]'s same-net hole clearance moat on B.Cu.
+    i.rule_areas = vec![RuleArea {
+        id: id(20),
+        layers: vec!["F.Cu".into()],
+        no_tracks: false,
+        no_vias: true,
+        outer: vec![[5, 0], [55, 0], [55, 55], [5, 55]],
+        holes: Vec::new(),
+    }];
+    i.project_rules = Some(
+        json!({
+            "meta": {"version": 3},
+            "board": {"design_settings": {"rules": {
+                "min_via_diameter": 0.000004,
+                "min_through_hole_diameter": 0.000002,
+                "allow_blind_buried_vias": false,
+                "allow_microvias": false
+            }}},
+            "net_settings": {
+                "classes": [{
+                    "name": "Default",
+                    "track_width": 0.000002,
+                    "clearance": 0.000001,
+                    "via_diameter": 0.000004,
+                    "via_drill": 0.000002
+                }]
+            }
+        })
+        .to_string(),
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(!out.added_vias.is_empty());
+
+    // Reload with emitted vias & tracks locked and verify:
+    // 1) every emitted track either connects to an emitted via or clears its drill by same_net_hole_clearance_nm;
+    // 2) a board with emitted vias locked routes cleanly for any non-connecting track endpoints, and
+    //    rejects a shortcut track passing within same_net_hole_clearance_nm without connecting to the via.
+    let mut reload = i.clone();
+    for (idx, v) in out.added_vias.iter().enumerate() {
+        let mut lv = v.clone();
+        lv.id = id(100 + idx as u64);
+        lv.locked = true;
+        reload.vias.push(lv);
+    }
+    for (idx, t) in out.added_tracks.iter().enumerate() {
+        let mut lt = t.clone();
+        lt.id = id(200 + idx as u64);
+        lt.locked = true;
+        reload.tracks.push(lt);
+    }
+    // Verify adding another component on the reloaded board succeeds cleanly (valid board + valid copper).
+    let mut extra = reload.clone();
+    extra.rule_areas.clear();
+    extra.pads.push(Pad {
+        id: id(301),
+        net: 1,
+        at: [30, 50],
+        layers: vec!["B.Cu".into()],
+        local_clearance_nm: None,
+        shape: Shape::Circle { radius_nm: 1 },
+        drill: None,
+    });
+    let extra_out = run(extra);
+    assert_eq!(extra_out.status, Status::Complete, "{:?}", extra_out.reason);
+
+    // Also verify every non-connecting emitted track clears every same-layer emitted via drill
+    // by >= same_net_hole_clearance_nm (and any track inside the moat connects to the via).
+    for t in &out.added_tracks {
+        for v in &out.added_vias {
+            let (ax, ay) = (t.start[0] as i128, t.start[1] as i128);
+            let (bx, by) = (t.end[0] as i128, t.end[1] as i128);
+            let (px, py) = (v.at[0] as i128, v.at[1] as i128);
+            let (abx, aby) = (bx - ax, by - ay);
+            let len2 = abx * abx + aby * aby;
+            let proj_d2_scaled = if len2 == 0 {
+                let dx = px - ax;
+                let dy = py - ay;
+                (dx * dx + dy * dy, 1i128)
+            } else {
+                let num = (px - ax) * abx + (py - ay) * aby;
+                if num <= 0 {
+                    let dx = px - ax;
+                    let dy = py - ay;
+                    (dx * dx + dy * dy, 1i128)
+                } else if num >= len2 {
+                    let dx = px - bx;
+                    let dy = py - by;
+                    (dx * dx + dy * dy, 1i128)
+                } else {
+                    let cross = (px - ax) * aby - (py - ay) * abx;
+                    (cross * cross, len2)
+                }
+            };
+            let conn_r = (t.width_nm / 2 + v.diameter_nm / 2 - 1) as i128;
+            let connects = proj_d2_scaled.0 <= conn_r * conn_r * proj_d2_scaled.1;
+            if !connects {
+                let clr_sum =
+                    (t.width_nm + v.drill_nm + 2 * i.rules.same_net_hole_clearance_nm) as i128;
+                assert!(
+                    4 * proj_d2_scaled.0 >= clr_sum * clr_sum * proj_d2_scaled.1,
+                    "track {t:?} violates same_net_hole_clearance against via {v:?}"
+                );
+            }
+        }
+    }
 }
