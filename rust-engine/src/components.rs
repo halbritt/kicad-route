@@ -95,6 +95,13 @@ impl Copper<'_> {
         }
     }
 
+    fn primitive_count(self) -> u64 {
+        match self {
+            Self::Pad(p) => p.shape.parts().len() as u64,
+            _ => 1,
+        }
+    }
+
     fn touches(self, other: Self, stackup: &[String]) -> bool {
         if (self.layer_mask(stackup) & other.layer_mask(stackup)) == 0 {
             return false;
@@ -151,7 +158,7 @@ impl Copper<'_> {
         stackup: &[String],
         work: &WorkBudget,
     ) -> Result<bool, Failure> {
-        work.charge(1)?;
+        work.charge(self.primitive_count())?;
         if (self.layer_mask(stackup) & layer_bit(stackup, &route.layer)) == 0 {
             return Ok(false);
         }
@@ -172,7 +179,7 @@ impl Copper<'_> {
         stackup: &[String],
         work: &WorkBudget,
     ) -> Result<bool, Failure> {
-        work.charge(1)?;
+        work.charge(self.primitive_count())?;
         if (self.layer_mask(stackup) & Copper::Via(via).layer_mask(stackup)) == 0 {
             return Ok(false);
         }
@@ -341,7 +348,7 @@ pub(crate) fn partition<'a>(
                 if seen[j] {
                     continue;
                 }
-                work.charge(1)?;
+                work.charge(items[i].primitive_count() * items[j].primitive_count())?;
                 if items[i].touches(items[j], stackup) {
                     seen[j] = true;
                     pending.push(j);
