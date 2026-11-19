@@ -2711,7 +2711,9 @@ fn walk_multilayer(
                     }
                     _ => 0,
                 };
-                let step_cost = 1u64.checked_add(step_penalty).expect("bounded step cost");
+                let step_cost = (1 + engine.bus_step_cost(net, state.at, at)?)
+                    .checked_add(step_penalty)
+                    .expect("bounded step cost");
                 let g = cost.checked_add(step_cost).expect("bounded search cost");
                 if best.get(&next).is_some_and(|old| *old <= g) {
                     continue;
@@ -3224,8 +3226,10 @@ fn seed_backward_a_star(
                                             }
                                             _ => 0,
                                         };
-                                        let g_seed =
-                                            1u64.checked_add(step_pen).expect("bounded step cost");
+                                        let g_seed = (1 + engine
+                                            .bus_step_cost(net, p, p_attach)?)
+                                        .checked_add(step_pen)
+                                        .expect("bounded step cost");
                                         let bkey = BiKey {
                                             at: p,
                                             layer: l_idx as u8,
@@ -3623,7 +3627,11 @@ fn walk_multilayer_bidirectional(
                         _ => 0,
                     };
                     let g = cost
-                        .checked_add(1u64.checked_add(step_penalty).expect("bounded step cost"))
+                        .checked_add(
+                            (1 + engine.bus_step_cost(net, state.at, at)?)
+                                .checked_add(step_penalty)
+                                .expect("bounded step cost"),
+                        )
                         .expect("bounded search cost");
                     if best_fwd.get(&next).is_some_and(|&old| old <= g)
                         || settled_fwd.contains(&next)
@@ -3888,9 +3896,6 @@ fn walk_multilayer_bidirectional(
                     }
                     _ => 0,
                 };
-                let g = cost
-                    .checked_add(1u64.checked_add(step_penalty).expect("bounded step cost"))
-                    .expect("bounded search cost");
                 for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]] {
                     engine.work.charge(1)?;
                     let Some(qx) = bkey.at[0].checked_add(delta[0]) else {
@@ -3900,6 +3905,7 @@ fn walk_multilayer_bidirectional(
                         continue;
                     };
                     let q = [qx, qy];
+                    let g = cost + 1 + step_penalty + engine.bus_step_cost(net, q, bkey.at)?;
                     let next_key = BiKey {
                         at: q,
                         layer: bkey.layer,

@@ -1,6 +1,7 @@
 pub mod identity;
 pub use identity::{input_request_sha256, request_sha256};
 mod budget;
+mod bus;
 mod components;
 pub mod diff_pair;
 pub mod geometry;
@@ -53,6 +54,7 @@ pub struct Engine {
     mask_groups: Vec<Vec<usize>>,
     max_mask_expansion: i64,
     work: budget::WorkBudget,
+    bus_plan: bus::BusPlan,
     last_negotiation_stats: Option<negotiate::NegotiationStats>,
     last_block_generated: std::cell::Cell<bool>,
     prefer_higher_g: bool,
@@ -941,6 +943,7 @@ impl Engine {
             max_mask_expansion,
             work,
             last_negotiation_stats: None,
+            bus_plan: bus::BusPlan::default(),
             last_block_generated: std::cell::Cell::new(false),
             prefer_higher_g: false,
             delay_profile_layers: std::collections::BTreeMap::new(),
@@ -1023,6 +1026,17 @@ impl Engine {
     }
     pub fn copper(&self) -> &CopperStore {
         &self.copper
+    }
+    pub(crate) fn bus_groups(&self) -> Vec<Vec<u32>> {
+        self.bus_plan.groups.clone()
+    }
+    fn bus_step_cost(&self, net: u32, a: Point, b: Point) -> Result<u64, Failure> {
+        match self.input.routing_options.as_ref().and_then(|o| o.bus) {
+            Some(options) if options.attraction_bonus > 0 => {
+                self.bus_plan.step(net, a, b, options, &self.work)
+            }
+            _ => Ok(0),
+        }
     }
     pub fn last_negotiation_stats(&self) -> Option<&negotiate::NegotiationStats> {
         self.last_negotiation_stats.as_ref()
@@ -3354,6 +3368,7 @@ impl Engine {
     }
     pub fn route_all(&mut self) -> Result<u64, Failure> {
         self.last_negotiation_stats = None;
+        self.bus_plan = bus::BusPlan::default();
         self.delay_profile_layers.clear();
         let res = self.operation(|tx| {
             let diff_state = diff_pair::plan_diff_pairs(tx.engine)?;
