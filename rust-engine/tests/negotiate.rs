@@ -1677,3 +1677,93 @@ fn mask_aperture_indirect_sharing_triggers_rip_up_and_reroute() {
         "N1 must detour around the shared F.Mask aperture"
     );
 }
+
+#[test]
+fn bus_corridor_keeps_lanes_close_to_the_diagonal_around_fixed_copper() {
+    for layers in [vec![], vec!["F.Cu".into(), "B.Cu".into()]] {
+        let mut input = base_input([200, 200], layers);
+        input.nets = vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "First".into(),
+            },
+            Net {
+                id: 2,
+                name: "Second".into(),
+            },
+        ];
+        for (net, y) in [(1, 40), (2, 80)] {
+            input.pads.push(pad(2 * net as u64, net, [10, y]));
+            input.pads.push(pad(2 * net as u64 + 1, net, [170, y + 70]));
+        }
+        input.tracks = vec![wire(17, 0, [90, 70], [90, 85])];
+        let route = |input: &Input| {
+            let out = run(input.clone());
+            assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+            verify_disjoint_and_legal(input, &out.added_tracks, &out.added_vias);
+            assert!(out.added_vias.is_empty());
+            // Measure every nanometre of copper so differences in the number of
+            // straight sections cannot change the weight assigned to a lane.
+
+            let deviation: i64 = out
+                .added_tracks
+                .iter()
+                .map(|t| {
+                    let y = if t.net == 1 { 40 } else { 80 };
+                    let dx = t.end[0] - t.start[0];
+                    let dy = t.end[1] - t.start[1];
+                    (0..dx.abs() + dy.abs())
+                        .map(|k| {
+                            let x2 = 2 * (t.start[0] - 10) + (2 * k + 1) * dx.signum();
+                            let y2 = 2 * (t.start[1] - y) + (2 * k + 1) * dy.signum();
+                            (y2 * 160 - x2 * 70).abs()
+                        })
+                        .sum::<i64>()
+                })
+                .sum();
+            (deviation, out)
+        };
+        let (baseline, base) = route(&input);
+        input.routing_options = Some(RoutingOptions {
+            bus: Some(BusOptions {
+                detection_radius_nm: 50,
+                attraction_radius_nm: 30,
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        let (with_bus, bus) = route(&input);
+        let length = |out: &Output| -> i64 {
+            out.added_tracks
+                .iter()
+                .map(|t| (t.end[0] - t.start[0]).abs() + (t.end[1] - t.start[1]).abs())
+                .sum()
+        };
+        eprintln!(
+            "layers={} baseline (deviation, length, expansions, work, tracks) {:?}; bus {:?}",
+            input.layers.len().max(1),
+            (
+                baseline,
+                length(&base),
+                base.expanded_states,
+                base.work_used,
+                base.added_tracks.len()
+            ),
+            (
+                with_bus,
+                length(&bus),
+                bus.expanded_states,
+                bus.work_used,
+                bus.added_tracks.len()
+            )
+        );
+        assert!(
+            with_bus < baseline,
+            "bus {with_bus}, ordinary search {baseline}"
+        );
+    }
+}

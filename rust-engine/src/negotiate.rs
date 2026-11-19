@@ -1848,10 +1848,19 @@ pub fn solve_with_adapter(
             "max_expansions must be in 1..=1000000",
         ));
     }
-    let units = adapter.units(tx.engine)?;
+    let mut units = adapter.units(tx.engine)?;
+    if let Some(options) = tx.engine.input.routing_options.as_ref().and_then(|o| o.bus) {
+        tx.engine.bus_plan = crate::bus::BusPlan::build(
+            &mut units,
+            &tx.engine.input.pads,
+            options,
+            &tx.engine.work,
+        )?;
+    }
     let prev_prefer_higher_g = tx.engine.set_prefer_higher_g(units.len() > 1);
     let res = solve_with_adapter_units(tx, adapter, expanded, batch_limit, units);
     tx.engine.set_prefer_higher_g(prev_prefer_higher_g);
+    tx.engine.bus_plan.finish();
     res
 }
 

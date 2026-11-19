@@ -41,6 +41,24 @@ routing, net classes, supported custom rules, fills, keepouts, negotiation
 and pair tuning. The measurements there give the board, rules and revision
 for each result.
 
+### Optional single-ended bus routing
+
+With `routing_options.bus`, the engine looks for adjacent terminal banks among
+the single-ended nets selected for routing. It uses the longer of each net's X-
+and Y-extreme pad spans, checks nearby endpoints at both banks, and requires
+the lanes to keep their transverse order and share a longitudinal run. Extra
+terminals remain part of their original net. The scheduler routes members from
+the middle out, retaining the scheduled positions of unrelated nets and pairs.
+
+Each member keeps its transverse offset from the group's average direction.
+Search charges extra for planar grid steps away from that finite lane on any
+layer. The penalty increases with midpoint distance up to
+`attraction_radius_nm` and reaches `attraction_bonus` thousandths of a grid
+step, rounded up to an integer step cost. A zero bonus enables ordering alone.
+An obstacle or a branch can take the route outside the preferred lane.
+The Rust detector uses geometry, so nearby unrelated signals with matching
+banks can qualify and wide fan-outs can be missed.
+
 ## Original single-layer JSON routing subset
 
 The following geometry, search and validation description documents the
