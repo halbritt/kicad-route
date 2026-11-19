@@ -130,7 +130,9 @@ component count, and all joins share the operation/batch expansion budget.
 For separated regions of a refillable zone, the search starts on the component
 with the smallest fill envelope and can attach anywhere on a larger region.
 When both components contain fill from the same zone on the same layer, the
-search seeds that layer and targets the zone copper. A track or via center
+search first seeds that layer and targets the zone copper. If those endpoints
+have no legal path, the remaining budget can route between the full copper
+components, including plated pads on other layers. A track or via center
 must reach the interior of a refillable target. Orthogonal scanlines locate
 narrow regions between grid points while excluding holes and polygon edges.
 Failure after earlier joins rolls all of that operation back. The expansion

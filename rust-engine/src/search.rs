@@ -440,11 +440,45 @@ fn join_components_inner(
             }
         }
     }
-    let targets = if fill_targets.is_empty() {
-        targets
-    } else {
-        &fill_targets
+    let mut search = |choices: &[Vec<Copper<'_>>], seed_layers| {
+        search_component_path(
+            engine,
+            net,
+            source,
+            choices,
+            seed_layers,
+            budget,
+            expanded,
+            history,
+            frontier.as_deref_mut(),
+            prefer_higher_g,
+        )
     };
+    if !fill_targets.is_empty() {
+        match search(&fill_targets, source_layers) {
+            Err(e) if e.status == Status::Unroutable => {}
+            result => return result,
+        }
+    }
+    // The fill's own layer may prohibit tracks and vias. Existing through-hole
+    // copper can still bond its regions from another layer; native refill and
+    // validation determine whether that route preserves the pour.
+    search(targets, u32::MAX)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn search_component_path(
+    engine: &Engine,
+    net: u32,
+    source: &[Copper<'_>],
+    targets: &[Vec<Copper<'_>>],
+    source_layers: u32,
+    budget: &mut crate::negotiate::TrialBudget<'_>,
+    expanded: &mut u64,
+    history: Option<&crate::negotiate::CongestionHistory>,
+    mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+    prefer_higher_g: bool,
+) -> Result<Path, Failure> {
     let landings = std::cell::RefCell::new(FillLandings::default());
     let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
