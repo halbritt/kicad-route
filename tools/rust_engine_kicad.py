@@ -40,8 +40,23 @@ _ORIGINAL_SUBPROCESS_RUN = subprocess.run
 
 
 def read_bounded(path: Path):
-    with path.open('rb') as stream:
-        body = stream.read(MAX_DOCUMENT_BYTES + 1)
+    flags = os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0)
+    fd = os.open(path, flags)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise ValueError(f'input document must be a regular file: {path}')
+        chunks = []
+        total = 0
+        while total <= MAX_DOCUMENT_BYTES:
+            chunk = os.read(fd, min(65536, MAX_DOCUMENT_BYTES + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        body = b''.join(chunks)
+    finally:
+        os.close(fd)
     if len(body) > MAX_DOCUMENT_BYTES:
         raise ValueError(f'input document exceeds {MAX_DOCUMENT_BYTES} bytes: {path}')
     return body
@@ -55,21 +70,51 @@ class NativeValidationError(ValueError):
     pass
 
 
+CONSOLE_ERROR_RE = re.compile(
+    r'(?im)^(?:\d{2}:\d{2}:\d{2}:\s*)?(?:fatal\s+)?error\b'
+)
+CRITICAL_PHYSICAL_DRC_CHECKS = frozenset({
+    'shorting_items',
+    'clearance',
+    'copper_edge_clearance',
+    'copper_sliver',
+    'hole_clearance',
+    'holes_co_located',
+    'hole_to_hole',
+    'track_width',
+    'via_diameter',
+    'microvia_drill_out_of_range',
+    'annular_width',
+    'drill_out_of_range',
+    'tracks_crossing',
+    'zones_intersect',
+    'items_not_allowed',
+    'isolated_copper',
+    'starved_thermal',
+    'unconnected_items',
+    'connection_width',
+})
+
+
 def native_violations(path: Path, report: Path, *, timeout: float = 30.0,
                       refill_zones: bool = False, save_board: bool = False):
     if not math.isfinite(timeout) or timeout <= 0:
         raise NativeValidationError('native DRC timeout must be positive and finite')
     if save_board and not refill_zones:
         raise ValueError('save_board requires refill_zones=True')
-    command = ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors']
+    command = ['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors', '--units', 'mm']
     if refill_zones:
         command.append('--refill-zones')
     if save_board:
         command.append('--save-board')
     command.extend(['--output', str(report), str(path)])
     try:
+        stdout = ''
+        stderr = ''
         if subprocess.run is not _ORIGINAL_SUBPROCESS_RUN:
-            subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
+            completed = subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
+            stdout = getattr(completed, 'stdout', '') or ''
+            stderr = getattr(completed, 'stderr', '') or ''
         else:
             proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             in_main = threading.current_thread() is threading.main_thread()
@@ -94,9 +139,26 @@ def native_violations(path: Path, report: Path, *, timeout: float = 30.0,
             finally:
                 if in_main and previous_sigterm is not None:
                     signal.signal(signal.SIGTERM, previous_sigterm)
+        console = f'{stdout}\n{stderr}'.strip()
+        if console and CONSOLE_ERROR_RE.search(console):
+            raise NativeValidationError(f'native DRC emitted console error: {console}')
         data = json.loads(read_bounded(report))
         if not isinstance(data, dict) or not isinstance(data.get('violations'), list) or not isinstance(data.get('unconnected_items'), list):
             raise ValueError('native DRC report has invalid violation/connectivity fields')
+        if (subprocess.run is _ORIGINAL_SUBPROCESS_RUN or 'coordinate_units' in data) and data.get('coordinate_units') != 'mm':
+            raise NativeValidationError(f"native DRC report unexpected coordinate_units: {data.get('coordinate_units')!r}")
+        compile_errs = [v for v in data['violations'] if isinstance(v, dict) and v.get('type') == 'rule_compile_error']
+        if compile_errs:
+            raise NativeValidationError(f'native DRC reported rule_compile_error: {compile_errs[0].get("description", compile_errs)}')
+        ignored_raw = data.get('ignored_checks')
+        if isinstance(ignored_raw, list):
+            ignored_critical = [
+                entry.get('key')
+                for entry in ignored_raw
+                if isinstance(entry, dict) and entry.get('key') in CRITICAL_PHYSICAL_DRC_CHECKS
+            ]
+            if ignored_critical:
+                raise NativeValidationError(f'native DRC ignored required physical checks: {ignored_critical}')
         return data
     except NativeValidationError:
         raise
@@ -235,9 +297,16 @@ def resolve_sidecars(path: Path, *, project_path: Path | None = None) -> tuple[b
     for suffix in ('.kicad_pro', '.kicad_dru'):
         sidecar = resolved.with_suffix(suffix)
         try:
-            os.lstat(sidecar)
+            st = os.lstat(sidecar)
         except (FileNotFoundError, NotADirectoryError):
             continue
+        if stat.S_ISLNK(st.st_mode):
+            try:
+                st = os.stat(sidecar)
+            except FileNotFoundError as exc:
+                raise ValueError(f'dangling sidecar symlink: {sidecar}') from exc
+        if not stat.S_ISREG(st.st_mode):
+            raise ValueError(f'sidecar must be a regular file: {sidecar}')
         try:
             raw = read_bounded(sidecar)
         except OSError as exc:
@@ -345,12 +414,20 @@ def _dot(a, b, c):
     return (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1])
 
 
-def _is_collinear_ring(pts):
+def _is_collinear_ring(pts, *, check_area=True):
     n = len(pts)
     if n < 3:
         return True
     a, b = pts[0], pts[1]
-    return all(_cross(a, b, pts[i]) == 0 for i in range(2, n))
+    if all(_cross(a, b, pts[i]) == 0 for i in range(2, n)):
+        return True
+    if not check_area:
+        return False
+    area2 = sum(
+        pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1]
+        for i in range(n)
+    )
+    return area2 == 0
 
 
 def _orient_ccw_convex(pts):
@@ -828,7 +905,7 @@ def _extract_text_shapes(drawing, *, layer, base_id, context_label):
                 if outline_ring.ArcCount() != 0:
                     raise UnsupportedBoard(f'{context_label} curved arc text polygons are not represented')
                 outer = _extract_poly_ring(outline_ring)
-                if len(outer) < 3 or _is_collinear_ring(outer):
+                if len(outer) < 3 or _is_collinear_ring(outer, check_area=filled):
                     raise UnsupportedBoard('degenerate polygon graphic is not represented')
                 holes = []
                 for h in range(poly_set.HoleCount(o_idx)):
@@ -870,7 +947,7 @@ def _extract_graphic_poly_rings(drawing, *, context_label):
         if outline_ring.ArcCount() != 0:
             raise UnsupportedBoard(f'{context_label} curved arc polygon graphics are not represented')
         outer = _extract_poly_ring(outline_ring)
-        if len(outer) < 3 or _is_collinear_ring(outer):
+        if len(outer) < 3 or _is_collinear_ring(outer, check_area=bool(drawing.IsSolidFill())):
             raise UnsupportedBoard('degenerate polygon graphic is not represented')
         holes = []
         for h in range(poly_set.HoleCount(idx)):
@@ -1343,6 +1420,26 @@ def export_board(path: Path, rules: dict | None = None, max_expansions: int = 10
         return export_snapshot(snapshot, rules, max_expansions, limits)
 
 
+def _unescape_sexpr_str(s: str) -> str:
+    if '\\' not in s:
+        return s
+    out: list[str] = []
+    i = 0
+    n = len(s)
+    escapes = {'n': '\n', 'r': '\r', 't': '\t', '\\': '\\', '"': '"'}
+    while i < n:
+        ch = s[i]
+        if ch == '\\' and i + 1 < n:
+            nxt = s[i + 1]
+            if nxt in escapes:
+                out.append(escapes[nxt])
+                i += 2
+                continue
+        out.append(ch)
+        i += 1
+    return ''.join(out)
+
+
 def _parse_pcb_stackup(body: bytes) -> list[dict]:
     """Extract (setup (stackup (layer ...))) entries from a .kicad_pcb S-expression."""
     text = body.decode('utf-8')
@@ -1364,7 +1461,7 @@ def _parse_pcb_stackup(body: bytes) -> list[dict]:
                 break
         else:
             if tok.startswith('"') and tok.endswith('"') and len(tok) >= 2:
-                tok = bytes(tok[1:-1], 'utf-8').decode('unicode_escape')
+                tok = _unescape_sexpr_str(tok[1:-1])
             if stack:
                 stack[-1].append(tok)
     if not isinstance(root, list):
@@ -1924,8 +2021,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             (10_000 if enabled_layers.Contains(pcbnew.F_Mask) else 0)
             + (10_000 if enabled_layers.Contains(pcbnew.B_Mask) else 0)
         )
-    pro_sidecar = path.with_suffix('.kicad_pro')
-    pro_text = read_bounded(pro_sidecar).decode('utf-8') if pro_sidecar.is_file() else None
+    pro_bytes, dru_bytes = resolve_sidecars(path)
+    pro_text = pro_bytes.decode('utf-8') if pro_bytes is not None else None
     pro_min_spokes = None
     pro_use_height = None
     if pro_text is not None:
@@ -1951,9 +2048,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     result['board_design_settings'] = bds
     if pro_text is not None:
         result['project_rules'] = pro_text
-    dru_sidecar = path.with_suffix('.kicad_dru')
-    if dru_sidecar.is_file():
-        result['custom_rules'] = read_bounded(dru_sidecar).decode('utf-8')
+    if dru_bytes is not None:
+        result['custom_rules'] = dru_bytes.decode('utf-8')
     if vias:
         result['vias'] = vias
     if rule_areas:
@@ -2656,19 +2752,31 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         temporary = directory / destination.name
         if not pcbnew.SaveBoard(str(temporary), board):
             raise OSError('KiCad did not save the candidate board')
-        for suffix in ('.kicad_pro', '.kicad_dru'):
-            src_sc = source.with_suffix(suffix)
-            if src_sc.is_file():
-                temporary.with_suffix(suffix).write_bytes(src_sc.read_bytes())
+        pro_bytes, dru_bytes = resolve_sidecars(source)
+        drc_pro_bytes = pro_bytes
+        if pro_bytes is not None:
+            try:
+                pro_doc = json.loads(pro_bytes.decode('utf-8'))
+                if isinstance(pro_doc, dict):
+                    ds_doc = pro_doc.get('board', {}).get('design_settings')
+                    if isinstance(ds_doc, dict) and ds_doc.get('drc_exclusions'):
+                        ds_doc['drc_exclusions'] = []
+                        drc_pro_bytes = json.dumps(pro_doc).encode('utf-8')
+            except (UnicodeDecodeError, ValueError):
+                pass
+        if drc_pro_bytes is not None:
+            temporary.with_suffix('.kicad_pro').write_bytes(drc_pro_bytes)
+        if dru_bytes is not None:
+            temporary.with_suffix('.kicad_dru').write_bytes(dru_bytes)
+        before_dir = directory / 'before_drc'
+        before_dir.mkdir()
+        before_board = before_dir / Path(os.path.realpath(source)).name
+        before_board.write_bytes(source.read_bytes())
+        if drc_pro_bytes is not None:
+            before_board.with_suffix('.kicad_pro').write_bytes(drc_pro_bytes)
+        if dru_bytes is not None:
+            before_board.with_suffix('.kicad_dru').write_bytes(dru_bytes)
         if needs_refill:
-            before_dir = directory / 'before_refill'
-            before_dir.mkdir()
-            before_board = before_dir / source.name
-            before_board.write_bytes(source.read_bytes())
-            for suffix in ('.kicad_pro', '.kicad_dru'):
-                src_sc = source.with_suffix(suffix)
-                if src_sc.is_file():
-                    before_board.with_suffix(suffix).write_bytes(src_sc.read_bytes())
             before = native_violations(before_board, directory / 'before-drc.json',
                                        timeout=drc_timeout, refill_zones=True, save_board=True)
             after = native_violations(temporary, directory / 'after-drc.json',
@@ -2682,7 +2790,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             if saved is None:
                 raise NativeValidationError('KiCad could not reload the saved candidate')
             saved.BuildConnectivity()
-            before = native_violations(source, directory / 'before-drc.json', timeout=drc_timeout)
+            before = native_violations(before_board, directory / 'before-drc.json', timeout=drc_timeout)
             after = native_violations(temporary, directory / 'after-drc.json', timeout=drc_timeout)
         ro_doc = req_doc.get('routing_options') if isinstance(req_doc, dict) else None
         net_filters = ro_doc.get('net_filters', []) if isinstance(ro_doc, dict) else []

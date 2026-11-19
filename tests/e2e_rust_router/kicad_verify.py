@@ -25,6 +25,27 @@ CONSOLE_ERROR_RE = re.compile(
 PARITY_SKIP_RE = re.compile(
     r"(?i)failed to fetch schematic netlist[^\n]*|parity tests require[^\n]*"
 )
+CRITICAL_PHYSICAL_DRC_CHECKS: tuple[str, ...] = (
+    "shorting_items",
+    "clearance",
+    "copper_edge_clearance",
+    "copper_sliver",
+    "hole_clearance",
+    "holes_co_located",
+    "hole_to_hole",
+    "track_width",
+    "via_diameter",
+    "microvia_drill_out_of_range",
+    "annular_width",
+    "drill_out_of_range",
+    "tracks_crossing",
+    "zones_intersect",
+    "items_not_allowed",
+    "isolated_copper",
+    "starved_thermal",
+    "unconnected_items",
+    "connection_width",
+)
 
 
 def _pcbnew():
@@ -673,7 +694,8 @@ def run_native_drc(
         if compile_errs:
             raise AssertionError(f"rule_compile_error in DRC: {compile_errs}")
         ignored_keys = {entry.get("key") for entry in data["ignored_checks"]}
-        missing_req = [k for k in require_checks if k in ignored_keys]
+        required_checks = set(CRITICAL_PHYSICAL_DRC_CHECKS) | set(require_checks)
+        missing_req = [k for k in sorted(required_checks) if k in ignored_keys]
         if missing_req:
             raise AssertionError(f"required DRC checks were ignored: {missing_req}")
         if verify_dru and has_dru:

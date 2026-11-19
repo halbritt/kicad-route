@@ -1361,3 +1361,136 @@ fn m3_2_cli_help_optional_rules_project_mismatch_and_stderr_json() {
     let op_sym = parse_stdout_json(&r_symlink_stem.stdout);
     assert_eq!(op_sym["status"], "invalid");
 }
+
+#[test]
+fn cli_refuses_sub_nm_ac_flags_and_short_ac_chain_with_exit_8() {
+    let ws = Workspace::new("ac-cli-refusal");
+    let source = ws.write("board.kicad_pcb", b"(kicad_pcb)");
+    let poison_marker = ws.path("poison_called");
+    let poison_bridge = write_stub_bridge(
+        &ws,
+        "poison.py",
+        &format!(
+            "import pathlib, sys\npathlib.Path({:?}).write_text('called')\nsys.exit(99)\n",
+            poison_marker
+        ),
+    );
+    for (idx, extra) in [
+        vec!["--ac-match-tolerance", "1e-7"],
+        vec!["--ac-meander-amplitude", "1e-7"],
+        vec!["--ac-couple-chain-json", "[]"],
+        vec!["--ac-couple-chain-json", "[\"C1\"]"],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let out = ws.path(&format!("out_{idx}.kicad_pcb"));
+        let res = Command::new(engine_bin())
+            .args(["route-native"])
+            .arg(&source)
+            .arg(&out)
+            .arg("--native-bridge")
+            .arg(&poison_bridge)
+            .args(&extra)
+            .output()
+            .unwrap();
+        assert_eq!(
+            res.status.code(),
+            Some(8),
+            "case {extra:?} expected exit 8, got {:?}: {}",
+            res.status.code(),
+            String::from_utf8_lossy(&res.stderr)
+        );
+        assert!(!poison_marker.exists());
+    }
+}
+
+#[test]
+fn route_native_compact_request_opts_near_16mib_succeeds() {
+    let ws = Workspace::new("near-16mib-opts");
+    let source = ws.write("board.kicad_pcb", b"(kicad_pcb)");
+    let out_pcb = ws.path("out.kicad_pcb");
+    // Export a request near MAX_REQUEST_BYTES (~15.2 MiB compact JSON, which pretty-printed would
+    // exceed 16 MiB and trigger ChildProcessError/AdmissionExceeded if to_vec_pretty were used).
+    let near_16mib_bridge = write_stub_bridge(
+        &ws,
+        "large_bridge.py",
+        r#"#!/usr/bin/env python3
+import hashlib, json, pathlib, sys
+cmd = sys.argv[1]
+if cmd == "export":
+    board = pathlib.Path(sys.argv[2])
+    out = pathlib.Path(sys.argv[3])
+    max_exp = int(sys.argv[sys.argv.index("--max-expansions") + 1])
+    source_id = hashlib.sha256(board.read_bytes()).hexdigest()
+    # ~14.2 MiB of compact graphic polygons (<100k items; pretty-printed >45 MiB >> 16 MiB)
+    outer = [[0, 0], [3, 0], [3, 1], [2, 1], [2, 2], [1, 2], [1, 1], [0, 1]]
+    graphics = [
+        {"id": f"20000000-0000-4000-8000-{i:012x}", "net": 0, "layer": "F.Cu",
+         "shape": {"kind": "polygon", "outer": outer, "holes": [], "width_nm": 0}}
+        for i in range(85000)
+    ]
+    req = {
+        "version": 1,
+        "source_id": source_id,
+        "layer": "F.Cu",
+        "bounds": {"min": [0, 0], "max": [60, 60]},
+        "rules": {"width_nm": 2, "clearance_nm": 1, "grid_nm": 10, "edge_clearance_nm": 0},
+        "nets": [{"id": 1, "name": "A"}],
+        "pads": [
+            {"id": "10000000-0000-4000-8000-000000000001", "net": 1, "at": [10, 10], "shape": {"kind": "circle", "radius_nm": 1}},
+            {"id": "10000000-0000-4000-8000-000000000002", "net": 1, "at": [50, 10], "shape": {"kind": "circle", "radius_nm": 1}}
+        ],
+        "tracks": [],
+        "graphics": graphics,
+        "max_expansions": max_exp,
+    }
+    body = json.dumps(req, separators=(",", ":")).encode("utf-8")
+    assert 13_000_000 < len(body) < 16 * 1024 * 1024, f"unexpected size {len(body)}"
+    out.write_bytes(body)
+elif cmd == "apply":
+    board = pathlib.Path(sys.argv[2])
+    plan_p = pathlib.Path(sys.argv[3])
+    out = pathlib.Path(sys.argv[4])
+    req_bytes = pathlib.Path(sys.argv[sys.argv.index("--request") + 1]).read_bytes()
+    rep_p = pathlib.Path(sys.argv[sys.argv.index("--validation-report") + 1])
+    plan = json.loads(plan_p.read_text())
+    cand = board.read_bytes() + b"\n; routed"
+    out.write_bytes(cand)
+    report = {
+        "schema": "kicad-route/native-apply-report/1",
+        "version": 1,
+        "source_id": hashlib.sha256(board.read_bytes()).hexdigest(),
+        "request_sha256": hashlib.sha256(req_bytes).hexdigest(),
+        "candidate_sha256": hashlib.sha256(cand).hexdigest(),
+        "candidate_bytes": len(cand),
+        "before_unconnected_count": 1,
+        "after_unconnected_count": 0,
+        "before_violation_count": 0,
+        "after_violation_count": 0,
+        "introduced_violation_count": 0,
+        "added_track_count": len(plan["added_tracks"]),
+        "kicad_version": "stub",
+    }
+    rep_p.write_text(json.dumps(report))
+"#,
+    );
+    let res = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&source)
+        .arg(&out_pcb)
+        .args(["--protect", "existing", "--timeout-ms", "60000"])
+        .arg("--native-bridge")
+        .arg(&near_16mib_bridge)
+        .output()
+        .unwrap();
+    assert_eq!(
+        res.status.code(),
+        Some(0),
+        "expected exit 0 for compact near-16 MiB request-opts.json, got {:?}: {}",
+        res.status.code(),
+        String::from_utf8_lossy(&res.stderr)
+    );
+    assert!(out_pcb.exists());
+    assert!(MAX_REQUEST_BYTES == 16 * 1024 * 1024);
+}

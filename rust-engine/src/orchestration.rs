@@ -2253,7 +2253,7 @@ fn execute_staged_phases(
             input_has_zones = !parsed_input.zones.is_empty();
             if has_custom_routing_options {
                 parsed_input.routing_options = Some(config.routing_options.clone());
-                let updated_bytes = serde_json::to_vec_pretty(&parsed_input).map_err(|e| {
+                let updated_bytes = serde_json::to_vec(&parsed_input).map_err(|e| {
                     let msg = format!("failed to serialize request with routing_options: {e}");
                     result.phases.push(PhaseRecord {
                         phase: "native_export".to_owned(),
@@ -3154,6 +3154,12 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                                 serde_json::from_str(val.trim()).map_err(|e| {
                                     format!("invalid --ac-couple-chain-json array: {e}")
                                 })?;
+                            if refs.len() < 2 {
+                                return Err(
+                                    "--ac-couple-chain-json requires at least two bridge references"
+                                        .to_owned(),
+                                );
+                            }
                             routing_options.ac_couple_chains.push(refs);
                             last_variadic_target = None;
                         }
@@ -3164,8 +3170,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             saw_ac_match_tolerance = true;
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let mm = parse_f64_flag(&val, flag, true)?;
-                            routing_options.ac_match_tolerance_nm =
-                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            let nm = f64_scaled_to_i64(mm, 1_000_000.0, flag)?;
+                            if nm <= 0 {
+                                return Err(format!("{flag} must be >= 1 nm"));
+                            }
+                            routing_options.ac_match_tolerance_nm = Some(nm);
                             last_variadic_target = None;
                         }
                         "--ac-meander-amplitude" => {
@@ -3175,8 +3184,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             saw_ac_meander_amplitude = true;
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let mm = parse_f64_flag(&val, flag, true)?;
-                            routing_options.ac_meander_amplitude_nm =
-                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            let nm = f64_scaled_to_i64(mm, 1_000_000.0, flag)?;
+                            if nm <= 0 {
+                                return Err(format!("{flag} must be >= 1 nm"));
+                            }
+                            routing_options.ac_meander_amplitude_nm = Some(nm);
                             last_variadic_target = None;
                         }
                         "--protect" => {

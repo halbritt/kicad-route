@@ -24,8 +24,12 @@ def sha256_file(path: Path) -> str:
     return sha256_bytes(path.read_bytes())
 
 
+def _reject_json_constant(constant: str) -> Any:
+    raise ValueError(f"non-standard JSON constant {constant!r}")
+
+
 def parse_last_json_line(text: str) -> dict[str, Any] | None:
-    decoder = json.JSONDecoder()
+    decoder = json.JSONDecoder(parse_constant=_reject_json_constant)
     last_obj: dict[str, Any] | None = None
     idx = 0
     n = len(text)
@@ -39,17 +43,17 @@ def parse_last_json_line(text: str) -> dict[str, Any] | None:
             idx = line_end + 1
             continue
         cur = pos
-        line_last: dict[str, Any] | None = None
+        line_last: Any = None
         valid_line = False
         while True:
             try:
                 parsed, end = decoder.raw_decode(text, cur)
-            except json.JSONDecodeError as err:
-                err_line_start = text.rfind("\n", 0, err.pos) + 1
+            except (json.JSONDecodeError, ValueError) as err:
+                err_pos = err.pos if isinstance(err, json.JSONDecodeError) else cur
+                err_line_start = text.rfind("\n", 0, err_pos) + 1
                 next_idx = err_line_start if err_line_start > idx else line_end + 1
                 break
-            if isinstance(parsed, dict):
-                line_last = parsed
+            line_last = parsed
             tail_nl = text.find("\n", end)
             tail_end = n if tail_nl == -1 else tail_nl
             cur = end
@@ -62,8 +66,10 @@ def parse_last_json_line(text: str) -> dict[str, Any] | None:
             if text[cur] not in "{[":
                 next_idx = tail_end + 1
                 break
-        if valid_line and line_last is not None:
-            last_obj = line_last
+        if valid_line:
+            last_obj = line_last if isinstance(line_last, dict) else None
+        else:
+            last_obj = None
         idx = next_idx
     return last_obj
 

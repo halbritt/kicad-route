@@ -24,7 +24,8 @@ from tests.e2e_rust_router.drivers import (
 )
 
 STAGES: tuple[str, ...] = ("BASELINE", "M1", "M2", "M3", "M4", "M5")
-TIERS: tuple[int, ...] = (1, 2, 3, 4)
+TIERS: tuple[int, ...] = (1, 2, 3, 4, 5)
+DEFAULT_ALL_TIERS: tuple[int, ...] = (1, 2, 3, 4)
 FEATURES: tuple[str, ...] = tuple(f"F{i}" for i in range(1, 12))
 FEATURE_TITLES: dict[str, str] = {
     "F1": "Lane 1: M7 Multi-Terminal",
@@ -47,6 +48,7 @@ _TIER_MODULES: tuple[str, ...] = (
     "tests.e2e_rust_router.tier2_advanced",
     "tests.e2e_rust_router.tier3_pairwise",
     "tests.e2e_rust_router.tier4_scenarios",
+    "tests.e2e_rust_router.tier5_adversarial",
 )
 
 
@@ -382,8 +384,8 @@ def _parse_tier_tokens(tokens: list[str] | None) -> list[int] | None:
             if not tok:
                 raise argparse.ArgumentTypeError(f"empty --tier token in {raw!r}")
             if tok == "all":
-                return list(TIERS)
-            if tok not in {"1", "2", "3", "4"}:
+                return list(DEFAULT_ALL_TIERS)
+            if tok not in {"1", "2", "3", "4", "5"}:
                 raise argparse.ArgumentTypeError(f"invalid --tier value: {part!r}")
             val = int(tok)
             if val not in selected:
@@ -415,7 +417,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--tier",
         action="append",
-        help="Tier(s) to run: 1, 2, 3, 4, or all (repeatable or comma-separated).",
+        help="Tier(s) to run: 1, 2, 3, 4, 5, or all (Tiers 1-4; repeatable or comma-separated).",
     )
     parser.add_argument(
         "--feature",

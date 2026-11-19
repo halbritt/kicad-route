@@ -205,7 +205,7 @@ fn compute_protected_nets(tracks: &[Track], vias: &[Via], mode: ProtectMode) -> 
     let mut out = BTreeSet::new();
     match mode {
         ProtectMode::None => {}
-        ProtectMode::Existing | ProtectMode::Human => {
+        ProtectMode::Existing => {
             for t in tracks {
                 if t.net != 0 {
                     out.insert(t.net);
@@ -217,7 +217,7 @@ fn compute_protected_nets(tracks: &[Track], vias: &[Via], mode: ProtectMode) -> 
                 }
             }
         }
-        ProtectMode::Locked => {
+        ProtectMode::Human | ProtectMode::Locked => {
             for t in tracks {
                 if t.net != 0 && t.locked {
                     out.insert(t.net);
@@ -6717,9 +6717,11 @@ fn generate_45_meander_wave(
 
     // Small 45-degree wave: flat-top 45-degree trapezoid when `!allow_ortho` (avoiding 90-degree
     // corners that overhang in KiCad diff_pair_uncoupled), or 45-degree triangle bump otherwise.
-    let min_tri_h =
-        (0.85 * width_nm + inner_offset_margin_nm * (std::f64::consts::SQRT_2 - 1.0)).max(10_000.0);
-    let h_small = amp_nm.max(min_tri_h);
+    // Never exceed the caller-requested `amp_nm` ceiling.
+    if amp_nm <= 0.0 {
+        return (Vec::new(), t_center, t_center);
+    }
+    let h_small = amp_nm;
     let top_len = if allow_ortho {
         0.0
     } else {
@@ -7260,7 +7262,10 @@ fn apply_single_ended_meander(
                     if max_add + (tol as f64) < needed_len_nm {
                         continue;
                     }
-                    let mut lo = (0.85 * cand.width_nm as f64).min(max_amp).max(10_000.0);
+                    let min_legal_h = (std::f64::consts::FRAC_1_SQRT_2 * cand.width_nm as f64
+                        + 1_000.0)
+                        .max(10_000.0);
+                    let mut lo = min_legal_h.min(max_amp);
                     let mut hi = max_amp;
                     for _ in 0..32 {
                         let mid = 0.5 * (lo + hi);
@@ -7502,6 +7507,9 @@ fn apply_coupled_pair_meander(
             (target_val - cur_avg) as f64
         };
         let max_amp = amp_max_nm as f64;
+        if max_amp <= 10_000.0 {
+            continue;
+        }
 
         let eval_coupled = |n_waves: usize,
                             amp: f64,
@@ -7564,9 +7572,11 @@ fn apply_coupled_pair_meander(
                     if max_add + (tol as f64) < needed_len_nm {
                         continue;
                     }
-                    let min_tri_h = 0.85 * (pair.width_nm as f64)
-                        + 0.5 * (s_nm as f64) * (std::f64::consts::SQRT_2 - 1.0);
-                    let mut lo = min_tri_h.min(max_amp);
+                    let min_legal_h = (std::f64::consts::FRAC_1_SQRT_2 * (pair.width_nm as f64)
+                        + 0.5 * (s_nm as f64) * (std::f64::consts::SQRT_2 - 1.0)
+                        + 1_000.0)
+                        .max(10_000.0);
+                    let mut lo = min_legal_h.min(max_amp);
                     let mut hi = max_amp;
                     for _ in 0..32 {
                         let mid = 0.5 * (lo + hi);

@@ -1766,6 +1766,59 @@ impl Engine {
         Ok(false)
     }
 
+    pub(crate) fn generated_nets_touching_mask_group(
+        &self,
+        net_filter: Option<u32>,
+        layer_idx: usize,
+        group_id: usize,
+        out: &mut Vec<u32>,
+    ) -> Result<(), Failure> {
+        out.clear();
+        let Some(members) = self.mask_groups.get(group_id) else {
+            return Ok(());
+        };
+        let layer_bit = 1u32 << layer_idx;
+        for &member_idx in members {
+            let m = &self.input.mask_apertures[member_idx];
+            let aabb = self.mask_aabbs[member_idx];
+            let query = SweptAabb {
+                min: [i128::from(aabb.min[0]), i128::from(aabb.min[1])],
+                max: [i128::from(aabb.max[0]), i128::from(aabb.max[1])],
+            };
+            let _ = self.copper.visit_generated_layer_candidates(
+                layer_idx,
+                query,
+                net_filter,
+                &self.work,
+                |other_net, t| {
+                    if other_net != 0
+                        && geometry::track_near_mask(t.start, t.end, t.width_nm, 0, m, false)
+                    {
+                        out.push(other_net);
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            let _ = self.copper.visit_generated_via_candidates(
+                query,
+                net_filter,
+                &self.work,
+                |via, v_mask| {
+                    if via.net != 0
+                        && (v_mask & layer_bit) != 0
+                        && geometry::track_near_mask(via.at, via.at, via.diameter_nm, 0, m, false)
+                    {
+                        out.push(via.net);
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+        }
+        out.sort_unstable();
+        out.dedup();
+        Ok(())
+    }
+
     pub(crate) fn edge_clears_mask(
         &self,
         net: u32,
@@ -3313,6 +3366,28 @@ impl Engine {
                 }
                 e
             })?;
+            for n in &tx.engine.input.nets {
+                if n.id == 0
+                    || diff_state.routed_pair_nets.contains(&n.id)
+                    || !diff_state.protected_nets.contains(&n.id)
+                {
+                    continue;
+                }
+                if !diff_state
+                    .plan
+                    .active_nets
+                    .as_ref()
+                    .is_none_or(|s| s.contains(&n.id))
+                {
+                    continue;
+                }
+                if tx.engine.components(n.id)?.len() > 1 {
+                    return Err(Failure::new(
+                        Status::Unroutable,
+                        format!("net {} ({:?}) is incomplete under --protect", n.id, n.name),
+                    ));
+                }
+            }
             Ok(expanded)
         });
         self.delay_profile_layers.clear();

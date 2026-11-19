@@ -1572,6 +1572,8 @@ impl Input {
                 || ro.group_delay_tolerance_as.is_some_and(|v| v < 0)
                 || ro.group_meander_amplitude_nm.is_some_and(|v| v <= 0)
                 || ro.impedance_uncoupled_nm.is_some_and(|v| v < 0)
+                || ro.ac_match_tolerance_nm.is_some_and(|v| v <= 0)
+                || ro.ac_meander_amplitude_nm.is_some_and(|v| v <= 0)
                 || ro
                     .group_meander_spacing_widths
                     .is_some_and(|v| !v.is_finite() || v < 1.0)

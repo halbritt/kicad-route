@@ -1661,6 +1661,135 @@ fn m3_1_solder_mask_min_width_without_copper_clearance_allows_fcu_tracks() {
 }
 
 #[test]
+fn input_validate_rejects_nonpositive_ac_match_options() {
+    for (ac_tol, ac_amp) in [
+        (Some(0), None),
+        (Some(-1), None),
+        (None, Some(0)),
+        (None, Some(-5)),
+    ] {
+        let mut inp = base();
+        inp.routing_options = Some(RoutingOptions {
+            ac_match_tolerance_nm: ac_tol,
+            ac_meander_amplitude_nm: ac_amp,
+            ..Default::default()
+        });
+        let err = match Engine::new(inp) {
+            Ok(_) => panic!("expected Invalid"),
+            Err(e) => e,
+        };
+        assert_eq!(err.status, Status::Invalid, "{err:?}");
+    }
+}
+
+#[test]
+fn mask_aperture_segment_and_circle_block_when_unowned_or_positive_to_cu() {
+    for (tag, shape) in [
+        (
+            "segment",
+            GraphicShape::Segment {
+                start: [25_000_000, 6_000_000],
+                end: [25_000_000, 14_000_000],
+                width_nm: 400_000,
+            },
+        ),
+        (
+            "circle",
+            GraphicShape::Circle {
+                center: [25_000_000, 10_000_000],
+                radius_nm: 1_500_000,
+                width_nm: 0,
+                filled: true,
+            },
+        ),
+    ] {
+        for to_cu in [0, 200_000] {
+            let mut i = base();
+            i.layers = vec!["F.Cu".into()];
+            i.bounds = Bounds {
+                min: [0, 0],
+                max: [50_000_000, 20_000_000],
+            };
+            i.rules = Rules {
+                width_nm: 200_000,
+                clearance_nm: 200_000,
+                grid_nm: 500_000,
+                edge_clearance_nm: 200_000,
+                hole_clearance_nm: 200_000,
+                same_net_hole_clearance_nm: 0,
+                solder_mask_expansion_nm: 0,
+                solder_mask_min_width_nm: 0,
+                solder_mask_to_copper_clearance_nm: to_cu,
+            };
+            i.pads = vec![
+                Pad {
+                    id: id(1),
+                    net: 1,
+                    at: [5_000_000, 10_000_000],
+                    shape: Shape::Circle { radius_nm: 250_000 },
+                    drill: None,
+                    layers: vec!["F.Cu".into()],
+                    local_clearance_nm: None,
+                    zone_connection: PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
+                },
+                Pad {
+                    id: id(2),
+                    net: 1,
+                    at: [45_000_000, 10_000_000],
+                    shape: Shape::Circle { radius_nm: 250_000 },
+                    drill: None,
+                    layers: vec!["F.Cu".into()],
+                    local_clearance_nm: None,
+                    zone_connection: PadZoneConnection::Inherited,
+                    thermal_gap_nm: None,
+                    thermal_spoke_width_nm: None,
+                    thermal_spoke_angle_mdeg: None,
+                    orientation_mdeg: 0,
+                    footprint_ref: None,
+                    pad_number: None,
+                    fromto_id: None,
+                },
+            ];
+            let mask = MaskAperture {
+                id: id(50),
+                net: None,
+                group_id: None,
+                layer: "F.Mask".into(),
+                shape: shape.clone(),
+                expansion_nm: 100_000,
+            };
+            i.mask_apertures.push(mask.clone());
+            let out = run(i);
+            assert_eq!(
+                out.status,
+                Status::Complete,
+                "{tag} to_cu={to_cu}: {:?}",
+                out.reason
+            );
+            if to_cu > 0 {
+                assert!(
+                    out.added_tracks.len() > 1,
+                    "{tag} with to_cu={to_cu} should detour around mask aperture"
+                );
+                for t in &out.added_tracks {
+                    assert!(
+                        !track_near_mask(t.start, t.end, t.width_nm, to_cu, &mask, false),
+                        "{tag} track touched mask aperture with to_cu={to_cu}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn m3_1_same_net_hole_clearance_moat_routes_cleanly_while_blocking_non_connecting_pass_by() {
     // Challenger 2's reproduction: empty 20x20mm board with two same-net PTH pads where
     // same_net_hole_clearance_nm > annular_ring + grid_nm.

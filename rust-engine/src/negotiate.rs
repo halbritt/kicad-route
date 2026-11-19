@@ -911,11 +911,17 @@ fn analyze_blockers_with_lookup(
         )?;
     }
 
-    if layer_tracks.iter().all(|v| v.is_empty()) && gen_vias.is_empty() {
+    let mask_sharing_active = !engine.input().mask_apertures.is_empty()
+        && engine.input().rules.solder_mask_to_copper_clearance_nm <= 0;
+
+    if layer_tracks.iter().all(|v| v.is_empty()) && gen_vias.is_empty() && !mask_sharing_active {
         return Ok(Vec::new());
     }
 
     let mut scores: BTreeMap<RouteUnitId, BlockerScore> = BTreeMap::new();
+    let mut mask_group_nets_cache: BTreeMap<(usize, usize), Vec<u32>> = BTreeMap::new();
+    let mut hit_groups_buf: Vec<usize> = Vec::new();
+    let mut group_nets_buf: Vec<u32> = Vec::new();
     for &probe in frontier.probes() {
         engine.charge_work(1)?;
         let mut probe_victims: BTreeSet<RouteUnitId> = BTreeSet::new();
@@ -946,6 +952,40 @@ fn analyze_blockers_with_lookup(
                 entry.blocked_probes = entry.blocked_probes.saturating_add(1);
             }
             entry.contested_cells.insert(cell);
+        };
+        let mut mask_hit_nets_buf: Vec<u32> = Vec::new();
+        let mut collect_mask_hits = |l_idx: usize,
+                                     a: Point,
+                                     b: Point,
+                                     width_nm: i64,
+                                     out_nets: &mut Vec<u32>|
+         -> Result<(), Failure> {
+            out_nets.clear();
+            if !mask_sharing_active {
+                return Ok(());
+            }
+            engine.mask_apertures_hit(l_idx, a, b, width_nm, &mut hit_groups_buf)?;
+            for &g_id in &hit_groups_buf {
+                let key = (l_idx, g_id);
+                if !mask_group_nets_cache.contains_key(&key) {
+                    engine.generated_nets_touching_mask_group(
+                        net_filter,
+                        l_idx,
+                        g_id,
+                        &mut group_nets_buf,
+                    )?;
+                    let rippable: Vec<u32> = group_nets_buf
+                        .iter()
+                        .copied()
+                        .filter(|&n| can_rip_net(n))
+                        .collect();
+                    mask_group_nets_cache.insert(key, rippable);
+                }
+                if let Some(other_nets) = mask_group_nets_cache.get(&key) {
+                    out_nets.extend_from_slice(other_nets);
+                }
+            }
+            Ok(())
         };
         match probe {
             BlockedProbe::Edge { layer, a, b } => {
@@ -1035,6 +1075,10 @@ fn analyze_blockers_with_lookup(
                             record_hit(via.net, (layer, cx, cy));
                         }
                     }
+                }
+                collect_mask_hits(l_idx, a, b, width_nm, &mut mask_hit_nets_buf)?;
+                for &other_net in &mask_hit_nets_buf {
+                    record_hit(other_net, (layer, cx, cy));
                 }
             }
             BlockedProbe::ViaSite {
@@ -1168,6 +1212,12 @@ fn analyze_blockers_with_lookup(
                     }
                     if hit {
                         record_hit(via.net, (s_lo as u8, cx, cy));
+                    }
+                }
+                for l_idx in s_lo..=s_hi {
+                    collect_mask_hits(l_idx, at, at, diam, &mut mask_hit_nets_buf)?;
+                    for &other_net in &mask_hit_nets_buf {
+                        record_hit(other_net, (l_idx as u8, cx, cy));
                     }
                 }
             }

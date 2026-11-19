@@ -4796,3 +4796,394 @@ fn diff_pair_pad_expansion_and_min_width_bridge_to_mask_aperture() {
         }
     }
 }
+
+#[test]
+fn meander_wave_respects_requested_amplitude_ceiling_dp1_and_dp1b() {
+    use kicad_route_engine::model::Status;
+    let mk_match_input =
+        |width_nm: i64, n1_len_dx: i64, n2_len_dx: i64, amp_nm: i64, tol_nm: i64| {
+            let mut inp = base_diff_input(&["N1", "N2"]);
+            inp.rules.width_nm = width_nm;
+            inp.rules.clearance_nm = 200_000;
+            inp.rules.grid_nm = 200_000;
+            if let Some(bds) = inp.board_design_settings.as_mut() {
+                bds.default_track_width_nm = width_nm;
+                bds.min_track_width_nm = width_nm.min(150_000);
+                for nc in &mut bds.netclasses {
+                    nc.track_width_nm = width_nm;
+                }
+            }
+            inp.pads[0].at = [10_000_000, 10_000_000];
+            inp.pads[1].at = [10_000_000 + n1_len_dx, 10_000_000];
+            inp.pads[2].at = [10_000_000, 14_000_000];
+            inp.pads[3].at = [10_000_000 + n2_len_dx, 14_000_000];
+            inp.routing_options = Some(RoutingOptions {
+                length_match_groups: vec![LengthMatchGroupSpec {
+                    members: vec!["N1".into(), "N2".into()],
+                    ..Default::default()
+                }],
+                group_match_tolerance_nm: Some(tol_nm),
+                group_meander_amplitude_nm: Some(amp_nm),
+                ..Default::default()
+            });
+            inp
+        };
+
+    // DP-1 / DP-1b negative: width=200_000, amp=50_000 (below self-copper bridge threshold
+    // width/sqrt(2) ~= 141_421 nm) must NEVER overshoot 50_000 nm and must fail closed.
+    let out_self_bridge = kicad_route_engine::run(mk_match_input(
+        200_000, 20_000_000, 20_160_000, 50_000, 50_000,
+    ));
+    assert_eq!(
+        out_self_bridge.status,
+        Status::Unroutable,
+        "amp=50_000 on 200_000 trace must fail closed rather than overshooting amplitude: {:?}",
+        out_self_bridge.reason
+    );
+
+    // Positive: width=200_000, amp=155_000 (between width/sqrt(2)=141_421 and old 0.85*width=170_000)
+    // succeeds cleanly without exceeding the 155_000 nm amplitude ceiling.
+    let out_bounded = kicad_route_engine::run(mk_match_input(
+        200_000, 20_000_000, 20_200_000, 155_000, 50_000,
+    ));
+    assert_eq!(
+        out_bounded.status,
+        Status::Complete,
+        "bounded amp=155_000 failed: {:?}",
+        out_bounded.reason
+    );
+    let max_exc = out_bounded
+        .added_tracks
+        .iter()
+        .filter(|t| t.net == 1)
+        .map(|t| {
+            (t.start[1] - 10_000_000)
+                .abs()
+                .max((t.end[1] - 10_000_000).abs())
+        })
+        .max()
+        .unwrap_or(0);
+    assert!(
+        max_exc > 0 && max_exc <= 155_000,
+        "unexpected exc {max_exc}"
+    );
+
+    // Positive: width=60_000, amp=50_000 (below old 0.85*60_000=51_000 floor) succeeds with <= 50_000 nm.
+    let out_thin = kicad_route_engine::run(mk_match_input(
+        60_000, 20_000_000, 20_200_000, 50_000, 50_000,
+    ));
+    assert_eq!(
+        out_thin.status,
+        Status::Complete,
+        "thin amp=50_000 failed: {:?}",
+        out_thin.reason
+    );
+    let thin_exc = out_thin
+        .added_tracks
+        .iter()
+        .filter(|t| t.net == 1)
+        .map(|t| {
+            (t.start[1] - 10_000_000)
+                .abs()
+                .max((t.end[1] - 10_000_000).abs())
+        })
+        .max()
+        .unwrap_or(0);
+    assert!(
+        thin_exc > 0 && thin_exc <= 50_000,
+        "thin excursion {thin_exc} exceeded 50_000 nm"
+    );
+
+    // Impossible amplitude ceiling fails closed rather than violating amp_nm
+    let out_fail = kicad_route_engine::run(mk_match_input(
+        200_000, 10_000_000, 25_000_000, 20_000, 40_000,
+    ));
+    assert_eq!(out_fail.status, Status::Unroutable, "{:?}", out_fail.reason);
+}
+
+#[test]
+fn protect_mode_human_completes_unlocked_partial_and_fails_closed_on_locked_partial() {
+    use kicad_route_engine::model::Status;
+    let mk_partial = |locked: bool, mode: ProtectMode| {
+        let mut inp = base_diff_input(&["PART", "OTHER"]);
+        inp.pads[0].at = [2_000_000, 10_000_000];
+        inp.pads[1].at = [18_000_000, 10_000_000];
+        inp.pads[2].at = [2_000_000, 14_000_000];
+        inp.pads[3].at = [18_000_000, 14_000_000];
+        inp.tracks.push(Track {
+            id: uuid(910),
+            net: 1,
+            start: [2_000_000, 10_000_000],
+            end: [4_000_000, 10_000_000],
+            width_nm: 250_000,
+            locked,
+            layer: "F.Cu".into(),
+        });
+        inp.routing_options = Some(RoutingOptions {
+            protect_mode: Some(mode),
+            ..Default::default()
+        });
+        inp
+    };
+
+    // DP-3: unlocked partial net under ProtectMode::Human completes open terminals while keeping input copper
+    let unlocked_inp = mk_partial(false, ProtectMode::Human);
+    let out_ok = kicad_route_engine::run(unlocked_inp.clone());
+    assert_eq!(out_ok.status, Status::Complete, "{:?}", out_ok.reason);
+    assert!(
+        out_ok.added_tracks.iter().any(|t| t.net == 1),
+        "expected added track completing PART net under ProtectMode::Human"
+    );
+    let mut check_inp = unlocked_inp;
+    check_inp.tracks.extend(out_ok.added_tracks);
+    let out_recheck = kicad_route_engine::run(check_inp);
+    assert_eq!(
+        out_recheck.status,
+        Status::Complete,
+        "{:?}",
+        out_recheck.reason
+    );
+    assert!(
+        out_recheck.added_tracks.is_empty(),
+        "expected zero open connections remaining, got {:?}",
+        out_recheck.added_tracks
+    );
+
+    // Locked partial net under ProtectMode::Human fails closed with Status::Unroutable (never Complete with open net)
+    let locked_human = mk_partial(true, ProtectMode::Human);
+    let out_locked = kicad_route_engine::run(locked_human);
+    assert_eq!(
+        out_locked.status,
+        Status::Unroutable,
+        "{:?}",
+        out_locked.reason
+    );
+
+    // Partial net under ProtectMode::Existing also fails closed when in scope
+    let existing_partial = mk_partial(false, ProtectMode::Existing);
+    let out_existing = kicad_route_engine::run(existing_partial);
+    assert_eq!(
+        out_existing.status,
+        Status::Unroutable,
+        "{:?}",
+        out_existing.reason
+    );
+}
+
+#[test]
+fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
+    use kicad_route_engine::model::Status;
+    let mk_pad = |id_n: u64, net: u32, at: Point, fp: &str, pnum: &str| Pad {
+        id: format!("10000000-0000-4000-8000-{id_n:012x}"),
+        net,
+        at,
+        shape: Shape::Rect {
+            half_size_nm: [125_000, 125_000],
+        },
+        drill: None,
+        layers: vec!["F.Cu".into()],
+        local_clearance_nm: None,
+        zone_connection: PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
+        footprint_ref: Some(fp.into()),
+        pad_number: Some(pnum.into()),
+        fromto_id: None,
+    };
+    for ac_tol in [50_000_i64, 1_i64] {
+        let mut inp = base_diff_input(&["DPA_P", "DPA_N", "DPB_P", "DPB_N", "DPC_P", "DPC_N"]);
+        inp.bounds = Bounds {
+            min: [0, 0],
+            max: [95_000_000, 40_000_000],
+        };
+        inp.rules.width_nm = 200_000;
+        inp.rules.clearance_nm = 150_000;
+        inp.rules.grid_nm = 200_000;
+        if let Some(bds) = inp.board_design_settings.as_mut() {
+            bds.default_clearance_nm = 150_000;
+            bds.default_track_width_nm = 200_000;
+            for nc in &mut bds.netclasses {
+                nc.clearance_nm = 150_000;
+                nc.track_width_nm = 200_000;
+                nc.diff_pair_width_nm = 200_000;
+                nc.diff_pair_gap_nm = 200_000;
+            }
+        }
+        // 3 pairs across C1/C2 (DPA->DPB) and C3/C4 (DPB->DPC): DPA (1,2) pre-routed +2.0mm P-longer;
+        // DPB (3,4) and DPC (5,6) must absorb 2.0mm across two pairs because DRU caps per-pair skew at 1.2mm.
+        inp.pads = vec![
+            mk_pad(1, 1, [5_000_000, 10_000_000], "J1", "1"),
+            mk_pad(2, 1, [25_000_000, 10_000_000], "C1", "1"),
+            mk_pad(3, 2, [5_000_000, 10_400_000], "J1", "2"),
+            mk_pad(4, 2, [25_000_000, 10_400_000], "C2", "1"),
+            mk_pad(5, 3, [26_000_000, 10_000_000], "C1", "2"),
+            mk_pad(6, 3, [56_000_000, 10_000_000], "C3", "1"),
+            mk_pad(7, 4, [26_000_000, 10_400_000], "C2", "2"),
+            mk_pad(8, 4, [56_000_000, 10_400_000], "C4", "1"),
+            mk_pad(9, 5, [57_000_000, 10_000_000], "C3", "2"),
+            mk_pad(10, 5, [85_000_000, 10_000_000], "J2", "1"),
+            mk_pad(11, 6, [57_000_000, 10_400_000], "C4", "2"),
+            mk_pad(12, 6, [85_000_000, 10_400_000], "J2", "2"),
+        ];
+        inp.components = vec![
+            ComponentInfo {
+                ref_des: "J1".into(),
+                dnp: false,
+                exclude_from_bom: false,
+                exclude_from_pos: false,
+                pad_numbers: vec!["1".into(), "2".into()],
+                net_ids: vec![1, 2],
+            },
+            ComponentInfo {
+                ref_des: "J2".into(),
+                dnp: false,
+                exclude_from_bom: false,
+                exclude_from_pos: false,
+                pad_numbers: vec!["1".into(), "2".into()],
+                net_ids: vec![5, 6],
+            },
+            ComponentInfo {
+                ref_des: "C1".into(),
+                dnp: false,
+                exclude_from_bom: false,
+                exclude_from_pos: false,
+                pad_numbers: vec!["1".into(), "2".into()],
+                net_ids: vec![1, 3],
+            },
+            ComponentInfo {
+                ref_des: "C2".into(),
+                dnp: false,
+                exclude_from_bom: false,
+                exclude_from_pos: false,
+                pad_numbers: vec!["1".into(), "2".into()],
+                net_ids: vec![2, 4],
+            },
+            ComponentInfo {
+                ref_des: "C3".into(),
+                dnp: false,
+                exclude_from_bom: false,
+                exclude_from_pos: false,
+                pad_numbers: vec!["1".into(), "2".into()],
+                net_ids: vec![3, 5],
+            },
+            ComponentInfo {
+                ref_des: "C4".into(),
+                dnp: false,
+                exclude_from_bom: false,
+                exclude_from_pos: false,
+                pad_numbers: vec!["1".into(), "2".into()],
+                net_ids: vec![4, 6],
+            },
+        ];
+        // Pre-routed locked DPA with +2.0mm skew on DPA_P (22.0mm vs 20.0mm via non-overlapping detour)
+        inp.tracks = vec![
+            Track {
+                id: uuid(801),
+                net: 1,
+                start: [5_000_000, 10_000_000],
+                end: [14_000_000, 10_000_000],
+                width_nm: 200_000,
+                locked: true,
+                layer: "F.Cu".into(),
+            },
+            Track {
+                id: uuid(802),
+                net: 1,
+                start: [14_000_000, 10_000_000],
+                end: [14_000_000, 9_000_000],
+                width_nm: 200_000,
+                locked: true,
+                layer: "F.Cu".into(),
+            },
+            Track {
+                id: uuid(803),
+                net: 1,
+                start: [14_000_000, 9_000_000],
+                end: [16_000_000, 9_000_000],
+                width_nm: 200_000,
+                locked: true,
+                layer: "F.Cu".into(),
+            },
+            Track {
+                id: uuid(804),
+                net: 1,
+                start: [16_000_000, 9_000_000],
+                end: [16_000_000, 10_000_000],
+                width_nm: 200_000,
+                locked: true,
+                layer: "F.Cu".into(),
+            },
+            Track {
+                id: uuid(805),
+                net: 1,
+                start: [16_000_000, 10_000_000],
+                end: [25_000_000, 10_000_000],
+                width_nm: 200_000,
+                locked: true,
+                layer: "F.Cu".into(),
+            },
+            Track {
+                id: uuid(806),
+                net: 2,
+                start: [5_000_000, 10_400_000],
+                end: [25_000_000, 10_400_000],
+                width_nm: 200_000,
+                locked: true,
+                layer: "F.Cu".into(),
+            },
+        ];
+        inp.custom_rules = Some(
+            "(version 1)\n\
+             (rule \"dpb_skew\" (condition \"A.inDiffPair('DPB')\") (constraint skew (max 1.2mm) (within_diff_pairs)))\n\
+             (rule \"dpc_skew\" (condition \"A.inDiffPair('DPC')\") (constraint skew (max 1.2mm) (within_diff_pairs)))"
+                .into(),
+        );
+        inp.routing_options = Some(RoutingOptions {
+            diff_pairs_mode: Some(DiffPairsMode::Auto),
+            ac_couple_chains: vec![vec!["C1".into(), "C2".into(), "C3".into(), "C4".into()]],
+            ac_match_tolerance_nm: Some(ac_tol),
+            ac_meander_amplitude_nm: Some(3_000_000),
+            ..Default::default()
+        });
+        let out = kicad_route_engine::run(inp.clone());
+        assert_eq!(
+            out.status,
+            Status::Complete,
+            "ac_tol={ac_tol}: {:?}",
+            out.reason
+        );
+        let len_of = |net: u32| -> f64 {
+            inp.tracks
+                .iter()
+                .chain(out.added_tracks.iter())
+                .filter(|t| t.net == net)
+                .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+                .sum()
+        };
+        let sum_p = len_of(1) + len_of(3) + len_of(5);
+        let sum_n = len_of(2) + len_of(4) + len_of(6);
+        assert!(
+            (sum_p - sum_n).abs() <= (ac_tol as f64) + 5_000.0,
+            "ac_tol={ac_tol}: composed skew {} > {ac_tol}",
+            (sum_p - sum_n).abs()
+        );
+        assert!(
+            (len_of(3) - len_of(4)).abs() <= 1_205_000.0,
+            "DPB skew {} > 1.2mm (P={}, N={}, DPC P={}, N={})",
+            (len_of(3) - len_of(4)).abs(),
+            len_of(3),
+            len_of(4),
+            len_of(5),
+            len_of(6)
+        );
+        assert!(
+            (len_of(5) - len_of(6)).abs() <= 1_205_000.0,
+            "DPC skew {} > 1.2mm (P={}, N={})",
+            (len_of(5) - len_of(6)).abs(),
+            len_of(5),
+            len_of(6)
+        );
+    }
+}

@@ -1491,3 +1491,189 @@ fn post_trial_cap_blocker_preserved_on_unroutable_frontier() {
     assert_eq!(out.status, Status::Complete);
     verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
 }
+
+#[test]
+fn mask_aperture_indirect_sharing_triggers_rip_up_and_reroute() {
+    let mut i = base_input([30_000_000, 20_000_000], vec!["F.Cu".into(), "B.Cu".into()]);
+    i.rules = Rules {
+        width_nm: 200_000,
+        clearance_nm: 200_000,
+        grid_nm: 500_000,
+        edge_clearance_nm: 200_000,
+        hole_clearance_nm: 200_000,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.max_expansions = 100_000;
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+        Net {
+            id: 2,
+            name: "N2".into(),
+        },
+    ];
+    let mk_pad = |nid: u64, net: u32, at: Point| Pad {
+        id: id(nid),
+        net,
+        at,
+        shape: Shape::Circle { radius_nm: 250_000 },
+        drill: None,
+        layers: vec!["F.Cu".into()],
+        local_clearance_nm: None,
+        zone_connection: PadZoneConnection::Inherited,
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
+    };
+    i.pads = vec![
+        mk_pad(1, 1, [12_000_000, 10_000_000]),
+        mk_pad(2, 1, [18_000_000, 10_000_000]),
+        mk_pad(3, 2, [8_000_000, 14_000_000]),
+        mk_pad(4, 2, [22_000_000, 14_000_000]),
+    ];
+    i.mask_apertures.push(MaskAperture {
+        id: id(90),
+        net: None,
+        group_id: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [14_000_000, 8_000_000],
+                [16_000_000, 8_000_000],
+                [16_000_000, 15_500_000],
+                [14_000_000, 15_500_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    });
+    i.rule_areas = vec![
+        RuleArea {
+            id: id(91),
+            name: None,
+            layers: vec!["B.Cu".into()],
+            outer: vec![
+                [500_000, 500_000],
+                [29_500_000, 500_000],
+                [29_500_000, 19_500_000],
+                [500_000, 19_500_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+        RuleArea {
+            id: id(92),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [6_500_000, 11_500_000],
+                [23_500_000, 11_500_000],
+                [23_500_000, 13_000_000],
+                [6_500_000, 13_000_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: false,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+        RuleArea {
+            id: id(93),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [6_500_000, 15_000_000],
+                [23_500_000, 15_000_000],
+                [23_500_000, 18_500_000],
+                [6_500_000, 18_500_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: false,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+        RuleArea {
+            id: id(94),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [6_500_000, 11_500_000],
+                [7_500_000, 11_500_000],
+                [7_500_000, 18_500_000],
+                [6_500_000, 18_500_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: false,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+        RuleArea {
+            id: id(95),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [22_500_000, 11_500_000],
+                [23_500_000, 11_500_000],
+                [23_500_000, 18_500_000],
+                [22_500_000, 18_500_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: false,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+    ];
+
+    let mut eng = Engine::new(i.clone()).unwrap();
+    eng.route_all()
+        .expect("N1 should be ripped from shared mask aperture and rerouted around it");
+    let stats = eng.last_negotiation_stats().expect("stats recorded");
+    assert!(
+        stats.units_ripped >= 1 && stats.rounds_committed >= 1,
+        "expected N1 rip-up due to mask aperture conflict: {stats:?}"
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+    let mask = &i.mask_apertures[0];
+    let n1_touches = out
+        .added_tracks
+        .iter()
+        .filter(|t| t.net == 1)
+        .any(|t| track_near_mask(t.start, t.end, t.width_nm, 0, mask, false));
+    assert!(
+        !n1_touches,
+        "N1 must detour around the shared F.Mask aperture"
+    );
+}

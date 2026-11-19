@@ -4111,6 +4111,233 @@ def test_zone_layer_fills_skips_collinear_rings(tmp_path, monkeypatch):
     assert sum(1 for _, skipped in collinear_results if not skipped) >= 2
 
 
+def test_tier5_native_drc_rejects_ignored_clearance_exclusions_and_rule_compile_error(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps({
+        'width_nm': 200_000, 'clearance_nm': 200_000,
+        'grid_nm': 200_000, 'edge_clearance_nm': 500_000,
+    }))
+
+    def _build_two_pad_board(pcb_path: Path, *, gap_violation: bool):
+        b = pcbnew.BOARD()
+        b.SetCopperLayerCount(2)
+        ds = b.GetDesignSettings()
+        ds.m_TrackMinWidth = 150_000
+        ds.m_MinClearance = 200_000
+        ds.m_CopperEdgeClearance = 200_000
+        ec = pcbnew.PCB_SHAPE(b)
+        ec.SetShape(pcbnew.SHAPE_T_RECT)
+        ec.SetLayer(pcbnew.Edge_Cuts)
+        ec.SetStart(pcbnew.VECTOR2I(0, 0))
+        ec.SetEnd(pcbnew.VECTOR2I(20_000_000, 12_000_000))
+        b.Add(ec)
+        n1 = pcbnew.NETINFO_ITEM(b, 'N1', 1)
+        n2 = pcbnew.NETINFO_ITEM(b, 'N2', 2)
+        b.Add(n1)
+        b.Add(n2)
+        for name, net, pos in [('J1', n1, (2_000_000, 6_000_000)),
+                               ('J2', n1, (18_000_000, 6_000_000)),
+                               ('J3', n2, (10_000_000, 6_500_000 if gap_violation else 9_000_000))]:
+            fp = pcbnew.FOOTPRINT(b)
+            fp.SetReference(name)
+            fp.SetPosition(pcbnew.VECTOR2I(*pos))
+            p = pcbnew.PAD(fp)
+            p.SetNumber('1')
+            p.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+            p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+            p.SetSize(pcbnew.VECTOR2I(600_000, 600_000))
+            ls = pcbnew.LSET()
+            ls.AddLayer(pcbnew.F_Cu)
+            p.SetLayerSet(ls)
+            p.SetPosition(pcbnew.VECTOR2I(*pos))
+            p.SetNet(net)
+            fp.Add(p)
+            b.Add(fp)
+        pcb_path.parent.mkdir(parents=True, exist_ok=True)
+        assert pcbnew.SaveBoard(str(pcb_path), b)
+
+    # 1. rule_severities clearance=ignore fails closed in apply_plan and route-native
+    src_ign = tmp_path / 'ign' / 'board.kicad_pcb'
+    _build_two_pad_board(src_ign, gap_violation=False)
+    src_ign.with_suffix('.kicad_pro').write_text(json.dumps({
+        'meta': {'version': 3},
+        'board': {'design_settings': {'rule_severities': {'clearance': 'ignore'}}},
+    }))
+    out_ign = tmp_path / 'ign' / 'out.kicad_pcb'
+    r_ign = subprocess.run(
+        [str(engine), 'route-native', str(src_ign), str(out_ign), '--rules', str(rules_path)],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert r_ign.returncode == 2, (r_ign.returncode, r_ign.stdout, r_ign.stderr)
+    assert not out_ign.exists()
+
+    req_ign = bridge.export_board(src_ign, {'width_nm': 200_000, 'clearance_nm': 200_000, 'grid_nm': 200_000, 'edge_clearance_nm': 500_000})
+    req_ign_bytes = json.dumps(req_ign, separators=(',', ':')).encode('utf-8')
+    plan_ign = {
+        'version': 3,
+        'status': 'complete',
+        'request_sha256': hashlib.sha256(req_ign_bytes).hexdigest(),
+        'source_id': hashlib.sha256(src_ign.read_bytes()).hexdigest(),
+        'added_tracks': [{
+            'id': '10000000-0000-4000-8000-000000000901',
+            'net': 1, 'layer': 'F.Cu',
+            'start': [2_000_000, 6_000_000], 'end': [18_000_000, 6_000_000],
+            'width_nm': 200_000, 'locked': False,
+        }],
+        'added_vias': [],
+        'removed_track_ids': [],
+        'expanded_states': 0,
+        'work_used': 0,
+    }
+    with pytest.raises(bridge.NativeValidationError, match='ignored required physical checks'):
+        bridge.apply_plan(src_ign, plan_ign, tmp_path / 'ign' / 'apply_out.kicad_pcb', expected_request=req_ign_bytes)
+
+    # 2. Broken .kicad_dru emitting rule_compile_error fails closed in apply_plan and route-native
+    src_dru = tmp_path / 'dru' / 'board.kicad_pcb'
+    _build_two_pad_board(src_dru, gap_violation=False)
+    src_dru.with_suffix('.kicad_dru').write_text('(version 1)\n(rule broken_rule (constraint unknown_bogus_constraint (min 0.5mm)))\n')
+    out_dru = tmp_path / 'dru' / 'out.kicad_pcb'
+    r_dru = subprocess.run(
+        [str(engine), 'route-native', str(src_dru), str(out_dru), '--rules', str(rules_path)],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert r_dru.returncode == 2, (r_dru.returncode, r_dru.stdout, r_dru.stderr)
+    assert not out_dru.exists()
+
+    # 3. Direct apply_plan with bad track clearance fails even if drc_exclusions is present in .kicad_pro
+    src_excl = tmp_path / 'excl' / 'board.kicad_pcb'
+    _build_two_pad_board(src_excl, gap_violation=True)
+    src_excl.with_suffix('.kicad_pro').write_text(json.dumps({
+        'meta': {'version': 3},
+        'board': {'design_settings': {'drc_exclusions': ['clearance|0|0|0']}},
+    }))
+    req_excl = bridge.export_board(src_excl, {'width_nm': 200_000, 'clearance_nm': 200_000, 'grid_nm': 200_000, 'edge_clearance_nm': 500_000})
+    req_excl_bytes = json.dumps(req_excl, separators=(',', ':')).encode('utf-8')
+    plan_excl = {
+        'version': 3,
+        'status': 'complete',
+        'request_sha256': hashlib.sha256(req_excl_bytes).hexdigest(),
+        'source_id': hashlib.sha256(src_excl.read_bytes()).hexdigest(),
+        'added_tracks': [{
+            'id': '10000000-0000-4000-8000-000000000902',
+            'net': 1, 'layer': 'F.Cu',
+            'start': [2_000_000, 6_000_000], 'end': [18_000_000, 6_000_000],
+            'width_nm': 200_000, 'locked': False,
+        }],
+        'added_vias': [],
+        'removed_track_ids': [],
+        'expanded_states': 0,
+        'work_used': 0,
+    }
+    with pytest.raises(bridge.NativeValidationError, match='candidate introduces native DRC violations'):
+        bridge.apply_plan(src_excl, plan_excl, tmp_path / 'excl' / 'out.kicad_pcb', expected_request=req_excl_bytes)
+
+
+def test_tier5_symlinked_board_preserves_target_sidecars_and_fifo_fails_fast(tmp_path):
+    real_dir = tmp_path / 'real'
+    link_dir = tmp_path / 'link'
+    real_dir.mkdir()
+    link_dir.mkdir()
+    real_pcb = real_dir / 'board.kicad_pcb'
+    b = pcbnew.BOARD()
+    b.SetCopperLayerCount(2)
+    ec = pcbnew.PCB_SHAPE(b)
+    ec.SetShape(pcbnew.SHAPE_T_RECT)
+    ec.SetLayer(pcbnew.Edge_Cuts)
+    ec.SetStart(pcbnew.VECTOR2I(0, 0))
+    ec.SetEnd(pcbnew.VECTOR2I(20_000_000, 12_000_000))
+    b.Add(ec)
+    n1 = pcbnew.NETINFO_ITEM(b, 'N1', 1)
+    b.Add(n1)
+    for name, pos in [('J1', (2_000_000, 6_000_000)), ('J2', (18_000_000, 6_000_000))]:
+        fp = pcbnew.FOOTPRINT(b)
+        fp.SetReference(name)
+        fp.SetPosition(pcbnew.VECTOR2I(*pos))
+        p = pcbnew.PAD(fp)
+        p.SetNumber('1')
+        p.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+        p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        p.SetSize(pcbnew.VECTOR2I(600_000, 600_000))
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        p.SetLayerSet(ls)
+        p.SetPosition(pcbnew.VECTOR2I(*pos))
+        p.SetNet(n1)
+        fp.Add(p)
+        b.Add(fp)
+    assert pcbnew.SaveBoard(str(real_pcb), b)
+    real_pro = real_pcb.with_suffix('.kicad_pro')
+    real_dru = real_pcb.with_suffix('.kicad_dru')
+    real_pro.write_text(json.dumps({
+        'meta': {'version': 3},
+        'board': {'design_settings': {'rules': {'min_resolved_spokes': 4}}},
+    }))
+    real_dru.write_text('(version 1)\n(rule wide_clr (constraint clearance (min 0.35mm)))\n')
+    link_pcb = link_dir / 'board.kicad_pcb'
+    link_pcb.symlink_to(real_pcb)
+
+    rules = {'width_nm': 200_000, 'clearance_nm': 200_000, 'grid_nm': 200_000, 'edge_clearance_nm': 500_000}
+    snap_sym = bridge.export_snapshot(link_pcb, rules=rules)
+    assert 'project_rules' in snap_sym and 'custom_rules' in snap_sym
+    assert snap_sym['board_design_settings']['min_resolved_spokes'] == 4
+
+    req_sym = bridge.export_board(link_pcb, rules=rules)
+    req_bytes = json.dumps(req_sym, separators=(',', ':')).encode('utf-8')
+    plan = {
+        'version': 3,
+        'status': 'complete',
+        'request_sha256': hashlib.sha256(req_bytes).hexdigest(),
+        'source_id': hashlib.sha256(real_pcb.read_bytes()).hexdigest(),
+        'added_tracks': [{
+            'id': '10000000-0000-4000-8000-000000000903',
+            'net': 1, 'layer': 'F.Cu',
+            'start': [2_000_000, 6_000_000], 'end': [18_000_000, 6_000_000],
+            'width_nm': 200_000, 'locked': False,
+        }],
+        'added_vias': [],
+        'removed_track_ids': [],
+        'expanded_states': 0,
+        'work_used': 0,
+    }
+    sym_out = link_dir / 'sym_applied.kicad_pcb'
+    bridge.apply_plan(link_pcb, plan, sym_out, expected_request=req_bytes)
+    assert sym_out.exists()
+
+    # FIFO sidecar must fail immediately without hanging
+    fifo_dir = tmp_path / 'fifo'
+    fifo_dir.mkdir()
+    fifo_pcb = fifo_dir / 'fifo_board.kicad_pcb'
+    fifo_pcb.write_bytes(real_pcb.read_bytes())
+    os.mkfifo(fifo_pcb.with_suffix('.kicad_pro'))
+    with pytest.raises(ValueError, match='regular file'):
+        bridge.resolve_sidecars(fifo_pcb)
+
+
+def test_tier5_stackup_utf8_collinear_bowtie_and_parse_last_json_line():
+    # GAP-04: UTF-8 layer names and escaped S-expression strings
+    sexpr = b'(kicad_pcb (setup (stackup (layer "\xc2\xb5Cu" (type "copper") (thickness 0.035)) (layer "In\\"1\\\\Cu" (type "copper") (thickness 0.035)))))'
+    parsed = bridge._parse_pcb_stackup(sexpr)
+    assert [layer['name'] for layer in parsed] == ['µCu', 'In"1\\Cu']
+
+    # GAP-08: zero-area bowtie and folded 5-point ring rejected
+    assert bridge._is_collinear_ring([[0, 0], [1000, 1000], [1000, 0], [0, 1000]]) is True
+    assert bridge._is_collinear_ring([[0, 0], [1000, 0], [1000, 1000], [1000, 0], [0, 0]]) is True
+    assert bridge._is_collinear_ring([[0, 0], [1000, 0], [1000, 1000], [0, 1000]]) is False
+
+    # GAP-05: parse_last_json_line edge cases
+    from tests.e2e_rust_router.drivers import parse_last_json_line
+    assert parse_last_json_line('{"a": 1} [1, 2]') is None
+    assert parse_last_json_line('{"a": 1}\n[1, 2]') is None
+    assert parse_last_json_line('{"ok": 1}\n{"ok": 2') is None
+    assert parse_last_json_line('{"a": NaN}') is None
+    assert parse_last_json_line('{"a": Infinity}') is None
+    assert parse_last_json_line('{"a": 1} {"b": 2}') == {'b': 2}
+    assert parse_last_json_line('{"msg": "hi\\n"} {"b": 2}') == {'b': 2}
+
+
+
 
 
 
