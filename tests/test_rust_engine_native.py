@@ -822,7 +822,7 @@ def test_native_adapter_exports_pad_and_footprint_local_clearance(native_board):
 
 
 @pytest.mark.parametrize('feature', [
-    'copper_field', 'footprint_edge', 'footprint_zone', 'net_tie', 'pad_mask', 'footprint_mask',
+    'copper_field', 'footprint_edge', 'footprint_placement_zone', 'net_tie', 'pad_mask', 'footprint_mask',
 ])
 def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_board, expected_request, feature):
     board = pcbnew.LoadBoard(str(native_board))
@@ -843,11 +843,11 @@ def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_b
         edge.SetStart(pcbnew.VECTOR2I(5000000, 5000000))
         edge.SetEnd(pcbnew.VECTOR2I(15000000, 5000000))
         footprint.Add(edge)
-    elif feature == 'footprint_zone':
+    elif feature == 'footprint_placement_zone':
         zone = pcbnew.ZONE(footprint)
         zone.SetLayer(pcbnew.F_Cu)
         zone.SetIsRuleArea(True)
-        zone.SetDoNotAllowTracks(True)
+        zone.SetPlacementAreaEnabled(True)
         polygon = zone.Outline()
         polygon.NewOutline()
         for x, y in [(5000000, 5000000), (15000000, 5000000), (15000000, 15000000)]:
@@ -2869,4 +2869,183 @@ def test_pad_interior_track_attachment_native_collision(tmp_path, guarded_cli):
         assert any(shape.Collide(pt, 0) for pt in endpoints), f'pad {fp.GetReference()} lacks interior track vertex'
     drc = bridge.native_violations(out, tmp_path / 'rf_interior_drc.json')
     assert drc['unconnected_items'] == [] and drc['violations'] == []
+
+
+def test_footprint_owned_zones_and_rule_areas_export_avoidance_and_preservation(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.BOARD()
+    board.SetCopperLayerCount(4)
+    board.Add(pcbnew.NETINFO_ITEM(board, 'SIG', 1))
+    for a, b in [((0, 0), (20_000_000, 0)), ((20_000_000, 0), (20_000_000, 20_000_000)),
+                 ((20_000_000, 20_000_000), (0, 20_000_000)), ((0, 20_000_000), (0, 0))]:
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50_000)
+        board.Add(edge)
+    for idx, x in enumerate((4_000_000, 16_000_000), 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(x, 10_000_000))
+        board.Add(fp)
+        pad = pcbnew.PAD(fp)
+        pad.SetNumber('1')
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_RECT)
+        pad.SetSize(pcbnew.VECTOR2I(1_200_000, 1_200_000))
+        pad.SetPosition(pcbnew.VECTOR2I(x, 10_000_000))
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        pad.SetLayerSet(ls)
+        pad.SetNetCode(1)
+        fp.Add(pad)
+    # Footprint-owned keepout blocking tracks/vias/fills right between J1 and J2 on all copper layers.
+    ko_fp = pcbnew.FOOTPRINT(board)
+    ko_fp.SetReference('KO1')
+    ko_fp.SetPosition(pcbnew.VECTOR2I(10_000_000, 10_000_000))
+    board.Add(ko_fp)
+    ko = pcbnew.ZONE(ko_fp)
+    ko.SetIsRuleArea(True)
+    ko.SetZoneName('fp_keepout')
+    ko.SetDoNotAllowTracks(True)
+    ko.SetDoNotAllowVias(True)
+    ko.SetDoNotAllowZoneFills(True)
+    ko_layers = pcbnew.LSET()
+    for lid in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu):
+        ko_layers.AddLayer(lid)
+    ko.SetLayerSet(ko_layers)
+    _add_rect_outline(ko.Outline(), 8_000_000, 8_000_000, 12_000_000, 12_000_000)
+    ko_fp.Add(ko)
+    ko_uuid = ko.m_Uuid.AsString()
+    # Second footprint owning an ANT1-style zone-fill-only rule area on inner layers.
+    ant_fp = pcbnew.FOOTPRINT(board)
+    ant_fp.SetReference('ANT1')
+    ant_fp.SetPosition(pcbnew.VECTOR2I(10_000_000, 4_000_000))
+    board.Add(ant_fp)
+    ant_z = pcbnew.ZONE(ant_fp)
+    ant_z.SetIsRuleArea(True)
+    ant_z.SetDoNotAllowZoneFills(True)
+    ant_layers = pcbnew.LSET()
+    ant_layers.AddLayer(pcbnew.In1_Cu)
+    ant_layers.AddLayer(pcbnew.In2_Cu)
+    ant_z.SetLayerSet(ant_layers)
+    _add_rect_outline(ant_z.Outline(), 9_000_000, 3_000_000, 11_000_000, 5_000_000)
+    ant_fp.Add(ant_z)
+    ant_uuid = ant_z.m_Uuid.AsString()
+    src = tmp_path / 'fp_rule_areas.kicad_pcb'
+    assert pcbnew.SaveBoard(str(src), board)
+    src_bytes = src.read_bytes()
+
+    exported = bridge.export_board(src, RULES, 100000)
+    by_id = {ra['id']: ra for ra in exported['rule_areas']}
+    assert set(by_id) == {ko_uuid, ant_uuid}
+    assert by_id[ko_uuid]['no_tracks'] is True and by_id[ko_uuid]['no_vias'] is True and by_id[ko_uuid]['no_zone_fills'] is True
+    assert by_id[ant_uuid]['no_zone_fills'] is True and by_id[ant_uuid]['layers'] == ['In1.Cu', 'In2.Cu']
+
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(RULES))
+    out = tmp_path / 'fp_rule_areas_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, res.stderr
+    assert src.read_bytes() == src_bytes
+
+    routed = pcbnew.LoadBoard(str(out))
+    routed.BuildConnectivity()
+    assert routed.GetConnectivity().GetUnconnectedCount(False) == 0
+    drc = bridge.native_violations(out, tmp_path / 'fp_ra_drc.json')
+    assert drc['unconnected_items'] == [] and drc['violations'] == []
+    tracks = [t for t in routed.GetTracks() if type(t) is pcbnew.PCB_TRACK]
+    ko_box = pcbnew.SHAPE_RECT(8_000_000, 8_000_000, 4_000_000, 4_000_000)
+    assert tracks and not any(t.GetEffectiveShape(pcbnew.F_Cu).Collide(ko_box, 0) for t in tracks)
+    out_fp_zones = {z.m_Uuid.AsString(): z for fp in routed.GetFootprints() for z in fp.Zones()}
+    assert set(out_fp_zones) == {ko_uuid, ant_uuid}
+    assert out_fp_zones[ko_uuid].GetIsRuleArea() and out_fp_zones[ko_uuid].GetDoNotAllowTracks()
+    assert out_fp_zones[ant_uuid].GetIsRuleArea() and out_fp_zones[ant_uuid].GetDoNotAllowZoneFills()
+
+    # Fail-closed negative control: hatched copper zone inside footprint -> UnsupportedBoard
+    bad_board = pcbnew.LoadBoard(str(src))
+    bad_fp = next(f for f in bad_board.GetFootprints() if f.GetReference() == 'ANT1')
+    hz = pcbnew.ZONE(bad_fp)
+    hz.SetIsRuleArea(False)
+    hz.SetLayer(pcbnew.F_Cu)
+    hz.SetNetCode(1)
+    hz.SetFillMode(pcbnew.ZONE_FILL_MODE_HATCH_PATTERN)
+    _add_rect_outline(hz.Outline(), 1_000_000, 1_000_000, 3_000_000, 3_000_000)
+    bad_fp.Add(hz)
+    bad_path = tmp_path / 'fp_hatched.kicad_pcb'
+    assert pcbnew.SaveBoard(str(bad_path), bad_board)
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_board(bad_path, RULES, 100000)
+
+
+def test_teardrop_enabled_board_without_copper_pours_refills_and_saves_teardrops(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.BOARD()
+    board.Add(pcbnew.NETINFO_ITEM(board, 'SIG', 1))
+    for a, b in [((0, 0), (20_000_000, 0)), ((20_000_000, 0), (20_000_000, 10_000_000)),
+                 ((20_000_000, 10_000_000), (0, 10_000_000)), ((0, 10_000_000), (0, 0))]:
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50_000)
+        board.Add(edge)
+    for idx, x in enumerate((4_000_000, 16_000_000), 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(x, 5_000_000))
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.Add(fp)
+        pad = pcbnew.PAD(fp)
+        pad.SetNumber('1')
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_PTH)
+        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+        pad.SetSize(pcbnew.VECTOR2I(1_600_000, 1_600_000))
+        pad.SetDrillSize(pcbnew.VECTOR2I(800_000, 800_000))
+        pad.SetLayerSet(pad.PTHMask())
+        pad.SetPosition(pcbnew.VECTOR2I(x, 5_000_000))
+        pad.SetNetCode(1)
+        pad.SetTeardropsEnabled(True)
+        fp.Add(pad)
+    src = tmp_path / 'teardrop_pads.kicad_pcb'
+    assert pcbnew.SaveBoard(str(src), board)
+    assert list(pcbnew.LoadBoard(str(src)).Zones()) == []
+    src_bytes = src.read_bytes()
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(RULES))
+
+    out = tmp_path / 'teardrop_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, res.stderr
+    assert src.read_bytes() == src_bytes
+    op = json.loads(res.stdout)
+    assert op['status'] == 'complete'
+
+    routed = pcbnew.LoadBoard(str(out))
+    routed.BuildConnectivity()
+    assert routed.GetConnectivity().GetUnconnectedCount(False) == 0
+    td_zones = [z for z in routed.Zones() if z.IsTeardropArea()]
+    assert len(td_zones) > 0
+    assert all(p.GetTeardropsEnabled() for p in routed.GetPads())
+    drc = bridge.native_violations(out, tmp_path / 'td_drc.json')
+    assert drc['unconnected_items'] == [] and drc['violations'] == []
+
+    # Control: without SetTeardropsEnabled or copper pours, no teardrop zones are generated.
+    plain_board = pcbnew.LoadBoard(str(src))
+    for p in plain_board.GetPads():
+        p.SetTeardropsEnabled(False)
+    plain_src = tmp_path / 'plain_pads.kicad_pcb'
+    assert pcbnew.SaveBoard(str(plain_src), plain_board)
+    plain_out = tmp_path / 'plain_routed.kicad_pcb'
+    res_plain = run([str(engine), 'route-native', str(plain_src), str(plain_out), '--rules', str(rules_path)], check=False)
+    assert res_plain.returncode == 0, res_plain.stderr
+    assert sum(1 for z in pcbnew.LoadBoard(str(plain_out)).Zones() if z.IsTeardropArea()) == 0
+
+
 

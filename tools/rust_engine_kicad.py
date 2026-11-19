@@ -962,6 +962,29 @@ def _extract_rule_area_polygon(zone):
     return _extract_zone_polygons(zone, label='rule area')[0]
 
 
+def _all_board_zones(board):
+    zones = list(board.Zones())
+    for footprint in board.GetFootprints():
+        zones.extend(footprint.Zones())
+    return zones
+
+
+def _board_has_teardrops(board, all_zones=None) -> bool:
+    zones = _all_board_zones(board) if all_zones is None else all_zones
+    if hasattr(board, 'LegacyTeardrops') and board.LegacyTeardrops():
+        return True
+    if any(z.IsTeardropArea() for z in zones):
+        return True
+    if any(pad.GetTeardropsEnabled() for pad in board.GetPads()):
+        return True
+    if any(
+        isinstance(track, pcbnew.PCB_VIA) and track.GetTeardropsEnabled()
+        for track in board.GetTracks()
+    ):
+        return True
+    return False
+
+
 def _validate_zone(zone, cu_set):
     raw_copper = [l for l in zone.GetLayerSet().Seq() if pcbnew.IsCopperLayer(l)]
     if any(l not in cu_set for l in raw_copper):
@@ -1054,8 +1077,8 @@ def load_supported(path: Path, *, project_path: Path | None = None):
             raise UnsupportedBoard('negative footprint clearance overrides are not represented')
         if footprint.GetLocalSolderMaskMargin() is not None:
             raise UnsupportedBoard('footprint solder-mask margins are not represented')
-        if footprint.Zones():
-            raise UnsupportedBoard('footprint zones and rule areas are not represented')
+        for zone in footprint.Zones():
+            _validate_zone(zone, cu_set)
         if footprint.IsNetTie():
             raise UnsupportedBoard('net-tie connectivity is not represented')
         for field in footprint.GetFields():
@@ -1398,7 +1421,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     if type(max_expansions) is not int or max_expansions <= 0:
         raise ValueError('max_expansions must be positive')
     bounds, board_outline = _board_bounds_and_outline(board)
-    has_copper_zones = any(not z.GetIsRuleArea() for z in board.Zones())
+    all_zones = _all_board_zones(board)
+    has_copper_zones = any(not z.GetIsRuleArea() and not z.IsTeardropArea() for z in all_zones)
     pads = []
     holes = []
     components = []
@@ -1502,11 +1526,14 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     vias.sort(key=lambda item: (item['net'], item['at'], item['id']))
 
     if has_copper_zones:
-        pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+        zone_vec = pcbnew.ZONES()
+        for z in all_zones:
+            zone_vec.append(z)
+        pcbnew.ZONE_FILLER(board).Fill(zone_vec)
 
     rule_areas = []
     zones = []
-    for zone in board.Zones():
+    for zone in all_zones:
         zlayers = [board.GetLayerName(l) for l in cu_layers if zone.GetLayerSet().Contains(l)]
         if not zlayers:
             continue
@@ -1900,7 +1927,10 @@ def _extract_pour_facts(board_path: Path) -> dict:
         bb = s.BBox()
         return [mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom())]
 
-    zones = [z for z in board.Zones() if not z.GetIsRuleArea() and z.GetNetCode() > 0]
+    zones = [
+        z for z in _all_board_zones(board)
+        if not z.GetIsRuleArea() and not z.IsTeardropArea() and z.GetNetCode() > 0
+    ]
     zone_nets = {z.GetNetname() for z in zones}
 
     pads = {}
@@ -2365,7 +2395,10 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     used_ids |= {item_id(x) for fp in board.GetFootprints() for x in fp.GraphicalItems()}
     used_ids |= {item_id(x) for x in board.Zones()}
     used_ids |= {item_id(x) for fp in board.GetFootprints() for x in fp.Zones()}
-    has_copper_zones = any(not z.GetIsRuleArea() for z in board.Zones())
+    all_zones = _all_board_zones(board)
+    has_copper_zones = any(not z.GetIsRuleArea() and not z.IsTeardropArea() for z in all_zones)
+    has_teardrops = _board_has_teardrops(board, all_zones)
+    needs_refill = has_copper_zones or has_teardrops
     nets = set(board.GetNetsByNetcode())
     allowed_track_keys = {'id', 'net', 'layer', 'start', 'end', 'width_nm', 'locked'}
     required_track_keys = {'id', 'net', 'start', 'end', 'width_nm', 'locked'}
@@ -2456,7 +2489,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             src_sc = source.with_suffix(suffix)
             if src_sc.is_file():
                 temporary.with_suffix(suffix).write_bytes(src_sc.read_bytes())
-        if has_copper_zones:
+        if needs_refill:
             before_dir = directory / 'before_refill'
             before_dir.mkdir()
             before_board = before_dir / source.name
