@@ -2741,7 +2741,7 @@ fn execute_staged_phases(
     Ok(())
 }
 
-const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--ac-couple-chain-json <JSON>] [--ac-match-tolerance <MM>] [--ac-meander-amplitude <MM>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
+const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--ac-couple-chain-json <JSON>] [--ac-match-tolerance <MM>] [--ac-meander-amplitude <MM>] [--bus] [--bus-detection-radius <MM>] [--bus-attraction-radius <MM>] [--bus-attraction-bonus <N>] [--bus-min-nets <N>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
 
 fn take_flag_value(
     args: &[OsString],
@@ -2799,7 +2799,7 @@ fn parse_f64_flag(val: &OsString, flag: &str, strictly_positive: bool) -> Result
 
 fn f64_scaled_to_i64(val: f64, scale: f64, flag: &str) -> Result<i64, String> {
     let scaled = (val * scale).round();
-    if !scaled.is_finite() || scaled > (i64::MAX as f64) || scaled < (i64::MIN as f64) {
+    if !scaled.is_finite() || scaled >= -(i64::MIN as f64) || scaled < (i64::MIN as f64) {
         return Err(format!("{flag} value out of representable range"));
     }
     Ok(scaled as i64)
@@ -2871,6 +2871,8 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
     let mut pour_area_loss: Option<f64> = None;
     let mut pour_min_spokes: Option<u32> = None;
     let mut routing_options = crate::model::RoutingOptions::default();
+    let mut bus = crate::model::BusOptions::default();
+    let mut bus_flags = HashSet::new();
     let mut saw_pair_layers = false;
     let mut saw_length_match_tolerance = false;
     let mut saw_meander_amplitude = false;
@@ -3403,6 +3405,46 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             routing_options.ac_meander_amplitude_nm = Some(nm);
                             last_variadic_target = None;
                         }
+                        "--bus"
+                        | "--bus-detection-radius"
+                        | "--bus-attraction-radius"
+                        | "--bus-attraction-bonus"
+                        | "--bus-min-nets" => {
+                            if !bus_flags.insert(flag) {
+                                return Err(format!("duplicate {flag} flag"));
+                            }
+                            if flag == "--bus" {
+                                if inline.is_some() {
+                                    return Err("--bus takes no value".to_owned());
+                                }
+                            } else {
+                                let value = take_flag_value(args, &mut i, inline, flag)?;
+                                match flag {
+                                    "--bus-attraction-bonus" => {
+                                        bus.attraction_bonus =
+                                            parse_u64_flag(&value, flag, 0, u32::MAX.into())?
+                                                as u32;
+                                    }
+                                    "--bus-min-nets" => {
+                                        bus.min_nets =
+                                            parse_u64_flag(&value, flag, 2, usize::MAX as u64)?
+                                                as usize;
+                                    }
+                                    _ => {
+                                        let mm = parse_f64_flag(&value, flag, true)?;
+                                        if mm < 0.000001 {
+                                            return Err(format!("{flag} must be at least 1 nm"));
+                                        }
+                                        let nm = f64_scaled_to_i64(mm, 1_000_000.0, flag)?;
+                                        if flag == "--bus-detection-radius" {
+                                            bus.detection_radius_nm = nm;
+                                        } else {
+                                            bus.attraction_radius_nm = nm;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         "--protect" => {
                             if saw_protect {
                                 return Err("duplicate --protect flag".to_owned());
@@ -3450,6 +3492,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
         &mut routing_options,
     );
 
+    if bus_flags.contains("--bus") {
+        routing_options.bus = Some(bus);
+    } else if !bus_flags.is_empty() {
+        return Err("bus controls require --bus".into());
+    }
     if positional.len() != 2 {
         return Err(format!(
             "expected <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb>, got {} positional arguments",
@@ -4145,24 +4192,80 @@ elif cmd == "apply":
             "--ac-couple-chain-json",
             "--ac-match-tolerance",
             "--ac-meander-amplitude",
+            "--bus",
+            "--bus-detection-radius",
+            "--bus-attraction-radius",
+            "--bus-attraction-bonus",
+            "--bus-min-nets",
             "--protect",
             "--nets",
         ] {
             assert!(USAGE_MSG.contains(flag), "missing CLI flag {flag}");
         }
-        for forbidden in ["--bus"] {
-            assert!(
-                !USAGE_MSG.contains(forbidden),
-                "unimplemented M5 flag {forbidden} leaked into USAGE_MSG"
-            );
-        }
-        let m5_err = parse_cli_args(&[
-            OsString::from("src.kicad_pcb"),
-            OsString::from("out.kicad_pcb"),
-            OsString::from("--bus"),
+    }
+
+    #[test]
+    fn bus_cli_checks_units_ranges_and_opt_in_before_routing() {
+        let parse = |flags: &[&str]| {
+            let mut args = vec![
+                OsString::from("src.kicad_pcb"),
+                OsString::from("out.kicad_pcb"),
+            ];
+            args.extend(flags.iter().map(OsString::from));
+            parse_cli_args(&args).map(|cfg| cfg.routing_options.bus)
+        };
+        assert_eq!(parse(&[]).unwrap(), None);
+        assert_eq!(
+            parse(&["--bus"]).unwrap(),
+            Some(crate::model::BusOptions::default())
+        );
+        let config = parse(&[
+            "--bus-detection-radius",
+            "0.25",
+            "--bus",
+            "--bus-attraction-radius=0.000001",
+            "--bus-attraction-bonus",
+            "0",
+            "--bus-min-nets=3",
         ])
-        .unwrap_err();
-        assert!(m5_err.contains("unknown flag"));
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            (
+                config.detection_radius_nm,
+                config.attraction_radius_nm,
+                config.attraction_bonus,
+                config.min_nets
+            ),
+            (250_000, 1, 0, 3)
+        );
+        for flags in [
+            vec!["--bus-min-nets=2"],
+            vec!["--bus", "--bus"],
+            vec!["--bus=1"],
+            vec!["--bus", "--bus-attraction-radius=NaN"],
+            vec!["--bus", "--bus-detection-radius=0.0000009"],
+            vec!["--bus", "--bus-detection-radius=9223372036854.775808"],
+            vec!["--bus", "--bus-min-nets=1"],
+            vec!["--bus", "--bus-attraction-bonus=-1"],
+            vec![
+                "--bus",
+                "--bus-attraction-radius=1",
+                "--bus-attraction-radius=2",
+            ],
+        ] {
+            assert!(parse(&flags).is_err(), "accepted {flags:?}");
+        }
+        let fixture = include_bytes!("../tests/fixtures/multiterminal-native-two-nets.json");
+        let mut input: Input = serde_json::from_slice(fixture).unwrap();
+        input.routing_options = Some(crate::model::RoutingOptions {
+            bus: Some(crate::model::BusOptions {
+                detection_radius_nm: 0,
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        assert_eq!(input.validate().unwrap_err().status, Status::Invalid);
     }
 
     #[test]
