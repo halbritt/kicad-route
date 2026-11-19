@@ -511,10 +511,36 @@ fn search_component_path(
     let mut via_only_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
     let mut via_seed_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut seed_blocked_vias: Vec<(u8, u8, bool)> = Vec::new();
+    // A final pad opposite the interior of an existing trace can take a
+    // perpendicular branch. Endpoints alone make the result depend on which pad
+    // appeared first in the input. The ordinary seed checks below still apply.
+    let tap_target = match targets {
+        [group] => match group.as_slice() {
+            [pad @ Copper::Pad(p)] => Some((p.copper_center(), pad.layer_mask(stackup))),
+            _ => None,
+        },
+        _ => None,
+    };
     for c in source {
         engine.work.charge(1)?;
         let c_mask = c.layer_mask(stackup);
-        let anchors = c.anchors(engine.input.bounds.min, engine.input.rules.grid_nm);
+        let mut anchors = c.anchors(engine.input.bounds.min, engine.input.rules.grid_nm);
+        if let (Copper::Track(t), Some((pad, layers))) = (c, tap_target) {
+            if c_mask & layers != 0 {
+                for axis in 0..2 {
+                    let a = t.start[axis];
+                    let b = t.end[axis];
+                    if a.min(b) < pad[axis]
+                        && pad[axis] < a.max(b)
+                        && t.start[1 - axis] == t.end[1 - axis]
+                    {
+                        let mut projection = t.start;
+                        projection[axis] = pad[axis];
+                        anchors.push(projection);
+                    }
+                }
+            }
+        }
         for l_idx in 0..l_count {
             if (c_mask & source_layers & (1u32 << l_idx)) == 0 {
                 continue;

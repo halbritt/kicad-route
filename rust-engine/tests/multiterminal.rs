@@ -892,3 +892,29 @@ fn straddling_overlap_splits_and_work_exhaustion_rolls_back_cleanly() {
     fresh.route(1, 10_000).unwrap();
     assert_eq!(generated(&fresh), baseline_tracks);
 }
+
+#[test]
+fn a_pad_can_branch_from_the_interior_of_an_existing_trace() {
+    for pads in [[[10, 40], [40, 60]], [[40, 60], [10, 40]]] {
+        for transpose in [false, true] {
+            let transform = |[x, y]: Point| if transpose { [y, x] } else { [x, y] };
+            let mut board = fixture(&pads.map(transform));
+            board
+                .tracks
+                .push(track(9, 1, transform([10, 40]), transform([90, 40]), true));
+            let routed = run(board.clone());
+            assert_eq!(routed.status, Status::Complete, "{:?}", routed.reason);
+            valid_complete(&board, &routed.added_tracks);
+            let [spur] = routed.added_tracks.as_slice() else {
+                panic!(
+                    "expected one perpendicular branch, got {:?}",
+                    routed.added_tracks
+                );
+            };
+            let (a, b) = (transform(spur.start), transform(spur.end));
+            assert_eq!((a[0], b[0]), (40, 40));
+            assert!((a[1] - b[1]).abs() <= 20);
+            assert!(routed.removed_track_ids.is_empty());
+        }
+    }
+}
