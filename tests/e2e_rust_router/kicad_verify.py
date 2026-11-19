@@ -72,11 +72,18 @@ class FixtureBundle:
     dru_path: Path | None = None
 
 
+_BOARD_KIID_INITIALIZED = False
+
+
 class BoardBuilder:
     """Declarative programmatic KiCad 10 board/project/rule fixture builder."""
 
     def __init__(self, *, copper_layers: int = 2, seed: int = 1) -> None:
+        global _BOARD_KIID_INITIALIZED
         pn = _pcbnew()
+        if not _BOARD_KIID_INITIALIZED:
+            _ = pn.BOARD()
+            _BOARD_KIID_INITIALIZED = True
         pn.KIID.SeedGenerator(seed)
         self.pn = pn
         self.board = pn.BOARD()

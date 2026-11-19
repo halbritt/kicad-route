@@ -1671,7 +1671,15 @@ fn r4_measure_fromto_short_segment_via_copper_and_three_pad_fromto_dru() {
     let plan = discover_and_validate(&inp, &r).unwrap();
     assert_eq!(plan.pairs[0].dru_skew_max_nm, Some(30_000));
 
-    // Also 3-pad pair net matching A.fromTo('J1-1', 'J2-1')
+    // Two-pad diff pair matching A.fromTo('J1-1', 'J2-1') || A.fromTo('J1-2', 'J2-2');
+    // adding a 3rd pad to the diff pair legs refuses with Status::Invalid.
+    inp.custom_rules = Some(
+        "(version 1)\n(rule \"dp3\" (condition \"A.fromTo('J1-1', 'J2-1') || A.fromTo('J1-2', 'J2-2')\") (constraint skew (max 0.045mm)))".into(),
+    );
+    let r2 = resolve_effective_rules(&mut inp).unwrap();
+    let plan2 = discover_and_validate(&inp, &r2).unwrap();
+    assert_eq!(plan2.pairs[0].dru_skew_max_nm, Some(45_000));
+
     let mut p3 = pad(100, 1, [25_000_000, 10_000_000], &["F.Cu"]);
     p3.footprint_ref = Some("J3".into());
     p3.pad_number = Some("1".into());
@@ -1679,12 +1687,8 @@ fn r4_measure_fromto_short_segment_via_copper_and_three_pad_fromto_dru() {
     n3.footprint_ref = Some("J3".into());
     n3.pad_number = Some("2".into());
     inp.pads.extend([p3, n3]);
-    inp.custom_rules = Some(
-        "(version 1)\n(rule \"dp3\" (condition \"A.fromTo('J1-1', 'J2-1') || A.fromTo('J1-2', 'J2-2')\") (constraint skew (max 0.045mm)))".into(),
-    );
-    let r2 = resolve_effective_rules(&mut inp).unwrap();
-    let plan2 = discover_and_validate(&inp, &r2).unwrap();
-    assert_eq!(plan2.pairs[0].dru_skew_max_nm, Some(45_000));
+    let err_three_pad_dp = discover_and_validate(&inp, &r2).unwrap_err();
+    assert_eq!(err_three_pad_dp.status, Status::Invalid);
 
     // 2. measure_net_fromto short-segment bypass (< width_nm vs >= width_nm) via group matching
     let run_step_probe = |step_h: i64| -> f64 {
@@ -5302,4 +5306,260 @@ fn dp_pad_1mm_short_escape_vbump_matches_within_tolerance() {
         len_of(1),
         len_of(2)
     );
+}
+
+#[test]
+fn three_pad_differential_pair_refuses_invalid_unrouted_and_prerouted() {
+    use kicad_route_engine::model::Status;
+
+    // 1. 3-pad P + 2-pad N unrouted
+    let mut inp = base_diff_input(&["DP_P", "DP_N"]);
+    inp.pads[0].at = [5_000_000, 10_000_000];
+    inp.pads[1].at = [20_000_000, 10_000_000];
+    inp.pads[2].at = [5_000_000, 10_400_000];
+    inp.pads[3].at = [20_000_000, 10_400_000];
+    inp.pads
+        .push(pad(99, 1, [12_000_000, 12_000_000], &["F.Cu"]));
+    inp.rules.width_nm = 200_000;
+    inp.rules.clearance_nm = 150_000;
+    inp.rules.grid_nm = 200_000;
+    inp.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        ..Default::default()
+    });
+    let out_unrouted_one = kicad_route_engine::run(inp.clone());
+    assert_eq!(
+        out_unrouted_one.status,
+        Status::Invalid,
+        "3-pad P / 2-pad N unrouted must fail Invalid, got {:?}",
+        out_unrouted_one.reason
+    );
+
+    // 2. 3-pad P + 3-pad N unrouted
+    let mut inp_both = inp.clone();
+    inp_both
+        .pads
+        .push(pad(100, 2, [12_000_000, 12_400_000], &["F.Cu"]));
+    let out_unrouted_both = kicad_route_engine::run(inp_both);
+    assert_eq!(
+        out_unrouted_both.status,
+        Status::Invalid,
+        "3-pad P / 3-pad N unrouted must fail Invalid, got {:?}",
+        out_unrouted_both.reason
+    );
+
+    // 3. 3-pad P (2 pads pre-routed, 3rd pad open) + 2-pad N pre-routed under ProtectMode::Human / None
+    for mode in [ProtectMode::Human, ProtectMode::None] {
+        let mut inp_pre = inp.clone();
+        inp_pre.tracks.push(Track {
+            id: uuid(930),
+            net: 1,
+            start: [5_000_000, 10_000_000],
+            end: [20_000_000, 10_000_000],
+            width_nm: 200_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        });
+        inp_pre.tracks.push(Track {
+            id: uuid(931),
+            net: 2,
+            start: [5_000_000, 10_400_000],
+            end: [20_000_000, 10_400_000],
+            width_nm: 200_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        });
+        inp_pre.routing_options = Some(RoutingOptions {
+            diff_pairs_mode: Some(DiffPairsMode::Auto),
+            protect_mode: Some(mode),
+            ..Default::default()
+        });
+        let out_pre = kicad_route_engine::run(inp_pre);
+        assert_eq!(
+            out_pre.status,
+            Status::Invalid,
+            "3-pad partially pre-routed mode={mode:?} must fail Invalid, got {:?}",
+            out_pre.reason
+        );
+        assert!(out_pre.added_tracks.is_empty());
+    }
+}
+
+#[test]
+fn small_delta_single_ended_and_coupled_diff_pair_group_matching() {
+    use kicad_route_engine::model::Status;
+
+    // 1. Single-ended 1-layer group matching across small deltas (25..150 um)
+    for delta in [25_000_i64, 50_000, 100_000, 150_000] {
+        let mut inp = base_diff_input(&["N1", "N2"]);
+        inp.layers = vec!["F.Cu".to_owned()];
+        inp.pads[0].at = [5_000_000, 10_000_000];
+        inp.pads[1].at = [15_000_000, 10_000_000];
+        inp.pads[2].at = [5_000_000, 15_000_000];
+        inp.pads[3].at = [15_000_000 + delta, 15_000_000];
+        inp.rules.width_nm = 200_000;
+        inp.rules.clearance_nm = 150_000;
+        inp.rules.grid_nm = 200_000;
+        if let Some(bds) = inp.board_design_settings.as_mut() {
+            bds.default_clearance_nm = 150_000;
+            bds.default_track_width_nm = 200_000;
+            for nc in &mut bds.netclasses {
+                nc.clearance_nm = 150_000;
+                nc.track_width_nm = 200_000;
+            }
+        }
+        inp.tracks.push(Track {
+            id: uuid(940),
+            net: 2,
+            start: [5_000_000, 15_000_000],
+            end: [15_000_000 + delta, 15_000_000],
+            width_nm: 200_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        });
+        inp.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["N1".into(), "N2".into()],
+                tolerance_nm: Some(10_000),
+                meander_amplitude_nm: Some(500_000),
+                meander_spacing_widths: Some(2.5),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let out = kicad_route_engine::run(inp);
+        assert_eq!(
+            out.status,
+            Status::Complete,
+            "SE delta={delta} failed: {:?}",
+            out.reason
+        );
+        let n1_len: f64 = out
+            .added_tracks
+            .iter()
+            .filter(|t| t.net == 1)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum();
+        let n2_len = (10_000_000 + delta) as f64;
+        let skew = (n1_len - n2_len).abs();
+        assert!(
+            skew <= 10_000.0,
+            "SE delta={delta} skew={skew} > 10_000 (N1={n1_len}, N2={n2_len})"
+        );
+    }
+
+    // 2. Coupled differential-pair group matching across small deltas (25..150 um)
+    for delta in [25_000_i64, 50_000, 100_000, 150_000] {
+        let mut inp = base_diff_input(&["D1_P", "D1_N", "D2_P", "D2_N"]);
+        inp.pads[0].at = [5_000_000, 10_000_000];
+        inp.pads[1].at = [15_000_000, 10_000_000];
+        inp.pads[2].at = [5_000_000, 10_400_000];
+        inp.pads[3].at = [15_000_000, 10_400_000];
+        inp.pads[4].at = [5_000_000, 20_000_000];
+        inp.pads[5].at = [15_000_000 + delta, 20_000_000];
+        inp.pads[6].at = [5_000_000, 20_400_000];
+        inp.pads[7].at = [15_000_000 + delta, 20_400_000];
+        inp.rules.width_nm = 200_000;
+        inp.rules.clearance_nm = 150_000;
+        inp.rules.grid_nm = 200_000;
+        if let Some(bds) = inp.board_design_settings.as_mut() {
+            bds.default_clearance_nm = 150_000;
+            bds.default_track_width_nm = 200_000;
+            for nc in &mut bds.netclasses {
+                nc.clearance_nm = 150_000;
+                nc.track_width_nm = 200_000;
+                nc.diff_pair_width_nm = 200_000;
+                nc.diff_pair_gap_nm = 200_000;
+            }
+        }
+        inp.tracks.push(Track {
+            id: uuid(941),
+            net: 3,
+            start: [5_000_000, 20_000_000],
+            end: [15_000_000 + delta, 20_000_000],
+            width_nm: 200_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        });
+        inp.tracks.push(Track {
+            id: uuid(942),
+            net: 4,
+            start: [5_000_000, 20_400_000],
+            end: [15_000_000 + delta, 20_400_000],
+            width_nm: 200_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        });
+        inp.routing_options = Some(RoutingOptions {
+            diff_pairs_mode: Some(DiffPairsMode::Auto),
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["D1_P".into(), "D1_N".into(), "D2_P".into(), "D2_N".into()],
+                tolerance_nm: Some(10_000),
+                meander_amplitude_nm: Some(500_000),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let out = kicad_route_engine::run(inp);
+        assert_eq!(
+            out.status,
+            Status::Complete,
+            "DP coupled delta={delta} failed: {:?}",
+            out.reason
+        );
+        let d1p_len: f64 = out
+            .added_tracks
+            .iter()
+            .filter(|t| t.net == 1)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum();
+        let d1n_len: f64 = out
+            .added_tracks
+            .iter()
+            .filter(|t| t.net == 2)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum();
+        let target_len = (10_000_000 + delta) as f64;
+        let max_len = d1p_len.max(d1n_len).max(target_len);
+        let min_len = d1p_len.min(d1n_len).min(target_len);
+        assert!(
+            max_len - min_len <= 10_500.0,
+            "DP coupled delta={delta} skew={} > 10_000 (D1_P={d1p_len}, D1_N={d1n_len}, D2={target_len})",
+            max_len - min_len
+        );
+    }
+
+    // 3. Small-amplitude fail-closed control matching T5-06 (0.11mm passes, 0.05mm refuses Unroutable)
+    let mk_amp_ctrl = |amp_nm: i64| {
+        let mut inp = base_diff_input(&["N1", "N2"]);
+        inp.pads[0].at = [10_000_000, 10_000_000];
+        inp.pads[1].at = [30_000_000, 10_000_000];
+        inp.pads[2].at = [10_000_000, 15_000_000];
+        inp.pads[3].at = [30_200_000, 15_000_000];
+        inp.rules.width_nm = 150_000;
+        inp.rules.clearance_nm = 150_000;
+        inp.rules.grid_nm = 100_000;
+        if let Some(bds) = inp.board_design_settings.as_mut() {
+            bds.default_clearance_nm = 150_000;
+            bds.default_track_width_nm = 150_000;
+            for nc in &mut bds.netclasses {
+                nc.clearance_nm = 150_000;
+                nc.track_width_nm = 150_000;
+            }
+        }
+        inp.routing_options = Some(RoutingOptions {
+            length_match_groups: vec![LengthMatchGroupSpec {
+                members: vec!["N1".into(), "N2".into()],
+                tolerance_nm: Some(50_000),
+                meander_amplitude_nm: Some(amp_nm),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        kicad_route_engine::run(inp)
+    };
+    let out_ok = mk_amp_ctrl(110_000);
+    assert_eq!(out_ok.status, Status::Complete, "{:?}", out_ok.reason);
+    let out_fail = mk_amp_ctrl(50_000);
+    assert_eq!(out_fail.status, Status::Unroutable, "{:?}", out_fail.reason);
 }

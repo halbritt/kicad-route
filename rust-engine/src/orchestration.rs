@@ -3087,9 +3087,9 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                                     serde_json::from_str(trimmed).map_err(|e| {
                                         format!("invalid --length-match-group-json array: {e}")
                                     })?;
-                                if members.is_empty() {
+                                if members.len() < 2 || members.iter().any(|m| m.is_empty()) {
                                     return Err(
-                                        "--length-match-group-json array must not be empty"
+                                        "--length-match-group-json array requires at least two non-empty members"
                                             .to_owned(),
                                     );
                                 }
@@ -3107,6 +3107,68 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                                 if spec.members.is_empty() && spec.from_to.is_empty() {
                                     return Err("--length-match-group-json spec must not be empty"
                                         .to_owned());
+                                }
+                                if spec.members.iter().any(|m| m.is_empty()) {
+                                    return Err(
+                                        "--length-match-group-json members must be non-empty strings"
+                                            .to_owned(),
+                                    );
+                                }
+                                if !spec.members.is_empty() && spec.members.len() < 2 {
+                                    return Err(
+                                        "--length-match-group-json members requires at least two entries"
+                                            .to_owned(),
+                                    );
+                                }
+                                if spec
+                                    .from_to
+                                    .iter()
+                                    .any(|pair| pair[0].is_empty() || pair[1].is_empty())
+                                {
+                                    return Err(
+                                        "--length-match-group-json from_to entries must be non-empty strings"
+                                            .to_owned(),
+                                    );
+                                }
+                                if spec.members.is_empty() && spec.from_to.len() < 2 {
+                                    return Err(
+                                        "--length-match-group-json from_to requires at least two entries when members is omitted"
+                                            .to_owned(),
+                                    );
+                                }
+                                if spec.tolerance_nm.is_some_and(|v| v < 0) {
+                                    return Err(
+                                        "--length-match-group-json tolerance_nm must be >= 0"
+                                            .to_owned(),
+                                    );
+                                }
+                                if spec.delay_tolerance_as.is_some_and(|v| v < 0) {
+                                    return Err(
+                                        "--length-match-group-json delay_tolerance_as must be >= 0"
+                                            .to_owned(),
+                                    );
+                                }
+                                if spec.tolerance_nm.is_some() && spec.delay_tolerance_as.is_some()
+                                {
+                                    return Err(
+                                        "--length-match-group-json tolerance_nm and delay_tolerance_as are mutually exclusive"
+                                            .to_owned(),
+                                    );
+                                }
+                                if spec.meander_amplitude_nm.is_some_and(|v| v <= 0) {
+                                    return Err(
+                                        "--length-match-group-json meander_amplitude_nm must be > 0"
+                                            .to_owned(),
+                                    );
+                                }
+                                if spec
+                                    .meander_spacing_widths
+                                    .is_some_and(|v| !v.is_finite() || v < 1.0)
+                                {
+                                    return Err(
+                                        "--length-match-group-json meander_spacing_widths must be finite and >= 1.0"
+                                            .to_owned(),
+                                    );
                                 }
                                 routing_options.length_match_groups.push(spec);
                             } else {
@@ -3221,9 +3283,9 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                                 serde_json::from_str(val.trim()).map_err(|e| {
                                     format!("invalid --ac-couple-chain-json array: {e}")
                                 })?;
-                            if refs.len() < 2 {
+                            if refs.len() < 2 || refs.iter().any(|r| r.is_empty()) {
                                 return Err(
-                                    "--ac-couple-chain-json requires at least two bridge references"
+                                    "--ac-couple-chain-json requires at least two non-empty bridge references"
                                         .to_owned(),
                                 );
                             }

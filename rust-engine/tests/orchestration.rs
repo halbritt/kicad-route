@@ -1386,6 +1386,40 @@ fn cli_refuses_sub_nm_ac_flags_and_short_ac_chain_with_exit_8() {
         vec!["--impedance-uncoupled", "1e-7"],
         vec!["--ac-couple-chain-json", "[]"],
         vec!["--ac-couple-chain-json", "[\"C1\"]"],
+        vec!["--ac-couple-chain-json", "[\"C1\",\"\"]"],
+        vec!["--length-match-group-json", "[\"N1\"]"],
+        vec!["--length-match-group-json", "[\"\"]"],
+        vec!["--length-match-group-json", "[\"N1\",\"\"]"],
+        vec!["--length-match-group-json", "{\"members\":[\"N1\"]}"],
+        vec!["--length-match-group-json", "{\"members\":[\"N1\",\"\"]}"],
+        vec![
+            "--length-match-group-json",
+            "{\"from_to\":[[\"U1-1\",\"U2-1\"]]}",
+        ],
+        vec![
+            "--length-match-group-json",
+            "{\"from_to\":[[\"U1-1\",\"\"],[\"U1-2\",\"U2-2\"]]}",
+        ],
+        vec![
+            "--length-match-group-json",
+            "{\"members\":[\"N1\",\"N2\"],\"tolerance_nm\":-1}",
+        ],
+        vec![
+            "--length-match-group-json",
+            "{\"members\":[\"N1\",\"N2\"],\"delay_tolerance_as\":-1}",
+        ],
+        vec![
+            "--length-match-group-json",
+            "{\"members\":[\"N1\",\"N2\"],\"tolerance_nm\":1000,\"delay_tolerance_as\":1000}",
+        ],
+        vec![
+            "--length-match-group-json",
+            "{\"members\":[\"N1\",\"N2\"],\"meander_amplitude_nm\":0}",
+        ],
+        vec![
+            "--length-match-group-json",
+            "{\"members\":[\"N1\",\"N2\"],\"meander_spacing_widths\":0.5}",
+        ],
     ]
     .into_iter()
     .enumerate()
@@ -1410,19 +1444,31 @@ fn cli_refuses_sub_nm_ac_flags_and_short_ac_chain_with_exit_8() {
         assert!(!poison_marker.exists());
     }
 
-    // Zero tolerance remains legal (does not trigger usage refusal)
-    let out_zero = ws.path("out_zero.kicad_pcb");
-    let res_zero = Command::new(engine_bin())
-        .args(["route-native"])
-        .arg(&source)
-        .arg(&out_zero)
-        .arg("--native-bridge")
-        .arg(&poison_bridge)
-        .args(["--length-match-tolerance", "0"])
-        .output()
-        .unwrap();
-    assert_eq!(res_zero.status.code(), Some(7));
-    assert!(poison_marker.exists());
+    // Zero tolerance and valid from_to JSON remain legal (reach the bridge)
+    for (idx, extra) in [
+        vec!["--length-match-tolerance", "0"],
+        vec![
+            "--length-match-group-json",
+            "{\"from_to\":[[\"U1-1\",\"U2-1\"],[\"U1-2\",\"U2-2\"]],\"tolerance_nm\":0,\"meander_amplitude_nm\":100000,\"meander_spacing_widths\":1.0}",
+        ],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let _ = fs::remove_file(&poison_marker);
+        let out_ok = ws.path(&format!("out_ok_{idx}.kicad_pcb"));
+        let res_ok = Command::new(engine_bin())
+            .args(["route-native"])
+            .arg(&source)
+            .arg(&out_ok)
+            .arg("--native-bridge")
+            .arg(&poison_bridge)
+            .args(&extra)
+            .output()
+            .unwrap();
+        assert_eq!(res_ok.status.code(), Some(7));
+        assert!(poison_marker.exists());
+    }
 }
 
 #[test]

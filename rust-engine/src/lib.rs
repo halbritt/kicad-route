@@ -3367,10 +3367,12 @@ impl Engine {
                 e
             })?;
             for n in &tx.engine.input.nets {
-                if n.id == 0
-                    || diff_state.routed_pair_nets.contains(&n.id)
-                    || !diff_state.protected_nets.contains(&n.id)
-                {
+                if n.id == 0 {
+                    continue;
+                }
+                let is_protected = diff_state.protected_nets.contains(&n.id);
+                let is_pair_net = diff_state.routed_pair_nets.contains(&n.id);
+                if !is_protected && !is_pair_net {
                     continue;
                 }
                 if !diff_state
@@ -3384,7 +3386,14 @@ impl Engine {
                 if tx.engine.components(n.id)?.len() > 1 {
                     return Err(Failure::new(
                         Status::Unroutable,
-                        format!("net {} ({:?}) is incomplete under --protect", n.id, n.name),
+                        if is_protected {
+                            format!("net {} ({:?}) is incomplete under --protect", n.id, n.name)
+                        } else {
+                            format!(
+                                "differential pair net {} ({:?}) has disconnected copper",
+                                n.id, n.name
+                            )
+                        },
                     ));
                 }
             }

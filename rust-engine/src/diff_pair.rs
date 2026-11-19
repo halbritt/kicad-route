@@ -1809,6 +1809,20 @@ fn discover_and_validate_with_copper(
         )?
     };
 
+    for pair in &pairs {
+        let p_pads = pad_counts.get(&pair.pos_net).copied().unwrap_or(0);
+        let n_pads = pad_counts.get(&pair.neg_net).copied().unwrap_or(0);
+        if p_pads != 2 || n_pads != 2 {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!(
+                    "differential pair ({:?}, {:?}) requires exactly 2 pads per leg (got {p_pads}, {n_pads})",
+                    pair.pos_name, pair.neg_name
+                ),
+            ));
+        }
+    }
+
     Ok(DiffPairPlan {
         pairs,
         length_groups,
@@ -6060,10 +6074,20 @@ fn route_single_diff_pair_inner(
     // Check if already connected & protected / pre-routed
     let p_conn = measure_net_fromto(engine, pair.pos_net, false)
         .map_err(UnitRouteError::Fatal)?
-        .is_some();
+        .is_some()
+        && engine
+            .components(pair.pos_net)
+            .map_err(UnitRouteError::Fatal)?
+            .len()
+            <= 1;
     let n_conn = measure_net_fromto(engine, pair.neg_net, false)
         .map_err(UnitRouteError::Fatal)?
-        .is_some();
+        .is_some()
+        && engine
+            .components(pair.neg_net)
+            .map_err(UnitRouteError::Fatal)?
+            .len()
+            <= 1;
     if p_conn && n_conn {
         return Ok(());
     }
@@ -6383,8 +6407,10 @@ fn commit_coupled_solution_direct(
     for v in sol.vias {
         engine.copper.insert_via(v, &engine.work)?;
     }
-    let p_ok = measure_net_fromto(engine, pair.pos_net, false)?.is_some();
-    let n_ok = measure_net_fromto(engine, pair.neg_net, false)?.is_some();
+    let p_ok = measure_net_fromto(engine, pair.pos_net, false)?.is_some()
+        && engine.components(pair.pos_net)?.len() <= 1;
+    let n_ok = measure_net_fromto(engine, pair.neg_net, false)?.is_some()
+        && engine.components(pair.neg_net)?.len() <= 1;
     if !p_ok || !n_ok {
         engine.copper.remove_net(pair.pos_net, &engine.work)?;
         engine.copper.remove_net(pair.neg_net, &engine.work)?;
@@ -6408,8 +6434,10 @@ fn commit_coupled_solution(
         for v in sol.vias {
             eng.copper.insert_via(v, &eng.work)?;
         }
-        let p_ok = measure_net_fromto(eng, pair.pos_net, false)?.is_some();
-        let n_ok = measure_net_fromto(eng, pair.neg_net, false)?.is_some();
+        let p_ok = measure_net_fromto(eng, pair.pos_net, false)?.is_some()
+            && eng.components(pair.pos_net)?.len() <= 1;
+        let n_ok = measure_net_fromto(eng, pair.neg_net, false)?.is_some()
+            && eng.components(pair.neg_net)?.len() <= 1;
         if !p_ok || !n_ok {
             return Err(Failure::new(
                 Status::Unroutable,
@@ -6675,7 +6703,9 @@ impl RouteUnitAdapter for CompositeRouteAdapter {
                     )
                 })?;
                 Ok(measure_net_fromto(engine, pair.pos_net, false)?.is_some()
-                    && measure_net_fromto(engine, pair.neg_net, false)?.is_some())
+                    && measure_net_fromto(engine, pair.neg_net, false)?.is_some()
+                    && engine.components(pair.pos_net)?.len() <= 1
+                    && engine.components(pair.neg_net)?.len() <= 1)
             }
         }
     }
@@ -7436,6 +7466,146 @@ fn apply_single_ended_meander(
                 }
             }
         }
+
+        // Shallow V-detour fallback for small deltas below the 45-degree wave minimum
+        // while keeping `min_legal_h` so copper never self-bridges across the baseline.
+        let min_legal_h =
+            (std::f64::consts::FRAC_1_SQRT_2 * cand.width_nm as f64 + 1_000.0).max(10_000.0);
+        if max_amp >= min_legal_h && needed_len_nm > 0.0 {
+            let amp_levels = if (max_amp - min_legal_h).abs() < 1.0 {
+                vec![min_legal_h]
+            } else {
+                vec![min_legal_h, 0.5 * (min_legal_h + max_amp), max_amp]
+            };
+            for &center_t in &center_candidates {
+                let max_half_span = (center_t - 50_000.0).min(seg_len - 50_000.0 - center_t);
+                for &amp_h in &amp_levels {
+                    if max_half_span <= amp_h {
+                        continue;
+                    }
+                    for &(nx, ny) in &[(-uy, ux), (uy, -ux)] {
+                        let eval_v_detour = |half_span: f64| -> Option<(Vec<Point>, f64)> {
+                            let t0 = center_t - half_span;
+                            let t1 = center_t + half_span;
+                            if t0 < 50_000.0 || t1 > seg_len - 50_000.0 {
+                                return None;
+                            }
+                            let pt_at = |t: f64, h: f64| -> Point {
+                                [
+                                    cand.start[0] + (t * ux + h * nx).round() as i64,
+                                    cand.start[1] + (t * uy + h * ny).round() as i64,
+                                ]
+                            };
+                            let full = vec![
+                                cand.start,
+                                pt_at(t0, 0.0),
+                                pt_at(center_t, amp_h),
+                                pt_at(t1, 0.0),
+                                cand.end,
+                            ];
+                            let clean = simplify_collinear_points(full);
+                            let new_len: f64 = clean.windows(2).map(|w| dist_f64(w[0], w[1])).sum();
+                            Some((clean, new_len - seg_len))
+                        };
+                        let Some((_, add_max)) = eval_v_detour(amp_h) else {
+                            continue;
+                        };
+                        let Some((_, add_min)) = eval_v_detour(max_half_span) else {
+                            continue;
+                        };
+                        if needed_len_nm + (tol as f64) < add_min
+                            || needed_len_nm - (tol as f64) > add_max
+                        {
+                            continue;
+                        }
+                        let mut lo_d = amp_h;
+                        let mut hi_d = max_half_span;
+                        for _ in 0..32 {
+                            let mid_d = 0.5 * (lo_d + hi_d);
+                            match eval_v_detour(mid_d) {
+                                Some((_, add)) if add > needed_len_nm => lo_d = mid_d,
+                                _ => hi_d = mid_d,
+                            }
+                        }
+                        let mid_d = 0.5 * (lo_d + hi_d);
+                        let best_clean = [lo_d, mid_d, hi_d]
+                            .into_iter()
+                            .filter_map(eval_v_detour)
+                            .min_by(|(_, add_a), (_, add_b)| {
+                                (add_a - needed_len_nm)
+                                    .abs()
+                                    .partial_cmp(&(add_b - needed_len_nm).abs())
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            })
+                            .map(|(pts, _)| pts);
+                        let Some(clean) = best_clean else {
+                            continue;
+                        };
+                        if !same_net_meander_clear(&cand, &clean, &other_same_net, 50_000) {
+                            continue;
+                        }
+                        let attempt = engine.transaction(|tx| {
+                            let eng = &mut *tx.engine;
+                            replace_generated_track_with_pts(eng, net, &cand, &clean)?;
+                            for w in clean.windows(2) {
+                                if !legal_edge_with_width(eng, net, li, w[0], w[1], cand.width_nm)?
+                                {
+                                    return Err(Failure::new(
+                                        Status::Unroutable,
+                                        "meander illegal",
+                                    ));
+                                }
+                                if let Some(imp) = pair_ctx.and_then(|p| p.impedance.as_ref()) {
+                                    if cand.layer == imp.signal_layer
+                                        && !segment_footprint_over_reference_zones(
+                                            eng,
+                                            w[0],
+                                            w[1],
+                                            cand.width_nm,
+                                            imp,
+                                        )
+                                    {
+                                        return Err(Failure::new(
+                                            Status::Unroutable,
+                                            "meander left impedance reference zone",
+                                        ));
+                                    }
+                                }
+                            }
+                            if !meander_clean_clears_pads(eng, net, &cand, &clean) {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "meander re-entered pad copper",
+                                ));
+                            }
+                            if let Some(pair) = pair_ctx {
+                                if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
+                                    return Err(Failure::new(
+                                        Status::Unroutable,
+                                        "intra-pair meander exceeded diff_pair_uncoupled limit",
+                                    ));
+                                }
+                            }
+                            let m = measure_net_fromto(eng, net, is_delay)?
+                                .ok_or_else(|| Failure::new(Status::Unroutable, "disconnected"))?;
+                            let new_val = if is_delay { m.delay_as } else { m.length_nm };
+                            if (new_val - target_val).abs() > tol {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "meander result outside tolerance",
+                                ));
+                            }
+                            Ok(())
+                        });
+                        match attempt {
+                            Ok(()) => return Ok(()),
+                            Err(TransactionError::Limit(f)) => return Err(f),
+                            Err(TransactionError::Operation(_)) => {}
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Err(Failure::new(
@@ -7827,7 +7997,10 @@ fn apply_coupled_pair_meander(
                         } else {
                             mn2.length_nm
                         };
-                        if (vp - target_val).abs() > tol || (vn - target_val).abs() > tol {
+                        if (vp - target_val).abs() > tol
+                            || (vn - target_val).abs() > tol
+                            || (vp - vn).abs() > tol
+                        {
                             return Err(Failure::new(
                                 Status::Unroutable,
                                 "coupled meander missed tolerance",
@@ -7839,6 +8012,290 @@ fn apply_coupled_pair_meander(
                         Ok(()) => return Ok(()),
                         Err(TransactionError::Limit(f)) => return Err(f),
                         Err(TransactionError::Operation(_)) => {}
+                    }
+                }
+            }
+        }
+
+        // Shallow coupled V-detour fallback for small length deltas below the 45-degree wave minimum.
+        // Try symmetric alternating (+h, -h) V-detours first so outer/inner miter path differences cancel.
+        let min_legal_h = (std::f64::consts::FRAC_1_SQRT_2 * (pair.width_nm as f64)
+            + 0.5 * (s_nm as f64) * (std::f64::consts::SQRT_2 - 1.0)
+            + 1_000.0)
+            .max(10_000.0);
+        let max_half_span_single = 0.5 * c_len - (s_nm as f64);
+        let max_half_span_alt = 0.5 * (0.5 * c_len - 1.5 * (s_nm as f64));
+        if max_amp >= min_legal_h && needed_len_nm > 0.0 && max_half_span_single > min_legal_h {
+            let amp_levels = if (max_amp - min_legal_h).abs() < 1.0 {
+                vec![min_legal_h]
+            } else {
+                vec![min_legal_h, 0.5 * (min_legal_h + max_amp), max_amp]
+            };
+            for alternating in [true, false] {
+                let max_half_span = if alternating {
+                    max_half_span_alt
+                } else {
+                    max_half_span_single
+                };
+                for &amp_h in &amp_levels {
+                    if max_half_span <= amp_h {
+                        continue;
+                    }
+                    for &(nx, ny) in &[(-uy, ux), (uy, -ux)] {
+                        let eval_coupled_v =
+                            |half_span: f64| -> Option<(Vec<Point>, Vec<Point>, f64)> {
+                                let pt_at = |t: f64, h: f64| -> Point {
+                                    [
+                                        c_start[0] + (t * ux + h * nx).round() as i64,
+                                        c_start[1] + (t * uy + h * ny).round() as i64,
+                                    ]
+                                };
+                                let full_c = if alternating {
+                                    let gap_mid = s_nm as f64;
+                                    let c1 = 0.5 * c_len - 0.5 * gap_mid - half_span;
+                                    let c2 = 0.5 * c_len + 0.5 * gap_mid + half_span;
+                                    let t0 = c1 - half_span;
+                                    let t1 = c1 + half_span;
+                                    let t2 = c2 - half_span;
+                                    let t3 = c2 + half_span;
+                                    if t0 < s_nm as f64 || t3 > c_len - (s_nm as f64) {
+                                        return None;
+                                    }
+                                    vec![
+                                        c_start,
+                                        pt_at(t0, 0.0),
+                                        pt_at(c1, amp_h),
+                                        pt_at(t1, 0.0),
+                                        pt_at(t2, 0.0),
+                                        pt_at(c2, -amp_h),
+                                        pt_at(t3, 0.0),
+                                        c_end,
+                                    ]
+                                } else {
+                                    let t0 = 0.5 * c_len - half_span;
+                                    let t1 = 0.5 * c_len + half_span;
+                                    if t0 < s_nm as f64 || t1 > c_len - (s_nm as f64) {
+                                        return None;
+                                    }
+                                    vec![
+                                        c_start,
+                                        pt_at(t0, 0.0),
+                                        pt_at(0.5 * c_len, amp_h),
+                                        pt_at(t1, 0.0),
+                                        c_end,
+                                    ]
+                                };
+                                let (mut p_poly, mut n_poly) =
+                                    offset_centerline_mitered(&full_c, s_nm, pos_on_left);
+                                if p_poly.len() < 2 || n_poly.len() < 2 {
+                                    return None;
+                                }
+                                *p_poly.first_mut().unwrap() = pt_orig.start;
+                                *p_poly.last_mut().unwrap() = pt_orig.end;
+                                *n_poly.first_mut().unwrap() = na;
+                                *n_poly.last_mut().unwrap() = nb;
+                                let p_new: f64 =
+                                    p_poly.windows(2).map(|w| dist_f64(w[0], w[1])).sum();
+                                let n_new: f64 =
+                                    n_poly.windows(2).map(|w| dist_f64(w[0], w[1])).sum();
+                                let avg_add = 0.5
+                                    * ((p_new - dist_f64(pt_orig.start, pt_orig.end))
+                                        + (n_new - dist_f64(na, nb)));
+                                Some((p_poly, n_poly, avg_add))
+                            };
+                        let Some((_, _, add_max)) = eval_coupled_v(amp_h) else {
+                            continue;
+                        };
+                        let Some((_, _, add_min)) = eval_coupled_v(max_half_span) else {
+                            continue;
+                        };
+                        if needed_len_nm + (tol as f64) < add_min
+                            || needed_len_nm - (tol as f64) > add_max
+                        {
+                            continue;
+                        }
+                        let mut lo_d = amp_h;
+                        let mut hi_d = max_half_span;
+                        for _ in 0..32 {
+                            let mid_d = 0.5 * (lo_d + hi_d);
+                            match eval_coupled_v(mid_d) {
+                                Some((_, _, add)) if add > needed_len_nm => lo_d = mid_d,
+                                _ => hi_d = mid_d,
+                            }
+                        }
+                        let mid_d = 0.5 * (lo_d + hi_d);
+                        let best_coupled = [lo_d, mid_d, hi_d]
+                            .into_iter()
+                            .filter_map(eval_coupled_v)
+                            .min_by(|(_, _, add_a), (_, _, add_b)| {
+                                (add_a - needed_len_nm)
+                                    .abs()
+                                    .partial_cmp(&(add_b - needed_len_nm).abs())
+                                    .unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                        let Some((p_poly, n_poly, _)) = best_coupled else {
+                            continue;
+                        };
+                        let attempt = engine.transaction(|tx| {
+                            let eng = &mut *tx.engine;
+                            replace_generated_track_with_pts(eng, pair.pos_net, &pt_orig, &p_poly)?;
+                            replace_generated_track_with_pts(eng, pair.neg_net, &nt_orig, &n_poly)?;
+                            for w in p_poly.windows(2) {
+                                if !legal_edge_with_width(
+                                    eng,
+                                    pair.pos_net,
+                                    li,
+                                    w[0],
+                                    w[1],
+                                    pair.width_nm,
+                                )? {
+                                    return Err(Failure::new(
+                                        Status::Unroutable,
+                                        "coupled meander pos illegal",
+                                    ));
+                                }
+                            }
+                            for w in n_poly.windows(2) {
+                                if !legal_edge_with_width(
+                                    eng,
+                                    pair.neg_net,
+                                    li,
+                                    w[0],
+                                    w[1],
+                                    pair.width_nm,
+                                )? {
+                                    return Err(Failure::new(
+                                        Status::Unroutable,
+                                        "coupled meander neg illegal",
+                                    ));
+                                }
+                            }
+                            if let Some(imp) = &pair.impedance {
+                                if pt_orig.layer != imp.signal_layer {
+                                    return Err(Failure::new(
+                                        Status::Unroutable,
+                                        "coupled meander outside ref layer",
+                                    ));
+                                }
+                                if p_poly.len() == n_poly.len() {
+                                    for (pw, nw) in p_poly.windows(2).zip(n_poly.windows(2)) {
+                                        if !coupled_corridor_over_reference_zones(
+                                            eng,
+                                            pw[0],
+                                            pw[1],
+                                            nw[0],
+                                            nw[1],
+                                            pair.width_nm,
+                                            imp,
+                                        ) {
+                                            return Err(Failure::new(
+                                                Status::Unroutable,
+                                                "coupled meander outside ref zone",
+                                            ));
+                                        }
+                                    }
+                                } else {
+                                    for w in p_poly.windows(2) {
+                                        if !segment_footprint_over_reference_zones(
+                                            eng,
+                                            w[0],
+                                            w[1],
+                                            pair.width_nm,
+                                            imp,
+                                        ) {
+                                            return Err(Failure::new(
+                                                Status::Unroutable,
+                                                "coupled meander outside ref zone",
+                                            ));
+                                        }
+                                    }
+                                    for w in n_poly.windows(2) {
+                                        if !segment_footprint_over_reference_zones(
+                                            eng,
+                                            w[0],
+                                            w[1],
+                                            pair.width_nm,
+                                            imp,
+                                        ) {
+                                            return Err(Failure::new(
+                                                Status::Unroutable,
+                                                "coupled meander outside ref zone",
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                            if !meander_clean_clears_pads(eng, pair.pos_net, &pt_orig, &p_poly)
+                                || !meander_clean_clears_pads(eng, pair.neg_net, &nt_orig, &n_poly)
+                            {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "coupled meander re-entered pad copper",
+                                ));
+                            }
+                            let min_center_dist = 2 * i128::from(pair.width_nm)
+                                + 2 * i128::from(pair.gap_min_nm.max(0));
+                            for pw in p_poly.windows(2) {
+                                for nw in n_poly.windows(2) {
+                                    if geometry::segments_near(
+                                        pw[0],
+                                        pw[1],
+                                        nw[0],
+                                        nw[1],
+                                        min_center_dist,
+                                        false,
+                                    ) {
+                                        return Err(Failure::new(
+                                            Status::Unroutable,
+                                            "coupled meander pinched gap below diff_pair_gap_min",
+                                        ));
+                                    }
+                                }
+                            }
+                            if !coupled_gap_max_ok(pair, &p_poly, &n_poly) {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "coupled meander exceeded diff_pair_gap_max",
+                                ));
+                            }
+                            if measure_pair_uncoupled_nm(eng, pair) > pair.uncoupled_max_nm {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "coupled meander exceeded diff_pair_uncoupled limit",
+                                ));
+                            }
+                            let mp2 = measure_net_fromto(eng, pair.pos_net, is_delay)?.ok_or_else(
+                                || Failure::new(Status::Unroutable, "pos disconnected"),
+                            )?;
+                            let mn2 = measure_net_fromto(eng, pair.neg_net, is_delay)?.ok_or_else(
+                                || Failure::new(Status::Unroutable, "neg disconnected"),
+                            )?;
+                            let vp = if is_delay {
+                                mp2.delay_as
+                            } else {
+                                mp2.length_nm
+                            };
+                            let vn = if is_delay {
+                                mn2.delay_as
+                            } else {
+                                mn2.length_nm
+                            };
+                            if (vp - target_val).abs() > tol
+                                || (vn - target_val).abs() > tol
+                                || (vp - vn).abs() > tol
+                            {
+                                return Err(Failure::new(
+                                    Status::Unroutable,
+                                    "coupled meander missed tolerance",
+                                ));
+                            }
+                            Ok(())
+                        });
+                        match attempt {
+                            Ok(()) => return Ok(()),
+                            Err(TransactionError::Limit(f)) => return Err(f),
+                            Err(TransactionError::Operation(_)) => {}
+                        }
                     }
                 }
             }
