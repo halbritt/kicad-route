@@ -6524,7 +6524,11 @@ pub(crate) fn plan_diff_pairs(engine: &Engine) -> Result<DiffPairRunState, Failu
                     continue;
                 }
             }
-            if !routed_pair_nets.contains(&n.id) && !plan.protected_nets.contains(&n.id) {
+            // Protected input stays in the immutable copper store. An open
+            // ordinary net can still join its components with generated copper.
+            if !routed_pair_nets.contains(&n.id)
+                && (!plan.protected_nets.contains(&n.id) || engine.components(n.id)?.len() > 1)
+            {
                 set.insert(n.id);
             }
         }
@@ -6627,7 +6631,6 @@ impl RouteUnitAdapter for CompositeRouteAdapter {
             .filter(|n| {
                 n.id != 0
                     && !self.state.routed_pair_nets.contains(&n.id)
-                    && !self.state.protected_nets.contains(&n.id)
                     && self
                         .state
                         .active_single_ended_nets
@@ -6652,7 +6655,7 @@ impl RouteUnitAdapter for CompositeRouteAdapter {
         if let Some(&idx) = self.pair_by_net.get(&net) {
             return Some(RouteUnitId::DiffPair(idx));
         }
-        if net == 0 || self.state.protected_nets.contains(&net) {
+        if net == 0 {
             return None;
         }
         if let Some(active) = &self.state.active_single_ended_nets {

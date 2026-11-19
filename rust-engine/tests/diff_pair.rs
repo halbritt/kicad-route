@@ -4909,7 +4909,7 @@ fn meander_wave_respects_requested_amplitude_ceiling_dp1_and_dp1b() {
 }
 
 #[test]
-fn protect_mode_human_completes_unlocked_partial_and_fails_closed_on_locked_partial() {
+fn protect_modes_extend_partial_nets_without_editing_input_tracks() {
     use kicad_route_engine::model::Status;
     let mk_partial = |locked: bool, mode: ProtectMode| {
         let mut inp = base_diff_input(&["PART", "OTHER"]);
@@ -4933,48 +4933,24 @@ fn protect_mode_human_completes_unlocked_partial_and_fails_closed_on_locked_part
         inp
     };
 
-    // DP-3: unlocked partial net under ProtectMode::Human completes open terminals while keeping input copper
-    let unlocked_inp = mk_partial(false, ProtectMode::Human);
-    let out_ok = kicad_route_engine::run(unlocked_inp.clone());
-    assert_eq!(out_ok.status, Status::Complete, "{:?}", out_ok.reason);
-    assert!(
-        out_ok.added_tracks.iter().any(|t| t.net == 1),
-        "expected added track completing PART net under ProtectMode::Human"
-    );
-    let mut check_inp = unlocked_inp;
-    check_inp.tracks.extend(out_ok.added_tracks);
-    let out_recheck = kicad_route_engine::run(check_inp);
-    assert_eq!(
-        out_recheck.status,
-        Status::Complete,
-        "{:?}",
-        out_recheck.reason
-    );
-    assert!(
-        out_recheck.added_tracks.is_empty(),
-        "expected zero open connections remaining, got {:?}",
-        out_recheck.added_tracks
-    );
-
-    // Locked partial net under ProtectMode::Human fails closed with Status::Unroutable (never Complete with open net)
-    let locked_human = mk_partial(true, ProtectMode::Human);
-    let out_locked = kicad_route_engine::run(locked_human);
-    assert_eq!(
-        out_locked.status,
-        Status::Unroutable,
-        "{:?}",
-        out_locked.reason
-    );
-
-    // Partial net under ProtectMode::Existing also fails closed when in scope
-    let existing_partial = mk_partial(false, ProtectMode::Existing);
-    let out_existing = kicad_route_engine::run(existing_partial);
-    assert_eq!(
-        out_existing.status,
-        Status::Unroutable,
-        "{:?}",
-        out_existing.reason
-    );
+    for (locked, mode) in [
+        (false, ProtectMode::Human),
+        (true, ProtectMode::Human),
+        (true, ProtectMode::Locked),
+        (false, ProtectMode::Existing),
+    ] {
+        let mut input = mk_partial(locked, mode);
+        let out = kicad_route_engine::run(input.clone());
+        assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+        assert!(out.removed_track_ids.is_empty());
+        assert!(out.added_tracks.iter().any(|t| t.net == 1));
+        input.tracks.extend(out.added_tracks);
+        input.vias.extend(out.added_vias);
+        let recheck = kicad_route_engine::run(input);
+        assert_eq!(recheck.status, Status::Complete, "{:?}", recheck.reason);
+        assert!(recheck.added_tracks.is_empty() && recheck.added_vias.is_empty());
+        assert!(recheck.removed_track_ids.is_empty());
+    }
 }
 
 #[test]
