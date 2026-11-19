@@ -440,11 +440,11 @@ fn join_components_inner(
             }
         }
     }
-    let mut search = |choices: &[Vec<Copper<'_>>], seed_layers| {
+    let mut search = |seeds: &[Copper<'_>], choices: &[Vec<Copper<'_>>], seed_layers| {
         search_component_path(
             engine,
             net,
-            source,
+            seeds,
             choices,
             seed_layers,
             budget,
@@ -455,7 +455,7 @@ fn join_components_inner(
         )
     };
     if !fill_targets.is_empty() {
-        match search(&fill_targets, source_layers) {
+        match search(source, &fill_targets, source_layers) {
             Err(e) if e.status == Status::Unroutable => {}
             result => return result,
         }
@@ -463,7 +463,31 @@ fn join_components_inner(
     // The fill's own layer may prohibit tracks and vias. Existing through-hole
     // copper can still bond its regions from another layer; native refill and
     // validation determine whether that route preserves the pour.
-    search(targets, u32::MAX)
+    let result = search(source, targets, u32::MAX);
+    if !matches!(&result, Err(e) if e.status == Status::Unroutable) {
+        return result;
+    }
+    let ([first @ Copper::Pad(_)], [other]) = (source, targets) else {
+        return result;
+    };
+    let [second @ Copper::Pad(_)] = other.as_slice() else {
+        return result;
+    };
+    // Reverse A* uses the source lattice. A second isolated pad may provide
+    // a different grid phase with a legal passage into the first pad's copper.
+    let grid = engine.input.rules.grid_nm;
+    let origin = engine.input.bounds.min;
+    let phase = |p: Point| [p[0].rem_euclid(grid), p[1].rem_euclid(grid)];
+    let source_phases: Vec<_> = first.anchors(origin, grid).into_iter().map(phase).collect();
+    if second
+        .anchors(origin, grid)
+        .into_iter()
+        .map(phase)
+        .any(|p| !source_phases.contains(&p))
+    {
+        return search(other, &[vec![*first]], u32::MAX);
+    }
+    result
 }
 
 #[allow(clippy::too_many_arguments)]

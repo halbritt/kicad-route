@@ -87,6 +87,73 @@ fn output_bytes(input: Input) -> Vec<u8> {
     serde_json::to_vec(&run(input)).unwrap()
 }
 #[test]
+fn off_grid_smd_escape_uses_the_other_pad_phase_after_exhaustion() {
+    let mut input = base();
+    input.bounds.max = [6_000_000, 4_000_000];
+    input.rules.grid_nm = 250_000;
+    input.rules.width_nm = 100_000;
+    input.rules.clearance_nm = 100_000;
+    input.rules.edge_clearance_nm = 100_000;
+    input.pads[0].at = [1_000_000, 2_000_000];
+    input.pads[0].shape = Shape::Rect {
+        half_size_nm: [250_000, 650_000],
+    };
+    input.pads[1].at = [5_000_000, 2_125_000];
+    input.pads[1].shape = Shape::Circle { radius_nm: 150_000 };
+    for (index, (lo, hi)) in [(0, 2_025_000), (2_225_000, 4_000_000)]
+        .into_iter()
+        .enumerate()
+    {
+        input.rule_areas.push(RuleArea {
+            id: id(3 + index as u64),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [3_000_000, lo],
+                [3_500_000, lo],
+                [3_500_000, hi],
+                [3_000_000, hi],
+            ],
+            holes: vec![],
+            extra_polygons: vec![],
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        });
+    }
+    let open = run(input.clone());
+    assert_eq!(open.status, Status::Complete, "{:?}", open.reason);
+    assert_eq!(open.added_tracks.len(), 1);
+    let track = &open.added_tracks[0];
+    assert_eq!(track.start[1], 2_125_000);
+    assert_eq!(track.end[1], 2_125_000);
+    assert!(input
+        .pads
+        .iter()
+        .all(|p| kicad_route_engine::geometry::track_connects_pad(track, p)));
+    let mut reordered = input.clone();
+    reordered.pads.reverse();
+    let direct = run(reordered);
+    assert_eq!(direct.status, Status::Complete);
+    assert_eq!(direct.added_tracks, open.added_tracks);
+    assert!(direct.expanded_states < open.expanded_states);
+
+    let mut limited = input.clone();
+    limited.max_expansions = open.expanded_states - 1;
+    let stopped = run(limited);
+    assert_eq!(stopped.status, Status::BudgetExhausted);
+    assert!(stopped.added_tracks.is_empty());
+    for point in &mut input.rule_areas[0].outer[2..] {
+        point[1] = 2_225_000;
+    }
+    let sealed = run(input);
+    assert_eq!(sealed.status, Status::Unroutable);
+    assert!(sealed.added_tracks.is_empty());
+}
+
+#[test]
 fn bidirectional_search_finishes_when_the_target_is_enclosed() {
     let mut input = base();
     input.bounds.max = [20_000_000, 20_000_000];

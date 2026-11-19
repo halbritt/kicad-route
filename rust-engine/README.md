@@ -129,6 +129,10 @@ The estimate therefore underestimates remaining unit-step cost, is consistent
 across edges, and is zero at every accepted goal. Obstacles do not enter the
 estimate. Each target evaluation is charged to the shared work budget. Each seed
 retains its own grid phase, so off-grid incumbent endpoints are supported.
+For a join between two isolated pads, their anchor coordinates may generate
+different grid phases. If the first search exhausts its frontier and the other
+pad offers another phase, the router searches from that pad with the remaining
+work and expansion budgets.
 Attachment targets the entire copper geometry, including arbitrary-angle
 interiors, not only target endpoints. The final edge stops at the first integer endpoint in the target contact
 interval. Exact swept-prefix contact is monotone for these convex targets;
