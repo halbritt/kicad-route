@@ -45,33 +45,38 @@ pub(super) fn repair(
     input.vias.extend_from_slice(&first.added_vias);
     input.max_expansions = input.max_expansions.saturating_sub(first.expanded_states);
     input.limits.max_work = input.limits.max_work.saturating_sub(first.work_used);
-    if input.max_expansions == 0 {
-        first.status = Status::BudgetExhausted;
-        return Err((
-            map_routing_status(first.status),
-            "no expansions remain after zone refill".into(),
-        ));
-    }
-    if input.limits.max_work == 0 {
-        first.status = Status::WorkExhausted;
-        return Err((
-            map_routing_status(first.status),
-            "no work remains after zone refill".into(),
-        ));
-    }
-    let mut extra = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        crate::run_unidentified(input)
-    }))
-    .map_err(|_| {
-        (
-            OperationStatus::InternalError,
-            "refill repair panicked; edits discarded".into(),
-        )
-    })?;
+    let remainder = if input.max_expansions == 0 {
+        Err((
+            Status::BudgetExhausted,
+            "no expansions remain after zone refill",
+        ))
+    } else if input.limits.max_work == 0 {
+        Err((Status::WorkExhausted, "no work remains after zone refill"))
+    } else {
+        Ok(())
+    };
+    let extra = match remainder {
+        Ok(()) => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            crate::run_unidentified(input)
+        }))
+        .map_err(|_| {
+            (
+                OperationStatus::InternalError,
+                "refill routing panicked".into(),
+            )
+        })?,
+        Err((status, reason)) => Output::failure(
+            first.source_id.clone(),
+            crate::model::Failure::new(status, reason),
+        ),
+    };
     first.expanded_states += extra.expanded_states;
     first.work_used += extra.work_used;
     first.status = extra.status;
     if extra.status != Status::Complete {
+        first.added_tracks.clear();
+        first.added_vias.clear();
+        first.removed_track_ids.clear();
         return Err((
             map_routing_status(extra.status),
             extra
@@ -85,8 +90,8 @@ pub(super) fn repair(
             "zone repair attempted to remove fixed copper".into(),
         ));
     }
-    first.added_tracks.append(&mut extra.added_tracks);
-    first.added_vias.append(&mut extra.added_vias);
+    first.added_tracks.extend(extra.added_tracks);
+    first.added_vias.extend(extra.added_vias);
     Ok(())
 }
 
