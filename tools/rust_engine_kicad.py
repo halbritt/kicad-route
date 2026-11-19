@@ -2694,13 +2694,16 @@ def _refilled_copper(board, shift):
             zones[item_id(zone)] = layers
             continue
         for layer in layers:
-            for index, poly in enumerate(layer['polygons']):
-                # One native teardrop can contain several filled contours.
-                ident = uuid.uuid5(uuid.UUID(item_id(zone)), f"{layer['layer']}:{index}")
-                teardrops.append({'id': str(ident), 'layer': layer['layer'],
-                                  'net': int(zone.GetNetCode()),
+            for poly in layer['polygons']:
+                teardrops.append({'layer': layer['layer'], 'net': int(zone.GetNetCode()),
                                   'shape': {'kind': 'polygon', 'width_nm': 0,
                                             'filled': True, **poly}})
+    # KiCad gives regenerated teardrops fresh UUIDs on each refill. The
+    # repair input needs repeatable ordering and IDs for identical copper.
+    teardrops.sort(key=lambda item: (item['net'], item['layer'], item['shape']['outer'],
+                                     item['shape'].get('holes', [])))
+    for index, item in enumerate(teardrops):
+        item['id'] = str(uuid.uuid5(uuid.NAMESPACE_OID, f'kicad-route/refill-teardrop/{index}'))
     return {'zones': zones, 'teardrops': teardrops}
 
 
