@@ -4,6 +4,7 @@ use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet, BinaryHeap},
 };
+
 fn id(n: u64) -> String {
     format!("10000000-0000-4000-8000-{n:012x}")
 }
@@ -85,6 +86,51 @@ fn wire(n: u64, net: u32, a: Point, b: Point) -> Track {
 fn output_bytes(input: Input) -> Vec<u8> {
     serde_json::to_vec(&run(input)).unwrap()
 }
+#[test]
+fn bidirectional_search_finishes_when_the_target_is_enclosed() {
+    let mut input = base();
+    input.bounds.max = [20_000_000, 20_000_000];
+    input.rules.grid_nm = 200_000;
+    input.rules.width_nm = 120_000;
+    input.rules.clearance_nm = 100_000;
+    input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    input.pads[0].at = [3_000_000, 10_000_000];
+    input.pads[1].at = [10_000_000, 10_000_000];
+    for pad in &mut input.pads {
+        pad.shape = Shape::Circle { radius_nm: 200_000 };
+    }
+    input.max_expansions = 1500;
+    let obstacle = RuleArea {
+        id: id(10),
+        name: None,
+        layers: input.layers.clone(),
+        outer: vec![
+            [9_000_000, 9_000_000],
+            [11_000_000, 9_000_000],
+            [11_000_000, 11_000_000],
+            [9_000_000, 11_000_000],
+        ],
+        holes: vec![vec![
+            [9_600_000, 9_600_000],
+            [9_600_000, 10_400_000],
+            [10_400_000, 10_400_000],
+            [10_400_000, 9_600_000],
+        ]],
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: true,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    };
+    let open = run(input.clone());
+    assert_eq!(open.status, Status::Complete, "{:?}", open.reason);
+    input.rule_areas.push(obstacle);
+    let blocked = run(input);
+    assert_eq!(blocked.status, Status::Unroutable, "{:?}", blocked.reason);
+    assert!(blocked.added_tracks.is_empty() && blocked.added_vias.is_empty());
+}
+
 #[test]
 fn continuous_geometry_crossings_midpoints_and_tangency() {
     assert!(segments_near(

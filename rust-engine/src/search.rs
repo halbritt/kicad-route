@@ -3315,7 +3315,12 @@ fn walk_multilayer_bidirectional(
                 if mu <= min_f_fwd || (via_only_unpopped == 0 && mu <= min_f_bwd) {
                     return reconstruct_bi_path(&parent_fwd, &parent_bwd, &engine.work, rec, mu);
                 }
-            } else if q_fwd.is_empty() {
+            } else if q_fwd.is_empty()
+                || (!best_bwd.is_empty() && q_bwd.is_empty() && via_only_unpopped == 0)
+            {
+                // All reverse attachment states were explored on every source
+                // grid phase. A via-only start can still join on its first via.
+                // With no reverse seeds, forward probes still collect blockers.
                 break;
             }
         }
