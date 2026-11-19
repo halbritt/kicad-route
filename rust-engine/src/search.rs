@@ -1249,14 +1249,12 @@ fn target_escape_reachable(
                                     Err(e) if e.status == Status::Unroutable => None,
                                     Err(e) => return Err(e),
                                 };
-                            let mut seeded = false;
                             if width_opt.is_some() {
                                 engine.clear_last_block_generated();
                                 if engine.legal_edge_on(net, l_idx, p, p)? {
                                     if visited.insert(key) {
                                         queue.push_back(key);
                                     }
-                                    seeded = true;
                                 } else {
                                     frontier.push_edge_classified(
                                         l_idx as u8,
@@ -1280,12 +1278,11 @@ fn target_escape_reachable(
                                             if visited.insert(q_key) {
                                                 queue.push_back(q_key);
                                             }
-                                            seeded = true;
                                         }
                                     }
                                 }
                             }
-                            if !seeded && l_count >= 2 {
+                            if l_count >= 2 && !visited.contains(&key) {
                                 via_buf.clear();
                                 blocked_via_spans.clear();
                                 push_legal_via_transitions_with_blocked(
@@ -1298,6 +1295,52 @@ fn target_escape_reachable(
                                     &mut via_buf,
                                     Some(&mut blocked_via_spans),
                                 )?;
+                                if engine.effective_rules.allow_blind_buried_vias && l_count >= 3 {
+                                    let at_via_limit =
+                                        engine.effective_rules.net(net).max_via_count.is_some_and(
+                                            |max_vc| {
+                                                engine.copper.via_count_for_net(net) + 1
+                                                    > max_vc as usize
+                                            },
+                                        );
+                                    for s_min in 0..l_idx {
+                                        for s_max in (l_idx + 1)..l_count {
+                                            if s_min == 0 && s_max + 1 == l_count {
+                                                continue;
+                                            }
+                                            if engine
+                                                .legal_via(
+                                                    net,
+                                                    p,
+                                                    s_min,
+                                                    s_max,
+                                                    ViaKind::BlindBuried,
+                                                    &[],
+                                                )?
+                                                .is_some()
+                                            {
+                                                let pv = PlacedViaKey {
+                                                    at: p,
+                                                    start_layer: s_min as u8,
+                                                    end_layer: s_max as u8,
+                                                    kind: 1,
+                                                };
+                                                via_buf.push((s_min as u8, pv, via_cost));
+                                                via_buf.push((s_max as u8, pv, via_cost));
+                                            } else if !at_via_limit
+                                                && !engine
+                                                    .effective_rules
+                                                    .disallow_via_on(net, &stackup[s_min..=s_max])
+                                            {
+                                                blocked_via_spans.push((
+                                                    s_min as u8,
+                                                    s_max as u8,
+                                                    engine.last_block_generated(),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
                                 for &(prev_l, pv, _) in &via_buf {
                                     let kind = match pv.kind {
                                         0 => ViaKind::Through,

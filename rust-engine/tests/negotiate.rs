@@ -1259,3 +1259,43 @@ fn multilayer_microvia_enabled_still_attributes_blocked_through_via_victim() {
     assert_eq!(out.status, Status::Complete);
     verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
 }
+
+#[test]
+fn small_budget_unblocked_second_net_is_not_halved_by_trial_cap() {
+    let mut i = base_input([2600, 2000], Vec::new());
+    i.max_expansions = 5551;
+    i.limits.max_work = 50_000_000;
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+        Net {
+            id: 2,
+            name: "N2".into(),
+        },
+    ];
+    i.pads = vec![
+        pad(1, 1, [10, 10]),
+        pad(2, 1, [60, 10]),
+        pad(3, 2, [1300, 900]),
+        pad(4, 2, [1300, 1400]),
+    ];
+    i.tracks = vec![wire(10, 0, [1150, 1150], [1450, 1150])];
+
+    let mut e = Engine::new(i.clone()).unwrap();
+    let exp = e
+        .route_all()
+        .expect("small-budget unblocked board must not waste half budget on trial cap");
+    assert!(
+        exp > 5551 / 2 && exp <= 5551,
+        "expected (2775..=5551] expansions, got {exp}"
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+}

@@ -4183,3 +4183,82 @@ fn route_all_resolves_multi_pair_contention_and_rolls_back_atomically_on_failure
     assert_eq!(eng_lm.copper().generated_vias().count(), 0);
     assert!(eng_lm.copper().index_consistent());
 }
+
+#[test]
+fn route_all_tier0_multipair_contention_succeeds_under_default_budget() {
+    let mut input = base_diff_input(&["P1_P", "P1_N", "P2_P", "P2_N"]);
+    input.max_expansions = 100_000;
+    input.routing_options.as_mut().unwrap().pair_layers = vec!["F.Cu".into()];
+    input.pads = vec![
+        pad(1, 1, [10_000_000, 19_500_000], &["F.Cu"]),
+        pad(2, 1, [50_000_000, 19_500_000], &["F.Cu"]),
+        pad(3, 2, [10_000_000, 20_500_000], &["F.Cu"]),
+        pad(4, 2, [50_000_000, 20_500_000], &["F.Cu"]),
+        pad(5, 3, [29_500_000, 12_000_000], &["F.Cu"]),
+        pad(6, 3, [29_500_000, 35_000_000], &["F.Cu"]),
+        pad(7, 4, [30_500_000, 12_000_000], &["F.Cu"]),
+        pad(8, 4, [30_500_000, 35_000_000], &["F.Cu"]),
+    ];
+    let mk_ra = |id_num: u64, outer: Vec<Point>| RuleArea {
+        id: uuid(id_num),
+        name: None,
+        layers: vec!["F.Cu".into()],
+        outer,
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: false,
+        no_pads: false,
+        no_zone_fills: false,
+        no_footprints: false,
+    };
+    input.rule_areas = vec![
+        mk_ra(
+            910,
+            vec![
+                [27_000_000, 9_000_000],
+                [33_000_000, 9_000_000],
+                [33_000_000, 10_000_000],
+                [27_000_000, 10_000_000],
+            ],
+        ),
+        mk_ra(
+            911,
+            vec![
+                [27_000_000, 9_000_000],
+                [28_000_000, 9_000_000],
+                [28_000_000, 18_800_000],
+                [27_000_000, 18_800_000],
+            ],
+        ),
+        mk_ra(
+            912,
+            vec![
+                [32_000_000, 9_000_000],
+                [33_000_000, 9_000_000],
+                [33_000_000, 18_800_000],
+                [32_000_000, 18_800_000],
+            ],
+        ),
+    ];
+
+    let mut engine = Engine::new(input.clone()).unwrap();
+    let exp = engine
+        .route_all()
+        .expect("P6 Tier-0 rip-up must succeed under 100_000");
+    assert!(exp < 100_000, "expected < 100_000 expansions, got {exp}");
+    let stats = engine
+        .last_negotiation_stats()
+        .expect("negotiation stats must be recorded");
+    assert!(
+        stats.units_ripped >= 1,
+        "expected units_ripped >= 1: {stats:?}"
+    );
+    assert!(
+        stats.rounds_committed >= 1,
+        "expected rounds_committed >= 1: {stats:?}"
+    );
+    assert!(engine.copper().index_consistent());
+    let out = kicad_route_engine::run(input);
+    assert_eq!(out.status, Status::Complete);
+}

@@ -5886,6 +5886,13 @@ fn commit_coupled_solution_direct(
 ) -> Result<bool, Failure> {
     let p_had_gen = engine.copper.has_generated_for_net(pair.pos_net);
     let n_had_gen = engine.copper.has_generated_for_net(pair.neg_net);
+    if p_had_gen || n_had_gen {
+        return match commit_coupled_solution(engine, pair, sol) {
+            Ok(()) => Ok(true),
+            Err(e) if e.status == Status::Unroutable => Ok(false),
+            Err(e) => Err(e),
+        };
+    }
     for t in sol.tracks {
         if t.start != t.end {
             engine.copper.insert(t, &engine.work)?;
@@ -5897,12 +5904,8 @@ fn commit_coupled_solution_direct(
     let p_ok = measure_net_fromto(engine, pair.pos_net, false)?.is_some();
     let n_ok = measure_net_fromto(engine, pair.neg_net, false)?.is_some();
     if !p_ok || !n_ok {
-        if !p_had_gen {
-            engine.copper.remove_net(pair.pos_net, &engine.work)?;
-        }
-        if !n_had_gen {
-            engine.copper.remove_net(pair.neg_net, &engine.work)?;
-        }
+        engine.copper.remove_net(pair.pos_net, &engine.work)?;
+        engine.copper.remove_net(pair.neg_net, &engine.work)?;
         return Ok(false);
     }
     Ok(true)

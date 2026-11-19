@@ -4028,3 +4028,186 @@ fn join_components_moat_crossing_locked_via_start_and_target_symmetry() {
     };
     run_and_reload(buried_to_fcu_pad);
 }
+
+#[test]
+fn target_escape_reachable_probes_via_when_neighbor_attaches_in_pocket() {
+    let mut start_pad = pad(
+        1,
+        1,
+        [5_000_000, 15_000_000],
+        Shape::Circle { radius_nm: 300_000 },
+    );
+    start_pad.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    let mut target_pad = pad(
+        2,
+        1,
+        [40_000_000, 15_000_000],
+        Shape::Rect {
+            half_size_nm: [300_000, 200_000],
+        },
+    );
+    target_pad.layers = vec!["F.Cu".into()];
+
+    let mut pads = vec![start_pad, target_pad];
+    // Box q = [39_500_000, 15_000_000] into a <64-cell F.Cu pocket using foreign pads/tracks
+    // plus a mid-board F.Cu+B.Cu wall at x = 20_000_000 forcing > 2048 A* expansions.
+    let foreign_track = |tid: u64, layer: &str, a: Point, b: Point| Track {
+        id: id(tid),
+        net: 0,
+        layer: layer.into(),
+        start: a,
+        end: b,
+        width_nm: 200_000,
+        locked: true,
+    };
+    let tracks = vec![
+        foreign_track(
+            10,
+            "F.Cu",
+            [38_500_000, 13_500_000],
+            [41_000_000, 13_500_000],
+        ),
+        foreign_track(
+            11,
+            "F.Cu",
+            [38_500_000, 16_500_000],
+            [41_000_000, 16_500_000],
+        ),
+        foreign_track(
+            12,
+            "F.Cu",
+            [38_500_000, 13_500_000],
+            [38_500_000, 16_500_000],
+        ),
+        foreign_track(
+            13,
+            "F.Cu",
+            [41_000_000, 13_500_000],
+            [41_000_000, 16_500_000],
+        ),
+        foreign_track(
+            14,
+            "F.Cu",
+            [20_000_000, 2_000_000],
+            [20_000_000, 28_000_000],
+        ),
+        foreign_track(
+            15,
+            "B.Cu",
+            [20_000_000, 2_000_000],
+            [20_000_000, 28_000_000],
+        ),
+    ];
+    let mut fp = pad(
+        20,
+        0,
+        [39_000_000, 14_000_000],
+        Shape::Circle { radius_nm: 250_000 },
+    );
+    fp.layers = vec!["F.Cu".into()];
+    pads.push(fp);
+
+    let rule_areas = vec![
+        RuleArea {
+            id: id(100),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [39_850_000, 14_500_000],
+                [41_250_000, 14_500_000],
+                [41_250_000, 15_500_000],
+                [39_850_000, 15_500_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: false,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+        RuleArea {
+            id: id(101),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [38_700_000, 14_500_000],
+                [39_700_000, 14_500_000],
+                [39_700_000, 15_500_000],
+                [38_700_000, 15_500_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: false,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        },
+    ];
+
+    let inp = Input {
+        version: INPUT_VERSION,
+        source_id: "f".repeat(64),
+        layer: "F.Cu".into(),
+        layers: vec!["F.Cu".into(), "B.Cu".into()],
+        bounds: Bounds {
+            min: [0, 0],
+            max: [50_000_000, 30_000_000],
+        },
+        rules: Rules {
+            width_nm: 200_000,
+            clearance_nm: 150_000,
+            grid_nm: 500_000,
+            edge_clearance_nm: 200_000,
+            hole_clearance_nm: 150_000,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads,
+        tracks,
+        vias: Vec::new(),
+        rule_areas,
+        max_expansions: 100_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
+        zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
+    };
+
+    let mut eng = Engine::new(inp.clone()).unwrap();
+    assert!(
+        eng.route_all().is_ok(),
+        "route_all must succeed via target-center via when attached neighbor pocket has no vias"
+    );
+    let out = crate::run(inp);
+    assert_eq!(out.status, Status::Complete);
+    assert!(
+        out.added_vias
+            .iter()
+            .any(|v| v.at == [40_000_000, 15_000_000]),
+        "expected via at target pad center [40_000_000, 15_000_000], got {:?}",
+        out.added_vias
+    );
+}

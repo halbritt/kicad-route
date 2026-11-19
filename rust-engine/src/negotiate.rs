@@ -1009,13 +1009,19 @@ fn analyze_blockers(
     Ok(ranked)
 }
 
-fn trial_cap_for(batch_limit: u64, max_ok_unit_exp: u64) -> u64 {
-    let half = (batch_limit / 2).max(1);
-    let floor = TRIAL_EXPANSION_CAP.min(half).max(1);
-    if max_ok_unit_exp == 0 {
-        return floor;
+fn trial_cap_for(batch_limit: u64, max_ok_unit_exp: u64) -> Option<u64> {
+    let half = batch_limit / 2;
+    if half < TRIAL_EXPANSION_CAP {
+        return None;
     }
-    max_ok_unit_exp.saturating_mul(6).clamp(floor, half)
+    if max_ok_unit_exp == 0 {
+        return Some(TRIAL_EXPANSION_CAP);
+    }
+    Some(
+        max_ok_unit_exp
+            .saturating_mul(6)
+            .clamp(TRIAL_EXPANSION_CAP, half),
+    )
 }
 
 enum TryUnitErr {
@@ -1158,7 +1164,7 @@ fn try_local_ripup_round(
     stats: &mut NegotiationStats,
     batch_limit: u64,
     expanded: &mut u64,
-    trial_cap: u64,
+    trial_cap: Option<u64>,
     is_trial_attempt: bool,
     no_trial_cap: &mut BTreeSet<RouteUnitId>,
     max_ok_unit_exp: &mut u64,
@@ -1239,7 +1245,8 @@ fn try_local_ripup_round(
                 let unit_exp_before = *expanded;
                 let u_cap = (!no_trial_cap.contains(&unit.id)
                     && !local_no_trial_cap.contains(&unit.id))
-                .then_some(trial_cap);
+                .then_some(trial_cap)
+                .flatten();
                 match try_unit_with_cap(
                     round_tx.engine,
                     adapter,
@@ -1379,7 +1386,8 @@ fn try_local_ripup_round(
                 let v_exp_before = *expanded;
                 let v_cap = (!no_trial_cap.contains(&victim_id)
                     && !local_no_trial_cap.contains(&victim_id))
-                .then_some(trial_cap);
+                .then_some(trial_cap)
+                .flatten();
                 match try_unit_with_cap(
                     round_tx.engine,
                     adapter,
@@ -1593,8 +1601,13 @@ fn solve_with_adapter_units(
             e
         })?;
         let unit_exp_before = *expanded;
-        let t_cap = (routed_rippable_count > 0 && !no_trial_cap.contains(&u.id))
-            .then(|| trial_cap_for(batch_limit, max_ok_unit_exp));
+        let can_rip_any =
+            routed_rippable_count > 0 || (u.priority_tier == 0 && routed_any_count > 0);
+        let t_cap = if can_rip_any && !no_trial_cap.contains(&u.id) {
+            trial_cap_for(batch_limit, max_ok_unit_exp)
+        } else {
+            None
+        };
         match try_unit_with_cap(
             tx.engine,
             adapter,
@@ -1661,6 +1674,7 @@ fn solve_with_adapter_units(
                     e
                 })?;
                 if resolved {
+                    routed_any_count += 1;
                     if u.rippable_by_single {
                         routed_rippable_count += 1;
                     }
@@ -1689,6 +1703,7 @@ fn solve_with_adapter_units(
                             no_trial_cap.insert(u.id);
                             max_ok_unit_exp =
                                 max_ok_unit_exp.max(expanded.saturating_sub(retry_before));
+                            routed_any_count += 1;
                             if u.rippable_by_single {
                                 routed_rippable_count += 1;
                             }
@@ -1800,8 +1815,13 @@ fn solve_with_adapter_units(
             for u in &reordered {
                 pass_tx.engine.charge_work(1).map_err(PassOutcome::Fatal)?;
                 let unit_exp_before = *expanded;
-                let t_cap = (rippable_routed_in_pass > 0 && !no_trial_cap.contains(&u.id))
-                    .then(|| trial_cap_for(batch_limit, max_ok_unit_exp));
+                let can_rip_any =
+                    rippable_routed_in_pass > 0 || (u.priority_tier == 0 && routed_any_in_pass > 0);
+                let t_cap = if can_rip_any && !no_trial_cap.contains(&u.id) {
+                    trial_cap_for(batch_limit, max_ok_unit_exp)
+                } else {
+                    None
+                };
                 match try_unit_with_cap(
                     pass_tx.engine,
                     adapter,
