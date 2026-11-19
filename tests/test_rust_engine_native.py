@@ -4539,3 +4539,61 @@ def test_route_native_repairs_ground_split_by_signal_on_refill(native_board, gua
     final = bridge.native_violations(candidate, tmp_path / 'repaired-drc.json', refill_zones=True)
     assert not final['unconnected_items']
     assert not [v for v in final['violations'] if v['severity'] == 'error']
+
+@pytest.mark.parametrize('allowed,expected', [(None, 'B.Cu'), (['F.Cu'], 'F.Cu')])
+def test_route_native_layer_policy_is_applied_to_saved_four_layer_copper(
+        native_board, guarded_cli, tmp_path, allowed, expected):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.LoadBoard(str(native_board))
+    board.SetCopperLayerCount(4)
+    for pad in board.GetPads():
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_PTH)
+        pad.SetDrillSize(pcbnew.VECTOR2I(400_000, 400_000))
+        pad.SetLayerSet(pad.PTHMask())
+    assert pcbnew.SaveBoard(str(native_board), board)
+    source = native_board.read_bytes()
+    rules = tmp_path / 'rules.json'
+    rules.write_text(json.dumps(RULES))
+    policy = {'signal_layers': ['F.Cu', 'B.Cu'], 'layer_costs': [1000, 1]}
+    if allowed:
+        policy['per_net_signal_layers'] = {'SIGNAL': allowed}
+    output = tmp_path / 'routed.kicad_pcb'
+    request = tmp_path / 'request.json'
+    run_result = run([str(engine), 'route-native', str(native_board), str(output),
+                      '--rules', str(rules), '--layer-policy-json', json.dumps(policy),
+                      '--save-request', str(request)], check=False)
+    operation = json.loads(run_result.stdout)
+    assert operation['status'] == 'complete', operation.get('failure')
+    assert run_result.returncode == 0
+    assert json.loads(request.read_text())['routing_options']['layer_policy'] == policy
+    saved = pcbnew.LoadBoard(str(output))
+    signal = [t for t in saved.GetTracks() if t.GetNetname() == 'SIGNAL']
+    tracks = [t for t in signal if not isinstance(t, pcbnew.PCB_VIA)]
+    assert tracks and {saved.GetLayerName(t.GetLayer()) for t in tracks} == {expected}
+    if allowed:
+        assert all(not isinstance(t, pcbnew.PCB_VIA) for t in signal)
+    assert native_board.read_bytes() == source
+
+def test_route_native_per_net_policy_refuses_through_via_crossing_excluded_inner_layers(
+        native_board, guarded_cli, tmp_path):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.LoadBoard(str(native_board))
+    board.SetCopperLayerCount(4)
+    back = pcbnew.LSET()
+    back.AddLayer(pcbnew.B_Cu)
+    next(iter(board.GetPads())).SetLayerSet(back)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    original = native_board.read_bytes()
+    rules = tmp_path / 'rules.json'
+    rules.write_text(json.dumps(RULES))
+    policy = {'signal_layers': ['F.Cu', 'B.Cu'],
+              'per_net_signal_layers': {'SIGNAL': ['F.Cu', 'B.Cu']}}
+    target = tmp_path / 'out.kicad_pcb'
+    result = run([str(engine), 'route-native', str(native_board), str(target), '--rules', str(rules),
+                  '--layer-policy-json', json.dumps(policy)], check=False)
+    assert result.returncode != 0
+    assert json.loads(result.stdout)['status'] == 'unroutable'
+    assert native_board.read_bytes() == original
+    assert not target.exists()

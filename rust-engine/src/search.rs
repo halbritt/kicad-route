@@ -298,7 +298,7 @@ fn search_inner(
         &[start],
         limit,
         expanded,
-        |p| Ok(heuristic(p)),
+        |p| Ok(heuristic(p).saturating_mul(engine.layer_policy.minimum_step(net))),
         |_, a, b| Ok(engine.legal_edge(net, a, b)?.then_some(b)),
         |at, _| Ok(at == goal),
     )
@@ -867,6 +867,7 @@ fn search_component_path(
         )
     };
 
+    let minimum_step = engine.layer_policy.minimum_step(net);
     loop {
         let use_bidirectional = l_count >= 2
             && engine.input.rules.same_net_hole_clearance_nm == 0
@@ -884,7 +885,8 @@ fn search_component_path(
                 &engine.effective_rules,
                 net,
                 max_eff_width,
-                via_cost,
+                minimum_step,
+                engine.layer_policy.scale(via_cost),
                 engine.input.rules.grid_nm,
                 disallow_smd_via_in_pad,
                 &engine.work,
@@ -899,7 +901,7 @@ fn search_component_path(
                     .copied()
                     .unwrap_or(bwd.fallback)
                     .min(bwd.fallback);
-                return Ok(h_comp.max(h_bwd));
+                return Ok(h_comp.max(engine.layer_policy.scale(h_bwd)));
             }
             Ok(h_comp)
         };
@@ -1267,7 +1269,10 @@ fn search_component_path(
                     radius_sq_upper: conflict_radius_sq_upper.max(pair_sq),
                 });
                 if !has_zone_target && engine.input.rules.same_net_hole_clearance_nm == 0 {
-                    let needed_cutoff = result.steps.saturating_add(via_cost);
+                    let needed_cutoff = engine
+                        .layer_policy
+                        .unscale(result.steps)
+                        .saturating_add(via_cost);
                     if backward_h.as_ref().is_none_or(|(m, _)| needed_cutoff > *m) {
                         let bwd = compute_backward_heuristic(
                             engine,
@@ -2247,6 +2252,7 @@ fn component_estimate_multilayer(
     rules: &EffectiveRules,
     net: u32,
     max_eff_width: i64,
+    minimum_step: u64,
     via_cost: u64,
     grid: i64,
     disallow_smd_via_in_pad: bool,
@@ -2286,9 +2292,10 @@ fn component_estimate_multilayer(
         } else {
             contact_steps(p, *target, eff_width, grid)
         };
+        let d_via_bound = d_via_bound.saturating_mul(minimum_step);
         let steps = if let Some(width) = track_width {
             if (t_mask & my_bit) != 0 {
-                let d_track = contact_steps(p, *target, width, grid);
+                let d_track = contact_steps(p, *target, width, grid).saturating_mul(minimum_step);
                 d_track.min(d_via_bound.saturating_add(via_cost))
             } else {
                 d_via_bound.saturating_add(via_cost)
@@ -2811,7 +2818,7 @@ fn walk_multilayer(
                     }
                     _ => 0,
                 };
-                let step_cost = 1u64.checked_add(step_penalty).expect("bounded step cost");
+                let step_cost = engine.layer_policy.step(state.layer as usize, step_penalty);
                 let g = cost.checked_add(step_cost).expect("bounded search cost");
                 if best.get(&next).is_some_and(|old| *old <= g) {
                     continue;
@@ -2976,7 +2983,7 @@ fn walk_multilayer(
                     }
                     _ => 0,
                 };
-                let total_v_cost = v_cost.checked_add(v_penalty).expect("bounded via cost");
+                let total_v_cost = engine.layer_policy.scale(v_cost + v_penalty);
                 let g = cost.checked_add(total_v_cost).expect("bounded search cost");
                 if best.get(&next).is_some_and(|old| *old <= g) {
                     continue;
@@ -3097,15 +3104,18 @@ impl ReverseSources {
         &self,
         at: Point,
         layer: u8,
+        min_step: u64,
         via_cost: u64,
         work: &WorkBudget,
     ) -> Result<u64, Failure> {
         let phase = at.map(|n| n.rem_euclid(self.grid));
         let source = &self.phases[&phase];
         let steps = |p: Point, source_layer: u8| {
-            at[0].abs_diff(p[0]) / self.grid as u64
-                + at[1].abs_diff(p[1]) / self.grid as u64
-                + if layer == source_layer { 0 } else { via_cost }
+            let distance =
+                at[0].abs_diff(p[0]) / self.grid as u64 + at[1].abs_diff(p[1]) / self.grid as u64;
+            distance
+                .saturating_mul(min_step)
+                .saturating_add(if layer == source_layer { 0 } else { via_cost })
         };
         let best = if source.boxes.is_empty() {
             work.charge(source.starts.len() as u64)?;
@@ -3245,6 +3255,8 @@ fn seed_backward_a_star(
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_buf: Vec<(u8, u8, bool)> = Vec::new();
 
+    let min_step = engine.layer_policy.minimum_step(net);
+    let via_bound = engine.layer_policy.scale(via_cost);
     let mut record_seed = |bkey: BiKey, g_seed: u64, step: BwdStep| -> Result<(), Failure> {
         if best_bwd.get(&bkey).is_some_and(|&old| old <= g_seed) {
             return Ok(());
@@ -3258,7 +3270,7 @@ fn seed_backward_a_star(
         engine.work.charge(1)?;
         best_bwd.insert(bkey, g_seed);
         parent_bwd.insert(bkey, step);
-        let h = sources.estimate(bkey.at, bkey.layer, via_cost, &engine.work)?;
+        let h = sources.estimate(bkey.at, bkey.layer, min_step, via_bound, &engine.work)?;
         let (a, b) = match step.edge {
             PathEdge::Track { start, end, .. } => (start, end),
             PathEdge::Via(v) => (v.at, v.at),
@@ -3349,8 +3361,7 @@ fn seed_backward_a_star(
                                             }
                                             _ => 0,
                                         };
-                                        let g_seed =
-                                            1u64.checked_add(step_pen).expect("bounded step cost");
+                                        let g_seed = engine.layer_policy.step(l_idx, step_pen);
                                         let bkey = BiKey {
                                             at: p,
                                             layer: l_idx as u8,
@@ -3445,9 +3456,7 @@ fn seed_backward_a_star(
                                                 }
                                                 _ => 0,
                                             };
-                                            let g_seed = v_cost
-                                                .checked_add(v_pen)
-                                                .expect("bounded via cost");
+                                            let g_seed = engine.layer_policy.scale(v_cost + v_pen);
                                             let bkey = BiKey {
                                                 at: p,
                                                 layer: l_from as u8,
@@ -3525,6 +3534,8 @@ fn walk_multilayer_bidirectional(
             Err(e) => return Err(e),
         }
     }
+    let min_step = engine.layer_policy.minimum_step(net);
+    let via_bound = engine.layer_policy.scale(via_cost);
     let mut reverse_sources = None;
 
     let mut q_fwd: BinaryHeap<Reverse<(u64, TieG, State)>> = BinaryHeap::new();
@@ -3740,7 +3751,7 @@ fn walk_multilayer_bidirectional(
                         _ => 0,
                     };
                     let g = cost
-                        .checked_add(1u64.checked_add(step_penalty).expect("bounded step cost"))
+                        .checked_add(engine.layer_policy.step(l_idx, step_penalty))
                         .expect("bounded search cost");
                     if best_fwd.get(&next).is_some_and(|&old| old <= g)
                         || settled_fwd.contains(&next)
@@ -3900,7 +3911,7 @@ fn walk_multilayer_bidirectional(
                         _ => 0,
                     };
                     let g = cost
-                        .checked_add(v_cost.checked_add(v_penalty).expect("bounded via cost"))
+                        .checked_add(engine.layer_policy.scale(v_cost + v_penalty))
                         .expect("bounded search cost");
                     if is_goal && best_mu.as_ref().is_none_or(|(c, _)| g < *c) {
                         best_mu = Some((g, MeetRecord::DirectFwdVia { prev: state, pv }));
@@ -4016,7 +4027,7 @@ fn walk_multilayer_bidirectional(
                         continue;
                     };
                     let q = [qx, qy];
-                    let g = cost + 1 + step_penalty;
+                    let g = cost + engine.layer_policy.step(l_idx, step_penalty);
                     let next_key = BiKey {
                         at: q,
                         layer: bkey.layer,
@@ -4087,7 +4098,7 @@ fn walk_multilayer_bidirectional(
                     let h = reverse_sources
                         .as_ref()
                         .expect("reverse frontier seeded")
-                        .estimate(q, bkey.layer, via_cost, &engine.work)?;
+                        .estimate(q, bkey.layer, min_step, via_bound, &engine.work)?;
                     q_bwd.push(Reverse((
                         g.checked_add(h).expect("bounded bwd heuristic"),
                         TieG {
@@ -4165,7 +4176,7 @@ fn walk_multilayer_bidirectional(
                         _ => 0,
                     };
                     let g = cost
-                        .checked_add(v_cost.checked_add(v_penalty).expect("bounded via cost"))
+                        .checked_add(engine.layer_policy.scale(v_cost + v_penalty))
                         .expect("bounded search cost");
                     if best_bwd.get(&next_key).is_some_and(|&old| old <= g)
                         || settled_bwd.contains(&next_key)
@@ -4218,7 +4229,7 @@ fn walk_multilayer_bidirectional(
                     let h = reverse_sources
                         .as_ref()
                         .expect("reverse frontier seeded")
-                        .estimate(bkey.at, next_key.layer, via_cost, &engine.work)?;
+                        .estimate(bkey.at, next_key.layer, min_step, via_bound, &engine.work)?;
                     q_bwd.push(Reverse((
                         g.checked_add(h).expect("bounded bwd heuristic"),
                         TieG {

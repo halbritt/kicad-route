@@ -57,6 +57,26 @@ measurements on the saved board separately establish the actual width, gap
 and length of the copper. The native operation report carries the same rows in
 `routing.diff_pairs`.
 
+### Signal layer policy
+
+Pass `--layer-policy-json` to `route-native`, or supply the same object in
+`routing_options.layer_policy` for a saved request. For example:
+
+```json
+{"signal_layers":["F.Cu","B.Cu"],"layer_costs":[1.5,1],"per_net_signal_layers":{"RF":["F.Cu"]}}
+```
+
+The router creates tracks only on the declared signal layers. An entry for a
+named net further limits its tracks and every copper layer traversed by its
+vias. With only a global declaration, a through via may connect the permitted
+outer faces across the inner layers. Allowed layers use the board's physical
+stack names. The original board's copper and design rules still apply.
+
+Optional track cost multipliers range from 1 through 1000 in signal-layer
+order. They weight planar steps in both search directions and coupled-pair
+path selection. Fractional multipliers have a resolution of one millionth.
+A lower weight can favor a longer physical path on a preferred layer.
+
 ### Optional single-ended bus routing
 
 With `routing_options.bus`, the engine looks for adjacent terminal banks among

@@ -5948,7 +5948,7 @@ fn astar_coupled_centerline(
             let ext_pen = step_penalty(k.li, npt);
             let ng = cur
                 .g
-                .saturating_add(step_len)
+                .saturating_add(engine.layer_policy.length_cost(k.li as usize, step_len))
                 .saturating_add(turn_pen)
                 .saturating_add(ext_pen);
             let nk = Key {
@@ -6123,7 +6123,7 @@ fn route_single_diff_pair_inner(
         )));
     }
 
-    let allowed_layer_idxs: Vec<usize> = plan
+    let mut allowed_layer_idxs: Vec<usize> = plan
         .pair_layers
         .iter()
         .filter_map(|ln| engine.layer_index(ln))
@@ -6134,6 +6134,17 @@ fn route_single_diff_pair_inner(
             "no allowed copper layers available for differential pair routing",
         )));
     }
+    allowed_layer_idxs.retain(|&l| {
+        engine.layer_policy.track_allowed(pair.pos_net, l)
+            && engine.layer_policy.track_allowed(pair.neg_net, l)
+    });
+    if allowed_layer_idxs.is_empty() {
+        return Err(UnitRouteError::Fatal(Failure::new(
+            Status::Unroutable,
+            "paired nets have no common permitted routing layer",
+        )));
+    }
+    allowed_layer_idxs.sort_by_key(|&l| engine.layer_policy.weight(l));
 
     let Some([(p_start, n_start), (p_end, n_end)]) =
         find_pad_pairs(&engine.input, pair.pos_net, pair.neg_net)
@@ -6198,7 +6209,21 @@ fn route_single_diff_pair_inner(
             } else {
                 0
             };
-            let score = sf.uncoupled_nm
+            let layer_penalty = if sf.layer_idx == ef.layer_idx
+                && engine.layer_policy.weight(sf.layer_idx) > engine.layer_policy.scale(1)
+            {
+                let length = ((sf.gather[0] - ef.gather[0]) as f64)
+                    .hypot((sf.gather[1] - ef.gather[1]) as f64)
+                    as u64;
+                engine
+                    .layer_policy
+                    .length_cost(sf.layer_idx, length)
+                    .saturating_sub(length) as i64
+            } else {
+                0
+            };
+            let score = layer_penalty
+                + sf.uncoupled_nm
                 + ef.uncoupled_nm
                 + 2 * (sf.skew_nm + ef.skew_nm)
                 + same_layer_bonus
