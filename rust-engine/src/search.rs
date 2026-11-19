@@ -5,7 +5,7 @@ use crate::model::{Failure, OutlinePolygon, Point, Status, Track, Via, ViaKind};
 use crate::rules::EffectiveRules;
 use crate::Engine;
 use std::cmp::Reverse;
-use std::collections::{BTreeSet, BinaryHeap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct PlacedViaKey {
@@ -3003,50 +3003,81 @@ enum MeetRecord {
     Joined { fwd_key: BiKey, bwd_key: BiKey },
 }
 
-fn h_bwd_estimate(
-    p: Point,
-    layer_idx: usize,
-    starts: &[(Point, u8, bool)],
-    layer_bboxes: &[Option<(i64, i64, i64, i64)>],
-    via_cost: u64,
+// A reverse step moves exactly one grid unit or changes layer at the same
+// point. It can reach only starts with the same pair of coordinate residues.
+// Keep that subgraph's bound separate even when another branch is nearby.
+#[derive(Default)]
+struct SourcePhase {
+    starts: Vec<(Point, u8)>,
+    boxes: BTreeMap<u8, (Point, Point)>,
+}
+
+struct ReverseSources {
     grid: i64,
-) -> u64 {
-    let g = grid as u64;
-    let l_u8 = layer_idx as u8;
-    let mut best = u64::MAX;
-    if starts.len() <= 16 {
-        for &(s, s_l, _) in starts {
-            let dx = p[0].abs_diff(s[0]).div_ceil(g);
-            let dy = p[1].abs_diff(s[1]).div_ceil(g);
-            let v = if l_u8 == s_l { 0 } else { via_cost };
-            best = best.min(dx.saturating_add(dy).saturating_add(v));
+    phases: BTreeMap<Point, SourcePhase>,
+}
+
+impl ReverseSources {
+    fn new(starts: &[(Point, u8, bool)], grid: i64, work: &WorkBudget) -> Result<Self, Failure> {
+        let mut phases = BTreeMap::<Point, SourcePhase>::new();
+        let mut entries = starts.len();
+        work.charge(entries as u64)?;
+        work.search_storage(entries)?;
+        for &(point, layer, _) in starts {
+            let phase = point.map(|n| n.rem_euclid(grid));
+            if !phases.contains_key(&phase) {
+                entries += 1;
+                work.search_storage(entries)?;
+            }
+            phases.entry(phase).or_default().starts.push((point, layer));
         }
-    } else {
-        for (s_l, bbox) in layer_bboxes.iter().enumerate() {
-            let Some((min_x, max_x, min_y, max_y)) = *bbox else {
-                continue;
-            };
-            let dx_nm = if p[0] < min_x {
-                min_x.abs_diff(p[0])
-            } else if p[0] > max_x {
-                p[0].abs_diff(max_x)
-            } else {
-                0
-            };
-            let dy_nm = if p[1] < min_y {
-                min_y.abs_diff(p[1])
-            } else if p[1] > max_y {
-                p[1].abs_diff(max_y)
-            } else {
-                0
-            };
-            let dx = dx_nm.div_ceil(g);
-            let dy = dy_nm.div_ceil(g);
-            let v = if layer_idx == s_l { 0 } else { via_cost };
-            best = best.min(dx.saturating_add(dy).saturating_add(v));
+        for source in phases.values_mut().filter(|p| p.starts.len() > 16) {
+            work.charge(source.starts.len() as u64)?;
+            for &(at, layer) in &source.starts {
+                if !source.boxes.contains_key(&layer) {
+                    entries += 1;
+                    work.search_storage(entries)?;
+                }
+                let (lo, hi) = source.boxes.entry(layer).or_insert((at, at));
+                for k in 0..2 {
+                    lo[k] = lo[k].min(at[k]);
+                    hi[k] = hi[k].max(at[k]);
+                }
+            }
         }
+        Ok(Self { grid, phases })
     }
-    best
+
+    fn estimate(
+        &self,
+        at: Point,
+        layer: u8,
+        via_cost: u64,
+        work: &WorkBudget,
+    ) -> Result<u64, Failure> {
+        let phase = at.map(|n| n.rem_euclid(self.grid));
+        let source = &self.phases[&phase];
+        let steps = |p: Point, source_layer: u8| {
+            at[0].abs_diff(p[0]) / self.grid as u64
+                + at[1].abs_diff(p[1]) / self.grid as u64
+                + if layer == source_layer { 0 } else { via_cost }
+        };
+        let best = if source.boxes.is_empty() {
+            work.charge(source.starts.len() as u64)?;
+            source.starts.iter().map(|&(p, l)| steps(p, l)).min()
+        } else {
+            work.charge(source.boxes.len() as u64)?;
+            source
+                .boxes
+                .iter()
+                .map(|(&l, &(lo, hi))| {
+                    let nearest = std::array::from_fn(|k| at[k].clamp(lo[k], hi[k]));
+                    steps(nearest, l)
+                })
+                .min()
+        };
+        Ok(best.expect("a reverse phase has at least one forward start"))
+    }
 }
 
 fn reconstruct_bi_path(
@@ -3135,14 +3166,13 @@ fn reconstruct_bi_path(
 fn seed_backward_a_star(
     engine: &Engine,
     net: u32,
-    starts: &[(Point, u8, bool)],
+    sources: &ReverseSources,
     targets: &[Vec<Copper<'_>>],
     max_eff_width: i64,
     via_cost: u64,
     only_through_vias: bool,
     prefer_higher_g: bool,
     track_ok_on_layer: &[bool],
-    layer_bboxes: &[Option<(i64, i64, i64, i64)>],
     history: Option<&crate::negotiate::CongestionHistory>,
     attachment: &impl Fn(usize, Point, Point, &[PlacedViaKey]) -> Result<Option<Point>, Failure>,
     via_transitions: &impl Fn(
@@ -3167,11 +3197,6 @@ fn seed_backward_a_star(
     let route_radius = (max_eff_width + 1) / 2;
     let bounds = engine.input.bounds;
 
-    let mut phases: BTreeSet<(i64, i64)> = BTreeSet::new();
-    for &(s, _, _) in starts {
-        phases.insert((s[0].rem_euclid(grid), s[1].rem_euclid(grid)));
-    }
-
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_buf: Vec<(u8, u8, bool)> = Vec::new();
 
@@ -3188,14 +3213,7 @@ fn seed_backward_a_star(
         engine.work.charge(1)?;
         best_bwd.insert(bkey, g_seed);
         parent_bwd.insert(bkey, step);
-        let h = h_bwd_estimate(
-            bkey.at,
-            bkey.layer as usize,
-            starts,
-            layer_bboxes,
-            via_cost,
-            grid,
-        );
+        let h = sources.estimate(bkey.at, bkey.layer, via_cost, &engine.work)?;
         let (a, b) = match step.edge {
             PathEdge::Track { start, end, .. } => (start, end),
             PathEdge::Via(v) => (v.at, v.at),
@@ -3254,7 +3272,7 @@ fn seed_backward_a_star(
         let min_y = lo[1].saturating_sub(route_radius + grid).max(bounds.min[1]);
         let max_y = hi[1].saturating_add(route_radius + grid).min(bounds.max[1]);
 
-        for &(ox, oy) in &phases {
+        for &[ox, oy] in sources.phases.keys() {
             let x_rem = (ox - min_x.rem_euclid(grid)).rem_euclid(grid);
             let mut x = min_x.saturating_add(x_rem);
             while x <= max_x {
@@ -3462,16 +3480,7 @@ fn walk_multilayer_bidirectional(
             Err(e) => return Err(e),
         }
     }
-    let mut layer_bboxes: Vec<Option<(i64, i64, i64, i64)>> = vec![None; l_count];
-    for &(s, s_l, _) in starts {
-        let slot = &mut layer_bboxes[s_l as usize];
-        *slot = Some(match *slot {
-            None => (s[0], s[0], s[1], s[1]),
-            Some((mnx, mxx, mny, mxy)) => {
-                (mnx.min(s[0]), mxx.max(s[0]), mny.min(s[1]), mxy.max(s[1]))
-            }
-        });
-    }
+    let mut reverse_sources = None;
 
     let mut q_fwd: BinaryHeap<Reverse<(u64, TieG, State)>> = BinaryHeap::new();
     let mut best_fwd: HashMap<State, u64> = HashMap::new();
@@ -3528,14 +3537,13 @@ fn walk_multilayer_bidirectional(
         }
     }
 
-    let mut bwd_seeded = false;
     let mut best_mu: Option<(u64, MeetRecord)> = None;
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
 
-    while !q_fwd.is_empty() || (bwd_seeded && !q_bwd.is_empty()) {
-        if bwd_seeded {
+    while !q_fwd.is_empty() || (reverse_sources.is_some() && !q_bwd.is_empty()) {
+        if reverse_sources.is_some() {
             while let Some(Reverse((_, tie_g, st))) = q_fwd.peek() {
                 if best_fwd.get(st) == Some(&tie_g.g) && !settled_fwd.contains(st) {
                     break;
@@ -3564,8 +3572,9 @@ fn walk_multilayer_bidirectional(
             }
         }
 
-        let expand_fwd =
-            !bwd_seeded || q_bwd.is_empty() || (!q_fwd.is_empty() && q_fwd.len() <= q_bwd.len());
+        let expand_fwd = reverse_sources.is_none()
+            || q_bwd.is_empty()
+            || (!q_fwd.is_empty() && q_fwd.len() <= q_bwd.len());
         if expand_fwd {
             engine.work.charge(1)?;
             let Reverse((_f, tie_g, state)) = q_fwd.pop().unwrap();
@@ -3579,19 +3588,19 @@ fn walk_multilayer_bidirectional(
             budget.check_before_expand(engine, *expanded, frontier.as_deref())?;
             *expanded = expanded.checked_add(1).expect("bounded expansion count");
             local_exp += 1;
-            if local_exp == 256 && !bwd_seeded {
-                bwd_seeded = true;
+            if local_exp == 256 && reverse_sources.is_none() {
+                let sources =
+                    reverse_sources.insert(ReverseSources::new(starts, grid, &engine.work)?);
                 seed_backward_a_star(
                     engine,
                     net,
-                    starts,
+                    sources,
                     targets,
                     max_eff_width,
                     via_cost,
                     only_through_vias,
                     prefer_higher_g,
                     &track_ok_on_layer,
-                    &layer_bboxes,
                     history,
                     attachment,
                     &via_transitions,
@@ -3621,7 +3630,7 @@ fn walk_multilayer_bidirectional(
                         parent_fwd.get(&state).map(|(_, e)| *e),
                     )?)
             {
-                if !bwd_seeded {
+                if reverse_sources.is_none() {
                     return reconstruct_bi_path(
                         &parent_fwd,
                         &parent_bwd,
@@ -3725,7 +3734,7 @@ fn walk_multilayer_bidirectional(
                     };
                     if best_fwd_meet.get(&fkey).is_none_or(|&old| g < old) {
                         best_fwd_meet.insert(fkey, g);
-                        if bwd_seeded {
+                        if reverse_sources.is_some() {
                             for bwd_via in [false, true] {
                                 let bkey = BiKey {
                                     at,
@@ -3879,7 +3888,7 @@ fn walk_multilayer_bidirectional(
                         };
                         if best_fwd_meet.get(&fkey).is_none_or(|&old| g < old) {
                             best_fwd_meet.insert(fkey, g);
-                            if bwd_seeded {
+                            if reverse_sources.is_some() {
                                 for bwd_via in [false, true] {
                                     if only_through_vias && fkey.arrived_by_via && bwd_via {
                                         continue;
@@ -4030,7 +4039,10 @@ fn walk_multilayer_bidirectional(
                             }
                         }
                     }
-                    let h = h_bwd_estimate(q, l_idx, starts, &layer_bboxes, via_cost, grid);
+                    let h = reverse_sources
+                        .as_ref()
+                        .expect("reverse frontier seeded")
+                        .estimate(q, bkey.layer, via_cost, &engine.work)?;
                     q_bwd.push(Reverse((
                         g.checked_add(h).expect("bounded bwd heuristic"),
                         TieG {
@@ -4158,14 +4170,10 @@ fn walk_multilayer_bidirectional(
                             }
                         }
                     }
-                    let h = h_bwd_estimate(
-                        bkey.at,
-                        prev_l as usize,
-                        starts,
-                        &layer_bboxes,
-                        via_cost,
-                        grid,
-                    );
+                    let h = reverse_sources
+                        .as_ref()
+                        .expect("reverse frontier seeded")
+                        .estimate(bkey.at, next_key.layer, via_cost, &engine.work)?;
                     q_bwd.push(Reverse((
                         g.checked_add(h).expect("bounded bwd heuristic"),
                         TieG {

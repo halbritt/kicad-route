@@ -139,6 +139,9 @@ The estimate therefore underestimates remaining unit-step cost, is consistent
 across edges, and is zero at every accepted goal. Obstacles do not enter the
 estimate. Each target evaluation is charged to the shared work budget. Each seed
 retains its own grid phase, so off-grid incumbent endpoints are supported.
+In bidirectional search, the reverse frontier estimates distance to source
+anchors on its own grid phase. A full grid step preserves both coordinate
+residues, and a via preserves the position.
 For a join between two isolated pads, their anchor coordinates may generate
 different grid phases. If the first search exhausts its frontier and the other
 pad offers another phase, the router searches from that pad with the remaining
