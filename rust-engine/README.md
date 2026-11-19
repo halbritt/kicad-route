@@ -51,10 +51,11 @@ terminals remain part of their original net. The scheduler routes members from
 the middle out, retaining the scheduled positions of unrelated nets and pairs.
 
 Each member keeps its transverse offset from the group's average direction.
-Search charges extra for planar grid steps away from that finite lane on any
-layer. The penalty increases with midpoint distance up to
-`attraction_radius_nm` and reaches `attraction_bonus` thousandths of a grid
-step, rounded up to an integer step cost. A zero bonus enables ordering alone.
+When two search states have the same estimated total cost and accumulated
+routing cost, the queue prefers the edge with the closer midpoint. The rank
+increases with distance up to `attraction_radius_nm`. Its maximum is
+`attraction_bonus` divided by 1000, rounded up. A zero bonus enables ordering
+alone. The base grid, via and congestion costs still determine shortest paths.
 An obstacle or a branch can take the route outside the preferred lane.
 The Rust detector uses geometry, so nearby unrelated signals with matching
 banks can qualify and wide fan-outs can be missed.

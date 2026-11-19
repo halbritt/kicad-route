@@ -108,8 +108,8 @@ struct Lane {
 }
 impl Lane {
     // Midpoint distance to the finite lane. Integer half-nanometres keep
-    // traversal costs identical in the forward and reverse searches.
-    fn penalty(self, a: Point, b: Point, options: BusOptions) -> u64 {
+    // queue preferences identical for the same edge in either search.
+    fn rank(self, a: Point, b: Point, options: BusOptions) -> u32 {
         let d = self.span.delta();
         let mid = [
             i128::from(a[0]) + i128::from(b[0]) - 2 * i128::from(self.span.a[0]),
@@ -129,11 +129,11 @@ impl Lane {
             // Validated board coordinates bound the squared cross product.
             (cross(mid, d).pow(2) / self.length_squared).isqrt()
         };
-        // The bonus is in thousandths of a grid-step. Accrue a nonnegative
-        // surcharge with distance, capped at the specified attraction radius.
+        // The attraction bonus sets the number of distance bins in thousandths.
+        // This rank breaks equal route-cost ties, including in reverse search.
         let radius2x = 2 * i128::from(options.attraction_radius_nm);
-        let surcharge = i128::from(options.attraction_bonus) * distance2x.min(radius2x);
-        ((surcharge + 1000 * radius2x - 1) / (1000 * radius2x)) as u64
+        let scaled_distance = i128::from(options.attraction_bonus) * distance2x.min(radius2x);
+        ((scaled_distance + 1000 * radius2x - 1) / (1000 * radius2x)) as u32
     }
 }
 #[derive(Default)]
@@ -339,17 +339,17 @@ impl BusPlan {
         }
         Ok(plan)
     }
-    pub(crate) fn step(
+    pub(crate) fn edge_rank(
         &self,
         net: u32,
         a: Point,
         b: Point,
         options: BusOptions,
         work: &WorkBudget,
-    ) -> Result<u64, Failure> {
+    ) -> Result<u32, Failure> {
         if let Some(&lane) = self.lanes.get(&net) {
             work.charge(1)?;
-            return Ok(lane.penalty(a, b, options));
+            return Ok(lane.rank(a, b, options));
         }
         Ok(0)
     }
@@ -427,18 +427,25 @@ mod tests {
         );
         for excluded in [10, 11, 20, 21, 33] {
             assert_eq!(
-                plan.step(excluded, [5, 100], [6, 100], options, &work)
+                plan.edge_rank(excluded, [5, 100], [6, 100], options, &work)
                     .unwrap(),
                 0
             );
         }
-        let forward = plan.step(4, [20, 60], [30, 60], options, &work).unwrap();
+        let forward = plan
+            .edge_rank(4, [20, 60], [30, 60], options, &work)
+            .unwrap();
         assert!(forward > 0);
         assert_eq!(
             forward,
-            plan.step(4, [30, 60], [20, 60], options, &work).unwrap()
+            plan.edge_rank(4, [30, 60], [20, 60], options, &work)
+                .unwrap()
         );
-        assert_eq!(plan.step(4, [20, 30], [30, 30], options, &work).unwrap(), 0);
+        assert_eq!(
+            plan.edge_rank(4, [20, 30], [30, 30], options, &work)
+                .unwrap(),
+            0
+        );
     }
     #[test]
     fn bus_local_neighbors_must_share_a_longitudinal_run() {
@@ -465,7 +472,7 @@ mod tests {
         }
     }
     #[test]
-    fn bus_cost_is_symmetric_bounded_and_zero_on_the_lane() {
+    fn bus_edge_rank_is_symmetric_bounded_and_zero_on_the_lane() {
         let span = Span {
             a: [0, 0],
             b: [100, 0],
@@ -482,11 +489,11 @@ mod tests {
                     attraction_bonus: bonus,
                     ..Default::default()
                 };
-                let cost = lane.penalty(points.0, points.1, options);
-                assert_eq!(cost, lane.penalty(points.1, points.0, options));
+                let cost = lane.rank(points.0, points.1, options);
+                assert_eq!(cost, lane.rank(points.1, points.0, options));
                 assert_eq!(cost > 0, bonus > 0);
-                assert_eq!(lane.penalty([10, 0], [20, 0], options), 0);
-                assert!(cost <= u64::from(bonus).div_ceil(1000));
+                assert_eq!(lane.rank([10, 0], [20, 0], options), 0);
+                assert!(cost <= bonus.div_ceil(1000));
             }
         }
     }
