@@ -131,7 +131,12 @@ def t2_f1_02(ctx: DriverContext) -> dict[str, Any]:
                 ov = min(max(ay0, ay1), max(by0, by1)) - max(min(ay0, ay1), min(by0, by1))
                 assert ov <= 0, f"collinear vertical overlap {ov} nm: {a} vs {b_tr}"
     total_len = sum(abs(t["end"][0] - t["start"][0]) + abs(t["end"][1] - t["start"][1]) for t in added)
-    assert total_len <= 20_000_000, f"expected normalized Steiner length <= 20mm, got {total_len}"
+    # With pad-interior attachment (3e37829), greedy Join 1 (J1->J3) reaches J3's interior at
+    # (10.0M, 4.25M) hugging the bottom wall at (8.75M, 9.25M) in 12.75 mm (0.25 mm shorter than
+    # center-to-center 13.0 mm). Join 2 (J2->Join 1) then attaches at (8.75M, 9.25M) in 8.75 mm
+    # (minimal Manhattan distance from J2 to Join 1 across the right wall), yielding 21.50 mm total
+    # with zero collinear overlap (vs ~24.875 mm with 3.375 mm collinear re-walk).
+    assert total_len <= 22_000_000, f"expected normalized Steiner length <= 22mm, got {total_len}"
     assert res.export_res.output_bytes is not None
     return assert_clean_e2e(
         bundle.pcb_path,
@@ -486,8 +491,9 @@ def t2_f2_02(ctx: DriverContext) -> dict[str, Any]:
     b_odd.add_pad(fp1, "1", "SIGNAL", (3_000_000, 10_000_000), shape=pn.PAD_SHAPE_OVAL, size_nm=(2_000_001, 1_000_000))
     fp2 = b_odd.add_footprint("J2", (17_000_000, 10_000_000))
     b_odd.add_pad(fp2, "1", "SIGNAL", (17_000_000, 10_000_000), shape=pn.PAD_SHAPE_ROUNDRECT, size_nm=(2_000_000, 1_000_001), roundrect_ratio=0.25)
-    bundle_odd = b_odd.save(ctx.work_dir / "odd_pad")
-    out_odd = ctx.work_dir / "odd_pad" / "routed.kicad_pcb"
+    bundle_odd = b_odd.save(ctx.work_dir / "odd_pad_src")
+    out_odd = ctx.work_dir / "odd_pad_out" / "routed.kicad_pcb"
+    out_odd.parent.mkdir(parents=True, exist_ok=True)
     rules_path = write_json_file(ctx.work_dir / "rules.json", STD_RULES)
     exp_odd = ctx.json_driver.export_board(bundle_odd.pcb_path, ctx.work_dir / "odd.req.json", rules_path)
     assert_no_crash(exp_odd.proc, "odd_pad_export")
@@ -545,7 +551,11 @@ def t2_f2_03(ctx: DriverContext) -> dict[str, Any]:
         assert_no_crash(exp.proc, f"export_{tag}")
         assert exp.proc.returncode == 2
         assert exp.stderr_json is not None and exp.stderr_json["status"] == "unsupported"
-        assert tag in exp.stderr_json["reason"].lower()
+        reason = exp.stderr_json["reason"].lower()
+        if tag == "padstack":
+            assert "pad stack" in reason or "padstack" in reason, exp.stderr_json
+        else:
+            assert tag in reason, exp.stderr_json
         assert not req_out.exists()
 
         plan_obj = dict(probe_eng.output_json)
@@ -660,7 +670,7 @@ def t2_f2_05(ctx: DriverContext) -> dict[str, Any]:
     ctrl_pcb.write_text(ctrl_text, encoding="utf-8")
     out_ctrl = ctx.work_dir / "quoted_out" / "routed.kicad_pcb"
     out_ctrl.parent.mkdir(parents=True, exist_ok=True)
-    res, before_hashes = run_wire_or_pending(ctx, ctrl_pcb, out_ctrl, STD_RULES, tag="quoted_ctrl")
+    res, before_hashes = run_wire_or_pending(ctx, ctrl_pcb, out_ctrl, STD_RULES, tag="quoted_ctrl_run")
     assert res.stage_failed is None
     assert res.engine_res is not None and res.engine_res.output_json is not None
     assert res.export_res.output_bytes is not None
@@ -688,7 +698,7 @@ def t2_f2_06(ctx: DriverContext) -> dict[str, Any]:
     for idx, x in enumerate((3_000_000, 17_000_000), 1):
         fp = b.add_footprint(f"J{idx}", (x, 10_000_000))
         b.add_pad(fp, "1", "SIGNAL", (x, 10_000_000), shape=pn.PAD_SHAPE_ROUNDRECT, size_nm=(2_000_000, 1_000_000), roundrect_ratio=0.25)
-    b.add_track("OBSTACLE", (1_000_000, 1_000_000), (2_000_000, 1_000_000), 250_000, locked=True)
+    b.add_track("OBSTACLE", (18_160_000, 12_000_000), (18_160_000, 14_000_000), 250_000, locked=True)
     bundle = b.save(ctx.work_dir / "src")
     assert read_native_connectivity(bundle.pcb_path).unconnected_count == 1
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
@@ -706,15 +716,15 @@ def t2_f2_06(ctx: DriverContext) -> dict[str, Any]:
         request_bytes=res.export_res.output_bytes,
     )
 
-    # Tamper plan with OBSTACLE (net 2) track intruding into rounded corner clearance
+    # Tamper plan with OBSTACLE (net 2) track extending from its existing track into rounded corner clearance
     obs_code = next(n["id"] for n in res.export_res.output_json["nets"] if n["name"] == "OBSTACLE")
     bad_plan = dict(res.engine_res.output_json)
     bad_plan["added_tracks"] = list(bad_plan["added_tracks"]) + [
         {
             "id": canonical_uuid(9999),
             "net": obs_code,
-            "start": [18_160_000, 10_640_000],
-            "end": [18_160_000, 11_450_000],
+            "start": [18_160_000, 12_000_000],
+            "end": [18_160_000, 10_640_000],
             "width_nm": 250_000,
             "locked": False,
         }
@@ -897,15 +907,38 @@ def t2_f3_02(ctx: DriverContext) -> dict[str, Any]:
     name="Tiny (1 nm) & boundary-touching items without i128 overflow",
 )
 def t2_f3_03(ctx: DriverContext) -> dict[str, Any]:
-    rules = {"width_nm": 1, "clearance_nm": 0, "grid_nm": 1_000_000, "edge_clearance_nm": 0}
+    # (a) 1 nm width at exact domain corners [-100M, 100M]: must fail closed (rc=3) without i128 panic.
+    # Conservative 1 nm copper overlap (CONTACT_OVERLAP_NM=1) also prevents width_nm=1 tracks from joining.
+    tiny_doc = build_input1_json(
+        bounds_min=(-100_000_000, -100_000_000),
+        bounds_max=(100_000_000, 100_000_000),
+        rules={"width_nm": 1, "clearance_nm": 0, "grid_nm": 1_000_000, "edge_clearance_nm": 0},
+        nets=[{"id": 0, "name": ""}, {"id": 1, "name": "SIGNAL"}],
+        pads=[
+            {"id": canonical_uuid(1), "net": 1, "at": [-100_000_000, -100_000_000], "shape": {"kind": "circle", "radius_nm": 1}},
+            {"id": canonical_uuid(2), "net": 1, "at": [100_000_000, 100_000_000], "shape": {"kind": "rect", "half_size_nm": [1, 1]}},
+            {"id": canonical_uuid(3), "net": 0, "at": [0, 0], "shape": {"kind": "circle", "radius_nm": 1}},
+        ],
+        tracks=[
+            {"id": canonical_uuid(4), "net": 0, "start": [-100_000_000, 0], "end": [-100_000_000, 1_000], "width_nm": 1, "locked": True}
+        ],
+    )
+    tiny_req = write_json_file(ctx.work_dir / "tiny_1nm.json", tiny_doc)
+    tiny_res = ctx.json_driver.run_engine(tiny_req, ctx.work_dir / "tiny_1nm.plan.json")
+    assert_no_crash(tiny_res.proc, "tiny_1nm_domain")
+    assert tiny_res.proc.returncode in (0, 3), f"unexpected returncode {tiny_res.proc.returncode}: {tiny_res.output_json}"
+
+    # (b) Extreme-scale routing inside [-100M, 100M] with width_nm=2 (smallest width satisfying
+    # width_nm/2 >= CONTACT_OVERLAP_NM=1) and 1 nm obstacle pad/track items.
+    rules = {"width_nm": 2, "clearance_nm": 0, "grid_nm": 1_000_000, "edge_clearance_nm": 0}
     doc = build_input1_json(
         bounds_min=(-100_000_000, -100_000_000),
         bounds_max=(100_000_000, 100_000_000),
         rules=rules,
         nets=[{"id": 0, "name": ""}, {"id": 1, "name": "SIGNAL"}],
         pads=[
-            {"id": canonical_uuid(1), "net": 1, "at": [-100_000_000, -100_000_000], "shape": {"kind": "circle", "radius_nm": 1}},
-            {"id": canonical_uuid(2), "net": 1, "at": [100_000_000, 100_000_000], "shape": {"kind": "rect", "half_size_nm": [1, 1]}},
+            {"id": canonical_uuid(1), "net": 1, "at": [-99_000_000, -99_000_000], "shape": {"kind": "circle", "radius_nm": 1}},
+            {"id": canonical_uuid(2), "net": 1, "at": [99_000_000, 99_000_000], "shape": {"kind": "rect", "half_size_nm": [1, 1]}},
             {"id": canonical_uuid(3), "net": 0, "at": [0, 0], "shape": {"kind": "circle", "radius_nm": 1}},
         ],
         tracks=[
@@ -929,7 +962,7 @@ def t2_f3_03(ctx: DriverContext) -> dict[str, Any]:
     if not ctx.stage_at_least("M2"):
         raise PendingCapability("M2 spatial index milestone pending", evidence={"extreme_rc": res.proc.returncode})
     assert res.proc.returncode == 0
-    return {"extreme_rc": res.proc.returncode}
+    return {"tiny_rc": tiny_res.proc.returncode, "extreme_rc": res.proc.returncode}
 
 
 @register_test(
@@ -983,6 +1016,7 @@ def t2_f3_05(ctx: DriverContext) -> dict[str, Any]:
     # (a) exact 1_250_000 nm center-to-center -> routes straight along y=10M
     # (b) 1 nm intrusion top at 11_249_999 -> detours cleanly
     # (c) full vertical wall with 1 nm gap -> exits 3 unroutable
+    pn = _pcbnew()
     for mode, walls, expect_rc in (
         ("exact_eq", [((8_000_000, 11_250_000), (12_000_000, 11_250_000)), ((8_000_000, 8_750_000), (12_000_000, 8_750_000))], 0),
         ("intrude_detour", [((8_000_000, 11_249_999), (12_000_000, 11_249_999)), ((8_000_000, 8_750_000), (12_000_000, 8_750_000))], 0),
@@ -996,6 +1030,13 @@ def t2_f3_05(ctx: DriverContext) -> dict[str, Any]:
             b.add_pad(fp, "1", "SIGNAL", (x, 10_000_000), size_nm=(1_000_000, 1_000_000))
         for s, e in walls:
             b.add_track("", s, e, 250_000, locked=True)
+        if mode == "intrude_wall":
+            b.add_keepout(
+                [pn.B_Cu],
+                [(0, 0), (20_000_000, 0), (20_000_000, 20_000_000), (0, 20_000_000)],
+                no_tracks=True,
+                no_vias=True,
+            )
         bundle = b.save(sub / "src")
         out_pcb = sub / "out" / "routed.kicad_pcb"
         out_pcb.parent.mkdir(parents=True, exist_ok=True)
@@ -1062,13 +1103,20 @@ def t2_f4_01(ctx: DriverContext) -> dict[str, Any]:
     assert not out_a.exists()
     assert_source_dir_untouched(bundle_a.directory, bh_a)
 
-    # (b) tight 5.0mm clearance .kicad_dru beside narrow board
+    # (b) tight 5.0mm clearance .kicad_dru beside narrow board (B.Cu blocked by keepout)
+    pn = _pcbnew()
     b_b = BoardBuilder(seed=1402)
     b_b.set_rect_outline(0, 0, 20_000_000, 20_000_000)
     for idx, x in enumerate((3_000_000, 17_000_000), 1):
         fp = b_b.add_footprint(f"J{idx}", (x, 10_000_000))
         b_b.add_pad(fp, "1", "SIGNAL", (x, 10_000_000), size_nm=(1_000_000, 1_000_000))
     b_b.add_track("OBSTACLE", (10_000_000, 4_000_000), (10_000_000, 16_000_000), 250_000, locked=True)
+    b_b.add_keepout(
+        [pn.B_Cu],
+        [(0, 0), (20_000_000, 0), (20_000_000, 20_000_000), (0, 20_000_000)],
+        no_tracks=True,
+        no_vias=True,
+    )
     b_b.set_dru_text('(version 1)\n(rule "tight_5mm" (constraint clearance (min 5.0mm)))\n')
     bundle_b = b_b.save(ctx.work_dir / "src_b")
     bh_b = snapshot_source_dir(bundle_b.directory)

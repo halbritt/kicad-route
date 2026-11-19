@@ -1664,11 +1664,11 @@
       "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "Non-UUID removed_track_ids strings classify as unsupported before UUID validation.",
       "evidence_class": "Executed refusal matrix; no removal/publication occurs.",
-      "status": "open",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Validate canonical nonzero UUIDs before implementing track removal.",
-      "observation_deadline": "before acceptance of the next affected milestone",
+      "next_action": "Commit 1efac7ef4e validates canonical nonzero lowercase unique UUIDs in tools/rust_engine_kicad.py:2536-2546 before UnsupportedBoard refusal (verified by tests/test_rust_engine_native.py:test_native_result_schema_refusals and E2E T2-F8-03); implement removal semantics before enabling copper deletion; M6 post-landing audit pending.",
+      "observation_deadline": "M6 post-landing independent audit",
       "blocks_current_integration": false
     },
     {

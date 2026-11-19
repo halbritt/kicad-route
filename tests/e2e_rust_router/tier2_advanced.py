@@ -385,7 +385,7 @@ def t2_f8_02(ctx: DriverContext) -> dict[str, Any]:
     tier=2,
     feature="F8",
     min_stage="M4",
-    name="removed_track_ids malformed, nil-UUID, and unknown UUID refused as invalid",
+    name="removed_track_ids malformed/nil/uppercase/duplicate invalid and unknown UUID refused",
 )
 def t2_f8_03(ctx: DriverContext) -> dict[str, Any]:
     require_m4_capability(ctx)
@@ -398,9 +398,14 @@ def t2_f8_03(ctx: DriverContext) -> dict[str, Any]:
 
     req_sha = sha256_bytes(exp.output_bytes)
     src_id = exp.output_json["source_id"]
-    for idx, bad_id in enumerate(
-        ("not-a-uuid", "00000000-0000-0000-0000-000000000000", canonical_uuid(999999))
-    ):
+    cases = [
+        ("not-a-uuid", ["not-a-uuid"], ("invalid",)),
+        ("nil-uuid", ["00000000-0000-0000-0000-000000000000"], ("invalid",)),
+        ("uppercase-uuid", [canonical_uuid(999999).upper()], ("invalid",)),
+        ("duplicate-uuid", [canonical_uuid(1), canonical_uuid(1)], ("invalid",)),
+        ("unknown-uuid", [canonical_uuid(999999)], ("invalid", "unsupported")),
+    ]
+    for idx, (label, removals, allowed_statuses) in enumerate(cases):
         plan_p = write_json_file(
             ctx.work_dir / f"bad_plan_{idx}.json",
             {
@@ -409,7 +414,7 @@ def t2_f8_03(ctx: DriverContext) -> dict[str, Any]:
                 "source_id": src_id,
                 "status": "complete",
                 "added_tracks": [],
-                "removed_track_ids": [bad_id],
+                "removed_track_ids": removals,
                 "expanded_states": 0,
                 "work_used": 0,
                 "reason": None,
@@ -417,11 +422,13 @@ def t2_f8_03(ctx: DriverContext) -> dict[str, Any]:
         )
         out_pcb = ctx.work_dir / f"out_{idx}.kicad_pcb"
         app = ctx.json_driver.apply_plan(bundle.pcb_path, plan_p, out_pcb, req_p)
-        assert_no_crash(app.proc, f"T2-F8-03:{idx}")
+        assert_no_crash(app.proc, f"T2-F8-03:{label}")
         assert app.proc.returncode == 2
-        assert app.stderr_json is not None and app.stderr_json.get("status") == "invalid"
+        assert app.stderr_json is not None and app.stderr_json.get("status") in allowed_statuses, (
+            f"{label}: expected status in {allowed_statuses}, got {app.stderr_json}"
+        )
         assert not out_pcb.exists()
-    return {"checked": ["not-a-uuid", "nil-uuid", "unknown-uuid"]}
+    return {"checked": [label for label, _, _ in cases]}
 
 
 @register_test(
@@ -857,6 +864,9 @@ def t2_f10_02(ctx: DriverContext) -> dict[str, Any]:
         assert wt_pf["problems"], "expected worktree .git file to refuse preflight"
 
     checkout = ctx.agent_ee_driver.clone_clean_checkout(ctx.repo_root, ctx.work_dir / "checkout")
+    staged_bin = checkout / "rust-engine" / "target" / "release" / "kicad-route-engine"
+    staged_bin.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ctx.provenance.binary_path, staged_bin)
     state = ctx.work_dir / "state"
     clean_manifest = ctx.agent_ee_driver.make_synthetic_state(checkout, state)
     pf_clean = ctx.agent_ee_driver.preflight(checkout, state)

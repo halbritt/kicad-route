@@ -30,21 +30,41 @@ def parse_last_json_line(text: str) -> dict[str, Any] | None:
     idx = 0
     n = len(text)
     while idx < n:
-        brace = text.find("{", idx)
-        if brace == -1:
-            break
-        line_start = text.rfind("\n", 0, brace) + 1
-        if text[line_start:brace].strip():
-            idx = brace + 1
+        nl = text.find("\n", idx)
+        line_end = n if nl == -1 else nl
+        pos = idx
+        while pos < line_end and text[pos] in " \t\r":
+            pos += 1
+        if pos >= line_end or text[pos] not in "{[":
+            idx = line_end + 1
             continue
-        try:
-            parsed, end = decoder.raw_decode(text, brace)
-        except json.JSONDecodeError:
-            idx = brace + 1
-            continue
-        if isinstance(parsed, dict):
-            last_obj = parsed
-        idx = end
+        cur = pos
+        line_last: dict[str, Any] | None = None
+        valid_line = False
+        while True:
+            try:
+                parsed, end = decoder.raw_decode(text, cur)
+            except json.JSONDecodeError as err:
+                err_line_start = text.rfind("\n", 0, err.pos) + 1
+                next_idx = err_line_start if err_line_start > idx else line_end + 1
+                break
+            if isinstance(parsed, dict):
+                line_last = parsed
+            tail_nl = text.find("\n", end)
+            tail_end = n if tail_nl == -1 else tail_nl
+            cur = end
+            while cur < tail_end and text[cur] in " \t\r":
+                cur += 1
+            if cur >= tail_end:
+                valid_line = True
+                next_idx = tail_end + 1
+                break
+            if text[cur] not in "{[":
+                next_idx = tail_end + 1
+                break
+        if valid_line and line_last is not None:
+            last_obj = line_last
+        idx = next_idx
     return last_obj
 
 
