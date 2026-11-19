@@ -822,7 +822,7 @@ def test_native_adapter_exports_pad_and_footprint_local_clearance(native_board):
 
 
 @pytest.mark.parametrize('feature', [
-    'copper_field', 'footprint_edge', 'footprint_placement_zone', 'net_tie', 'pad_mask', 'footprint_mask',
+    'copper_field', 'copper_textbox', 'footprint_edge', 'footprint_placement_zone', 'footprint_copper_zone', 'net_tie', 'pad_mask', 'footprint_mask',
 ])
 def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_board, expected_request, feature):
     board = pcbnew.LoadBoard(str(native_board))
@@ -835,6 +835,13 @@ def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_b
     elif feature == 'copper_field':
         footprint.Reference().SetLayer(pcbnew.F_Cu)
         footprint.Reference().SetVisible(True)
+    elif feature == 'copper_textbox':
+        tb = pcbnew.PCB_TEXTBOX(footprint)
+        tb.SetLayer(pcbnew.F_Cu)
+        tb.SetText('BOX')
+        tb.SetStart(pcbnew.VECTOR2I(5000000, 5000000))
+        tb.SetEnd(pcbnew.VECTOR2I(12000000, 12000000))
+        footprint.Add(tb)
     elif feature == 'footprint_edge':
         # An unclosed single Edge.Cuts segment inside a footprint invalidates the board outline.
         edge = pcbnew.PCB_SHAPE(footprint)
@@ -848,6 +855,16 @@ def test_native_adapter_rejects_unrepresented_native_geometry_and_rules(native_b
         zone.SetLayer(pcbnew.F_Cu)
         zone.SetIsRuleArea(True)
         zone.SetPlacementAreaEnabled(True)
+        polygon = zone.Outline()
+        polygon.NewOutline()
+        for x, y in [(5000000, 5000000), (15000000, 5000000), (15000000, 15000000)]:
+            polygon.Append(x, y)
+        footprint.Add(zone)
+    elif feature == 'footprint_copper_zone':
+        zone = pcbnew.ZONE(footprint)
+        zone.SetLayer(pcbnew.F_Cu)
+        zone.SetIsRuleArea(False)
+        zone.SetNetCode(1)
         polygon = zone.Outline()
         polygon.NewOutline()
         for x, y in [(5000000, 5000000), (15000000, 5000000), (15000000, 15000000)]:
@@ -2817,6 +2834,22 @@ def test_copper_pcb_text_avoidance_preservation_and_fail_closed_knockout(tmp_pat
     with pytest.raises(bridge.UnsupportedBoard):
         bridge.export_snapshot(dim_path, rules=rules)
 
+    # Fail-closed controls: board-level and footprint-level PCB_TEXTBOX on copper/mask layers must fail closed (rc=2).
+    for tb_kind, tb_layer in (('board_cu', pcbnew.F_Cu), ('footprint_cu', pcbnew.F_Cu), ('board_mask', pcbnew.F_Mask)):
+        tb_path = tmp_path / f'textbox_{tb_kind}.kicad_pcb'
+        tb_board = pcbnew.LoadBoard(str(src))
+        tb_parent = tb_board if tb_kind.startswith('board') else next(iter(tb_board.GetFootprints()))
+        tb = pcbnew.PCB_TEXTBOX(tb_parent)
+        tb.SetLayer(tb_layer)
+        tb.SetText('TB')
+        tb.SetStart(pcbnew.VECTOR2I(12_000_000, 12_000_000))
+        tb.SetEnd(pcbnew.VECTOR2I(18_000_000, 18_000_000))
+        tb_parent.Add(tb)
+        assert pcbnew.SaveBoard(str(tb_path), tb_board)
+        with pytest.raises(bridge.UnsupportedBoard, match='text box'):
+            bridge.export_snapshot(tb_path, rules=rules)
+        assert run([str(engine), 'route-native', str(tb_path), str(tmp_path / f'tb_{tb_kind}_out.kicad_pcb'), '--rules', str(rules_path)], check=False).returncode == 2
+
 
 def test_pad_interior_track_attachment_native_collision(tmp_path, guarded_cli):
     run, _ = guarded_cli
@@ -2965,20 +2998,26 @@ def test_footprint_owned_zones_and_rule_areas_export_avoidance_and_preservation(
     assert out_fp_zones[ko_uuid].GetIsRuleArea() and out_fp_zones[ko_uuid].GetDoNotAllowTracks()
     assert out_fp_zones[ant_uuid].GetIsRuleArea() and out_fp_zones[ant_uuid].GetDoNotAllowZoneFills()
 
-    # Fail-closed negative control: hatched copper zone inside footprint -> UnsupportedBoard
-    bad_board = pcbnew.LoadBoard(str(src))
-    bad_fp = next(f for f in bad_board.GetFootprints() if f.GetReference() == 'ANT1')
-    hz = pcbnew.ZONE(bad_fp)
-    hz.SetIsRuleArea(False)
-    hz.SetLayer(pcbnew.F_Cu)
-    hz.SetNetCode(1)
-    hz.SetFillMode(pcbnew.ZONE_FILL_MODE_HATCH_PATTERN)
-    _add_rect_outline(hz.Outline(), 1_000_000, 1_000_000, 3_000_000, 3_000_000)
-    bad_fp.Add(hz)
-    bad_path = tmp_path / 'fp_hatched.kicad_pcb'
-    assert pcbnew.SaveBoard(str(bad_path), bad_board)
-    with pytest.raises(bridge.UnsupportedBoard):
-        bridge.export_board(bad_path, RULES, 100000)
+    # Fail-closed negative controls: footprint-owned copper zones (net != 0, net == 0, and hatched) -> UnsupportedBoard (rc=2)
+    for label, net_code, fill_mode in (
+        ('net1', 1, pcbnew.ZONE_FILL_MODE_POLYGONS),
+        ('net0', 0, pcbnew.ZONE_FILL_MODE_POLYGONS),
+        ('hatched', 1, pcbnew.ZONE_FILL_MODE_HATCH_PATTERN),
+    ):
+        bad_board = pcbnew.LoadBoard(str(src))
+        bad_fp = next(f for f in bad_board.GetFootprints() if f.GetReference() == 'ANT1')
+        fz = pcbnew.ZONE(bad_fp)
+        fz.SetIsRuleArea(False)
+        fz.SetLayer(pcbnew.F_Cu)
+        fz.SetNetCode(net_code)
+        fz.SetFillMode(fill_mode)
+        _add_rect_outline(fz.Outline(), 1_000_000, 1_000_000, 3_000_000, 3_000_000)
+        bad_fp.Add(fz)
+        bad_path = tmp_path / f'fp_copper_{label}.kicad_pcb'
+        assert pcbnew.SaveBoard(str(bad_path), bad_board)
+        with pytest.raises(bridge.UnsupportedBoard, match='footprint copper zones'):
+            bridge.export_board(bad_path, RULES, 100000)
+        assert run([str(engine), 'route-native', str(bad_path), str(tmp_path / f'fp_copper_{label}_out.kicad_pcb'), '--rules', str(rules_path)], check=False).returncode == 2
 
 
 def test_teardrop_enabled_board_without_copper_pours_refills_and_saves_teardrops(tmp_path, guarded_cli):

@@ -808,10 +808,21 @@ def _extract_text_shapes(drawing, *, layer, base_id, context_label):
             if count <= 0:
                 raise UnsupportedBoard('empty polygon graphic is not represented')
             for o_idx in range(count):
-                outer = _extract_poly_ring(poly_set.Outline(o_idx))
+                outline_ring = poly_set.Outline(o_idx)
+                if outline_ring.ArcCount() != 0:
+                    raise UnsupportedBoard(f'{context_label} curved arc text polygons are not represented')
+                outer = _extract_poly_ring(outline_ring)
                 if len(outer) < 3:
                     raise UnsupportedBoard('degenerate polygon graphic is not represented')
-                holes = [_extract_poly_ring(poly_set.Hole(o_idx, h)) for h in range(poly_set.HoleCount(o_idx))]
+                holes = []
+                for h in range(poly_set.HoleCount(o_idx)):
+                    hole_ring = poly_set.Hole(o_idx, h)
+                    if hole_ring.ArcCount() != 0:
+                        raise UnsupportedBoard(f'{context_label} curved arc text holes are not represented')
+                    hole = _extract_poly_ring(hole_ring)
+                    if len(hole) < 3:
+                        raise UnsupportedBoard('degenerate polygon hole graphic is not represented')
+                    holes.append(hole)
                 shape_obj = {'kind': 'polygon', 'outer': outer, 'width_nm': width_nm, 'filled': filled}
                 if holes:
                     shape_obj['holes'] = holes
@@ -831,6 +842,8 @@ def _check_graphic_drawing(drawing, *, context_label, layer=None):
         _extract_text_shapes(drawing, layer=drawing.GetLayer() if layer is None else layer,
                              base_id=item_id(drawing), context_label=context_label)
         return
+    if isinstance(drawing, pcbnew.PCB_TEXTBOX):
+        raise UnsupportedBoard(f'{context_label} text box graphics are not represented')
     if not isinstance(drawing, pcbnew.PCB_SHAPE):
         raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
     if drawing.GetShape() == pcbnew.SHAPE_T_BEZIER:
@@ -848,6 +861,8 @@ def _extract_graphic_shapes(drawing, *, base_id, layer=None, context_label='grap
     if type(drawing) is pcbnew.PCB_TEXT:
         return _extract_text_shapes(drawing, layer=drawing.GetLayer() if layer is None else layer,
                                     base_id=base_id, context_label=context_label)
+    if isinstance(drawing, pcbnew.PCB_TEXTBOX):
+        raise UnsupportedBoard(f'{context_label} text box graphics are not represented')
     shape_t = drawing.GetShape()
     width_nm = int(drawing.GetWidth())
     filled = bool(drawing.IsSolidFill())
@@ -1078,6 +1093,8 @@ def load_supported(path: Path, *, project_path: Path | None = None):
         if footprint.GetLocalSolderMaskMargin() is not None:
             raise UnsupportedBoard('footprint solder-mask margins are not represented')
         for zone in footprint.Zones():
+            if not zone.GetIsRuleArea():
+                raise UnsupportedBoard('footprint copper zones are not represented')
             _validate_zone(zone, cu_set)
         if footprint.IsNetTie():
             raise UnsupportedBoard('net-tie connectivity is not represented')
