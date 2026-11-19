@@ -345,6 +345,14 @@ def _dot(a, b, c):
     return (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1])
 
 
+def _is_collinear_ring(pts):
+    n = len(pts)
+    if n < 3:
+        return True
+    a, b = pts[0], pts[1]
+    return all(_cross(a, b, pts[i]) == 0 for i in range(2, n))
+
+
 def _orient_ccw_convex(pts):
     pts = _simplify_ring(pts)
     if len(pts) < 3:
@@ -820,7 +828,7 @@ def _extract_text_shapes(drawing, *, layer, base_id, context_label):
                 if outline_ring.ArcCount() != 0:
                     raise UnsupportedBoard(f'{context_label} curved arc text polygons are not represented')
                 outer = _extract_poly_ring(outline_ring)
-                if len(outer) < 3:
+                if len(outer) < 3 or _is_collinear_ring(outer):
                     raise UnsupportedBoard('degenerate polygon graphic is not represented')
                 holes = []
                 for h in range(poly_set.HoleCount(o_idx)):
@@ -828,7 +836,7 @@ def _extract_text_shapes(drawing, *, layer, base_id, context_label):
                     if hole_ring.ArcCount() != 0:
                         raise UnsupportedBoard(f'{context_label} curved arc text holes are not represented')
                     hole = _extract_poly_ring(hole_ring)
-                    if len(hole) < 3:
+                    if len(hole) < 3 or _is_collinear_ring(hole):
                         raise UnsupportedBoard('degenerate polygon hole graphic is not represented')
                     holes.append(hole)
                 shape_obj = {'kind': 'polygon', 'outer': outer, 'width_nm': width_nm, 'filled': filled}
@@ -862,7 +870,7 @@ def _extract_graphic_poly_rings(drawing, *, context_label):
         if outline_ring.ArcCount() != 0:
             raise UnsupportedBoard(f'{context_label} curved arc polygon graphics are not represented')
         outer = _extract_poly_ring(outline_ring)
-        if len(outer) < 3:
+        if len(outer) < 3 or _is_collinear_ring(outer):
             raise UnsupportedBoard('degenerate polygon graphic is not represented')
         holes = []
         for h in range(poly_set.HoleCount(idx)):
@@ -870,7 +878,7 @@ def _extract_graphic_poly_rings(drawing, *, context_label):
             if hole_ring.ArcCount() != 0:
                 raise UnsupportedBoard(f'{context_label} curved arc polygon holes are not represented')
             hole = _extract_poly_ring(hole_ring)
-            if len(hole) < 3:
+            if len(hole) < 3 or _is_collinear_ring(hole):
                 raise UnsupportedBoard('degenerate polygon hole graphic is not represented')
             holes.append(hole)
         rings.append((outer, holes))

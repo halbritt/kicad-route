@@ -4738,3 +4738,61 @@ fn diff_pair_coupled_vias_and_meander_avoid_mask_bridge() {
         ));
     }
 }
+
+#[test]
+fn diff_pair_pad_expansion_and_min_width_bridge_to_mask_aperture() {
+    for (tag, exp_nm, min_w_nm, gnd_y, mask_exp_nm) in [
+        ("DP_PAD_EXP_TOUCHES_RECT", 350_000, 0, 12_900_000, 350_000),
+        ("DP_PAD_WEB_TOUCHES_RECT", 0, 200_000, 12_500_000, 0),
+    ] {
+        let mut input = base_diff_input(&["DP_P", "DP_N"]);
+        input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+        input.rules.solder_mask_expansion_nm = exp_nm;
+        input.rules.solder_mask_min_width_nm = min_w_nm;
+        input.rules.solder_mask_to_copper_clearance_nm = 0;
+        input.rules.clearance_nm = 200_000;
+        if let Some(bds) = input.board_design_settings.as_mut() {
+            bds.solder_mask_expansion_nm = exp_nm;
+            bds.solder_mask_min_width_nm = min_w_nm;
+            bds.solder_mask_to_copper_clearance_nm = 0;
+        }
+        input.nets.push(Net {
+            id: 3,
+            name: "GND".into(),
+        });
+        let mut gnd = pad(10, 3, [25_000_000, gnd_y], &["F.Cu"]);
+        gnd.shape = Shape::Rect {
+            half_size_nm: [400_000, 400_000],
+        };
+        input.pads.push(gnd);
+        let mask = MaskAperture {
+            id: uuid(107),
+            net: None,
+            group_id: None,
+            layer: "F.Mask".into(),
+            shape: GraphicShape::Polygon {
+                outer: vec![
+                    [24_000_000, 9_500_000],
+                    [26_000_000, 9_500_000],
+                    [26_000_000, 12_000_000],
+                    [24_000_000, 12_000_000],
+                ],
+                holes: Vec::new(),
+                width_nm: 0,
+                filled: true,
+            },
+            expansion_nm: mask_exp_nm,
+        };
+        input.mask_apertures.push(mask.clone());
+        let out = kicad_route_engine::run(input);
+        assert_eq!(out.status, Status::Complete, "{tag}: {:?}", out.reason);
+        for t in out.added_tracks.iter().filter(|t| t.layer == "F.Cu") {
+            assert!(
+                !kicad_route_engine::geometry::track_near_mask(
+                    t.start, t.end, t.width_nm, 0, &mask, false
+                ),
+                "{tag}: F.Cu track {t:?} touched bridged mask aperture"
+            );
+        }
+    }
+}

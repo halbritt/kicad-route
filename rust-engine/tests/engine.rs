@@ -4755,3 +4755,139 @@ fn m5_2_1_umask_single_net_aperture_allows_owner_even_with_positive_to_cu() {
         );
     }
 }
+
+#[test]
+fn m5_2_1_static_pad_mask_expansion_and_min_width_bridge_to_apertures() {
+    struct Case {
+        name: &'static str,
+        exp: i64,
+        min_width: i64,
+        gnd_at: Point,
+        aperture: MaskAperture,
+    }
+    let rect_shape = |x0: i64, y0: i64, x1: i64, y1: i64| GraphicShape::Polygon {
+        outer: vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+        holes: Vec::new(),
+        width_nm: 0,
+        filled: true,
+    };
+    let cases = [
+        Case {
+            name: "E1_pad_web_touches_rect",
+            exp: 0,
+            min_width: 200_000,
+            gnd_at: [15_000_000, 12_000_000],
+            aperture: MaskAperture {
+                id: id(70),
+                net: None,
+                group_id: None,
+                layer: "F.Mask".into(),
+                shape: rect_shape(14_000_000, 9_500_000, 16_000_000, 11_500_000),
+                expansion_nm: 0,
+            },
+        },
+        Case {
+            name: "E2_pad_exp_touches_text_segment",
+            exp: 200_000,
+            min_width: 0,
+            gnd_at: [15_000_000, 12_000_000],
+            aperture: MaskAperture {
+                id: id(71),
+                net: None,
+                group_id: None,
+                layer: "F.Mask".into(),
+                shape: GraphicShape::Segment {
+                    start: [15_000_000, 9_500_000],
+                    end: [15_000_000, 11_300_000],
+                    width_nm: 400_000,
+                },
+                expansion_nm: 0,
+            },
+        },
+        Case {
+            name: "D_npth_mask_bridge",
+            exp: 200_000,
+            min_width: 0,
+            gnd_at: [15_000_000, 12_400_000],
+            aperture: MaskAperture {
+                id: id(72),
+                net: None,
+                group_id: None,
+                layer: "F.Mask".into(),
+                shape: GraphicShape::Circle {
+                    center: [15_000_000, 10_000_000],
+                    radius_nm: 2_000_000,
+                    width_nm: 0,
+                    filled: true,
+                },
+                expansion_nm: 0,
+            },
+        },
+        Case {
+            name: "pad_exp_touches_rect",
+            exp: 350_000,
+            min_width: 0,
+            gnd_at: [15_000_000, 12_400_000],
+            aperture: MaskAperture {
+                id: id(73),
+                net: None,
+                group_id: None,
+                layer: "F.Mask".into(),
+                shape: rect_shape(14_000_000, 9_500_000, 16_000_000, 11_500_000),
+                expansion_nm: 350_000,
+            },
+        },
+    ];
+    for c in cases {
+        let mut i = base();
+        i.bounds = Bounds {
+            min: [0, 0],
+            max: [30_000_000, 20_000_000],
+        };
+        i.rules = Rules {
+            width_nm: 250_000,
+            clearance_nm: 250_000,
+            grid_nm: 250_000,
+            edge_clearance_nm: 500_000,
+            hole_clearance_nm: 250_000,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: c.exp,
+            solder_mask_min_width_nm: c.min_width,
+            solder_mask_to_copper_clearance_nm: 0,
+        };
+        i.nets.push(Net {
+            id: 2,
+            name: "GND".into(),
+        });
+        i.pads[0].at = [5_000_000, 10_000_000];
+        i.pads[0].shape = Shape::Rect {
+            half_size_nm: [400_000, 400_000],
+        };
+        i.pads[1].at = [25_000_000, 10_000_000];
+        i.pads[1].shape = Shape::Rect {
+            half_size_nm: [400_000, 400_000],
+        };
+        let mut gnd = pad(3, 2, c.gnd_at);
+        gnd.shape = Shape::Rect {
+            half_size_nm: [400_000, 400_000],
+        };
+        i.pads.push(gnd);
+        i.mask_apertures.push(c.aperture.clone());
+        let e = Engine::new(i.clone()).unwrap();
+        assert!(
+            !e.legal_edge(1, [5_000_000, 10_000_000], [25_000_000, 10_000_000])
+                .unwrap(),
+            "{}: straight edge across bridged mask aperture must be illegal",
+            c.name
+        );
+        let out = run(i);
+        assert_eq!(out.status, Status::Complete, "{}: {:?}", c.name, out.reason);
+        for t in out.added_tracks.iter().filter(|t| t.net == 1) {
+            assert!(
+                !track_near_mask(t.start, t.end, t.width_nm, 0, &c.aperture, false),
+                "{}: track {t:?} touched bridged mask aperture",
+                c.name
+            );
+        }
+    }
+}

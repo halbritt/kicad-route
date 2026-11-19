@@ -194,16 +194,31 @@ fn compute_static_mask_occupancy(
             };
         }
     };
+    let pad_bridge_clr = input
+        .rules
+        .solder_mask_expansion_nm
+        .max(0)
+        .saturating_add(input.rules.solder_mask_min_width_nm.max(0));
+    let mut pad_mask = m.clone();
+    pad_mask.expansion_nm = m.expansion_nm.max(0).saturating_add(pad_bridge_clr);
     for pad in &input.pads {
         let on_layer = if pad.layers.is_empty() {
             cu_layer == input.layer
         } else {
             pad.layers.iter().any(|l| l == cu_layer)
         };
-        if on_layer
-            && CopperAabb::from_bounds(pad.copper_bounds()).overlaps(m_aabb)
-            && geometry::mask_overlaps_pad(m, pad)
-        {
+        let (pmin, pmax) = pad.copper_bounds();
+        let pad_aabb = CopperAabb::from_bounds((
+            [
+                pmin[0].saturating_sub(pad_bridge_clr),
+                pmin[1].saturating_sub(pad_bridge_clr),
+            ],
+            [
+                pmax[0].saturating_add(pad_bridge_clr),
+                pmax[1].saturating_add(pad_bridge_clr),
+            ],
+        ));
+        if on_layer && pad_aabb.overlaps(m_aabb) && geometry::mask_overlaps_pad(&pad_mask, pad) {
             record_net(&mut occ, pad.net);
             if occ == StaticMaskOccupancy::Multi {
                 return occ;
