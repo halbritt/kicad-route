@@ -5385,48 +5385,154 @@ fn three_pad_differential_pair_refuses_invalid_unrouted_and_prerouted() {
     }
 }
 
+fn small_delta_single_ended_input(delta: i64) -> Input {
+    let mut inp = base_diff_input(&["N1", "N2"]);
+    inp.layers = vec!["F.Cu".to_owned()];
+    inp.pads[0].at = [5_000_000, 10_000_000];
+    inp.pads[1].at = [15_000_000, 10_000_000];
+    inp.pads[2].at = [5_000_000, 15_000_000];
+    inp.pads[3].at = [15_000_000 + delta, 15_000_000];
+    inp.rules.width_nm = 200_000;
+    inp.rules.clearance_nm = 150_000;
+    inp.rules.grid_nm = 200_000;
+    if let Some(bds) = inp.board_design_settings.as_mut() {
+        bds.default_clearance_nm = 150_000;
+        bds.default_track_width_nm = 200_000;
+        for nc in &mut bds.netclasses {
+            nc.clearance_nm = 150_000;
+            nc.track_width_nm = 200_000;
+        }
+    }
+    inp.tracks.push(Track {
+        id: uuid(940),
+        net: 2,
+        start: [5_000_000, 15_000_000],
+        end: [15_000_000 + delta, 15_000_000],
+        width_nm: 200_000,
+        locked: false,
+        layer: "F.Cu".into(),
+    });
+    inp.routing_options = Some(RoutingOptions {
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["N1".into(), "N2".into()],
+            tolerance_nm: Some(10_000),
+            meander_amplitude_nm: Some(500_000),
+            meander_spacing_widths: Some(2.5),
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    inp
+}
+
+fn small_delta_coupled_input(delta: i64) -> Input {
+    let mut inp = base_diff_input(&["D1_P", "D1_N", "D2_P", "D2_N"]);
+    inp.pads[0].at = [5_000_000, 10_000_000];
+    inp.pads[1].at = [15_000_000, 10_000_000];
+    inp.pads[2].at = [5_000_000, 10_400_000];
+    inp.pads[3].at = [15_000_000, 10_400_000];
+    inp.pads[4].at = [5_000_000, 20_000_000];
+    inp.pads[5].at = [15_000_000 + delta, 20_000_000];
+    inp.pads[6].at = [5_000_000, 20_400_000];
+    inp.pads[7].at = [15_000_000 + delta, 20_400_000];
+    inp.rules.width_nm = 200_000;
+    inp.rules.clearance_nm = 150_000;
+    inp.rules.grid_nm = 200_000;
+    if let Some(bds) = inp.board_design_settings.as_mut() {
+        bds.default_clearance_nm = 150_000;
+        bds.default_track_width_nm = 200_000;
+        for nc in &mut bds.netclasses {
+            nc.clearance_nm = 150_000;
+            nc.track_width_nm = 200_000;
+            nc.diff_pair_width_nm = 200_000;
+            nc.diff_pair_gap_nm = 200_000;
+        }
+    }
+    inp.tracks.push(Track {
+        id: uuid(941),
+        net: 3,
+        start: [5_000_000, 20_000_000],
+        end: [15_000_000 + delta, 20_000_000],
+        width_nm: 200_000,
+        locked: false,
+        layer: "F.Cu".into(),
+    });
+    inp.tracks.push(Track {
+        id: uuid(942),
+        net: 4,
+        start: [5_000_000, 20_400_000],
+        end: [15_000_000 + delta, 20_400_000],
+        width_nm: 200_000,
+        locked: false,
+        layer: "F.Cu".into(),
+    });
+    inp.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        length_match_groups: vec![LengthMatchGroupSpec {
+            members: vec!["D1_P".into(), "D1_N".into(), "D2_P".into(), "D2_N".into()],
+            tolerance_nm: Some(10_000),
+            meander_amplitude_nm: Some(500_000),
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    inp
+}
+
+#[test]
+fn meander_candidates_preserve_resource_failures_and_try_smaller_detours() {
+    // The larger waves need more journal entries and copper items than the V-detour.
+    for (input, journal_needed, item_floor) in [
+        (small_delta_single_ended_input(25_000), 6, 11),
+        (small_delta_coupled_input(25_000), 12, 20),
+    ] {
+        for (limits, status) in [
+            (
+                Limits {
+                    max_journal_entries: journal_needed - 1,
+                    ..Limits::default()
+                },
+                Status::JournalExhausted,
+            ),
+            (
+                Limits {
+                    max_items: item_floor,
+                    ..Limits::default()
+                },
+                Status::AdmissionExceeded,
+            ),
+            (
+                Limits {
+                    max_journal_entries: journal_needed,
+                    ..Limits::default()
+                },
+                Status::Complete,
+            ),
+        ] {
+            let mut request = input.clone();
+            request.limits = limits;
+            let out = kicad_route_engine::run(request);
+            assert_eq!(out.status, status, "{limits:?}: {:?}", out.reason);
+            if status != Status::Complete {
+                assert!(out.added_tracks.is_empty() && out.added_vias.is_empty());
+            }
+        }
+    }
+    // The shared work limit is reached while testing the last shallow detours.
+    let mut input = small_delta_single_ended_input(25_000);
+    input.limits.max_work = 42_000;
+    let out = kicad_route_engine::run(input);
+    assert_eq!(out.status, Status::WorkExhausted, "{:?}", out.reason);
+    assert!(out.added_tracks.is_empty() && out.added_vias.is_empty());
+}
+
 #[test]
 fn small_delta_single_ended_and_coupled_diff_pair_group_matching() {
     use kicad_route_engine::model::Status;
 
     // 1. Single-ended 1-layer group matching across small deltas (25..150 um)
     for delta in [25_000_i64, 50_000, 100_000, 150_000] {
-        let mut inp = base_diff_input(&["N1", "N2"]);
-        inp.layers = vec!["F.Cu".to_owned()];
-        inp.pads[0].at = [5_000_000, 10_000_000];
-        inp.pads[1].at = [15_000_000, 10_000_000];
-        inp.pads[2].at = [5_000_000, 15_000_000];
-        inp.pads[3].at = [15_000_000 + delta, 15_000_000];
-        inp.rules.width_nm = 200_000;
-        inp.rules.clearance_nm = 150_000;
-        inp.rules.grid_nm = 200_000;
-        if let Some(bds) = inp.board_design_settings.as_mut() {
-            bds.default_clearance_nm = 150_000;
-            bds.default_track_width_nm = 200_000;
-            for nc in &mut bds.netclasses {
-                nc.clearance_nm = 150_000;
-                nc.track_width_nm = 200_000;
-            }
-        }
-        inp.tracks.push(Track {
-            id: uuid(940),
-            net: 2,
-            start: [5_000_000, 15_000_000],
-            end: [15_000_000 + delta, 15_000_000],
-            width_nm: 200_000,
-            locked: false,
-            layer: "F.Cu".into(),
-        });
-        inp.routing_options = Some(RoutingOptions {
-            length_match_groups: vec![LengthMatchGroupSpec {
-                members: vec!["N1".into(), "N2".into()],
-                tolerance_nm: Some(10_000),
-                meander_amplitude_nm: Some(500_000),
-                meander_spacing_widths: Some(2.5),
-                ..Default::default()
-            }],
-            ..Default::default()
-        });
+        let inp = small_delta_single_ended_input(delta);
         let out = kicad_route_engine::run(inp);
         assert_eq!(
             out.status,
@@ -5450,56 +5556,7 @@ fn small_delta_single_ended_and_coupled_diff_pair_group_matching() {
 
     // 2. Coupled differential-pair group matching across small deltas (25..150 um)
     for delta in [25_000_i64, 50_000, 100_000, 150_000] {
-        let mut inp = base_diff_input(&["D1_P", "D1_N", "D2_P", "D2_N"]);
-        inp.pads[0].at = [5_000_000, 10_000_000];
-        inp.pads[1].at = [15_000_000, 10_000_000];
-        inp.pads[2].at = [5_000_000, 10_400_000];
-        inp.pads[3].at = [15_000_000, 10_400_000];
-        inp.pads[4].at = [5_000_000, 20_000_000];
-        inp.pads[5].at = [15_000_000 + delta, 20_000_000];
-        inp.pads[6].at = [5_000_000, 20_400_000];
-        inp.pads[7].at = [15_000_000 + delta, 20_400_000];
-        inp.rules.width_nm = 200_000;
-        inp.rules.clearance_nm = 150_000;
-        inp.rules.grid_nm = 200_000;
-        if let Some(bds) = inp.board_design_settings.as_mut() {
-            bds.default_clearance_nm = 150_000;
-            bds.default_track_width_nm = 200_000;
-            for nc in &mut bds.netclasses {
-                nc.clearance_nm = 150_000;
-                nc.track_width_nm = 200_000;
-                nc.diff_pair_width_nm = 200_000;
-                nc.diff_pair_gap_nm = 200_000;
-            }
-        }
-        inp.tracks.push(Track {
-            id: uuid(941),
-            net: 3,
-            start: [5_000_000, 20_000_000],
-            end: [15_000_000 + delta, 20_000_000],
-            width_nm: 200_000,
-            locked: false,
-            layer: "F.Cu".into(),
-        });
-        inp.tracks.push(Track {
-            id: uuid(942),
-            net: 4,
-            start: [5_000_000, 20_400_000],
-            end: [15_000_000 + delta, 20_400_000],
-            width_nm: 200_000,
-            locked: false,
-            layer: "F.Cu".into(),
-        });
-        inp.routing_options = Some(RoutingOptions {
-            diff_pairs_mode: Some(DiffPairsMode::Auto),
-            length_match_groups: vec![LengthMatchGroupSpec {
-                members: vec!["D1_P".into(), "D1_N".into(), "D2_P".into(), "D2_N".into()],
-                tolerance_nm: Some(10_000),
-                meander_amplitude_nm: Some(500_000),
-                ..Default::default()
-            }],
-            ..Default::default()
-        });
+        let inp = small_delta_coupled_input(delta);
         let out = kicad_route_engine::run(inp);
         assert_eq!(
             out.status,

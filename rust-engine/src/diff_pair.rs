@@ -6738,6 +6738,42 @@ pub fn prepare_and_route_pairs_with_penalty_in_tx(
 // Length & Delay Matching (Intra-Pair, Coupled Tandem & Single-Ended Meanders)
 // ---------------------------------------------------------------------------
 
+#[derive(Default)]
+struct MeanderAttempts {
+    capacity_failure: Option<Failure>,
+}
+
+impl MeanderAttempts {
+    fn accepted(
+        &mut self,
+        attempt: Result<(), TransactionError<Failure>>,
+    ) -> Result<bool, Failure> {
+        match attempt {
+            Ok(()) => Ok(true),
+            Err(TransactionError::Operation(f)) if f.status == Status::Unroutable => Ok(false),
+            // Rollback frees the items and undo entries. A smaller candidate may fit.
+            Err(TransactionError::Operation(f))
+                if matches!(
+                    f.status,
+                    Status::JournalExhausted | Status::AdmissionExceeded
+                ) =>
+            {
+                self.capacity_failure.get_or_insert(f);
+                Ok(false)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn failure(self, fallback: Failure) -> Failure {
+        if fallback.status == Status::Unroutable {
+            self.capacity_failure.unwrap_or(fallback)
+        } else {
+            fallback
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn generate_45_meander_wave(
     start: Point,
@@ -7245,6 +7281,7 @@ fn apply_single_ended_meander(
         }
     });
 
+    let mut attempts = MeanderAttempts::default();
     for cand in candidates {
         let seg_len = dist_f64(cand.start, cand.end);
         let spacing_nm = ((cand.width_nm as f64) * spacing_widths)
@@ -7458,10 +7495,8 @@ fn apply_single_ended_meander(
                         }
                         Ok(())
                     });
-                    match attempt {
-                        Ok(()) => return Ok(()),
-                        Err(TransactionError::Limit(f)) => return Err(f),
-                        Err(TransactionError::Operation(_)) => {}
+                    if attempts.accepted(attempt)? {
+                        return Ok(());
                     }
                 }
             }
@@ -7597,10 +7632,8 @@ fn apply_single_ended_meander(
                             }
                             Ok(())
                         });
-                        match attempt {
-                            Ok(()) => return Ok(()),
-                            Err(TransactionError::Limit(f)) => return Err(f),
-                            Err(TransactionError::Operation(_)) => {}
+                        if attempts.accepted(attempt)? {
+                            return Ok(());
                         }
                     }
                 }
@@ -7608,10 +7641,10 @@ fn apply_single_ended_meander(
         }
     }
 
-    Err(Failure::new(
+    Err(attempts.failure(Failure::new(
         Status::Unroutable,
         format!("unable to match net {net} to target {target_val} within tolerance {tol}"),
-    ))
+    )))
 }
 fn apply_coupled_pair_meander(
     engine: &mut Engine,
@@ -7713,6 +7746,7 @@ fn apply_coupled_pair_meander(
         None
     };
 
+    let mut attempts = MeanderAttempts::default();
     for (_, pt_orig, nt_orig) in trunk_pairs {
         let Some(li) = engine.layer_index(&pt_orig.layer) else {
             continue;
@@ -8008,10 +8042,8 @@ fn apply_coupled_pair_meander(
                         }
                         Ok(())
                     });
-                    match attempt {
-                        Ok(()) => return Ok(()),
-                        Err(TransactionError::Limit(f)) => return Err(f),
-                        Err(TransactionError::Operation(_)) => {}
+                    if attempts.accepted(attempt)? {
+                        return Ok(());
                     }
                 }
             }
@@ -8291,10 +8323,8 @@ fn apply_coupled_pair_meander(
                             }
                             Ok(())
                         });
-                        match attempt {
-                            Ok(()) => return Ok(()),
-                            Err(TransactionError::Limit(f)) => return Err(f),
-                            Err(TransactionError::Operation(_)) => {}
+                        if attempts.accepted(attempt)? {
+                            return Ok(());
                         }
                     }
                 }
@@ -8302,13 +8332,13 @@ fn apply_coupled_pair_meander(
         }
     }
 
-    Err(Failure::new(
+    Err(attempts.failure(Failure::new(
         Status::Unroutable,
         format!(
             "unable to match coupled pair {} to target {target_val}",
             pair.stem
         ),
-    ))
+    )))
 }
 
 fn apply_intra_pair_match(
@@ -8393,6 +8423,7 @@ fn match_net_in_pair_to_target(
         .collect();
     let max_h = amp_max_nm.min(pair.uncoupled_max_nm / 2) as f64;
 
+    let mut attempts = MeanderAttempts::default();
     for cand in &pad_segs {
         let Some(li) = engine.layer_index(&cand.layer) else {
             continue;
@@ -8520,10 +8551,8 @@ fn match_net_in_pair_to_target(
                 }
                 Ok(())
             });
-            match attempt {
-                Ok(()) => return Ok(()),
-                Err(TransactionError::Limit(f)) => return Err(f),
-                Err(TransactionError::Operation(_)) => {}
+            if attempts.accepted(attempt)? {
+                return Ok(());
             }
         }
     }
@@ -8540,6 +8569,7 @@ fn match_net_in_pair_to_target(
         true,
         Some(pair),
     )
+    .map_err(|f| attempts.failure(f))
 }
 
 fn apply_ac_chain_match(
@@ -8605,6 +8635,7 @@ fn apply_ac_chain_match(
         Ok((sum_p, sum_n))
     };
 
+    let mut attempts = MeanderAttempts::default();
     let (mut sum_p, mut sum_n) = measure_chain(engine)?;
     if (sum_p - sum_n).abs() > tol_nm {
         let p_is_short = sum_p < sum_n;
@@ -8653,13 +8684,9 @@ fn apply_ac_chain_match(
                     tx.engine, pair, short_net, long_net, len_s, target, eff_tol, amp_nm,
                 )
             });
-            match attempt {
-                Ok(()) => {
-                    solved_single = true;
-                    break;
-                }
-                Err(TransactionError::Limit(f)) => return Err(f),
-                Err(TransactionError::Operation(_)) => {}
+            if attempts.accepted(attempt)? {
+                solved_single = true;
+                break;
             }
         }
 
@@ -8715,9 +8742,7 @@ fn apply_ac_chain_match(
                             tx.engine, pair, short_net, long_net, len_s, target, eff_tol, amp_nm,
                         )
                     });
-                    if let Err(TransactionError::Limit(f)) = attempt {
-                        return Err(f);
-                    }
+                    attempts.accepted(attempt)?;
                 }
             }
         }
@@ -8725,14 +8750,14 @@ fn apply_ac_chain_match(
 
     let (final_p, final_n) = measure_chain(engine)?;
     if (final_p - final_n).abs() > tol_nm {
-        return Err(Failure::new(
+        return Err(attempts.failure(Failure::new(
             Status::Unroutable,
             format!(
                 "AC chain {:?} composed skew {} nm exceeds tolerance {tol_nm} nm",
                 chain.bridges,
                 (final_p - final_n).abs()
             ),
-        ));
+        )));
     }
     for &p_idx in &chain.pair_indices {
         let pair = &plan.pairs[p_idx];
