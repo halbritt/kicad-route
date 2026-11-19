@@ -114,7 +114,7 @@ def t5_01(ctx: DriverContext) -> dict[str, Any]:
     tier=5,
     feature="F10",
     min_stage="M5",
-    name="--protect human fails closed on locked/broken copper and completes unlocked partial nets",
+    name="--protect human extends locked and unlocked stubs and refuses a blocked board",
 )
 def t5_02(ctx: DriverContext) -> dict[str, Any]:
     pn = _pcbnew()
@@ -150,15 +150,24 @@ def t5_02(ctx: DriverContext) -> dict[str, Any]:
         pn.SaveBoard(str(bundle.pcb_path), bd, True)
         return bundle.pcb_path
 
-    # 1. Locked partial stub under --protect human must fail closed (exit 3 Unroutable, no output)
+    # A locked stub stays byte-for-byte identifiable when its open net is completed.
     locked_pcb = _build_partial_board("locked_partial", locked_stub=True)
     locked_out = ctx.work_dir / "out" / "locked_out.kicad_pcb"
     locked_out.parent.mkdir(parents=True, exist_ok=True)
+    before_locked = snapshot_source_dir(locked_pcb.parent)
     p_locked = ctx.native_driver.run_native(
         locked_pcb, locked_out, extra_args=["--protect", "human"]
     )
-    assert p_locked.returncode == 3, f"expected exit 3, got {p_locked.returncode}: {p_locked.stderr}"
-    assert not locked_out.exists()
+    assert p_locked.returncode == 0, p_locked.stderr
+    locked_metrics = assert_clean_e2e(locked_pcb, locked_out, before_hashes=before_locked, source_dir=locked_pcb.parent)
+
+    def locked_tracks(path):
+        board = pn.LoadBoard(str(path))
+        return {(t.m_Uuid.AsString(), t.GetNetname(), t.GetLayer(), t.GetWidth(),
+                 tuple(t.GetStart()), tuple(t.GetEnd())) for t in board.GetTracks() if t.IsLocked()}
+
+    original_locked = locked_tracks(locked_pcb)
+    assert len(original_locked) == 1 and locked_tracks(locked_out) == original_locked
 
     # 2. Unlocked partial stub under --protect human completes open portion while preserving input stub
     unlocked_pcb = _build_partial_board("unlocked_partial", locked_stub=False)
@@ -198,7 +207,7 @@ def t5_02(ctx: DriverContext) -> dict[str, Any]:
     )
     assert p_broken.returncode == 3, f"expected exit 3 unroutable, got {p_broken.returncode}: {p_broken.stderr}"
     assert not broken_out.exists()
-    return {**metrics, "locked_rc": p_locked.returncode, "broken_rc": p_broken.returncode}
+    return {**metrics, "locked_rc": p_locked.returncode, "locked": locked_metrics, "broken_rc": p_broken.returncode}
 
 
 @register_test(

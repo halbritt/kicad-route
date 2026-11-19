@@ -3387,10 +3387,8 @@ impl Engine {
                 diff_pair::delay_profile_layers(tx.engine, &diff_state);
             let mut expanded = 0u64;
             if diff_state.plan.pairs.is_empty() {
-                let mut pinned_nets = diff_state.routed_pair_nets.clone();
-                pinned_nets.extend(diff_state.protected_nets.iter().copied());
                 let mut adapter = negotiate::SingleEndedAdapter::new(
-                    pinned_nets,
+                    diff_state.routed_pair_nets.clone(),
                     diff_state.active_single_ended_nets.clone(),
                 );
                 let _stats = negotiate::solve_with_adapter(tx, &mut adapter, &mut expanded)?;
