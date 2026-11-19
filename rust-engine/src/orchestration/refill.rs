@@ -16,6 +16,7 @@ pub(super) fn repair(
     mut input: Input,
     mut copper: RefilledCopper,
     first: &mut Output,
+    control: crate::budget::RouteControl,
 ) -> Result<(), (OperationStatus, String)> {
     if copper.introduced_violations > 0 {
         return Err((
@@ -57,7 +58,7 @@ pub(super) fn repair(
     };
     let extra = match remainder {
         Ok(()) => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            crate::run_unidentified(input)
+            crate::run_unidentified(input, Some(control))
         }))
         .map_err(|_| {
             (
@@ -126,7 +127,13 @@ mod tests {
                 teardrops: vec![],
                 introduced_violations: 0,
             };
-            let (status, _) = repair(input, fill, &mut first).unwrap_err();
+            let (status, _) = repair(
+                input,
+                fill,
+                &mut first,
+                super::super::route_control(std::time::Instant::now()),
+            )
+            .unwrap_err();
             assert_eq!(status, map_routing_status(expected));
             assert_eq!(first.status, expected);
             assert_eq!((first.expanded_states, first.work_used), (expansions, work));

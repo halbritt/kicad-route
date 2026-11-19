@@ -382,7 +382,13 @@ fn group_mask_components(
 }
 
 impl Engine {
-    pub fn new(mut input: Input) -> Result<Self, Failure> {
+    pub fn new(input: Input) -> Result<Self, Failure> {
+        Self::new_with_control(input, None)
+    }
+    fn new_with_control(
+        mut input: Input,
+        control: Option<budget::RouteControl>,
+    ) -> Result<Self, Failure> {
         input.limits.validate()?;
         if input.version != INPUT_VERSION {
             return Err(Failure::new(
@@ -391,7 +397,7 @@ impl Engine {
             ));
         }
         let effective_rules = rules::resolve_effective_rules(&mut input)?;
-        let work = budget::WorkBudget::new(input.limits);
+        let work = budget::WorkBudget::with_control(input.limits, control);
         input.validate_with_work(&work)?;
         work.carry_setup_into_first_scope();
         let layer_names = input.active_layers();
@@ -3477,13 +3483,13 @@ impl Output {
 /// Original JSON formatting and omitted defaults cannot be recovered from Input.
 pub fn run(input: Input) -> Output {
     let identity = input_request_sha256(&input);
-    let mut result = run_unidentified(input);
+    let mut result = run_unidentified(input, None);
     result.request_sha256 = Some(identity);
     result
 }
-fn run_unidentified(input: Input) -> Output {
+fn run_unidentified(input: Input, control: Option<budget::RouteControl>) -> Output {
     let source = input.source_id.clone();
-    let mut engine = match Engine::new(input) {
+    let mut engine = match Engine::new_with_control(input, control) {
         Ok(e) => e,
         Err(e) => return Output::failure(source, e),
     };
@@ -3504,6 +3510,9 @@ fn run_unidentified(input: Input) -> Output {
     }
 }
 pub fn run_json(bytes: &[u8]) -> Output {
+    run_json_with_control(bytes, None)
+}
+fn run_json_with_control(bytes: &[u8], control: Option<budget::RouteControl>) -> Output {
     if bytes.len() > identity::MAX_REQUEST_BYTES {
         return Output::failure(
             String::new(),
@@ -3513,7 +3522,7 @@ pub fn run_json(bytes: &[u8]) -> Output {
     // Deserialize directly into the contract: going through Value first would
     // erase duplicate keys, including a second `tracks` field hiding copper.
     let mut result = match serde_json::from_slice::<Input>(bytes) {
-        Ok(input) => run_unidentified(input),
+        Ok(input) => run_unidentified(input, control),
         Err(error) => {
             let source = serde_json::from_slice::<serde_json::Value>(bytes)
                 .ok()

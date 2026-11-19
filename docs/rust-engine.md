@@ -99,6 +99,12 @@ owns the limits and their defaults; native export passes `--limits FILE` through
 without selecting routing policy. Results are separately versioned at **3** and
 require `request_sha256` plus unsigned 64-bit `expanded_states` and `work_used`
 counters. Native apply rejects version1 and version2 results; regenerate them.
+In a native operation, Rust checks the wall-clock deadline and cancellation
+signal during charged work, including search after zone refill. The next
+check occurs after 8,192 additional work units or a charge that crosses that
+threshold. Parsing, native calls and transaction cleanup have separate
+execution costs.
+
 Work, admission, journal and nesting failures publish
 empty edits and cannot be applied as a native board. The Rust README records the
 charged operations, separately bounded initialization and exclusions; the work

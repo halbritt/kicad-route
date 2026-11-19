@@ -1218,6 +1218,8 @@ fn map_routing_status(status: Status) -> OperationStatus {
         Status::Unroutable => OperationStatus::Unroutable,
         Status::BudgetExhausted => OperationStatus::BudgetExhausted,
         Status::WorkExhausted => OperationStatus::WorkExhausted,
+        Status::OperationTimeout => OperationStatus::OperationTimeout,
+        Status::Cancelled => OperationStatus::Cancelled,
         Status::AdmissionExceeded => OperationStatus::AdmissionExceeded,
         Status::JournalExhausted => OperationStatus::JournalExhausted,
         Status::NestingExhausted => OperationStatus::NestingExhausted,
@@ -1886,6 +1888,13 @@ fn phase_pre_snapshot_admission(
     res
 }
 
+fn route_control(deadline: Instant) -> crate::budget::RouteControl {
+    crate::budget::RouteControl {
+        deadline,
+        cancelled: || cancellation_signal().is_some(),
+    }
+}
+
 fn check_cancel_or_deadline(deadline: Instant) -> Result<(), (OperationStatus, String)> {
     if let Some(sig) = cancellation_signal() {
         return Err((
@@ -2080,7 +2089,9 @@ fn phase_rust_route_with_hook(
         return Err(err);
     }
     let t_route = Instant::now();
-    let route_output = match catch_unwind(AssertUnwindSafe(|| crate::run_json(request_bytes))) {
+    let route_output = match catch_unwind(AssertUnwindSafe(|| {
+        crate::run_json_with_control(request_bytes, Some(route_control(deadline)))
+    })) {
         Ok(out) => out,
         Err(_) => {
             let msg = "routing executor panicked; edits discarded".to_owned();
@@ -2433,7 +2444,7 @@ fn execute_staged_phases(
                     format!("cannot read original routing request: {e}"),
                 )
             })?;
-            refill::repair(input, measured, &mut route_output)?;
+            refill::repair(input, measured, &mut route_output, route_control(deadline))?;
             check_cancel_or_deadline(deadline)?;
             let repair_plan = staging_dir.join("refill-plan.json");
             let plan_bytes = serde_json::to_vec(&route_output).map_err(|e| {

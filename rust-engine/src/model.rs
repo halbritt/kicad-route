@@ -893,6 +893,8 @@ pub enum Status {
     Unroutable,
     BudgetExhausted,
     WorkExhausted,
+    OperationTimeout,
+    Cancelled,
     AdmissionExceeded,
     JournalExhausted,
     NestingExhausted,

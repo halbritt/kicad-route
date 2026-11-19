@@ -141,7 +141,11 @@ pub(crate) fn run(args: &[OsString], executor: impl FnOnce(&[u8]) -> Output) -> 
         Status::Complete => 0,
         Status::BudgetExhausted => 4,
         Status::WorkExhausted => 5,
-        Status::AdmissionExceeded | Status::JournalExhausted | Status::NestingExhausted => 6,
+        Status::AdmissionExceeded
+        | Status::JournalExhausted
+        | Status::NestingExhausted
+        | Status::OperationTimeout
+        | Status::Cancelled => 6,
         Status::Unroutable => 3,
         Status::InternalError => 7,
         Status::Invalid | Status::Unsupported => 2,
