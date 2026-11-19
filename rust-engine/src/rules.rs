@@ -140,6 +140,9 @@ fn json_nonneg_rounded_i64_field(
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct BoardDesignSettings {
+    /// Native display names keyed by the canonical copper layer in the input stack.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub layer_aliases: BTreeMap<String, String>,
     pub min_track_width_nm: i64,
     pub min_clearance_nm: i64,
     pub min_edge_clearance_nm: i64,
@@ -1549,6 +1552,7 @@ pub enum DruValueExpr {
     Prop(Side, DruProp),
     StrLit(String),
     IntLit(i64),
+    LayerNames(Vec<String>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -1560,13 +1564,36 @@ pub enum DruExpr {
     Eq(DruValueExpr, DruValueExpr),
     Ne(DruValueExpr, DruValueExpr),
     SameNet,
-    ExistsOnLayer { side: Side, layer: String },
+    ExistsOnLayer { side: Side, layer: LayerSelector },
     HasNetClass { side: Side, class_name: String },
     InDiffPair { side: Side, pattern: String },
     FromTo { side: Side, a: String, b: String },
 }
 
 impl DruExpr {
+    fn resolve_layers(&mut self, layers: &[String], aliases: &BTreeMap<String, String>) {
+        match self {
+            Self::Not(expr) => expr.resolve_layers(layers, aliases),
+            Self::And(a, b) | Self::Or(a, b) => {
+                a.resolve_layers(layers, aliases);
+                b.resolve_layers(layers, aliases);
+            }
+            Self::ExistsOnLayer { layer, .. } => layer.resolve(layers, aliases),
+            Self::Eq(a, b) | Self::Ne(a, b) => {
+                let lit = match (a, b) {
+                    (DruValueExpr::Prop(_, DruProp::Layer), lit)
+                    | (lit, DruValueExpr::Prop(_, DruProp::Layer)) => lit,
+                    _ => return,
+                };
+                if let DruValueExpr::StrLit(pattern) = lit {
+                    *lit =
+                        DruValueExpr::LayerNames(resolve_layer_pattern(pattern, layers, aliases));
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn uses_b_or_ab(&self) -> bool {
         match self {
             Self::BoolLit(_) => false,
@@ -1653,10 +1680,82 @@ impl DruConstraint {
     }
 }
 
+/// Single strings preserve the existing effective-rule format, including bare
+/// `outer`/`inner` groups. Quoted patterns using those names remain distinct.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum LayerSelector {
+    NameOrGroup(String),
+    Pattern { pattern: String },
+    Layers(Vec<String>),
+}
+
+impl From<&str> for LayerSelector {
+    fn from(name: &str) -> Self {
+        Self::NameOrGroup(name.to_owned())
+    }
+}
+
+impl LayerSelector {
+    fn pattern(name: String) -> Self {
+        if matches!(name.as_str(), "outer" | "inner") {
+            Self::Pattern { pattern: name }
+        } else {
+            Self::NameOrGroup(name)
+        }
+    }
+
+    pub(crate) fn matches(&self, layer: &str) -> bool {
+        match self {
+            Self::NameOrGroup(name) if name == "outer" => matches!(layer, "F.Cu" | "B.Cu"),
+            Self::NameOrGroup(name) if name == "inner" => !matches!(layer, "F.Cu" | "B.Cu"),
+            Self::NameOrGroup(pattern) | Self::Pattern { pattern } => {
+                layer_pattern_matches(pattern, layer)
+            }
+            Self::Layers(names) => names.iter().any(|name| name == layer),
+        }
+    }
+
+    fn resolve(&mut self, layers: &[String], aliases: &BTreeMap<String, String>) {
+        match self {
+            Self::NameOrGroup(group) if matches!(group.as_str(), "inner" | "outer") => {}
+            Self::NameOrGroup(pattern) | Self::Pattern { pattern } => {
+                *self = Self::Layers(resolve_layer_pattern(pattern, layers, aliases));
+            }
+            Self::Layers(_) => {}
+        }
+    }
+}
+
+fn layer_pattern_matches(pattern: &str, name: &str) -> bool {
+    if pattern.contains(['*', '?']) {
+        wildcard_full_match(pattern, name)
+    } else {
+        pattern == name
+    }
+}
+
+fn resolve_layer_pattern(
+    pattern: &str,
+    layers: &[String],
+    aliases: &BTreeMap<String, String>,
+) -> Vec<String> {
+    layers
+        .iter()
+        .filter(|layer| {
+            layer_pattern_matches(pattern, layer)
+                || aliases
+                    .get(*layer)
+                    .is_some_and(|name| layer_pattern_matches(pattern, name))
+        })
+        .cloned()
+        .collect()
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct DruRule {
     pub name: String,
-    pub layer: Option<String>,
+    pub layer: Option<LayerSelector>,
     pub condition: Option<DruExpr>,
     pub constraint: DruConstraint,
     pub severity: DruSeverity,
@@ -1944,13 +2043,13 @@ impl<'a> ExprParser<'a> {
                         "A.existsOnLayer" if fn_args.len() == 1 => {
                             Ok(Err(DruExpr::ExistsOnLayer {
                                 side: Side::A,
-                                layer: fn_args.pop().unwrap(),
+                                layer: LayerSelector::pattern(fn_args.pop().unwrap()),
                             }))
                         }
                         "B.existsOnLayer" if fn_args.len() == 1 => {
                             Ok(Err(DruExpr::ExistsOnLayer {
                                 side: Side::B,
-                                layer: fn_args.pop().unwrap(),
+                                layer: LayerSelector::pattern(fn_args.pop().unwrap()),
                             }))
                         }
                         "A.hasNetClass" if fn_args.len() == 1 => Ok(Err(DruExpr::HasNetClass {
@@ -2436,7 +2535,7 @@ pub fn parse_kicad_dru(bytes: &[u8]) -> Result<Vec<DruRule>, Failure> {
         let name = sexpr_str(&items[1])
             .ok_or_else(|| Failure::new(Status::Invalid, ".kicad_dru rule missing name"))?
             .to_owned();
-        let mut layer: Option<String> = None;
+        let mut layer = None;
         let mut condition: Option<DruExpr> = None;
         let mut constraint: Option<DruConstraint> = None;
         let mut severity: Option<DruSeverity> = None;
@@ -2465,7 +2564,11 @@ pub fn parse_kicad_dru(bytes: &[u8]) -> Result<Vec<DruRule>, Failure> {
                     let l = sexpr_str(&cl[1]).ok_or_else(|| {
                         Failure::new(Status::Invalid, "expected layer string in .kicad_dru")
                     })?;
-                    layer = Some(l.to_owned());
+                    layer = Some(if matches!(&cl[1], Sexpr::Atom(_)) {
+                        LayerSelector::NameOrGroup(l.to_owned())
+                    } else {
+                        LayerSelector::pattern(l.to_owned())
+                    });
                 }
                 Some("condition") => {
                     if condition.is_some() || cl.len() != 2 {
@@ -2577,15 +2680,6 @@ pub struct DruItem<'a> {
     pub layers: &'a [String],
 }
 
-fn layer_matches_spec(layer: &str, spec: &str) -> bool {
-    match spec {
-        "*" => true,
-        "outer" => layer == "F.Cu" || layer == "B.Cu",
-        "inner" => layer != "F.Cu" && layer != "B.Cu",
-        exact => layer == exact,
-    }
-}
-
 fn eval_value_eq(
     val_a: &DruValueExpr,
     val_b: &DruValueExpr,
@@ -2603,7 +2697,11 @@ fn eval_value_eq(
         (DruValueExpr::IntLit(x), DruValueExpr::IntLit(y)) => x == y,
         (DruValueExpr::Prop(s, DruProp::Layer), DruValueExpr::StrLit(l))
         | (DruValueExpr::StrLit(l), DruValueExpr::Prop(s, DruProp::Layer)) => {
-            pick(*s).is_some_and(|it| it.layers.iter().any(|il| layer_matches_spec(il, l)))
+            pick(*s).is_some_and(|it| it.layers.iter().any(|name| layer_pattern_matches(l, name)))
+        }
+        (DruValueExpr::Prop(s, DruProp::Layer), DruValueExpr::LayerNames(names))
+        | (DruValueExpr::LayerNames(names), DruValueExpr::Prop(s, DruProp::Layer)) => {
+            pick(*s).is_some_and(|it| it.layers.iter().any(|name| names.contains(name)))
         }
         (DruValueExpr::Prop(s1, DruProp::Layer), DruValueExpr::Prop(s2, DruProp::Layer)) => {
             match (pick(*s1), pick(*s2)) {
@@ -2677,7 +2775,7 @@ pub fn eval_dru_expr_for_context(
                 Side::A => Some(a),
                 Side::B => b,
             };
-            it.is_some_and(|item| item.layers.iter().any(|l| layer_matches_spec(l, layer)))
+            it.is_some_and(|item| item.layers.iter().any(|l| layer.matches(l)))
         }
         DruExpr::HasNetClass { side, class_name } => {
             let it = match side {
@@ -3133,7 +3231,7 @@ impl EffectiveRules {
                 continue;
             }
             if let Some(l) = &rule.layer {
-                if !layer_matches_spec(layer, l) {
+                if !l.matches(layer) {
                     continue;
                 }
             }
@@ -3219,7 +3317,7 @@ impl EffectiveRules {
                     continue;
                 };
                 if let Some(l) = &rule.layer {
-                    if !layer_matches_spec(layer, l) {
+                    if !l.matches(layer) {
                         continue;
                     }
                 }
@@ -3262,7 +3360,7 @@ impl EffectiveRules {
                 if let Some(l) = &rule.layer {
                     let overlap = layers_a
                         .iter()
-                        .any(|la| layers_b.contains(la) && layer_matches_spec(la, l));
+                        .any(|la| layers_b.contains(la) && l.matches(la));
                     if !overlap {
                         continue;
                     }
@@ -3306,7 +3404,7 @@ impl EffectiveRules {
                 if let Some(l) = &rule.layer {
                     let overlap = layers_a
                         .iter()
-                        .any(|la| layers_b.contains(la) && layer_matches_spec(la, l));
+                        .any(|la| layers_b.contains(la) && l.matches(la));
                     if !overlap {
                         continue;
                     }
@@ -3340,7 +3438,7 @@ impl EffectiveRules {
                     continue;
                 };
                 if let Some(l) = &rule.layer {
-                    if !layers.iter().any(|il| layer_matches_spec(il, l)) {
+                    if !layers.iter().any(|il| l.matches(il)) {
                         continue;
                     }
                 }
@@ -3381,7 +3479,7 @@ impl EffectiveRules {
                     continue;
                 }
                 if let Some(l) = &rule.layer {
-                    if !span_layers.iter().any(|il| layer_matches_spec(il, l)) {
+                    if !span_layers.iter().any(|il| l.matches(il)) {
                         continue;
                     }
                 }
@@ -3465,7 +3563,7 @@ impl EffectiveRules {
                 continue;
             };
             if let Some(l) = &rule.layer {
-                if !layer_matches_spec(layer, l) {
+                if !l.matches(layer) {
                     continue;
                 }
             }
@@ -3493,7 +3591,7 @@ impl EffectiveRules {
                 continue;
             };
             if let Some(l) = &rule.layer {
-                if !span_layers.iter().any(|il| layer_matches_spec(il, l)) {
+                if !span_layers.iter().any(|il| l.matches(il)) {
                     continue;
                 }
             }
@@ -3638,10 +3736,33 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
             }
         }),
     };
-    let dru_rules = match &input.custom_rules {
+    let mut dru_rules = match &input.custom_rules {
         Some(text) => parse_kicad_dru(text.as_bytes())?,
         None => Vec::new(),
     };
+    let layers_ref = input.active_layers();
+    let empty_aliases = BTreeMap::new();
+    let aliases = input
+        .board_design_settings
+        .as_ref()
+        .map_or(&empty_aliases, |settings| &settings.layer_aliases);
+    if aliases
+        .iter()
+        .any(|(layer, name)| !layers_ref.contains(layer) || name.is_empty())
+    {
+        return Err(Failure::new(
+            Status::Invalid,
+            "layer_aliases must map an active copper layer to a nonempty display name",
+        ));
+    }
+    for rule in &mut dru_rules {
+        if let Some(layer) = &mut rule.layer {
+            layer.resolve(&layers_ref, aliases);
+        }
+        if let Some(condition) = &mut rule.condition {
+            condition.resolve_layers(&layers_ref, aliases);
+        }
+    }
     if let Some(bds) = &input.board_design_settings {
         let fields = [
             bds.min_track_width_nm,
@@ -3813,12 +3934,6 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         });
     }
 
-    let layers_ref: Vec<String> = if input.layers.is_empty() {
-        vec![input.layer.clone()]
-    } else {
-        input.layers.clone()
-    };
-
     for net in all_nets {
         let (class_name, class_members, cls_opt) = match &pro {
             Some(p) => resolve_net_classes(&net.name, p),
@@ -3944,7 +4059,7 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
             }
             let matches_for = |it: &DruItem<'_>| -> bool {
                 if let Some(l) = &rule.layer {
-                    if !it.layers.iter().any(|il| layer_matches_spec(il, l)) {
+                    if !it.layers.iter().any(|il| l.matches(il)) {
                         return false;
                     }
                 }
@@ -4258,6 +4373,112 @@ mod tests {
         ] {
             let err = parse_kicad_dru(bad.as_bytes()).unwrap_err();
             assert_eq!(err.status, expected, "input: {bad}");
+        }
+    }
+
+    fn alias_probe(aliases: serde_json::Value, selector: &str) -> Result<EffectiveRules, Failure> {
+        let mut input: Input = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "source_id": "a".repeat(64),
+            "layer": "F.Cu",
+            "layers": ["F.Cu", "In1.Cu", "B.Cu"],
+            "bounds": {"min": [0, 0], "max": [10_000_000, 10_000_000]},
+            "nets": [{"id":0, "name":""}, {"id":1, "name":"top_copper"}, {"id":2, "name":"B"}],
+            "pads": [],
+            "tracks": [],
+            "max_expansions": 100,
+            "board_design_settings": {
+                "layer_aliases": aliases,
+                "default_clearance_nm": 150_000,
+                "default_track_width_nm": 200_000
+            },
+            "custom_rules": format!(r#"(version 1)
+                (rule "witness" {selector} (constraint clearance (min 0.6mm)))"#)
+        }))
+        .unwrap();
+        resolve_effective_rules(&mut input)
+    }
+
+    fn check_layer_clearances(aliases: &serde_json::Value, selector: &str, expected: [i64; 3]) {
+        let eff = alias_probe(aliases.clone(), selector).unwrap();
+        let clearance = |rules: &EffectiveRules| {
+            ["F.Cu", "In1.Cu", "B.Cu"].map(|layer| {
+                rules.pair_clearance(1, DruItemKind::Track, 2, DruItemKind::Track, layer, None)
+            })
+        };
+        assert_eq!(clearance(&eff), expected, "{selector}");
+        let reread = serde_json::from_slice(&serde_json::to_vec(&eff).unwrap()).unwrap();
+        assert_eq!(clearance(&reread), expected, "{selector} after round trip");
+    }
+
+    #[test]
+    fn native_layer_selectors_match_physical_and_display_names() {
+        let aliases = serde_json::json!({"F.Cu":"top_copper", "B.Cu":"bottom_copper"});
+        let on = 600_000;
+        let off = 150_000;
+        for (pattern, expected) in [
+            ("F.Cu", [on, off, off]),
+            ("top_copper", [on, off, off]),
+            ("top_*", [on, off, off]),
+            ("B.Cu", [off, off, on]),
+            ("bottom?copper", [off, off, on]),
+            ("*.Cu", [on, on, on]),
+            ("*_copper", [on, off, on]),
+            ("Top_copper", [off, off, off]),
+            ("unknown", [off, off, off]),
+        ] {
+            for selector in [
+                format!(r#"(layer "{pattern}")"#),
+                format!(r#"(condition "A.Layer == '{pattern}'")"#),
+                format!(r#"(condition "'{pattern}' == B.Layer")"#),
+                format!(r#"(condition "A.existsOnLayer('{pattern}')")"#),
+                format!(r#"(condition "B.existsOnLayer('{pattern}')")"#),
+            ] {
+                check_layer_clearances(&aliases, &selector, expected);
+            }
+        }
+        check_layer_clearances(
+            &aliases,
+            r#"(condition "A.NetName == 'top_copper' && (A.Layer != 'top_*' || B.existsOnLayer('top?copper'))")"#,
+            [on, on, on],
+        );
+        check_layer_clearances(&serde_json::json!({}), r#"(layer "F.Cu")"#, [on, off, off]);
+    }
+
+    #[test]
+    fn layer_alias_collisions_and_quoted_group_names() {
+        let on = 600_000;
+        let off = 150_000;
+        let aliases = serde_json::json!({"F.Cu":"outer", "B.Cu":"In1.Cu"});
+        for (selector, expected) in [
+            ("(layer outer)", [on, off, on]),
+            ("(layer inner)", [off, on, off]),
+            (r#"(layer "outer")"#, [on, off, off]),
+            (r#"(condition "A.existsOnLayer('outer')")"#, [on, off, off]),
+            (r#"(condition "B.Layer == 'outer'")"#, [on, off, off]),
+            (r#"(layer "inner")"#, [off, off, off]),
+            (r#"(layer "In1.Cu")"#, [off, on, on]),
+            (r#"(condition "B.Layer == 'In1.Cu'")"#, [off, on, on]),
+        ] {
+            check_layer_clearances(&aliases, selector, expected);
+        }
+        check_layer_clearances(
+            &serde_json::json!({"F.Cu":"plane", "B.Cu":"plane"}),
+            r#"(condition "A.existsOnLayer('plane')")"#,
+            [on, off, on],
+        );
+    }
+
+    #[test]
+    fn reject_invalid_layer_alias_map() {
+        for aliases in [
+            serde_json::json!({"F.Cu":""}),
+            serde_json::json!({"In2.Cu":"power"}),
+        ] {
+            assert_eq!(
+                alias_probe(aliases, "").unwrap_err().status,
+                Status::Invalid
+            );
         }
     }
 

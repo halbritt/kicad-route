@@ -116,6 +116,7 @@ fn base_diff_input(net_names: &[&str]) -> Input {
         rule_areas: Vec::new(),
         board_outline: None,
         board_design_settings: Some(BoardDesignSettings {
+            layer_aliases: Default::default(),
             min_track_width_nm: 100_000,
             min_clearance_nm: 100_000,
             min_edge_clearance_nm: 100_000,
