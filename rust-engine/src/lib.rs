@@ -2836,6 +2836,7 @@ impl Engine {
                 items.push(Copper::Graphic(g));
             }
         }
+        let mut includes_refillable_fill = false;
         for z in &self.input.zones {
             self.work.charge(1)?;
             if z.net != net || !z.filled {
@@ -2847,6 +2848,7 @@ impl Engine {
                 };
                 for poly in &lf.polygons {
                     self.work.charge(1)?;
+                    includes_refillable_fill |= z.refillable;
                     items.push(Copper::ZoneFill {
                         layer_idx: l_idx,
                         zone: z,
@@ -2855,7 +2857,29 @@ impl Engine {
                 }
             }
         }
-        components::partition(items, &self.layer_names, &self.work)
+        let mut groups = components::partition(items, &self.layer_names, &self.work)?;
+        if includes_refillable_fill && groups.len() > 1 {
+            // Source fills supply a few seed vertices. Target fills can accept
+            // a legal connection anywhere on their copper, including long edges.
+            let mut smallest = (i64::MAX, usize::MAX, usize::MAX);
+            for (index, group) in groups.iter().enumerate() {
+                self.work.charge(group.len() as u64)?;
+                let mut max_fill_area = 0;
+                for item in group {
+                    if let Copper::ZoneFill { zone, poly, .. } = item {
+                        if !zone.refillable {
+                            continue;
+                        }
+                        self.work.charge(poly.outer.len() as u64)?;
+                        let (lo, hi) = item.copper_bounds();
+                        max_fill_area = max_fill_area.max((hi[0] - lo[0]) * (hi[1] - lo[1]));
+                    }
+                }
+                smallest = smallest.min((max_fill_area, group.len(), index));
+            }
+            groups[..=smallest.2].rotate_right(1);
+        }
+        Ok(groups)
     }
     fn route_net(&mut self, net: u32, limit: u64, expanded: &mut u64) -> Result<(), Failure> {
         loop {

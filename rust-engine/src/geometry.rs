@@ -1167,14 +1167,18 @@ fn rat_lt(a: (i128, i128), b: (i128, i128)) -> bool {
     a.0 * b.1 < b.0 * a.1
 }
 
-fn ring_slab_intervals_2x_rational(ring: &[Point], py: i128) -> Vec<((i128, i128), (i128, i128))> {
+fn ring_slab_intervals_2x_rational(
+    ring: &[Point],
+    py: i128,
+    axis: usize,
+) -> Vec<((i128, i128), (i128, i128))> {
     let n = ring.len();
     let mut crossings: Vec<(i128, i128)> = Vec::new();
     for i in 0..n {
-        let ax = i128::from(ring[i][0]) * 2;
-        let ay = i128::from(ring[i][1]) * 2;
-        let bx = i128::from(ring[(i + 1) % n][0]) * 2;
-        let by = i128::from(ring[(i + 1) % n][1]) * 2;
+        let ax = i128::from(ring[i][axis]) * 2;
+        let ay = i128::from(ring[i][1 - axis]) * 2;
+        let bx = i128::from(ring[(i + 1) % n][axis]) * 2;
+        let by = i128::from(ring[(i + 1) % n][1 - axis]) * 2;
         if (ay > py) != (by > py) {
             let mut num = ax * (by - ay) + (py - ay) * (bx - ax);
             let mut den = by - ay;
@@ -1200,13 +1204,14 @@ fn polygon_slab_intervals_2x_rational(
     outer: &[Point],
     holes: &[Vec<Point>],
     py: i128,
+    axis: usize,
 ) -> Vec<((i128, i128), (i128, i128))> {
-    let mut intervals = ring_slab_intervals_2x_rational(outer, py);
+    let mut intervals = ring_slab_intervals_2x_rational(outer, py, axis);
     if intervals.is_empty() || holes.is_empty() {
         return intervals;
     }
     for hole in holes {
-        let hole_ivs = ring_slab_intervals_2x_rational(hole, py);
+        let hole_ivs = ring_slab_intervals_2x_rational(hole, py, axis);
         if hole_ivs.is_empty() {
             continue;
         }
@@ -1240,6 +1245,53 @@ fn polygon_slab_intervals_2x_rational(
         }
     }
     intervals
+}
+
+/// Inclusive integer-nm landing ranges along one orthogonal centerline.
+pub(crate) fn fill_landing_ranges(
+    poly: &crate::model::OutlinePolygon,
+    axis: usize,
+    line: i64,
+) -> Vec<(i64, i64)> {
+    let ranges =
+        polygon_slab_intervals_2x_rational(&poly.outer, &poly.holes, 2 * i128::from(line), axis);
+    // A scanline through a vertex or along a boundary must still land inside
+    // copper, including when the coincident edge belongs to a hole.
+    let mut boundary = Vec::new();
+    for ring in std::iter::once(&poly.outer).chain(&poly.holes) {
+        for (p, q) in ring.iter().zip(ring.iter().cycle().skip(1)) {
+            if p[1 - axis] == line {
+                let end = if q[1 - axis] == line {
+                    q[axis]
+                } else {
+                    p[axis]
+                };
+                boundary.push((p[axis].min(end), p[axis].max(end)));
+            }
+        }
+    }
+    boundary.sort_unstable();
+    let mut result = Vec::new();
+    let mut j = 0;
+    for ((a, da), (b, db)) in ranges {
+        let mut lo = a.div_euclid(2 * da) as i64 + 1;
+        let hi = -(-b).div_euclid(2 * db) as i64 - 1;
+        while j < boundary.len() && boundary[j].0 <= hi {
+            let (x, y) = boundary[j];
+            if lo < x {
+                result.push((lo, x - 1));
+            }
+            lo = lo.max(y + 1);
+            if y > hi {
+                break;
+            }
+            j += 1;
+        }
+        if lo <= hi {
+            result.push((lo, hi));
+        }
+    }
+    result
 }
 
 fn intervals_overlap_rational(
@@ -1318,11 +1370,11 @@ pub fn filled_polygons_overlap(
     ys.dedup();
     for w in ys.windows(2) {
         let py = (w[0] + w[1]) / 2;
-        let ivs_a = polygon_slab_intervals_2x_rational(outer_a, holes_a, py);
+        let ivs_a = polygon_slab_intervals_2x_rational(outer_a, holes_a, py, 0);
         if ivs_a.is_empty() {
             continue;
         }
-        let ivs_b = polygon_slab_intervals_2x_rational(outer_b, holes_b, py);
+        let ivs_b = polygon_slab_intervals_2x_rational(outer_b, holes_b, py, 0);
         if intervals_overlap_rational(&ivs_a, &ivs_b) {
             return true;
         }

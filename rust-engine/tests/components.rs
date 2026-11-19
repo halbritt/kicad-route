@@ -454,3 +454,33 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
     assert_copper_connected(&i, &o.added_tracks);
     assert!(!contact::Body::track(t).violates(contact::Body::track(&i.tracks[0]), 200000));
 }
+
+#[test]
+fn small_zone_island_can_join_the_side_of_a_large_filled_region() {
+    let mut input = base();
+    input.bounds.max = [1000, 1000];
+    input.max_expansions = 12;
+    input.tracks.clear();
+    input.pads = vec![pad(1, [100, 50]), pad(2, [325, 480])];
+    let large = [[10, 10], [300, 10], [300, 950], [10, 950]];
+    let small = [[310, 470], [330, 470], [330, 490], [310, 490]];
+    input.zones = vec![serde_json::from_value(serde_json::json!({
+        "id":id(3), "net":1, "layers":["F.Cu"], "connection":"solid", "filled":true,
+        "outer":[[1,1],[999,1],[999,999],[1,999]], "min_thickness_nm":1,
+        "layer_fills":[{"layer":"F.Cu","polygons":[{"outer":large},{"outer":small}]}]
+    }))
+    .unwrap()];
+    let plan = run(input.clone());
+    assert_eq!(plan.status, Status::Complete, "{:?}", plan.reason);
+    assert_eq!(plan.added_tracks.len(), 1);
+    let edge = &plan.added_tracks[0];
+    assert_eq!(edge.start[1], edge.end[1]);
+    assert!(edge.start[1] >= 469 && edge.start[1] <= 491);
+    assert!(edge.start[0].min(edge.end[0]) <= 300);
+    assert!(edge.start[0].max(edge.end[0]) >= 310);
+    input.pads.reverse();
+    input.zones[0].layer_fills[0].polygons.reverse();
+    let swapped = run(input);
+    assert_eq!(swapped.status, Status::Complete);
+    assert_eq!(swapped.added_tracks, plan.added_tracks);
+}

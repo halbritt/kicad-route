@@ -5086,3 +5086,76 @@ fn bidirectional_starts_over_16_with_via_only_matches_forward_oracle() {
         "bidirectional len {bi_len} != forward oracle len {fwd_len}"
     );
 }
+
+#[test]
+fn refill_landings_resolve_narrow_regions_holes_boundaries_and_budgets() {
+    let poly = OutlinePolygon {
+        outer: vec![[-6, -4], [8, -4], [8, 4], [-6, 4]],
+        holes: vec![vec![[-1, -2], [1, -2], [1, 2], [-1, 2]]],
+    };
+    let work = WorkBudget::new(Limits::default());
+    let mut landings = FillLandings::default();
+    // Neither end of the grid step lies on copper. Land inside the first
+    // strip traversed, before the hole, in either direction.
+    assert_eq!(
+        landings
+            .on_segment(&poly, [-10, 0], [10, 0], &work)
+            .unwrap(),
+        Some([-4, 0])
+    );
+    let first_scan = work.used();
+    assert_eq!(
+        landings
+            .on_segment(&poly, [10, 0], [-10, 0], &work)
+            .unwrap(),
+        Some([4, 0])
+    );
+    assert_eq!(work.used(), first_scan);
+    assert_eq!(
+        landings
+            .on_segment(&poly, [0, -10], [0, 10], &work)
+            .unwrap(),
+        Some([0, -3])
+    );
+    assert_eq!(
+        landings.on_segment(&poly, [0, 0], [0, 0], &work).unwrap(),
+        None
+    );
+    assert_eq!(
+        landings.on_segment(&poly, [-1, 2], [1, 2], &work).unwrap(),
+        None
+    );
+    assert_eq!(
+        landings.on_segment(&poly, [-6, 4], [8, 4], &work).unwrap(),
+        None
+    );
+    assert_eq!(
+        landings
+            .on_segment(&poly, [-10, 0], [-3, 0], &work)
+            .unwrap(),
+        Some([-3, 0])
+    );
+    let mut limited = FillLandings::default();
+    let budget = WorkBudget::new(Limits {
+        max_work: 7,
+        ..Limits::default()
+    });
+    assert_eq!(
+        limited
+            .on_segment(&poly, [0, 0], [0, 0], &budget)
+            .unwrap_err()
+            .status,
+        Status::WorkExhausted
+    );
+    let budget = WorkBudget::new(Limits {
+        max_search_entries: 2,
+        ..Limits::default()
+    });
+    assert_eq!(
+        limited
+            .on_segment(&poly, [0, 0], [0, 0], &budget)
+            .unwrap_err()
+            .status,
+        Status::AdmissionExceeded
+    );
+}
