@@ -77,6 +77,22 @@ artwork, filled zones and keepouts. Hatched zones and board or footprint
 Margin geometry, for example, cause an explicit refusal. The
 [capability matrix](rust-parity.md) records the tested forms and board outcomes.
 
+Paste-only stencil apertures without a drill or a copper net survive export
+and application as footprint features. They contribute no electrical terminal.
+Supported custom pads include connected unions of a rectangular or circular
+anchor and supported filled primitives. Rust retains the pieces as one pad
+when testing contact and clearance. The importer identifies a custom pad with
+disconnected copper outlines when KiCad rejects it.
+
+When routing all nets with the default routing options, native refill can
+split a zone that joined two pads in the original board. If KiCad reports open
+connections after refill, it supplies the resulting zone and teardrop copper
+to Rust. Rust can join the islands once using the original operation's
+remaining work and expansion budgets. Its previous tracks and vias are fixed
+during this search. It reapplies the combined routing edits to the original
+board and repeats connectivity, DRC and pour checks before publication.
+The operation result records both native checks and the Rust repair.
+
 The version1 input uses integer nanometres, explicit net and item IDs, bounds,
 rules, fixed copper, an expansion budget and optional resource `limits`. Rust
 owns the limits and their defaults; native export passes `--limits FILE` through
