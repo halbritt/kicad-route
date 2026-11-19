@@ -2302,6 +2302,9 @@ impl Engine {
                     };
                     if pad.net == net && net != 0 {
                         if pad.drill.is_none() && disallow_smd_via_in_pad {
+                            if check_core(drill, 0) {
+                                return Ok(ControlFlow::Break(()));
+                            }
                             let synth = Via {
                                 id: String::new(),
                                 net,
@@ -2313,13 +2316,11 @@ impl Engine {
                                 kind,
                                 locked: false,
                             };
-                            if check_core(drill, 0)
-                                || Copper::Pad(pad).touches_via(
-                                    &synth,
-                                    &self.layer_names,
-                                    &self.work,
-                                )?
-                            {
+                            if Copper::Pad(pad).touches_via(
+                                &synth,
+                                &self.layer_names,
+                                &self.work,
+                            )? {
                                 return Ok(ControlFlow::Break(()));
                             }
                         }

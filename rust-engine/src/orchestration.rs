@@ -2658,7 +2658,7 @@ fn execute_staged_phases(
     Ok(())
 }
 
-const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
+const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--ac-couple-chain-json <JSON>] [--ac-match-tolerance <MM>] [--ac-meander-amplitude <MM>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
 
 fn take_flag_value(
     args: &[OsString],
@@ -2799,6 +2799,8 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
     let mut saw_impedance_tolerance = false;
     let mut saw_impedance_reference = false;
     let mut saw_impedance_uncoupled = false;
+    let mut saw_ac_match_tolerance = false;
+    let mut saw_ac_meander_amplitude = false;
     let mut saw_protect = false;
     let mut last_variadic_target: Option<&'static str> = None;
     let mut after_double_dash = false;
@@ -3143,6 +3145,37 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let mm = parse_f64_flag(&val, flag, false)?;
                             routing_options.impedance_uncoupled_nm =
+                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--ac-couple-chain-json" => {
+                            let val = take_flag_str(args, &mut i, inline, flag)?;
+                            let refs: Vec<String> =
+                                serde_json::from_str(val.trim()).map_err(|e| {
+                                    format!("invalid --ac-couple-chain-json array: {e}")
+                                })?;
+                            routing_options.ac_couple_chains.push(refs);
+                            last_variadic_target = None;
+                        }
+                        "--ac-match-tolerance" => {
+                            if saw_ac_match_tolerance {
+                                return Err("duplicate --ac-match-tolerance flag".to_owned());
+                            }
+                            saw_ac_match_tolerance = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let mm = parse_f64_flag(&val, flag, true)?;
+                            routing_options.ac_match_tolerance_nm =
+                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            last_variadic_target = None;
+                        }
+                        "--ac-meander-amplitude" => {
+                            if saw_ac_meander_amplitude {
+                                return Err("duplicate --ac-meander-amplitude flag".to_owned());
+                            }
+                            saw_ac_meander_amplitude = true;
+                            let val = take_flag_value(args, &mut i, inline, flag)?;
+                            let mm = parse_f64_flag(&val, flag, true)?;
+                            routing_options.ac_meander_amplitude_nm =
                                 Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
                             last_variadic_target = None;
                         }
@@ -3905,15 +3938,18 @@ elif cmd == "apply":
             "--impedance-tolerance",
             "--impedance-reference",
             "--impedance-uncoupled",
+            "--ac-couple-chain-json",
+            "--ac-match-tolerance",
+            "--ac-meander-amplitude",
             "--protect",
             "--nets",
         ] {
-            assert!(USAGE_MSG.contains(flag), "missing M4 flag {flag}");
+            assert!(USAGE_MSG.contains(flag), "missing CLI flag {flag}");
         }
-        for forbidden in ["--bus", "--ac-"] {
+        for forbidden in ["--bus"] {
             assert!(
                 !USAGE_MSG.contains(forbidden),
-                "M5 flag {forbidden} leaked into USAGE_MSG"
+                "unimplemented M5 flag {forbidden} leaked into USAGE_MSG"
             );
         }
         let m5_err = parse_cli_args(&[
@@ -3923,5 +3959,66 @@ elif cmd == "apply":
         ])
         .unwrap_err();
         assert!(m5_err.contains("unknown flag"));
+    }
+
+    #[test]
+    fn cli_parses_ac_couple_chain_flags_and_rejects_malformed() {
+        let args: Vec<OsString> = vec![
+            "src.kicad_pcb",
+            "out.kicad_pcb",
+            "--diff-pairs",
+            "auto",
+            "--ac-couple-chain-json",
+            "[\"C1\",\"C2\"]",
+            "--ac-couple-chain-json",
+            "[\"C3\",\"C4\"]",
+            "--ac-match-tolerance",
+            "0.1",
+            "--ac-meander-amplitude",
+            "3",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        let cfg = parse_cli_args(&args).expect("AC chain flags should parse");
+        assert_eq!(
+            cfg.routing_options.ac_couple_chains,
+            vec![
+                vec!["C1".to_owned(), "C2".to_owned()],
+                vec!["C3".to_owned(), "C4".to_owned()]
+            ]
+        );
+        assert_eq!(cfg.routing_options.ac_match_tolerance_nm, Some(100_000));
+        assert_eq!(cfg.routing_options.ac_meander_amplitude_nm, Some(3_000_000));
+
+        for bad in [
+            vec![
+                "src.kicad_pcb",
+                "out.kicad_pcb",
+                "--ac-couple-chain-json",
+                "not json",
+            ],
+            vec![
+                "src.kicad_pcb",
+                "out.kicad_pcb",
+                "--ac-couple-chain-json",
+                "{}",
+            ],
+            vec![
+                "src.kicad_pcb",
+                "out.kicad_pcb",
+                "--ac-match-tolerance",
+                "0",
+            ],
+            vec![
+                "src.kicad_pcb",
+                "out.kicad_pcb",
+                "--ac-meander-amplitude",
+                "-1",
+            ],
+        ] {
+            let os: Vec<OsString> = bad.into_iter().map(OsString::from).collect();
+            assert!(parse_cli_args(&os).is_err());
+        }
     }
 }

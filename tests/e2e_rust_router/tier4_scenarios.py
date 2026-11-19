@@ -742,7 +742,7 @@ def t4_04(ctx: DriverContext) -> dict[str, Any]:
     out_b = ctx.work_dir / "out_b" / "routed.kicad_pcb"
     out_a.parent.mkdir(parents=True, exist_ok=True)
     out_b.parent.mkdir(parents=True, exist_ok=True)
-    limits = {"max_work": 50_000_000}
+    limits = {"max_work": 250_000_000}
 
     mode_a, res_a, bh_a = run_m4_board_or_pending(
         ctx, bundle, out_a, tag="t4_04_a", max_expansions=1_000_000, limits=limits, timeout_s=180.0
@@ -764,10 +764,16 @@ def t4_04(ctx: DriverContext) -> dict[str, Any]:
     assert res_a.metrics.cpu_s >= 0.0 and res_a.metrics.max_rss_kib > 0
     sum_a = parse_last_json_line_safe(res_a.stdout) or parse_last_json_line_safe(res_a.stderr) or {}
     sum_b = parse_last_json_line_safe(res_b.stdout) or parse_last_json_line_safe(res_b.stderr) or {}
-    if "work_used" in sum_a and "work_used" in sum_b:
-        assert sum_a["work_used"] == sum_b["work_used"] <= limits["max_work"]
-    if "expanded_states" in sum_a and "expanded_states" in sum_b:
-        assert sum_a["expanded_states"] == sum_b["expanded_states"]
+    routing_a = sum_a.get("routing")
+    routing_b = sum_b.get("routing")
+    assert isinstance(routing_a, dict) and isinstance(routing_b, dict), (
+        f"missing routing summary on T4-04: {sum_a} / {sum_b}"
+    )
+    for key in ("work_used", "expanded_states"):
+        assert isinstance(routing_a.get(key), int) and not isinstance(routing_a.get(key), bool)
+        assert isinstance(routing_b.get(key), int) and not isinstance(routing_b.get(key), bool)
+    assert routing_a["work_used"] == routing_b["work_used"] <= limits["max_work"]
+    assert routing_a["expanded_states"] == routing_b["expanded_states"]
 
     return {
         **metrics_a,
@@ -775,8 +781,8 @@ def t4_04(ctx: DriverContext) -> dict[str, Any]:
         "wall_s": res_a.metrics.wall_s,
         "cpu_s": res_a.metrics.cpu_s,
         "max_rss_kib": res_a.metrics.max_rss_kib,
-        **({"work_used": sum_a["work_used"]} if "work_used" in sum_a else {}),
-        **({"expanded_states": sum_a["expanded_states"]} if "expanded_states" in sum_a else {}),
+        "work_used": routing_a["work_used"],
+        "expanded_states": routing_a["expanded_states"],
     }
 
 

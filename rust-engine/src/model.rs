@@ -743,6 +743,12 @@ pub struct RoutingOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub impedance_uncoupled_nm: Option<i64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ac_couple_chains: Vec<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ac_match_tolerance_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ac_meander_amplitude_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub net_filters: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protect_mode: Option<ProtectMode>,

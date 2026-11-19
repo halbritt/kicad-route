@@ -1114,8 +1114,10 @@ def verify_routed_board(
         before_pcb, after_pcb, allow_removed_track_ids=allow_removed_track_ids
     )
     pn = _pcbnew()
-    b_after = pn.LoadBoard(str(after_pcb))
-    min_width = int(b_after.GetDesignSettings().m_TrackMinWidth)
+    with tempfile.TemporaryDirectory(prefix="e2e-minw-") as tmp:
+        staged_after = _stage_board_bundle(after_pcb, Path(tmp), sidecar_source=before_pcb)
+        b_after = pn.LoadBoard(str(staged_after))
+        min_width = int(b_after.GetDesignSettings().m_TrackMinWidth)
     seen_uuids: set[str] = set()
     for snap in added:
         cls, tid, net_name = snap[0], snap[1], snap[2]

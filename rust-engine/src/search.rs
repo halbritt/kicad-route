@@ -644,6 +644,11 @@ fn join_components_inner(
     let mut conflict_filter = ConflictFilter::default();
     let mut track_via_conflicts: Vec<PlacedViaKey> = Vec::new();
     let mut backward_h: Option<(u64, BackwardHeuristic)> = None;
+    let disallow_smd_via_in_pad = engine
+        .input
+        .board_design_settings
+        .as_ref()
+        .is_some_and(|bds| !(bds.cap_vias && bds.fill_vias));
     let can_probe_escape = frontier.is_some()
         && l_count > 1
         && engine.input.rules.same_net_hole_clearance_nm == 0
@@ -672,153 +677,146 @@ fn join_components_inner(
     };
 
     loop {
-        let mut result = walk_multilayer(
-            engine,
-            net,
-            &start_vec,
-            budget,
-            expanded,
-            track_direction_matters,
-            track_via_count,
-            &conflict_filter,
-            &track_via_conflicts,
-            history,
-            frontier.as_deref_mut(),
-            prefer_higher_g,
-            can_probe_escape.then_some(
-                &mut escape_probe
-                    as &mut dyn FnMut(
-                        &mut u64,
-                        &mut crate::negotiate::BlockedFrontier,
-                        &mut crate::negotiate::TrialBudget<'_>,
-                    ) -> Result<bool, Failure>,
-            ),
-            |p, layer_idx| {
-                let h_comp = component_estimate_multilayer(
-                    p,
-                    layer_idx,
-                    stackup,
-                    targets,
-                    &engine.effective_rules,
-                    net,
-                    max_eff_width,
-                    via_cost,
-                    engine.input.rules.grid_nm,
-                    &engine.work,
-                )?;
-                if h_comp == 0 {
-                    return Ok(0);
-                }
-                if let Some((_, ref bwd)) = backward_h {
-                    let h_bwd = bwd
-                        .dist
-                        .get(&(p, layer_idx as u8))
-                        .copied()
-                        .unwrap_or(bwd.fallback)
-                        .min(bwd.fallback);
-                    return Ok(h_comp.max(h_bwd));
-                }
-                Ok(h_comp)
-            },
-            |layer_idx, run_start, a, b, prior_vias| {
-                engine.clear_last_block_generated();
-                let l_name = engine.layer_name(layer_idx);
-                let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
-                    Ok(w) => w,
-                    Err(e) if e.status == Status::Unroutable => return Ok(None),
-                    Err(e) => return Err(e),
-                };
-                if let Some(p) = attachment(layer_idx, a, b, prior_vias)? {
-                    return Ok(Some(p));
-                }
-                if engine.legal_edge_on(net, layer_idx, a, b)?
-                    && engine.edge_clears_same_net_vias(net, layer_idx, a, b, prior_vias)?
-                {
-                    return Ok(Some(b));
-                }
-                let primary_gen = engine.last_block_generated();
-                if engine.input.rules.same_net_hole_clearance_nm > 0 {
-                    if let Some(rs) = run_start {
-                        if let Some(p) = attachment_from(layer_idx, rs, a, b, prior_vias)? {
-                            return Ok(Some(p));
-                        }
-                        if engine.legal_edge_on(net, layer_idx, rs, b)?
-                            && engine
-                                .edge_clears_same_net_vias(net, layer_idx, rs, b, prior_vias)?
-                        {
-                            return Ok(Some(b));
-                        }
+        let use_bidirectional = l_count >= 2
+            && engine.input.rules.same_net_hole_clearance_nm == 0
+            && conflict_filter.zones.is_empty()
+            && track_via_conflicts.is_empty()
+            && !track_via_count
+            && !has_zone_target
+            && targets.iter().flatten().count() <= 8;
+        let h_fwd_fn = |p, layer_idx| {
+            let h_comp = component_estimate_multilayer(
+                p,
+                layer_idx,
+                stackup,
+                targets,
+                &engine.effective_rules,
+                net,
+                max_eff_width,
+                via_cost,
+                engine.input.rules.grid_nm,
+                disallow_smd_via_in_pad,
+                &engine.work,
+            )?;
+            if h_comp == 0 {
+                return Ok(0);
+            }
+            if let Some((_, ref bwd)) = backward_h {
+                let h_bwd = bwd
+                    .dist
+                    .get(&(p, layer_idx as u8))
+                    .copied()
+                    .unwrap_or(bwd.fallback)
+                    .min(bwd.fallback);
+                return Ok(h_comp.max(h_bwd));
+            }
+            Ok(h_comp)
+        };
+        let advance_fn = |layer_idx, run_start, a, b, prior_vias: &[PlacedViaKey]| {
+            engine.clear_last_block_generated();
+            let l_name = engine.layer_name(layer_idx);
+            let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
+                Ok(w) => w,
+                Err(e) if e.status == Status::Unroutable => return Ok(None),
+                Err(e) => return Err(e),
+            };
+            if let Some(p) = attachment(layer_idx, a, b, prior_vias)? {
+                return Ok(Some(p));
+            }
+            if engine.legal_edge_on(net, layer_idx, a, b)?
+                && engine.edge_clears_same_net_vias(net, layer_idx, a, b, prior_vias)?
+            {
+                return Ok(Some(b));
+            }
+            let primary_gen = engine.last_block_generated();
+            if engine.input.rules.same_net_hole_clearance_nm > 0 {
+                if let Some(rs) = run_start {
+                    if let Some(p) = attachment_from(layer_idx, rs, a, b, prior_vias)? {
+                        return Ok(Some(p));
                     }
-                    let delta = [b[0] - a[0], b[1] - a[1]];
-                    let axis = usize::from(delta[0] == 0);
-                    let sign = delta[axis].signum();
-                    let route_radius = (width_nm + 1) / 2;
-                    let mut best_entry: Option<Point> = None;
-                    for c in targets.iter().flatten() {
-                        let (lo, hi) = match *c {
-                            Copper::Pad(pad) => {
-                                if pad.drill.is_none()
-                                    || (c.layer_mask(stackup) & (1u32 << layer_idx)) == 0
-                                {
-                                    continue;
-                                }
-                                pad.copper_bounds()
-                            }
-                            Copper::Via(via) => {
-                                if (c.layer_mask(stackup) & (1u32 << layer_idx)) == 0 {
-                                    continue;
-                                }
-                                let r = (via.diameter_nm + 1) / 2;
-                                (
-                                    [via.at[0] - r, via.at[1] - r],
-                                    [via.at[0] + r, via.at[1] + r],
-                                )
-                            }
-                            _ => continue,
-                        };
-                        if a[1 - axis] < lo[1 - axis] - route_radius
-                            || a[1 - axis] > hi[1 - axis] + route_radius
-                        {
-                            continue;
-                        }
-                        if (sign > 0 && hi[axis] < a[axis]) || (sign < 0 && lo[axis] > a[axis]) {
-                            continue;
-                        }
-                        let mut far = a;
-                        far[axis] = if sign > 0 {
-                            (hi[axis] + route_radius + engine.input.rules.grid_nm)
-                                .min(engine.input.bounds.max[axis])
-                        } else {
-                            (lo[axis] - route_radius - engine.input.rules.grid_nm)
-                                .max(engine.input.bounds.min[axis])
-                        };
-                        if far == a {
-                            continue;
-                        }
-                        let hit = match attachment(layer_idx, a, far, prior_vias)? {
-                            Some(p) => Some(p),
-                            None => match run_start {
-                                Some(rs) => attachment_from(layer_idx, rs, a, far, prior_vias)?,
-                                None => None,
-                            },
-                        };
-                        if let Some(p) = hit {
-                            let key = |pt: Point| ((pt[0] - a[0]).abs() + (pt[1] - a[1]).abs(), pt);
-                            if best_entry.is_none_or(|old| key(p) < key(old)) {
-                                best_entry = Some(p);
-                            }
-                        }
-                    }
-                    if best_entry.is_some() {
-                        return Ok(best_entry);
+                    if engine.legal_edge_on(net, layer_idx, rs, b)?
+                        && engine.edge_clears_same_net_vias(net, layer_idx, rs, b, prior_vias)?
+                    {
+                        return Ok(Some(b));
                     }
                 }
-                if primary_gen {
-                    engine.set_last_block_generated(true);
+                let delta = [b[0] - a[0], b[1] - a[1]];
+                let axis = usize::from(delta[0] == 0);
+                let sign = delta[axis].signum();
+                let route_radius = (width_nm + 1) / 2;
+                let mut best_entry: Option<Point> = None;
+                for c in targets.iter().flatten() {
+                    let (lo, hi) = match *c {
+                        Copper::Pad(pad) => {
+                            if pad.drill.is_none()
+                                || (c.layer_mask(stackup) & (1u32 << layer_idx)) == 0
+                            {
+                                continue;
+                            }
+                            pad.copper_bounds()
+                        }
+                        Copper::Via(via) => {
+                            if (c.layer_mask(stackup) & (1u32 << layer_idx)) == 0 {
+                                continue;
+                            }
+                            let r = (via.diameter_nm + 1) / 2;
+                            (
+                                [via.at[0] - r, via.at[1] - r],
+                                [via.at[0] + r, via.at[1] + r],
+                            )
+                        }
+                        _ => continue,
+                    };
+                    if a[1 - axis] < lo[1 - axis] - route_radius
+                        || a[1 - axis] > hi[1 - axis] + route_radius
+                    {
+                        continue;
+                    }
+                    if (sign > 0 && hi[axis] < a[axis]) || (sign < 0 && lo[axis] > a[axis]) {
+                        continue;
+                    }
+                    let mut far = a;
+                    far[axis] = if sign > 0 {
+                        (hi[axis] + route_radius + engine.input.rules.grid_nm)
+                            .min(engine.input.bounds.max[axis])
+                    } else {
+                        (lo[axis] - route_radius - engine.input.rules.grid_nm)
+                            .max(engine.input.bounds.min[axis])
+                    };
+                    if far == a {
+                        continue;
+                    }
+                    let hit = match attachment(layer_idx, a, far, prior_vias)? {
+                        Some(p) => Some(p),
+                        None => match run_start {
+                            Some(rs) => attachment_from(layer_idx, rs, a, far, prior_vias)?,
+                            None => None,
+                        },
+                    };
+                    if let Some(p) = hit {
+                        let key = |pt: Point| ((pt[0] - a[0]).abs() + (pt[1] - a[1]).abs(), pt);
+                        if best_entry.is_none_or(|old| key(p) < key(old)) {
+                            best_entry = Some(p);
+                        }
+                    }
                 }
-                Ok(None)
-            },
-            |at, layer_idx, prior_vias, prior_via_count, via_only, out, blocked_out| {
+                if best_entry.is_some() {
+                    return Ok(best_entry);
+                }
+            }
+            if primary_gen {
+                engine.set_last_block_generated(true);
+            }
+            Ok(None)
+        };
+        let via_transitions_fn =
+            |at,
+             layer_idx,
+             prior_vias: &[PlacedViaKey],
+             prior_via_count,
+             via_only,
+             out: &mut Vec<(u8, PlacedViaKey, u64)>,
+             blocked_out: Option<&mut Vec<(u8, u8, bool)>>| {
                 if l_count < 2 {
                     return Ok(());
                 }
@@ -884,93 +882,146 @@ fn join_components_inner(
                     out.truncate(write);
                 }
                 Ok(())
-            },
-            |at, layer_idx, edge| {
-                let Some(prev_edge) = edge else {
-                    return Ok(false);
-                };
-                match prev_edge {
-                    PathEdge::Track { .. } => {
-                        let Some((u_lo, u_hi)) = layer_target_union[layer_idx] else {
-                            return Ok(false);
-                        };
-                        let l_name = engine.layer_name(layer_idx);
-                        let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
-                            Ok(w) => w,
-                            Err(e) if e.status == Status::Unroutable => return Ok(false),
-                            Err(e) => return Err(e),
-                        };
-                        let r = (width_nm + 1) / 2;
-                        if at[0] + r < u_lo[0]
-                            || at[0] - r > u_hi[0]
-                            || at[1] + r < u_lo[1]
-                            || at[1] - r > u_hi[1]
+            };
+        let finished_fn = |at: Point, layer_idx: usize, edge: Option<PathEdge>| {
+            let Some(prev_edge) = edge else {
+                return Ok(false);
+            };
+            match prev_edge {
+                PathEdge::Track { .. } => {
+                    let Some((u_lo, u_hi)) = layer_target_union[layer_idx] else {
+                        return Ok(false);
+                    };
+                    let l_name = engine.layer_name(layer_idx);
+                    let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
+                        Ok(w) => w,
+                        Err(e) if e.status == Status::Unroutable => return Ok(false),
+                        Err(e) => return Err(e),
+                    };
+                    let r = (width_nm + 1) / 2;
+                    if at[0] + r < u_lo[0]
+                        || at[0] - r > u_hi[0]
+                        || at[1] + r < u_lo[1]
+                        || at[1] - r > u_hi[1]
+                    {
+                        return Ok(false);
+                    }
+                    let probe = Track {
+                        id: String::new(),
+                        net,
+                        start: at,
+                        end: at,
+                        width_nm,
+                        locked: false,
+                        layer: l_name.to_owned(),
+                    };
+                    for &(c, lo, hi) in &layer_targets[layer_idx] {
+                        if at[0] + r < lo[0]
+                            || at[0] - r > hi[0]
+                            || at[1] + r < lo[1]
+                            || at[1] - r > hi[1]
                         {
-                            return Ok(false);
+                            continue;
                         }
-                        let probe = Track {
-                            id: String::new(),
-                            net,
-                            start: at,
-                            end: at,
-                            width_nm,
-                            locked: false,
-                            layer: l_name.to_owned(),
-                        };
-                        for &(c, lo, hi) in &layer_targets[layer_idx] {
-                            if at[0] + r < lo[0]
-                                || at[0] - r > hi[0]
-                                || at[1] + r < lo[1]
-                                || at[1] - r > hi[1]
-                            {
-                                continue;
-                            }
-                            if c.touches_route(&probe, stackup, &engine.work)? {
-                                return Ok(true);
-                            }
+                        if c.touches_route(&probe, stackup, &engine.work)? {
+                            return Ok(true);
                         }
-                        Ok(false)
                     }
-                    PathEdge::Via(pv) => {
-                        let kind = match pv.kind {
-                            0 => ViaKind::Through,
-                            1 => ViaKind::BlindBuried,
-                            _ => ViaKind::Micro,
-                        };
-                        let span_layers = &stackup[pv.start_layer as usize..=pv.end_layer as usize];
-                        let (diam, drill) = match engine.effective_rules.via_dims_for(
-                            net,
-                            kind == ViaKind::Micro,
-                            span_layers,
-                        ) {
-                            Ok(dims) => dims,
-                            Err(e) if e.status == Status::Unroutable => return Ok(false),
-                            Err(e) => return Err(e),
-                        };
-                        let probe_via = Via {
-                            id: String::new(),
-                            net,
-                            at: pv.at,
-                            diameter_nm: diam,
-                            drill_nm: drill,
-                            start_layer: stackup[pv.start_layer as usize].clone(),
-                            end_layer: stackup[pv.end_layer as usize].clone(),
-                            kind,
-                            locked: false,
-                        };
-                        let via_mask = span_mask(pv.start_layer as usize, pv.end_layer as usize);
-                        for c in targets.iter().flatten() {
-                            if (c.layer_mask(stackup) & via_mask) != 0
-                                && c.touches_via(&probe_via, stackup, &engine.work)?
-                            {
-                                return Ok(true);
-                            }
-                        }
-                        Ok(false)
-                    }
+                    Ok(false)
                 }
-            },
-        )?;
+                PathEdge::Via(pv) => {
+                    let kind = match pv.kind {
+                        0 => ViaKind::Through,
+                        1 => ViaKind::BlindBuried,
+                        _ => ViaKind::Micro,
+                    };
+                    let span_layers = &stackup[pv.start_layer as usize..=pv.end_layer as usize];
+                    let (diam, drill) = match engine.effective_rules.via_dims_for(
+                        net,
+                        kind == ViaKind::Micro,
+                        span_layers,
+                    ) {
+                        Ok(dims) => dims,
+                        Err(e) if e.status == Status::Unroutable => return Ok(false),
+                        Err(e) => return Err(e),
+                    };
+                    let probe_via = Via {
+                        id: String::new(),
+                        net,
+                        at: pv.at,
+                        diameter_nm: diam,
+                        drill_nm: drill,
+                        start_layer: stackup[pv.start_layer as usize].clone(),
+                        end_layer: stackup[pv.end_layer as usize].clone(),
+                        kind,
+                        locked: false,
+                    };
+                    let via_mask = span_mask(pv.start_layer as usize, pv.end_layer as usize);
+                    for c in targets.iter().flatten() {
+                        if (c.layer_mask(stackup) & via_mask) != 0
+                            && c.touches_via(&probe_via, stackup, &engine.work)?
+                        {
+                            return Ok(true);
+                        }
+                    }
+                    Ok(false)
+                }
+            }
+        };
+        let mut result = if use_bidirectional {
+            walk_multilayer_bidirectional(
+                engine,
+                net,
+                &start_vec,
+                targets,
+                max_eff_width,
+                via_cost,
+                budget,
+                expanded,
+                history,
+                frontier.as_deref_mut(),
+                prefer_higher_g,
+                can_probe_escape.then_some(
+                    &mut escape_probe
+                        as &mut dyn FnMut(
+                            &mut u64,
+                            &mut crate::negotiate::BlockedFrontier,
+                            &mut crate::negotiate::TrialBudget<'_>,
+                        ) -> Result<bool, Failure>,
+                ),
+                h_fwd_fn,
+                &attachment,
+                via_transitions_fn,
+                finished_fn,
+            )?
+        } else {
+            walk_multilayer(
+                engine,
+                net,
+                &start_vec,
+                budget,
+                expanded,
+                track_direction_matters,
+                track_via_count,
+                &conflict_filter,
+                &track_via_conflicts,
+                history,
+                frontier.as_deref_mut(),
+                prefer_higher_g,
+                can_probe_escape.then_some(
+                    &mut escape_probe
+                        as &mut dyn FnMut(
+                            &mut u64,
+                            &mut crate::negotiate::BlockedFrontier,
+                            &mut crate::negotiate::TrialBudget<'_>,
+                        ) -> Result<bool, Failure>,
+                ),
+                h_fwd_fn,
+                advance_fn,
+                via_transitions_fn,
+                finished_fn,
+            )?
+        };
 
         let path_via_count = result
             .edges
@@ -1930,6 +1981,7 @@ fn component_estimate_multilayer(
     max_eff_width: i64,
     via_cost: u64,
     grid: i64,
+    disallow_smd_via_in_pad: bool,
     work: &WorkBudget,
 ) -> Result<u64, Failure> {
     let l_name = &stackup[layer_idx];
@@ -1943,16 +1995,38 @@ fn component_estimate_multilayer(
     let mut lower_bound: Option<u64> = None;
     for target in targets.iter().flatten() {
         work.charge(1)?;
-        let d_via = contact_steps(p, *target, eff_width, grid);
+        let t_mask = target.layer_mask(stackup);
+        let smd_no_via = disallow_smd_via_in_pad
+            && net != 0
+            && matches!(*target, Copper::Pad(pad) if pad.drill.is_none());
+        let d_via_bound = if smd_no_via {
+            let mut d_pad_track: Option<u64> = None;
+            for (t_idx, t_layer) in stackup.iter().enumerate() {
+                if (t_mask & (1u32 << t_idx)) == 0 {
+                    continue;
+                }
+                match rules.track_width_for(net, t_layer) {
+                    Ok(w_l) => {
+                        let d = contact_steps(p, *target, w_l, grid);
+                        d_pad_track = Some(d_pad_track.map_or(d, |best| best.min(d)));
+                    }
+                    Err(e) if e.status == Status::Unroutable => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            d_pad_track.unwrap_or_else(|| contact_steps(p, *target, eff_width, grid))
+        } else {
+            contact_steps(p, *target, eff_width, grid)
+        };
         let steps = if let Some(width) = track_width {
-            if (target.layer_mask(stackup) & my_bit) != 0 {
+            if (t_mask & my_bit) != 0 {
                 let d_track = contact_steps(p, *target, width, grid);
-                d_track.min(d_via.saturating_add(via_cost))
+                d_track.min(d_via_bound.saturating_add(via_cost))
             } else {
-                d_via.saturating_add(via_cost)
+                d_via_bound.saturating_add(via_cost)
             }
         } else {
-            d_via.saturating_add(via_cost)
+            d_via_bound.saturating_add(via_cost)
         };
         lower_bound = Some(lower_bound.map_or(steps, |best| best.min(steps)));
     }
@@ -2666,6 +2740,1199 @@ fn walk_multilayer(
                 )));
             }
         }
+    }
+    Err(Failure::new(
+        Status::Unroutable,
+        "search frontier exhausted",
+    ))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+struct BiKey {
+    at: Point,
+    layer: u8,
+    arrived_by_via: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BwdStep {
+    next: Option<BiKey>,
+    edge: PathEdge,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum MeetRecord {
+    DirectFwd(State),
+    DirectFwdVia { prev: State, pv: PlacedViaKey },
+    Joined { fwd_key: BiKey, bwd_key: BiKey },
+}
+
+fn h_bwd_estimate(
+    p: Point,
+    layer_idx: usize,
+    starts: &[(Point, u8, bool)],
+    layer_bboxes: &[Option<(i64, i64, i64, i64)>],
+    via_cost: u64,
+    grid: i64,
+) -> u64 {
+    let g = grid as u64;
+    let l_u8 = layer_idx as u8;
+    let mut best = u64::MAX;
+    if starts.len() <= 16 {
+        for &(s, s_l, _) in starts {
+            let dx = p[0].abs_diff(s[0]).div_ceil(g);
+            let dy = p[1].abs_diff(s[1]).div_ceil(g);
+            let v = if l_u8 == s_l { 0 } else { via_cost };
+            best = best.min(dx.saturating_add(dy).saturating_add(v));
+        }
+    } else {
+        for (s_l, bbox) in layer_bboxes.iter().enumerate() {
+            let Some((min_x, max_x, min_y, max_y)) = *bbox else {
+                continue;
+            };
+            let dx_nm = if p[0] < min_x {
+                min_x.abs_diff(p[0])
+            } else if p[0] > max_x {
+                p[0].abs_diff(max_x)
+            } else {
+                0
+            };
+            let dy_nm = if p[1] < min_y {
+                min_y.abs_diff(p[1])
+            } else if p[1] > max_y {
+                p[1].abs_diff(max_y)
+            } else {
+                0
+            };
+            let dx = dx_nm.div_ceil(g);
+            let dy = dy_nm.div_ceil(g);
+            let v = if layer_idx == s_l { 0 } else { via_cost };
+            best = best.min(dx.saturating_add(dy).saturating_add(v));
+        }
+    }
+    best
+}
+
+fn reconstruct_bi_path(
+    parent_fwd: &HashMap<State, (State, PathEdge)>,
+    parent_bwd: &HashMap<BiKey, BwdStep>,
+    work: &WorkBudget,
+    rec: &MeetRecord,
+    total_cost: u64,
+) -> Result<Path, Failure> {
+    work.charge(1)?;
+    let mut edges = Vec::new();
+    let mut points = Vec::new();
+    match *rec {
+        MeetRecord::DirectFwd(goal_state) => {
+            points.push(goal_state.at);
+            let mut s = goal_state;
+            while let Some((previous, edge)) = parent_fwd.get(&s) {
+                work.charge(1)?;
+                edges.push(*edge);
+                s = *previous;
+                points.push(s.at);
+            }
+            work.charge((points.len() + edges.len()) as u64)?;
+            points.reverse();
+            edges.reverse();
+        }
+        MeetRecord::DirectFwdVia { prev, pv } => {
+            points.push(pv.at);
+            edges.push(PathEdge::Via(pv));
+            points.push(prev.at);
+            let mut s = prev;
+            while let Some((previous, edge)) = parent_fwd.get(&s) {
+                work.charge(1)?;
+                edges.push(*edge);
+                s = *previous;
+                points.push(s.at);
+            }
+            work.charge((points.len() + edges.len()) as u64)?;
+            points.reverse();
+            edges.reverse();
+        }
+        MeetRecord::Joined { fwd_key, bwd_key } => {
+            let mut s = State {
+                at: fwd_key.at,
+                layer: fwd_key.layer,
+                direction: 4,
+                arrived_by_via: fwd_key.arrived_by_via,
+                is_via_goal: false,
+                via_only: false,
+                via_history: 0,
+                via_count: 0,
+                track_via_blocked: 0,
+            };
+            points.push(s.at);
+            while let Some((previous, edge)) = parent_fwd.get(&s) {
+                work.charge(1)?;
+                edges.push(*edge);
+                s = *previous;
+                points.push(s.at);
+            }
+            points.reverse();
+            edges.reverse();
+            let mut cur = Some(bwd_key);
+            while let Some(k) = cur {
+                work.charge(1)?;
+                let step = parent_bwd.get(&k).expect("backward parent step exists");
+                edges.push(step.edge);
+                let next_pt = match step.edge {
+                    PathEdge::Track { end, .. } => end,
+                    PathEdge::Via(pv) => pv.at,
+                };
+                points.push(next_pt);
+                cur = step.next;
+            }
+            work.charge((points.len() + edges.len()) as u64)?;
+        }
+    }
+    Ok(Path {
+        points,
+        edges,
+        steps: total_cost,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn seed_backward_a_star(
+    engine: &Engine,
+    net: u32,
+    starts: &[(Point, u8, bool)],
+    targets: &[Vec<Copper<'_>>],
+    max_eff_width: i64,
+    via_cost: u64,
+    only_through_vias: bool,
+    prefer_higher_g: bool,
+    track_ok_on_layer: &[bool],
+    layer_bboxes: &[Option<(i64, i64, i64, i64)>],
+    history: Option<&crate::negotiate::CongestionHistory>,
+    attachment: &impl Fn(usize, Point, Point, &[PlacedViaKey]) -> Result<Option<Point>, Failure>,
+    via_transitions: &impl Fn(
+        Point,
+        usize,
+        &[PlacedViaKey],
+        u16,
+        bool,
+        &mut Vec<(u8, PlacedViaKey, u64)>,
+        Option<&mut Vec<(u8, u8, bool)>>,
+    ) -> Result<(), Failure>,
+    via_cache: &mut HashMap<(Point, u8), (Vec<(u8, PlacedViaKey, u64)>, Vec<(u8, u8, bool)>)>,
+    q_bwd: &mut BinaryHeap<Reverse<(u64, TieG, BiKey)>>,
+    best_bwd: &mut HashMap<BiKey, u64>,
+    parent_bwd: &mut HashMap<BiKey, BwdStep>,
+    best_fwd_meet: &HashMap<BiKey, u64>,
+    best_mu: &mut Option<(u64, MeetRecord)>,
+) -> Result<(), Failure> {
+    let stackup = engine.all_layers_slice();
+    let l_count = engine.layer_count();
+    let grid = engine.input.rules.grid_nm;
+    let route_radius = (max_eff_width + 1) / 2;
+    let bounds = engine.input.bounds;
+
+    let mut phases: BTreeSet<(i64, i64)> = BTreeSet::new();
+    for &(s, _, _) in starts {
+        phases.insert((s[0].rem_euclid(grid), s[1].rem_euclid(grid)));
+    }
+
+    let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
+    let mut blocked_buf: Vec<(u8, u8, bool)> = Vec::new();
+
+    let mut record_seed = |bkey: BiKey, g_seed: u64, step: BwdStep| -> Result<(), Failure> {
+        if best_bwd.get(&bkey).is_some_and(|&old| old <= g_seed) {
+            return Ok(());
+        }
+        let extra = 1
+            + usize::from(!best_bwd.contains_key(&bkey))
+            + usize::from(!parent_bwd.contains_key(&bkey));
+        engine
+            .work
+            .search_storage(q_bwd.len() + best_bwd.len() + parent_bwd.len() + extra)?;
+        engine.work.charge(1)?;
+        best_bwd.insert(bkey, g_seed);
+        parent_bwd.insert(bkey, step);
+        let h = h_bwd_estimate(
+            bkey.at,
+            bkey.layer as usize,
+            starts,
+            layer_bboxes,
+            via_cost,
+            grid,
+        );
+        q_bwd.push(Reverse((
+            g_seed.checked_add(h).expect("bounded bwd heuristic"),
+            TieG {
+                g: g_seed,
+                prefer_higher: prefer_higher_g,
+            },
+            bkey,
+        )));
+        for fwd_via in [false, true] {
+            if only_through_vias && fwd_via && bkey.arrived_by_via {
+                continue;
+            }
+            let fkey = BiKey {
+                at: bkey.at,
+                layer: bkey.layer,
+                arrived_by_via: fwd_via,
+            };
+            if let Some(&g_fwd) = best_fwd_meet.get(&fkey) {
+                let total = g_fwd.checked_add(g_seed).expect("bounded meet cost");
+                if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
+                    *best_mu = Some((
+                        total,
+                        MeetRecord::Joined {
+                            fwd_key: fkey,
+                            bwd_key: bkey,
+                        },
+                    ));
+                }
+            }
+        }
+        Ok(())
+    };
+
+    for target in targets.iter().flatten() {
+        let t_mask = target.layer_mask(stackup);
+        let (lo, hi) = match *target {
+            Copper::Pad(pad) => pad.copper_bounds(),
+            Copper::Track(track) => track.copper_bounds(),
+            Copper::Graphic(graphic) => graphic.copper_bounds(),
+            Copper::Via(via) => {
+                let r = (via.diameter_nm + 1) / 2;
+                (
+                    [via.at[0] - r, via.at[1] - r],
+                    [via.at[0] + r, via.at[1] + r],
+                )
+            }
+            Copper::ZoneFill { .. } => continue,
+        };
+        let min_x = lo[0].saturating_sub(route_radius + grid).max(bounds.min[0]);
+        let max_x = hi[0].saturating_add(route_radius + grid).min(bounds.max[0]);
+        let min_y = lo[1].saturating_sub(route_radius + grid).max(bounds.min[1]);
+        let max_y = hi[1].saturating_add(route_radius + grid).min(bounds.max[1]);
+
+        for &(ox, oy) in &phases {
+            let x_rem = (ox - min_x.rem_euclid(grid)).rem_euclid(grid);
+            let mut x = min_x.saturating_add(x_rem);
+            while x <= max_x {
+                let y_rem = (oy - min_y.rem_euclid(grid)).rem_euclid(grid);
+                let mut y = min_y.saturating_add(y_rem);
+                while y <= max_y {
+                    let p = [x, y];
+                    if contact_steps(p, *target, max_eff_width, grid) <= 1 {
+                        for l_idx in 0..l_count {
+                            if (t_mask & (1u32 << l_idx)) != 0 && track_ok_on_layer[l_idx] {
+                                for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]] {
+                                    engine.work.charge(1)?;
+                                    let Some(qx) = p[0].checked_add(delta[0]) else {
+                                        continue;
+                                    };
+                                    let Some(qy) = p[1].checked_add(delta[1]) else {
+                                        continue;
+                                    };
+                                    if let Some(p_attach) = attachment(l_idx, p, [qx, qy], &[])? {
+                                        let step_pen = match history {
+                                            Some(hist) if !hist.is_empty() => {
+                                                engine.work.charge(1)?;
+                                                hist.step_penalty(
+                                                    l_idx as u8,
+                                                    p_attach,
+                                                    bounds.min,
+                                                    grid,
+                                                )
+                                            }
+                                            _ => 0,
+                                        };
+                                        let g_seed =
+                                            1u64.checked_add(step_pen).expect("bounded step cost");
+                                        let bkey = BiKey {
+                                            at: p,
+                                            layer: l_idx as u8,
+                                            arrived_by_via: false,
+                                        };
+                                        let step = BwdStep {
+                                            next: None,
+                                            edge: PathEdge::Track {
+                                                start: p,
+                                                end: p_attach,
+                                                layer: l_idx as u8,
+                                            },
+                                        };
+                                        record_seed(bkey, g_seed, step)?;
+                                    }
+                                }
+                            }
+                        }
+                        if l_count >= 2 {
+                            for l_from in 0..l_count {
+                                via_buf.clear();
+                                blocked_buf.clear();
+                                let cache_key =
+                                    (p, if only_through_vias { 0 } else { l_from as u8 });
+                                if let Some((cached_vias, _)) = via_cache.get(&cache_key) {
+                                    engine.work.charge(1)?;
+                                    if only_through_vias {
+                                        if let Some(&(_, pv, v_cost)) = cached_vias.first() {
+                                            for tl in 0..l_count {
+                                                if tl != l_from {
+                                                    via_buf.push((tl as u8, pv, v_cost));
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        via_buf.extend_from_slice(cached_vias);
+                                    }
+                                } else {
+                                    via_transitions(
+                                        p,
+                                        l_from,
+                                        &[],
+                                        0,
+                                        false,
+                                        &mut via_buf,
+                                        Some(&mut blocked_buf),
+                                    )?;
+                                    engine.work.search_storage(via_cache.len() + 1)?;
+                                    via_cache
+                                        .insert(cache_key, (via_buf.clone(), blocked_buf.clone()));
+                                }
+                                for &(_, pv, v_cost) in &via_buf {
+                                    let via_mask =
+                                        span_mask(pv.start_layer as usize, pv.end_layer as usize);
+                                    if (t_mask & via_mask) == 0 {
+                                        continue;
+                                    }
+                                    let kind = match pv.kind {
+                                        0 => ViaKind::Through,
+                                        1 => ViaKind::BlindBuried,
+                                        _ => ViaKind::Micro,
+                                    };
+                                    let span_layers =
+                                        &stackup[pv.start_layer as usize..=pv.end_layer as usize];
+                                    if let Ok((diam, drill)) = engine.effective_rules.via_dims_for(
+                                        net,
+                                        kind == ViaKind::Micro,
+                                        span_layers,
+                                    ) {
+                                        let probe_via = Via {
+                                            id: String::new(),
+                                            net,
+                                            at: p,
+                                            diameter_nm: diam,
+                                            drill_nm: drill,
+                                            start_layer: stackup[pv.start_layer as usize].clone(),
+                                            end_layer: stackup[pv.end_layer as usize].clone(),
+                                            kind,
+                                            locked: false,
+                                        };
+                                        if target.touches_via(&probe_via, stackup, &engine.work)? {
+                                            let v_pen = match history {
+                                                Some(hist) if !hist.is_empty() => {
+                                                    engine.work.charge(1)?;
+                                                    hist.via_penalty(
+                                                        pv.at,
+                                                        pv.start_layer,
+                                                        pv.end_layer,
+                                                        bounds.min,
+                                                        grid,
+                                                    )
+                                                }
+                                                _ => 0,
+                                            };
+                                            let g_seed = v_cost
+                                                .checked_add(v_pen)
+                                                .expect("bounded via cost");
+                                            let bkey = BiKey {
+                                                at: p,
+                                                layer: l_from as u8,
+                                                arrived_by_via: true,
+                                            };
+                                            let step = BwdStep {
+                                                next: None,
+                                                edge: PathEdge::Via(pv),
+                                            };
+                                            record_seed(bkey, g_seed, step)?;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let Some(ny) = y.checked_add(grid) else {
+                        break;
+                    };
+                    y = ny;
+                }
+                let Some(nx) = x.checked_add(grid) else {
+                    break;
+                };
+                x = nx;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn walk_multilayer_bidirectional(
+    engine: &Engine,
+    net: u32,
+    starts: &[(Point, u8, bool)],
+    targets: &[Vec<Copper<'_>>],
+    max_eff_width: i64,
+    via_cost: u64,
+    budget: &mut crate::negotiate::TrialBudget<'_>,
+    expanded: &mut u64,
+    history: Option<&crate::negotiate::CongestionHistory>,
+    mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+    prefer_higher_g: bool,
+    mut escape_probe: Option<
+        &mut dyn FnMut(
+            &mut u64,
+            &mut crate::negotiate::BlockedFrontier,
+            &mut crate::negotiate::TrialBudget<'_>,
+        ) -> Result<bool, Failure>,
+    >,
+    heuristic: impl Fn(Point, usize) -> Result<u64, Failure>,
+    attachment: &impl Fn(usize, Point, Point, &[PlacedViaKey]) -> Result<Option<Point>, Failure>,
+    via_transitions: impl Fn(
+        Point,
+        usize,
+        &[PlacedViaKey],
+        u16,
+        bool,
+        &mut Vec<(u8, PlacedViaKey, u64)>,
+        Option<&mut Vec<(u8, u8, bool)>>,
+    ) -> Result<(), Failure>,
+    finished: impl Fn(Point, usize, Option<PathEdge>) -> Result<bool, Failure>,
+) -> Result<Path, Failure> {
+    let grid = engine.input.rules.grid_nm;
+    let l_count = engine.layer_count();
+    let stackup = engine.all_layers_slice();
+    let only_through_vias =
+        !engine.effective_rules.allow_blind_buried_vias && !engine.effective_rules.allow_microvias;
+    let mut track_ok_on_layer = vec![false; l_count];
+    for (l_idx, l_name) in stackup.iter().enumerate() {
+        match engine.effective_rules.track_width_for(net, l_name) {
+            Ok(_) => track_ok_on_layer[l_idx] = true,
+            Err(e) if e.status == Status::Unroutable => {}
+            Err(e) => return Err(e),
+        }
+    }
+    let mut layer_bboxes: Vec<Option<(i64, i64, i64, i64)>> = vec![None; l_count];
+    for &(s, s_l, _) in starts {
+        let slot = &mut layer_bboxes[s_l as usize];
+        *slot = Some(match *slot {
+            None => (s[0], s[0], s[1], s[1]),
+            Some((mnx, mxx, mny, mxy)) => {
+                (mnx.min(s[0]), mxx.max(s[0]), mny.min(s[1]), mxy.max(s[1]))
+            }
+        });
+    }
+
+    let mut q_fwd: BinaryHeap<Reverse<(u64, TieG, State)>> = BinaryHeap::new();
+    let mut best_fwd: HashMap<State, u64> = HashMap::new();
+    let mut best_fwd_meet: HashMap<BiKey, u64> = HashMap::new();
+    let mut settled_fwd: std::collections::HashSet<State> = std::collections::HashSet::new();
+    let mut parent_fwd: HashMap<State, (State, PathEdge)> = HashMap::new();
+
+    let mut q_bwd: BinaryHeap<Reverse<(u64, TieG, BiKey)>> = BinaryHeap::new();
+    let mut best_bwd: HashMap<BiKey, u64> = HashMap::new();
+    let mut settled_bwd: std::collections::HashSet<BiKey> = std::collections::HashSet::new();
+    let mut parent_bwd: HashMap<BiKey, BwdStep> = HashMap::new();
+
+    let mut via_cache: HashMap<(Point, u8), (Vec<(u8, PlacedViaKey, u64)>, Vec<(u8, u8, bool)>)> =
+        HashMap::new();
+    let mut via_only_unpopped = 0usize;
+    for &(at, layer, via_only) in starts {
+        engine
+            .work
+            .search_storage(q_fwd.len() + best_fwd.len() + parent_fwd.len() + 2)?;
+        engine.work.charge(1)?;
+        let initial = State {
+            at,
+            layer,
+            direction: 4,
+            arrived_by_via: false,
+            is_via_goal: false,
+            via_only,
+            via_history: 0,
+            via_count: 0,
+            track_via_blocked: 0,
+        };
+        let h = heuristic(at, layer as usize)?;
+        q_fwd.push(Reverse((
+            h,
+            TieG {
+                g: 0,
+                prefer_higher: prefer_higher_g,
+            },
+            initial,
+        )));
+        best_fwd.insert(initial, 0);
+        if via_only {
+            via_only_unpopped += 1;
+        } else {
+            best_fwd_meet.insert(
+                BiKey {
+                    at,
+                    layer,
+                    arrived_by_via: false,
+                },
+                0,
+            );
+        }
+    }
+
+    let mut bwd_seeded = false;
+    let mut best_mu: Option<(u64, MeetRecord)> = None;
+    let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
+    let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
+    let mut local_exp = 0u64;
+
+    while !q_fwd.is_empty() || (bwd_seeded && !q_bwd.is_empty()) {
+        if bwd_seeded {
+            while let Some(Reverse((_, tie_g, st))) = q_fwd.peek() {
+                if best_fwd.get(st) == Some(&tie_g.g) && !settled_fwd.contains(st) {
+                    break;
+                }
+                q_fwd.pop();
+            }
+            while let Some(Reverse((_, tie_g, bk))) = q_bwd.peek() {
+                if best_bwd.get(bk) == Some(&tie_g.g) && !settled_bwd.contains(bk) {
+                    break;
+                }
+                q_bwd.pop();
+            }
+            if let Some((mu, ref rec)) = best_mu {
+                let min_f_fwd = q_fwd.peek().map_or(u64::MAX, |Reverse((f, _, _))| *f);
+                let min_f_bwd = q_bwd.peek().map_or(u64::MAX, |Reverse((f, _, _))| *f);
+                if mu <= min_f_fwd || (via_only_unpopped == 0 && mu <= min_f_bwd) {
+                    return reconstruct_bi_path(&parent_fwd, &parent_bwd, &engine.work, rec, mu);
+                }
+            } else if q_fwd.is_empty() {
+                break;
+            }
+        }
+
+        let expand_fwd =
+            !bwd_seeded || q_bwd.is_empty() || (!q_fwd.is_empty() && q_fwd.len() <= q_bwd.len());
+        if expand_fwd {
+            engine.work.charge(1)?;
+            let Reverse((_f, tie_g, state)) = q_fwd.pop().unwrap();
+            let cost = tie_g.g;
+            if best_fwd.get(&state) != Some(&cost) || !settled_fwd.insert(state) {
+                continue;
+            }
+            if state.via_only {
+                via_only_unpopped -= 1;
+            }
+            budget.check_before_expand(engine, *expanded, frontier.as_deref())?;
+            *expanded = expanded.checked_add(1).expect("bounded expansion count");
+            local_exp += 1;
+            if local_exp == 256 && !bwd_seeded {
+                bwd_seeded = true;
+                seed_backward_a_star(
+                    engine,
+                    net,
+                    starts,
+                    targets,
+                    max_eff_width,
+                    via_cost,
+                    only_through_vias,
+                    prefer_higher_g,
+                    &track_ok_on_layer,
+                    &layer_bboxes,
+                    history,
+                    attachment,
+                    &via_transitions,
+                    &mut via_cache,
+                    &mut q_bwd,
+                    &mut best_bwd,
+                    &mut parent_bwd,
+                    &best_fwd_meet,
+                    &mut best_mu,
+                )?;
+            }
+            if local_exp == 2048 {
+                if let (Some(probe), Some(f)) = (escape_probe.take(), frontier.as_deref_mut()) {
+                    if !probe(expanded, f, budget)? {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "target terminal is locally unreachable from routing grid",
+                        ));
+                    }
+                }
+            }
+            if state.is_via_goal
+                || (!state.via_only
+                    && finished(
+                        state.at,
+                        state.layer as usize,
+                        parent_fwd.get(&state).map(|(_, e)| *e),
+                    )?)
+            {
+                if !bwd_seeded {
+                    return reconstruct_bi_path(
+                        &parent_fwd,
+                        &parent_bwd,
+                        &engine.work,
+                        &MeetRecord::DirectFwd(state),
+                        cost,
+                    );
+                }
+                if best_mu.as_ref().is_none_or(|(c, _)| cost < *c) {
+                    best_mu = Some((cost, MeetRecord::DirectFwd(state)));
+                }
+                continue;
+            }
+
+            let mut any_track_blocked = false;
+            if !state.via_only && track_ok_on_layer[state.layer as usize] {
+                let l_idx = state.layer as usize;
+                for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]] {
+                    engine.work.charge(1)?;
+                    let Some(x) = state.at[0].checked_add(delta[0]) else {
+                        continue;
+                    };
+                    let Some(y) = state.at[1].checked_add(delta[1]) else {
+                        continue;
+                    };
+                    engine.clear_last_block_generated();
+                    let at_opt = if let Some(p) = attachment(l_idx, state.at, [x, y], &[])? {
+                        Some(p)
+                    } else if engine.legal_edge_on(net, l_idx, state.at, [x, y])? {
+                        Some([x, y])
+                    } else {
+                        None
+                    };
+                    let Some(at) = at_opt else {
+                        any_track_blocked = true;
+                        if let Some(f) = frontier.as_deref_mut() {
+                            f.push_edge_classified(
+                                state.layer,
+                                state.at,
+                                [x, y],
+                                engine.last_block_generated(),
+                            );
+                        }
+                        continue;
+                    };
+                    let next = State {
+                        at,
+                        layer: state.layer,
+                        direction: 4,
+                        arrived_by_via: false,
+                        is_via_goal: false,
+                        via_only: false,
+                        via_history: 0,
+                        via_count: 0,
+                        track_via_blocked: 0,
+                    };
+                    let step_penalty = match history {
+                        Some(hist) if !hist.is_empty() => {
+                            engine.work.charge(1)?;
+                            hist.step_penalty(state.layer, at, engine.input.bounds.min, grid)
+                        }
+                        _ => 0,
+                    };
+                    let g = cost
+                        .checked_add(1u64.checked_add(step_penalty).expect("bounded step cost"))
+                        .expect("bounded search cost");
+                    if best_fwd.get(&next).is_some_and(|&old| old <= g)
+                        || settled_fwd.contains(&next)
+                    {
+                        continue;
+                    }
+                    let extra = 1
+                        + usize::from(!best_fwd.contains_key(&next))
+                        + usize::from(!parent_fwd.contains_key(&next));
+                    engine.work.search_storage(
+                        q_fwd.len()
+                            + best_fwd.len()
+                            + parent_fwd.len()
+                            + q_bwd.len()
+                            + best_bwd.len()
+                            + parent_bwd.len()
+                            + extra,
+                    )?;
+                    engine.work.charge(1)?;
+                    best_fwd.insert(next, g);
+                    parent_fwd.insert(
+                        next,
+                        (
+                            state,
+                            PathEdge::Track {
+                                start: state.at,
+                                end: at,
+                                layer: state.layer,
+                            },
+                        ),
+                    );
+                    let fkey = BiKey {
+                        at,
+                        layer: state.layer,
+                        arrived_by_via: false,
+                    };
+                    if best_fwd_meet.get(&fkey).is_none_or(|&old| g < old) {
+                        best_fwd_meet.insert(fkey, g);
+                        if bwd_seeded {
+                            for bwd_via in [false, true] {
+                                let bkey = BiKey {
+                                    at,
+                                    layer: state.layer,
+                                    arrived_by_via: bwd_via,
+                                };
+                                if let Some(&g_bwd) = best_bwd.get(&bkey) {
+                                    let total = g.checked_add(g_bwd).expect("bounded meet cost");
+                                    if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
+                                        best_mu = Some((
+                                            total,
+                                            MeetRecord::Joined {
+                                                fwd_key: fkey,
+                                                bwd_key: bkey,
+                                            },
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let h = heuristic(next.at, next.layer as usize)?;
+                    q_fwd.push(Reverse((
+                        g.checked_add(h).expect("bounded heuristic"),
+                        TieG {
+                            g,
+                            prefer_higher: prefer_higher_g,
+                        },
+                        next,
+                    )));
+                }
+            }
+
+            if !(only_through_vias && state.arrived_by_via) {
+                via_buf.clear();
+                blocked_via_spans.clear();
+                let want_via_frontier =
+                    l_count >= 2 && frontier.is_some() && (state.via_only || any_track_blocked);
+                if l_count >= 2 && !state.via_only {
+                    let cache_key = (state.at, if only_through_vias { 0 } else { state.layer });
+                    if let Some((cached_vias, cached_blocked)) = via_cache.get(&cache_key) {
+                        engine.work.charge(1)?;
+                        if only_through_vias {
+                            if let Some(&(_, pv, v_cost)) = cached_vias.first() {
+                                for tl in 0..l_count {
+                                    if tl as u8 != state.layer {
+                                        via_buf.push((tl as u8, pv, v_cost));
+                                    }
+                                }
+                            }
+                        } else {
+                            via_buf.extend_from_slice(cached_vias);
+                        }
+                        if want_via_frontier {
+                            blocked_via_spans.extend_from_slice(cached_blocked);
+                        }
+                    } else {
+                        via_transitions(
+                            state.at,
+                            state.layer as usize,
+                            &[],
+                            0,
+                            false,
+                            &mut via_buf,
+                            Some(&mut blocked_via_spans),
+                        )?;
+                        engine.work.search_storage(via_cache.len() + 1)?;
+                        via_cache.insert(cache_key, (via_buf.clone(), blocked_via_spans.clone()));
+                        if !want_via_frontier {
+                            blocked_via_spans.clear();
+                        }
+                    }
+                } else {
+                    via_transitions(
+                        state.at,
+                        state.layer as usize,
+                        &[],
+                        0,
+                        state.via_only,
+                        &mut via_buf,
+                        want_via_frontier.then_some(&mut blocked_via_spans),
+                    )?;
+                }
+                if want_via_frontier {
+                    if let Some(f) = frontier.as_deref_mut() {
+                        for &(s_lo, s_hi, via_gen) in &blocked_via_spans {
+                            f.push_via_site_classified(s_lo, s_hi, state.at, via_gen);
+                        }
+                    }
+                }
+                for &(target_layer, pv, v_cost) in &via_buf {
+                    engine.work.charge(1)?;
+                    let is_goal =
+                        finished(state.at, target_layer as usize, Some(PathEdge::Via(pv)))?;
+                    let next = State {
+                        at: state.at,
+                        layer: target_layer,
+                        direction: 4,
+                        arrived_by_via: l_count > 1,
+                        is_via_goal: is_goal,
+                        via_only: false,
+                        via_history: 0,
+                        via_count: 0,
+                        track_via_blocked: 0,
+                    };
+                    let v_penalty = match history {
+                        Some(hist) if !hist.is_empty() => {
+                            engine.work.charge(1)?;
+                            hist.via_penalty(
+                                pv.at,
+                                pv.start_layer,
+                                pv.end_layer,
+                                engine.input.bounds.min,
+                                grid,
+                            )
+                        }
+                        _ => 0,
+                    };
+                    let g = cost
+                        .checked_add(v_cost.checked_add(v_penalty).expect("bounded via cost"))
+                        .expect("bounded search cost");
+                    if is_goal && best_mu.as_ref().is_none_or(|(c, _)| g < *c) {
+                        best_mu = Some((g, MeetRecord::DirectFwdVia { prev: state, pv }));
+                    }
+                    if best_fwd.get(&next).is_some_and(|&old| old <= g)
+                        || settled_fwd.contains(&next)
+                    {
+                        continue;
+                    }
+                    let extra = 1
+                        + usize::from(!best_fwd.contains_key(&next))
+                        + usize::from(!parent_fwd.contains_key(&next));
+                    engine.work.search_storage(
+                        q_fwd.len()
+                            + best_fwd.len()
+                            + parent_fwd.len()
+                            + q_bwd.len()
+                            + best_bwd.len()
+                            + parent_bwd.len()
+                            + extra,
+                    )?;
+                    engine.work.charge(1)?;
+                    best_fwd.insert(next, g);
+                    parent_fwd.insert(next, (state, PathEdge::Via(pv)));
+                    if !is_goal {
+                        let fkey = BiKey {
+                            at: state.at,
+                            layer: target_layer,
+                            arrived_by_via: l_count > 1,
+                        };
+                        if best_fwd_meet.get(&fkey).is_none_or(|&old| g < old) {
+                            best_fwd_meet.insert(fkey, g);
+                            if bwd_seeded {
+                                for bwd_via in [false, true] {
+                                    if only_through_vias && fkey.arrived_by_via && bwd_via {
+                                        continue;
+                                    }
+                                    let bkey = BiKey {
+                                        at: state.at,
+                                        layer: target_layer,
+                                        arrived_by_via: bwd_via,
+                                    };
+                                    if let Some(&g_bwd) = best_bwd.get(&bkey) {
+                                        let total =
+                                            g.checked_add(g_bwd).expect("bounded meet cost");
+                                        if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
+                                            best_mu = Some((
+                                                total,
+                                                MeetRecord::Joined {
+                                                    fwd_key: fkey,
+                                                    bwd_key: bkey,
+                                                },
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let h = if is_goal {
+                        0
+                    } else {
+                        heuristic(next.at, next.layer as usize)?
+                    };
+                    q_fwd.push(Reverse((
+                        g.checked_add(h).expect("bounded heuristic"),
+                        TieG {
+                            g,
+                            prefer_higher: prefer_higher_g,
+                        },
+                        next,
+                    )));
+                }
+            }
+        } else {
+            engine.work.charge(1)?;
+            let Reverse((_f, tie_g, bkey)) = q_bwd.pop().unwrap();
+            let cost = tie_g.g;
+            if best_bwd.get(&bkey) != Some(&cost) || !settled_bwd.insert(bkey) {
+                continue;
+            }
+            budget.check_before_expand(engine, *expanded, frontier.as_deref())?;
+            *expanded = expanded.checked_add(1).expect("bounded expansion count");
+            local_exp += 1;
+            if local_exp == 2048 {
+                if let (Some(probe), Some(f)) = (escape_probe.take(), frontier.as_deref_mut()) {
+                    if !probe(expanded, f, budget)? {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "target terminal is locally unreachable from routing grid",
+                        ));
+                    }
+                }
+            }
+
+            let mut any_track_blocked = false;
+            let l_idx = bkey.layer as usize;
+            if track_ok_on_layer[l_idx] {
+                let step_penalty = match history {
+                    Some(hist) if !hist.is_empty() => {
+                        engine.work.charge(1)?;
+                        hist.step_penalty(bkey.layer, bkey.at, engine.input.bounds.min, grid)
+                    }
+                    _ => 0,
+                };
+                let g = cost
+                    .checked_add(1u64.checked_add(step_penalty).expect("bounded step cost"))
+                    .expect("bounded search cost");
+                for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]] {
+                    engine.work.charge(1)?;
+                    let Some(qx) = bkey.at[0].checked_add(delta[0]) else {
+                        continue;
+                    };
+                    let Some(qy) = bkey.at[1].checked_add(delta[1]) else {
+                        continue;
+                    };
+                    let q = [qx, qy];
+                    let next_key = BiKey {
+                        at: q,
+                        layer: bkey.layer,
+                        arrived_by_via: false,
+                    };
+                    if best_bwd.get(&next_key).is_some_and(|&old| old <= g)
+                        || settled_bwd.contains(&next_key)
+                    {
+                        continue;
+                    }
+                    engine.clear_last_block_generated();
+                    if !engine.legal_edge_on(net, l_idx, q, bkey.at)? {
+                        any_track_blocked = true;
+                        if let Some(f) = frontier.as_deref_mut() {
+                            f.push_edge_classified(
+                                bkey.layer,
+                                q,
+                                bkey.at,
+                                engine.last_block_generated(),
+                            );
+                        }
+                        continue;
+                    }
+                    let extra = 1
+                        + usize::from(!best_bwd.contains_key(&next_key))
+                        + usize::from(!parent_bwd.contains_key(&next_key));
+                    engine.work.search_storage(
+                        q_fwd.len()
+                            + best_fwd.len()
+                            + parent_fwd.len()
+                            + q_bwd.len()
+                            + best_bwd.len()
+                            + parent_bwd.len()
+                            + extra,
+                    )?;
+                    engine.work.charge(1)?;
+                    best_bwd.insert(next_key, g);
+                    parent_bwd.insert(
+                        next_key,
+                        BwdStep {
+                            next: Some(bkey),
+                            edge: PathEdge::Track {
+                                start: q,
+                                end: bkey.at,
+                                layer: bkey.layer,
+                            },
+                        },
+                    );
+                    for fwd_via in [false, true] {
+                        let fkey = BiKey {
+                            at: q,
+                            layer: bkey.layer,
+                            arrived_by_via: fwd_via,
+                        };
+                        if let Some(&g_fwd) = best_fwd_meet.get(&fkey) {
+                            let total = g_fwd.checked_add(g).expect("bounded meet cost");
+                            if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
+                                best_mu = Some((
+                                    total,
+                                    MeetRecord::Joined {
+                                        fwd_key: fkey,
+                                        bwd_key: next_key,
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                    let h = h_bwd_estimate(q, l_idx, starts, &layer_bboxes, via_cost, grid);
+                    q_bwd.push(Reverse((
+                        g.checked_add(h).expect("bounded bwd heuristic"),
+                        TieG {
+                            g,
+                            prefer_higher: prefer_higher_g,
+                        },
+                        next_key,
+                    )));
+                }
+            }
+
+            if !(only_through_vias && bkey.arrived_by_via) {
+                via_buf.clear();
+                blocked_via_spans.clear();
+                let want_via_frontier = l_count >= 2 && frontier.is_some() && any_track_blocked;
+                let cache_key = (bkey.at, if only_through_vias { 0 } else { bkey.layer });
+                if let Some((cached_vias, cached_blocked)) = via_cache.get(&cache_key) {
+                    engine.work.charge(1)?;
+                    if only_through_vias {
+                        if let Some(&(_, pv, v_cost)) = cached_vias.first() {
+                            for tl in 0..l_count {
+                                if tl as u8 != bkey.layer {
+                                    via_buf.push((tl as u8, pv, v_cost));
+                                }
+                            }
+                        }
+                    } else {
+                        via_buf.extend_from_slice(cached_vias);
+                    }
+                    if want_via_frontier {
+                        blocked_via_spans.extend_from_slice(cached_blocked);
+                    }
+                } else {
+                    via_transitions(
+                        bkey.at,
+                        l_idx,
+                        &[],
+                        0,
+                        false,
+                        &mut via_buf,
+                        Some(&mut blocked_via_spans),
+                    )?;
+                    engine.work.search_storage(via_cache.len() + 1)?;
+                    via_cache.insert(cache_key, (via_buf.clone(), blocked_via_spans.clone()));
+                    if !want_via_frontier {
+                        blocked_via_spans.clear();
+                    }
+                }
+                if want_via_frontier {
+                    if let Some(f) = frontier.as_deref_mut() {
+                        for &(s_lo, s_hi, via_gen) in &blocked_via_spans {
+                            f.push_via_site_classified(s_lo, s_hi, bkey.at, via_gen);
+                        }
+                    }
+                }
+                for &(prev_l, pv, v_cost) in &via_buf {
+                    engine.work.charge(1)?;
+                    let next_key = BiKey {
+                        at: bkey.at,
+                        layer: prev_l,
+                        arrived_by_via: l_count > 1,
+                    };
+                    let v_penalty = match history {
+                        Some(hist) if !hist.is_empty() => {
+                            engine.work.charge(1)?;
+                            hist.via_penalty(
+                                pv.at,
+                                pv.start_layer,
+                                pv.end_layer,
+                                engine.input.bounds.min,
+                                grid,
+                            )
+                        }
+                        _ => 0,
+                    };
+                    let g = cost
+                        .checked_add(v_cost.checked_add(v_penalty).expect("bounded via cost"))
+                        .expect("bounded search cost");
+                    if best_bwd.get(&next_key).is_some_and(|&old| old <= g)
+                        || settled_bwd.contains(&next_key)
+                    {
+                        continue;
+                    }
+                    let extra = 1
+                        + usize::from(!best_bwd.contains_key(&next_key))
+                        + usize::from(!parent_bwd.contains_key(&next_key));
+                    engine.work.search_storage(
+                        q_fwd.len()
+                            + best_fwd.len()
+                            + parent_fwd.len()
+                            + q_bwd.len()
+                            + best_bwd.len()
+                            + parent_bwd.len()
+                            + extra,
+                    )?;
+                    engine.work.charge(1)?;
+                    best_bwd.insert(next_key, g);
+                    parent_bwd.insert(
+                        next_key,
+                        BwdStep {
+                            next: Some(bkey),
+                            edge: PathEdge::Via(pv),
+                        },
+                    );
+                    for fwd_via in [false, true] {
+                        if only_through_vias && fwd_via && next_key.arrived_by_via {
+                            continue;
+                        }
+                        let fkey = BiKey {
+                            at: bkey.at,
+                            layer: prev_l,
+                            arrived_by_via: fwd_via,
+                        };
+                        if let Some(&g_fwd) = best_fwd_meet.get(&fkey) {
+                            let total = g_fwd.checked_add(g).expect("bounded meet cost");
+                            if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
+                                best_mu = Some((
+                                    total,
+                                    MeetRecord::Joined {
+                                        fwd_key: fkey,
+                                        bwd_key: next_key,
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                    let h = h_bwd_estimate(
+                        bkey.at,
+                        prev_l as usize,
+                        starts,
+                        &layer_bboxes,
+                        via_cost,
+                        grid,
+                    );
+                    q_bwd.push(Reverse((
+                        g.checked_add(h).expect("bounded bwd heuristic"),
+                        TieG {
+                            g,
+                            prefer_higher: prefer_higher_g,
+                        },
+                        next_key,
+                    )));
+                }
+            }
+        }
+    }
+
+    if let Some((mu, ref rec)) = best_mu {
+        return reconstruct_bi_path(&parent_fwd, &parent_bwd, &engine.work, rec, mu);
     }
     Err(Failure::new(
         Status::Unroutable,

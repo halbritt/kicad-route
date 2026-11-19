@@ -4702,3 +4702,122 @@ fn pad_interior_track_attachment_enters_offgrid_smd_pad_when_legal() {
         trk.end
     );
 }
+
+#[test]
+fn bidirectional_search_finds_exact_optimal_cost_with_smd_via_in_pad_disallowed() {
+    let mut pads = vec![
+        pad(
+            1,
+            1,
+            [2_000_000, 10_000_000],
+            Shape::Rect {
+                half_size_nm: [350_000, 350_000],
+            },
+        ),
+        pad(
+            2,
+            1,
+            [42_000_000, 10_000_000],
+            Shape::Rect {
+                half_size_nm: [350_000, 350_000],
+            },
+        ),
+    ];
+    pads[0].layers = vec!["F.Cu".into()];
+    pads[1].layers = vec!["F.Cu".into()];
+    let mut next_id = 10u64;
+    for row in 0..20 {
+        let y = 600_000 + row * 990_000;
+        let mut obs = pad(
+            next_id,
+            0,
+            [22_000_000, y],
+            Shape::Circle { radius_nm: 300_000 },
+        );
+        obs.layers = vec!["F.Cu".into()];
+        pads.push(obs);
+        next_id += 1;
+    }
+    let inp = Input {
+        version: INPUT_VERSION,
+        source_id: "b".repeat(64),
+        layer: "F.Cu".into(),
+        layers: vec!["F.Cu".into(), "B.Cu".into()],
+        bounds: Bounds {
+            min: [0, 0],
+            max: [44_000_000, 20_000_000],
+        },
+        rules: Rules {
+            width_nm: 200_000,
+            clearance_nm: 200_000,
+            grid_nm: 200_000,
+            edge_clearance_nm: 500_000,
+            hole_clearance_nm: 200_000,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "SIG".into(),
+            },
+        ],
+        pads,
+        tracks: Vec::new(),
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        max_expansions: 100_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: Some(crate::rules::BoardDesignSettings {
+            min_track_width_nm: 200_000,
+            min_clearance_nm: 200_000,
+            min_edge_clearance_nm: 500_000,
+            min_via_diameter_nm: 500_000,
+            min_via_annular_width_nm: 100_000,
+            min_through_hole_diameter_nm: 300_000,
+            min_hole_clearance_nm: 200_000,
+            min_hole_to_hole_nm: 200_000,
+            default_clearance_nm: 200_000,
+            default_track_width_nm: 200_000,
+            default_via_diameter_nm: 500_000,
+            default_via_drill_nm: 300_000,
+            cap_vias: false,
+            fill_vias: false,
+            ..Default::default()
+        }),
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
+        zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
+    };
+    let out = crate::run(inp.clone());
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(
+        out.expanded_states > 256,
+        "expected bidirectional phase > 256 exp, got {}",
+        out.expanded_states
+    );
+    assert_eq!(out.added_vias.len(), 2, "expected 2 vias around F.Cu wall");
+    for v in &out.added_vias {
+        assert!((v.at[0] - 2_000_000).abs() > 400_000 || (v.at[1] - 10_000_000).abs() > 400_000);
+        assert!((v.at[0] - 42_000_000).abs() > 400_000 || (v.at[1] - 10_000_000).abs() > 400_000);
+    }
+    let out2 = crate::run(inp);
+    assert_eq!(out.added_tracks, out2.added_tracks);
+    assert_eq!(out.added_vias, out2.added_vias);
+    assert_eq!(out.work_used, out2.work_used);
+    assert_eq!(out.expanded_states, out2.expanded_states);
+}

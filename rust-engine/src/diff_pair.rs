@@ -68,9 +68,20 @@ pub struct ResolvedLengthGroup {
 }
 
 #[derive(Clone, Debug)]
+pub struct ResolvedAcChain {
+    pub bridges: Vec<String>,
+    pub p_nets: Vec<u32>,
+    pub n_nets: Vec<u32>,
+    pub pair_indices: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
 pub struct DiffPairPlan {
     pub pairs: Vec<ResolvedDiffPair>,
     pub length_groups: Vec<ResolvedLengthGroup>,
+    pub ac_chains: Vec<ResolvedAcChain>,
+    pub ac_match_tolerance_nm: i64,
+    pub ac_meander_amplitude_nm: i64,
     pub pair_layers: Vec<String>,
     pub active_nets: Option<BTreeSet<u32>>,
     pub protected_nets: BTreeSet<u32>,
@@ -1108,6 +1119,20 @@ fn discover_and_validate_with_copper(
             "group length-matching flags require at least one --length-match-group",
         ));
     }
+    if opts.ac_couple_chains.is_empty()
+        && (opts.ac_match_tolerance_nm.is_some() || opts.ac_meander_amplitude_nm.is_some())
+    {
+        return Err(Failure::new(
+            Status::Invalid,
+            "AC matching controls require --ac-couple-chain-json",
+        ));
+    }
+    if !opts.ac_couple_chains.is_empty() && !pair_mode_active {
+        return Err(Failure::new(
+            Status::Invalid,
+            "--ac-couple-chain-json requires --diff-pairs",
+        ));
+    }
 
     let pair_layers: Vec<String> = if !opts.pair_layers.is_empty() {
         let mut seen = BTreeSet::new();
@@ -1764,9 +1789,32 @@ fn discover_and_validate_with_copper(
         });
     }
 
+    let ac_match_tolerance_nm = opts.ac_match_tolerance_nm.unwrap_or(100_000);
+    let ac_meander_amplitude_nm = opts.ac_meander_amplitude_nm.unwrap_or(1_000_000);
+    let ac_chains = if opts.ac_couple_chains.is_empty() {
+        Vec::new()
+    } else {
+        if ac_match_tolerance_nm <= 0 || ac_meander_amplitude_nm <= 0 {
+            return Err(Failure::new(
+                Status::Invalid,
+                "AC matching tolerance and meander amplitude must be > 0",
+            ));
+        }
+        resolve_ac_chains(
+            input,
+            &opts.ac_couple_chains,
+            &pairs,
+            &pad_counts,
+            &name_by_id,
+        )?
+    };
+
     Ok(DiffPairPlan {
         pairs,
         length_groups,
+        ac_chains,
+        ac_match_tolerance_nm,
+        ac_meander_amplitude_nm,
         pair_layers,
         active_nets,
         protected_nets,
@@ -1776,6 +1824,239 @@ fn discover_and_validate_with_copper(
         intra_tolerance_nm: opts.length_match_tolerance_nm.unwrap_or(50_000),
         intra_amplitude_nm: opts.meander_amplitude_nm.unwrap_or(1_500_000),
     })
+}
+
+fn resolve_ac_chains(
+    input: &Input,
+    chains: &[Vec<String>],
+    pairs: &[ResolvedDiffPair],
+    pad_counts: &BTreeMap<u32, usize>,
+    name_by_id: &BTreeMap<u32, &str>,
+) -> Result<Vec<ResolvedAcChain>, Failure> {
+    let mut by_ref: BTreeMap<&str, &crate::model::ComponentInfo> = BTreeMap::new();
+    for comp in &input.components {
+        if by_ref.insert(comp.ref_des.as_str(), comp).is_some() {
+            return Err(Failure::new(
+                Status::Invalid,
+                format!(
+                    "AC matching cannot identify duplicate footprint reference {:?}",
+                    comp.ref_des
+                ),
+            ));
+        }
+    }
+    let active_layers = input.active_layers();
+    let comp_copper_pads = |ref_des: &str| -> Vec<&crate::model::Pad> {
+        input
+            .pads
+            .iter()
+            .filter(|p| {
+                p.footprint_ref.as_deref() == Some(ref_des)
+                    && if p.layers.is_empty() {
+                        active_layers.iter().any(|l| l == &input.layer)
+                    } else {
+                        p.layers
+                            .iter()
+                            .any(|pl| active_layers.iter().any(|al| al == pl))
+                    }
+            })
+            .collect()
+    };
+    let mut members: BTreeMap<u32, (usize, PairRole)> = BTreeMap::new();
+    for (idx, p) in pairs.iter().enumerate() {
+        members.insert(p.pos_net, (idx, PairRole::Pos));
+        members.insert(p.neg_net, (idx, PairRole::Neg));
+    }
+
+    let mut seen_refs: BTreeSet<String> = BTreeSet::new();
+    let mut used_pairs: BTreeSet<usize> = BTreeSet::new();
+    let mut resolved = Vec::with_capacity(chains.len());
+
+    for refs in chains {
+        if refs.len() < 2 || refs.iter().any(|r| r.is_empty()) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "each AC chain needs at least two explicit series-part references",
+            ));
+        }
+        let mut chain_ref_set: BTreeSet<&str> = BTreeSet::new();
+        for r in refs {
+            if !chain_ref_set.insert(r.as_str()) || !seen_refs.insert(r.clone()) {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!("AC series-part reference {r:?} must not repeat or belong to multiple chains"),
+                ));
+            }
+        }
+        let mut edges: BTreeMap<(usize, usize), (Option<String>, Option<String>)> = BTreeMap::new();
+        for r in refs {
+            let Some(comp) = by_ref.get(r.as_str()) else {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!("AC series part {r:?} is missing"),
+                ));
+            };
+            if comp.dnp {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!("AC series part {r:?} is DNP"),
+                ));
+            }
+            let cpads = comp_copper_pads(r.as_str());
+            if cpads.len() != 2 {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!(
+                        "AC series part {r:?} needs exactly two native copper pads (got {})",
+                        cpads.len()
+                    ),
+                ));
+            }
+            let (Some(&(a, pa)), Some(&(b, pb))) =
+                (members.get(&cpads[0].net), members.get(&cpads[1].net))
+            else {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!("AC series part {r:?} has a net outside selected complete pairs"),
+                ));
+            };
+            if a == b || pa != pb {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!("AC series part {r:?} bridges the same pair or opposite polarities"),
+                ));
+            }
+            let key = if a < b { (a, b) } else { (b, a) };
+            let entry = edges.entry(key).or_insert((None, None));
+            let slot = match pa {
+                PairRole::Pos => &mut entry.0,
+                PairRole::Neg => &mut entry.1,
+            };
+            if slot.is_some() {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!("AC chain has duplicate parallel bridges at {r:?}"),
+                ));
+            }
+            *slot = Some(r.clone());
+        }
+        if edges.values().any(|(p, n)| p.is_none() || n.is_none()) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "AC chain has asymmetric P/N series bridges",
+            ));
+        }
+        let mut adjacency: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+        for &(a, b) in edges.keys() {
+            adjacency.entry(a).or_default().insert(b);
+            adjacency.entry(b).or_default().insert(a);
+        }
+        if adjacency.len() < 2
+            || edges.len() != adjacency.len() - 1
+            || adjacency.values().any(|nb| nb.len() > 2)
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "AC bridges must form one nonbranching, acyclic chain",
+            ));
+        }
+        let first = *adjacency.keys().next().unwrap();
+        let mut reached: BTreeSet<usize> = BTreeSet::new();
+        let mut pending = vec![first];
+        while let Some(node) = pending.pop() {
+            if reached.insert(node) {
+                for &nb in &adjacency[&node] {
+                    if !reached.contains(&nb) {
+                        pending.push(nb);
+                    }
+                }
+            }
+        }
+        if reached.len() != adjacency.len() || !reached.is_disjoint(&used_pairs) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "AC chain is disconnected or shares pair members with another chain",
+            ));
+        }
+        used_pairs.extend(&reached);
+
+        let pair_indices: Vec<usize> = reached.iter().copied().collect();
+        let mut p_nets = Vec::with_capacity(pair_indices.len());
+        let mut n_nets = Vec::with_capacity(pair_indices.len());
+        let mut chain_nets = BTreeSet::new();
+        for &p_idx in &pair_indices {
+            let pair = &pairs[p_idx];
+            chain_nets.insert(pair.pos_net);
+            chain_nets.insert(pair.neg_net);
+            p_nets.push(pair.pos_net);
+            n_nets.push(pair.neg_net);
+        }
+
+        for comp in &input.components {
+            if chain_ref_set.contains(comp.ref_des.as_str()) || comp.dnp {
+                continue;
+            }
+            let cpads = comp_copper_pads(comp.ref_des.as_str());
+            if cpads.len() != 2 {
+                continue;
+            }
+            let (n0, n1) = (cpads[0].net, cpads[1].net);
+            if !chain_nets.contains(&n0) && !chain_nets.contains(&n1) {
+                continue;
+            }
+            let same_pair_terminal = n0 != 0
+                && n1 != 0
+                && members
+                    .get(&n0)
+                    .zip(members.get(&n1))
+                    .is_some_and(|((pa, _), (pb, _))| pa == pb);
+            if !same_pair_terminal {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!(
+                        "AC chain has an unlisted two-pad continuation at {:?}",
+                        comp.ref_des
+                    ),
+                ));
+            }
+        }
+
+        for &p_idx in &pair_indices {
+            let pair = &pairs[p_idx];
+            for nid in [pair.pos_net, pair.neg_net] {
+                let n_pads = pad_counts.get(&nid).copied().unwrap_or(0);
+                if n_pads != 2 {
+                    let net_name = name_by_id.get(&nid).copied().unwrap_or("");
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!(
+                            "AC chain member net {net_name:?} must have exactly 2 pads (got {n_pads})"
+                        ),
+                    ));
+                }
+                if input.zones.iter().any(|z| z.net == nid)
+                    || input.graphics.iter().any(|gr| gr.net == nid)
+                {
+                    let net_name = name_by_id.get(&nid).copied().unwrap_or("");
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        format!("AC chain member net {net_name:?} has zone or graphical copper"),
+                    ));
+                }
+            }
+        }
+
+        let mut bridges = refs.clone();
+        bridges.sort();
+        resolved.push(ResolvedAcChain {
+            bridges,
+            p_nets,
+            n_nets,
+            pair_indices,
+        });
+    }
+
+    Ok(resolved)
 }
 
 // ---------------------------------------------------------------------------
@@ -7491,6 +7772,30 @@ fn apply_intra_pair_match(
     if diff <= tol_nm {
         return Ok(());
     }
+    let (short_net, long_net, short_len, long_len) = if mp.length_nm < mn.length_nm {
+        (pair.pos_net, pair.neg_net, mp.length_nm, mn.length_nm)
+    } else {
+        (pair.neg_net, pair.pos_net, mn.length_nm, mp.length_nm)
+    };
+    match_net_in_pair_to_target(
+        engine, pair, short_net, long_net, short_len, long_len, tol_nm, amp_max_nm,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn match_net_in_pair_to_target(
+    engine: &mut Engine,
+    pair: &ResolvedDiffPair,
+    short_net: u32,
+    long_net: u32,
+    short_len: i64,
+    target_len: i64,
+    tol_nm: i64,
+    amp_max_nm: i64,
+) -> Result<(), Failure> {
+    if (short_len - target_len).abs() <= tol_nm {
+        return Ok(());
+    }
     if measure_pair_uncoupled_nm(engine, pair) > pair.uncoupled_max_nm {
         return Err(Failure::new(
             Status::Unroutable,
@@ -7500,12 +7805,16 @@ fn apply_intra_pair_match(
             ),
         ));
     }
-    let (short_net, long_net, long_len) = if mp.length_nm < mn.length_nm {
-        (pair.pos_net, pair.neg_net, mn.length_nm)
-    } else {
-        (pair.neg_net, pair.pos_net, mp.length_nm)
-    };
-    let needed = (long_len - mp.length_nm.min(mn.length_nm)) as f64;
+    let needed = (target_len - short_len) as f64;
+    if needed <= 0.0 {
+        return Err(Failure::new(
+            Status::Unroutable,
+            format!(
+                "diff pair {} leg net {short_net} already exceeds target {target_len}",
+                pair.stem
+            ),
+        ));
+    }
     let pad_pts: Vec<Point> = engine
         .input
         .pads
@@ -7653,7 +7962,7 @@ fn apply_intra_pair_match(
                 }
                 let m = measure_net_fromto(eng, short_net, false)?
                     .ok_or_else(|| Failure::new(Status::Unroutable, "disconnected"))?;
-                if (m.length_nm - long_len).abs() > tol_nm {
+                if (m.length_nm - target_len).abs() > tol_nm {
                     return Err(Failure::new(Status::Unroutable, "pad detour missed tol"));
                 }
                 Ok(())
@@ -7670,7 +7979,7 @@ fn apply_intra_pair_match(
     apply_single_ended_meander(
         engine,
         short_net,
-        long_len,
+        target_len,
         tol_nm,
         false,
         amp_max_nm.min(pair.uncoupled_max_nm / 2),
@@ -7680,11 +7989,228 @@ fn apply_intra_pair_match(
     )
 }
 
+fn apply_ac_chain_match(
+    engine: &mut Engine,
+    plan: &DiffPairPlan,
+    chain: &ResolvedAcChain,
+) -> Result<(), Failure> {
+    let tol_nm = plan.ac_match_tolerance_nm;
+    let amp_nm = plan.ac_meander_amplitude_nm;
+    let is_modifiable = |eng: &Engine, nid: u32| -> bool {
+        !plan.protected_nets.contains(&nid) && !eng.copper.input().iter().any(|t| t.net == nid)
+    };
+
+    for &p_idx in &chain.pair_indices {
+        let pair = &plan.pairs[p_idx];
+        if let Some(d) = pair.dru_skew_max_nm {
+            let mp = measure_net_fromto(engine, pair.pos_net, false)?
+                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain pos disconnected"))?;
+            let mn = measure_net_fromto(engine, pair.neg_net, false)?
+                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain neg disconnected"))?;
+            if (mp.length_nm - mn.length_nm).abs() > d {
+                let (short_net, long_net, short_len, long_len) = if mp.length_nm < mn.length_nm {
+                    (pair.pos_net, pair.neg_net, mp.length_nm, mn.length_nm)
+                } else {
+                    (pair.neg_net, pair.pos_net, mn.length_nm, mp.length_nm)
+                };
+                if !is_modifiable(engine, short_net) {
+                    return Err(Failure::new(
+                        Status::Unroutable,
+                        format!(
+                            "protected/existing net {short_net} in AC pair {} exceeds DRU skew",
+                            pair.stem
+                        ),
+                    ));
+                }
+                let half_d = (d / 2).max(1);
+                match_net_in_pair_to_target(
+                    engine,
+                    pair,
+                    short_net,
+                    long_net,
+                    short_len,
+                    long_len - (d / 2),
+                    half_d,
+                    amp_nm,
+                )?;
+            }
+        }
+    }
+
+    let measure_chain = |eng: &Engine| -> Result<(i64, i64), Failure> {
+        let mut sum_p = 0i64;
+        let mut sum_n = 0i64;
+        for &p_idx in &chain.pair_indices {
+            let pair = &plan.pairs[p_idx];
+            let mp = measure_net_fromto(eng, pair.pos_net, false)?
+                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain pos disconnected"))?;
+            let mn = measure_net_fromto(eng, pair.neg_net, false)?
+                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain neg disconnected"))?;
+            sum_p += mp.length_nm;
+            sum_n += mn.length_nm;
+        }
+        Ok((sum_p, sum_n))
+    };
+
+    let (mut sum_p, mut sum_n) = measure_chain(engine)?;
+    if (sum_p - sum_n).abs() > tol_nm {
+        let p_is_short = sum_p < sum_n;
+        let rem = (sum_p - sum_n).abs();
+        let mut cands: Vec<(usize, u32, u32, i64, i64, i64)> = Vec::new();
+        for &p_idx in &chain.pair_indices {
+            let pair = &plan.pairs[p_idx];
+            let (short_net, long_net) = if p_is_short {
+                (pair.pos_net, pair.neg_net)
+            } else {
+                (pair.neg_net, pair.pos_net)
+            };
+            if !is_modifiable(engine, short_net) {
+                continue;
+            }
+            let ms = measure_net_fromto(engine, short_net, false)?
+                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain short disconnected"))?;
+            let ml = measure_net_fromto(engine, long_net, false)?
+                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain long disconnected"))?;
+            let max_allowed = pair
+                .dru_skew_max_nm
+                .map_or(i64::MAX / 4, |d| ml.length_nm + d);
+            cands.push((
+                p_idx,
+                short_net,
+                long_net,
+                ms.length_nm,
+                ml.length_nm,
+                max_allowed,
+            ));
+        }
+        cands.sort_by(|a, b| (b.4 - b.3).cmp(&(a.4 - a.3)));
+
+        let mut solved_single = false;
+        for &(p_idx, short_net, long_net, len_s, _len_l, max_allowed) in &cands {
+            let lo = (len_s + rem - tol_nm).max(len_s + 1);
+            let hi = (len_s + rem + tol_nm).min(max_allowed);
+            if lo > hi {
+                continue;
+            }
+            let pair = &plan.pairs[p_idx];
+            let target = (lo + hi) / 2;
+            let eff_tol = (hi - lo) / 2;
+            let attempt = engine.transaction(|tx| {
+                match_net_in_pair_to_target(
+                    tx.engine, pair, short_net, long_net, len_s, target, eff_tol, amp_nm,
+                )
+            });
+            match attempt {
+                Ok(()) => {
+                    solved_single = true;
+                    break;
+                }
+                Err(TransactionError::Limit(f)) => return Err(f),
+                Err(TransactionError::Operation(_)) => {}
+            }
+        }
+
+        if !solved_single {
+            cands.sort_by(|a, b| (b.5 - b.3).cmp(&(a.5 - a.3)));
+            for _pass in 0..2 {
+                (sum_p, sum_n) = measure_chain(engine)?;
+                let cur_rem = (sum_p - sum_n).abs();
+                if cur_rem <= tol_nm {
+                    break;
+                }
+                let cur_p_short = sum_p < sum_n;
+                for &(p_idx, _, _, _, _, _) in &cands {
+                    (sum_p, sum_n) = measure_chain(engine)?;
+                    let cur_rem = (sum_p - sum_n).abs();
+                    if cur_rem <= tol_nm || (sum_p < sum_n) != cur_p_short {
+                        break;
+                    }
+                    let pair = &plan.pairs[p_idx];
+                    let (short_net, long_net) = if cur_p_short {
+                        (pair.pos_net, pair.neg_net)
+                    } else {
+                        (pair.neg_net, pair.pos_net)
+                    };
+                    if !is_modifiable(engine, short_net) {
+                        continue;
+                    }
+                    let len_s = measure_net_fromto(engine, short_net, false)?
+                        .ok_or_else(|| {
+                            Failure::new(Status::Unroutable, "AC chain short disconnected")
+                        })?
+                        .length_nm;
+                    let len_l = measure_net_fromto(engine, long_net, false)?
+                        .ok_or_else(|| {
+                            Failure::new(Status::Unroutable, "AC chain long disconnected")
+                        })?
+                        .length_nm;
+                    let max_allowed = pair.dru_skew_max_nm.map_or(i64::MAX / 4, |d| len_l + d);
+                    let headroom = max_allowed - len_s;
+                    if headroom <= 0 {
+                        continue;
+                    }
+                    let add = cur_rem.min(headroom);
+                    let lo = (len_s + add - tol_nm).max(len_s + 1);
+                    let hi = (len_s + add + tol_nm).min(max_allowed);
+                    if lo > hi {
+                        continue;
+                    }
+                    let target = (lo + hi) / 2;
+                    let eff_tol = ((hi - lo) / 2).max(1);
+                    let attempt = engine.transaction(|tx| {
+                        match_net_in_pair_to_target(
+                            tx.engine, pair, short_net, long_net, len_s, target, eff_tol, amp_nm,
+                        )
+                    });
+                    if let Err(TransactionError::Limit(f)) = attempt {
+                        return Err(f);
+                    }
+                }
+            }
+        }
+    }
+
+    let (final_p, final_n) = measure_chain(engine)?;
+    if (final_p - final_n).abs() > tol_nm {
+        return Err(Failure::new(
+            Status::Unroutable,
+            format!(
+                "AC chain {:?} composed skew {} nm exceeds tolerance {tol_nm} nm",
+                chain.bridges,
+                (final_p - final_n).abs()
+            ),
+        ));
+    }
+    for &p_idx in &chain.pair_indices {
+        let pair = &plan.pairs[p_idx];
+        if let Some(d) = pair.dru_skew_max_nm {
+            let mp = measure_net_fromto(engine, pair.pos_net, false)?
+                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain pos disconnected"))?;
+            let mn = measure_net_fromto(engine, pair.neg_net, false)?
+                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain neg disconnected"))?;
+            if (mp.length_nm - mn.length_nm).abs() > d {
+                return Err(Failure::new(
+                    Status::Unroutable,
+                    format!(
+                        "AC chain pair {} skew {} nm exceeds DRU skew limit {d} nm",
+                        pair.stem,
+                        (mp.length_nm - mn.length_nm).abs()
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn apply_length_matching_in_tx(
     engine: &mut Engine,
     state: &DiffPairRunState,
 ) -> Result<(), Failure> {
-    if state.plan.pairs.is_empty() && state.plan.length_groups.is_empty() {
+    if state.plan.pairs.is_empty()
+        && state.plan.length_groups.is_empty()
+        && state.plan.ac_chains.is_empty()
+    {
         return Ok(());
     }
     let plan = &state.plan;
@@ -7693,11 +8219,18 @@ pub fn apply_length_matching_in_tx(
         pair_by_net.insert(p.pos_net, idx);
         pair_by_net.insert(p.neg_net, idx);
     }
+    let mut ac_pair_indices: BTreeSet<usize> = BTreeSet::new();
+    for ch in &plan.ac_chains {
+        ac_pair_indices.extend(ch.pair_indices.iter().copied());
+    }
 
     unwrap_tx(engine.transaction(|tx| {
         let eng = &mut *tx.engine;
 
         for pair in &plan.pairs {
+            if ac_pair_indices.contains(&pair.index) {
+                continue;
+            }
             if !plan.protected_nets.contains(&pair.pos_net)
                 && !plan.protected_nets.contains(&pair.neg_net)
             {
@@ -7711,6 +8244,10 @@ pub fn apply_length_matching_in_tx(
                     apply_intra_pair_match(eng, pair, tol_nm, plan.intra_amplitude_nm)?;
                 }
             }
+        }
+
+        for chain in &plan.ac_chains {
+            apply_ac_chain_match(eng, plan, chain)?;
         }
 
         for group in &plan.length_groups {
@@ -7964,6 +8501,226 @@ mod tests {
             (m.delay_as - 131_755_640).abs() <= 5_000,
             "expected ~131755640 as with 0 via delay, got {}",
             m.delay_as
+        );
+    }
+
+    fn ac_chain_base_input() -> Input {
+        let uid = |n: u64| format!("00000000-0000-4000-8000-{n:012}");
+        let mut inp: Input = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "source_id": "a".repeat(64),
+            "layer": "F.Cu",
+            "layers": ["F.Cu", "B.Cu"],
+            "bounds": {"min": [0, 0], "max": [75_000_000, 20_000_000]},
+            "nets": [
+                {"id": 0, "name": ""},
+                {"id": 1, "name": "DPA_P"},
+                {"id": 2, "name": "DPA_N"},
+                {"id": 3, "name": "DPB_P"},
+                {"id": 4, "name": "DPB_N"},
+                {"id": 5, "name": "SE"}
+            ],
+            "pads": [
+                {"id": uid(1), "net": 1, "at": [5_000_000, 10_000_000], "shape": {"kind": "rect", "half_size_nm": [200_000, 200_000]}, "layers": ["F.Cu"], "footprint_ref": "J1", "pad_number": "1"},
+                {"id": uid(2), "net": 2, "at": [5_000_000, 12_540_000], "shape": {"kind": "rect", "half_size_nm": [200_000, 200_000]}, "layers": ["F.Cu"], "footprint_ref": "J1", "pad_number": "2"},
+                {"id": uid(3), "net": 1, "at": [34_520_000, 8_000_000], "shape": {"kind": "rect", "half_size_nm": [200_000, 200_000]}, "layers": ["F.Cu"], "footprint_ref": "C1", "pad_number": "1"},
+                {"id": uid(4), "net": 3, "at": [35_480_000, 8_000_000], "shape": {"kind": "rect", "half_size_nm": [200_000, 200_000]}, "layers": ["F.Cu"], "footprint_ref": "C1", "pad_number": "2"},
+                {"id": uid(5), "net": 2, "at": [34_520_000, 12_000_000], "shape": {"kind": "rect", "half_size_nm": [200_000, 200_000]}, "layers": ["F.Cu"], "footprint_ref": "C2", "pad_number": "1"},
+                {"id": uid(6), "net": 4, "at": [35_480_000, 12_000_000], "shape": {"kind": "rect", "half_size_nm": [200_000, 200_000]}, "layers": ["F.Cu"], "footprint_ref": "C2", "pad_number": "2"},
+                {"id": uid(7), "net": 3, "at": [65_000_000, 10_000_000], "shape": {"kind": "rect", "half_size_nm": [200_000, 200_000]}, "layers": ["F.Cu"], "footprint_ref": "J2", "pad_number": "1"},
+                {"id": uid(8), "net": 4, "at": [65_000_000, 12_540_000], "shape": {"kind": "rect", "half_size_nm": [200_000, 200_000]}, "layers": ["F.Cu"], "footprint_ref": "J2", "pad_number": "2"}
+            ],
+            "tracks": [],
+            "vias": [],
+            "components": [
+                {"ref_des": "J1", "pad_numbers": ["1", "2"], "net_ids": [1, 2]},
+                {"ref_des": "J2", "pad_numbers": ["1", "2"], "net_ids": [3, 4]},
+                {"ref_des": "C1", "pad_numbers": ["1", "2"], "net_ids": [1, 3]},
+                {"ref_des": "C2", "pad_numbers": ["1", "2"], "net_ids": [2, 4]}
+            ],
+            "rules": {
+                "grid_nm": 100_000, "width_nm": 150_000, "clearance_nm": 150_000,
+                "edge_clearance_nm": 200_000, "hole_clearance_nm": 200_000, "same_net_hole_clearance_nm": 0
+            },
+            "max_expansions": 100_000,
+            "board_design_settings": {
+                "min_track_width_nm": 100_000,
+                "min_clearance_nm": 150_000,
+                "netclasses": [{
+                    "name": "Default",
+                    "track_width_nm": 150_000,
+                    "clearance_nm": 150_000,
+                    "diff_pair_width_nm": 150_000,
+                    "diff_pair_gap_nm": 250_000
+                }]
+            },
+            "routing_options": {
+                "diff_pairs_mode": "auto",
+                "pair_layers": ["F.Cu"],
+                "ac_couple_chains": [["C1", "C2"]],
+                "ac_match_tolerance_nm": 100_000,
+                "ac_meander_amplitude_nm": 3_000_000
+            }
+        }))
+        .unwrap();
+        crate::rules::resolve_effective_rules(&mut inp).unwrap();
+        inp
+    }
+
+    #[test]
+    fn ac_chain_validation_refuses_invalid_topologies_and_flags() {
+        let expect_invalid = |inp: Input, needle: &str| {
+            let eng = Engine::new(inp).unwrap();
+            let err = plan_diff_pairs(&eng).unwrap_err();
+            assert_eq!(err.status, Status::Invalid, "{err:?}");
+            assert!(
+                err.reason.contains(needle),
+                "expected {needle:?} in {:?}",
+                err.reason
+            );
+        };
+
+        let mut no_chains = ac_chain_base_input();
+        no_chains
+            .routing_options
+            .as_mut()
+            .unwrap()
+            .ac_couple_chains
+            .clear();
+        expect_invalid(no_chains, "require --ac-couple-chain-json");
+
+        let mut no_dp = ac_chain_base_input();
+        no_dp.routing_options.as_mut().unwrap().diff_pairs_mode = None;
+        expect_invalid(no_dp, "requires --diff-pairs");
+
+        let mut one_ref = ac_chain_base_input();
+        one_ref.routing_options.as_mut().unwrap().ac_couple_chains = vec![vec!["C1".into()]];
+        expect_invalid(one_ref, "at least two");
+
+        let mut dup_ref = ac_chain_base_input();
+        dup_ref.routing_options.as_mut().unwrap().ac_couple_chains =
+            vec![vec!["C1".into(), "C1".into()]];
+        expect_invalid(dup_ref, "must not repeat");
+
+        let mut missing_ref = ac_chain_base_input();
+        missing_ref
+            .routing_options
+            .as_mut()
+            .unwrap()
+            .ac_couple_chains = vec![vec!["C1".into(), "C99".into()]];
+        expect_invalid(missing_ref, "missing");
+
+        let mut dnp_ref = ac_chain_base_input();
+        dnp_ref
+            .components
+            .iter_mut()
+            .find(|c| c.ref_des == "C1")
+            .unwrap()
+            .dnp = true;
+        expect_invalid(dnp_ref, "DNP");
+
+        let mut non_two_pad = ac_chain_base_input();
+        non_two_pad.pads.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "00000000-0000-4000-8000-000000000099",
+                "net": 5, "at": [35_000_000, 8_500_000],
+                "shape": {"kind": "rect", "half_size_nm": [100_000, 100_000]},
+                "layers": ["F.Cu"], "footprint_ref": "C1", "pad_number": "3"
+            }))
+            .unwrap(),
+        );
+        expect_invalid(non_two_pad, "two native copper pads");
+
+        let mut opp_pol = ac_chain_base_input();
+        opp_pol
+            .pads
+            .iter_mut()
+            .find(|p| {
+                p.footprint_ref.as_deref() == Some("C1") && p.pad_number.as_deref() == Some("2")
+            })
+            .unwrap()
+            .net = 4;
+        opp_pol
+            .pads
+            .iter_mut()
+            .find(|p| {
+                p.footprint_ref.as_deref() == Some("C2") && p.pad_number.as_deref() == Some("2")
+            })
+            .unwrap()
+            .net = 3;
+        expect_invalid(opp_pol, "opposite polarities");
+
+        let mut cont = ac_chain_base_input();
+        cont.pads.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "00000000-0000-4000-8000-000000000101",
+                "net": 1, "at": [15_000_000, 5_000_000],
+                "shape": {"kind": "rect", "half_size_nm": [100_000, 100_000]},
+                "layers": ["F.Cu"], "footprint_ref": "R9", "pad_number": "1"
+            }))
+            .unwrap(),
+        );
+        cont.pads.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "00000000-0000-4000-8000-000000000102",
+                "net": 5, "at": [17_000_000, 5_000_000],
+                "shape": {"kind": "rect", "half_size_nm": [100_000, 100_000]},
+                "layers": ["F.Cu"], "footprint_ref": "R9", "pad_number": "2"
+            }))
+            .unwrap(),
+        );
+        cont.components.push(crate::model::ComponentInfo {
+            ref_des: "R9".into(),
+            dnp: false,
+            exclude_from_bom: false,
+            exclude_from_pos: false,
+            pad_numbers: vec!["1".into(), "2".into()],
+            net_ids: vec![1, 5],
+        });
+        expect_invalid(cont, "unlisted two-pad continuation");
+    }
+
+    #[test]
+    fn ac_chain_matches_composed_skew_and_refuses_impossible_amplitude() {
+        let mut inp = ac_chain_base_input();
+        // Offset N terminal pads inward so N is ~2.0 mm shorter across the composed chain.
+        for p in &mut inp.pads {
+            if p.footprint_ref.as_deref() == Some("J1") && p.pad_number.as_deref() == Some("2") {
+                p.at = [6_000_000, 12_540_000];
+            } else if p.footprint_ref.as_deref() == Some("J2")
+                && p.pad_number.as_deref() == Some("2")
+            {
+                p.at = [64_000_000, 12_540_000];
+            } else if p.footprint_ref.as_deref() == Some("C1") {
+                p.at[1] = 8_500_000;
+            } else if p.footprint_ref.as_deref() == Some("C2") {
+                p.at[1] = 12_000_000;
+            }
+        }
+        let mut fail_inp = inp.clone();
+        fail_inp
+            .routing_options
+            .as_mut()
+            .unwrap()
+            .ac_meander_amplitude_nm = Some(1_000);
+        let fail_out = crate::run(fail_inp);
+        assert_eq!(fail_out.status, Status::Unroutable, "{:?}", fail_out.reason);
+
+        let out = crate::run(inp.clone());
+        assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+        inp.tracks = out.added_tracks;
+        inp.vias = out.added_vias;
+        let eng = Engine::new(inp).unwrap();
+        let m1 = measure_net_fromto(&eng, 1, false).unwrap().unwrap();
+        let m2 = measure_net_fromto(&eng, 2, false).unwrap().unwrap();
+        let m3 = measure_net_fromto(&eng, 3, false).unwrap().unwrap();
+        let m4 = measure_net_fromto(&eng, 4, false).unwrap().unwrap();
+        let sum_p = m1.length_nm + m3.length_nm;
+        let sum_n = m2.length_nm + m4.length_nm;
+        assert!(
+            (sum_p - sum_n).abs() <= 100_000,
+            "composed skew {} nm > 100_000 nm (P={sum_p}, N={sum_n})",
+            (sum_p - sum_n).abs()
         );
     }
 }
