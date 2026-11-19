@@ -1917,12 +1917,17 @@ def test_route_native_rejects_bad_and_dangling_sidecars_before_python(
     assert not audit_log.exists() or audit_log.read_text() == ''
 
 
+@pytest.mark.parametrize("renamed", [False, True])
 def test_route_native_accepts_valid_sidecars_and_multilayer_vias_end_to_end(
-        native_board, guarded_cli, tmp_path):
+        native_board, guarded_cli, tmp_path, renamed):
     run, _ = guarded_cli
     engine = _built_rust_engine(run)
     board = pcbnew.LoadBoard(str(native_board))
     board.SetCopperLayerCount(4)
+    aliases = {pcbnew.F_Cu: 'top_copper', pcbnew.In1_Cu: 'pwr_plane',
+               pcbnew.B_Cu: 'bottom_copper'} if renamed else {}
+    for layer, name in aliases.items():
+        assert board.SetLayerName(layer, name)
     fps = list(board.GetFootprints())
     b_lset = pcbnew.LSET()
     b_lset.AddLayer(pcbnew.B_Cu)
@@ -1950,12 +1955,25 @@ def test_route_native_accepts_valid_sidecars_and_multilayer_vias_end_to_end(
         '(version 1)\n(rule "sig_width" (condition "A.NetName == \'SIGNAL\'") (constraint track_width (min 0.25mm)))'
     )
     output = tmp_path / 'routed-4l.kicad_pcb'
-    res = run([str(engine), 'route-native', str(native_board), str(output)], check=False)
+    request = tmp_path / 'request.json'
+    res = run([str(engine), 'route-native', str(native_board), str(output),
+               '--save-request', str(request)], check=False)
     assert res.returncode == 0, res.stderr
     op = json.loads(res.stdout)
     assert op['status'] == 'complete'
     assert op['routing']['added_via_count'] >= 1
-    assert output.is_file()
+    wire = json.loads(request.read_text())
+    assert wire['layers'] == ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu']
+    assert wire['board_design_settings'].get('layer_aliases', {}) == {
+        pcbnew.LayerName(layer): name for layer, name in aliases.items()}
+    routed = pcbnew.LoadBoard(str(output))
+    assert all(routed.GetLayerName(layer) == name for layer, name in aliases.items())
+    assert {track.TopLayer() for track in routed.GetTracks()
+            if isinstance(track, pcbnew.PCB_VIA)} == {pcbnew.F_Cu}
+    roundtrip = bridge.export_board(output)
+    assert {(via['start_layer'], via['end_layer'])
+            for via in roundtrip['vias']} == {('F.Cu', 'B.Cu')}
+    assert {layer for pad in roundtrip['pads'] for layer in pad['layers']} == {'F.Cu', 'B.Cu'}
 
 
 def test_route_native_accepts_explicit_matching_project_flag(

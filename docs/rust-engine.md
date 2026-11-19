@@ -32,10 +32,9 @@ dominate a prefix with different via exclusions or approach constraints. Tiny
 independent exact-search oracles cover the supported state model. Exhaustion,
 work-budget exhaustion, unsupported input and invalid input remain distinct.
 
-The board-level controller chooses a deterministic net order, stages routes,
-validates each proposal and produces a complete edit list. It will grow into
-multi-terminal and multilayer orchestration here, not by calling the old Python
-controller. Global routing improvements follow a sound, measured foundation.
+The Rust board-level controller joins connected components on each net, chooses
+a deterministic net order, and can rip up generated copper to reroute competing
+nets. It stages the resulting edits and publishes the board after native checks.
 
 ## Native compatibility interface
 
@@ -65,19 +64,18 @@ so its preferences files do not appear beside the source. Process termination ca
 leave private temporary files; publication is atomic in visibility, not fsynced
 for crash durability.
 
-The first adapter accepts standalone rectangular two-layer boards with front
-copper SMD circular/axis-aligned rectangular pads and straight existing tracks.
-Routing uses F.Cu only. Project/custom-rule files, zones, vias, unsupported pad
-shapes/rotations, copper artwork and other layers are rejected. Explicit uniform
-rules must meet native default floors. Project/rule import and other features
-are missing capabilities, not ignored inputs. Pad centres initially must align
-to the requested routing grid; Rust checks this. Pad offsets, pad/footprint
-clearance overrides, net ties, footprint zones/keepouts, copper fields and
-footprint board cuts are also rejected on import and output application until
-the interchange represents them. Nondefault board solder-mask rules and local
-pad/footprint mask margins are also outside this first native contract.
-Board and footprint Margin drawings are rejected on both import and application:
-KiCad treats them as clearance boundaries, unlike ordinary documentation graphics.
+The native adapter accepts boards with two to 32 copper layers and reads the
+project and custom-rule files beside the source board. Copper geometry uses
+KiCad's standard layer names, such as `F.Cu` and `In1.Cu`. When the board
+renames a copper layer, the optional `board_design_settings.layer_aliases` map
+in the request associates its standard name with its display name. KiCad
+custom rules can select a layer by either name. Applying edits preserves the
+display names on the saved board.
+
+The adapter represents supported pad shapes, drills, tracks, vias, copper
+artwork, filled zones and keepouts. Hatched zones and board or footprint
+Margin geometry, for example, cause an explicit refusal. The
+[capability matrix](rust-parity.md) records the tested forms and board outcomes.
 
 The version1 input uses integer nanometres, explicit net and item IDs, bounds,
 rules, fixed copper, an expansion budget and optional resource `limits`. Rust

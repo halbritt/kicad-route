@@ -353,7 +353,7 @@ def _cu_stack(board):
     for lid in copper[1:-1]:
         if lid not in valid_inner:
             raise UnsupportedBoard('unsupported inner copper layer in stackup')
-    return copper, [board.GetLayerName(lid) for lid in copper]
+    return copper, [pcbnew.LayerName(lid) for lid in copper]
 
 
 def _extract_drill_shape(pad, cu_layers=None):
@@ -1181,7 +1181,7 @@ def _via_kind_str(via_type):
     raise UnsupportedBoard('unsupported via type')
 
 
-def _extract_via(via, cu_layers, board):
+def _extract_via(via, cu_layers):
     kind = _via_kind_str(via.GetViaType())
     if hasattr(via, 'IsBackdrilledOrPostMachined') and any(via.IsBackdrilledOrPostMachined(l) for l in cu_layers):
         raise UnsupportedBoard('backdrilled or post-machined vias are not represented')
@@ -1212,8 +1212,8 @@ def _extract_via(via, cu_layers, board):
         'at': point(via.GetPosition()),
         'diameter_nm': diam,
         'drill_nm': drill,
-        'start_layer': board.GetLayerName(cu_layers[lo]),
-        'end_layer': board.GetLayerName(cu_layers[hi]),
+        'start_layer': pcbnew.LayerName(cu_layers[lo]),
+        'end_layer': pcbnew.LayerName(cu_layers[hi]),
         'kind': kind,
         'locked': bool(via.IsLocked()),
     }
@@ -1343,7 +1343,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
                               context_label='copper arc')
             continue
         if type(track) is pcbnew.PCB_VIA:
-            _extract_via(track, cu_layers, board)
+            _extract_via(track, cu_layers)
             continue
         raise UnsupportedBoard('track or via references unsupported type or disabled layer')
     _board_bounds_and_outline(board)
@@ -1692,7 +1692,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                               'at': point(pad.GetPosition()), 'shape': drill})
                 continue
             shape = pad_shape(pad, cu_layers)
-            pad_layers = [board.GetLayerName(l) for l in pad.GetLayerSet().Seq() if l in cu_set]
+            pad_layers = [pcbnew.LayerName(l) for l in pad.GetLayerSet().Seq() if l in cu_set]
             pad_net = int(pad.GetNetCode())
             entry = {'id': item_id(pad), 'net': pad_net,
                      'at': point(pad.GetPosition()), 'shape': shape}
@@ -1749,7 +1749,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     graphics = []
     for track in board.GetTracks():
         if type(track) is pcbnew.PCB_TRACK and track.GetLayer() in cu_set:
-            lname = board.GetLayerName(track.GetLayer())
+            lname = pcbnew.LayerName(track.GetLayer())
             item = {'id': item_id(track), 'net': int(track.GetNetCode()),
                     'start': point(track.GetStart()), 'end': point(track.GetEnd()),
                     'width_nm': int(track.GetWidth()), 'locked': bool(track.IsLocked())}
@@ -1757,7 +1757,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 item['layer'] = lname
             tracks.append(item)
         elif type(track) is pcbnew.PCB_ARC and track.GetLayer() in cu_set:
-            layer_name = board.GetLayerName(track.GetLayer())
+            layer_name = pcbnew.LayerName(track.GetLayer())
             start, mid, end = point(track.GetStart()), point(track.GetMid()), point(track.GetEnd())
             _check_arc_points(start, mid, end, context_label='copper arc')
             graphics.append({
@@ -1773,7 +1773,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 },
             })
         elif type(track) is pcbnew.PCB_VIA:
-            vias.append(_extract_via(track, cu_layers, board))
+            vias.append(_extract_via(track, cu_layers))
         else:
             raise UnsupportedBoard('track or via references unsupported type or disabled layer')
     tracks.sort(key=lambda item: (item.get('layer', 'F.Cu'), item['net'], item['start'], item['end'],
@@ -1789,7 +1789,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     rule_areas = []
     zones = []
     for zone in all_zones:
-        zlayers = [board.GetLayerName(l) for l in cu_layers if zone.GetLayerSet().Contains(l)]
+        zlayers = [pcbnew.LayerName(l) for l in cu_layers if zone.GetLayerSet().Contains(l)]
         if not zlayers:
             continue
         polys = _extract_zone_polygons(zone, label='rule area' if zone.GetIsRuleArea() else 'copper zone')
@@ -1836,7 +1836,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                         fpoly['holes'] = fholes
                     fpolys.append(fpoly)
                 if fpolys:
-                    layer_fills.append({'layer': board.GetLayerName(lid), 'polygons': fpolys})
+                    layer_fills.append({'layer': pcbnew.LayerName(lid), 'polygons': fpolys})
             z_entry = {
                 'id': item_id(zone),
                 'net': int(zone.GetNetCode()),
@@ -1872,7 +1872,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     for drawing in board.GetDrawings():
         layer = drawing.GetLayer()
         if layer in cu_set:
-            layer_name = board.GetLayerName(layer)
+            layer_name = pcbnew.LayerName(layer)
             net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
             for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='board copper'):
                 graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
@@ -1902,7 +1902,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         for drawing in footprint.GraphicalItems():
             layer = drawing.GetLayer()
             if layer in cu_set:
-                layer_name = board.GetLayerName(layer)
+                layer_name = pcbnew.LayerName(layer)
                 net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
                 for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='footprint copper'):
                     graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
@@ -1966,6 +1966,15 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         'cap_vias': bool(getattr(settings, 'm_CapVias', False)),
         'fill_vias': bool(getattr(settings, 'm_FillVias', False)),
     }
+    # Geometry uses KiCad's stable layer IDs. DRU selectors can also match
+    # the display names stored in the board.
+    aliases = {}
+    for layer, canonical in zip(cu_layers, layer_names):
+        display = board.GetLayerName(layer)
+        if display != canonical:
+            aliases[canonical] = display
+    if aliases:
+        bds['layer_aliases'] = aliases
     net_settings = getattr(settings, 'm_NetSettings', None)
     default_nc = net_settings.GetDefaultNetclass() if net_settings is not None else None
     if default_nc is not None:
@@ -2132,7 +2141,7 @@ def _extract_pour_facts(board_path: Path) -> dict:
     max_err = int(bds.m_MaxError)
     pro_min = _read_pro_min_resolved_spokes(board_path)
     min_resolved_spokes = pro_min if pro_min is not None else int(getattr(bds, 'm_MinResolvedSpokes', 2))
-    lname = board.GetLayerName
+    lname = pcbnew.LayerName
     nm = 1_000_000
     edge_band = 20_000
     cell = 2 * nm
