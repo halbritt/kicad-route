@@ -101,7 +101,10 @@ Search uses four orthogonal directions, uniform one-step cost and an incoming
 heading in the dominance key. All multi-component and two-pad nets use multi-source A* from every
 legal pad center and incumbent/generated track endpoint in the first component, targeting all other components. Its heuristic
 is the minimum, over target items, of the sum of the two rounded-up axis gaps
-in grid steps to that item's copper bounding box expanded by the route radius.
+in grid steps to a bounding box containing the endpoints that can make contact.
+For pads, tracks and vias the expansion uses the route's floored half-width
+less the required 1 nm of copper overlap, clamped at zero. Graphics and zone
+fills use the outward-rounded route radius.
 These outward-rounded boxes contain every endpoint-cap contact; each cardinal
 edge, including a shortened final edge, moves at most one grid step in one axis.
 The estimate therefore underestimates remaining unit-step cost, is consistent
