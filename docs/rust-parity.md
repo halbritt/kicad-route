@@ -37,6 +37,20 @@ The inputs had six opens on `route_demo`, ten on `bus_routing` and four on
 The composed AC-chain skew was 0.000 mm. The four-layer AC fixture requests
 pair routing on F.Cu. These measurements cover the checked-in fixture boards.
 
+The table gives one release CLI run per revision on the same three fixture
+inputs, with their original rule files. CPU is user plus system time. Peak
+RSS is the largest single process reported by GNU time. These shared-host
+observations do not establish a speedup.
+
+| Fixture | Revision | Wall (s) | CPU (s) | Peak RSS (KiB) | Work units | Search expansions |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| route_demo | 4859553 | 2.03 | 1.46 | 279,796 | 1,664,579 | 10,498 |
+| route_demo | 36f7b11 | 1.78 | 1.23 | 279,492 | 1,664,579 | 10,498 |
+| bus_routing | 4859553 | 1.43 | 1.15 | 226,432 | 4,906,812 | 22,577 |
+| bus_routing | 36f7b11 | 1.42 | 1.14 | 226,368 | 4,906,812 | 22,577 |
+| ac_matching | 4859553 | 1.31 | 1.02 | 226,104 | 25,067 | 0 |
+| ac_matching | 36f7b11 | 1.26 | 0.96 | 226,004 | 26,227 | 0 |
+
 The four-layer T4-04 comparison used the same saved PCB (SHA-256
 `b438e9cdcb499d0a54d0da5c03881f2a5892c72882ad2543c1b4601de9d77f23`),
 project rules, 1,000,000-expansion limit and 250,000,000-unit work budget.
