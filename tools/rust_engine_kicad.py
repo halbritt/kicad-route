@@ -2991,7 +2991,11 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
                 write_request(measured, refill_state)
             raise
         if introduced:
-            raise NativeValidationError('candidate introduces native DRC violations')
+            by_type = Counter()
+            for finding, count in introduced.items():
+                by_type[json.loads(finding)['type']] += count
+            kinds = ', '.join(f'{name} ({by_type[name]})' for name in sorted(by_type))
+            raise NativeValidationError(f'candidate introduces native DRC violations: {kinds}')
         pour_integrity_checked = False
         pour_integrity_passed = False
         if has_copper_zones:

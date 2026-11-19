@@ -5694,3 +5694,52 @@ fn published_pair_disposition_distinguishes_new_existing_and_single_ended_copper
     assert_eq!(plain.status, Status::Complete);
     assert!(plain.diff_pairs.is_empty());
 }
+
+#[test]
+fn preconnected_pair_must_meet_the_requested_skew_without_changing_input_tracks() {
+    let mut board = base_diff_input(&["D_P", "D_N"]);
+    let lines = [
+        (1, [10_000_000, 10_000_000], [40_000_000, 10_000_000]),
+        (2, [10_000_000, 11_500_000], [20_000_000, 11_500_000]),
+        (2, [20_000_000, 11_500_000], [20_000_000, 12_500_000]),
+        (2, [20_000_000, 12_500_000], [35_000_000, 12_500_000]),
+        (2, [35_000_000, 12_500_000], [35_000_000, 11_500_000]),
+        (2, [35_000_000, 11_500_000], [40_000_000, 11_500_000]),
+    ];
+    for (i, (net, start, end)) in lines.into_iter().enumerate() {
+        board.tracks.push(Track {
+            id: uuid(300 + i as u64),
+            net,
+            start,
+            end,
+            width_nm: 250_000,
+            locked: true,
+            layer: "F.Cu".into(),
+        });
+    }
+    for (limit, expected) in [
+        (2_000_000, Status::Complete),
+        (1_999_999, Status::Unroutable),
+    ] {
+        board.routing_options = Some(RoutingOptions {
+            diff_pairs_mode: Some(DiffPairsMode::Auto),
+            protect_mode: Some(ProtectMode::Existing),
+            intra_match: true,
+            length_match_tolerance_nm: Some(limit),
+            ..Default::default()
+        });
+        let out = kicad_route_engine::run(board.clone());
+        assert_eq!(out.status, expected, "{:?}", out.reason);
+        assert!(
+            out.added_tracks.is_empty()
+                && out.added_vias.is_empty()
+                && out.removed_track_ids.is_empty()
+        );
+        if expected == Status::Unroutable {
+            assert!(out
+                .reason
+                .unwrap()
+                .contains("skew 2000000 nm exceeds tolerance 1999999 nm"));
+        }
+    }
+}
