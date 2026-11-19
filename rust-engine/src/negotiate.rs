@@ -1036,23 +1036,22 @@ fn analyze_blockers_with_lookup(
                             continue;
                         }
                         engine.charge_work(1)?;
-                        let copper_clr = rules.pair_clearance(
-                            primary_net,
-                            DruItemKind::Track,
-                            via.net,
-                            DruItemKind::Via,
+                        let s_idx = engine.layer_index(&via.start_layer).unwrap_or(0);
+                        let e_idx = engine.layer_index(&via.end_layer).unwrap_or(s_idx);
+                        let via_layers = &stackup[s_idx.min(e_idx)..=s_idx.max(e_idx)];
+                        let copper_clr = rules.pair_clearance_on_layer(
+                            (primary_net, DruItemKind::Track, layer_slice),
+                            (via.net, DruItemKind::Via, via_layers),
                             layer_name,
                             None,
                         );
-                        let s_idx = engine.layer_index(&via.start_layer).unwrap_or(0);
-                        let e_idx = engine.layer_index(&via.end_layer).unwrap_or(s_idx);
                         let hole_clr = rules.pair_hole_clearance(
                             primary_net,
                             DruItemKind::Track,
                             layer_slice,
                             via.net,
                             DruItemKind::Via,
-                            &stackup[s_idx.min(e_idx)..=s_idx.max(e_idx)],
+                            via_layers,
                         );
                         let hit = geometry::point_near_segment(
                             via.at,
@@ -1111,11 +1110,9 @@ fn analyze_blockers_with_lookup(
                             continue;
                         }
                         engine.charge_work(1)?;
-                        let clr = rules.pair_clearance(
-                            primary_net,
-                            DruItemKind::Via,
-                            other_net,
-                            DruItemKind::Track,
+                        let clr = rules.pair_clearance_on_layer(
+                            (primary_net, DruItemKind::Via, span_layers),
+                            (other_net, DruItemKind::Track, layer_slice),
                             layer_name,
                             None,
                         );
@@ -1187,11 +1184,9 @@ fn analyze_blockers_with_lookup(
                     if !hit {
                         for l_idx in s_lo..=s_hi {
                             if (*v_mask & (1u32 << l_idx)) != 0 {
-                                let clr = rules.pair_clearance(
-                                    primary_net,
-                                    DruItemKind::Via,
-                                    via.net,
-                                    DruItemKind::Via,
+                                let clr = rules.pair_clearance_on_layer(
+                                    (primary_net, DruItemKind::Via, span_layers),
+                                    (via.net, DruItemKind::Via, ev_layers),
                                     &stackup[l_idx],
                                     None,
                                 );

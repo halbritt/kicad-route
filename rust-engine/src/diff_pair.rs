@@ -3085,11 +3085,12 @@ fn legal_edge_with_width(
                 }
                 return Ok(ControlFlow::Continue(()));
             }
-            let copper_clr = engine.effective_rules.pair_clearance(
-                net,
-                DruItemKind::Track,
-                via.net,
-                DruItemKind::Via,
+            let s_idx = engine.layer_index(&via.start_layer).unwrap_or(0);
+            let e_idx = engine.layer_index(&via.end_layer).unwrap_or(s_idx);
+            let via_layers = &engine.layer_names[s_idx.min(e_idx)..=s_idx.max(e_idx)];
+            let copper_clr = engine.effective_rules.pair_clearance_on_layer(
+                (net, DruItemKind::Track, layer_slice),
+                (via.net, DruItemKind::Via, via_layers),
                 layer_name,
                 None,
             );
@@ -4205,14 +4206,25 @@ fn coupled_via_pair_check(
         };
     let s_track = pair.width_nm + pair.gap_nm;
     let via_diam = v_diam_p.max(v_diam_n);
-    let via_clr = engine.effective_rules.pair_clearance(
-        pair.pos_net,
-        DruItemKind::Via,
-        pair.neg_net,
-        DruItemKind::Via,
-        engine.layer_name(from_layer),
-        None,
-    );
+    // The two vias share every copper layer in their span. Any one of those
+    // layers can impose the controlling clearance.
+    let clearance_layers = if engine.effective_rules.dru_rules.is_empty() {
+        &span_layers[..1]
+    } else {
+        &span_layers
+    };
+    let via_clr = clearance_layers
+        .iter()
+        .map(|layer| {
+            engine.effective_rules.pair_clearance_on_layer(
+                (pair.pos_net, DruItemKind::Via, &span_layers),
+                (pair.neg_net, DruItemKind::Via, &span_layers),
+                layer,
+                None,
+            )
+        })
+        .max()
+        .unwrap_or(0);
     let via_sep = (via_diam + pair.via_gap_nm.max(via_clr)).max(s_track);
     let half_via = 0.5 * (via_sep as f64);
     let left = (-dir.1, dir.0);
@@ -5213,11 +5225,13 @@ fn validate_and_build_coupled_solution(
             if li < s_idx.min(e_idx) || li > s_idx.max(e_idx) {
                 continue;
             }
-            let copper_clr = engine.effective_rules.pair_clearance(
-                tr.net,
-                DruItemKind::Track,
-                v.net,
-                DruItemKind::Via,
+            let copper_clr = engine.effective_rules.pair_clearance_on_layer(
+                (tr.net, DruItemKind::Track, layer_slice),
+                (
+                    v.net,
+                    DruItemKind::Via,
+                    &engine.layer_names[s_idx.min(e_idx)..=s_idx.max(e_idx)],
+                ),
                 &tr.layer,
                 None,
             );

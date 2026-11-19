@@ -4359,8 +4359,8 @@ fn build_probe1b_4l_blind_buried_input(with_victim: bool) -> Input {
     .to_string();
     let custom_rules = "\
 (version 1)
-(rule \"no_0_1\" (condition \"!(A.Layer == 'In2.Cu')\") (constraint disallow via))
-(rule \"no_1_2\" (condition \"!(A.Layer == 'F.Cu')\") (constraint disallow via))
+(rule \"no_0_1\" (condition \"!A.existsOnLayer('In2.Cu')\") (constraint disallow via))
+(rule \"no_1_2\" (condition \"!A.existsOnLayer('F.Cu')\") (constraint disallow via))
 ";
 
     Input {

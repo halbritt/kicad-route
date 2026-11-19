@@ -140,7 +140,7 @@ fn json_nonneg_rounded_i64_field(
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct BoardDesignSettings {
-    /// Native display names keyed by the canonical copper layer in the input stack.
+    /// Native display names for active copper layers and the two solder-mask layers.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub layer_aliases: BTreeMap<String, String>,
     pub min_track_width_nm: i64,
@@ -1571,19 +1571,29 @@ pub enum DruExpr {
 }
 
 impl DruExpr {
-    fn resolve_layers(&mut self, layers: &[String], aliases: &BTreeMap<String, String>) {
+    fn resolve_layers(
+        &mut self,
+        layers: &[String],
+        aliases: &BTreeMap<String, String>,
+        known_via: [bool; 2],
+    ) -> Result<(), Failure> {
         match self {
-            Self::Not(expr) => expr.resolve_layers(layers, aliases),
+            Self::Not(expr) => expr.resolve_layers(layers, aliases, known_via)?,
             Self::And(a, b) | Self::Or(a, b) => {
-                a.resolve_layers(layers, aliases);
-                b.resolve_layers(layers, aliases);
+                a.resolve_layers(layers, aliases, known_via)?;
+                b.resolve_layers(layers, aliases, known_via)?;
             }
-            Self::ExistsOnLayer { layer, .. } => layer.resolve(layers, aliases),
+            Self::ExistsOnLayer { side, layer } => {
+                if !known_via[*side as usize] {
+                    layer.require_copper_membership(aliases)?;
+                }
+                layer.resolve(layers, aliases);
+            }
             Self::Eq(a, b) | Self::Ne(a, b) => {
                 let lit = match (a, b) {
                     (DruValueExpr::Prop(_, DruProp::Layer), lit)
                     | (lit, DruValueExpr::Prop(_, DruProp::Layer)) => lit,
-                    _ => return,
+                    _ => return Ok(()),
                 };
                 if let DruValueExpr::StrLit(pattern) = lit {
                     *lit =
@@ -1591,6 +1601,53 @@ impl DruExpr {
                 }
             }
             _ => {}
+        }
+        Ok(())
+    }
+
+    // Restrict mask-membership evaluation to supported (tented) vias when the
+    // condition itself requires that item type, including in paired rules.
+    fn requires_via(&self, side: Side, when_true: bool) -> bool {
+        match self {
+            Self::Eq(a, b) | Self::Ne(a, b) if matches!(self, Self::Eq(_, _)) == when_true => {
+                match (a, b) {
+                    (DruValueExpr::Prop(s, DruProp::Type), DruValueExpr::StrLit(name))
+                    | (DruValueExpr::StrLit(name), DruValueExpr::Prop(s, DruProp::Type)) => {
+                        *s == side && name == "Via"
+                    }
+                    _ => false,
+                }
+            }
+            Self::Not(x) => x.requires_via(side, !when_true),
+            Self::And(a, b) | Self::Or(a, b) => {
+                if matches!(self, Self::And(_, _)) == when_true {
+                    a.requires_via(side, when_true) || b.requires_via(side, when_true)
+                } else {
+                    a.requires_via(side, when_true) && b.requires_via(side, when_true)
+                }
+            }
+            _ => false,
+        }
+    }
+
+    fn uses_layer(&self) -> bool {
+        match self {
+            Self::ExistsOnLayer { .. } => true,
+            Self::Eq(a, b) | Self::Ne(a, b) => [a, b]
+                .iter()
+                .any(|v| matches!(v, DruValueExpr::Prop(_, DruProp::Layer))),
+            Self::Not(x) => x.uses_layer(),
+            Self::And(x, y) | Self::Or(x, y) => x.uses_layer() || y.uses_layer(),
+            _ => false,
+        }
+    }
+
+    fn tests_span(&self) -> bool {
+        match self {
+            Self::ExistsOnLayer { .. } => true,
+            Self::Not(x) => x.tests_span(),
+            Self::And(x, y) | Self::Or(x, y) => x.tests_span() || y.tests_span(),
+            _ => false,
         }
     }
 
@@ -1714,6 +1771,30 @@ impl LayerSelector {
             }
             Self::Layers(names) => names.iter().any(|name| name == layer),
         }
+    }
+
+    fn require_copper_membership(&self, aliases: &BTreeMap<String, String>) -> Result<(), Failure> {
+        let pattern = match self {
+            Self::NameOrGroup(group) if matches!(group.as_str(), "inner" | "outer") => {
+                return Ok(())
+            }
+            Self::NameOrGroup(pattern) | Self::Pattern { pattern } => pattern,
+            Self::Layers(_) => return Ok(()),
+        };
+        let matches = |layer: &str| {
+            layer_pattern_matches(pattern, layer)
+                || aliases
+                    .get(layer)
+                    .is_some_and(|alias| layer_pattern_matches(pattern, alias))
+        };
+        for (copper, mask) in [("F.Cu", "F.Mask"), ("B.Cu", "B.Mask")] {
+            if matches(mask) && !matches(copper) {
+                return Err(Failure::new(Status::Unsupported, format!(
+                    "layer selector '{pattern}' depends on {mask} membership; the router does not model per-item mask openings"
+                )));
+            }
+        }
+        Ok(())
     }
 
     fn resolve(&mut self, layers: &[String], aliases: &BTreeMap<String, String>) {
@@ -2767,8 +2848,18 @@ pub fn eval_dru_expr_for_context(
             eval_dru_expr_for_context(x, a, b, in_diff_pair_stem, fromto_tokens)
                 || eval_dru_expr_for_context(y, a, b, in_diff_pair_stem, fromto_tokens)
         }
-        DruExpr::Eq(l, r) => eval_value_eq(l, r, a, b),
-        DruExpr::Ne(l, r) => !eval_value_eq(l, r, a, b),
+        DruExpr::Eq(l, r) | DruExpr::Ne(l, r) => {
+            // KiCad masks the inherited Layer property on vias. Both comparison
+            // operators return false for undefined values; boolean ! still negates.
+            let undefined_layer = [l, r].iter().any(|v| match v {
+                DruValueExpr::Prop(Side::A, DruProp::Layer) => a.kind == DruItemKind::Via,
+                DruValueExpr::Prop(Side::B, DruProp::Layer) => {
+                    b.is_some_and(|i| i.kind == DruItemKind::Via)
+                }
+                _ => false,
+            });
+            !undefined_layer && (eval_value_eq(l, r, a, b) == matches!(expr, DruExpr::Eq(_, _)))
+        }
         DruExpr::SameNet => b.is_some_and(|ib| a.net_id == ib.net_id),
         DruExpr::ExistsOnLayer { side, layer } => {
             let it = match side {
@@ -3296,6 +3387,23 @@ impl EffectiveRules {
         layer: &str,
         local_clearance_nm: Option<i64>,
     ) -> i64 {
+        self.pair_clearance_on_layer(
+            (net_a, kind_a, &[]),
+            (net_b, kind_b, &[]),
+            layer,
+            local_clearance_nm,
+        )
+    }
+
+    /// The comparison layer filters the rule. existsOnLayer uses each item's
+    /// physical span, which can also include layers away from the encounter.
+    pub fn pair_clearance_on_layer(
+        &self,
+        (net_a, kind_a, span_a): (u32, DruItemKind, &[String]),
+        (net_b, kind_b, span_b): (u32, DruItemKind, &[String]),
+        layer: &str,
+        local_clearance_nm: Option<i64>,
+    ) -> i64 {
         let na = self.net(net_a);
         let nb = self.net(net_b);
         let mut clr = na
@@ -3307,8 +3415,16 @@ impl EffectiveRules {
         }
         if !self.dru_rules.is_empty() {
             let layers = [layer.to_owned()];
-            let ia = self.make_item(net_a, kind_a, &layers);
-            let ib = self.make_item(net_b, kind_b, &layers);
+            let ia = self.make_item(
+                net_a,
+                kind_a,
+                if span_a.is_empty() { &layers } else { span_a },
+            );
+            let ib = self.make_item(
+                net_b,
+                kind_b,
+                if span_b.is_empty() { &layers } else { span_b },
+            );
             for rule in &self.dru_rules {
                 if rule.severity == DruSeverity::Ignore {
                     continue;
@@ -3324,7 +3440,13 @@ impl EffectiveRules {
                 let matched = match &rule.condition {
                     None => true,
                     Some(cond) => {
-                        eval_dru_expr(cond, &ia, Some(&ib)) || eval_dru_expr(cond, &ib, Some(&ia))
+                        // Legacy callers may supply just the encounter layer for a via.
+                        // A missing span must never drop a possibly applicable clearance.
+                        let unknown_via = (kind_a == DruItemKind::Via && span_a.is_empty())
+                            || (kind_b == DruItemKind::Via && span_b.is_empty());
+                        (unknown_via && cond.tests_span())
+                            || eval_dru_expr(cond, &ia, Some(&ib))
+                            || eval_dru_expr(cond, &ib, Some(&ia))
                     }
                 };
                 if matched {
@@ -3479,7 +3601,15 @@ impl EffectiveRules {
                     continue;
                 }
                 if let Some(l) = &rule.layer {
-                    if !span_layers.iter().any(|il| l.matches(il)) {
+                    // Native tests uniform via width and annulus on the one
+                    // padstack geometry entry, ALL_LAYERS (F.Cu), for every via type.
+                    let matches = match rule.constraint {
+                        DruConstraint::ViaDiameter { .. } | DruConstraint::AnnularWidth { .. } => {
+                            l.matches("F.Cu")
+                        }
+                        _ => span_layers.iter().any(|il| l.matches(il)),
+                    };
+                    if !matches {
                         continue;
                     }
                 }
@@ -3683,6 +3813,56 @@ fn resolve_net_classes<'a>(
     (class_name, members, primary)
 }
 
+fn resolve_rule_layers(
+    rules: &mut [DruRule],
+    layers: &[String],
+    aliases: &BTreeMap<String, String>,
+) -> Result<(), Failure> {
+    for rule in rules {
+        if rule.severity == DruSeverity::Ignore {
+            continue;
+        }
+        if matches!(rule.constraint, DruConstraint::ViaCount { .. })
+            && (rule.layer.is_some() || rule.condition.as_ref().is_some_and(DruExpr::uses_layer))
+        {
+            return Err(Failure::new(
+                Status::Unsupported,
+                "layer-dependent via_count is unsupported; the router counts vias per net",
+            ));
+        }
+        if let Some(layer) = &mut rule.layer {
+            if matches!(rule.constraint, DruConstraint::Disallow { track: true, .. })
+                && !rule
+                    .condition
+                    .as_ref()
+                    .is_some_and(|c| c.requires_via(Side::A, true))
+            {
+                layer.require_copper_membership(aliases)?;
+            }
+            layer.resolve(layers, aliases);
+        }
+        if let Some(condition) = &mut rule.condition {
+            let only_via = matches!(
+                rule.constraint,
+                DruConstraint::ViaDiameter { .. }
+                    | DruConstraint::ViaDrill { .. }
+                    | DruConstraint::AnnularWidth { .. }
+                    | DruConstraint::ViaCount { .. }
+                    | DruConstraint::Disallow {
+                        via: true,
+                        track: false
+                    }
+            );
+            let known_via = [
+                only_via || condition.requires_via(Side::A, true),
+                condition.requires_via(Side::B, true),
+            ];
+            condition.resolve_layers(layers, aliases, known_via)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Failure> {
     if input.project_rules.is_none()
         && input.custom_rules.is_none()
@@ -3707,7 +3887,9 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
                         .max(0),
                 };
             }
-            return Ok(eff.clone());
+            let mut eff = eff.clone();
+            resolve_rule_layers(&mut eff.dru_rules, &input.active_layers(), &BTreeMap::new())?;
+            return Ok(eff);
         }
         if !input.rules.is_omitted() {
             return Ok(EffectiveRules::from_uniform_rules(input.rules, &input.nets));
@@ -3746,23 +3928,16 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         .board_design_settings
         .as_ref()
         .map_or(&empty_aliases, |settings| &settings.layer_aliases);
-    if aliases
-        .iter()
-        .any(|(layer, name)| !layers_ref.contains(layer) || name.is_empty())
-    {
+    if aliases.iter().any(|(layer, name)| {
+        (!layers_ref.contains(layer) && !matches!(layer.as_str(), "F.Mask" | "B.Mask"))
+            || name.is_empty()
+    }) {
         return Err(Failure::new(
             Status::Invalid,
-            "layer_aliases must map an active copper layer to a nonempty display name",
+            "layer_aliases must map an active copper or outer solder-mask layer to a nonempty display name",
         ));
     }
-    for rule in &mut dru_rules {
-        if let Some(layer) = &mut rule.layer {
-            layer.resolve(&layers_ref, aliases);
-        }
-        if let Some(condition) = &mut rule.condition {
-            condition.resolve_layers(&layers_ref, aliases);
-        }
-    }
+    resolve_rule_layers(&mut dru_rules, &layers_ref, aliases)?;
     if let Some(bds) = &input.board_design_settings {
         let fields = [
             bds.min_track_width_nm,
@@ -3934,6 +4109,17 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         });
     }
 
+    // Only board-wide conditions can set the shared per-net minima. The
+    // remaining rules are evaluated for each physical track or via.
+    let net_wide_rules: Vec<_> = dru_rules
+        .iter()
+        .filter(|rule| {
+            rule.severity != DruSeverity::Ignore
+                && rule.layer.is_none()
+                && !rule.condition.as_ref().is_some_and(DruExpr::uses_layer)
+        })
+        .collect();
+
     for net in all_nets {
         let (class_name, class_members, cls_opt) = match &pro {
             Some(p) => resolve_net_classes(&net.name, p),
@@ -4053,42 +4239,34 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
             kind: DruItemKind::Via,
             layers: &layers_ref,
         };
-        for rule in &dru_rules {
-            if rule.severity == DruSeverity::Ignore {
-                continue;
-            }
+        for rule in &net_wide_rules {
             let matches_for = |it: &DruItem<'_>| -> bool {
-                if let Some(l) = &rule.layer {
-                    if !it.layers.iter().any(|il| l.matches(il)) {
-                        return false;
-                    }
-                }
                 rule.condition
                     .as_ref()
                     .is_none_or(|c| eval_dru_expr(c, it, None))
             };
             match rule.constraint {
-                DruConstraint::TrackWidth { min_nm, .. } if rule.layer.is_none() => {
+                DruConstraint::TrackWidth { min_nm, .. } => {
                     if matches_for(&item_track) {
                         width_nm = width_nm.max(min_nm);
                     }
                 }
-                DruConstraint::ViaDiameter { min_nm, .. } if rule.layer.is_none() => {
+                DruConstraint::ViaDiameter { min_nm, .. } => {
                     if matches_for(&item_via) {
                         via_diameter_nm = via_diameter_nm.max(min_nm);
                     }
                 }
-                DruConstraint::ViaDrill { min_nm, .. } if rule.layer.is_none() => {
+                DruConstraint::ViaDrill { min_nm, .. } => {
                     if matches_for(&item_via) {
                         via_drill_nm = via_drill_nm.max(min_nm);
                     }
                 }
-                DruConstraint::AnnularWidth { min_nm } if rule.layer.is_none() => {
+                DruConstraint::AnnularWidth { min_nm } => {
                     if matches_for(&item_via) {
                         annular_width_nm = annular_width_nm.max(min_nm);
                     }
                 }
-                DruConstraint::EdgeClearance { min_nm } if rule.layer.is_none() => {
+                DruConstraint::EdgeClearance { min_nm } => {
                     if matches_for(&item_track) {
                         edge_clearance_nm = edge_clearance_nm.max(min_nm);
                     }
@@ -4377,11 +4555,16 @@ mod tests {
     }
 
     fn alias_probe(aliases: serde_json::Value, selector: &str) -> Result<EffectiveRules, Failure> {
-        let mut input: Input = serde_json::from_value(serde_json::json!({
+        let mut input = layer_probe_input(aliases, selector, "clearance (min 0.6mm)");
+        resolve_effective_rules(&mut input)
+    }
+
+    fn layer_probe_input(aliases: serde_json::Value, selector: &str, constraint: &str) -> Input {
+        serde_json::from_value(serde_json::json!({
             "version": 1,
             "source_id": "a".repeat(64),
             "layer": "F.Cu",
-            "layers": ["F.Cu", "In1.Cu", "B.Cu"],
+            "layers": ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"],
             "bounds": {"min": [0, 0], "max": [10_000_000, 10_000_000]},
             "nets": [{"id":0, "name":""}, {"id":1, "name":"top_copper"}, {"id":2, "name":"B"}],
             "pads": [],
@@ -4390,13 +4573,14 @@ mod tests {
             "board_design_settings": {
                 "layer_aliases": aliases,
                 "default_clearance_nm": 150_000,
-                "default_track_width_nm": 200_000
+                "default_track_width_nm": 200_000,
+                "default_microvia_diameter_nm": 600_000,
+                "default_microvia_drill_nm": 300_000
             },
             "custom_rules": format!(r#"(version 1)
-                (rule "witness" {selector} (constraint clearance (min 0.6mm)))"#)
+                (rule "witness" {selector} (constraint {constraint}))"#)
         }))
-        .unwrap();
-        resolve_effective_rules(&mut input)
+        .unwrap()
     }
 
     fn check_layer_clearances(aliases: &serde_json::Value, selector: &str, expected: [i64; 3]) {
@@ -4470,10 +4654,137 @@ mod tests {
     }
 
     #[test]
+    fn native_via_layer_property_span_and_padstack_rules() {
+        let aliases = serde_json::json!({"F.Cu":"top", "B.Cu":"bottom"});
+        let stack = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"].map(String::from);
+        let spans = [
+            &stack[..],
+            &stack[..2],
+            &stack[1..3],
+            &stack[2..],
+            &stack[..2],
+        ];
+        let all = [true; 5];
+        let none = [false; 5];
+        let top = [true, true, false, false, true];
+        let bottom = [true, false, false, true, false];
+        for (selector, sizes, disallowed) in [
+            (r#"(layer "top")"#, all, top),
+            (r#"(layer "bottom")"#, none, bottom),
+            (r#"(condition "A.Type == 'Via'")"#, all, all),
+            (r#"(condition "A.Layer == 'top'")"#, none, none),
+            (r#"(condition "A.Layer != 'top'")"#, none, none),
+            (r#"(condition "!(A.Layer == 'top')")"#, all, all),
+            (r#"(condition "!(A.Layer != 'top')")"#, all, all),
+            (r#"(condition "A.existsOnLayer('top')")"#, top, top),
+            (r#"(condition "A.existsOnLayer('bottom')")"#, bottom, bottom),
+            (r#"(condition "A.Layer == A.Layer")"#, none, none),
+        ] {
+            let mut input =
+                layer_probe_input(aliases.clone(), selector, "via_diameter (min 1.0mm)");
+            let diameter = resolve_effective_rules(&mut input).unwrap();
+            let mut input =
+                layer_probe_input(aliases.clone(), selector, "annular_width (min 0.35mm)");
+            let annulus = resolve_effective_rules(&mut input).unwrap();
+            let mut input = layer_probe_input(aliases.clone(), selector, "disallow via");
+            let disallow = resolve_effective_rules(&mut input).unwrap();
+            for (index, span) in spans.iter().enumerate() {
+                let expected = if sizes[index] { 1_000_000 } else { 600_000 };
+                for rules in [&diameter, &annulus] {
+                    assert_eq!(
+                        rules.via_dims_for(1, index == 4, span).unwrap().0,
+                        expected,
+                        "{selector}, {span:?}"
+                    );
+                }
+                assert_eq!(
+                    disallow.disallow_via_on(1, span),
+                    disallowed[index],
+                    "{selector}, {span:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn copper_clearance_uses_via_span_on_encounter_layer() {
+        use crate::{Engine, Via, ViaKind};
+        let aliases = serde_json::json!({"F.Cu":"top", "B.Cu":"bottom"});
+        let selector =
+            r#"(layer "bottom") (condition "A.Type == 'Via' && A.existsOnLayer('top')")"#;
+        let mut input = layer_probe_input(aliases, selector, "clearance (min 0.6mm)");
+        let mut via = Via {
+            id: "0f422dfe-1ecc-4bf8-8624-b6a9175d1af7".into(),
+            net: 1,
+            at: [5_000_000, 5_000_000],
+            diameter_nm: 600_000,
+            drill_nm: 300_000,
+            start_layer: "F.Cu".into(),
+            end_layer: "B.Cu".into(),
+            kind: ViaKind::Through,
+            locked: true,
+        };
+        for (kind, start, legal) in [
+            (ViaKind::Through, "F.Cu", false),
+            (ViaKind::BlindBuried, "In2.Cu", true),
+        ] {
+            via.kind = kind;
+            via.start_layer = start.into();
+            input.vias = vec![via.clone()];
+            let engine = Engine::new(input.clone()).unwrap();
+            assert_eq!(
+                engine
+                    .legal_edge_on_layer(2, "B.Cu", [4_000_000, 5_700_000], [6_000_000, 5_700_000])
+                    .unwrap(),
+                legal
+            );
+        }
+    }
+
+    #[test]
+    fn mask_membership_requires_per_item_solder_openings() {
+        let aliases = serde_json::json!({"F.Mask":"solder_front"});
+        for pattern in ["F.Mask", "*.Mask", "solder_front"] {
+            let expr = format!(r#"(condition "A.existsOnLayer('{pattern}')")"#);
+            let error = alias_probe(aliases.clone(), &expr).unwrap_err();
+            assert_eq!(error.status, Status::Unsupported, "{pattern}");
+            let clause = format!(r#"(layer "{pattern}")"#);
+            let mut input = layer_probe_input(aliases.clone(), &clause, "disallow via");
+            let eff = resolve_effective_rules(&mut input).unwrap();
+            let span = ["F.Cu".into(), "B.Cu".into()];
+            assert!(!eff.disallow_via_on(1, &span));
+            let mut input = layer_probe_input(aliases.clone(), &clause, "disallow track");
+            assert_eq!(
+                resolve_effective_rules(&mut input).unwrap_err().status,
+                Status::Unsupported
+            );
+            let expr = format!(r#"(condition "A.Type == 'Via' && !A.existsOnLayer('{pattern}')")"#);
+            let eff = alias_probe(aliases.clone(), &expr).unwrap();
+            assert_eq!(
+                eff.pair_clearance_on_layer(
+                    (1, DruItemKind::Via, &span),
+                    (2, DruItemKind::Track, &span[1..]),
+                    "B.Cu",
+                    None
+                ),
+                600_000
+            );
+        }
+        let mut input =
+            layer_probe_input(aliases.clone(), r#"(layer "F.Cu")"#, "via_count (max 2)");
+        assert_eq!(
+            resolve_effective_rules(&mut input).unwrap_err().status,
+            Status::Unsupported
+        );
+        let expr = r#"(condition "A.existsOnLayer('F.*')")"#;
+        check_layer_clearances(&aliases, expr, [600_000, 150_000, 150_000]);
+    }
+
+    #[test]
     fn reject_invalid_layer_alias_map() {
         for aliases in [
             serde_json::json!({"F.Cu":""}),
-            serde_json::json!({"In2.Cu":"power"}),
+            serde_json::json!({"In3.Cu":"power"}),
         ] {
             assert_eq!(
                 alias_probe(aliases, "").unwrap_err().status,
