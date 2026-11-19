@@ -902,6 +902,9 @@ pub enum Status {
 }
 #[derive(Debug, Serialize)]
 pub struct Output {
+    /// Groups of single-ended net IDs, in physical lane order, used by this solve.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub bus_groups: Vec<Vec<u32>>,
     pub version: u32,
     pub request_sha256: Option<String>,
     pub source_id: String,

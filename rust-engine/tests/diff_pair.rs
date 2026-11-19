@@ -1411,6 +1411,7 @@ fn optional_external_fixture_roundtrip_hook() {
     let tracks: Vec<Track> = eng.copper().generated().cloned().collect();
     let vias: Vec<Via> = eng.copper().generated_vias().cloned().collect();
     let out = Output {
+        bus_groups: Vec::new(),
         version: RESULT_VERSION,
         request_sha256: req_sha,
         source_id,

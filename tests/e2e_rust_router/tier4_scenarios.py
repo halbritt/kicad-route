@@ -1285,8 +1285,11 @@ def t4_07(ctx: DriverContext) -> dict[str, Any]:
         out_pcb.parent.mkdir(parents=True, exist_ok=True)
 
         extra_args: list[str] | None = None
-        if name == "bus_routing" and "--bus" in probe.help_stdout:
-            extra_args = ["--bus", "--bus-detection-radius", "20", "--bus-min-nets", "3"]
+        if name == "bus_routing":
+            extra_args = [
+                "--bus", "--bus-detection-radius", "20", "--bus-min-nets", "3",
+                "--operation-result", str(out_pcb.with_suffix(".operation.json")),
+            ]
         elif name == "ac_matching":
             extra_args = ["--diff-pairs", "auto", "--pair-layers", "F.Cu"]
             if "--ac-couple-chain-json" in probe.help_stdout:
@@ -1326,6 +1329,13 @@ def t4_07(ctx: DriverContext) -> dict[str, Any]:
                         f"route_demo Power via below class size: {t.GetNetname()} {t.GetWidth(t.TopLayer())}/{t.GetDrill()}"
                     )
         elif name == "bus_routing":
+            operation = json.loads(out_pcb.with_suffix(".operation.json").read_bytes())
+            request = json.loads(operation["request"]["request_json"])
+            names = {net["id"]: net["name"] for net in request["nets"]}
+            groups = [[names[net] for net in group] for group in operation["routing"]["bus_groups"]]
+            lanes = [f"D{i}" for i in range(8)]
+            assert groups in ([lanes], [lanes[::-1]]), f"unexpected geometric bus membership: {groups}"
+            extra_info["bus_groups"] = groups
             conn = read_native_connectivity(out_pcb)
             for net_name in ("AUX", *(f"D{i}" for i in range(8))):
                 parts = conn.pad_partitions_by_net.get(net_name, [])

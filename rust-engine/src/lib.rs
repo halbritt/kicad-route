@@ -3481,6 +3481,7 @@ pub(crate) fn scoped_routing_failure(mut e: Failure, net: u32) -> Failure {
 impl Output {
     pub fn failure(source_id: String, e: Failure) -> Self {
         Self {
+            bus_groups: Vec::new(),
             version: RESULT_VERSION,
             request_sha256: None,
             source_id,
@@ -3510,6 +3511,7 @@ fn run_unidentified(input: Input, control: Option<budget::RouteControl>) -> Outp
     };
     match engine.route_all() {
         Ok(expanded) => Output {
+            bus_groups: engine.bus_groups(),
             version: RESULT_VERSION,
             request_sha256: None,
             source_id: source,
