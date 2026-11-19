@@ -807,6 +807,8 @@ impl BusOptions {
 #[serde(default, deny_unknown_fields)]
 pub struct RoutingOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grid_step_nm: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bus: Option<BusOptions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diff_pairs_mode: Option<DiffPairsMode>,
@@ -980,12 +982,19 @@ impl Input {
         compound_work: &crate::budget::WorkBudget,
     ) -> Result<(), Failure> {
         self.limits.validate()?;
-        if let Some(bus) = self
-            .routing_options
-            .as_ref()
-            .and_then(|options| options.bus)
-        {
-            bus.validate()?;
+        if let Some(options) = &self.routing_options {
+            if options
+                .grid_step_nm
+                .is_some_and(|grid| !(1..=MAX_NM).contains(&grid))
+            {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "grid_step_nm is outside the supported routing grid range",
+                ));
+            }
+            if let Some(bus) = options.bus {
+                bus.validate()?;
+            }
         }
         if self.item_count() > self.limits.max_items {
             return Err(Failure::new(

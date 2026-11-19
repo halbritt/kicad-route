@@ -401,6 +401,13 @@ impl Engine {
         let effective_rules = rules::resolve_effective_rules(&mut input)?;
         let work = budget::WorkBudget::with_control(input.limits, control);
         input.validate_with_work(&work)?;
+        if let Some(grid) = input
+            .routing_options
+            .as_ref()
+            .and_then(|opts| opts.grid_step_nm)
+        {
+            input.rules.grid_nm = grid;
+        }
         work.carry_setup_into_first_scope();
         let layer_names = input.active_layers();
         let layer_count = layer_names.len();

@@ -2384,7 +2384,14 @@ fn execute_staged_phases(
     }
     let mut current_plan = staged_plan;
     let refill_file = staging_dir.join("refilled-copper.json");
-    let mut request_refill = input_has_zones && !has_custom_routing_options;
+    // A lattice or bus preference changes the search, not which nets may be repaired.
+    let mut request_refill = input_has_zones
+        && config.routing_options
+            == crate::model::RoutingOptions {
+                grid_step_nm: config.routing_options.grid_step_nm,
+                bus: config.routing_options.bus,
+                ..Default::default()
+            };
     let (apply_outcome, t_apply) = loop {
         let t_apply = Instant::now();
         let mut apply_args: Vec<OsString> = vec![
@@ -2755,7 +2762,7 @@ fn execute_staged_phases(
     Ok(())
 }
 
-const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--ac-couple-chain-json <JSON>] [--ac-match-tolerance <MM>] [--ac-meander-amplitude <MM>] [--bus] [--bus-detection-radius <MM>] [--bus-attraction-radius <MM>] [--bus-attraction-bonus <N>] [--bus-min-nets <N>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
+const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--grid-step <MM>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--ac-couple-chain-json <JSON>] [--ac-match-tolerance <MM>] [--ac-meander-amplitude <MM>] [--bus] [--bus-detection-radius <MM>] [--bus-attraction-radius <MM>] [--bus-attraction-bonus <N>] [--bus-min-nets <N>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
 
 fn take_flag_value(
     args: &[OsString],
@@ -3418,6 +3425,22 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             }
                             routing_options.ac_meander_amplitude_nm = Some(nm);
                             last_variadic_target = None;
+                        }
+                        "--grid-step" => {
+                            if routing_options.grid_step_nm.is_some() {
+                                return Err("duplicate --grid-step flag".into());
+                            }
+                            let value = take_flag_value(args, &mut i, inline, flag)?;
+                            let mm = parse_f64_flag(&value, flag, true)?;
+                            if !(0.000001..=crate::model::MAX_NM as f64 / 1_000_000.0).contains(&mm)
+                            {
+                                return Err(
+                                    "--grid-step must be in the supported range 0.000001..=100 mm"
+                                        .into(),
+                                );
+                            }
+                            routing_options.grid_step_nm =
+                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
                         }
                         "--bus"
                         | "--bus-detection-radius"
@@ -4185,7 +4208,7 @@ elif cmd == "apply":
     }
 
     #[test]
-    fn cli_usage_exposes_only_m4_flags_and_rejects_unimplemented_m5_flags() {
+    fn cli_usage_exposes_supported_routing_options() {
         for flag in [
             "--diff-pairs",
             "--pair-layers",
@@ -4216,6 +4239,38 @@ elif cmd == "apply":
         ] {
             assert!(USAGE_MSG.contains(flag), "missing CLI flag {flag}");
         }
+    }
+
+    #[test]
+    fn explicit_grid_selects_only_the_search_pitch() {
+        let args = |pitch: &str| {
+            vec![
+                "source.kicad_pcb".into(),
+                "out.kicad_pcb".into(),
+                "--grid-step".into(),
+                OsString::from(pitch),
+            ]
+        };
+        for invalid in ["NaN", "0", "-1", "0.0000009", "101"] {
+            assert!(parse_cli_args(&args(invalid)).is_err());
+        }
+        let config = parse_cli_args(&args("0.025")).unwrap();
+        let fixture = include_bytes!("../tests/fixtures/multiterminal-native-two-nets.json");
+        let mut input: Input = serde_json::from_slice(fixture).unwrap();
+        let original = crate::Engine::new(input.clone()).unwrap();
+        input.routing_options = Some(config.routing_options);
+        let selected = crate::Engine::new(input.clone()).unwrap();
+        assert_eq!(selected.input().rules.grid_nm, 25_000);
+        assert_ne!(
+            original.input().rules.grid_nm,
+            selected.input().rules.grid_nm
+        );
+        assert_eq!(
+            serde_json::to_value(original.effective_rules()).unwrap(),
+            serde_json::to_value(selected.effective_rules()).unwrap()
+        );
+        input.rules.grid_nm = 0;
+        assert!(crate::Engine::new(input).is_err());
     }
 
     #[test]
