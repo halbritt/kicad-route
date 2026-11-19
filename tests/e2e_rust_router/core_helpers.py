@@ -856,16 +856,16 @@ def write_consistent_schematic(
         f'\t(paper "A4")\n'
         f'\t(lib_symbols\n'
         + "\n".join(lib_blocks)
-        + f'\n\t)\n'
+        + '\n\t)\n'
         + "\n".join(sym_blocks)
         + "\n"
         + "\n".join(label_blocks)
-        + f'\n\t(sheet_instances\n'
-        f'\t\t(path "/"\n'
-        f'\t\t\t(page "1")\n'
-        f'\t\t)\n'
-        f'\t)\n'
-        f')\n'
+        + '\n\t(sheet_instances\n'
+        '\t\t(path "/"\n'
+        '\t\t\t(page "1")\n'
+        '\t\t)\n'
+        '\t)\n'
+        ')\n'
     )
     sch_path.write_text(sch_text, encoding="utf-8")
     return sch_path

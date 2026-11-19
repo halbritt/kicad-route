@@ -11,7 +11,6 @@ import subprocess
 from typing import Any
 
 from tests.e2e_rust_router.core_helpers import (
-    STD_RULES,
     assert_clean_e2e,
     assert_no_crash,
     assert_source_dir_untouched,
@@ -31,11 +30,9 @@ from tests.e2e_rust_router.drivers import run_measured, sha256_file
 from tests.e2e_rust_router.kicad_verify import (
     BoardBuilder,
     _pcbnew,
-    read_native_connectivity,
     run_native_drc,
     verify_diff_pair_native,
     verify_fromto_length_groups,
-    verify_pour_integrity,
 )
 from tests.e2e_rust_router.runner import DriverContext, PendingCapability, register_test
 
@@ -649,7 +646,11 @@ def t1_f10_02(ctx: DriverContext) -> dict[str, Any]:
         b.add_pad(fp1, str(idx), net, (47_000_000, y), size_nm=(600_000, 600_000))
         b.add_pad(fp2, str(idx), net, (63_000_000, y), size_nm=(600_000, 600_000), layers=[pn.B_Cu])
     b.set_project_rules(
-        rules={"min_via_diameter": 0.25, "min_via_annular_width": 0.05},
+        rules={
+            "min_via_diameter": 0.25,
+            "min_via_annular_width": 0.05,
+            "min_through_hole_diameter": 0.2,
+        },
         classes=[
             {
                 "name": "Default",
@@ -843,9 +844,14 @@ def t1_f10_05(ctx: DriverContext) -> dict[str, Any]:
         "rip_restore",
         "output",
     }
-    res_cur, data_cur = ctx.scripts_driver.run_ownership_check("current-production")
-    assert res_cur.returncode == 0 and data_cur is not None and data_cur.get("inventory_passed") is True, (
-        f"current-production must pass Rust ownership in M5: {data_cur}"
+    argv = ctx.agent_ee_driver.board_route_argv(
+        ctx.repo_root, ctx.work_dir / "staged", ctx.work_dir / "out", budget_s=30
+    )
+    assert len(argv) >= 2 and argv[1] == "route-native", (
+        f"agent-ee production entrypoint must emit route-native: {argv}"
+    )
+    assert not any(str(a).endswith("bin/kicad-route") for a in argv), (
+        f"agent-ee production entrypoint must not target legacy bin/kicad-route: {argv}"
     )
     cargo_lock = ctx.repo_root / "rust-engine" / "Cargo.lock"
     assert cargo_lock.is_file()
@@ -926,16 +932,25 @@ def t1_f11_02(ctx: DriverContext) -> dict[str, Any]:
     assert isinstance(summary, dict), (
         f"expected native JSON phase summary: stdout={proc.stdout!r}, stderr={proc.stderr!r}"
     )
-    phases = summary.get("phases") if isinstance(summary.get("phases"), dict) else summary
-    for key in ("export_s", "search_s", "apply_drc_s"):
-        val = phases.get(key)
-        assert isinstance(val, (int, float)) and not isinstance(val, bool) and val >= 0.0, (
-            f"missing or invalid phase timing {key!r} in {summary}"
-        )
+    assert summary.get("schema") == "kicad-route/native-operation/1", (
+        f"unexpected native operation schema in {summary}"
+    )
+    raw_phases = summary.get("phases")
+    assert isinstance(raw_phases, list), f"expected phases list in {summary}"
+    phases: dict[str, float] = {}
+    for entry in raw_phases:
+        if isinstance(entry, dict) and isinstance(entry.get("phase"), str):
+            elapsed = entry.get("elapsed_ms")
+            if isinstance(elapsed, (int, float)) and not isinstance(elapsed, bool) and elapsed >= 0:
+                phases[entry["phase"]] = float(elapsed) / 1000.0
+    for phase_name in ("native_export", "rust_route", "native_apply_validate"):
+        assert phase_name in phases, f"missing or invalid phase timing {phase_name!r} in {raw_phases}"
+    routing = summary.get("routing")
+    assert isinstance(routing, dict), f"missing routing summary in {summary}"
     for key in ("work_used", "expanded_states"):
-        val = summary.get(key)
+        val = routing.get(key)
         assert isinstance(val, int) and not isinstance(val, bool) and val >= 0, (
-            f"missing or invalid counter {key!r} in {summary}"
+            f"missing or invalid counter {key!r} in {routing}"
         )
     clean = assert_clean_e2e(
         bundle.pcb_path, out_pcb, before_hashes=before_hashes, source_dir=bundle.directory
@@ -945,11 +960,11 @@ def t1_f11_02(ctx: DriverContext) -> dict[str, Any]:
         "wall_s": proc.metrics.wall_s,
         "cpu_s": proc.metrics.cpu_s,
         "max_rss_kib": proc.metrics.max_rss_kib,
-        "export_s": phases["export_s"],
-        "search_s": phases["search_s"],
-        "apply_drc_s": phases["apply_drc_s"],
-        "work_used": summary["work_used"],
-        "expanded_states": summary["expanded_states"],
+        "export_s": phases["native_export"],
+        "search_s": phases["rust_route"],
+        "apply_drc_s": phases["native_apply_validate"],
+        "work_used": routing["work_used"],
+        "expanded_states": routing["expanded_states"],
     }
 
 

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
-from pathlib import Path
 import shutil
 from typing import Any
 
@@ -12,7 +10,6 @@ from tests.e2e_rust_router.core_helpers import (
     STD_RULES,
     assert_clean_e2e,
     assert_no_crash,
-    assert_source_dir_untouched,
     build_crossing_nets_board,
     build_diff_pair_board,
     build_keepout_board,
@@ -31,7 +28,6 @@ from tests.e2e_rust_router.core_helpers import (
 from tests.e2e_rust_router.drivers import sha256_file
 from tests.e2e_rust_router.kicad_verify import (
     BoardBuilder,
-    FixtureBundle,
     _pcbnew,
     find_split_partitions,
     run_native_drc,
@@ -1193,9 +1189,10 @@ def _make_compare_sample(
     name="Equivalent incomplete baseline refused for outcome-fitness",
 )
 def t2_f11_01(ctx: DriverContext) -> dict[str, Any]:
-    inc = lambda: _make_compare_sample(
-        routing_status="INCOMPLETE", unconnected=2, open_nets=["A", "B"]
-    )
+    def inc() -> dict[str, Any]:
+        return _make_compare_sample(
+            routing_status="INCOMPLETE", unconnected=2, open_nets=["A", "B"]
+        )
     payload = {
         "reference": [inc() for _ in range(3)],
         "candidate": [inc() for _ in range(3)],

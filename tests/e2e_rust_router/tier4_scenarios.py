@@ -11,7 +11,6 @@ from typing import Any
 from tests.e2e_rust_router.core_helpers import (
     assert_clean_e2e,
     assert_no_crash,
-    assert_source_dir_untouched,
     assert_source_tree_untouched,
     parse_last_json_line_safe,
     require_m4_capability,
@@ -482,7 +481,7 @@ def t4_02(ctx: DriverContext) -> dict[str, Any]:
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
     mode, res, bh = run_m3_board_or_pending(ctx, bundle, out_pcb, tag="t4_02", timeout_s=120.0)
-    assert (res.returncode == 0 if mode == "native" else res.stage_failed is None), f"T4-02 failed"
+    assert (res.returncode == 0 if mode == "native" else res.stage_failed is None), "T4-02 failed"
     metrics = assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
     drc = run_native_drc(out_pcb, sidecar_source=bundle.pcb_path)
     assert not drc.violations, f"expected 0 DRC violations on T4-02: {drc.violations}"
@@ -636,7 +635,7 @@ def t4_03(ctx: DriverContext) -> dict[str, Any]:
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
     mode, res, bh = run_m3_board_or_pending(ctx, bundle, out_pcb, tag="t4_03", timeout_s=120.0)
-    assert (res.returncode == 0 if mode == "native" else res.stage_failed is None), f"T4-03 failed"
+    assert (res.returncode == 0 if mode == "native" else res.stage_failed is None), "T4-03 failed"
     metrics = assert_clean_e2e(
         bundle.pcb_path,
         out_pcb,

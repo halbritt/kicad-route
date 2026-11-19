@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from tests.e2e_rust_router.core_helpers import (
     STD_RULES,
     assert_clean_e2e,
     assert_no_crash,
-    assert_source_dir_untouched,
     build_input1_json,
     build_std_2pad_board,
     run_m3_board_or_pending,

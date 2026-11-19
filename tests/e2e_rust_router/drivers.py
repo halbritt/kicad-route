@@ -25,6 +25,14 @@ def sha256_file(path: Path) -> str:
 
 
 def parse_last_json_line(text: str) -> dict[str, Any] | None:
+    stripped_all = text.strip()
+    if stripped_all.startswith("{") and stripped_all.endswith("}"):
+        try:
+            parsed = json.loads(stripped_all)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
     for line in reversed(text.splitlines()):
         stripped = line.strip()
         if stripped.startswith("{") and stripped.endswith("}"):
@@ -33,6 +41,15 @@ def parse_last_json_line(text: str) -> dict[str, Any] | None:
             except json.JSONDecodeError:
                 continue
             if isinstance(parsed, dict):
+                return parsed
+    decoder = json.JSONDecoder()
+    for idx in range(len(text) - 1, -1, -1):
+        if text[idx] == "{" and (idx == 0 or text[idx - 1] == "\n"):
+            try:
+                parsed, end = decoder.raw_decode(text, idx)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict) and not text[end:].strip():
                 return parsed
     return None
 
@@ -914,11 +931,12 @@ def resolve_agent_ee_root() -> Path:
 class AgentEeDriver:
     """Read-only opaque-box subprocess driver for agent-ee routing adapter & provenance checks."""
 
-    def __init__(self, repo_root: Path, work_dir: Path) -> None:
+    def __init__(self, repo_root: Path, work_dir: Path, *, binary_path: Path | None = None) -> None:
         self.repo_root = repo_root.resolve()
         self.work_dir = work_dir.resolve()
         self.work_dir.mkdir(parents=True, exist_ok=True)
         self.agent_ee_root = resolve_agent_ee_root()
+        self.binary_path = binary_path.resolve() if binary_path is not None else None
 
     def is_available(self) -> tuple[bool, str]:
         adapter = self.agent_ee_root / "src" / "agent_ee" / "routing_adapter.py"
@@ -951,6 +969,9 @@ class AgentEeDriver:
         if env.get("PYTHONPATH"):
             py_paths.append(env["PYTHONPATH"])
         env["PYTHONPATH"] = os.pathsep.join(py_paths)
+        if self.binary_path is not None:
+            env["AGENT_EE_KICAD_ROUTE_ENGINE"] = str(self.binary_path)
+            env["KICAD_ROUTE_ENGINE_BIN"] = str(self.binary_path)
         if env_extra:
             env.update(env_extra)
         run_cwd = (cwd or self.work_dir).resolve()

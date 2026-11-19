@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import re
 import signal
-import sys
 from typing import Any
 
 from tests.e2e_rust_router.core_helpers import (

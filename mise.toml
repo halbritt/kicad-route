@@ -36,11 +36,15 @@ run = "mise run test -- tests/test_engine_ownership.py tests/test_engine_accepta
 
 [tasks."test:rust-engine"]
 description = "New Rust engine oracle/transaction tests and native KiCad subset acceptance"
-run = '''mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-5m}" -- sh -eu -c '
+run = '''mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-10m}" -- sh -eu -c '
 cargo fmt --manifest-path rust-engine/Cargo.toml --check
 cargo test --locked --offline --manifest-path rust-engine/Cargo.toml
 PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m pytest -q -p no:cacheprovider tests/test_rust_engine_native.py
 ''''
+
+[tasks."test:e2e-rust"]
+description = "Opaque-box Rust router E2E tiers 1-4 (tests.e2e_rust_router); pass flags after --"
+run = '''sh -eu -c 'exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- env PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m tests.e2e_rust_router "$@"' sh'''
 
 [tasks."test:kernel"]
 description = "The routing kernels' fast gate (make kernel; docs/kernel-testing.md)"

@@ -84,7 +84,11 @@ class DriverContext:
 
     @property
     def agent_ee_driver(self) -> AgentEeDriver:
-        return AgentEeDriver(self.repo_root, self.work_dir / "agent-ee-driver")
+        return AgentEeDriver(
+            self.repo_root,
+            self.work_dir / "agent-ee-driver",
+            binary_path=self.provenance.binary_path,
+        )
 
 
 @dataclass(frozen=True)

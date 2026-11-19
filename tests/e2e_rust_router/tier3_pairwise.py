@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import signal
-from pathlib import Path
 from typing import Any
 
 from tests.e2e_rust_router.core_helpers import (
@@ -12,7 +11,6 @@ from tests.e2e_rust_router.core_helpers import (
     assert_clean_e2e,
     assert_no_crash,
     assert_source_dir_untouched,
-    build_diff_pair_board,
     require_m3_capability,
     require_m4_capability,
     run_m3_board_or_pending,
@@ -27,7 +25,6 @@ from tests.e2e_rust_router.kicad_verify import (
     BoardBuilder,
     FixtureBundle,
     _pcbnew,
-    read_native_connectivity,
     verify_diff_pair_native,
     verify_fromto_length_groups,
 )

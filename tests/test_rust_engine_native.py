@@ -4038,6 +4038,43 @@ def test_degenerate_rect_circle_arc_and_zone_fail_closed_uniformly(tmp_path, gua
     assert drc_pos['unconnected_items'] == [] and drc_pos['violations'] == [], drc_pos
 
 
+def test_zone_layer_fills_skips_collinear_rings(tmp_path):
+    base_src = _make_mask_probe_board(tmp_path / 'base_fill.kicad_pcb', mask_min_width=0, mask_to_copper=0)
+    b = pcbnew.LoadBoard(str(base_src))
+    z = pcbnew.ZONE(b)
+    z.SetLayer(pcbnew.F_Cu)
+    z.SetIsFilled(True)
+    ol = z.Outline()
+    oi = ol.NewOutline()
+    for px, py in [(2_000_000, 14_000_000), (6_000_000, 14_000_000),
+                   (6_000_000, 18_000_000), (2_000_000, 18_000_000)]:
+        ol.Append(px, py, oi)
+    fill = z.GetFilledPolysList(pcbnew.F_Cu)
+    ci = fill.NewOutline()
+    for px, py in [(3_000_000, 15_000_000), (4_000_000, 15_000_000), (5_000_000, 15_000_000)]:
+        fill.Append(px, py, ci)
+    vi = fill.NewOutline()
+    for px, py in [(2_000_000, 14_000_000), (6_000_000, 14_000_000),
+                   (6_000_000, 18_000_000), (2_000_000, 18_000_000)]:
+        fill.Append(px, py, vi)
+    hi = fill.NewHole(vi)
+    for px, py in [(3_000_000, 16_000_000), (4_000_000, 16_000_000), (5_000_000, 16_000_000)]:
+        fill.Append(px, py, vi, hi)
+    b.Add(z)
+    fill_pcb = tmp_path / 'fill_collinear.kicad_pcb'
+    assert pcbnew.SaveBoard(str(fill_pcb), b)
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
+    snap = bridge.export_snapshot(fill_pcb, rules=rules)
+    assert len(snap['zones']) == 1
+    layer_fills = snap['zones'][0]['layer_fills']
+    assert len(layer_fills) == 1
+    polys = layer_fills[0]['polygons']
+    assert len(polys) == 1
+    assert not bridge._is_collinear_ring(polys[0]['outer'])
+    assert 'holes' not in polys[0]
+
+
+
 
 
 

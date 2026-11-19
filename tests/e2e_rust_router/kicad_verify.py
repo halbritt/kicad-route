@@ -13,7 +13,6 @@ import shutil
 import subprocess
 import tempfile
 from typing import Any
-import uuid
 
 MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
 CANONICAL_UUID_RE = re.compile(
@@ -760,7 +759,7 @@ def verify_dru_loaded(
         ]
         if not hit:
             raise AssertionError(
-                f"LOAD_WITNESS failed: .kicad_dru rules were not compiled/enforced by KiCad"
+                "LOAD_WITNESS failed: .kicad_dru rules were not compiled/enforced by KiCad"
             )
 
 
@@ -1668,7 +1667,7 @@ def extract_pour_facts(refilled_pcb: Path) -> dict[str, Any]:
                 {
                     "name": z.GetZoneName(),
                     "net": z.GetNetname(),
-                    "layers": sorted(lname(l) for l in z.GetLayerSet().CuStack()),
+                    "layers": sorted(lname(lid) for lid in z.GetLayerSet().CuStack()),
                     "connection": conn_names.get(z.GetPadConnection(), str(z.GetPadConnection())),
                 }
                 for z in zones
@@ -2030,7 +2029,7 @@ def verify_diff_pair_native(
             if "diff_pair_uncoupled" not in existing_dru:
                 existing_dru = (
                     existing_dru.rstrip()
-                    + f'\n(rule "_e2e_verify_diff_pair_uncoupled"\n'
+                    + '\n(rule "_e2e_verify_diff_pair_uncoupled"\n'
                     + f"  (constraint diff_pair_uncoupled (max {max_uncoupled_mm:.3f}mm))\n"
                     + ")\n"
                 )

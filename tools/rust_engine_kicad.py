@@ -1725,12 +1725,12 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 fpolys = []
                 for idx in range(fill.OutlineCount()):
                     outer = _extract_poly_ring(fill.Outline(idx))
-                    if len(outer) < 3:
+                    if len(outer) < 3 or _is_collinear_ring(outer):
                         continue
                     fholes = []
                     for h in range(fill.HoleCount(idx)):
                         hr = _extract_poly_ring(fill.Hole(idx, h))
-                        if len(hr) >= 3:
+                        if len(hr) >= 3 and not _is_collinear_ring(hr):
                             fholes.append(hr)
                     fpoly = {'outer': outer}
                     if fholes:
