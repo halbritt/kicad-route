@@ -2228,14 +2228,20 @@ fn isqrt_u128(n: u128) -> u128 {
 /// Lower bound to a superset of all endpoint-cap contacts with this target.
 /// Each orthogonal edge moves at most `grid` in one axis, including a shortened
 /// final edge. The sum of ceil(axis gap / grid) therefore cannot exceed the
-/// remaining step cost. Full copper bounds plus the rounded-up route radius
-/// contain even the conservative one-nm-overlap contact set. For circular pads
+/// remaining step cost. Pad, track, and via contacts floor the route half-width
+/// and require one nm of overlap. Use their reachable endpoint bounds, so
+/// an edge that can only reach a tangent still needs one more step. For circular pads
 /// and vias, Cauchy-Schwarz also bounds `|dx| + |dy| <= isqrt(2 * R_sum^2)`.
 /// Ignoring obstacles and rounding outward can only decrease this bound. Each
 /// bound changes by at most one across an edge; the minimum over all targets is
 /// also consistent and is zero at every accepted contact endpoint.
 fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
-    let route_radius = (width + 1) / 2;
+    let route_radius = match target {
+        Copper::Pad(_) | Copper::Track(_) | Copper::Via(_) => {
+            (width / 2 - geometry::CONTACT_OVERLAP_NM).max(0)
+        }
+        Copper::Graphic(_) | Copper::ZoneFill { .. } => (width + 1) / 2,
+    };
     let (lo, hi, circle_center_and_radius) = match target {
         Copper::Pad(pad) => {
             let (lo, hi) = pad.copper_bounds();

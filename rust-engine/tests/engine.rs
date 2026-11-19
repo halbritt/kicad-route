@@ -317,6 +317,57 @@ fn total_budget_is_not_reset_for_second_net() {
     assert_eq!(o.expanded_states, 5);
     assert!(o.added_tracks.is_empty());
 }
+
+#[test]
+fn straight_route_settles_each_required_grid_step_and_avoids_a_blocker() {
+    let mut input = base();
+    input.bounds.max = [60_000_000, 40_000_000];
+    input.rules.width_nm = 100_000;
+    input.rules.clearance_nm = 150_000;
+    input.rules.grid_nm = 100_000;
+    input.pads[0].at = [4_000_000, 20_000_000];
+    input.pads[1].at = [54_000_000, 20_000_000];
+    for pad in &mut input.pads {
+        pad.shape = Shape::Circle { radius_nm: 250_000 };
+    }
+    // The cap of the 497th straight step is tangent to the pad. A route
+    // needs a 498th step to overlap copper, and its seed also counts.
+    input.max_expansions = 499;
+    let clear = run(input.clone());
+    assert_eq!(clear.status, Status::Complete);
+    assert_eq!(clear.expanded_states, 499);
+    assert_eq!(clear.added_tracks.len(), 1);
+    assert_eq!(clear.added_tracks[0].start, input.pads[0].at);
+    assert_eq!(clear.added_tracks[0].end, [53_800_000, 20_000_000]);
+    input.max_expansions -= 1;
+    let limited = run(input.clone());
+    assert_eq!(limited.status, Status::BudgetExhausted);
+    assert!(limited.added_tracks.is_empty());
+
+    input.max_expansions = 100_000;
+    input.nets.push(Net {
+        id: 2,
+        name: "BLOCKER".into(),
+    });
+    let mut blocker = wire(3, 2, [29_000_000, 17_000_000], [29_000_000, 23_000_000]);
+    blocker.width_nm = 500_000;
+    input.tracks.push(blocker.clone());
+    let detour = run(input);
+    assert_eq!(detour.status, Status::Complete);
+    assert!(detour.added_tracks.len() > 1);
+    for track in &detour.added_tracks {
+        let clearance_diameter = i128::from(track.width_nm + blocker.width_nm + 2 * 150_000);
+        assert!(!segments_near(
+            track.start,
+            track.end,
+            blocker.start,
+            blocker.end,
+            clearance_diameter,
+            false
+        ));
+    }
+}
+
 #[test]
 fn failed_generated_reroute_restores_ids_geometry_index_and_allocator() {
     let mut input = base();
