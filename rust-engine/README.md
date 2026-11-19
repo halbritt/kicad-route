@@ -36,6 +36,13 @@ failed or the board that was published. Read both the process exit code and
 the result. Run `route-native --help` on the executable for options covering
 rules, limits, pair routing and length matching.
 
+On Linux, each standalone operation keeps a private staging directory and
+launches the native phase in a dedicated process group. If the router dies
+during a native phase, a surviving helper terminates that group and releases
+its staging directory. An interruption before publication leaves the destination
+absent. A caller can detect an abrupt exit from the process status even when
+the router could not finish writing its operation result.
+
 The [capability matrix](../docs/rust-parity.md) describes current multilayer
 routing, net classes, supported custom rules, fills, keepouts, negotiation
 and pair tuning. The measurements there give the board, rules and revision

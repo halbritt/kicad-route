@@ -1,4 +1,12 @@
+#[cfg(target_os = "linux")]
+mod lifetime;
 mod refill;
+
+#[doc(hidden)]
+#[cfg(target_os = "linux")]
+pub fn initialize_standalone_lifetimes(args: &[std::ffi::OsString]) -> Option<u8> {
+    lifetime::initialize(args)
+}
 
 use crate::{
     identity::MAX_REQUEST_BYTES,
@@ -489,10 +497,21 @@ fn compute_binary_identity() -> BinaryIdentity {
 
 struct OwnedTempDir {
     path: Option<PathBuf>,
+    #[cfg(target_os = "linux")]
+    inode: Option<File>,
+    #[cfg(target_os = "linux")]
+    keeper: Option<Child>,
 }
 
 impl OwnedTempDir {
     fn create_in(parent: &Path, prefix: &str, op_id: &str) -> std::io::Result<Self> {
+        #[cfg(target_os = "linux")]
+        if lifetime::enabled() {
+            return lifetime::create_directory(parent, prefix, op_id);
+        }
+        Self::create_local(parent, prefix, op_id)
+    }
+    fn create_local(parent: &Path, prefix: &str, op_id: &str) -> std::io::Result<Self> {
         for attempt in 0..64u32 {
             let name = if attempt == 0 {
                 format!("{prefix}{op_id}")
@@ -506,6 +525,12 @@ impl OwnedTempDir {
             match builder.create(&candidate) {
                 Ok(()) => {
                     return Ok(Self {
+                        #[cfg(target_os = "linux")]
+                        inode: Some(File::open(&candidate).inspect_err(|_| {
+                            let _ = fs::remove_dir(&candidate);
+                        })?),
+                        #[cfg(target_os = "linux")]
+                        keeper: None,
                         path: Some(candidate),
                     })
                 }
@@ -519,12 +544,35 @@ impl OwnedTempDir {
         ))
     }
 
+    fn native_lease(&self) -> Option<&std::process::ChildStdin> {
+        #[cfg(target_os = "linux")]
+        {
+            self.keeper.as_ref()?.stdin.as_ref()
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            None
+        }
+    }
     fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
 
     fn cleanup(&mut self) -> Result<(), String> {
         if let Some(dir) = self.path.take() {
+            #[cfg(target_os = "linux")]
+            {
+                if let Some(mut keeper) = self.keeper.take() {
+                    drop(keeper.stdin.take());
+                    if keeper.wait().is_ok_and(|s| s.success()) {
+                        return Ok(());
+                    }
+                }
+                if let Some(inode) = self.inode.take() {
+                    return lifetime::remove_owned(&dir, &inode)
+                        .map_err(|e| format!("failed to clean up {}: {e}", dir.display()));
+                }
+            }
             match fs::remove_dir_all(&dir) {
                 Ok(()) => Ok(()),
                 Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
@@ -972,6 +1020,7 @@ fn run_bounded_child(
     args: &[OsString],
     deadline: Instant,
     max_output_bytes: usize,
+    _stage_lease: Option<&std::process::ChildStdin>,
 ) -> ChildRunOutcome {
     let argv: Vec<String> = args
         .iter()
@@ -982,10 +1031,20 @@ fn run_bounded_child(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    #[cfg(unix)]
-    cmd.process_group(0);
-
-    let mut child = match cmd.spawn() {
+    #[cfg(target_os = "linux")]
+    let mut group = None;
+    let spawn = (|| {
+        #[cfg(target_os = "linux")]
+        if lifetime::enabled() {
+            group = Some(lifetime::NativeGroup::new(_stage_lease)?);
+        }
+        #[cfg(target_os = "linux")]
+        cmd.process_group(group.as_ref().map_or(0, |g| g.id));
+        #[cfg(all(unix, not(target_os = "linux")))]
+        cmd.process_group(0);
+        cmd.spawn()
+    })();
+    let mut child = match spawn {
         Ok(c) => c,
         Err(e) => {
             return ChildRunOutcome {
@@ -1011,6 +1070,8 @@ fn run_bounded_child(
 
     let pid = child.id();
     let pgid = i32::try_from(pid).unwrap_or(0);
+    #[cfg(target_os = "linux")]
+    let pgid = group.as_ref().map_or(pgid, |g| g.id);
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
 
@@ -2008,6 +2069,7 @@ fn execute_phases(
         deadline,
         &admitted,
         &staging_dir,
+        staging_guard.native_lease(),
         &staged_source,
         staged_rules.as_deref(),
         staged_pro.as_deref(),
@@ -2166,6 +2228,7 @@ fn execute_staged_phases(
     deadline: Instant,
     admitted: &AdmittedInputs,
     staging_dir: &Path,
+    stage_lease: Option<&std::process::ChildStdin>,
     staged_source: &Path,
     staged_rules: Option<&Path>,
     staged_project: Option<&Path>,
@@ -2210,6 +2273,7 @@ fn execute_staged_phases(
         &export_args,
         deadline,
         config.max_child_output_bytes,
+        stage_lease,
     );
     let exp_ok = exp_outcome.spawn_error.is_none()
         && !exp_outcome.record.timed_out
@@ -2414,6 +2478,7 @@ fn execute_staged_phases(
             &apply_args,
             deadline,
             config.max_child_output_bytes,
+            stage_lease,
         );
         if outcome.spawn_error.is_none()
             && !outcome.record.timed_out
@@ -4042,6 +4107,7 @@ elif cmd == "apply":
             expired,
             &admitted,
             &dir,
+            None,
             &cfg.source,
             cfg.rules.as_deref(),
             None,
