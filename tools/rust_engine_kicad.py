@@ -555,6 +555,88 @@ def _decode_effective_pad_shape(pad, radius_hint=None, *, layer_id=pcbnew.F_Cu):
     raise UnsupportedBoard('native pad effective shape is not represented')
 
 
+def _custom_polygon_points(shape):
+    if shape.Type() == pcbnew.SH_RECT:
+        rect = pcbnew.Cast_to_SHAPE_RECT(shape)
+        x, y = point(rect.GetPosition())
+        w, h = point(rect.GetSize())
+        return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+    if shape.Type() == pcbnew.SH_SIMPLE:
+        poly = pcbnew.Cast_to_SHAPE_SIMPLE(shape)
+        if poly.IsClosed() and poly.IsSolid() and poly.GetWidth() == 0 and 3 <= poly.PointCount() <= 64:
+            return [point(poly.CPoint(i)) for i in range(poly.PointCount())]
+    return []
+
+
+def _convex_contains_anchor(edges, anchor):
+    if anchor.Type() == pcbnew.SH_CIRCLE:
+        circle = pcbnew.Cast_to_SHAPE_CIRCLE(anchor)
+        center, radius = point(circle.GetCenter()), int(circle.GetRadius())
+        for a, b in edges:
+            # Signed distance to this edge, squared without a square root.
+            cross = _cross(a, b, center)
+            length_sq = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2
+            if cross < 0 or cross ** 2 < radius ** 2 * length_sq:
+                return False
+        return True
+    corners = _custom_polygon_points(anchor)
+    return bool(corners) and all(_cross(a, b, v) >= 0 for a, b in edges for v in corners)
+
+
+def _custom_pad_shape(pad, layer):
+    label = f'custom pad {pad.GetParentFootprint().GetReference()}.{pad.GetNumber()}'
+    # This is the split-outline check in KiCad's PAD::doCheckPad. Its polygon
+    # approximation is only a validity test, never the exported copper.
+    merged = pcbnew.SHAPE_POLY_SET()
+    pad.MergePrimitivesAsPolygon(layer, merged)
+    if merged.OutlineCount() > 1:
+        raise ValueError(f'{label}: padstack_invalid (custom pad shape must resolve to a single polygon, '
+                         f'found {merged.OutlineCount()} outlines)')
+    if merged.OutlineCount() == 0 or merged.HoleCount(0):
+        raise UnsupportedBoard(f'{label}: empty or holed custom copper is not represented')
+    if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
+        raise UnsupportedBoard(f'{label}: only SMD custom pad copper is represented')
+    mask = {pcbnew.F_Cu: pcbnew.F_Mask, pcbnew.B_Cu: pcbnew.B_Mask}.get(layer)
+    if mask is None or not pad.GetLayerSet().Contains(mask):
+        raise UnsupportedBoard(f'{label}: a solder-mask opening on the copper face is required')
+    # SWIG's GetPrimitives has no iterable binding. KiCad's own writer keeps
+    # arc vertices and thermal-spoke proxies that its collision shapes may
+    # tessellate or omit. Only ordinary straight polygon/rectangle primitives
+    # are in this subset. Exclude quoted properties from the element names.
+    writer = pcbnew.PCB_IO_KICAD_SEXPR()
+    writer.Format(pad)
+    primitives = 0
+    for token in re.finditer(r'"(?:\\.|[^"\\])*"|\(\s*([^()\s"]+)', writer.GetStringOutput(True)):
+        name = token.group(1)
+        if name in ('gr_poly', 'gr_rect'):
+            primitives += 1
+        elif name and (name == 'arc' or name.startswith('gr_')):
+            raise UnsupportedBoard(f'{label}: native {name} primitive is not represented')
+
+    # GetEffectiveShape returns the anchor first, followed by analytical
+    # primitives in board coordinates. One primitive may wholly contain the
+    # anchor. A partial overlap, stroke, or separate piece needs a true union.
+    raw = pad.GetEffectiveShape(layer)
+    compound = pcbnew.Cast_to_SHAPE_COMPOUND(raw) if raw and raw.Type() == pcbnew.SH_COMPOUND else None
+    pieces = list(compound.GetSubshapes()) if compound else []
+    if primitives == 0 and len(pieces) == 1 and pieces[0].Type() in (pcbnew.SH_CIRCLE, pcbnew.SH_RECT):
+        return _decode_effective_pad_shape(pad, layer_id=layer)
+    if (primitives, len(pieces)) in ((0, 1), (1, 2)):
+        points = _custom_polygon_points(pieces[-1])
+        if points:
+            vertices, convex = _orient_ccw_convex(points)
+            edges = list(zip(vertices, vertices[1:] + vertices[:1]))
+            # Also exclude repeated loops and self-crossings with same-sign
+            # consecutive turns, neither of which defines a solid convex pad.
+            if (not convex or len(set(map(tuple, vertices))) != len(vertices)
+                    or any(_cross(a, b, v) < 0 for a, b in edges for v in vertices)):
+                raise UnsupportedBoard(f'{label}: non-convex or degenerate native copper polygon is not represented')
+            if not _convex_contains_anchor(edges, pieces[0]):
+                raise UnsupportedBoard(f'{label}: native copper polygon does not contain its entire anchor')
+            return {'kind': 'convex_polygon', 'vertices': vertices, 'radius_nm': 0}
+    raise UnsupportedBoard(f'{label}: native compound copper is not represented by one supported shape')
+
+
 def pad_shape(pad, cu_layers=None):
     """Decode the pad shape, returning None for standalone stencil apertures."""
     raw_copper = [layer for layer in pad.GetLayerSet().Seq() if pcbnew.IsCopperLayer(layer)]
@@ -606,10 +688,10 @@ def pad_shape(pad, cu_layers=None):
     if any(v <= 0 for v in size):
         raise ValueError('pad dimensions must be positive')
     kind = pad.GetShape()
-    if kind in (pcbnew.PAD_SHAPE_CHAMFERED_RECT, pcbnew.PAD_SHAPE_CUSTOM):
-        if kind == pcbnew.PAD_SHAPE_CHAMFERED_RECT:
-            raise UnsupportedBoard('chamfered pads are not represented')
-        raise UnsupportedBoard('custom pads are not represented')
+    if kind == pcbnew.PAD_SHAPE_CUSTOM:
+        return _custom_pad_shape(pad, copper[0] if copper else pcbnew.F_Cu)
+    if kind == pcbnew.PAD_SHAPE_CHAMFERED_RECT:
+        raise UnsupportedBoard('chamfered pads are not represented')
     if kind not in (pcbnew.PAD_SHAPE_CIRCLE, pcbnew.PAD_SHAPE_RECT,
                     pcbnew.PAD_SHAPE_OVAL, pcbnew.PAD_SHAPE_ROUNDRECT,
                     pcbnew.PAD_SHAPE_TRAPEZOID):
