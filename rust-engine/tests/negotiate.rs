@@ -1767,3 +1767,69 @@ fn bus_corridor_keeps_lanes_close_to_the_diagonal_around_fixed_copper() {
         );
     }
 }
+
+#[test]
+fn bus_lanes_can_detour_outside_the_corridor_under_the_same_shared_budget() {
+    let mut input = base_input([480, 370], vec!["F.Cu".into(), "B.Cu".into()]);
+    input.max_expansions = 8192;
+    input.nets.push(Net {
+        id: 0,
+        name: String::new(),
+    });
+    for (net, y) in [(1, 50), (2, 90), (3, 130)] {
+        input.nets.push(Net {
+            id: net,
+            name: format!("N{net}"),
+        });
+        for (end, x) in [30, 450].into_iter().enumerate() {
+            let mut terminal = pad(2 * u64::from(net) + end as u64, net, [x, y]);
+            terminal.layers = input.layers.clone();
+            terminal.drill = Some(DrillShape::Circle { diameter_nm: 2 });
+            input.pads.push(terminal);
+        }
+    }
+    // On both faces copper can only pass above the wall. The unavoidable
+    // distance from the straight lanes must not inflate the route cost.
+    input.rule_areas.push(RuleArea {
+        id: id(17),
+        name: None,
+        layers: input.layers.clone(),
+        outer: vec![[160, 0], [320, 0], [320, 200], [160, 200]],
+        holes: vec![],
+        extra_polygons: vec![],
+        no_tracks: true,
+        no_vias: true,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    });
+    for bonus in [0, 5000, u32::MAX] {
+        input.routing_options = Some(RoutingOptions {
+            bus: Some(BusOptions {
+                detection_radius_nm: 45,
+                attraction_radius_nm: 50,
+                attraction_bonus: bonus,
+                min_nets: 3,
+            }),
+            ..Default::default()
+        });
+        let out = run(input.clone());
+        assert_eq!(
+            out.status,
+            Status::Complete,
+            "bonus {bonus}: {:?}",
+            out.reason
+        );
+        assert_eq!(out.bus_groups, vec![vec![1, 2, 3]]);
+        assert!(out.expanded_states <= input.max_expansions);
+        assert!(out.added_vias.is_empty());
+        verify_disjoint_and_legal(&input, &out.added_tracks, &out.added_vias);
+        for net in 1..=3 {
+            assert!(out
+                .added_tracks
+                .iter()
+                .filter(|t| t.net == net)
+                .any(|t| t.start[1].max(t.end[1]) > 200));
+        }
+    }
+}

@@ -1037,10 +1037,10 @@ impl Engine {
     pub(crate) fn bus_groups(&self) -> Vec<Vec<u32>> {
         self.bus_plan.groups.clone()
     }
-    fn bus_step_cost(&self, net: u32, a: Point, b: Point) -> Result<u64, Failure> {
+    fn bus_lane_rank(&self, net: u32, a: Point, b: Point) -> Result<u32, Failure> {
         match self.input.routing_options.as_ref().and_then(|o| o.bus) {
             Some(options) if options.attraction_bonus > 0 => {
-                self.bus_plan.step(net, a, b, options, &self.work)
+                self.bus_plan.edge_rank(net, a, b, options, &self.work)
             }
             _ => Ok(0),
         }

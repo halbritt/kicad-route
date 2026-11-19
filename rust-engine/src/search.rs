@@ -2328,6 +2328,9 @@ fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct TieG {
     g: u64,
+    // Used only after the ordinary f and g priorities. Neither the path cost
+    // nor the lower bounds used to terminate bidirectional search include this.
+    lane_rank: u32,
     prefer_higher: bool,
 }
 
@@ -2338,6 +2341,7 @@ impl Ord for TieG {
         } else {
             self.g.cmp(&other.g)
         }
+        .then_with(|| self.lane_rank.cmp(&other.lane_rank))
     }
 }
 
@@ -2462,6 +2466,7 @@ fn walk_multilayer(
             h,
             TieG {
                 g: 0u64,
+                lane_rank: engine.bus_lane_rank(net, at, at)?,
                 prefer_higher: prefer_higher_g,
             },
             initial,
@@ -2735,9 +2740,7 @@ fn walk_multilayer(
                     }
                     _ => 0,
                 };
-                let step_cost = (1 + engine.bus_step_cost(net, state.at, at)?)
-                    .checked_add(step_penalty)
-                    .expect("bounded step cost");
+                let step_cost = 1u64.checked_add(step_penalty).expect("bounded step cost");
                 let g = cost.checked_add(step_cost).expect("bounded search cost");
                 if best.get(&next).is_some_and(|old| *old <= g) {
                     continue;
@@ -2781,6 +2784,7 @@ fn walk_multilayer(
                     g.checked_add(h).expect("bounded heuristic"),
                     TieG {
                         g,
+                        lane_rank: engine.bus_lane_rank(net, state.at, at)?,
                         prefer_higher: prefer_higher_g,
                     },
                     next,
@@ -2939,6 +2943,7 @@ fn walk_multilayer(
                     g.checked_add(h).expect("bounded heuristic"),
                     TieG {
                         g,
+                        lane_rank: engine.bus_lane_rank(net, next.at, next.at)?,
                         prefer_higher: prefer_higher_g,
                     },
                     next,
@@ -3165,10 +3170,15 @@ fn seed_backward_a_star(
             via_cost,
             grid,
         );
+        let (a, b) = match step.edge {
+            PathEdge::Track { start, end, .. } => (start, end),
+            PathEdge::Via(v) => (v.at, v.at),
+        };
         q_bwd.push(Reverse((
             g_seed.checked_add(h).expect("bounded bwd heuristic"),
             TieG {
                 g: g_seed,
+                lane_rank: engine.bus_lane_rank(net, a, b)?,
                 prefer_higher: prefer_higher_g,
             },
             bkey,
@@ -3250,10 +3260,8 @@ fn seed_backward_a_star(
                                             }
                                             _ => 0,
                                         };
-                                        let g_seed = (1 + engine
-                                            .bus_step_cost(net, p, p_attach)?)
-                                        .checked_add(step_pen)
-                                        .expect("bounded step cost");
+                                        let g_seed =
+                                            1u64.checked_add(step_pen).expect("bounded step cost");
                                         let bkey = BiKey {
                                             at: p,
                                             layer: l_idx as u8,
@@ -3474,6 +3482,7 @@ fn walk_multilayer_bidirectional(
             h,
             TieG {
                 g: 0,
+                lane_rank: engine.bus_lane_rank(net, at, at)?,
                 prefer_higher: prefer_higher_g,
             },
             initial,
@@ -3651,11 +3660,7 @@ fn walk_multilayer_bidirectional(
                         _ => 0,
                     };
                     let g = cost
-                        .checked_add(
-                            (1 + engine.bus_step_cost(net, state.at, at)?)
-                                .checked_add(step_penalty)
-                                .expect("bounded step cost"),
-                        )
+                        .checked_add(1u64.checked_add(step_penalty).expect("bounded step cost"))
                         .expect("bounded search cost");
                     if best_fwd.get(&next).is_some_and(|&old| old <= g)
                         || settled_fwd.contains(&next)
@@ -3721,6 +3726,7 @@ fn walk_multilayer_bidirectional(
                         g.checked_add(h).expect("bounded heuristic"),
                         TieG {
                             g,
+                            lane_rank: engine.bus_lane_rank(net, state.at, at)?,
                             prefer_higher: prefer_higher_g,
                         },
                         next,
@@ -3883,6 +3889,7 @@ fn walk_multilayer_bidirectional(
                         g.checked_add(h).expect("bounded heuristic"),
                         TieG {
                             g,
+                            lane_rank: engine.bus_lane_rank(net, next.at, next.at)?,
                             prefer_higher: prefer_higher_g,
                         },
                         next,
@@ -3929,7 +3936,7 @@ fn walk_multilayer_bidirectional(
                         continue;
                     };
                     let q = [qx, qy];
-                    let g = cost + 1 + step_penalty + engine.bus_step_cost(net, q, bkey.at)?;
+                    let g = cost + 1 + step_penalty;
                     let next_key = BiKey {
                         at: q,
                         layer: bkey.layer,
@@ -4002,6 +4009,7 @@ fn walk_multilayer_bidirectional(
                         g.checked_add(h).expect("bounded bwd heuristic"),
                         TieG {
                             g,
+                            lane_rank: engine.bus_lane_rank(net, q, bkey.at)?,
                             prefer_higher: prefer_higher_g,
                         },
                         next_key,
@@ -4136,6 +4144,7 @@ fn walk_multilayer_bidirectional(
                         g.checked_add(h).expect("bounded bwd heuristic"),
                         TieG {
                             g,
+                            lane_rank: engine.bus_lane_rank(net, next_key.at, next_key.at)?,
                             prefer_higher: prefer_higher_g,
                         },
                         next_key,
