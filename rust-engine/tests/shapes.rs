@@ -975,3 +975,183 @@ fn filled_polygons_overlap_non_crossing_u_notch_holes_and_extreme_coords() {
     assert!(!graphics_connect(&zero_circle, &cross_poly));
     assert!(!graphics_connect(&cross_poly, &zero_circle));
 }
+
+fn asymmetric_pad(at: Point, scale: i64) -> Pad {
+    let absolute_box = |offset: Point, half: Point, radius: i64| Shape::BoxExact {
+        center_2x: std::array::from_fn(|k| 2 * (at[k] + scale * offset[k])),
+        half_size_2x: half.map(|v| 2 * v * scale),
+        radius_2x: 2 * radius * scale,
+    };
+    pad(
+        Shape::Union {
+            shapes: vec![
+                Shape::Rect {
+                    half_size_nm: [10 * scale, 4 * scale],
+                },
+                absolute_box([0, -4], [10, 10], 10),
+                absolute_box([0, 4], [10, 10], 10),
+                absolute_box([5, 0], [5, 14], 0),
+            ],
+        },
+        at,
+    )
+}
+
+#[test]
+fn compound_pad_keeps_curved_and_square_corners_distinct() {
+    let p = asymmetric_pad([0, 0], 100);
+    assert_eq!(p.copper_bounds(), ([-1000, -1400], [1000, 1400]));
+    assert_eq!(p.copper_center(), [0, 0]);
+    for (x, hits) in [(-900, false), (900, true)] {
+        let pt = [x, 1200];
+        assert_eq!(point_in_pad(pt, &p), hits);
+        assert_eq!(track_near_pad(pt, [x, 1290], 20, 10, &p, false), hits);
+        assert_eq!(
+            pads_touch(&p, &pad(Shape::Circle { radius_nm: 20 }, pt)),
+            hits
+        );
+        let poly = [
+            [x - 10, 1190],
+            [x + 10, 1190],
+            [x + 10, 1210],
+            [x - 10, 1210],
+        ];
+        assert_eq!(zone_fill_connects_pad(&poly, &[], &p), hits);
+        let mask = MaskAperture {
+            id: p.id.clone(),
+            net: None,
+            group_id: None,
+            layer: "F.Mask".into(),
+            expansion_nm: 0,
+            shape: GraphicShape::Circle {
+                center: pt,
+                radius_nm: 15,
+                width_nm: 10,
+                filled: false,
+            },
+        };
+        assert_eq!(mask_overlaps_pad(&mask, &p), hits);
+    }
+    // On this row the left circle starts at x=-600. The right square extends to x=1000.
+    let [deep, near] = segment_pad_interior_candidates([-2000, 1200], [2000, 1200], &p);
+    assert_eq!(near, Some([-599, 1200]));
+    assert!(point_in_pad(deep.unwrap(), &p));
+}
+
+fn compound_input() -> Input {
+    let mut input: Input =
+        serde_json::from_str(include_str!("fixtures/multiterminal-native-two-nets.json")).unwrap();
+    input.pads.truncate(2);
+    input.pads[0].shape = asymmetric_pad(input.pads[0].at, 50000).shape;
+    input.pads[1].net = input.pads[0].net;
+    input.pads[1].at = [9000000, 10000000];
+    input.tracks.clear();
+    input
+}
+
+#[test]
+fn compound_pad_is_one_terminal_and_preserves_incumbent_connection() {
+    let mut input = compound_input();
+    let plan = run_json(&serde_json::to_vec(&input).unwrap());
+    assert_eq!(plan.status, Status::Complete, "{:?}", plan.reason);
+    assert!(!plan.added_tracks.is_empty());
+    let mut limited = input.clone();
+    limited.limits.max_work = plan.work_used - 1;
+    let stopped = run_json(&serde_json::to_vec(&limited).unwrap());
+    assert_eq!(stopped.status, Status::WorkExhausted);
+    assert!(stopped.added_tracks.is_empty());
+    input.tracks = plan.added_tracks;
+    let stable = run_json(&serde_json::to_vec(&input).unwrap());
+    assert_eq!(stable.status, Status::Complete, "{:?}", stable.reason);
+    assert!(stable.added_tracks.is_empty());
+    input.tracks.clear();
+    input.pads.pop();
+    let one = run_json(&serde_json::to_vec(&input).unwrap());
+    assert_eq!(one.status, Status::Complete);
+    assert!(one.added_tracks.is_empty());
+}
+
+#[test]
+fn compound_admission_bounds_parts_checks_overlap_and_accounts_for_work() {
+    let mut input = compound_input();
+    let first = Shape::Circle { radius_nm: 50 };
+    let offset = |x: i64| Shape::BoxExact {
+        center_2x: [2 * (3000000 + x), 20000000],
+        half_size_2x: [100, 100],
+        radius_2x: 100,
+    };
+    for shapes in [
+        vec![],
+        vec![first.clone()],
+        vec![first.clone(); 17],
+        vec![
+            first.clone(),
+            Shape::Union {
+                shapes: vec![first.clone(); 2],
+            },
+        ],
+        vec![
+            first.clone(),
+            Shape::Rect {
+                half_size_nm: [-1, 1],
+            },
+        ],
+    ] {
+        input.pads[0].shape = Shape::Union { shapes };
+        assert_eq!(input.validate().unwrap_err().status, Status::Invalid);
+    }
+    for (shapes, reason) in [
+        (vec![first.clone(), offset(100)], "positive overlap"), // tangency
+        (vec![first.clone(), offset(150)], "positive overlap"), // separate islands
+        (vec![offset(200), offset(260)], "anchor"),             // connected away from anchor
+    ] {
+        input.pads[0].shape = Shape::Union { shapes };
+        let error = input.validate().unwrap_err();
+        assert_eq!(error.status, Status::Unsupported);
+        assert!(error.reason.contains(reason));
+    }
+    // Last part connects the first two, so adjacency in wire order is irrelevant.
+    input.pads[0].shape = Shape::Union {
+        shapes: vec![first, offset(120), offset(60)],
+    };
+    input.validate().unwrap();
+    input.pads[0].shape = Shape::Union {
+        shapes: vec![offset(0); 16],
+    };
+    input.validate().unwrap();
+    input.limits.max_items = input.nets.len() + 16;
+    assert_eq!(
+        input.validate().unwrap_err().status,
+        Status::AdmissionExceeded
+    );
+    input.limits.max_items += 1;
+    input.validate().unwrap();
+    input.limits.max_work = 17;
+    let failure = input.validate().unwrap_err();
+    assert_eq!(failure.status, Status::WorkExhausted);
+    assert_eq!(failure.work_used, 17);
+}
+
+#[test]
+fn compound_pad_thermal_refusal_depends_on_actual_copper_intersection() {
+    let mut input = compound_input();
+    let zone: Zone = serde_json::from_value(serde_json::json!({
+        "id":"79b2d02c-9868-4ac6-a82f-6c4e8939e942","net":1,"layers":["F.Cu"],
+        "outer":[[1000000,8000000],[6000000,8000000],[6000000,12000000],[1000000,12000000]],
+        "min_thickness_nm":100000,"connection":"thermal","thermal_gap_nm":200000,
+        "thermal_spoke_width_nm":150000
+    }))
+    .unwrap();
+    input.zones = vec![zone];
+    assert_eq!(input.validate().unwrap_err().status, Status::Unsupported);
+    input.pads[0].zone_connection = PadZoneConnection::Solid;
+    input.validate().unwrap();
+    input.pads[0].zone_connection = PadZoneConnection::Inherited;
+    input.zones[0].connection = ZoneConnection::ThtThermal;
+    input.validate().unwrap();
+    input.zones[0].connection = ZoneConnection::Thermal;
+    for pt in &mut input.zones[0].outer {
+        pt[0] += 10000000;
+    }
+    input.validate().unwrap();
+}

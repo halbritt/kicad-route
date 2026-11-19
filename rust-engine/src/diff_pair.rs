@@ -2955,8 +2955,8 @@ fn legal_edge_with_width(
         Some(net),
         &engine.work,
         |ordinal, core| {
-            engine.work.charge(1)?;
             let pad = &engine.input.pads[ordinal as usize];
+            engine.work.charge(pad.shape.parts().len() as u64)?;
             let pad_clr = engine
                 .effective_rules
                 .pair_clearance(
@@ -3001,9 +3001,7 @@ fn legal_edge_with_width(
                     i128::from(width_nm) + i128::from(width) + 2 * i128::from(pad_clr),
                     false,
                 ),
-                PadCore::ConvexPoly => {
-                    geometry::track_near_pad(a, b, width_nm, pad_clr, pad, false)
-                }
+                PadCore::General => geometry::track_near_pad(a, b, width_nm, pad_clr, pad, false),
             };
             if hit {
                 return Ok(ControlFlow::Break(()));

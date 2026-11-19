@@ -44,6 +44,7 @@ pub const INPUT_VERSION: u32 = 1;
 pub const RESULT_VERSION: u32 = 3;
 
 pub type Point = [i64; 2];
+pub(crate) const MAX_PAD_PRIMITIVES: usize = 16;
 // +/-100 mm coordinates (up to a 200 mm span). These bounds also keep every
 // squared cross-product clearance comparison safely within signed i128.
 pub const MAX_NM: i64 = 100_000_000;
@@ -394,10 +395,43 @@ pub struct Pad {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fromto_id: Option<String>,
 }
+#[derive(Clone, Copy)]
+pub(crate) struct PadGeometry<'a> {
+    pub at: Point,
+    pub shape: &'a Shape,
+}
+
 impl Pad {
+    pub(crate) fn geometry(&self) -> PadGeometry<'_> {
+        PadGeometry {
+            at: self.at,
+            shape: &self.shape,
+        }
+    }
+
     pub fn copper_center(&self) -> Point {
-        match &self.shape {
-            Shape::Circle { .. } | Shape::Rect { .. } | Shape::RoundRect { .. } => self.at,
+        self.geometry().copper_center()
+    }
+
+    pub fn copper_bounds(&self) -> (Point, Point) {
+        self.geometry().copper_bounds()
+    }
+}
+
+impl<'a> PadGeometry<'a> {
+    pub(crate) fn parts(self) -> impl Iterator<Item = Self> + 'a {
+        self.shape
+            .parts()
+            .iter()
+            .map(move |shape| Self { at: self.at, shape })
+    }
+
+    pub fn copper_center(&self) -> Point {
+        match self.shape {
+            Shape::Union { .. }
+            | Shape::Circle { .. }
+            | Shape::Rect { .. }
+            | Shape::RoundRect { .. } => self.at,
             Shape::BoxExact { center_2x, .. } => {
                 [center_2x[0].div_euclid(2), center_2x[1].div_euclid(2)]
             }
@@ -419,7 +453,17 @@ impl Pad {
     /// Outward copper envelope for an admitted pad. This is candidate-selection
     /// geometry only; exact clearance and electrical contact remain separate.
     pub fn copper_bounds(&self) -> (Point, Point) {
-        match &self.shape {
+        match self.shape {
+            Shape::Union { .. } => self
+                .parts()
+                .map(|p| p.copper_bounds())
+                .reduce(|(lo, hi), (p, q)| {
+                    (
+                        [lo[0].min(p[0]), lo[1].min(p[1])],
+                        [hi[0].max(q[0]), hi[1].max(q[1])],
+                    )
+                })
+                .expect("admitted pad union has at least two parts"),
             Shape::Circle { radius_nm } => {
                 let half = [*radius_nm; 2];
                 (
@@ -479,6 +523,10 @@ impl Pad {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Shape {
+    /// Connected union of 2–16 analytic primitives owned by one SMD terminal.
+    Union {
+        shapes: Vec<Shape>,
+    },
     Circle {
         radius_nm: i64,
     },
@@ -510,6 +558,15 @@ pub enum Shape {
         radius_nm: i64,
     },
 }
+impl Shape {
+    pub(crate) fn parts(&self) -> &[Shape] {
+        match self {
+            Self::Union { shapes } => shapes,
+            single => std::slice::from_ref(single),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Track {
@@ -852,12 +909,13 @@ impl Input {
         }
     }
 
-    pub fn validate(&self) -> Result<(), Failure> {
-        self.limits.validate()?;
-        if self
-            .nets
+    pub(crate) fn item_count(&self) -> usize {
+        let pad_primitives = self.pads.iter().fold(0usize, |total, p| {
+            total.saturating_add(p.shape.parts().len())
+        });
+        self.nets
             .len()
-            .saturating_add(self.pads.len())
+            .saturating_add(pad_primitives)
             .saturating_add(self.tracks.len())
             .saturating_add(self.vias.len())
             .saturating_add(self.rule_areas.len())
@@ -865,8 +923,18 @@ impl Input {
             .saturating_add(self.holes.len())
             .saturating_add(self.graphics.len())
             .saturating_add(self.mask_apertures.len())
-            > self.limits.max_items
-        {
+    }
+
+    pub fn validate(&self) -> Result<(), Failure> {
+        self.validate_with_work(&crate::budget::WorkBudget::new(self.limits))
+    }
+
+    pub(crate) fn validate_with_work(
+        &self,
+        compound_work: &crate::budget::WorkBudget,
+    ) -> Result<(), Failure> {
+        self.limits.validate()?;
+        if self.item_count() > self.limits.max_items {
             return Err(Failure::new(
                 Status::AdmissionExceeded,
                 "input item limit exceeded",
@@ -1045,77 +1113,105 @@ impl Input {
                     return Err(unsupported("pad layer is not in active board stackup"));
                 }
             }
-            match &p.shape {
-                Shape::Circle { radius_nm } => {
-                    if !(1..=MAX_NM).contains(radius_nm) {
-                        return Err(invalid("pad sizes must be positive and <=100000000 nm"));
-                    }
+            if let Shape::Union { shapes } = &p.shape {
+                if !(2..=MAX_PAD_PRIMITIVES).contains(&shapes.len()) {
+                    return Err(invalid("pad union must contain 2 to 16 primitives"));
                 }
-                Shape::Rect { half_size_nm } => {
-                    if !half_size_nm.iter().all(|v| (1..=MAX_NM).contains(v)) {
-                        return Err(invalid("pad sizes must be positive and <=100000000 nm"));
-                    }
+                if p.drill.is_some() || p.layers.len() > 1 {
+                    return Err(unsupported(
+                        "compound copper is supported on single-layer undrilled pads",
+                    ));
                 }
-                Shape::RoundRect {
-                    half_size_nm,
-                    radius_nm,
-                } => {
-                    if !half_size_nm.iter().all(|v| (1..=MAX_NM).contains(v)) {
-                        return Err(invalid("pad sizes must be positive and <=100000000 nm"));
+            }
+            for shape in p.shape.parts() {
+                match shape {
+                    Shape::Union { .. } => {
+                        return Err(invalid("nested pad unions are unsupported"))
                     }
-                    if *radius_nm < 0 || *radius_nm > half_size_nm[0].min(half_size_nm[1]) {
-                        return Err(invalid(
+                    Shape::Circle { radius_nm } => {
+                        if !(1..=MAX_NM).contains(radius_nm) {
+                            return Err(invalid("pad sizes must be positive and <=100000000 nm"));
+                        }
+                    }
+                    Shape::Rect { half_size_nm } => {
+                        if !half_size_nm.iter().all(|v| (1..=MAX_NM).contains(v)) {
+                            return Err(invalid("pad sizes must be positive and <=100000000 nm"));
+                        }
+                    }
+                    Shape::RoundRect {
+                        half_size_nm,
+                        radius_nm,
+                    } => {
+                        if !half_size_nm.iter().all(|v| (1..=MAX_NM).contains(v)) {
+                            return Err(invalid("pad sizes must be positive and <=100000000 nm"));
+                        }
+                        if *radius_nm < 0 || *radius_nm > half_size_nm[0].min(half_size_nm[1]) {
+                            return Err(invalid(
                             "rounded pad radius must be nonnegative and at most either half size",
                         ));
+                        }
                     }
-                }
-                Shape::BoxExact {
-                    center_2x,
-                    half_size_2x,
-                    radius_2x,
-                } => {
-                    if !center_2x
-                        .iter()
-                        .all(|v| (-2 * MAX_NM..=2 * MAX_NM).contains(v))
-                        || !half_size_2x.iter().all(|v| (1..=2 * MAX_NM).contains(v))
-                    {
-                        return Err(invalid(
-                            "exact box center/size must be positive and within bounds",
-                        ));
-                    }
-                    if *radius_2x < 0 || *radius_2x > half_size_2x[0].min(half_size_2x[1]) {
-                        return Err(invalid(
+                    Shape::BoxExact {
+                        center_2x,
+                        half_size_2x,
+                        radius_2x,
+                    } => {
+                        if !center_2x
+                            .iter()
+                            .all(|v| (-2 * MAX_NM..=2 * MAX_NM).contains(v))
+                            || !half_size_2x.iter().all(|v| (1..=2 * MAX_NM).contains(v))
+                        {
+                            return Err(invalid(
+                                "exact box center/size must be positive and within bounds",
+                            ));
+                        }
+                        if *radius_2x < 0 || *radius_2x > half_size_2x[0].min(half_size_2x[1]) {
+                            return Err(invalid(
                             "rounded pad radius must be nonnegative and at most either half size",
                         ));
+                        }
+                    }
+                    Shape::Capsule {
+                        start_nm,
+                        end_nm,
+                        width_nm,
+                    } => {
+                        if !bounded_pt(*start_nm)
+                            || !bounded_pt(*end_nm)
+                            || !(1..=2 * MAX_NM).contains(width_nm)
+                        {
+                            return Err(invalid("capsule pad coordinates or width are invalid"));
+                        }
+                    }
+                    Shape::ConvexPolygon {
+                        vertices,
+                        radius_nm,
+                    } => {
+                        if !(3..=64).contains(&vertices.len())
+                            || !vertices.iter().all(|v| bounded_pt(*v))
+                            || !(0..=MAX_NM).contains(radius_nm)
+                        {
+                            return Err(invalid(
+                                "convex polygon pad vertices or radius are invalid",
+                            ));
+                        }
+                        if !crate::geometry::is_ccw_convex_polygon(vertices) {
+                            return Err(invalid(
+                                "convex polygon pad must be strictly CCW convex with nonzero area",
+                            ));
+                        }
                     }
                 }
-                Shape::Capsule {
-                    start_nm,
-                    end_nm,
-                    width_nm,
-                } => {
-                    if !bounded_pt(*start_nm)
-                        || !bounded_pt(*end_nm)
-                        || !(1..=2 * MAX_NM).contains(width_nm)
-                    {
-                        return Err(invalid("capsule pad coordinates or width are invalid"));
-                    }
+            }
+            if matches!(p.shape, Shape::Union { .. }) {
+                compound_work.charge(p.shape.parts().len() as u64)?;
+                if !crate::geometry::point_in_pad(p.at, p) {
+                    return Err(unsupported(
+                        "compound pad anchor must lie inside a copper primitive",
+                    ));
                 }
-                Shape::ConvexPolygon {
-                    vertices,
-                    radius_nm,
-                } => {
-                    if !(3..=64).contains(&vertices.len())
-                        || !vertices.iter().all(|v| bounded_pt(*v))
-                        || !(0..=MAX_NM).contains(radius_nm)
-                    {
-                        return Err(invalid("convex polygon pad vertices or radius are invalid"));
-                    }
-                    if !crate::geometry::is_ccw_convex_polygon(vertices) {
-                        return Err(invalid(
-                            "convex polygon pad must be strictly CCW convex with nonzero area",
-                        ));
-                    }
+                if !crate::geometry::union_is_connected(p, compound_work)? {
+                    return Err(unsupported("compound pad primitives must connect through at least 1 nm of positive overlap"));
                 }
             }
             if let Some(drill) = &p.drill {
@@ -1587,6 +1683,43 @@ impl Input {
                 return Err(invalid(
                     "routing_options numeric tolerance, amplitude, spacing, or impedance out of range",
                 ));
+            }
+        }
+        for p in self
+            .pads
+            .iter()
+            .filter(|p| matches!(p.shape, Shape::Union { .. }) && p.net != 0)
+        {
+            let layer = p.layers.first().unwrap_or(&self.layer);
+            for z in &self.zones {
+                compound_work.charge(1)?;
+                if z.net != p.net
+                    || !z.layers.contains(layer)
+                    || crate::zones::resolve_pad_zone_connection(p, z)
+                        != crate::zones::ResolvedPadZoneConnection::Thermal
+                {
+                    continue;
+                }
+                let overlaps = |outer: &[Point], holes: &[Vec<Point>]| -> Result<bool, Failure> {
+                    let vertices = outer.len() + holes.iter().map(Vec::len).sum::<usize>();
+                    compound_work.charge(vertices as u64 * p.shape.parts().len() as u64)?;
+                    Ok(
+                        crate::geometry::point_in_polygon_with_holes(p.at, outer, holes)
+                            || crate::geometry::zone_fill_connects_pad(outer, holes, p),
+                    )
+                };
+                if overlaps(&z.outer, &z.holes)? {
+                    return Err(unsupported(
+                        "thermal zone connection on a compound pad is unsupported",
+                    ));
+                }
+                for extra in &z.extra_polygons {
+                    if overlaps(&extra.outer, &extra.holes)? {
+                        return Err(unsupported(
+                            "thermal zone connection on a compound pad is unsupported",
+                        ));
+                    }
+                }
             }
         }
         Ok(())

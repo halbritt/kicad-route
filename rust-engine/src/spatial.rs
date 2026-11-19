@@ -156,7 +156,7 @@ pub(crate) enum PadCore {
         b: [i32; 2],
         width: i32,
     },
-    ConvexPoly,
+    General,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

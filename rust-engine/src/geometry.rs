@@ -1,8 +1,8 @@
 //! Exact swept-copper tests. Distances are compared as integer fractions;
 //! no raster sampling, floating point tolerances, or square roots.
 use crate::model::{
-    BoardOutline, CopperGraphic, DrillShape, GraphicShape, MaskAperture, Pad, Point, RuleArea,
-    Shape, Track, Via,
+    BoardOutline, CopperGraphic, DrillShape, GraphicShape, MaskAperture, Pad, PadGeometry, Point,
+    RuleArea, Shape, Track, Via,
 };
 fn sub(a: Point, b: Point) -> [i128; 2] {
     [
@@ -357,7 +357,21 @@ pub fn track_near_pad(
     p: &Pad,
     inclusive: bool,
 ) -> bool {
-    match &p.shape {
+    track_near_pad_shape(a, b, width, clearance, p.geometry(), inclusive)
+}
+
+fn track_near_pad_shape(
+    a: Point,
+    b: Point,
+    width: i64,
+    clearance: i64,
+    p: PadGeometry<'_>,
+    inclusive: bool,
+) -> bool {
+    match p.shape {
+        Shape::Union { .. } => p
+            .parts()
+            .any(|part| track_near_pad_shape(a, b, width, clearance, part, inclusive)),
         Shape::Circle { radius_nm } => {
             track_near_core(a, b, width, clearance, p.at, p.at, *radius_nm, inclusive)
         }
@@ -421,13 +435,18 @@ pub fn track_near_pad(
 pub(crate) const CONTACT_OVERLAP_NM: i64 = 1;
 
 pub fn track_connects_pad(t: &Track, p: &Pad) -> bool {
+    track_connects_pad_shape(t, p.geometry())
+}
+
+fn track_connects_pad_shape(t: &Track, p: PadGeometry<'_>) -> bool {
     let w = (t.width_nm / 2) * 2;
-    match &p.shape {
+    match p.shape {
+        Shape::Union { .. } => p.parts().any(|part| track_connects_pad_shape(t, part)),
         Shape::Circle { .. }
         | Shape::Rect { .. }
         | Shape::RoundRect { .. }
         | Shape::ConvexPolygon { .. } => {
-            track_near_pad(t.start, t.end, w, -CONTACT_OVERLAP_NM, p, true)
+            track_near_pad_shape(t.start, t.end, w, -CONTACT_OVERLAP_NM, p, true)
         }
         Shape::BoxExact {
             center_2x,
@@ -508,8 +527,9 @@ enum ConnCore2x {
 }
 
 impl ConnCore2x {
-    fn from_pad(p: &Pad) -> (Self, i64) {
-        match &p.shape {
+    fn from_primitive(p: PadGeometry<'_>) -> (Self, i64) {
+        match p.shape {
+            Shape::Union { .. } => unreachable!("contact cores represent single primitives"),
             Shape::Circle { radius_nm } => (
                 Self::Box {
                     lo2: [p.at[0] * 2, p.at[1] * 2],
@@ -620,8 +640,46 @@ impl ConnCore2x {
 
 /// Conservative contact: at least one whole nm of overlap, including corners.
 pub fn pads_touch(a: &Pad, b: &Pad) -> bool {
-    let (ca, ra2) = ConnCore2x::from_pad(a);
-    let (cb, rb2) = ConnCore2x::from_pad(b);
+    a.geometry()
+        .parts()
+        .any(|pa| b.geometry().parts().any(|pb| primitives_touch(pa, pb)))
+}
+
+pub(crate) fn union_is_connected(
+    p: &Pad,
+    work: &crate::budget::WorkBudget,
+) -> Result<bool, crate::model::Failure> {
+    let parts = p.shape.parts();
+    let mut connected = [false; crate::model::MAX_PAD_PRIMITIVES];
+    connected[0] = true;
+    let mut pending = vec![0];
+    while let Some(i) = pending.pop() {
+        for (j, next) in parts.iter().enumerate() {
+            if connected[j] {
+                continue;
+            }
+            work.charge(1)?;
+            if primitives_touch(
+                PadGeometry {
+                    at: p.at,
+                    shape: &parts[i],
+                },
+                PadGeometry {
+                    at: p.at,
+                    shape: next,
+                },
+            ) {
+                connected[j] = true;
+                pending.push(j);
+            }
+        }
+    }
+    Ok(connected[..parts.len()].iter().all(|&c| c))
+}
+
+fn primitives_touch(a: PadGeometry<'_>, b: PadGeometry<'_>) -> bool {
+    let (ca, ra2) = ConnCore2x::from_primitive(a);
+    let (cb, rb2) = ConnCore2x::from_primitive(b);
     if ra2 == 0 && rb2 == 0 {
         return match (ca, cb) {
             (ConnCore2x::Box { lo2: alo, hi2: ahi }, ConnCore2x::Box { lo2: blo, hi2: bhi }) => {
@@ -1342,13 +1400,34 @@ fn unfilled_circle_near_pad(
     p: &Pad,
     inclusive: bool,
 ) -> bool {
+    unfilled_circle_near_pad_shape(
+        center,
+        radius_nm,
+        width_nm,
+        clearance,
+        p.geometry(),
+        inclusive,
+    )
+}
+
+fn unfilled_circle_near_pad_shape(
+    center: Point,
+    radius_nm: i64,
+    width_nm: i64,
+    clearance: i64,
+    p: PadGeometry<'_>,
+    inclusive: bool,
+) -> bool {
     let hw = width_nm / 2;
     let r_out = radius_nm + hw;
     let r_in = (radius_nm - hw).max(0);
     if r_in == 0 {
-        return track_near_pad(center, center, 2 * r_out, clearance, p, inclusive);
+        return track_near_pad_shape(center, center, 2 * r_out, clearance, p, inclusive);
     }
-    match &p.shape {
+    match p.shape {
+        Shape::Union { .. } => p.parts().any(|part| {
+            unfilled_circle_near_pad_shape(center, radius_nm, width_nm, clearance, part, inclusive)
+        }),
         Shape::Circle { radius_nm: pr } => track_near_circle(
             p.at,
             p.at,
@@ -1376,7 +1455,7 @@ fn unfilled_circle_near_pad(
             inclusive,
         ),
         Shape::Rect { .. } | Shape::RoundRect { .. } | Shape::BoxExact { .. } => {
-            let (ConnCore2x::Box { lo2, hi2 }, rp2) = ConnCore2x::from_pad(p) else {
+            let (ConnCore2x::Box { lo2, hi2 }, rp2) = ConnCore2x::from_primitive(p) else {
                 unreachable!()
             };
             let c2 = [center[0] * 2, center[1] * 2];
@@ -1480,12 +1559,16 @@ fn point_in_polygon_with_holes_2x(p2: Point, outer: &[Point], holes: &[Vec<Point
 }
 
 pub fn zone_fill_connects_pad(outer: &[Point], holes: &[Vec<Point>], p: &Pad) -> bool {
+    zone_fill_connects_pad_shape(outer, holes, p.geometry())
+}
+
+fn zone_fill_connects_pad_shape(outer: &[Point], holes: &[Vec<Point>], p: PadGeometry<'_>) -> bool {
     if outer.len() < 3 || !bounds_overlap(p.copper_bounds(), ring_bounds(outer)) {
         return false;
     }
     let as_zero_track = |a: Point, b: Point| Track {
         id: String::new(),
-        net: p.net,
+        net: 0,
         layer: String::new(),
         start: a,
         end: b,
@@ -1494,9 +1577,12 @@ pub fn zone_fill_connects_pad(outer: &[Point], holes: &[Vec<Point>], p: &Pad) ->
     };
     let check_edges_zero = |ring: &[Point]| {
         let n = ring.len();
-        (0..n).any(|i| track_connects_pad(&as_zero_track(ring[i], ring[(i + 1) % n]), p))
+        (0..n).any(|i| track_connects_pad_shape(&as_zero_track(ring[i], ring[(i + 1) % n]), p))
     };
-    match &p.shape {
+    match p.shape {
+        Shape::Union { .. } => p
+            .parts()
+            .any(|part| zone_fill_connects_pad_shape(outer, holes, part)),
         Shape::Circle { radius_nm } => {
             if *radius_nm < CONTACT_OVERLAP_NM {
                 return false;
@@ -2411,7 +2497,12 @@ pub fn mask_apertures_overlap(a: &MaskAperture, b: &MaskAperture, web_nm: i64) -
 }
 
 pub fn point_in_pad(pt: Point, p: &Pad) -> bool {
-    match &p.shape {
+    point_in_pad_shape(pt, p.geometry())
+}
+
+fn point_in_pad_shape(pt: Point, p: PadGeometry<'_>) -> bool {
+    match p.shape {
+        Shape::Union { .. } => p.parts().any(|part| point_in_pad_shape(pt, part)),
         Shape::Circle { radius_nm } => {
             *radius_nm > 0 && track_near_core(pt, pt, 0, 0, p.at, p.at, *radius_nm, false)
         }
@@ -2512,7 +2603,7 @@ fn rat_cmp(a: (u128, u128), b: (u128, u128)) -> std::cmp::Ordering {
     q1.cmp(&q2).then_with(|| (r1 * b.1).cmp(&(r2 * a.1)))
 }
 
-fn pad_dist2_rat(pt: Point, p: &Pad) -> (u128, u128) {
+fn pad_dist2_rat(pt: Point, p: PadGeometry<'_>) -> (u128, u128) {
     match &p.shape {
         Shape::Capsule {
             start_nm, end_nm, ..
@@ -2532,8 +2623,39 @@ fn pad_dist2_rat(pt: Point, p: &Pad) -> (u128, u128) {
 }
 
 pub fn segment_pad_interior_candidates(a: Point, b: Point, p: &Pad) -> [Option<Point>; 2] {
+    let pad = p.geometry();
+    if !matches!(pad.shape, Shape::Union { .. }) {
+        return segment_primitive_interior_candidates(a, b, pad);
+    }
+    // The intersection with a non-convex union may be several intervals.
+    // Find interior contacts on each primitive before choosing the nearest and deepest.
+    let mut near = None;
+    let mut deep = None;
+    let axis = usize::from(a[0] == b[0]);
+    let distance = |pt: Point| (pt[axis] - a[axis]).abs();
+    for part in pad.parts() {
+        for pt in segment_primitive_interior_candidates(a, b, part)
+            .into_iter()
+            .flatten()
+        {
+            if near.is_none_or(|q| distance(pt) < distance(q)) {
+                near = Some(pt);
+            }
+            if deep.is_none_or(|q| distance(pt) > distance(q)) {
+                deep = Some(pt);
+            }
+        }
+    }
+    [deep, near.filter(|q| Some(*q) != deep)]
+}
+
+fn segment_primitive_interior_candidates(
+    a: Point,
+    b: Point,
+    p: PadGeometry<'_>,
+) -> [Option<Point>; 2] {
     if a == b {
-        return [point_in_pad(b, p).then_some(b), None];
+        return [point_in_pad_shape(b, p).then_some(b), None];
     }
     let k = usize::from(a[0] == b[0]);
     let len = (b[k] - a[k]).abs();
@@ -2555,12 +2677,16 @@ pub fn segment_pad_interior_candidates(a: Point, b: Point, p: &Pad) -> [Option<P
     if d_min > d_max {
         return [None, None];
     }
-    let mut best_d: Option<i64> = if point_in_pad(b, p) { Some(len) } else { None };
+    let mut best_d: Option<i64> = if point_in_pad_shape(b, p) {
+        Some(len)
+    } else {
+        None
+    };
     if best_d.is_none() {
         let d_center = ((p.copper_center()[k] - a[k]) * dir).clamp(d_min, d_max);
         let d_mid = d_min + (d_max - d_min) / 2;
         for cand in [d_center, d_mid, d_min, d_max] {
-            if point_in_pad(pt_at(cand), p) {
+            if point_in_pad_shape(pt_at(cand), p) {
                 best_d = Some(cand);
                 break;
             }
@@ -2582,7 +2708,7 @@ pub fn segment_pad_interior_candidates(a: Point, b: Point, p: &Pad) -> [Option<P
                 }
             }
             for d in lo..=hi {
-                if point_in_pad(pt_at(d), p) {
+                if point_in_pad_shape(pt_at(d), p) {
                     best_d = Some(d);
                     break;
                 }
@@ -2597,7 +2723,7 @@ pub fn segment_pad_interior_candidates(a: Point, b: Point, p: &Pad) -> [Option<P
     let mut hi = d_deep;
     while lo < hi {
         let mid = lo + (hi - lo) / 2;
-        if point_in_pad(pt_at(mid), p) {
+        if point_in_pad_shape(pt_at(mid), p) {
             hi = mid;
         } else {
             lo = mid + 1;

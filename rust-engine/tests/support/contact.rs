@@ -29,7 +29,10 @@ impl Body {
                 hi: [p.at[0] + h[0], p.at[1] + h[1]],
                 radius2: 0,
             },
-            Shape::BoxExact { .. } | Shape::Capsule { .. } | Shape::ConvexPolygon { .. } => {
+            Shape::Union { .. }
+            | Shape::BoxExact { .. }
+            | Shape::Capsule { .. }
+            | Shape::ConvexPolygon { .. } => {
                 unimplemented!("use 2x/polygon oracle for M3.1 shapes")
             }
         }

@@ -391,19 +391,12 @@ impl Engine {
             ));
         }
         let effective_rules = rules::resolve_effective_rules(&mut input)?;
-        input.validate()?;
+        let work = budget::WorkBudget::new(input.limits);
+        input.validate_with_work(&work)?;
+        work.carry_setup_into_first_scope();
         let layer_names = input.active_layers();
         let layer_count = layer_names.len();
-        let base_items = input.pads.len()
-            + input.tracks.len()
-            + input.vias.len()
-            + input.rule_areas.len()
-            + input.zones.len()
-            + input.nets.len()
-            + input.holes.len()
-            + input.graphics.len()
-            + input.mask_apertures.len();
-        let work = budget::WorkBudget::new(input.limits);
+        let base_items = input.item_count();
         let reserved = input
             .pads
             .iter()
@@ -471,7 +464,7 @@ impl Engine {
                     b: i32_pt(*end_nm),
                     width: *width_nm as i32,
                 },
-                Shape::ConvexPolygon { .. } => PadCore::ConvexPoly,
+                Shape::ConvexPolygon { .. } | Shape::Union { .. } => PadCore::General,
             };
             let entry = (
                 u32::try_from(i).expect("bounded input pad count"),
@@ -1291,8 +1284,8 @@ impl Engine {
             Some(net),
             &self.work,
             |ordinal, core| {
-                self.work.charge(1)?;
                 let pad = &self.input.pads[ordinal as usize];
+                self.work.charge(pad.shape.parts().len() as u64)?;
                 let pad_clr = self
                     .effective_rules
                     .pair_clearance(
@@ -1337,7 +1330,7 @@ impl Engine {
                         i128::from(width_nm) + i128::from(width) + 2 * i128::from(pad_clr),
                         false,
                     ),
-                    PadCore::ConvexPoly => {
+                    PadCore::General => {
                         geometry::track_near_pad(a, b, width_nm, pad_clr, pad, false)
                     }
                 };
@@ -2314,8 +2307,8 @@ impl Engine {
                 |ordinal, core| {
                     self.work.charge(1)?;
                     let pad = &self.input.pads[ordinal as usize];
-                    let check_core = |w: i64, clr: i64| -> bool {
-                        match *core {
+                    let check_core = |w: i64, clr: i64| -> Result<bool, Failure> {
+                        Ok(match *core {
                             PadCore::Box { lo, hi, radius } => geometry::track_near_core(
                                 at,
                                 at,
@@ -2348,14 +2341,15 @@ impl Engine {
                                 i128::from(w) + i128::from(width) + 2 * i128::from(clr),
                                 false,
                             ),
-                            PadCore::ConvexPoly => {
+                            PadCore::General => {
+                                self.work.charge((pad.shape.parts().len() - 1) as u64)?;
                                 geometry::track_near_pad(at, at, w, clr, pad, false)
                             }
-                        }
+                        })
                     };
                     if pad.net == net && net != 0 {
                         if pad.drill.is_none() && disallow_smd_via_in_pad {
-                            if check_core(drill, 0) {
+                            if check_core(drill, 0)? {
                                 return Ok(ControlFlow::Break(()));
                             }
                             let synth = Via {
@@ -2392,7 +2386,7 @@ impl Engine {
                             locked: false,
                         };
                         if !Copper::Pad(pad).touches_via(&synth, &self.layer_names, &self.work)?
-                            && check_core(drill, r.same_net_hole_clearance_nm)
+                            && check_core(drill, r.same_net_hole_clearance_nm)?
                         {
                             return Ok(ControlFlow::Break(()));
                         }
@@ -2418,7 +2412,8 @@ impl Engine {
                         DruItemKind::Pad,
                         &p_layers,
                     );
-                    if check_core(diam, pad_clr) || (hole_clr > 0 && check_core(drill, hole_clr)) {
+                    if check_core(diam, pad_clr)? || (hole_clr > 0 && check_core(drill, hole_clr)?)
+                    {
                         return Ok(ControlFlow::Break(()));
                     }
                     Ok(ControlFlow::Continue(()))

@@ -549,6 +549,7 @@ fn join_components_inner(
             {
                 let chosen = match c {
                     Copper::Pad(pad) if !geometry::point_in_pad(p_first, pad) => {
+                        engine.work.charge((pad.shape.parts().len() - 1) as u64)?;
                         let [cand_deep, cand_near] =
                             geometry::segment_pad_interior_candidates(a, b, pad);
                         let mut interior_hit = None;
@@ -1185,6 +1186,7 @@ fn extend_path_into_target_pad(
         let mut far = end;
         far[axis] = if sign > 0 { phi[axis] } else { plo[axis] };
         if (far[axis] - end[axis]).signum() == sign {
+            engine.work.charge((pad.shape.parts().len() - 1) as u64)?;
             let [cand_deep, cand_near] = geometry::segment_pad_interior_candidates(end, far, pad);
             for p_in in [cand_deep, cand_near].into_iter().flatten() {
                 if is_legal_from(collinear_anchor, p_in)? {
@@ -1209,6 +1211,7 @@ fn extend_path_into_target_pad(
         }
     }
     for far in ortho_targets {
+        engine.work.charge((pad.shape.parts().len() - 1) as u64)?;
         let [cand_deep, cand_near] = geometry::segment_pad_interior_candidates(end, far, pad);
         for p_in in [cand_deep, cand_near].into_iter().flatten() {
             if is_legal_from(end, p_in)? {

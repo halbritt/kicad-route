@@ -7,6 +7,7 @@ pub(crate) struct WorkBudget {
     pub limits: Limits,
     used: Cell<u64>,
     active: Cell<bool>,
+    pending_setup_work: Cell<u64>,
 }
 impl WorkBudget {
     pub fn new(limits: Limits) -> Self {
@@ -14,6 +15,7 @@ impl WorkBudget {
             limits,
             used: Cell::new(0),
             active: Cell::new(false),
+            pending_setup_work: Cell::new(0),
         }
     }
     pub fn used(&self) -> u64 {
@@ -42,11 +44,14 @@ impl WorkBudget {
         self.advance(units);
         Ok(())
     }
+    pub fn carry_setup_into_first_scope(&self) {
+        self.pending_setup_work.set(self.used());
+    }
     // Nested entry must never reset consumed work, including after handled errors.
     pub fn start(&self) -> bool {
         let outer = !self.active.replace(true);
         if outer {
-            self.used.set(0);
+            self.used.set(self.pending_setup_work.replace(0));
         }
         outer
     }

@@ -70,6 +70,7 @@ fn zone_fill_polys_on_layer<'a>(zone: &'a Zone, layer_name: &str) -> &'a [Outlin
 
 fn pad_min_side_nm(pad: &Pad) -> i64 {
     match &pad.shape {
+        Shape::Union { .. } => unreachable!("compound pad thermal spokes are unsupported"),
         Shape::Circle { radius_nm } => radius_nm.saturating_mul(2),
         Shape::Rect { half_size_nm } | Shape::RoundRect { half_size_nm, .. } => {
             half_size_nm[0].min(half_size_nm[1]).saturating_mul(2)
@@ -183,6 +184,7 @@ fn box_reach_and_exit(hx: f64, hy: f64, r: f64, dx: f64, dy: f64) -> (f64, f64) 
 
 fn pad_reach_and_exit(pad: &Pad, cx: f64, cy: f64, dx: f64, dy: f64) -> (f64, f64) {
     match &pad.shape {
+        Shape::Union { .. } => unreachable!("compound pad thermal spokes are unsupported"),
         Shape::Circle { radius_nm } => (*radius_nm as f64, *radius_nm as f64),
         Shape::Rect { half_size_nm } => {
             box_reach_and_exit(half_size_nm[0] as f64, half_size_nm[1] as f64, 0.0, dx, dy)

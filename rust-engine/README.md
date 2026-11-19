@@ -79,6 +79,14 @@ sub-nanometre boundaries. Native validation remains required after routing.
 Later native releases added via, zone, rotated-pad, project-rule and pair
 support. Native import still refuses objects it cannot represent.
 
+A single-layer undrilled pad may use `{"kind":"union","shapes":[...]}` to
+combine 2–16 existing pad primitives into one terminal. The members share
+the pad coordinate frame. Use `box_exact` for an offset circle or rectangle.
+At least one member must contain the pad anchor in its interior. All members
+must connect through at least 1 nm of overlap. Each primitive counts toward the input item limit.
+The router checks contact and clearance against the individual primitives.
+An overlapping zone that requires a thermal connection to this pad is unsupported.
+
 Coordinates must lie within +/-100,000,000 integer nanometres (up to a 200 mm
 span). Pad centers and track endpoints must lie inside bounds; positive pad
 sizes and track widths are at most 100,000,000 nm. This is structural validation,
