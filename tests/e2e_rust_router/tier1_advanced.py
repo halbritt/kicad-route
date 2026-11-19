@@ -1095,12 +1095,16 @@ def t1_f11_05(ctx: DriverContext) -> dict[str, Any]:
         missing_paths.append(f"seam:{seam_rel}")
     assert not missing_paths, f"stale or missing paths in routing-requirements.json: {missing_paths}"
     parity_text = parity_path.read_text(encoding="utf-8")
-    table_lines = [ln.strip() for ln in parity_text.splitlines() if ln.strip().startswith("|")]
-    data_rows = [
-        [c.strip() for c in ln.strip("|").split("|")]
-        for ln in table_lines
-        if not re.match(r"^\|\s*---", ln) and not ln.startswith("| Capability ")
-    ]
+    lines = iter(parity_text.splitlines())
+    header = next((line for line in lines if line.strip().startswith("| Capability |")), None)
+    assert header is not None, "capability table missing from docs/rust-parity.md"
+    separator = next(lines, "").strip()
+    assert re.fullmatch(r"\|(?:\s*:?-{3,}:?\s*\|){3}", separator), "invalid capability table separator"
+    data_rows = []
+    for line in lines:
+        if not line.strip().startswith("|"):
+            break
+        data_rows.append([cell.strip() for cell in line.strip().strip("|").split("|")])
     assert len(data_rows) >= 9, f"expected >= 9 capability rows in docs/rust-parity.md, got {len(data_rows)}"
     for idx, cols in enumerate(data_rows):
         assert len(cols) == 3 and all(cols), f"malformed parity row {idx}: {cols}"

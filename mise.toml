@@ -16,7 +16,7 @@ if [ -z "${KICAD_ROUTE_STATE:-}" ] && [ ! -x .venv-krt/bin/python ]; then
   main_root=$(cd "${common:-.}/.." && pwd -P)
   if [ -x "$main_root/.venv-krt/bin/python" ]; then export KICAD_ROUTE_STATE="$main_root"; fi
 fi
-exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider "$@"
+exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- env PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m pytest -q -p no:cacheprovider "$@"
 ' sh'''
 
 [tasks."test:engine"]
@@ -27,7 +27,7 @@ if [ -z "${KICAD_ROUTE_STATE:-}" ] && [ ! -x .venv-krt/bin/python ]; then
   main_root=$(cd "${common:-.}/.." && pwd -P)
   if [ -x "$main_root/.venv-krt/bin/python" ]; then export KICAD_ROUTE_STATE="$main_root"; fi
 fi
-exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests/test_engine_regressions.py "$@"
+exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-30m}" -- env PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m pytest -q -p no:cacheprovider tests/test_engine_regressions.py "$@"
 ' sh'''
 
 [tasks."test:architecture"]
@@ -69,7 +69,7 @@ if [ -z "${KICAD_ROUTE_STATE:-}" ] && [ ! -x .venv-krt/bin/python ]; then
   main_root=$(cd "${common:-.}/.." && pwd -P)
   if [ -x "$main_root/.venv-krt/bin/python" ]; then export KICAD_ROUTE_STATE="$main_root"; fi
 fi
-exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-100m}" -- /usr/bin/python3 -m pytest -q -p no:cacheprovider tests "$@"
+exec mise run host:exec -- --timeout "${HOST_TEST_TIMEOUT:-100m}" -- env PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m pytest -q -p no:cacheprovider tests "$@"
 ' sh'''
 
 [tasks.build]
