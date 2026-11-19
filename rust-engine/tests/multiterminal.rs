@@ -836,15 +836,9 @@ fn forced_t_corridor_normalizes_collinear_overlaps_without_duplicate_copper() {
             .iter()
             .map(|t| (t.end[0] - t.start[0]).abs() + (t.end[1] - t.start[1]).abs())
             .sum();
-        // swap=false: [4M..11.375001M] (7375001) + stem (5375001) = 12750002 (2 tracks, full overlap dropped).
-        // swap=true: [12M..4.624999M] (7375001) + [4M..4.624999M] (624999) + stem (5375001) = 13375001 (3 tracks, partial overlap trimmed).
-        assert_eq!(
-            total_len,
-            if swap { 13_375_001 } else { 12_750_002 },
-            "swap={swap}: {:?}",
-            o.added_tracks
-        );
-        assert_eq!(o.added_tracks.len(), if swap { 3 } else { 2 });
+        // Both swap=false and swap=true normalize the horizontal T-trunk to [4M..12M] (8M) + stem [8M,10M]..[8M,16M] (6M) = 14M (2 tracks, zero duplicate copper).
+        assert_eq!(total_len, 14_000_000, "swap={swap}: {:?}", o.added_tracks);
+        assert_eq!(o.added_tracks.len(), 2);
     }
 }
 
@@ -879,7 +873,7 @@ fn straddling_overlap_splits_and_work_exhaustion_rolls_back_cleanly() {
         vec![
             ([10, 30], [32, 30]),
             ([48, 30], [60, 30]),
-            ([60, 30], [60, 49])
+            ([60, 30], [60, 50])
         ]
     );
     // Exhaust work right before final insert after straddling split; must roll back cleanly.

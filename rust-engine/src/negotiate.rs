@@ -620,6 +620,7 @@ impl SingleEndedAdapter {
 impl RouteUnitAdapter for SingleEndedAdapter {
     fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure> {
         engine.charge_work(engine.input().nets.len() as u64)?;
+        let mut net_bounds: BTreeMap<u32, ([i64; 2], [i64; 2], usize)> = BTreeMap::new();
         let mut nets: Vec<u32> = engine
             .input()
             .nets
@@ -629,10 +630,31 @@ impl RouteUnitAdapter for SingleEndedAdapter {
                     && !self.pinned_nets.contains(&n.id)
                     && self.active_nets.as_ref().is_none_or(|s| s.contains(&n.id))
             })
-            .map(|n| n.id)
+            .map(|n| {
+                net_bounds.insert(n.id, ([i64::MAX, i64::MAX], [i64::MIN, i64::MIN], 0));
+                n.id
+            })
             .collect();
+        engine.charge_work(engine.input().pads.len() as u64)?;
+        for pad in &engine.input().pads {
+            if let Some((lo, hi, count)) = net_bounds.get_mut(&pad.net) {
+                lo[0] = lo[0].min(pad.at[0]);
+                lo[1] = lo[1].min(pad.at[1]);
+                hi[0] = hi[0].max(pad.at[0]);
+                hi[1] = hi[1].max(pad.at[1]);
+                *count += 1;
+            }
+        }
         engine.charge_work(nets.len() as u64)?;
-        nets.sort_unstable();
+        nets.sort_unstable_by_key(|&net| {
+            let (lo, hi, pad_count) = net_bounds[&net];
+            let hpwl = if pad_count == 0 {
+                0i128
+            } else {
+                (i128::from(hi[0]) - i128::from(lo[0])) + (i128::from(hi[1]) - i128::from(lo[1]))
+            };
+            (hpwl, pad_count, net)
+        });
         Ok(nets
             .into_iter()
             .map(|net| UnitSpec {
@@ -749,7 +771,6 @@ fn union_swept(slot: &mut Option<SweptAabb>, box_s: SweptAabb) {
     });
 }
 
-#[allow(dead_code)]
 fn analyze_blockers(
     engine: &Engine,
     blocked_unit: &UnitSpec,

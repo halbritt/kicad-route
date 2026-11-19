@@ -1,5 +1,6 @@
 use crate::budget::WorkBudget;
 use crate::components::{span_mask, Copper};
+use crate::geometry;
 use crate::model::{Failure, Point, Status, Track, Via, ViaKind};
 use crate::rules::EffectiveRules;
 use crate::Engine;
@@ -488,25 +489,84 @@ fn join_components_inner(
         failure.expanded_states = *expanded;
         return Err(failure);
     }
+    let mut layer_targets: Vec<Vec<(Copper<'_>, Point, Point)>> = vec![Vec::new(); l_count];
+    let mut layer_target_union: Vec<Option<(Point, Point)>> = vec![None; l_count];
+    for c in targets.iter().flatten().copied() {
+        let mask = c.layer_mask(stackup);
+        let (lo, hi) = c.copper_bounds();
+        for l_idx in 0..l_count {
+            if (mask & (1u32 << l_idx)) != 0 {
+                layer_targets[l_idx].push((c, lo, hi));
+                layer_target_union[l_idx] = Some(match layer_target_union[l_idx] {
+                    None => (lo, hi),
+                    Some((u_lo, u_hi)) => (
+                        [u_lo[0].min(lo[0]), u_lo[1].min(lo[1])],
+                        [u_hi[0].max(hi[0]), u_hi[1].max(hi[1])],
+                    ),
+                });
+            }
+        }
+    }
+
     let attachment_from = |layer_idx: usize,
                            anchor: Point,
                            a: Point,
                            b: Point,
                            prior_vias: &[PlacedViaKey]|
      -> Result<Option<Point>, Failure> {
+        let Some((u_lo, u_hi)) = layer_target_union[layer_idx] else {
+            return Ok(None);
+        };
         let l_name = engine.layer_name(layer_idx);
         let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
             Ok(w) => w,
             Err(e) if e.status == Status::Unroutable => return Ok(None),
             Err(e) => return Err(e),
         };
+        let route_radius = (width_nm + 1) / 2;
+        let edge_lo = [a[0].min(b[0]) - route_radius, a[1].min(b[1]) - route_radius];
+        let edge_hi = [a[0].max(b[0]) + route_radius, a[1].max(b[1]) + route_radius];
+        if edge_hi[0] < u_lo[0]
+            || edge_lo[0] > u_hi[0]
+            || edge_hi[1] < u_lo[1]
+            || edge_lo[1] > u_hi[1]
+        {
+            return Ok(None);
+        }
         let mut nearest = None;
-        for c in targets.iter().flatten() {
+        let check_legal = |pt: Point| -> Result<bool, Failure> {
+            Ok(engine.legal_edge_on(net, layer_idx, anchor, pt)?
+                && engine.edge_clears_same_net_vias(net, layer_idx, anchor, pt, prior_vias)?)
+        };
+        for &(c, lo, hi) in &layer_targets[layer_idx] {
+            if edge_hi[0] < lo[0] || edge_lo[0] > hi[0] || edge_hi[1] < lo[1] || edge_lo[1] > hi[1]
+            {
+                continue;
+            }
             engine.work.charge(1)?;
-            if let Some(p) = c.attachment(a, b, net, width_nm, l_name, stackup, &engine.work)? {
-                if engine.legal_edge_on(net, layer_idx, anchor, p)?
-                    && engine.edge_clears_same_net_vias(net, layer_idx, anchor, p, prior_vias)?
-                {
+            if let Some(p_first) =
+                c.attachment(a, b, net, width_nm, l_name, stackup, &engine.work)?
+            {
+                let chosen = match c {
+                    Copper::Pad(pad) if !geometry::point_in_pad(p_first, pad) => {
+                        let [cand_deep, cand_near] =
+                            geometry::segment_pad_interior_candidates(a, b, pad);
+                        let mut interior_hit = None;
+                        for cand in [cand_deep, cand_near].into_iter().flatten() {
+                            if check_legal(cand)? {
+                                interior_hit = Some(cand);
+                                break;
+                            }
+                        }
+                        if interior_hit.is_some() {
+                            interior_hit
+                        } else {
+                            check_legal(p_first)?.then_some(p_first)
+                        }
+                    }
+                    _ => check_legal(p_first)?.then_some(p_first),
+                };
+                if let Some(p) = chosen {
                     let key = |p: Point| ((p[0] - a[0]).abs() + (p[1] - a[1]).abs(), p);
                     if nearest.is_none_or(|old| key(p) < key(old)) {
                         nearest = Some(p);
@@ -612,7 +672,7 @@ fn join_components_inner(
     };
 
     loop {
-        let result = walk_multilayer(
+        let mut result = walk_multilayer(
             engine,
             net,
             &start_vec,
@@ -831,12 +891,23 @@ fn join_components_inner(
                 };
                 match prev_edge {
                     PathEdge::Track { .. } => {
+                        let Some((u_lo, u_hi)) = layer_target_union[layer_idx] else {
+                            return Ok(false);
+                        };
                         let l_name = engine.layer_name(layer_idx);
                         let width_nm = match engine.effective_rules.track_width_for(net, l_name) {
                             Ok(w) => w,
                             Err(e) if e.status == Status::Unroutable => return Ok(false),
                             Err(e) => return Err(e),
                         };
+                        let r = (width_nm + 1) / 2;
+                        if at[0] + r < u_lo[0]
+                            || at[0] - r > u_hi[0]
+                            || at[1] + r < u_lo[1]
+                            || at[1] - r > u_hi[1]
+                        {
+                            return Ok(false);
+                        }
                         let probe = Track {
                             id: String::new(),
                             net,
@@ -846,7 +917,14 @@ fn join_components_inner(
                             locked: false,
                             layer: l_name.to_owned(),
                         };
-                        for c in targets.iter().flatten() {
+                        for &(c, lo, hi) in &layer_targets[layer_idx] {
+                            if at[0] + r < lo[0]
+                                || at[0] - r > hi[0]
+                                || at[1] + r < lo[1]
+                                || at[1] - r > hi[1]
+                            {
+                                continue;
+                            }
                             if c.touches_route(&probe, stackup, &engine.work)? {
                                 return Ok(true);
                             }
@@ -903,6 +981,7 @@ fn join_components_inner(
             || (path_via_count < 2
                 && (engine.input.rules.same_net_hole_clearance_nm == 0 || path_via_count == 0))
         {
+            extend_path_into_target_pad(engine, net, &layer_targets, &mut result)?;
             return Ok(result);
         }
 
@@ -961,8 +1040,164 @@ fn join_components_inner(
                 continue;
             }
         }
+        extend_path_into_target_pad(engine, net, &layer_targets, &mut result)?;
         return Ok(result);
     }
+}
+
+fn extend_path_into_target_pad(
+    engine: &Engine,
+    net: u32,
+    layer_targets: &[Vec<(Copper<'_>, Point, Point)>],
+    result: &mut Path,
+) -> Result<(), Failure> {
+    let Some(PathEdge::Track { start, end, layer }) = result.edges.last().copied() else {
+        return Ok(());
+    };
+    let layer_idx = layer as usize;
+    let l_name = engine.layer_name(layer_idx);
+    let Ok(width_nm) = engine.effective_rules.track_width_for(net, l_name) else {
+        return Ok(());
+    };
+    let stackup = engine.all_layers_slice();
+    let probe = Track {
+        id: String::new(),
+        net,
+        start: end,
+        end,
+        width_nm,
+        locked: false,
+        layer: l_name.to_owned(),
+    };
+    let r = (width_nm + 1) / 2;
+    let mut touched_pad: Option<&crate::model::Pad> = None;
+    for &(c, lo, hi) in &layer_targets[layer_idx] {
+        if end[0] + r < lo[0] || end[0] - r > hi[0] || end[1] + r < lo[1] || end[1] - r > hi[1] {
+            continue;
+        }
+        if c.touches_route(&probe, stackup, &engine.work)? {
+            match c {
+                Copper::Pad(pad) => {
+                    if geometry::point_in_pad(end, pad) {
+                        return Ok(());
+                    }
+                    if touched_pad.is_none() {
+                        touched_pad = Some(pad);
+                    }
+                }
+                _ => return Ok(()),
+            }
+        }
+    }
+    let Some(pad) = touched_pad else {
+        return Ok(());
+    };
+    let prior_vias: Vec<PlacedViaKey> = result
+        .edges
+        .iter()
+        .filter_map(|e| match *e {
+            PathEdge::Via(pv) => Some(pv),
+            PathEdge::Track { .. } => None,
+        })
+        .collect();
+    let collinear_anchor = if engine.input.rules.same_net_hole_clearance_nm > 0 {
+        let axis = usize::from(start[0] == end[0]);
+        let sign = (end[axis] - start[axis]).signum();
+        let mut anchor = start;
+        for e in result.edges[..result.edges.len() - 1].iter().rev() {
+            let PathEdge::Track {
+                start: ps,
+                end: pe,
+                layer: pl,
+            } = *e
+            else {
+                break;
+            };
+            if pl != layer || ps[1 - axis] != pe[1 - axis] || (pe[axis] - ps[axis]).signum() != sign
+            {
+                break;
+            }
+            anchor = ps;
+        }
+        anchor
+    } else {
+        start
+    };
+    let is_legal_from = |anchor: Point, pt: Point| -> Result<bool, Failure> {
+        Ok(engine.legal_edge_on(net, layer_idx, anchor, pt)?
+            && engine.edge_clears_same_net_vias(net, layer_idx, anchor, pt, &prior_vias)?)
+    };
+    let axis = usize::from(start[0] == end[0]);
+    let sign = (end[axis] - start[axis]).signum();
+    if sign != 0 {
+        let (plo, phi) = pad.copper_bounds();
+        let mut far = end;
+        far[axis] = if sign > 0 { phi[axis] } else { plo[axis] };
+        if (far[axis] - end[axis]).signum() == sign {
+            let [cand_deep, cand_near] = geometry::segment_pad_interior_candidates(end, far, pad);
+            for p_in in [cand_deep, cand_near].into_iter().flatten() {
+                if is_legal_from(collinear_anchor, p_in)? {
+                    if let Some(PathEdge::Track { end: last_end, .. }) = result.edges.last_mut() {
+                        *last_end = p_in;
+                    }
+                    if let Some(last_pt) = result.points.last_mut() {
+                        *last_pt = p_in;
+                    }
+                    return Ok(());
+                }
+            }
+        }
+    }
+    let center = pad.copper_center();
+    let mut ortho_targets = Vec::new();
+    for target in [center, pad.at] {
+        for cand in [[target[0], end[1]], [end[0], target[1]]] {
+            if cand != end && !ortho_targets.contains(&cand) {
+                ortho_targets.push(cand);
+            }
+        }
+    }
+    for far in ortho_targets {
+        let [cand_deep, cand_near] = geometry::segment_pad_interior_candidates(end, far, pad);
+        for p_in in [cand_deep, cand_near].into_iter().flatten() {
+            if is_legal_from(end, p_in)? {
+                result.points.push(p_in);
+                result.edges.push(PathEdge::Track {
+                    start: end,
+                    end: p_in,
+                    layer,
+                });
+                return Ok(());
+            }
+        }
+    }
+    for target in [center, pad.at] {
+        if !geometry::point_in_pad(target, pad) {
+            continue;
+        }
+        for corner in [[target[0], end[1]], [end[0], target[1]]] {
+            if corner != end
+                && corner != target
+                && is_legal_from(end, corner)?
+                && is_legal_from(corner, target)?
+            {
+                result.points.push(corner);
+                result.points.push(target);
+                result.edges.push(PathEdge::Track {
+                    start: end,
+                    end: corner,
+                    layer,
+                });
+                result.edges.push(PathEdge::Track {
+                    start: corner,
+                    end: target,
+                    layer,
+                });
+                return Ok(());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn push_legal_via_transitions(
@@ -1987,6 +2222,32 @@ fn walk_multilayer(
             Ok(false)
         };
 
+    fn reconstruct_path(
+        parent: &HashMap<State, (State, PathEdge)>,
+        work: &WorkBudget,
+        goal_state: State,
+        goal_cost: u64,
+    ) -> Result<Path, Failure> {
+        work.charge(1)?;
+        let mut edges = Vec::new();
+        let mut points = vec![goal_state.at];
+        let mut s = goal_state;
+        while let Some((previous, edge)) = parent.get(&s) {
+            work.charge(1)?;
+            edges.push(*edge);
+            s = *previous;
+            points.push(s.at);
+        }
+        work.charge((points.len() + edges.len()) as u64)?;
+        points.reverse();
+        edges.reverse();
+        Ok(Path {
+            points,
+            edges,
+            steps: goal_cost,
+        })
+    }
+
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
@@ -2045,24 +2306,7 @@ fn walk_multilayer(
                     parent.get(&state).map(|(_, e)| *e),
                 )?)
         {
-            engine.work.charge(1)?;
-            let mut edges = Vec::new();
-            let mut points = vec![state.at];
-            let mut s = state;
-            while let Some((previous, edge)) = parent.get(&s) {
-                engine.work.charge(1)?;
-                edges.push(*edge);
-                s = *previous;
-                points.push(s.at);
-            }
-            engine.work.charge((points.len() + edges.len()) as u64)?;
-            points.reverse();
-            edges.reverse();
-            return Ok(Path {
-                points,
-                edges,
-                steps: cost,
-            });
+            return reconstruct_path(&parent, &engine.work, state, cost);
         }
 
         let state_run_start =
@@ -2265,157 +2509,162 @@ fn walk_multilayer(
             }
         }
 
-        via_buf.clear();
-        blocked_via_spans.clear();
-        let want_via_frontier =
-            l_count >= 2 && frontier.is_some() && (state.via_only || any_track_blocked);
-        let prior_vias_slice = via_arena.get(state.via_history);
-        if can_cache_vias && !state.via_only && state.via_count == 0 && prior_vias_slice.is_empty()
-        {
-            let cache_key = (state.at, if only_through_vias { 0 } else { state.layer });
-            if let Some((cached_vias, cached_blocked)) = via_cache.get(&cache_key) {
-                engine.work.charge(1)?;
-                if only_through_vias {
-                    if let Some(&(_, pv, v_cost)) = cached_vias.first() {
-                        for tl in 0..l_count {
-                            if tl as u8 != state.layer {
-                                via_buf.push((tl as u8, pv, v_cost));
+        if !(only_through_vias && state.arrived_by_via) {
+            via_buf.clear();
+            blocked_via_spans.clear();
+            let want_via_frontier =
+                l_count >= 2 && frontier.is_some() && (state.via_only || any_track_blocked);
+            let prior_vias_slice = via_arena.get(state.via_history);
+            if can_cache_vias
+                && !state.via_only
+                && state.via_count == 0
+                && prior_vias_slice.is_empty()
+            {
+                let cache_key = (state.at, if only_through_vias { 0 } else { state.layer });
+                if let Some((cached_vias, cached_blocked)) = via_cache.get(&cache_key) {
+                    engine.work.charge(1)?;
+                    if only_through_vias {
+                        if let Some(&(_, pv, v_cost)) = cached_vias.first() {
+                            for tl in 0..l_count {
+                                if tl as u8 != state.layer {
+                                    via_buf.push((tl as u8, pv, v_cost));
+                                }
                             }
                         }
+                    } else {
+                        via_buf.extend_from_slice(cached_vias);
+                    }
+                    if want_via_frontier {
+                        blocked_via_spans.extend_from_slice(cached_blocked);
                     }
                 } else {
-                    via_buf.extend_from_slice(cached_vias);
-                }
-                if want_via_frontier {
-                    blocked_via_spans.extend_from_slice(cached_blocked);
+                    via_transitions(
+                        state.at,
+                        state.layer as usize,
+                        prior_vias_slice,
+                        0,
+                        false,
+                        &mut via_buf,
+                        Some(&mut blocked_via_spans),
+                    )?;
+                    engine.work.search_storage(via_cache.len() + 1)?;
+                    via_cache.insert(cache_key, (via_buf.clone(), blocked_via_spans.clone()));
+                    if !want_via_frontier {
+                        blocked_via_spans.clear();
+                    }
                 }
             } else {
                 via_transitions(
                     state.at,
                     state.layer as usize,
                     prior_vias_slice,
-                    0,
-                    false,
+                    state.via_count,
+                    state.via_only,
                     &mut via_buf,
-                    Some(&mut blocked_via_spans),
+                    want_via_frontier.then_some(&mut blocked_via_spans),
                 )?;
-                engine.work.search_storage(via_cache.len() + 1)?;
-                via_cache.insert(cache_key, (via_buf.clone(), blocked_via_spans.clone()));
-                if !want_via_frontier {
-                    blocked_via_spans.clear();
+            }
+            if want_via_frontier {
+                if let Some(f) = frontier.as_deref_mut() {
+                    for &(s_lo, s_hi, via_gen) in &blocked_via_spans {
+                        f.push_via_site_classified(s_lo, s_hi, state.at, via_gen);
+                    }
                 }
             }
-        } else {
-            via_transitions(
-                state.at,
-                state.layer as usize,
-                prior_vias_slice,
-                state.via_count,
-                state.via_only,
-                &mut via_buf,
-                want_via_frontier.then_some(&mut blocked_via_spans),
-            )?;
-        }
-        if want_via_frontier {
-            if let Some(f) = frontier.as_deref_mut() {
-                for &(s_lo, s_hi, via_gen) in &blocked_via_spans {
-                    f.push_via_site_classified(s_lo, s_hi, state.at, via_gen);
+            for &(target_layer, pv, v_cost) in &via_buf {
+                engine.work.charge(1)?;
+                if let Some(idx) = track_via_conflicts.iter().position(|&cv| cv == pv) {
+                    let idx_u16 = u16::try_from(idx).map_err(|_| {
+                        Failure::new(
+                            Status::BudgetExhausted,
+                            "track-via conflict set exceeds u16 capacity",
+                        )
+                    })?;
+                    if tv_arena.contains(base_turned_blocked, idx_u16) {
+                        continue;
+                    }
                 }
-            }
-        }
-        for &(target_layer, pv, v_cost) in &via_buf {
-            engine.work.charge(1)?;
-            if let Some(idx) = track_via_conflicts.iter().position(|&cv| cv == pv) {
-                let idx_u16 = u16::try_from(idx).map_err(|_| {
-                    Failure::new(
-                        Status::BudgetExhausted,
-                        "track-via conflict set exceeds u16 capacity",
-                    )
-                })?;
-                if tv_arena.contains(base_turned_blocked, idx_u16) {
-                    continue;
-                }
-            }
-            let next_vh = if conflict_filter.contains(pv.at) {
-                let Some(vh) = via_arena.append(state.via_history, pv) else {
-                    continue;
+                let next_vh = if conflict_filter.contains(pv.at) {
+                    let Some(vh) = via_arena.append(state.via_history, pv) else {
+                        continue;
+                    };
+                    vh
+                } else {
+                    state.via_history
                 };
-                vh
-            } else {
-                state.via_history
-            };
-            let next_vc = if track_via_count {
-                state.via_count.checked_add(1).expect("bounded via count")
-            } else {
-                0
-            };
-            let is_goal = finished(state.at, target_layer as usize, Some(PathEdge::Via(pv)))?;
-            let next = State {
-                at: state.at,
-                layer: target_layer,
-                direction: 4,
-                arrived_by_via: l_count > 1,
-                is_via_goal: is_goal,
-                via_only: false,
-                via_history: next_vh,
-                via_count: next_vc,
-                track_via_blocked: base_turned_blocked,
-            };
-            let v_penalty = match history {
-                Some(hist) if !hist.is_empty() => {
-                    engine.work.charge(1)?;
-                    hist.via_penalty(
-                        pv.at,
-                        pv.start_layer,
-                        pv.end_layer,
-                        engine.input.bounds.min,
-                        grid,
-                    )
+                let next_vc = if track_via_count {
+                    state.via_count.checked_add(1).expect("bounded via count")
+                } else {
+                    0
+                };
+                let is_goal = finished(state.at, target_layer as usize, Some(PathEdge::Via(pv)))?;
+                let next = State {
+                    at: state.at,
+                    layer: target_layer,
+                    direction: 4,
+                    arrived_by_via: l_count > 1,
+                    is_via_goal: is_goal,
+                    via_only: false,
+                    via_history: next_vh,
+                    via_count: next_vc,
+                    track_via_blocked: base_turned_blocked,
+                };
+                let v_penalty = match history {
+                    Some(hist) if !hist.is_empty() => {
+                        engine.work.charge(1)?;
+                        hist.via_penalty(
+                            pv.at,
+                            pv.start_layer,
+                            pv.end_layer,
+                            engine.input.bounds.min,
+                            grid,
+                        )
+                    }
+                    _ => 0,
+                };
+                let total_v_cost = v_cost.checked_add(v_penalty).expect("bounded via cost");
+                let g = cost.checked_add(total_v_cost).expect("bounded search cost");
+                if best.get(&next).is_some_and(|old| *old <= g) {
+                    continue;
                 }
-                _ => 0,
-            };
-            let total_v_cost = v_cost.checked_add(v_penalty).expect("bounded via cost");
-            let g = cost.checked_add(total_v_cost).expect("bounded search cost");
-            if best.get(&next).is_some_and(|old| *old <= g) {
-                continue;
-            }
-            if is_dominated_by_settled(
-                &settled_by_pos,
-                &via_arena,
-                &tv_arena,
-                next,
-                g,
-                &engine.work,
-            )? {
-                continue;
-            }
-            let extra = 1
-                + usize::from(!best.contains_key(&next))
-                + usize::from(!parent.contains_key(&next));
-            engine.work.search_storage(
-                queue.len()
-                    + best.len()
-                    + parent.len()
-                    + via_arena.total_len
-                    + tv_arena.total_len
-                    + extra,
-            )?;
-            engine.work.charge(1)?;
-            best.insert(next, g);
-            parent.insert(next, (state, PathEdge::Via(pv)));
-            let h = if is_goal {
-                0
-            } else {
-                heuristic(next.at, next.layer as usize)?
-            };
-            queue.push(Reverse((
-                g.checked_add(h).expect("bounded heuristic"),
-                TieG {
+                if is_dominated_by_settled(
+                    &settled_by_pos,
+                    &via_arena,
+                    &tv_arena,
+                    next,
                     g,
-                    prefer_higher: prefer_higher_g,
-                },
-                next,
-            )));
+                    &engine.work,
+                )? {
+                    continue;
+                }
+                let extra = 1
+                    + usize::from(!best.contains_key(&next))
+                    + usize::from(!parent.contains_key(&next));
+                engine.work.search_storage(
+                    queue.len()
+                        + best.len()
+                        + parent.len()
+                        + via_arena.total_len
+                        + tv_arena.total_len
+                        + extra,
+                )?;
+                engine.work.charge(1)?;
+                best.insert(next, g);
+                parent.insert(next, (state, PathEdge::Via(pv)));
+                let h = if is_goal {
+                    0
+                } else {
+                    heuristic(next.at, next.layer as usize)?
+                };
+                queue.push(Reverse((
+                    g.checked_add(h).expect("bounded heuristic"),
+                    TieG {
+                        g,
+                        prefer_higher: prefer_higher_g,
+                    },
+                    next,
+                )));
+            }
         }
     }
     Err(Failure::new(

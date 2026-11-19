@@ -173,6 +173,10 @@ pub struct BoardDesignSettings {
     pub board_thickness_nm: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outer_solder_mask_thickness_nm: Option<i64>,
+    #[serde(default)]
+    pub cap_vias: bool,
+    #[serde(default)]
+    pub fill_vias: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]

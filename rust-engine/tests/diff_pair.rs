@@ -142,6 +142,8 @@ fn base_diff_input(net_names: &[&str]) -> Input {
             use_height_for_length_calcs: Some(false),
             board_thickness_nm: None,
             outer_solder_mask_thickness_nm: None,
+            cap_vias: false,
+            fill_vias: false,
         }),
         project_rules: None,
         custom_rules: None,

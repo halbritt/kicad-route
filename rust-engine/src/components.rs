@@ -38,6 +38,29 @@ pub(crate) enum Copper<'a> {
     },
 }
 impl Copper<'_> {
+    pub(crate) fn copper_bounds(self) -> (Point, Point) {
+        match self {
+            Self::Pad(p) => p.copper_bounds(),
+            Self::Track(t) => t.copper_bounds(),
+            Self::Graphic(g) => g.copper_bounds(),
+            Self::Via(v) => {
+                let r = (v.diameter_nm + 1) / 2;
+                ([v.at[0] - r, v.at[1] - r], [v.at[0] + r, v.at[1] + r])
+            }
+            Self::ZoneFill { poly, .. } => {
+                let mut lo = [i64::MAX, i64::MAX];
+                let mut hi = [i64::MIN, i64::MIN];
+                for p in &poly.outer {
+                    lo[0] = lo[0].min(p[0]);
+                    lo[1] = lo[1].min(p[1]);
+                    hi[0] = hi[0].max(p[0]);
+                    hi[1] = hi[1].max(p[1]);
+                }
+                (lo, hi)
+            }
+        }
+    }
+
     pub(crate) fn layer_mask(self, stackup: &[String]) -> u32 {
         match self {
             Self::Pad(p) => {

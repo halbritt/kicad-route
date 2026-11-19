@@ -1837,11 +1837,17 @@ impl Engine {
             if spoke_flow.is_break() {
                 return Ok(None);
             }
-            let pad_net_filter = if r.same_net_hole_clearance_nm > 0 && net != 0 {
-                None
-            } else {
-                Some(net)
-            };
+            let disallow_smd_via_in_pad = self
+                .input
+                .board_design_settings
+                .as_ref()
+                .is_some_and(|bds| !(bds.cap_vias && bds.fill_vias));
+            let pad_net_filter =
+                if (r.same_net_hole_clearance_nm > 0 || disallow_smd_via_in_pad) && net != 0 {
+                    None
+                } else {
+                    Some(net)
+                };
             let pad_swept = SweptAabb::swept(
                 at,
                 at,
@@ -1895,6 +1901,28 @@ impl Engine {
                         }
                     };
                     if pad.net == net && net != 0 {
+                        if pad.drill.is_none() && disallow_smd_via_in_pad {
+                            let synth = Via {
+                                id: String::new(),
+                                net,
+                                at,
+                                diameter_nm: diam,
+                                drill_nm: drill,
+                                start_layer: self.layer_names[start_idx].clone(),
+                                end_layer: self.layer_names[end_idx].clone(),
+                                kind,
+                                locked: false,
+                            };
+                            if check_core(drill, 0)
+                                || Copper::Pad(pad).touches_via(
+                                    &synth,
+                                    &self.layer_names,
+                                    &self.work,
+                                )?
+                            {
+                                return Ok(ControlFlow::Break(()));
+                            }
+                        }
                         if r.same_net_hole_clearance_nm == 0 {
                             return Ok(ControlFlow::Continue(()));
                         }

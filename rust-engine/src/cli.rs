@@ -6,10 +6,14 @@ use kicad_route_engine::{
 use std::{
     ffi::OsString,
     fs,
-    io::{Read, Write},
+    io::{ErrorKind, Read, Write},
     panic::{catch_unwind, AssertUnwindSafe},
     path::Path,
+    sync::atomic::{AtomicU64, Ordering},
+    time::{SystemTime, UNIX_EPOCH},
 };
+
+static NEXT_TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 // Best effort identity recovery is only for an edit-free panic result. It does
 // not validate input or confer permission to apply any result.
@@ -37,11 +41,35 @@ fn write_output(path: &Path, output: &Output) -> std::io::Result<()> {
         .file_name()
         .ok_or_else(|| std::io::Error::other("output path needs a filename"))?
         .to_string_lossy();
-    let temporary = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
-    let mut f = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temporary)?;
+    let pid = std::process::id();
+    let (temporary, mut f) = {
+        let mut opened = None;
+        for _ in 0..64 {
+            let seq = NEXT_TEMP_SEQ.fetch_add(1, Ordering::Relaxed);
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos());
+            let candidate = path.with_file_name(format!(".{name}.{pid}.{nanos}.{seq}.tmp"));
+            match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&candidate)
+            {
+                Ok(file) => {
+                    opened = Some((candidate, file));
+                    break;
+                }
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        opened.ok_or_else(|| {
+            std::io::Error::new(
+                ErrorKind::AlreadyExists,
+                "could not allocate unique temporary output file",
+            )
+        })?
+    };
     let result = (|| {
         serde_json::to_writer_pretty(&mut f, output)?;
         f.write_all(b"\n")?;

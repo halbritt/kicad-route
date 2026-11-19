@@ -2081,6 +2081,203 @@ pub fn graphics_connect(a: &CopperGraphic, b: &CopperGraphic) -> bool {
     }
 }
 
+pub fn point_in_pad(pt: Point, p: &Pad) -> bool {
+    match &p.shape {
+        Shape::Circle { radius_nm } => {
+            *radius_nm > 0 && track_near_core(pt, pt, 0, 0, p.at, p.at, *radius_nm, false)
+        }
+        Shape::Rect { half_size_nm: h } => {
+            (i128::from(pt[0]) - i128::from(p.at[0])).abs() < i128::from(h[0])
+                && (i128::from(pt[1]) - i128::from(p.at[1])).abs() < i128::from(h[1])
+        }
+        Shape::RoundRect {
+            half_size_nm: h,
+            radius_nm: r,
+        } => {
+            if *r <= 0 {
+                (i128::from(pt[0]) - i128::from(p.at[0])).abs() < i128::from(h[0])
+                    && (i128::from(pt[1]) - i128::from(p.at[1])).abs() < i128::from(h[1])
+            } else {
+                track_near_core(
+                    pt,
+                    pt,
+                    0,
+                    0,
+                    [p.at[0] - (h[0] - r), p.at[1] - (h[1] - r)],
+                    [p.at[0] + (h[0] - r), p.at[1] + (h[1] - r)],
+                    *r,
+                    false,
+                )
+            }
+        }
+        Shape::BoxExact {
+            center_2x,
+            half_size_2x,
+            radius_2x,
+        } => {
+            if *radius_2x <= 0 {
+                (2 * i128::from(pt[0]) - i128::from(center_2x[0])).abs()
+                    < i128::from(half_size_2x[0])
+                    && (2 * i128::from(pt[1]) - i128::from(center_2x[1])).abs()
+                        < i128::from(half_size_2x[1])
+            } else {
+                let core_half = [half_size_2x[0] - radius_2x, half_size_2x[1] - radius_2x];
+                track_near_core_2x(
+                    pt,
+                    pt,
+                    0,
+                    0,
+                    [center_2x[0] - core_half[0], center_2x[1] - core_half[1]],
+                    [center_2x[0] + core_half[0], center_2x[1] + core_half[1]],
+                    *radius_2x,
+                    false,
+                )
+            }
+        }
+        Shape::Capsule {
+            start_nm,
+            end_nm,
+            width_nm,
+        } => {
+            *width_nm > 0 && segments_near(pt, pt, *start_nm, *end_nm, i128::from(*width_nm), false)
+        }
+        Shape::ConvexPolygon {
+            vertices,
+            radius_nm,
+        } => {
+            if *radius_nm <= 0 {
+                let n = vertices.len();
+                n >= 3
+                    && (0..n).all(|i| {
+                        cross(
+                            sub(vertices[(i + 1) % n], vertices[i]),
+                            sub(pt, vertices[i]),
+                        ) > 0
+                    })
+            } else {
+                track_near_convex_poly(pt, pt, 0, 0, vertices, *radius_nm, false)
+            }
+        }
+    }
+}
+
+fn seg_dist2_rat(pt: Point, a: Point, b: Point) -> (u128, u128) {
+    let v = sub(b, a);
+    let w = sub(pt, a);
+    let len2 = dot(v, v);
+    let proj = dot(w, v);
+    if len2 <= 0 || proj <= 0 {
+        return (dot(w, w) as u128, 1);
+    }
+    if proj >= len2 {
+        let e = sub(pt, b);
+        return (dot(e, e) as u128, 1);
+    }
+    let c = cross(v, w).unsigned_abs();
+    (c * c, len2 as u128)
+}
+
+fn rat_cmp(a: (u128, u128), b: (u128, u128)) -> std::cmp::Ordering {
+    let (q1, r1) = (a.0 / a.1, a.0 % a.1);
+    let (q2, r2) = (b.0 / b.1, b.0 % b.1);
+    q1.cmp(&q2).then_with(|| (r1 * b.1).cmp(&(r2 * a.1)))
+}
+
+fn pad_dist2_rat(pt: Point, p: &Pad) -> (u128, u128) {
+    match &p.shape {
+        Shape::Capsule {
+            start_nm, end_nm, ..
+        } => seg_dist2_rat(pt, *start_nm, *end_nm),
+        Shape::ConvexPolygon { vertices, .. } => {
+            if point_in_convex_poly(pt, vertices) {
+                return (0, 1);
+            }
+            let n = vertices.len();
+            (0..n)
+                .map(|i| seg_dist2_rat(pt, vertices[i], vertices[(i + 1) % n]))
+                .min_by(|&x, &y| rat_cmp(x, y))
+                .unwrap_or((u128::MAX, 1))
+        }
+        _ => (u128::MAX, 1),
+    }
+}
+
+pub fn segment_pad_interior_candidates(a: Point, b: Point, p: &Pad) -> [Option<Point>; 2] {
+    if a == b {
+        return [point_in_pad(b, p).then_some(b), None];
+    }
+    let k = usize::from(a[0] == b[0]);
+    let len = (b[k] - a[k]).abs();
+    let dir = (b[k] - a[k]).signum();
+    let pt_at = |d: i64| -> Point {
+        let mut pt = a;
+        pt[k] += d * dir;
+        pt
+    };
+    let (plo, phi) = p.copper_bounds();
+    if a[1 - k] < plo[1 - k] || a[1 - k] > phi[1 - k] {
+        return [None, None];
+    }
+    let (d_min, d_max) = if dir > 0 {
+        ((plo[k] - a[k]).max(1), (phi[k] - a[k]).min(len))
+    } else {
+        ((a[k] - phi[k]).max(1), (a[k] - plo[k]).min(len))
+    };
+    if d_min > d_max {
+        return [None, None];
+    }
+    let mut best_d: Option<i64> = if point_in_pad(b, p) { Some(len) } else { None };
+    if best_d.is_none() {
+        let d_center = ((p.copper_center()[k] - a[k]) * dir).clamp(d_min, d_max);
+        let d_mid = d_min + (d_max - d_min) / 2;
+        for cand in [d_center, d_mid, d_min, d_max] {
+            if point_in_pad(pt_at(cand), p) {
+                best_d = Some(cand);
+                break;
+            }
+        }
+        if best_d.is_none()
+            && matches!(p.shape, Shape::Capsule { .. } | Shape::ConvexPolygon { .. })
+        {
+            let mut lo = d_min;
+            let mut hi = d_max;
+            while hi - lo > 3 {
+                let m1 = lo + (hi - lo) / 3;
+                let m2 = hi - (hi - lo) / 3;
+                if rat_cmp(pad_dist2_rat(pt_at(m1), p), pad_dist2_rat(pt_at(m2), p))
+                    != std::cmp::Ordering::Greater
+                {
+                    hi = m2;
+                } else {
+                    lo = m1;
+                }
+            }
+            for d in lo..=hi {
+                if point_in_pad(pt_at(d), p) {
+                    best_d = Some(d);
+                    break;
+                }
+            }
+        }
+    }
+    let Some(d_deep) = best_d else {
+        return [None, None];
+    };
+    let primary = pt_at(d_deep);
+    let mut lo = d_min;
+    let mut hi = d_deep;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        if point_in_pad(pt_at(mid), p) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    let near = (lo < d_deep).then(|| pt_at(lo));
+    [Some(primary), near]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

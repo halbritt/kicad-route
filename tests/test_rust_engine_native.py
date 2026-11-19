@@ -1513,18 +1513,28 @@ def test_failed_publication_cannot_apply_old_result_as_new_request(native_board,
     assert plan_b['source_id'] == plan_a['source_id']
     assert {t['width_nm'] for t in plan_b['added_tracks']} == {500000}
     assert plan_b['request_sha256'] != plan_a['request_sha256']
-    # The exec preserves the child's PID, so a foreign adjacent temporary file
-    # provokes a real publication failure over the actual older result.
-    collision = '''import os, pathlib, sys
+    # F-M5-N4 uses a unique monotonic temp name per invocation, so a stale
+    # PID-named temp file next to a target does not block publication or lose data.
+    stale_probe = '''import os, pathlib, sys
 target = pathlib.Path(sys.argv[3])
 target.with_name(f".{target.name}.{os.getpid()}.tmp").write_bytes(b"foreign temporary")
 os.execv(sys.argv[1], sys.argv[1:])
 '''
-    failed = run(['/usr/bin/python3', '-c', collision, str(engine), str(request_b), str(plan_path)], check=False)
+    stale_target = native_board.with_name('stale-pid-temp-ok.json')
+    stale_run = run(['/usr/bin/python3', '-c', stale_probe, str(engine), str(request_b), str(stale_target)], check=False)
+    assert stale_run.returncode == 0
+    assert json.loads(stale_target.read_bytes())['request_sha256'] == plan_b['request_sha256']
+    foreign = list(native_board.parent.glob('.stale-pid-temp-ok.json.*.tmp'))
+    assert len(foreign) == 1 and foreign[0].read_bytes() == b'foreign temporary'
+    # A read-only output directory provokes a real publication failure over the
+    # older retained plan, leaving old bytes untouched and returning rc 8.
+    native_board.parent.chmod(0o555)
+    try:
+        failed = run([str(engine), str(request_b), str(plan_path)], check=False)
+    finally:
+        native_board.parent.chmod(0o755)
     assert failed.returncode == 8 and 'no fresh result established' in failed.stderr
     assert plan_path.read_bytes() == old_bytes
-    foreign = list(native_board.parent.glob('.retained-plan.json.*.tmp'))
-    assert len(foreign) == 1 and foreign[0].read_bytes() == b'foreign temporary'
     output = native_board.with_name('mismatched-output.kicad_pcb')
     rejected = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
                     'apply', str(native_board), str(plan_path), str(output),
@@ -1691,7 +1701,7 @@ def test_multiterminal_t_corridor_normalizes_collinear_overlaps(native_board, gu
     assert plan['status'] == 'complete'
     tracks = plan['added_tracks']
     assert len(tracks) == 2
-    assert sum(abs(t['end'][0] - t['start'][0]) + abs(t['end'][1] - t['start'][1]) for t in tracks) == 12750002
+    assert sum(abs(t['end'][0] - t['start'][0]) + abs(t['end'][1] - t['start'][1]) for t in tracks) == 14000000
     for i, a in enumerate(tracks):
         for b in tracks[i + 1:]:
             for axis in (0, 1):
@@ -1757,8 +1767,8 @@ def test_multiterminal_t_corridor_partial_overlap_trims_cleanly(native_board, gu
     plan = json.loads(plan_path.read_bytes())
     assert plan['status'] == 'complete'
     tracks = plan['added_tracks']
-    assert len(tracks) == 3
-    assert sum(abs(t['end'][0] - t['start'][0]) + abs(t['end'][1] - t['start'][1]) for t in tracks) == 13375001
+    assert len(tracks) == 2
+    assert sum(abs(t['end'][0] - t['start'][0]) + abs(t['end'][1] - t['start'][1]) for t in tracks) == 14000000
     for i, a in enumerate(tracks):
         for b in tracks[i + 1:]:
             for axis in (0, 1):
@@ -2661,4 +2671,202 @@ def test_off_origin_centering_round_trip_and_span_boundaries(tmp_path, guarded_c
     plan_ok = {'version': bridge.RESULT_VERSION, 'source_id': req_200['source_id'], 'request_sha256': hashlib.sha256(bad_req_bytes).hexdigest(), 'status': 'complete', 'added_tracks': [], 'added_vias': [], 'removed_track_ids': []}
     with pytest.raises((bridge.UnsupportedBoard, ValueError)):
         bridge.apply_snapshot(exact_200, plan_ok, tmp_path / 'bad_bounds.kicad_pcb', expected_request=bad_req_bytes)
+
+
+def test_unprotected_smd_via_in_pad_rejected_and_protected_allowed(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+
+    def make_via_in_pad_board(path, *, cap_vias: bool, fill_vias: bool, box_fcu: bool):
+        board = pcbnew.BOARD()
+        board.SetCopperLayerCount(2)
+        board.Add(pcbnew.NETINFO_ITEM(board, 'SIG', 1))
+        settings = board.GetDesignSettings()
+        settings.m_CapVias = cap_vias
+        settings.m_FillVias = fill_vias
+        for a, b in [((0, 0), (40_000_000, 0)), ((40_000_000, 0), (40_000_000, 20_000_000)),
+                     ((40_000_000, 20_000_000), (0, 20_000_000)), ((0, 20_000_000), (0, 0))]:
+            edge = pcbnew.PCB_SHAPE(board)
+            edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+            edge.SetLayer(pcbnew.Edge_Cuts)
+            edge.SetStart(pcbnew.VECTOR2I(*a))
+            edge.SetEnd(pcbnew.VECTOR2I(*b))
+            edge.SetWidth(50_000)
+            board.Add(edge)
+        for idx, (px, layer) in enumerate(((10_000_000, pcbnew.F_Cu), (30_000_000, pcbnew.B_Cu)), 1):
+            fp = pcbnew.FOOTPRINT(board)
+            fp.SetReference(f'J{idx}')
+            fp.SetPosition(pcbnew.VECTOR2I(px, 10_000_000))
+            board.Add(fp)
+            pad = pcbnew.PAD(fp)
+            pad.SetNumber('1')
+            pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+            pad.SetShape(pcbnew.PAD_SHAPE_RECT)
+            pad.SetSize(pcbnew.VECTOR2I(1_000_000, 1_000_000))
+            pad.SetPosition(pcbnew.VECTOR2I(px, 10_000_000))
+            ls = pcbnew.LSET()
+            ls.AddLayer(layer)
+            pad.SetLayerSet(ls)
+            pad.SetNetCode(1)
+            fp.Add(pad)
+        if box_fcu:
+            ko = pcbnew.ZONE(board)
+            ko.SetIsRuleArea(True)
+            ko.SetLayer(pcbnew.F_Cu)
+            ko.SetDoNotAllowTracks(True)
+            ko.SetDoNotAllowVias(False)
+            _add_rect_outline(ko.Outline(), 8_000_000, 8_000_000, 12_000_000, 12_000_000)
+            board.Add(ko)
+        assert pcbnew.SaveBoard(str(path), board)
+        return path
+
+    rules = {'width_nm': 200_000, 'clearance_nm': 200_000, 'grid_nm': 1_000_000, 'edge_clearance_nm': 500_000}
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+
+    # 1. Unprotected board steps off the SMD pad before dropping a via; boxed board refuses via-in-pad.
+    open_unprot = make_via_in_pad_board(tmp_path / 'open_unprot.kicad_pcb', cap_vias=False, fill_vias=False, box_fcu=False)
+    exported = bridge.export_snapshot(open_unprot, rules=rules)
+    assert exported['board_design_settings']['cap_vias'] is False
+    assert exported['board_design_settings']['fill_vias'] is False
+    out_unprot = tmp_path / 'open_unprot_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(open_unprot), str(out_unprot), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, res.stderr
+    b_unprot = pcbnew.LoadBoard(str(out_unprot))
+    b_unprot.BuildConnectivity()
+    assert b_unprot.GetConnectivity().GetUnconnectedCount(False) == 0
+    j1_pad = next(p for fp in b_unprot.GetFootprints() if fp.GetReference() == 'J1' for p in fp.Pads())
+    vias_unprot = [t for t in b_unprot.GetTracks() if type(t) is pcbnew.PCB_VIA]
+    assert vias_unprot
+    assert all(not j1_pad.HitTest(v.GetPosition(), v.GetDrillValue() // 2, pcbnew.F_Cu) for v in vias_unprot)
+
+    boxed_unprot = make_via_in_pad_board(tmp_path / 'boxed_unprot.kicad_pcb', cap_vias=False, fill_vias=False, box_fcu=True)
+    res_box = run([str(engine), 'route-native', str(boxed_unprot), str(tmp_path / 'boxed_unprot_routed.kicad_pcb'), '--rules', str(rules_path)], check=False)
+    assert res_box.returncode == 3
+
+    # 2. Protected (m_CapVias=True and m_FillVias=True) exports flags and allows Type VII via-in-pad.
+    boxed_prot = make_via_in_pad_board(tmp_path / 'boxed_prot.kicad_pcb', cap_vias=True, fill_vias=True, box_fcu=True)
+    exported_prot = bridge.export_snapshot(boxed_prot, rules=rules)
+    assert exported_prot['board_design_settings']['cap_vias'] is True
+    assert exported_prot['board_design_settings']['fill_vias'] is True
+    out_prot = tmp_path / 'boxed_prot_routed.kicad_pcb'
+    res_prot = run([str(engine), 'route-native', str(boxed_prot), str(out_prot), '--rules', str(rules_path)], check=False)
+    assert res_prot.returncode == 0, res_prot.stderr
+    b_prot = pcbnew.LoadBoard(str(out_prot))
+    b_prot.BuildConnectivity()
+    assert b_prot.GetConnectivity().GetUnconnectedCount(False) == 0
+    assert any(t.GetPosition().x == 10_000_000 and t.GetPosition().y == 10_000_000
+               for t in b_prot.GetTracks() if type(t) is pcbnew.PCB_VIA)
+
+
+def test_copper_pcb_text_avoidance_preservation_and_fail_closed_knockout(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    src = _make_rect_board(tmp_path / 'copper_text.kicad_pcb', 0, 0, 30_000_000, 20_000_000, pad_margin=5_000_000)
+    board = pcbnew.LoadBoard(str(src))
+    text = pcbnew.PCB_TEXT(board)
+    text.SetText('CU')
+    text.SetLayer(pcbnew.F_Cu)
+    text.SetPosition(pcbnew.VECTOR2I(15_000_000, 10_000_000))
+    text.SetTextSize(pcbnew.VECTOR2I(2_000_000, 2_000_000))
+    text.SetTextThickness(200_000)
+    text_uuid = text.m_Uuid.AsString()
+    board.Add(text)
+    assert pcbnew.SaveBoard(str(src), board)
+    original_bytes = src.read_bytes()
+
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+    exported = bridge.export_snapshot(src, rules=rules)
+    assert len(exported['graphics']) >= 10
+    assert all(g['layer'] == 'F.Cu' and g['shape']['kind'] == 'segment' for g in exported['graphics'])
+    assert len({g['id'] for g in exported['graphics']}) == len(exported['graphics'])
+    assert src.read_bytes() == original_bytes
+
+    out = tmp_path / 'copper_text_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, res.stderr
+    assert src.read_bytes() == original_bytes
+    routed = pcbnew.LoadBoard(str(out))
+    routed.BuildConnectivity()
+    assert routed.GetConnectivity().GetUnconnectedCount(False) == 0
+    preserved_texts = [d for d in routed.GetDrawings() if type(d) is pcbnew.PCB_TEXT and d.m_Uuid.AsString() == text_uuid]
+    assert len(preserved_texts) == 1 and preserved_texts[0].GetText() == 'CU'
+    drc = bridge.native_violations(out, tmp_path / 'copper_text_drc.json')
+    assert drc['unconnected_items'] == [] and drc['violations'] == []
+
+    # Fail-closed controls: knockout PCB_TEXT and PCB_DIMENSION_BASE on F.Cu must still be refused.
+    ko_path = tmp_path / 'knockout_text.kicad_pcb'
+    ko_board = pcbnew.LoadBoard(str(src))
+    ko_text = next(d for d in ko_board.GetDrawings() if type(d) is pcbnew.PCB_TEXT)
+    ko_text.SetIsKnockout(True)
+    assert pcbnew.SaveBoard(str(ko_path), ko_board)
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_snapshot(ko_path, rules=rules)
+    assert run([str(engine), 'route-native', str(ko_path), str(tmp_path / 'ko_out.kicad_pcb'), '--rules', str(rules_path)], check=False).returncode == 2
+
+    dim_path = tmp_path / 'dim.kicad_pcb'
+    dim_board = pcbnew.LoadBoard(str(src))
+    dim = pcbnew.PCB_DIM_ALIGNED(dim_board)
+    dim.SetLayer(pcbnew.F_Cu)
+    dim.SetStart(pcbnew.VECTOR2I(5_000_000, 5_000_000))
+    dim.SetEnd(pcbnew.VECTOR2I(10_000_000, 5_000_000))
+    dim_board.Add(dim)
+    assert pcbnew.SaveBoard(str(dim_path), dim_board)
+    with pytest.raises(bridge.UnsupportedBoard):
+        bridge.export_snapshot(dim_path, rules=rules)
+
+
+def test_pad_interior_track_attachment_native_collision(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.BOARD()
+    board.Add(pcbnew.NETINFO_ITEM(board, 'RF', 1))
+    for a, b in [((-2_000_000, -2_000_000), (14_000_000, -2_000_000)),
+                 ((14_000_000, -2_000_000), (14_000_000, 6_000_000)),
+                 ((14_000_000, 6_000_000), (-2_000_000, 6_000_000)),
+                 ((-2_000_000, 6_000_000), (-2_000_000, -2_000_000))]:
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50_000)
+        board.Add(edge)
+    for idx, px in enumerate((0, 10_000_000), 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(px, 2_000_000))
+        board.Add(fp)
+        pad = pcbnew.PAD(fp)
+        pad.SetNumber('1')
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_RECT)
+        pad.SetSize(pcbnew.VECTOR2I(400_000, 400_000))
+        pad.SetPosition(pcbnew.VECTOR2I(px, 2_000_000))
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        pad.SetLayerSet(ls)
+        pad.SetNetCode(1)
+        fp.Add(pad)
+    src = tmp_path / 'rf_interior.kicad_pcb'
+    assert pcbnew.SaveBoard(str(src), board)
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps({
+        'width_nm': 293_000, 'clearance_nm': 200_000, 'grid_nm': 293_000, 'edge_clearance_nm': 500_000,
+    }))
+    out = tmp_path / 'rf_interior_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, res.stderr
+    routed = pcbnew.LoadBoard(str(out))
+    routed.BuildConnectivity()
+    assert routed.GetConnectivity().GetUnconnectedCount(False) == 0
+    endpoints = [pt for t in routed.GetTracks() if type(t) is pcbnew.PCB_TRACK for pt in (t.GetStart(), t.GetEnd())]
+    for fp in routed.GetFootprints():
+        pad = next(iter(fp.Pads()))
+        shape = pad.GetEffectiveShape(pcbnew.F_Cu)
+        assert any(shape.Collide(pt, 0) for pt in endpoints), f'pad {fp.GetReference()} lacks interior track vertex'
+    drc = bridge.native_violations(out, tmp_path / 'rf_interior_drc.json')
+    assert drc['unconnected_items'] == [] and drc['violations'] == []
 

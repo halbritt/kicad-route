@@ -738,7 +738,99 @@ def validate_native_pad_scalars(body: bytes):
         raise ValueError('unbalanced native board expression')
 
 
-def _check_graphic_drawing(drawing, *, context_label):
+def _extract_text_shapes(drawing, *, layer, base_id, context_label):
+    if drawing.IsKnockout():
+        raise UnsupportedBoard(f'{context_label} knockout text graphics are not represented')
+    eff = drawing.GetEffectiveShape(layer)
+    if eff is None or eff.Type() == pcbnew.SH_NULL:
+        return []
+    if eff.Type() == pcbnew.SH_COMPOUND:
+        comp = pcbnew.Cast_to_SHAPE_COMPOUND(eff)
+        if comp is None:
+            raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+        subshapes = list(comp.GetSubshapes())
+    else:
+        subshapes = [eff]
+    shapes = []
+    for sub in subshapes:
+        stype = sub.Type()
+        if stype == pcbnew.SH_SEGMENT:
+            seg_shape = pcbnew.Cast_to_SHAPE_SEGMENT(sub)
+            if seg_shape is None:
+                raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+            seg = seg_shape.GetSeg()
+            a, b = point(seg.A), point(seg.B)
+            width_nm = int(seg_shape.GetWidth())
+            if width_nm < 0:
+                raise UnsupportedBoard(f'{context_label} negative-width text stroke is not represented')
+            if a == b:
+                if width_nm >= 2:
+                    shapes.append({'kind': 'circle', 'center': a, 'radius_nm': width_nm // 2,
+                                   'width_nm': 0, 'filled': True})
+                continue
+            shapes.append({'kind': 'segment', 'start': a, 'end': b, 'width_nm': width_nm})
+        elif stype == pcbnew.SH_RECT:
+            rect = pcbnew.Cast_to_SHAPE_RECT(sub)
+            if rect is None:
+                raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+            pos = point(rect.GetPosition())
+            sz = point(rect.GetSize())
+            width_nm = max(0, int(rect.GetWidth()))
+            filled = bool(rect.IsSolid())
+            if sz[0] <= 0 or sz[1] <= 0:
+                raise UnsupportedBoard(f'{context_label} degenerate text rectangle is not represented')
+            corners = [pos, [pos[0] + sz[0], pos[1]], [pos[0] + sz[0], pos[1] + sz[1]], [pos[0], pos[1] + sz[1]]]
+            shapes.append({'kind': 'polygon', 'outer': corners, 'width_nm': width_nm, 'filled': filled})
+        elif stype == pcbnew.SH_CIRCLE:
+            circ = pcbnew.Cast_to_SHAPE_CIRCLE(sub)
+            if circ is None:
+                raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+            radius_nm = int(circ.GetRadius())
+            if radius_nm <= 0:
+                raise UnsupportedBoard(f'{context_label} degenerate text circle is not represented')
+            shapes.append({
+                'kind': 'circle',
+                'center': point(circ.GetCenter()),
+                'radius_nm': radius_nm,
+                'width_nm': max(0, int(circ.GetWidth())),
+                'filled': bool(circ.IsSolid()),
+            })
+        elif stype == pcbnew.SH_POLY_SET:
+            poly_set = pcbnew.Cast_to_SHAPE_POLY_SET(sub)
+            if poly_set is None:
+                raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+            width_nm = max(0, int(poly_set.GetWidth()))
+            filled = bool(poly_set.IsSolid())
+            if filled:
+                poly_set = pcbnew.SHAPE_POLY_SET(poly_set)
+                poly_set.Simplify()
+            count = poly_set.OutlineCount()
+            if count <= 0:
+                raise UnsupportedBoard('empty polygon graphic is not represented')
+            for o_idx in range(count):
+                outer = _extract_poly_ring(poly_set.Outline(o_idx))
+                if len(outer) < 3:
+                    raise UnsupportedBoard('degenerate polygon graphic is not represented')
+                holes = [_extract_poly_ring(poly_set.Hole(o_idx, h)) for h in range(poly_set.HoleCount(o_idx))]
+                shape_obj = {'kind': 'polygon', 'outer': outer, 'width_nm': width_nm, 'filled': filled}
+                if holes:
+                    shape_obj['holes'] = holes
+                shapes.append(shape_obj)
+        else:
+            raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+    base_uuid = uuid.UUID(base_id)
+    return [(str(uuid.uuid5(base_uuid, str(idx))), shape_obj) for idx, shape_obj in enumerate(shapes)]
+
+
+def _check_graphic_drawing(drawing, *, context_label, layer=None):
+    if isinstance(drawing, pcbnew.PCB_DIMENSION_BASE):
+        raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+    if type(drawing) is pcbnew.PCB_TEXT:
+        if drawing.IsKnockout():
+            raise UnsupportedBoard(f'{context_label} knockout text graphics are not represented')
+        _extract_text_shapes(drawing, layer=drawing.GetLayer() if layer is None else layer,
+                             base_id=item_id(drawing), context_label=context_label)
+        return
     if not isinstance(drawing, pcbnew.PCB_SHAPE):
         raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
     if drawing.GetShape() == pcbnew.SHAPE_T_BEZIER:
@@ -752,7 +844,10 @@ def _extract_poly_ring(poly):
     return _simplify_ring(pts)
 
 
-def _extract_graphic_shapes(drawing, *, base_id):
+def _extract_graphic_shapes(drawing, *, base_id, layer=None, context_label='graphic'):
+    if type(drawing) is pcbnew.PCB_TEXT:
+        return _extract_text_shapes(drawing, layer=drawing.GetLayer() if layer is None else layer,
+                                    base_id=base_id, context_label=context_label)
     shape_t = drawing.GetShape()
     width_nm = int(drawing.GetWidth())
     filled = bool(drawing.IsSolidFill())
@@ -948,11 +1043,11 @@ def load_supported(path: Path, *, project_path: Path | None = None):
     for drawing in board.GetDrawings():
         layer = drawing.GetLayer()
         if layer in cu_set:
-            _check_graphic_drawing(drawing, context_label='board copper')
+            _check_graphic_drawing(drawing, context_label='board copper', layer=layer)
         elif pcbnew.IsCopperLayer(layer):
             raise UnsupportedBoard('board copper on disabled layer is not represented')
-        elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE)):
-            _check_graphic_drawing(drawing, context_label='board solder-mask')
+        elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE) or type(drawing) is pcbnew.PCB_TEXT):
+            _check_graphic_drawing(drawing, context_label='board solder-mask', layer=layer)
     for footprint in board.GetFootprints():
         fp_clr = footprint.GetLocalClearance()
         if fp_clr is not None and fp_clr < 0:
@@ -971,12 +1066,12 @@ def load_supported(path: Path, *, project_path: Path | None = None):
             if layer == pcbnew.Margin:
                 raise UnsupportedBoard('footprint Margin geometry is not represented')
             if layer in cu_set:
-                _check_graphic_drawing(drawing, context_label='footprint copper')
+                _check_graphic_drawing(drawing, context_label='footprint copper', layer=layer)
             elif pcbnew.IsCopperLayer(layer):
                 raise UnsupportedBoard('footprint copper on disabled layer is not represented')
-            elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE)):
+            elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE) or type(drawing) is pcbnew.PCB_TEXT):
                 if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
-                    _check_graphic_drawing(drawing, context_label='footprint solder-mask')
+                    _check_graphic_drawing(drawing, context_label='footprint solder-mask', layer=layer)
         for pad in footprint.Pads():
             pad_shape(pad, cu_layers)
             if pad.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
@@ -1501,15 +1596,15 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         if layer in cu_set:
             layer_name = board.GetLayerName(layer)
             net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
-            for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+            for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='board copper'):
                 graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
         elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
-            if isinstance(drawing, pcbnew.PCB_SHAPE):
+            if isinstance(drawing, pcbnew.PCB_SHAPE) or type(drawing) is pcbnew.PCB_TEXT:
                 layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
-                for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='board solder-mask'):
                     mask_apertures.append({'id': item_uuid, 'layer': layer_name, 'shape': shape_obj})
             elif mask_rules_from_json:
-                _check_graphic_drawing(drawing, context_label='board solder-mask')
+                _check_graphic_drawing(drawing, context_label='board solder-mask', layer=layer)
 
     for footprint in board.GetFootprints():
         fp_nets = {int(p.GetNetCode()) for p in footprint.Pads() if int(p.GetNetCode()) != 0}
@@ -1519,19 +1614,19 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             if layer in cu_set:
                 layer_name = board.GetLayerName(layer)
                 net = int(drawing.GetNetCode()) if hasattr(drawing, 'GetNetCode') else 0
-                for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='footprint copper'):
                     graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
             elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
                 if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
-                    if isinstance(drawing, pcbnew.PCB_SHAPE):
+                    if isinstance(drawing, pcbnew.PCB_SHAPE) or type(drawing) is pcbnew.PCB_TEXT:
                         layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
-                        for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing)):
+                        for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='footprint solder-mask'):
                             aperture = {'id': item_uuid, 'layer': layer_name, 'shape': shape_obj}
                             if fp_mask_net is not None:
                                 aperture['net'] = fp_mask_net
                             mask_apertures.append(aperture)
                     elif mask_rules_from_json:
-                        _check_graphic_drawing(drawing, context_label='footprint solder-mask')
+                        _check_graphic_drawing(drawing, context_label='footprint solder-mask', layer=layer)
 
     graphics.sort(key=lambda item: (item['layer'], item['net'], item['id']))
     mask_apertures.sort(key=lambda item: (item['layer'], item['id']))
@@ -1571,6 +1666,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         'solder_mask_expansion_nm': int(settings.m_SolderMaskExpansion),
         'solder_mask_min_width_nm': int(settings.m_SolderMaskMinWidth),
         'solder_mask_to_copper_clearance_nm': int(settings.m_SolderMaskToCopperClearance),
+        'cap_vias': bool(getattr(settings, 'm_CapVias', False)),
+        'fill_vias': bool(getattr(settings, 'm_FillVias', False)),
     }
     net_settings = getattr(settings, 'm_NetSettings', None)
     default_nc = net_settings.GetDefaultNetclass() if net_settings is not None else None

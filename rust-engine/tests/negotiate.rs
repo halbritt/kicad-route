@@ -144,8 +144,8 @@ fn bottleneck_inversion_input() -> Input {
         },
     ];
     i.pads = vec![
-        pad(1, 1, [10, 50]),
-        pad(2, 1, [90, 50]),
+        pad(1, 1, [30, 50]),
+        pad(2, 1, [70, 50]),
         pad(3, 2, [50, 30]),
         pad(4, 2, [50, 80]),
     ];
@@ -1081,9 +1081,9 @@ fn seed_via_blocker_under_no_tracks_keepout_attributes_other_layer_victim() {
             name: "ESCAPER_VIA".into(),
         },
     ];
-    let mut p1 = pad(1, 1, [10, 50]);
+    let mut p1 = pad(1, 1, [35, 50]);
     p1.layers = vec!["B.Cu".into()];
-    let mut p2 = pad(2, 1, [90, 50]);
+    let mut p2 = pad(2, 1, [65, 50]);
     p2.layers = vec!["B.Cu".into()];
     let mut p3 = pad(3, 2, [50, 50]);
     p3.layers = vec!["F.Cu".into()];
@@ -1168,6 +1168,8 @@ fn multilayer_microvia_enabled_still_attributes_blocked_through_via_victim() {
         default_microvia_drill_nm: 150_000,
         min_resolved_spokes: None,
         max_error_nm: None,
+        cap_vias: true,
+        fill_vias: true,
         ..Default::default()
     });
     i.project_rules = Some(
@@ -1207,8 +1209,8 @@ fn multilayer_microvia_enabled_still_attributes_blocked_through_via_victim() {
         p
     };
     i.pads = vec![
-        mk_pad(1, 1, [1_000_000, 5_000_000], "B.Cu"),
-        mk_pad(2, 1, [9_000_000, 5_000_000], "B.Cu"),
+        mk_pad(1, 1, [3_500_000, 5_000_000], "B.Cu"),
+        mk_pad(2, 1, [6_500_000, 5_000_000], "B.Cu"),
         mk_pad(3, 2, [5_000_000, 5_000_000], "F.Cu"),
         mk_pad(4, 2, [5_000_000, 9_000_000], "B.Cu"),
     ];

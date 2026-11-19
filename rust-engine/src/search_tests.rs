@@ -4467,3 +4467,238 @@ fn target_escape_reachable_rips_victim_blocking_interior_blind_buried_via_in_poc
         out.added_vias
     );
 }
+
+#[test]
+fn unprotected_smd_via_in_pad_rejected_and_protected_allowed() {
+    let make_input = |cap_vias: bool, fill_vias: bool, box_tracks: bool| {
+        let mut p1 = pad(
+            1,
+            1,
+            [10_000_000, 10_000_000],
+            Shape::Rect {
+                half_size_nm: [500_000, 500_000],
+            },
+        );
+        p1.layers = vec!["F.Cu".into()];
+        let mut p2 = pad(
+            2,
+            1,
+            [30_000_000, 10_000_000],
+            Shape::Rect {
+                half_size_nm: [500_000, 500_000],
+            },
+        );
+        p2.layers = vec!["B.Cu".into()];
+        let mut rule_areas = Vec::new();
+        if box_tracks {
+            rule_areas.push(RuleArea {
+                id: id(90),
+                name: None,
+                layers: vec!["F.Cu".into()],
+                outer: vec![
+                    [8_000_000, 8_000_000],
+                    [12_000_000, 8_000_000],
+                    [12_000_000, 12_000_000],
+                    [8_000_000, 12_000_000],
+                ],
+                holes: Vec::new(),
+                extra_polygons: Vec::new(),
+                no_tracks: true,
+                no_vias: false,
+                no_pads: false,
+                no_footprints: false,
+                no_zone_fills: false,
+            });
+        }
+        Input {
+            version: INPUT_VERSION,
+            source_id: "e".repeat(64),
+            layer: "F.Cu".into(),
+            layers: vec!["F.Cu".into(), "B.Cu".into()],
+            bounds: Bounds {
+                min: [0, 0],
+                max: [40_000_000, 20_000_000],
+            },
+            rules: Rules {
+                width_nm: 200_000,
+                clearance_nm: 200_000,
+                grid_nm: 1_000_000,
+                edge_clearance_nm: 500_000,
+                hole_clearance_nm: 200_000,
+                same_net_hole_clearance_nm: 0,
+                solder_mask_expansion_nm: 0,
+                solder_mask_min_width_nm: 0,
+                solder_mask_to_copper_clearance_nm: 0,
+            },
+            nets: vec![
+                Net {
+                    id: 0,
+                    name: String::new(),
+                },
+                Net {
+                    id: 1,
+                    name: "SIG".into(),
+                },
+            ],
+            pads: vec![p1, p2],
+            tracks: Vec::new(),
+            vias: Vec::new(),
+            rule_areas,
+            max_expansions: 50_000,
+            limits: Limits::default(),
+            holes: Vec::new(),
+            board_outline: None,
+            graphics: Vec::new(),
+            mask_apertures: Vec::new(),
+            board_design_settings: Some(crate::rules::BoardDesignSettings {
+                min_track_width_nm: 200_000,
+                min_clearance_nm: 200_000,
+                min_edge_clearance_nm: 500_000,
+                min_via_diameter_nm: 500_000,
+                min_via_annular_width_nm: 100_000,
+                min_through_hole_diameter_nm: 300_000,
+                min_hole_clearance_nm: 200_000,
+                min_hole_to_hole_nm: 200_000,
+                default_clearance_nm: 200_000,
+                default_track_width_nm: 200_000,
+                default_via_diameter_nm: 600_000,
+                default_via_drill_nm: 300_000,
+                cap_vias,
+                fill_vias,
+                ..Default::default()
+            }),
+            project_rules: None,
+            custom_rules: None,
+            effective_rules: None,
+            zones: Vec::new(),
+            components: Vec::new(),
+            stackup: Vec::new(),
+            routing_options: None,
+        }
+    };
+
+    for (cap, fill) in [(false, false), (true, false), (false, true)] {
+        let eng = Engine::new(make_input(cap, fill, false)).unwrap();
+        assert!(
+            eng.legal_via(1, [10_000_000, 10_000_000], 0, 1, ViaKind::Through, &[])
+                .unwrap()
+                .is_none(),
+            "unprotected SMD via-in-pad (cap={cap}, fill={fill}) must be refused"
+        );
+        let out = crate::run(make_input(cap, fill, false));
+        assert_eq!(out.status, Status::Complete);
+        assert!(
+            out.added_vias
+                .iter()
+                .all(|v| (v.at[0] - 10_000_000).abs() > 800_000 || (v.at[1] - 10_000_000).abs() > 800_000),
+            "routed board without Type VII cap+fill must step off SMD pad before dropping via: {:?}",
+            out.added_vias
+        );
+        let boxed = crate::run(make_input(cap, fill, true));
+        assert_eq!(boxed.status, Status::Unroutable);
+    }
+
+    let eng_prot = Engine::new(make_input(true, true, true)).unwrap();
+    assert!(
+        eng_prot
+            .legal_via(1, [10_000_000, 10_000_000], 0, 1, ViaKind::Through, &[])
+            .unwrap()
+            .is_some(),
+        "protected SMD via-in-pad (cap=true, fill=true) must be permitted"
+    );
+    let out_prot = crate::run(make_input(true, true, true));
+    assert_eq!(out_prot.status, Status::Complete);
+    assert!(
+        out_prot
+            .added_vias
+            .iter()
+            .any(|v| v.at == [10_000_000, 10_000_000]),
+        "expected Type VII via-in-pad at [10M, 10M], got {:?}",
+        out_prot.added_vias
+    );
+}
+
+#[test]
+fn pad_interior_track_attachment_enters_offgrid_smd_pad_when_legal() {
+    let mut p1 = pad(
+        1,
+        1,
+        [0, 2_000_000],
+        Shape::Rect {
+            half_size_nm: [200_000, 200_000],
+        },
+    );
+    p1.layers = vec!["F.Cu".into()];
+    let mut p2 = pad(
+        2,
+        1,
+        [10_000_000, 2_000_000],
+        Shape::Rect {
+            half_size_nm: [200_000, 200_000],
+        },
+    );
+    p2.layers = vec!["F.Cu".into()];
+    let inp = Input {
+        version: INPUT_VERSION,
+        source_id: "f".repeat(64),
+        layer: "F.Cu".into(),
+        layers: vec!["F.Cu".into()],
+        bounds: Bounds {
+            min: [-2_000_000, -2_000_000],
+            max: [12_000_000, 6_000_000],
+        },
+        rules: Rules {
+            width_nm: 293_000,
+            clearance_nm: 200_000,
+            grid_nm: 293_000,
+            edge_clearance_nm: 200_000,
+            hole_clearance_nm: 0,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets: vec![
+            Net {
+                id: 0,
+                name: String::new(),
+            },
+            Net {
+                id: 1,
+                name: "RF".into(),
+            },
+        ],
+        pads: vec![p1.clone(), p2.clone()],
+        tracks: Vec::new(),
+        vias: Vec::new(),
+        rule_areas: Vec::new(),
+        max_expansions: 50_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: None,
+        custom_rules: None,
+        effective_rules: None,
+        zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
+    };
+    let out = crate::run(inp);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert_eq!(out.added_tracks.len(), 1);
+    let trk = &out.added_tracks[0];
+    assert!(
+        crate::geometry::point_in_pad(trk.start, &p1),
+        "expected track start inside source pad, got {:?}",
+        trk.start
+    );
+    assert!(
+        crate::geometry::point_in_pad(trk.end, &p2),
+        "expected track endpoint inside target pad, got {:?}",
+        trk.end
+    );
+}

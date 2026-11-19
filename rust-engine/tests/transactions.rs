@@ -286,7 +286,7 @@ impl Oracle {
                 id: allocated(self.next),
                 net,
                 start: [10, y],
-                end: [49, y],
+                end: [50, y],
                 width_nm: 2,
                 locked: false,
                 layer: "F.Cu".into(),

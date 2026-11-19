@@ -25,17 +25,17 @@ fn bytes(e: &Engine) -> Vec<u8> {
 }
 #[test]
 fn singleton_batch_has_an_independently_countable_exact_boundary() {
-    // One scope entry + net enumeration/sort/dispatch (3) + item enumeration (1)
-    // + partition initialization/root/pop/pair visit (4) = 9. No geometry/search.
-    for limit in 0..=10 {
+    // One scope entry + net/pad enumeration/sort/dispatch (4) + item enumeration (1)
+    // + partition initialization/root/pop/pair visit (4) = 10. No geometry/search.
+    for limit in 0..=11 {
         let mut i = fixture(false);
         i.limits.max_work = limit;
         let o = run(i);
-        assert_eq!(o.work_used, limit.min(9));
+        assert_eq!(o.work_used, limit.min(10));
         assert_eq!(o.expanded_states, 0);
         assert_eq!(
             o.status,
-            if limit < 9 {
+            if limit < 10 {
                 Status::WorkExhausted
             } else {
                 Status::Complete
@@ -87,15 +87,15 @@ fn batch_work_is_not_reset_between_nets() {
     p.at = [50, 30];
     p.id = "10000000-0000-4000-8000-000000000003".into();
     i.pads.push(p);
-    // Scope1 + enumerate/sort four units + two*(dispatch1+scan2+partition4)=19.
-    i.limits.max_work = 18;
+    // Scope1 + enumerate/sort four units + pad scan (2) + two*(dispatch1+scan2+partition4)=21.
+    i.limits.max_work = 20;
     let o = run(i.clone());
     assert_eq!(o.status, Status::WorkExhausted);
-    assert_eq!(o.work_used, 18);
-    i.limits.max_work = 19;
+    assert_eq!(o.work_used, 20);
+    i.limits.max_work = 21;
     let o = run(i);
     assert_eq!(o.status, Status::Complete);
-    assert_eq!(o.work_used, 19);
+    assert_eq!(o.work_used, 21);
 }
 #[test]
 fn exhausted_work_stops_before_quadratic_partition() {
@@ -753,8 +753,8 @@ fn route_insertion_charges_spatial_index_mutation_work() {
 
     // Exact 1-step route(1, 1000) work on this 2-pad fixture (includes 8 units
     // for generated_spatial[0].mutation_work() at empty tree before insert, under
-    // PathEdge-based walk_multilayer/insert_path).
-    const EXACT_1STEP_WORK: u64 = 131;
+    // PathEdge-based walk_multilayer/insert_path with target-AABB prefilter).
+    const EXACT_1STEP_WORK: u64 = 126;
 
     i.limits.max_work = EXACT_1STEP_WORK - 1;
     let mut cutoff = Engine::new(i.clone()).unwrap();
@@ -1015,7 +1015,7 @@ fn generated_uniform_net_and_net0_work_accounting() {
         pad_number: None,
         fromto_id: None,
     });
-    const MULTI_GEN_ROUTE_WORK: u64 = 2196;
+    const MULTI_GEN_ROUTE_WORK: u64 = 1636;
     let mut probe = Engine::new(multi.clone()).unwrap();
     probe.route(1, 1000).unwrap();
     assert_eq!(probe.work_used(), MULTI_GEN_ROUTE_WORK);

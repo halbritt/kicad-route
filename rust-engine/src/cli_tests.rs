@@ -126,18 +126,39 @@ fn publication_failure_keeps_old_bytes_and_foreign_temporary_but_returns_nonzero
         json!(result_b.request_sha256)
     );
 
-    let temporary = files
+    let stale_pid_tmp = files
         .0
         .join(format!(".out.json.{}.tmp", std::process::id()));
-    fs::write(&temporary, b"another publication owns this file").unwrap();
-    assert_eq!(run(&files.args(), run_json), 8);
-    assert_eq!(fs::read(files.0.join("out.json")).unwrap(), old);
-    assert_eq!(run(&files.args(), |_| panic!("executor failed")), 8);
-    assert_eq!(fs::read(files.0.join("out.json")).unwrap(), old);
+    fs::write(&stale_pid_tmp, b"stale pid temporary from prior killed run").unwrap();
+    assert_eq!(run(&files.args(), run_json), 0);
     assert_eq!(
-        fs::read(&temporary).unwrap(),
-        b"another publication owns this file"
+        files.output()["request_sha256"],
+        json!(result_b.request_sha256)
     );
+    assert_eq!(
+        fs::read(&stale_pid_tmp).unwrap(),
+        b"stale pid temporary from prior killed run"
+    );
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let saved = fs::read(files.0.join("out.json")).unwrap();
+        let ro_perms = fs::Permissions::from_mode(0o555);
+        let rw_perms = fs::Permissions::from_mode(0o755);
+        fs::set_permissions(&files.0, ro_perms).unwrap();
+        let rc1 = run(&files.args(), run_json);
+        let rc2 = run(&files.args(), |_| panic!("executor failed"));
+        fs::set_permissions(&files.0, rw_perms).unwrap();
+        assert_eq!(rc1, 8);
+        assert_eq!(rc2, 8);
+        assert_eq!(fs::read(files.0.join("out.json")).unwrap(), saved);
+        assert_eq!(
+            fs::read(&stale_pid_tmp).unwrap(),
+            b"stale pid temporary from prior killed run"
+        );
+    }
+    let _ = old;
 }
 #[test]
 fn missing_input_replaces_old_complete_with_read_failure() {
