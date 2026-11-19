@@ -2478,6 +2478,17 @@ impl Engine {
         expanded: &mut u64,
         history: &negotiate::CongestionHistory,
     ) -> Result<(), negotiate::UnitRouteError> {
+        let mut budget = negotiate::TrialBudget::fixed(limit);
+        self.route_net_negotiated_with_budget(net, &mut budget, expanded, history)
+    }
+
+    pub(crate) fn route_net_negotiated_with_budget(
+        &mut self,
+        net: u32,
+        budget: &mut negotiate::TrialBudget<'_>,
+        expanded: &mut u64,
+        history: &negotiate::CongestionHistory,
+    ) -> Result<(), negotiate::UnitRouteError> {
         let had_generated_before = self.copper.has_generated_for_net(net);
         let mut joins_done = 0usize;
         loop {
@@ -2489,12 +2500,12 @@ impl Engine {
                 return Ok(());
             }
             let mut frontier = negotiate::BlockedFrontier::new();
-            match search::join_components_negotiated(
+            match search::join_components_negotiated_with_budget(
                 self,
                 net,
                 &groups[0],
                 &groups[1..],
-                limit,
+                budget,
                 expanded,
                 history,
                 &mut frontier,
@@ -2535,8 +2546,9 @@ impl Engine {
                 }
                 Err(e)
                     if e.status == Status::BudgetExhausted
-                        && limit < self.input.max_expansions
-                        && !frontier.is_empty() =>
+                        && (budget.aborted
+                            || (budget.current_limit < budget.batch_limit
+                                && !frontier.is_empty())) =>
                 {
                     if joins_done > 0 && !had_generated_before {
                         self.copper

@@ -467,6 +467,69 @@ impl CongestionHistory {
 ///
 /// Note: `units` omits a separate `&WorkBudget` parameter because `WorkBudget` is
 /// crate-private (`mod budget;`); implementations inside the crate charge `engine.work`
+#[allow(clippy::type_complexity)]
+pub(crate) struct TrialBudget<'a> {
+    pub(crate) current_limit: u64,
+    pub(crate) batch_limit: u64,
+    pub(crate) aborted: bool,
+    on_trial_limit: Option<&'a mut dyn FnMut(&Engine, &BlockedFrontier) -> Result<bool, Failure>>,
+}
+
+impl<'a> TrialBudget<'a> {
+    pub(crate) fn fixed(limit: u64) -> Self {
+        Self {
+            current_limit: limit,
+            batch_limit: limit,
+            aborted: false,
+            on_trial_limit: None,
+        }
+    }
+
+    pub(crate) fn with_trial(
+        trial_limit: u64,
+        batch_limit: u64,
+        on_trial_limit: &'a mut dyn FnMut(&Engine, &BlockedFrontier) -> Result<bool, Failure>,
+    ) -> Self {
+        Self {
+            current_limit: trial_limit.min(batch_limit),
+            batch_limit,
+            aborted: false,
+            on_trial_limit: Some(on_trial_limit),
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn check_before_expand(
+        &mut self,
+        engine: &Engine,
+        expanded: u64,
+        frontier: Option<&BlockedFrontier>,
+    ) -> Result<(), Failure> {
+        if expanded < self.current_limit {
+            return Ok(());
+        }
+        if let Some(cb) = self.on_trial_limit.take() {
+            let empty = BlockedFrontier::new();
+            let f = frontier.unwrap_or(&empty);
+            if cb(engine, f)? {
+                self.aborted = true;
+                return Err(Failure::new(
+                    Status::BudgetExhausted,
+                    "trial expansion cap reached with rippable blockers",
+                ));
+            }
+            self.current_limit = self.batch_limit;
+            if expanded < self.current_limit {
+                return Ok(());
+            }
+        }
+        Err(Failure::new(
+            Status::BudgetExhausted,
+            "total expansion budget exhausted",
+        ))
+    }
+}
+
 /// directly.
 pub trait RouteUnitAdapter {
     fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure>;
@@ -479,6 +542,58 @@ pub trait RouteUnitAdapter {
         max_expansions: u64,
         expanded: &mut u64,
     ) -> Result<(), UnitRouteError>;
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    fn route_unit_with_trial(
+        &mut self,
+        engine: &mut Engine,
+        unit: RouteUnitId,
+        history: &CongestionHistory,
+        trial_limit: u64,
+        batch_limit: u64,
+        expanded: &mut u64,
+        on_trial_limit: &mut dyn FnMut(&Engine, &BlockedFrontier) -> Result<bool, Failure>,
+    ) -> Result<(), UnitRouteError> {
+        let cap_limit = trial_limit.min(batch_limit);
+        if cap_limit >= batch_limit {
+            return self.route_unit(engine, unit, history, batch_limit, expanded);
+        }
+        match self.route_unit(engine, unit, history, cap_limit, expanded) {
+            Ok(()) => Ok(()),
+            Err(UnitRouteError::Blocked(frontier)) => {
+                if *expanded < cap_limit {
+                    return Err(UnitRouteError::Blocked(frontier));
+                }
+                match on_trial_limit(engine, &frontier) {
+                    Ok(true) => Err(UnitRouteError::Blocked(frontier)),
+                    Ok(false) => {
+                        if let Err(e) = self.rip_unit(engine, unit) {
+                            return Err(UnitRouteError::Fatal(e));
+                        }
+                        self.route_unit(engine, unit, history, batch_limit, expanded)
+                    }
+                    Err(e) => Err(UnitRouteError::Fatal(e)),
+                }
+            }
+            Err(UnitRouteError::Fatal(e)) => {
+                if e.status == Status::BudgetExhausted && *expanded < batch_limit {
+                    let empty = BlockedFrontier::new();
+                    match on_trial_limit(engine, &empty) {
+                        Ok(true) => Err(UnitRouteError::Blocked(empty)),
+                        Ok(false) => {
+                            if let Err(re) = self.rip_unit(engine, unit) {
+                                return Err(UnitRouteError::Fatal(re));
+                            }
+                            self.route_unit(engine, unit, history, batch_limit, expanded)
+                        }
+                        Err(err) => Err(UnitRouteError::Fatal(err)),
+                    }
+                } else {
+                    Err(UnitRouteError::Fatal(e))
+                }
+            }
+        }
+    }
     fn rip_unit(&mut self, engine: &mut Engine, unit: RouteUnitId) -> Result<(), Failure>;
     fn is_unit_complete(&self, engine: &Engine, unit: RouteUnitId) -> Result<bool, Failure>;
 }
@@ -560,6 +675,28 @@ impl RouteUnitAdapter for SingleEndedAdapter {
         }
     }
 
+    fn route_unit_with_trial(
+        &mut self,
+        engine: &mut Engine,
+        unit: RouteUnitId,
+        history: &CongestionHistory,
+        trial_limit: u64,
+        batch_limit: u64,
+        expanded: &mut u64,
+        on_trial_limit: &mut dyn FnMut(&Engine, &BlockedFrontier) -> Result<bool, Failure>,
+    ) -> Result<(), UnitRouteError> {
+        match unit {
+            RouteUnitId::SingleNet(net) => {
+                let mut budget = TrialBudget::with_trial(trial_limit, batch_limit, on_trial_limit);
+                engine.route_net_negotiated_with_budget(net, &mut budget, expanded, history)
+            }
+            RouteUnitId::DiffPair(_) => Err(UnitRouteError::Fatal(Failure::new(
+                Status::Invalid,
+                "SingleEndedAdapter cannot route differential pair units",
+            ))),
+        }
+    }
+
     fn rip_unit(&mut self, engine: &mut Engine, unit: RouteUnitId) -> Result<(), Failure> {
         match unit {
             RouteUnitId::SingleNet(net) => engine.remove_generated_net(net),
@@ -612,11 +749,30 @@ fn union_swept(slot: &mut Option<SweptAabb>, box_s: SweptAabb) {
     });
 }
 
+#[allow(dead_code)]
 fn analyze_blockers(
     engine: &Engine,
     blocked_unit: &UnitSpec,
     frontier: &BlockedFrontier,
     adapter: &dyn RouteUnitAdapter,
+    spec_by_id: &BTreeMap<RouteUnitId, UnitSpec>,
+    rip_counts: &BTreeMap<RouteUnitId, u32>,
+) -> Result<Vec<BlockerScore>, Failure> {
+    analyze_blockers_with_lookup(
+        engine,
+        blocked_unit,
+        frontier,
+        &|n| adapter.unit_for_net(n),
+        spec_by_id,
+        rip_counts,
+    )
+}
+
+fn analyze_blockers_with_lookup(
+    engine: &Engine,
+    blocked_unit: &UnitSpec,
+    frontier: &BlockedFrontier,
+    unit_for_net: &dyn Fn(u32) -> Option<RouteUnitId>,
     spec_by_id: &BTreeMap<RouteUnitId, UnitSpec>,
     rip_counts: &BTreeMap<RouteUnitId, u32>,
 ) -> Result<Vec<BlockerScore>, Failure> {
@@ -685,7 +841,7 @@ fn analyze_blockers(
         if blocked_unit.nets.contains(&other_net) {
             return false;
         }
-        let Some(victim_id) = adapter.unit_for_net(other_net) else {
+        let Some(victim_id) = unit_for_net(other_net) else {
             return false;
         };
         let Some(victim_spec) = spec_by_id.get(&victim_id) else {
@@ -743,7 +899,7 @@ fn analyze_blockers(
         engine.charge_work(1)?;
         let mut probe_victims: BTreeSet<RouteUnitId> = BTreeSet::new();
         let mut record_hit = |other_net: u32, cell: (u8, i64, i64)| {
-            let Some(victim_id) = adapter.unit_for_net(other_net) else {
+            let Some(victim_id) = unit_for_net(other_net) else {
                 return;
             };
             let Some(victim_spec) = spec_by_id.get(&victim_id) else {
@@ -1033,10 +1189,25 @@ enum TryUnitErr {
     Fatal(Failure),
 }
 
+struct TrialRipFilter<'a> {
+    ripped_in_round: &'a BTreeSet<RouteUnitId>,
+    local_rip_deltas: &'a BTreeMap<RouteUnitId, u32>,
+}
+
+impl TrialRipFilter<'_> {
+    fn is_eligible(&self, b: &BlockerScore, rip_counts: &BTreeMap<RouteUnitId, u32>) -> bool {
+        !self.ripped_in_round.contains(&b.unit)
+            && rip_counts.get(&b.unit).copied().unwrap_or(0)
+                + self.local_rip_deltas.get(&b.unit).copied().unwrap_or(0)
+                < MAX_RIPS_PER_UNIT
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn try_unit_with_cap(
     engine: &mut Engine,
     adapter: &mut dyn RouteUnitAdapter,
+    net_to_unit: &BTreeMap<u32, RouteUnitId>,
     spec_by_id: &BTreeMap<RouteUnitId, UnitSpec>,
     unit: &UnitSpec,
     history: &CongestionHistory,
@@ -1044,6 +1215,7 @@ fn try_unit_with_cap(
     expanded: &mut u64,
     trial_cap: Option<u64>,
     rip_counts: &BTreeMap<RouteUnitId, u32>,
+    rip_filter: Option<TrialRipFilter<'_>>,
 ) -> Result<(), TryUnitErr> {
     let remaining = batch_limit.saturating_sub(*expanded);
     if remaining == 0 {
@@ -1052,61 +1224,89 @@ fn try_unit_with_cap(
             "total expansion budget exhausted",
         )));
     }
-    if let Some(cap) = trial_cap.filter(|&c| remaining > c.saturating_mul(2)) {
+    if let Some(cap) = trial_cap.filter(|&c| remaining > c) {
         let trial_limit = (*expanded).saturating_add(cap);
-        match adapter.route_unit(engine, unit.id, history, trial_limit, expanded) {
-            Ok(()) => return Ok(()),
-            Err(UnitRouteError::Blocked(frontier)) => {
-                if *expanded < trial_limit {
-                    return Err(TryUnitErr::Blocked {
+        let is_blocker_eligible = |b: &BlockerScore| -> bool {
+            if let Some(filter) = &rip_filter {
+                filter.is_eligible(b, rip_counts)
+            } else {
+                b.unit != unit.id
+                    && rip_counts.get(&b.unit).copied().unwrap_or(0) < MAX_RIPS_PER_UNIT
+            }
+        };
+        let mut trial_triggered = false;
+        let mut trial_blockers: Option<Vec<BlockerScore>> = None;
+        let result = {
+            let mut on_trial_limit =
+                |eng: &Engine, frontier: &BlockedFrontier| -> Result<bool, Failure> {
+                    trial_triggered = true;
+                    let blockers = analyze_blockers_with_lookup(
+                        eng,
+                        unit,
                         frontier,
-                        blockers: None,
-                        hit_trial_cap: false,
-                    });
-                }
-                let blockers =
-                    analyze_blockers(engine, unit, &frontier, adapter, spec_by_id, rip_counts)
-                        .map_err(TryUnitErr::Fatal)?;
-                if !blockers.is_empty() {
-                    return Err(TryUnitErr::Blocked {
+                        &|n| net_to_unit.get(&n).copied(),
+                        spec_by_id,
+                        rip_counts,
+                    )?;
+                    if blockers.iter().any(&is_blocker_eligible) {
+                        trial_blockers = Some(blockers);
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
+                };
+            adapter.route_unit_with_trial(
+                engine,
+                unit.id,
+                history,
+                trial_limit,
+                batch_limit,
+                expanded,
+                &mut on_trial_limit,
+            )
+        };
+        return match result {
+            Ok(()) => Ok(()),
+            Err(UnitRouteError::Blocked(frontier)) => {
+                if let Some(blockers) = trial_blockers {
+                    Err(TryUnitErr::Blocked {
                         frontier,
                         blockers: Some(blockers),
                         hit_trial_cap: true,
-                    });
-                }
-                if let Err(e) = adapter.rip_unit(engine, unit.id) {
-                    return Err(TryUnitErr::Fatal(e));
-                }
-                return adapter
-                    .route_unit(engine, unit.id, history, batch_limit, expanded)
-                    .map_err(|e| match e {
-                        UnitRouteError::Blocked(f) => TryUnitErr::Blocked {
-                            frontier: f,
+                    })
+                } else if !trial_triggered && *expanded >= trial_limit {
+                    let blockers = analyze_blockers_with_lookup(
+                        engine,
+                        unit,
+                        &frontier,
+                        &|n| net_to_unit.get(&n).copied(),
+                        spec_by_id,
+                        rip_counts,
+                    )
+                    .map_err(TryUnitErr::Fatal)?;
+                    if blockers.iter().any(&is_blocker_eligible) {
+                        Err(TryUnitErr::Blocked {
+                            frontier,
+                            blockers: Some(blockers),
+                            hit_trial_cap: true,
+                        })
+                    } else {
+                        Err(TryUnitErr::Blocked {
+                            frontier,
                             blockers: None,
                             hit_trial_cap: false,
-                        },
-                        UnitRouteError::Fatal(f) => TryUnitErr::Fatal(f),
-                    });
-            }
-            Err(UnitRouteError::Fatal(e)) => {
-                if e.status == Status::BudgetExhausted && *expanded < batch_limit {
-                    if let Err(re) = adapter.rip_unit(engine, unit.id) {
-                        return Err(TryUnitErr::Fatal(re));
+                        })
                     }
-                    return adapter
-                        .route_unit(engine, unit.id, history, batch_limit, expanded)
-                        .map_err(|e| match e {
-                            UnitRouteError::Blocked(f) => TryUnitErr::Blocked {
-                                frontier: f,
-                                blockers: None,
-                                hit_trial_cap: false,
-                            },
-                            UnitRouteError::Fatal(f) => TryUnitErr::Fatal(f),
-                        });
+                } else {
+                    Err(TryUnitErr::Blocked {
+                        frontier,
+                        blockers: None,
+                        hit_trial_cap: false,
+                    })
                 }
-                return Err(TryUnitErr::Fatal(e));
             }
-        }
+            Err(UnitRouteError::Fatal(e)) => Err(TryUnitErr::Fatal(e)),
+        };
     }
     adapter
         .route_unit(engine, unit.id, history, batch_limit, expanded)
@@ -1155,6 +1355,7 @@ fn unwrap_round_tx_err(err: TransactionError<RoundOutcome>) -> Failure {
 fn try_local_ripup_round(
     tx: &mut Transaction<'_>,
     adapter: &mut dyn RouteUnitAdapter,
+    net_to_unit: &BTreeMap<u32, RouteUnitId>,
     spec_by_id: &BTreeMap<RouteUnitId, UnitSpec>,
     unit: &UnitSpec,
     initial_frontier: &BlockedFrontier,
@@ -1171,11 +1372,11 @@ fn try_local_ripup_round(
 ) -> Result<(bool, Option<BlockerScore>), Failure> {
     let blockers = match precomputed_blockers {
         Some(b) => b,
-        None => analyze_blockers(
+        None => analyze_blockers_with_lookup(
             tx.engine,
             unit,
             initial_frontier,
-            adapter,
+            &|n| net_to_unit.get(&n).copied(),
             spec_by_id,
             rip_counts,
         )?,
@@ -1243,13 +1444,17 @@ fn try_local_ripup_round(
             let mut co_victims = 1usize;
             loop {
                 let unit_exp_before = *expanded;
-                let u_cap = (!no_trial_cap.contains(&unit.id)
+                let can_rip_more_u =
+                    co_victims < MAX_CO_VICTIMS && rips_this_round < MAX_RIPS_PER_ROUND;
+                let u_cap = (can_rip_more_u
+                    && !no_trial_cap.contains(&unit.id)
                     && !local_no_trial_cap.contains(&unit.id))
                 .then_some(trial_cap)
                 .flatten();
                 match try_unit_with_cap(
                     round_tx.engine,
                     adapter,
+                    net_to_unit,
                     spec_by_id,
                     unit,
                     history,
@@ -1257,6 +1462,10 @@ fn try_local_ripup_round(
                     expanded,
                     u_cap,
                     rip_counts,
+                    Some(TrialRipFilter {
+                        ripped_in_round: &ripped_in_round,
+                        local_rip_deltas: &local_rip_deltas,
+                    }),
                 ) {
                     Ok(()) => {
                         local_max_exp = local_max_exp.max(expanded.saturating_sub(unit_exp_before));
@@ -1276,11 +1485,11 @@ fn try_local_ripup_round(
                         let next_blockers = if can_rip_more {
                             match pre_b {
                                 Some(b) => b,
-                                None => analyze_blockers(
+                                None => analyze_blockers_with_lookup(
                                     round_tx.engine,
                                     unit,
                                     &next_frontier,
-                                    adapter,
+                                    &|n| net_to_unit.get(&n).copied(),
                                     spec_by_id,
                                     rip_counts,
                                 )
@@ -1342,6 +1551,7 @@ fn try_local_ripup_round(
                             match try_unit_with_cap(
                                 round_tx.engine,
                                 adapter,
+                                net_to_unit,
                                 spec_by_id,
                                 unit,
                                 history,
@@ -1349,6 +1559,7 @@ fn try_local_ripup_round(
                                 expanded,
                                 None,
                                 rip_counts,
+                                None,
                             ) {
                                 Ok(()) => {
                                     local_no_trial_cap.push(unit.id);
@@ -1384,13 +1595,16 @@ fn try_local_ripup_round(
                     .get(&victim_id)
                     .expect("victim unit exists in unit spec map");
                 let v_exp_before = *expanded;
-                let v_cap = (!no_trial_cap.contains(&victim_id)
+                let can_rip_more_v = rips_this_round < MAX_RIPS_PER_ROUND;
+                let v_cap = (can_rip_more_v
+                    && !no_trial_cap.contains(&victim_id)
                     && !local_no_trial_cap.contains(&victim_id))
                 .then_some(trial_cap)
                 .flatten();
                 match try_unit_with_cap(
                     round_tx.engine,
                     adapter,
+                    net_to_unit,
                     spec_by_id,
                     v_spec,
                     history,
@@ -1398,6 +1612,10 @@ fn try_local_ripup_round(
                     expanded,
                     v_cap,
                     rip_counts,
+                    Some(TrialRipFilter {
+                        ripped_in_round: &ripped_in_round,
+                        local_rip_deltas: &local_rip_deltas,
+                    }),
                 ) {
                     Ok(()) => {
                         local_max_exp = local_max_exp.max(expanded.saturating_sub(v_exp_before));
@@ -1422,11 +1640,11 @@ fn try_local_ripup_round(
                         let v_blockers = if can_rip_more {
                             match pre_vb {
                                 Some(b) => b,
-                                None => analyze_blockers(
+                                None => analyze_blockers_with_lookup(
                                     round_tx.engine,
                                     v_spec,
                                     &v_frontier,
-                                    adapter,
+                                    &|n| net_to_unit.get(&n).copied(),
                                     spec_by_id,
                                     rip_counts,
                                 )
@@ -1488,6 +1706,7 @@ fn try_local_ripup_round(
                             match try_unit_with_cap(
                                 round_tx.engine,
                                 adapter,
+                                net_to_unit,
                                 spec_by_id,
                                 v_spec,
                                 history,
@@ -1495,6 +1714,7 @@ fn try_local_ripup_round(
                                 expanded,
                                 None,
                                 rip_counts,
+                                None,
                             ) {
                                 Ok(()) => {
                                     local_no_trial_cap.push(victim_id);
@@ -1577,8 +1797,12 @@ fn solve_with_adapter_units(
     units: Vec<UnitSpec>,
 ) -> Result<NegotiationStats, Failure> {
     let mut spec_by_id: BTreeMap<RouteUnitId, UnitSpec> = BTreeMap::new();
+    let mut net_to_unit: BTreeMap<u32, RouteUnitId> = BTreeMap::new();
     let mut original_order: BTreeMap<RouteUnitId, usize> = BTreeMap::new();
     for (idx, u) in units.iter().enumerate() {
+        for &net in &u.nets {
+            net_to_unit.insert(net, u.id);
+        }
         spec_by_id.insert(u.id, u.clone());
         original_order.insert(u.id, idx);
     }
@@ -1611,6 +1835,7 @@ fn solve_with_adapter_units(
         match try_unit_with_cap(
             tx.engine,
             adapter,
+            &net_to_unit,
             &spec_by_id,
             u,
             &history,
@@ -1618,6 +1843,7 @@ fn solve_with_adapter_units(
             expanded,
             t_cap,
             &rip_counts,
+            None,
         ) {
             Ok(()) => {
                 max_ok_unit_exp = max_ok_unit_exp.max(expanded.saturating_sub(unit_exp_before));
@@ -1651,6 +1877,7 @@ fn solve_with_adapter_units(
                 let (resolved, top_b) = try_local_ripup_round(
                     tx,
                     adapter,
+                    &net_to_unit,
                     &spec_by_id,
                     u,
                     &frontier,
@@ -1691,6 +1918,7 @@ fn solve_with_adapter_units(
                     match try_unit_with_cap(
                         tx.engine,
                         adapter,
+                        &net_to_unit,
                         &spec_by_id,
                         u,
                         &history,
@@ -1698,6 +1926,7 @@ fn solve_with_adapter_units(
                         expanded,
                         None,
                         &rip_counts,
+                        None,
                     ) {
                         Ok(()) => {
                             no_trial_cap.insert(u.id);
@@ -1825,6 +2054,7 @@ fn solve_with_adapter_units(
                 match try_unit_with_cap(
                     pass_tx.engine,
                     adapter,
+                    &net_to_unit,
                     &spec_by_id,
                     u,
                     &history,
@@ -1832,6 +2062,7 @@ fn solve_with_adapter_units(
                     expanded,
                     t_cap,
                     &pass_rip_counts,
+                    None,
                 ) {
                     Ok(()) => {
                         max_ok_unit_exp =
@@ -1853,6 +2084,7 @@ fn solve_with_adapter_units(
                         match try_local_ripup_round(
                             pass_tx,
                             adapter,
+                            &net_to_unit,
                             &spec_by_id,
                             u,
                             &frontier,
@@ -1885,6 +2117,7 @@ fn solve_with_adapter_units(
                                     match try_unit_with_cap(
                                         pass_tx.engine,
                                         adapter,
+                                        &net_to_unit,
                                         &spec_by_id,
                                         u,
                                         &history,
@@ -1892,6 +2125,7 @@ fn solve_with_adapter_units(
                                         expanded,
                                         None,
                                         &pass_rip_counts,
+                                        None,
                                     ) {
                                         Ok(()) => {
                                             no_trial_cap.insert(u.id);

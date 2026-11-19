@@ -1339,3 +1339,153 @@ fn budget_80000_unblocked_second_net_does_not_exhaust_on_trial_cap() {
     assert_eq!(out.status, Status::Complete);
     verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
 }
+
+#[test]
+fn budget_monotonicity_across_unblocked_detour_obstacles_and_default_100k() {
+    let cases: &[(i64, &[u64])] = &[
+        (
+            800,
+            &[
+                44_440, 79_999, 80_000, 80_006, 80_007, 84_439, 84_440, 100_000,
+            ],
+        ),
+        (
+            860,
+            &[
+                49_834, 79_999, 80_000, 80_006, 80_007, 85_000, 90_000, 100_000,
+            ],
+        ),
+        (
+            920,
+            &[55_516, 79_999, 80_006, 80_007, 85_000, 95_000, 100_000],
+        ),
+        (
+            1020,
+            &[65_626, 79_999, 80_006, 80_007, 85_000, 95_000, 100_000],
+        ),
+    ];
+
+    for &(obs_hw, budgets) in cases {
+        let mut expected_exp: Option<u64> = None;
+        for &budget in budgets {
+            let mut i = base_input([3600, 2800], Vec::new());
+            i.max_expansions = budget;
+            i.limits.max_work = 50_000_000;
+            i.nets = vec![
+                Net {
+                    id: 0,
+                    name: String::new(),
+                },
+                Net {
+                    id: 1,
+                    name: "N1".into(),
+                },
+                Net {
+                    id: 2,
+                    name: "N2".into(),
+                },
+            ];
+            i.pads = vec![
+                pad(1, 1, [10, 10]),
+                pad(2, 1, [60, 10]),
+                pad(3, 2, [1800, 1100]),
+                pad(4, 2, [1800, 1700]),
+            ];
+            i.tracks = vec![wire(10, 0, [1800 - obs_hw, 1400], [1800 + obs_hw, 1400])];
+
+            let mut e = Engine::new(i.clone()).unwrap();
+            let exp = e.route_all().unwrap_or_else(|err| {
+                panic!("obs_hw={obs_hw}, budget={budget} must succeed cleanly: {err:?}")
+            });
+            assert!(
+                exp > 40_000 && exp <= budget,
+                "obs_hw={obs_hw}, budget={budget}: expected (40_000..={budget}], got {exp}"
+            );
+            if let Some(prev) = expected_exp {
+                assert_eq!(
+                    exp, prev,
+                    "obs_hw={obs_hw}: budget={budget} gave exp={exp} != prev={prev}"
+                );
+            } else {
+                expected_exp = Some(exp);
+            }
+            if budget == 100_000 {
+                let out = run(i.clone());
+                assert_eq!(out.status, Status::Complete);
+                verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+            }
+        }
+    }
+}
+
+#[test]
+fn post_trial_cap_blocker_preserved_on_unroutable_frontier() {
+    let mut i = base_input([3600, 2800], Vec::new());
+    i.max_expansions = 100_000;
+    i.limits.max_work = 50_000_000;
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+        Net {
+            id: 2,
+            name: "N2".into(),
+        },
+    ];
+    // Bounded upper pocket (x=980..2620, y=750..1400) with a single exit gate at x=1000.
+    // N1 routes straight along y=1390 across x=990..1010, plugging the x=1000 gate.
+    // N2 must expand >40_000 states from [1800, 1100] before reaching [1000, 1390],
+    // then hits N1 past the trial cap, exhausts the pocket (<100_000), preserves N1 in
+    // its frontier, rips N1, routes through x=1000, and recovers N1 above N2.
+    i.pads = vec![
+        pad(1, 1, [990, 1390]),
+        pad(2, 1, [1010, 1390]),
+        pad(3, 2, [1800, 1100]),
+        pad(4, 2, [1800, 1700]),
+    ];
+    i.tracks = vec![
+        wire(10, 0, [980, 1400], [990, 1400]),
+        wire(11, 0, [1010, 1400], [2620, 1400]),
+        wire(12, 0, [2620, 750], [2620, 1400]),
+        wire(13, 0, [980, 750], [2620, 750]),
+        wire(14, 0, [980, 750], [980, 1400]),
+    ];
+
+    // Confirm N2 does not reach N1 within 40_000 expansions (zero blockers at trial cap).
+    let mut probe_in = i.clone();
+    probe_in.max_expansions = 40_010;
+    let mut probe_eng = Engine::new(probe_in).unwrap();
+    let probe_err = probe_eng
+        .route_all()
+        .expect_err("N2 cannot finish in 40_010 expansions");
+    assert_eq!(probe_err.status, Status::BudgetExhausted);
+    let probe_stats = probe_eng.last_negotiation_stats().unwrap();
+    assert_eq!(
+        probe_stats.rounds_attempted, 0,
+        "N1 must NOT be reachable within the first 40_000 expansions: {probe_stats:?}"
+    );
+
+    // At 100_000, N2 continues in-place past 40_000, hits N1, preserves N1 in frontier,
+    // rips N1, routes N2, and recovers N1.
+    let mut e = Engine::new(i.clone()).unwrap();
+    let exp = e.route_all().unwrap_or_else(|err| {
+        panic!(
+            "post-40k blocker must be preserved and ripped: {err:?}; stats={:?}",
+            e.last_negotiation_stats()
+        )
+    });
+    assert!(exp > 40_000 && exp <= 100_000, "unexpected exp={exp}");
+    let stats = e.last_negotiation_stats().expect("stats recorded");
+    assert!(
+        stats.units_ripped >= 1 && stats.rounds_committed >= 1,
+        "expected N1 to be ripped and committed: {stats:?}"
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+}

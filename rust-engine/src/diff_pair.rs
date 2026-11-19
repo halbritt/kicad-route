@@ -15,7 +15,7 @@ use std::ops::ControlFlow;
 
 pub use crate::negotiate::RouteUnitId;
 use crate::negotiate::{
-    BlockedFrontier, CongestionHistory, RouteUnitAdapter, UnitRouteError, UnitSpec,
+    BlockedFrontier, CongestionHistory, RouteUnitAdapter, TrialBudget, UnitRouteError, UnitSpec,
 };
 
 #[derive(Clone, Debug)]
@@ -5047,7 +5047,7 @@ fn astar_coupled_centerline(
     step_nm: i64,
     step_penalty: &dyn Fn(u8, Point) -> u64,
     via_penalty: &dyn Fn(Point, u8, u8) -> u64,
-    limit: u64,
+    budget: &mut TrialBudget<'_>,
     mut expanded_out: Option<&mut u64>,
     mut frontier: Option<&mut BlockedFrontier>,
 ) -> Result<Option<CoupledSolution>, Failure> {
@@ -5289,12 +5289,7 @@ fn astar_coupled_centerline(
             continue;
         }
         if let Some(ex) = expanded_out.as_deref_mut() {
-            if *ex >= limit {
-                return Err(Failure::new(
-                    Status::BudgetExhausted,
-                    "total expansion budget exhausted",
-                ));
-            }
+            budget.check_before_expand(engine, *ex, frontier.as_deref())?;
             *ex = ex.checked_add(1).expect("bounded expansion count");
         }
         expansions += 1;
@@ -5591,7 +5586,7 @@ fn route_single_diff_pair_inner(
     plan: &DiffPairPlan,
     step_penalty: &dyn Fn(u8, Point) -> u64,
     via_penalty: &dyn Fn(Point, u8, u8) -> u64,
-    limit: u64,
+    budget: &mut TrialBudget<'_>,
     mut expanded: Option<&mut u64>,
     mut frontier: Option<&mut BlockedFrontier>,
     use_commit_tx: bool,
@@ -5791,7 +5786,7 @@ fn route_single_diff_pair_inner(
                 step_nm,
                 step_penalty,
                 via_penalty,
-                limit,
+                budget,
                 expanded.as_deref_mut(),
                 frontier.as_deref_mut(),
             );
@@ -5810,7 +5805,9 @@ fn route_single_diff_pair_inner(
                 Ok(None) => {}
                 Err(e) if e.status == Status::BudgetExhausted => {
                     if let Some(f) = frontier {
-                        if limit < engine.input.max_expansions && !f.is_empty() {
+                        if budget.aborted
+                            || (budget.current_limit < budget.batch_limit && !f.is_empty())
+                        {
                             return Err(UnitRouteError::Blocked(std::mem::take(f)));
                         }
                     }
@@ -5855,14 +5852,14 @@ fn route_single_diff_pair(
     step_penalty: &dyn Fn(u8, Point) -> u64,
     via_penalty: &dyn Fn(Point, u8, u8) -> u64,
 ) -> Result<(), Failure> {
-    let limit = engine.input.max_expansions;
+    let mut budget = TrialBudget::fixed(engine.input.max_expansions);
     match route_single_diff_pair_inner(
         engine,
         pair,
         plan,
         step_penalty,
         via_penalty,
-        limit,
+        &mut budget,
         None,
         None,
         true,
@@ -6032,6 +6029,53 @@ impl CompositeRouteAdapter {
         }
         Self { state, pair_by_net }
     }
+
+    fn route_unit_with_budget(
+        &mut self,
+        engine: &mut Engine,
+        unit: RouteUnitId,
+        history: &CongestionHistory,
+        budget: &mut TrialBudget<'_>,
+        expanded: &mut u64,
+    ) -> Result<(), UnitRouteError> {
+        match unit {
+            RouteUnitId::SingleNet(net) => {
+                engine.route_net_negotiated_with_budget(net, budget, expanded, history)
+            }
+            RouteUnitId::DiffPair(idx) => {
+                let pair = self.state.plan.pairs.get(idx).ok_or_else(|| {
+                    UnitRouteError::Fatal(Failure::new(
+                        Status::Invalid,
+                        format!("unknown diff pair unit index {idx}"),
+                    ))
+                })?;
+                let bounds_min = engine.input.bounds.min;
+                let grid_nm = engine.input.rules.grid_nm;
+                let step_pen = |layer: u8, pt: Point| -> u64 {
+                    history
+                        .step_penalty(layer, pt, bounds_min, grid_nm)
+                        .saturating_mul(250_000)
+                };
+                let via_pen = |pt: Point, s: u8, e: u8| -> u64 {
+                    history
+                        .via_penalty(pt, s, e, bounds_min, grid_nm)
+                        .saturating_mul(250_000)
+                };
+                let mut frontier = BlockedFrontier::new();
+                route_single_diff_pair_inner(
+                    engine,
+                    pair,
+                    &self.state.plan,
+                    &step_pen,
+                    &via_pen,
+                    budget,
+                    Some(expanded),
+                    Some(&mut frontier),
+                    false,
+                )
+            }
+        }
+    }
 }
 
 impl RouteUnitAdapter for CompositeRouteAdapter {
@@ -6100,43 +6144,22 @@ impl RouteUnitAdapter for CompositeRouteAdapter {
         max_expansions: u64,
         expanded: &mut u64,
     ) -> Result<(), UnitRouteError> {
-        match unit {
-            RouteUnitId::SingleNet(net) => {
-                engine.route_net_negotiated(net, max_expansions, expanded, history)
-            }
-            RouteUnitId::DiffPair(idx) => {
-                let pair = self.state.plan.pairs.get(idx).ok_or_else(|| {
-                    UnitRouteError::Fatal(Failure::new(
-                        Status::Invalid,
-                        format!("unknown diff pair unit index {idx}"),
-                    ))
-                })?;
-                let bounds_min = engine.input.bounds.min;
-                let grid_nm = engine.input.rules.grid_nm;
-                let step_pen = |layer: u8, pt: Point| -> u64 {
-                    history
-                        .step_penalty(layer, pt, bounds_min, grid_nm)
-                        .saturating_mul(250_000)
-                };
-                let via_pen = |pt: Point, s: u8, e: u8| -> u64 {
-                    history
-                        .via_penalty(pt, s, e, bounds_min, grid_nm)
-                        .saturating_mul(250_000)
-                };
-                let mut frontier = BlockedFrontier::new();
-                route_single_diff_pair_inner(
-                    engine,
-                    pair,
-                    &self.state.plan,
-                    &step_pen,
-                    &via_pen,
-                    max_expansions,
-                    Some(expanded),
-                    Some(&mut frontier),
-                    false,
-                )
-            }
-        }
+        let mut budget = TrialBudget::fixed(max_expansions);
+        self.route_unit_with_budget(engine, unit, history, &mut budget, expanded)
+    }
+
+    fn route_unit_with_trial(
+        &mut self,
+        engine: &mut Engine,
+        unit: RouteUnitId,
+        history: &CongestionHistory,
+        trial_limit: u64,
+        batch_limit: u64,
+        expanded: &mut u64,
+        on_trial_limit: &mut dyn FnMut(&Engine, &BlockedFrontier) -> Result<bool, Failure>,
+    ) -> Result<(), UnitRouteError> {
+        let mut budget = TrialBudget::with_trial(trial_limit, batch_limit, on_trial_limit);
+        self.route_unit_with_budget(engine, unit, history, &mut budget, expanded)
     }
 
     fn rip_unit(&mut self, engine: &mut Engine, unit: RouteUnitId) -> Result<(), Failure> {

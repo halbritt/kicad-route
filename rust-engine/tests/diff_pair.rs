@@ -4262,3 +4262,164 @@ fn route_all_tier0_multipair_contention_succeeds_under_default_budget() {
     let out = kicad_route_engine::run(input);
     assert_eq!(out.status, Status::Complete);
 }
+
+#[test]
+fn route_all_tier0_multipair_contention_monotonic_across_80000_to_100000() {
+    let mut base = base_diff_input(&["P1_P", "P1_N", "P2_P", "P2_N"]);
+    base.routing_options.as_mut().unwrap().pair_layers = vec!["F.Cu".into()];
+    base.pads = vec![
+        pad(1, 1, [10_000_000, 19_500_000], &["F.Cu"]),
+        pad(2, 1, [50_000_000, 19_500_000], &["F.Cu"]),
+        pad(3, 2, [10_000_000, 20_500_000], &["F.Cu"]),
+        pad(4, 2, [50_000_000, 20_500_000], &["F.Cu"]),
+        pad(5, 3, [29_500_000, 12_000_000], &["F.Cu"]),
+        pad(6, 3, [29_500_000, 35_000_000], &["F.Cu"]),
+        pad(7, 4, [30_500_000, 12_000_000], &["F.Cu"]),
+        pad(8, 4, [30_500_000, 35_000_000], &["F.Cu"]),
+    ];
+    let mk_ra = |id_num: u64, outer: Vec<Point>| RuleArea {
+        id: uuid(id_num),
+        name: None,
+        layers: vec!["F.Cu".into()],
+        outer,
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: false,
+        no_pads: false,
+        no_zone_fills: false,
+        no_footprints: false,
+    };
+    base.rule_areas = vec![
+        mk_ra(
+            910,
+            vec![
+                [27_000_000, 9_000_000],
+                [33_000_000, 9_000_000],
+                [33_000_000, 10_000_000],
+                [27_000_000, 10_000_000],
+            ],
+        ),
+        mk_ra(
+            911,
+            vec![
+                [27_000_000, 9_000_000],
+                [28_000_000, 9_000_000],
+                [28_000_000, 18_800_000],
+                [27_000_000, 18_800_000],
+            ],
+        ),
+        mk_ra(
+            912,
+            vec![
+                [32_000_000, 9_000_000],
+                [33_000_000, 9_000_000],
+                [33_000_000, 18_800_000],
+                [32_000_000, 18_800_000],
+            ],
+        ),
+    ];
+
+    let mut expected_exp: Option<u64> = None;
+    for budget in [80_000u64, 80_007, 85_000, 90_000, 100_000] {
+        let mut input = base.clone();
+        input.max_expansions = budget;
+        let mut engine = Engine::new(input.clone()).unwrap();
+        let exp = engine.route_all().unwrap_or_else(|err| {
+            panic!("P6 Tier-0 rip-up must succeed at budget={budget}: {err:?}")
+        });
+        assert!(
+            exp < budget,
+            "budget={budget}: expected < {budget}, got {exp}"
+        );
+        if let Some(prev) = expected_exp {
+            assert_eq!(
+                exp, prev,
+                "budget={budget}: expected consistent exp={prev}, got {exp}"
+            );
+        } else {
+            expected_exp = Some(exp);
+        }
+        let stats = engine
+            .last_negotiation_stats()
+            .expect("negotiation stats must be recorded");
+        assert!(
+            stats.units_ripped >= 1 && stats.rounds_committed >= 1,
+            "budget={budget}: expected units_ripped >= 1 and rounds_committed >= 1: {stats:?}"
+        );
+        assert!(engine.copper().index_consistent());
+        if budget == 80_007 || budget == 100_000 {
+            let out = kicad_route_engine::run(input);
+            assert_eq!(out.status, Status::Complete);
+        }
+    }
+}
+
+#[test]
+fn tier1_detour_around_non_rippable_tier0_exceeding_trial_cap_succeeds() {
+    let mut base = base_diff_input(&["DP_P", "DP_N"]);
+    base.layers = vec!["F.Cu".into()];
+    base.bounds = Bounds {
+        min: [0, 0],
+        max: [90_000_000, 70_000_000],
+    };
+    base.routing_options.as_mut().unwrap().pair_layers = vec!["F.Cu".into()];
+    base.limits.max_work = 50_000_000;
+    base.nets.push(Net {
+        id: 3,
+        name: "SE_OK".into(),
+    });
+    base.nets.push(Net {
+        id: 4,
+        name: "SE_DETOUR".into(),
+    });
+    base.pads = vec![
+        pad(1, 1, [25_000_000, 34_700_000], &["F.Cu"]),
+        pad(2, 1, [65_000_000, 34_700_000], &["F.Cu"]),
+        pad(3, 2, [25_000_000, 35_300_000], &["F.Cu"]),
+        pad(4, 2, [65_000_000, 35_300_000], &["F.Cu"]),
+        pad(5, 3, [1_000_000, 1_000_000], &["F.Cu"]),
+        pad(6, 3, [2_500_000, 1_000_000], &["F.Cu"]),
+        pad(7, 4, [45_000_000, 27_500_000], &["F.Cu"]),
+        pad(8, 4, [45_000_000, 42_500_000], &["F.Cu"]),
+    ];
+
+    let mut expected_exp: Option<u64> = None;
+    for budget in [80_000u64, 80_007, 85_000, 100_000] {
+        let mut input = base.clone();
+        input.max_expansions = budget;
+        let mut engine = Engine::new(input.clone()).unwrap();
+        let exp = engine.route_all().unwrap_or_else(|err| {
+            panic!(
+                "Tier-1 detour around non-rippable Tier-0 must succeed at budget={budget}: {err:?}"
+            )
+        });
+        assert!(
+            exp > 40_000 && exp <= budget,
+            "budget={budget}: expected (40_000..={budget}], got {exp}"
+        );
+        if let Some(prev) = expected_exp {
+            assert_eq!(exp, prev, "budget={budget}: expected exp={prev}, got {exp}");
+        } else {
+            expected_exp = Some(exp);
+        }
+        let stats = engine
+            .last_negotiation_stats()
+            .expect("negotiation stats must be recorded");
+        assert_eq!(
+            stats.units_ripped, 0,
+            "Tier-1 must not rip Tier-0 diff pair: {stats:?}"
+        );
+        for nid in [1u32, 2, 3, 4] {
+            assert!(
+                engine.copper().generated().any(|t| t.net == nid),
+                "budget={budget}: expected generated tracks for net {nid}"
+            );
+        }
+        assert!(engine.copper().index_consistent());
+        if budget == 100_000 {
+            let out = kicad_route_engine::run(input);
+            assert_eq!(out.status, Status::Complete);
+        }
+    }
+}

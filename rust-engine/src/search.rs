@@ -267,12 +267,22 @@ pub(crate) fn join_components(
     limit: u64,
     expanded: &mut u64,
 ) -> Result<Path, Failure> {
+    let mut budget = crate::negotiate::TrialBudget::fixed(limit);
     join_components_inner(
-        engine, net, source, targets, limit, expanded, None, None, false,
+        engine,
+        net,
+        source,
+        targets,
+        &mut budget,
+        expanded,
+        None,
+        None,
+        false,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
 pub(crate) fn join_components_negotiated(
     engine: &Engine,
     net: u32,
@@ -283,13 +293,37 @@ pub(crate) fn join_components_negotiated(
     history: &crate::negotiate::CongestionHistory,
     frontier: &mut crate::negotiate::BlockedFrontier,
 ) -> Result<Path, Failure> {
+    let mut budget = crate::negotiate::TrialBudget::fixed(limit);
+    join_components_negotiated_with_budget(
+        engine,
+        net,
+        source,
+        targets,
+        &mut budget,
+        expanded,
+        history,
+        frontier,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn join_components_negotiated_with_budget(
+    engine: &Engine,
+    net: u32,
+    source: &[Copper<'_>],
+    targets: &[Vec<Copper<'_>>],
+    budget: &mut crate::negotiate::TrialBudget<'_>,
+    expanded: &mut u64,
+    history: &crate::negotiate::CongestionHistory,
+    frontier: &mut crate::negotiate::BlockedFrontier,
+) -> Result<Path, Failure> {
     let hist_opt = (!history.is_empty()).then_some(history);
     join_components_inner(
         engine,
         net,
         source,
         targets,
-        limit,
+        budget,
         expanded,
         hist_opt,
         Some(frontier),
@@ -303,7 +337,7 @@ fn join_components_inner(
     net: u32,
     source: &[Copper<'_>],
     targets: &[Vec<Copper<'_>>],
-    limit: u64,
+    budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     history: Option<&crate::negotiate::CongestionHistory>,
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
@@ -555,32 +589,34 @@ fn join_components_inner(
         && engine.input.rules.same_net_hole_clearance_nm == 0
         && !has_zone_target
         && targets.iter().flatten().count() <= 8
-        && limit.saturating_sub(*expanded) >= 10_000;
-    let mut escape_probe =
-        |exp: &mut u64, f: &mut crate::negotiate::BlockedFrontier| -> Result<bool, Failure> {
-            if !can_probe_escape {
-                return Ok(true);
-            }
-            target_escape_reachable(
-                engine,
-                net,
-                &bwd_starts,
-                targets,
-                max_eff_width,
-                via_cost,
-                limit,
-                exp,
-                f,
-                &attachment,
-            )
-        };
+        && budget.batch_limit.saturating_sub(*expanded) >= 10_000;
+    let mut escape_probe = |exp: &mut u64,
+                            f: &mut crate::negotiate::BlockedFrontier,
+                            b: &mut crate::negotiate::TrialBudget<'_>|
+     -> Result<bool, Failure> {
+        if !can_probe_escape {
+            return Ok(true);
+        }
+        target_escape_reachable(
+            engine,
+            net,
+            &bwd_starts,
+            targets,
+            max_eff_width,
+            via_cost,
+            b,
+            exp,
+            f,
+            &attachment,
+        )
+    };
 
     loop {
         let result = walk_multilayer(
             engine,
             net,
             &start_vec,
-            limit,
+            budget,
             expanded,
             track_direction_matters,
             track_via_count,
@@ -594,6 +630,7 @@ fn join_components_inner(
                     as &mut dyn FnMut(
                         &mut u64,
                         &mut crate::negotiate::BlockedFrontier,
+                        &mut crate::negotiate::TrialBudget<'_>,
                     ) -> Result<bool, Failure>,
             ),
             |p, layer_idx| {
@@ -889,7 +926,7 @@ fn join_components_inner(
                             max_eff_width,
                             via_cost,
                             needed_cutoff,
-                            limit,
+                            budget.batch_limit,
                         )?;
                         backward_h = Some((needed_cutoff, bwd));
                     }
@@ -1180,7 +1217,7 @@ fn target_escape_reachable(
     targets: &[Vec<Copper<'_>>],
     max_eff_width: i64,
     via_cost: u64,
-    limit: u64,
+    budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     frontier: &mut crate::negotiate::BlockedFrontier,
     attachment: &impl Fn(usize, Point, Point, &[PlacedViaKey]) -> Result<Option<Point>, Failure>,
@@ -1402,12 +1439,7 @@ fn target_escape_reachable(
         if start_set.contains(&(p, l)) || pops >= TARGET_ESCAPE_BUDGET {
             return Ok(true);
         }
-        if *expanded >= limit {
-            return Err(Failure::new(
-                Status::BudgetExhausted,
-                "total expansion budget exhausted",
-            ));
-        }
+        budget.check_before_expand(engine, *expanded, Some(frontier))?;
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
         pops += 1;
         let l_idx = l as usize;
@@ -1814,11 +1846,12 @@ fn walk(
 ) -> Result<Path, Failure> {
     let start_vec: Vec<(Point, u8, bool)> = starts.iter().map(|&p| (p, 0, false)).collect();
     let empty_filter = ConflictFilter::default();
+    let mut budget = crate::negotiate::TrialBudget::fixed(limit);
     walk_multilayer(
         engine,
         0,
         &start_vec,
-        limit,
+        &mut budget,
         expanded,
         true,
         false,
@@ -1847,7 +1880,7 @@ fn walk_multilayer(
     engine: &Engine,
     net: u32,
     starts: &[(Point, u8, bool)],
-    limit: u64,
+    budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     track_direction_matters: bool,
     track_via_count: bool,
@@ -1857,7 +1890,11 @@ fn walk_multilayer(
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
     prefer_higher_g: bool,
     mut escape_probe: Option<
-        &mut dyn FnMut(&mut u64, &mut crate::negotiate::BlockedFrontier) -> Result<bool, Failure>,
+        &mut dyn FnMut(
+            &mut u64,
+            &mut crate::negotiate::BlockedFrontier,
+            &mut crate::negotiate::TrialBudget<'_>,
+        ) -> Result<bool, Failure>,
     >,
     heuristic: impl Fn(Point, usize) -> Result<u64, Failure>,
     advance: impl Fn(
@@ -1970,17 +2007,12 @@ fn walk_multilayer(
         )? {
             continue;
         }
-        if *expanded >= limit {
-            return Err(Failure::new(
-                Status::BudgetExhausted,
-                "total expansion budget exhausted",
-            ));
-        }
+        budget.check_before_expand(engine, *expanded, frontier.as_deref())?;
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
         local_exp += 1;
         if local_exp == 2048 {
             if let (Some(probe), Some(f)) = (escape_probe.take(), frontier.as_deref_mut()) {
-                if !probe(expanded, f)? {
+                if !probe(expanded, f, budget)? {
                     return Err(Failure::new(
                         Status::Unroutable,
                         "target terminal is locally unreachable from routing grid",
