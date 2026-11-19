@@ -3087,4 +3087,183 @@ def test_teardrop_enabled_board_without_copper_pours_refills_and_saves_teardrops
     assert sum(1 for z in pcbnew.LoadBoard(str(plain_out)).Zones() if z.IsTeardropArea()) == 0
 
 
+def _assert_fail_closed_export_apply_and_cli(run, engine, board_path: Path, rules: dict, rules_path: Path,
+                                             out_dir: Path, tag: str, match: str):
+    with pytest.raises(bridge.UnsupportedBoard, match=match):
+        bridge.export_snapshot(board_path, rules=rules)
+    req_bytes = json.dumps({'bounds': {'min': [0, 0], 'max': [20_000_000, 20_000_000]}}).encode('utf-8')
+    plan = {
+        'version': bridge.RESULT_VERSION,
+        'source_id': hashlib.sha256(board_path.read_bytes()).hexdigest(),
+        'request_sha256': hashlib.sha256(req_bytes).hexdigest(),
+        'status': 'complete',
+        'added_tracks': [],
+        'added_vias': [],
+        'removed_track_ids': [],
+        'expanded_states': 0,
+        'work_used': 0,
+    }
+    apply_out = out_dir / f'{tag}_apply.kicad_pcb'
+    with pytest.raises(bridge.UnsupportedBoard, match=match):
+        bridge.apply_plan(board_path, plan, apply_out, expected_request=req_bytes)
+    assert not apply_out.exists()
+    cli_out = out_dir / f'{tag}_cli.kicad_pcb'
+    res = run([str(engine), 'route-native', str(board_path), str(cli_out), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 2, (tag, res.stdout, res.stderr)
+    assert not cli_out.exists()
+
+
+def _make_mask_probe_board(path: Path, *, mask_min_width: int, mask_to_copper: int):
+    board = pcbnew.BOARD()
+    board.SetCopperLayerCount(2)
+    ds = board.GetDesignSettings()
+    ds.m_SolderMaskMinWidth = mask_min_width
+    ds.m_SolderMaskToCopperClearance = mask_to_copper
+    board.Add(pcbnew.NETINFO_ITEM(board, 'SIG', 1))
+    board.Add(pcbnew.NETINFO_ITEM(board, 'GND', 2))
+    for a, b in [((0, 0), (20_000_000, 0)), ((20_000_000, 0), (20_000_000, 20_000_000)),
+                 ((20_000_000, 20_000_000), (0, 20_000_000)), ((0, 20_000_000), (0, 0))]:
+        edge = pcbnew.PCB_SHAPE(board)
+        edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        edge.SetLayer(pcbnew.Edge_Cuts)
+        edge.SetStart(pcbnew.VECTOR2I(*a))
+        edge.SetEnd(pcbnew.VECTOR2I(*b))
+        edge.SetWidth(50_000)
+        board.Add(edge)
+    for idx, (x, y, net_code) in enumerate([(5_000_000, 10_000_000, 1), (15_000_000, 10_000_000, 1),
+                                            (10_000_000, 12_000_000, 2)], 1):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'J{idx}')
+        fp.SetPosition(pcbnew.VECTOR2I(x, y))
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.Add(fp)
+        pad = pcbnew.PAD(fp)
+        pad.SetNumber('1')
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_RECT)
+        pad.SetSize(pcbnew.VECTOR2I(1_000_000, 1_000_000))
+        pad.SetPosition(pcbnew.VECTOR2I(x, y))
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        ls.AddLayer(pcbnew.F_Mask)
+        pad.SetLayerSet(ls)
+        pad.SetNetCode(net_code)
+        fp.Add(pad)
+    assert pcbnew.SaveBoard(str(path), board)
+    return path
+@pytest.mark.parametrize('mask_layer', [pcbnew.F_Mask, pcbnew.B_Mask])
+@pytest.mark.parametrize('mask_rules_active', [False, True])
+def test_solder_mask_pcb_field_fail_closed_and_positive_controls(
+        tmp_path, guarded_cli, mask_layer, mask_rules_active):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+    mw = 100_000 if mask_rules_active else 0
+    mc = 250_000 if mask_rules_active else 0
+
+    src = _make_mask_probe_board(tmp_path / 'field_vis.kicad_pcb', mask_min_width=mw, mask_to_copper=mc)
+    board = pcbnew.LoadBoard(str(src))
+    g1 = next(fp for fp in board.GetFootprints() if fp.GetReference() == 'J3')
+    ref = g1.Reference()
+    ref.SetLayer(mask_layer)
+    if mask_layer == pcbnew.B_Mask:
+        ref.SetMirrored(True)
+    ref.SetPosition(pcbnew.VECTOR2I(10_000_000, 11_000_000))
+    ref.SetTextSize(pcbnew.VECTOR2I(3_000_000, 3_000_000))
+    ref.SetTextThickness(500_000)
+    ref.SetVisible(True)
+    assert pcbnew.SaveBoard(str(src), board)
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, src, rules, rules_path, tmp_path,
+        f'field_{mask_layer}_{mask_rules_active}', 'footprint solder-mask fields',
+    )
+
+    # Positive control 1: invisible PCB_FIELD on solder mask does not emit an aperture and routes cleanly.
+    invis_src = tmp_path / 'field_invis.kicad_pcb'
+    ref.SetVisible(False)
+    assert pcbnew.SaveBoard(str(invis_src), board)
+    bridge.export_snapshot(invis_src, rules=rules)
+    invis_out = tmp_path / 'field_invis_routed.kicad_pcb'
+    res_invis = run([str(engine), 'route-native', str(invis_src), str(invis_out), '--rules', str(rules_path)], check=False)
+    assert res_invis.returncode == 0, res_invis.stderr
+    drc_invis = bridge.native_violations(invis_out, tmp_path / 'field_invis_drc.json')
+    assert drc_invis['unconnected_items'] == [] and drc_invis['violations'] == []
+
+    # Positive control 2: visible PCB_FIELD on solder mask when footprint allows solder-mask bridges.
+    bridge_src = tmp_path / 'field_bridge.kicad_pcb'
+    ref.SetVisible(True)
+    g1.SetAllowSolderMaskBridges(True)
+    assert pcbnew.SaveBoard(str(bridge_src), board)
+    bridge.export_snapshot(bridge_src, rules=rules)
+    bridge_out = tmp_path / 'field_bridge_routed.kicad_pcb'
+    res_bridge = run([str(engine), 'route-native', str(bridge_src), str(bridge_out), '--rules', str(rules_path)], check=False)
+    assert res_bridge.returncode == 0, res_bridge.stderr
+    drc_bridge = bridge.native_violations(bridge_out, tmp_path / 'field_bridge_drc.json')
+    assert drc_bridge['unconnected_items'] == [] and drc_bridge['violations'] == []
+@pytest.mark.parametrize('mask_layer,layer_name', [(pcbnew.F_Mask, 'F.Mask'), (pcbnew.B_Mask, 'B.Mask')])
+def test_solder_mask_non_shape_drawings_and_arc_poly_fail_closed_with_zero_mask_rules(
+        tmp_path, guarded_cli, mask_layer, layer_name):
+    import base64
+    import struct
+    import zlib
+
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+    base_src = _make_mask_probe_board(tmp_path / 'base.kicad_pcb', mask_min_width=0, mask_to_copper=0)
+
+    # 1. PCB_DIM_ALIGNED on F.Mask/B.Mask with mask_rules_active=False must fail closed.
+    dim_src = tmp_path / f'dim_{layer_name}.kicad_pcb'
+    dim_board = pcbnew.LoadBoard(str(base_src))
+    dim = pcbnew.PCB_DIM_ALIGNED(dim_board)
+    dim.SetLayer(mask_layer)
+    dim.SetStart(pcbnew.VECTOR2I(10_000_000, 9_500_000))
+    dim.SetEnd(pcbnew.VECTOR2I(10_000_000, 12_500_000))
+    dim_board.Add(dim)
+    assert pcbnew.SaveBoard(str(dim_src), dim_board)
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, dim_src, rules, rules_path, tmp_path, f'dim_{layer_name}', 'non-shape graphics',
+    )
+
+    # 2. PCB_REFERENCE_IMAGE on F.Mask/B.Mask with mask_rules_active=False must fail closed.
+    def _png_chunk(tag: bytes, data: bytes) -> bytes:
+        return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', zlib.crc32(tag + data) & 0xffffffff)
+
+    png_bytes = (
+        b'\x89PNG\r\n\x1a\n'
+        + _png_chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0))
+        + _png_chunk(b'IDAT', zlib.compress(b'\x00\xff\x00\x00'))
+        + _png_chunk(b'IEND', b'')
+    )
+    img_b64 = base64.b64encode(png_bytes).decode('ascii')
+    img_src = tmp_path / f'refimg_{layer_name}.kicad_pcb'
+    img_sexpr = (
+        f'  (image\n    (at 10 11)\n    (layer "{layer_name}")\n'
+        f'    (uuid "{uuid.uuid4()}")\n    (data "{img_b64}")\n  )\n'
+    )
+    img_src.write_text(base_src.read_text().replace('\n)', '\n' + img_sexpr + ')'))
+    assert any(type(d) is pcbnew.PCB_REFERENCE_IMAGE and d.GetLayer() == mask_layer
+               for d in pcbnew.LoadBoard(str(img_src)).GetDrawings())
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, img_src, rules, rules_path, tmp_path, f'refimg_{layer_name}', 'non-shape graphics',
+    )
+
+    # 3. SHAPE_T_POLY with curved arcs on F.Mask/B.Mask must fail closed in export and apply_plan.
+    arc_poly_src = tmp_path / f'arc_poly_{layer_name}.kicad_pcb'
+    arc_poly_sexpr = (
+        f'  (gr_poly\n    (pts (xy 8 8) (xy 10 8) (arc (start 10 8) (mid 11 9) (end 10 10)) (xy 8 10))\n'
+        f'    (stroke (width 0.1) (type solid))\n    (fill yes)\n    (layer "{layer_name}")\n  )\n'
+    )
+    arc_poly_src.write_text(base_src.read_text().replace('\n)', '\n' + arc_poly_sexpr + ')'))
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, arc_poly_src, rules, rules_path, tmp_path, f'arc_poly_{layer_name}', 'curved arc polygon',
+    )
+
+
+
 

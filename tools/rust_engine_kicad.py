@@ -850,6 +850,14 @@ def _check_graphic_drawing(drawing, *, context_label, layer=None):
         raise UnsupportedBoard(f'{context_label} Bezier curves are not represented')
     if drawing.IsHatchedFill():
         raise UnsupportedBoard(f'{context_label} hatched fill graphics are not represented')
+    if drawing.GetShape() == pcbnew.SHAPE_T_POLY:
+        poly_set = drawing.GetPolyShape()
+        for idx in range(poly_set.OutlineCount()):
+            if poly_set.Outline(idx).ArcCount() != 0:
+                raise UnsupportedBoard(f'{context_label} curved arc polygon graphics are not represented')
+            for h in range(poly_set.HoleCount(idx)):
+                if poly_set.Hole(idx, h).ArcCount() != 0:
+                    raise UnsupportedBoard(f'{context_label} curved arc polygon holes are not represented')
 
 
 def _extract_poly_ring(poly):
@@ -905,8 +913,21 @@ def _extract_graphic_shapes(drawing, *, base_id, layer=None, context_label='grap
             raise UnsupportedBoard('empty polygon graphic is not represented')
         out = []
         for idx in range(count):
-            outer = _extract_poly_ring(poly_set.Outline(idx))
-            holes = [_extract_poly_ring(poly_set.Hole(idx, h)) for h in range(poly_set.HoleCount(idx))]
+            outline_ring = poly_set.Outline(idx)
+            if outline_ring.ArcCount() != 0:
+                raise UnsupportedBoard(f'{context_label} curved arc polygon graphics are not represented')
+            outer = _extract_poly_ring(outline_ring)
+            if len(outer) < 3:
+                raise UnsupportedBoard('degenerate polygon graphic is not represented')
+            holes = []
+            for h in range(poly_set.HoleCount(idx)):
+                hole_ring = poly_set.Hole(idx, h)
+                if hole_ring.ArcCount() != 0:
+                    raise UnsupportedBoard(f'{context_label} curved arc polygon holes are not represented')
+                hole = _extract_poly_ring(hole_ring)
+                if len(hole) < 3:
+                    raise UnsupportedBoard('degenerate polygon hole graphic is not represented')
+                holes.append(hole)
             shape_obj = {'kind': 'polygon', 'outer': outer, 'width_nm': width_nm, 'filled': filled}
             if holes:
                 shape_obj['holes'] = holes
@@ -1077,14 +1098,13 @@ def load_supported(path: Path, *, project_path: Path | None = None):
             settings.m_SolderMaskExpansion, settings.m_SolderMaskMinWidth,
             settings.m_SolderMaskToCopperClearance)):
         raise UnsupportedBoard('negative solder-mask rules are not represented')
-    mask_rules_active = (settings.m_SolderMaskMinWidth != 0 or settings.m_SolderMaskToCopperClearance != 0)
     for drawing in board.GetDrawings():
         layer = drawing.GetLayer()
         if layer in cu_set:
             _check_graphic_drawing(drawing, context_label='board copper', layer=layer)
         elif pcbnew.IsCopperLayer(layer):
             raise UnsupportedBoard('board copper on disabled layer is not represented')
-        elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE) or type(drawing) is pcbnew.PCB_TEXT):
+        elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
             _check_graphic_drawing(drawing, context_label='board solder-mask', layer=layer)
     for footprint in board.GetFootprints():
         fp_clr = footprint.GetLocalClearance()
@@ -1099,8 +1119,16 @@ def load_supported(path: Path, *, project_path: Path | None = None):
         if footprint.IsNetTie():
             raise UnsupportedBoard('net-tie connectivity is not represented')
         for field in footprint.GetFields():
-            if pcbnew.IsCopperLayer(field.GetLayer()):
+            field_layer = field.GetLayer()
+            if pcbnew.IsCopperLayer(field_layer):
                 raise UnsupportedBoard('footprint copper fields are not represented')
+            if (
+                field_layer in (pcbnew.F_Mask, pcbnew.B_Mask)
+                and field.IsVisible()
+                and not footprint.AllowSolderMaskBridges()
+                and not settings.m_AllowSoldermaskBridgesInFPs
+            ):
+                raise UnsupportedBoard('footprint solder-mask fields are not represented')
         for drawing in footprint.GraphicalItems():
             layer = drawing.GetLayer()
             if layer == pcbnew.Margin:
@@ -1109,7 +1137,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
                 _check_graphic_drawing(drawing, context_label='footprint copper', layer=layer)
             elif pcbnew.IsCopperLayer(layer):
                 raise UnsupportedBoard('footprint copper on disabled layer is not represented')
-            elif layer in (pcbnew.F_Mask, pcbnew.B_Mask) and (mask_rules_active or isinstance(drawing, pcbnew.PCB_SHAPE) or type(drawing) is pcbnew.PCB_TEXT):
+            elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
                 if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
                     _check_graphic_drawing(drawing, context_label='footprint solder-mask', layer=layer)
         for pad in footprint.Pads():
@@ -1630,10 +1658,6 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     rule_areas.sort(key=lambda item: item['id'])
     zones.sort(key=lambda item: (-item['priority'], item['net'], item['id']))
 
-    mask_rules_from_json = rules is not None and (
-        rules.get('solder_mask_to_copper_clearance_nm', 0) > 0
-        or rules.get('solder_mask_min_width_nm', 0) > 0
-    )
     mask_apertures = []
     for drawing in board.GetDrawings():
         layer = drawing.GetLayer()
@@ -1647,7 +1671,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
                 for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='board solder-mask'):
                     mask_apertures.append({'id': item_uuid, 'layer': layer_name, 'shape': shape_obj})
-            elif mask_rules_from_json:
+            else:
                 _check_graphic_drawing(drawing, context_label='board solder-mask', layer=layer)
 
     for footprint in board.GetFootprints():
@@ -1669,7 +1693,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                             if fp_mask_net is not None:
                                 aperture['net'] = fp_mask_net
                             mask_apertures.append(aperture)
-                    elif mask_rules_from_json:
+                    else:
                         _check_graphic_drawing(drawing, context_label='footprint solder-mask', layer=layer)
 
     graphics.sort(key=lambda item: (item['layer'], item['net'], item['id']))
