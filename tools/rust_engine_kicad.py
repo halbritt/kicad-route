@@ -2057,7 +2057,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     # Geometry uses KiCad's stable layer IDs. DRU selectors can also match
     # the display names stored in the board.
     aliases = {}
-    for layer, canonical in zip(cu_layers, layer_names):
+    for layer in [*cu_layers, pcbnew.F_Mask, pcbnew.B_Mask]:
+        canonical = pcbnew.LayerName(layer)
         display = board.GetLayerName(layer)
         if display != canonical:
             aliases[canonical] = display
@@ -2638,10 +2639,21 @@ def _filter_active_net_codes(board, net_filters: list[str]) -> set[int]:
 def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, net_filters: list[str]) -> None:
     key = lambda item: json.dumps(item, sort_keys=True)
     if not net_filters:
-        if saved.GetConnectivity().GetUnconnectedCount(False) != 0:
-            raise NativeValidationError('native connectivity still has open connections')
-        if after_drc['unconnected_items']:
-            raise NativeValidationError('native DRC still reports open connections')
+        count = saved.GetConnectivity().GetUnconnectedCount(False)
+        opens = after_drc['unconnected_items']
+        if count or opens:
+            reason = f'native connectivity still has open connections (connectivity: {count}, DRC: {len(opens)})'
+            pairs = []
+            for entry in opens[:3]:
+                items = entry.get('items', []) if isinstance(entry, dict) else []
+                if isinstance(items, list):
+                    labels = [str(item['description'])[:160] for item in items[:2]
+                              if isinstance(item, dict) and item.get('description')]
+                    if labels:
+                        pairs.append(' to '.join(labels))
+            if pairs:
+                reason += '. ' + ' / '.join(pairs)
+            raise NativeValidationError(reason)
         return
     introduced_unconnected = Counter(map(key, after_drc['unconnected_items'])) - Counter(
         map(key, before_drc['unconnected_items'])

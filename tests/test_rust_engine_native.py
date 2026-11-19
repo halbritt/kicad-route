@@ -704,7 +704,10 @@ def test_native_apply_cli_reports_typed_validation_failure(native_board, expecte
     result = run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'),
                   'apply', str(native_board), str(plan), str(output), '--request', str(expected_request)], check=False)
     assert result.returncode == 2
-    assert json.loads(result.stderr.splitlines()[-1])['status'] == 'native_validation_failed'
+    failure = json.loads(result.stderr.splitlines()[-1])
+    assert failure['status'] == 'native_validation_failed'
+    assert 'DRC: 1' in failure['reason']
+    assert 'J1' in failure['reason'] and 'J2' in failure['reason']
     assert not output.exists()
 
 
@@ -1986,7 +1989,7 @@ def test_route_native_accepts_valid_sidecars_and_multilayer_vias_end_to_end(
     board = pcbnew.LoadBoard(str(native_board))
     board.SetCopperLayerCount(4)
     aliases = {pcbnew.F_Cu: 'top_copper', pcbnew.In1_Cu: 'pwr_plane',
-               pcbnew.B_Cu: 'bottom_copper'} if renamed else {}
+               pcbnew.B_Cu: 'bottom_copper', pcbnew.F_Mask: 'front_mask'} if renamed else {}
     for layer, name in aliases.items():
         assert board.SetLayerName(layer, name)
     fps = list(board.GetFootprints())
