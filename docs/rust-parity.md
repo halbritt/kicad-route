@@ -76,10 +76,15 @@ with the input project and zone refill measured zero errors and the same
 bytes, with 419 tracks, 1,126.734 mm of track and three vias. Each consumed
 88,458 of 100,000 expansions and 46,030,166 of 100,000,000 work units.
 
+At `c5beac7` under the same project and limits, KiCad again found zero opens,
+zero errors and the original 68 warnings. The board contained 417 tracks,
+1,127.210 mm of track and three vias. This run used 88,046 expansions and
+46,609,487 work units.
+
 The archived four-layer `tigard_fab` case uses the corpus's revision-2 fab
 rules. Its 92 footprints have 290 opens under those rules. After importing
 its stencil apertures and compound jumper pads, Rust reached its default
-100,000-expansion limit at `95b3968`. It published no board. The archived
+100,000-expansion limit at both `95b3968` and `c5beac7`. Neither run published a board. The archived
 reference router output on the same PCB and project has zero opens and
 retains the input's six errors and 94 warnings. On the separate four-layer
 One-Air-Max input, KiCad reports invalid padstacks on U6 pads 3, 4, 7 and 9.
@@ -105,9 +110,9 @@ fixture/dependency audit. Exact sources: author acknowledgment
 `548f3176-7052-4ac4-a9e2-af64968d2ddc/v1`.
 
 Direct dependencies are fixed in Cargo.toml (`serde 1.0.229`,
-`serde_json 1.0.154`, `sha2 0.11.0`); Cargo.lock records transitive versions,
-sources and checksums. Lock SHA-256 at the reviewed candidate is
-`4b5a525c5100fa630537508b9f1bd679872d3fc4b55f72d70436ab1970b4861f`.
+`serde_json 1.0.154`, `sha2 0.11.0` and Linux `libc 0.2.191`). Cargo.lock records
+transitive versions, sources and checksums. Its SHA-256 at `8e7af2f` is
+`dc3bb9a7506e055c206f9876907b21a718d7f20cc44b94d6dbd778323ba010ca`.
 Keep root LICENSE and the separately retained KRT router/LICENSE; preserve
 applicable dependency and future reused-source notices. Record source, version,
 license and modifications when code or test material is reused.
