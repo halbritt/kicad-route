@@ -1677,3 +1677,90 @@ elif cmd == "apply":
     assert!(out_pcb.exists());
     assert!(MAX_REQUEST_BYTES == 16 * 1024 * 1024);
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn killing_standalone_router_reaps_native_family_and_its_stage_only() {
+    let ws = Workspace::new("parent-death");
+    let source = ws.write("board.kicad_pcb", b"(kicad_pcb)");
+    let tmp = ws.path("temp");
+    let marker = ws.write("temp/foreign/marker", b"keep");
+    let pids = ws.path("pids");
+    let bridge = write_stub_bridge(
+        &ws,
+        "finite_bridge.py",
+        &format!(
+            r#"import os, pathlib, subprocess, sys, time
+child=subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"])
+p=pathlib.Path({pids:?})
+pending=p.with_suffix(".tmp")
+pending.write_text(str(os.getpid())+" "+str(child.pid))
+os.replace(pending,p)
+time.sleep(5)
+"#
+        ),
+    );
+    let destination = ws.path("candidate.kicad_pcb");
+    let result = ws.path("operation.json");
+    let mut parent = Command::new(engine_bin())
+        .arg("route-native")
+        .arg(source)
+        .arg(&destination)
+        .arg("--native-bridge")
+        .arg(bridge)
+        .arg("--operation-result")
+        .arg(&result)
+        .env("TMPDIR", &tmp)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let start = Instant::now();
+    while !pids.exists() && start.elapsed() < Duration::from_secs(3) {
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(pids.exists(), "native child and grandchild failed to start");
+    assert!(
+        fs::read_dir(&tmp).unwrap().count() > 1,
+        "expected a private stage"
+    );
+    parent.kill().unwrap();
+    assert!(!parent.wait().unwrap().success());
+    for pid in fs::read_to_string(&pids).unwrap().split_whitespace() {
+        wait_for_proc_exit(pid.parse().unwrap(), Duration::from_secs(2));
+    }
+    let cleanup = Instant::now();
+    while fs::read_dir(&tmp).unwrap().count() != 1 && cleanup.elapsed() < Duration::from_secs(2) {
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(fs::read_dir(&tmp).unwrap().count(), 1);
+    assert_eq!(fs::read(marker).unwrap(), b"keep");
+    assert!(!destination.exists() && !result.exists());
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn staging_owner_leaves_replacement_directory_and_its_contents() {
+    use std::io::{BufRead, BufReader};
+    let ws = Workspace::new("stage-replaced");
+    let mut owner = Command::new(engine_bin())
+        .arg("--internal-native-stage-owner")
+        .arg(&ws.dir)
+        .arg("kicad-route-op-")
+        .arg("test-identity")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut line = String::new();
+    BufReader::new(owner.stdout.take().unwrap())
+        .read_line(&mut line)
+        .unwrap();
+    let stage = ws.path(line.split_whitespace().next().unwrap());
+    fs::rename(&stage, ws.path("moved")).unwrap();
+    fs::create_dir(&stage).unwrap();
+    fs::write(stage.join("other-job"), b"preserve").unwrap();
+    drop(owner.stdin.take());
+    assert!(owner.wait().unwrap().success());
+    assert_eq!(fs::read(stage.join("other-job")).unwrap(), b"preserve");
+}
