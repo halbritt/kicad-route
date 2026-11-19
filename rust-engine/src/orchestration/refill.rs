@@ -111,6 +111,7 @@ mod tests {
             input.max_expansions = 100;
             input.limits.max_work = 100;
             let mut first = Output {
+                diff_pairs: Vec::new(),
                 bus_groups: Vec::new(),
                 version: crate::model::RESULT_VERSION,
                 source_id: input.source_id.clone(),

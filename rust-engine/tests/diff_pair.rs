@@ -1411,6 +1411,7 @@ fn optional_external_fixture_roundtrip_hook() {
     let tracks: Vec<Track> = eng.copper().generated().cloned().collect();
     let vias: Vec<Via> = eng.copper().generated_vias().cloned().collect();
     let out = Output {
+        diff_pairs: Vec::new(),
         bus_groups: Vec::new(),
         version: RESULT_VERSION,
         request_sha256: req_sha,
@@ -5659,4 +5660,37 @@ fn small_delta_single_ended_and_coupled_diff_pair_group_matching() {
     assert_eq!(out_ok.status, Status::Complete, "{:?}", out_ok.reason);
     let out_fail = mk_amp_ctrl(50_000);
     assert_eq!(out_fail.status, Status::Unroutable, "{:?}", out_fail.reason);
+}
+
+#[test]
+fn published_pair_disposition_distinguishes_new_existing_and_single_ended_copper() {
+    let mut board = base_diff_input(&["A_P", "A_N"]);
+    board.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        ..Default::default()
+    });
+    let routed = kicad_route_engine::run(board.clone());
+    assert_eq!(routed.status, Status::Complete, "{:?}", routed.reason);
+    let [pair] = routed.diff_pairs.as_slice() else {
+        panic!("expected one pair")
+    };
+    assert_eq!((pair.pos_net, pair.neg_net), (1, 2));
+    assert_eq!(
+        (&*pair.pos_name, &*pair.neg_name, &*pair.class_name),
+        ("A_P", "A_N", "DIFF")
+    );
+    assert_eq!(pair.disposition, PairDisposition::Coupled);
+    board.tracks = routed.added_tracks;
+    board.vias = routed.added_vias;
+    let retained = kicad_route_engine::run(board.clone());
+    assert_eq!(retained.status, Status::Complete, "{:?}", retained.reason);
+    assert!(retained.added_tracks.is_empty());
+    assert_eq!(
+        retained.diff_pairs[0].disposition,
+        PairDisposition::Existing
+    );
+    board.routing_options = None;
+    let plain = kicad_route_engine::run(board);
+    assert_eq!(plain.status, Status::Complete);
+    assert!(plain.diff_pairs.is_empty());
 }

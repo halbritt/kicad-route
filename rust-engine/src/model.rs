@@ -902,8 +902,30 @@ pub enum Status {
     NestingExhausted,
     InternalError,
 }
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PairDisposition {
+    Coupled,
+    Existing,
+    Unverified,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RoutedPair {
+    pub pos_net: u32,
+    pub neg_net: u32,
+    pub pos_name: String,
+    pub neg_name: String,
+    pub class_name: String,
+    pub width_nm: i64,
+    pub gap_nm: i64,
+    pub disposition: PairDisposition,
+}
+
 #[derive(Debug, Serialize)]
 pub struct Output {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub diff_pairs: Vec<RoutedPair>,
     /// Groups of single-ended net IDs, in physical lane order, used by this solve.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub bus_groups: Vec<Vec<u32>>,

@@ -342,6 +342,8 @@ pub struct PhaseRecord {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RoutingSummary {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diff_pairs: Vec<crate::model::RoutedPair>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bus_groups: Vec<Vec<u32>>,
     pub result_version: u32,
     pub status: String,
@@ -2063,6 +2065,7 @@ fn push_failed_phase(
 
 fn summarize_routing(route_output: &crate::model::Output) -> RoutingSummary {
     RoutingSummary {
+        diff_pairs: route_output.diff_pairs.clone(),
         bus_groups: route_output.bus_groups.clone(),
         result_version: route_output.version,
         status: serde_json::to_value(route_output.status)

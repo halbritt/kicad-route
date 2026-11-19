@@ -3374,6 +3374,10 @@ impl Engine {
         })
     }
     pub fn route_all(&mut self) -> Result<u64, Failure> {
+        self.route_all_with_pairs().map(|(expanded, _)| expanded)
+    }
+
+    fn route_all_with_pairs(&mut self) -> Result<(u64, Vec<RoutedPair>), Failure> {
         self.last_negotiation_stats = None;
         self.bus_plan = bus::BusPlan::default();
         self.delay_profile_layers.clear();
@@ -3393,6 +3397,28 @@ impl Engine {
             } else {
                 let mut adapter = diff_pair::CompositeRouteAdapter::new(diff_state.clone());
                 let _stats = negotiate::solve_with_adapter(tx, &mut adapter, &mut expanded)?;
+            }
+            // Pair units never fall back to single-ended routing. Inspect surviving
+            // copper after negotiation, before any length tuning can add tracks.
+            let mut pairs = Vec::with_capacity(diff_state.plan.pairs.len());
+            for pair in &diff_state.plan.pairs {
+                tx.engine.work.charge(1)?;
+                let pos = tx.engine.copper.has_generated_for_net(pair.pos_net);
+                let neg = tx.engine.copper.has_generated_for_net(pair.neg_net);
+                pairs.push(RoutedPair {
+                    pos_net: pair.pos_net,
+                    neg_net: pair.neg_net,
+                    pos_name: pair.pos_name.clone(),
+                    neg_name: pair.neg_name.clone(),
+                    class_name: pair.class_name.clone(),
+                    width_nm: pair.width_nm,
+                    gap_nm: pair.gap_nm,
+                    disposition: match (pos, neg) {
+                        (true, true) => PairDisposition::Coupled,
+                        (false, false) => PairDisposition::Existing,
+                        _ => PairDisposition::Unverified,
+                    },
+                });
             }
             diff_pair::apply_length_matching_in_tx(tx.engine, &diff_state).map_err(|mut e| {
                 if e.expanded_states == 0 {
@@ -3431,7 +3457,7 @@ impl Engine {
                     ));
                 }
             }
-            Ok(expanded)
+            Ok((expanded, pairs))
         });
         self.delay_profile_layers.clear();
         res
@@ -3488,6 +3514,7 @@ pub(crate) fn scoped_routing_failure(mut e: Failure, net: u32) -> Failure {
 impl Output {
     pub fn failure(source_id: String, e: Failure) -> Self {
         Self {
+            diff_pairs: Vec::new(),
             bus_groups: Vec::new(),
             version: RESULT_VERSION,
             request_sha256: None,
@@ -3516,8 +3543,9 @@ fn run_unidentified(input: Input, control: Option<budget::RouteControl>) -> Outp
         Ok(e) => e,
         Err(e) => return Output::failure(source, e),
     };
-    match engine.route_all() {
-        Ok(expanded) => Output {
+    match engine.route_all_with_pairs() {
+        Ok((expanded, diff_pairs)) => Output {
+            diff_pairs,
             bus_groups: engine.bus_groups(),
             version: RESULT_VERSION,
             request_sha256: None,
